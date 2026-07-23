@@ -1,30 +1,15 @@
-import fs from 'fs';
-import path from 'path';
 import { PublicUser, UserRecord, UserRole } from './types';
 import { hashPassword, verifyPassword } from './passwords';
+import { readJsonBlob, writeJsonBlob } from './blobStore';
 
-const DATA_FILE = path.join(process.cwd(), 'data', 'users.json');
+const DATA_PATHNAME = 'data/users.json';
 
-function ensureDataFile(): void {
-  const dir = path.dirname(DATA_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]\n', 'utf-8');
+async function readUsersRaw(): Promise<UserRecord[]> {
+  return readJsonBlob<UserRecord[]>(DATA_PATHNAME, []);
 }
 
-function readUsersRaw(): UserRecord[] {
-  ensureDataFile();
-  const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeUsersRaw(users: UserRecord[]): void {
-  ensureDataFile();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(users, null, 2) + '\n', 'utf-8');
+async function writeUsersRaw(users: UserRecord[]): Promise<void> {
+  await writeJsonBlob(DATA_PATHNAME, users);
 }
 
 // One-time bootstrap: if no users exist yet, seed a single superadmin account
@@ -48,12 +33,12 @@ async function ensureSeedAdmin(users: UserRecord[]): Promise<UserRecord[]> {
     createdAt: new Date().toISOString()
   };
   const next = [seeded];
-  writeUsersRaw(next);
+  await writeUsersRaw(next);
   return next;
 }
 
 async function readUsers(): Promise<UserRecord[]> {
-  return ensureSeedAdmin(readUsersRaw());
+  return ensureSeedAdmin(await readUsersRaw());
 }
 
 function toPublicUser(user: UserRecord): PublicUser {
@@ -110,7 +95,7 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
     createdAt: new Date().toISOString()
   };
   users.push(record);
-  writeUsersRaw(users);
+  await writeUsersRaw(users);
   return toPublicUser(record);
 }
 
@@ -137,7 +122,7 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Pu
     passwordHash: patch.password ? await hashPassword(patch.password) : current.passwordHash
   };
   users[index] = updated;
-  writeUsersRaw(users);
+  await writeUsersRaw(users);
   return toPublicUser(updated);
 }
 
@@ -145,7 +130,7 @@ export async function deleteUser(id: string): Promise<boolean> {
   const users = await readUsers();
   const next = users.filter((u) => u.id !== id);
   if (next.length === users.length) return false;
-  writeUsersRaw(next);
+  await writeUsersRaw(next);
   return true;
 }
 

@@ -1,31 +1,16 @@
-import fs from 'fs';
-import path from 'path';
 import { QuotationRecord } from './types';
 import { computeQuotationPrefix, formatQuotationNumber } from './quotationNumber';
 import { DomainKey } from './types';
+import { readJsonBlob, writeJsonBlob } from './blobStore';
 
-const DATA_FILE = path.join(process.cwd(), 'data', 'quotations.json');
+const DATA_PATHNAME = 'data/quotations.json';
 
-function ensureDataFile(): void {
-  const dir = path.dirname(DATA_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]\n', 'utf-8');
+async function readQuotations(): Promise<QuotationRecord[]> {
+  return readJsonBlob<QuotationRecord[]>(DATA_PATHNAME, []);
 }
 
-function readQuotations(): QuotationRecord[] {
-  ensureDataFile();
-  const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeQuotations(records: QuotationRecord[]): void {
-  ensureDataFile();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(records, null, 2) + '\n', 'utf-8');
+async function writeQuotations(records: QuotationRecord[]): Promise<void> {
+  await writeJsonBlob(DATA_PATHNAME, records);
 }
 
 export interface CreateQuotationInput {
@@ -51,8 +36,8 @@ export interface CreateQuotationInput {
   validityDays?: number;
 }
 
-export function createQuotation(input: CreateQuotationInput): QuotationRecord {
-  const records = readQuotations();
+export async function createQuotation(input: CreateQuotationInput): Promise<QuotationRecord> {
+  const records = await readQuotations();
   const now = new Date();
   const prefix = input.prefix || computeQuotationPrefix(input.domains || []);
   const year = now.getFullYear();
@@ -97,20 +82,20 @@ export function createQuotation(input: CreateQuotationInput): QuotationRecord {
   };
 
   records.push(record);
-  writeQuotations(records);
+  await writeQuotations(records);
   return record;
 }
 
-export function deleteQuotation(id: string): boolean {
-  const records = readQuotations();
+export async function deleteQuotation(id: string): Promise<boolean> {
+  const records = await readQuotations();
   const next = records.filter((r) => r.id !== id);
   if (next.length === records.length) return false;
-  writeQuotations(next);
+  await writeQuotations(next);
   return true;
 }
 
-export function searchQuotations(query?: string): QuotationRecord[] {
-  const records = readQuotations();
+export async function searchQuotations(query?: string): Promise<QuotationRecord[]> {
+  const records = await readQuotations();
   const sorted = [...records].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
   if (!query || !query.trim()) return sorted;
 
@@ -149,8 +134,8 @@ function csvEscape(value: unknown): string {
   return str;
 }
 
-export function buildQuotationsCsv(): string {
-  const records = searchQuotations();
+export async function buildQuotationsCsv(): Promise<string> {
+  const records = await searchQuotations();
   const header = CSV_COLUMNS.map((c) => csvEscape(c.header)).join(',');
   const rows = records.map((r) => CSV_COLUMNS.map((c) => csvEscape(r[c.key])).join(','));
   return [header, ...rows].join('\r\n') + '\r\n';

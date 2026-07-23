@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { createUser, findUserByUsername, listUsers } from '@/lib/userStore';
 import { UserRole } from '@/lib/types';
+import { apiErrorResponse } from '@/lib/apiError';
 
 // Base auth + admin/superadmin gating happens in proxy.ts (matcher: /api/admin/:path*).
 export async function GET() {
-  const users = await listUsers();
-  return NextResponse.json(users);
+  try {
+    const users = await listUsers();
+    return NextResponse.json(users);
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -33,10 +38,15 @@ export async function POST(request: NextRequest) {
   if (password.length < 6) {
     return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
   }
-  if (await findUserByUsername(username)) {
-    return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
-  }
 
-  const user = await createUser({ username, password, name, phone, email, role: requestedRole });
-  return NextResponse.json(user, { status: 201 });
+  try {
+    if (await findUserByUsername(username)) {
+      return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
+    }
+
+    const user = await createUser({ username, password, name, phone, email, role: requestedRole });
+    return NextResponse.json(user, { status: 201 });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
 }
