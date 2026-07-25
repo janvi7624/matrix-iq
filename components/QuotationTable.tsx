@@ -5,7 +5,7 @@ import { LineItem, ProductGroup, QuotationRecord } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import styles from './quotationHistory.module.css';
 
-interface ProductDetailGroup extends Pick<ProductGroup, 'label'> {
+interface ProductDetailGroup extends Pick<ProductGroup, 'label' | 'remark'> {
   lineItems: LineItem[];
 }
 
@@ -33,7 +33,8 @@ function renderProductDetail(productsJson: string): string {
             `  - ${li.description}  |  Qty: ${li.qty} ${li.unit || ''}  |  Rate: ${formatMoney(li.rate)}  |  Amount: ${formatMoney(li.amount)}`
         )
         .join('\n');
-      return `${group.label}\n${lines}`;
+      const remarkLine = group.remark && group.remark.trim() ? `\n  Remark: ${group.remark.trim()}` : '';
+      return `${group.label}\n${lines}${remarkLine}`;
     })
     .join('\n\n');
 }

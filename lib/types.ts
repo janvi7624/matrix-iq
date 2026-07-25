@@ -1,4 +1,4 @@
-export type DomainKey = 'av' | 'robotics' | 'ai' | 'si';
+export type DomainKey = 'av' | 'robotics' | 'ai' | 'si' | 'visitiq';
 
 export type AvProjectType = 'standee' | 'led' | 'interactive-panel' | 'conference' | 'cables' | 'av-solution';
 
@@ -14,6 +14,8 @@ export interface ProductGroup {
   label: string;
   start: number;
   end: number;
+  // Optional sales note attached to this product — see CartItem.remark.
+  remark?: string;
 }
 
 export interface DomainResult {
@@ -26,6 +28,10 @@ export interface DomainResult {
 
 export interface CartItem extends DomainResult {
   id: number;
+  // Optional free-text note a sales person can attach to this specific
+  // product once it's in the quote (e.g. "customer requested faster
+  // install"). Shown in the cart list and printed on the PDF/quotation record.
+  remark?: string;
 }
 
 export interface Discount {

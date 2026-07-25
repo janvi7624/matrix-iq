@@ -16,6 +16,7 @@ import CablesEstimator from './estimators/CablesEstimator';
 import RoboticsEstimator from './estimators/RoboticsEstimator';
 import AiAnalyticsEstimator from './estimators/AiAnalyticsEstimator';
 import SiEstimator from './estimators/SiEstimator';
+import VisitIqEstimator from './estimators/VisitIqEstimator';
 import QuotationDetailsForm from './QuotationDetailsForm';
 import CostInputsSection from './CostInputsSection';
 import CartList from './CartList';
@@ -28,7 +29,8 @@ const DOMAIN_DISPLAY_NAME: Record<DomainKey, string> = {
   av: 'AV',
   robotics: 'Robotics',
   ai: 'AI Video Analytics',
-  si: 'System Integration'
+  si: 'System Integration',
+  visitiq: 'VisitIQ VMS'
 };
 
 const DEFAULT_COST_INPUTS: CostInputs = { installationCost: 0, fabricationCost: 0, scaffoldingCost: 0, markupPercent: 0 };
@@ -50,7 +52,7 @@ export interface CurrentUser {
 
 function defaultDetails(currentUser: CurrentUser): QuotationDetails {
   return {
-    quotationNumber: generateDraftQuotationNumber(computeQuotationPrefix(['av'])),
+    quotationNumber: generateDraftQuotationNumber(computeQuotationPrefix([])),
     preparedBy: currentUser.name,
     preparedByPhone: currentUser.phone,
     preparedByEmail: currentUser.email,
@@ -71,8 +73,12 @@ interface QuotationCalculatorProps {
 
 export default function QuotationCalculator({ currentUser }: QuotationCalculatorProps) {
   const router = useRouter();
-  const [domain, setDomain] = useState<DomainKey>('av');
-  const [avProjectType, setAvProjectType] = useState<AvProjectType>('standee');
+  // Nothing is pre-selected — on login and again after every "Add to Quote",
+  // the domain/product-type pickers start blank so a sales rep always has to
+  // make an explicit choice for the next product, instead of a leftover
+  // selection looking like it's still pending or getting added twice.
+  const [domain, setDomain] = useState<DomainKey | ''>('');
+  const [avProjectType, setAvProjectType] = useState<AvProjectType | ''>('');
   const [costInputs, setCostInputs] = useState<CostInputs>(DEFAULT_COST_INPUTS);
   const [details, setDetails] = useState<QuotationDetails>(() => defaultDetails(currentUser));
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -108,7 +114,7 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
   const activeDomains = useMemo(() => {
     const domains = new Set(cartItems.map((i) => i.domainKey));
     if (activeResult) domains.add(activeResult.domainKey);
-    else domains.add(domain);
+    else if (domain) domains.add(domain);
     return [...domains];
   }, [cartItems, activeResult, domain]);
 
@@ -117,10 +123,12 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
     setDetails((d) => ({ ...d, quotationNumber: refreshDraftQuotationNumber(d.quotationNumber, prefix) }));
   }
 
-  function handleDomainChange(next: DomainKey) {
+  function handleDomainChange(next: DomainKey | '') {
     setDomain(next);
+    setAvProjectType('');
+    setActiveResult(null);
     const domains = new Set(cartItems.map((i) => i.domainKey));
-    domains.add(next);
+    if (next) domains.add(next);
     patchQuotationNumberForDomains([...domains]);
   }
 
@@ -142,12 +150,24 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
     const domains = new Set(cartItems.map((i) => i.domainKey));
     domains.add(activeResult.domainKey);
     patchQuotationNumberForDomains([...domains]);
+
+    // Force an explicit choice for the next product — leaving the just-added
+    // configuration on screen reads as "still pending" to sales reps and
+    // risks it being duplicated or mistaken for not-yet-added.
+    setDomain('');
+    setAvProjectType('');
+    setActiveResult(null);
+    setInteractivePanelPreset(null);
+    setConferencePreset(null);
+    setCablesPreset(null);
+    setLedPreset(null);
+    setResetKey((k) => k + 1);
   }
 
   function buildQuotationPayload() {
     const products = composition.productGroups
       .filter((g) => g.end > g.start)
-      .map((g) => ({ label: g.label, lineItems: composition.lineItems.slice(g.start, g.end) }));
+      .map((g) => ({ label: g.label, lineItems: composition.lineItems.slice(g.start, g.end), remark: g.remark }));
     const domainSummary = activeDomains.map((d) => DOMAIN_DISPLAY_NAME[d] || d).join(', ');
     return {
       domains: activeDomains,
@@ -225,8 +245,8 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
   }
 
   function handleReset() {
-    setDomain('av');
-    setAvProjectType('standee');
+    setDomain('');
+    setAvProjectType('');
     setCostInputs(DEFAULT_COST_INPUTS);
     setDetails(defaultDetails(currentUser));
     setCartItems([]);
@@ -288,11 +308,13 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
           <div className={`${styles.row} ${styles.columns}`}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="domainSelect">Domain</label>
-              <select id="domainSelect" className={styles.formControl} value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey)}>
+              <select id="domainSelect" className={styles.formControl} value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey | '')}>
+                <option value="">-- Select domain --</option>
                 <option value="av">AV</option>
                 <option value="robotics">Robotics</option>
                 <option value="ai">AI Video Analytics (VMS)</option>
                 <option value="si">System Integration</option>
+                <option value="visitiq">VisitIQ VMS (Visitor Management)</option>
               </select>
             </div>
             <div className={styles.field}>
@@ -320,7 +342,8 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
           <div className={styles.row}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="projectType">Project type</label>
-              <select id="projectType" className={styles.formControl} value={avProjectType} onChange={(e) => setAvProjectType(e.target.value as AvProjectType)}>
+              <select id="projectType" className={styles.formControl} value={avProjectType} onChange={(e) => setAvProjectType(e.target.value as AvProjectType | '')}>
+                <option value="">-- Select product type --</option>
                 <option value="av-solution">AV Solution (suggest by room size)</option>
                 <option value="standee">Standee</option>
                 <option value="led">LED Display</option>
@@ -328,6 +351,16 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
                 <option value="conference">Conferencing Cameras &amp; Microphones</option>
                 <option value="cables">AV Cables</option>
               </select>
+            </div>
+          </div>
+        )}
+
+        {((!domain) || (isAv && !avProjectType)) && (
+          <div className={styles.domainPanel}>
+            <div className={styles.small}>
+              {!domain
+                ? 'Select a domain above to start configuring a product for this quote.'
+                : 'Select a product type above to start configuring this product.'}
             </div>
           </div>
         )}
@@ -377,6 +410,7 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
         <RoboticsEstimator key={`robotics-${resetKey}`} active={domain === 'robotics'} onResultChange={setActiveResult} />
         <AiAnalyticsEstimator key={`ai-${resetKey}`} active={domain === 'ai'} onResultChange={setActiveResult} />
         <SiEstimator key={`si-${resetKey}`} active={domain === 'si'} onResultChange={setActiveResult} />
+        <VisitIqEstimator key={`visitiq-${resetKey}`} active={domain === 'visitiq'} onResultChange={setActiveResult} />
 
         <QuotationDetailsForm details={details} onChange={(patch) => setDetails((d) => ({ ...d, ...patch }))} />
 
@@ -395,8 +429,11 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
             onRemove={(id) => {
               setCartItems((prev) => prev.filter((p) => p.id !== id));
               const domains = new Set(cartItems.filter((p) => p.id !== id).map((i) => i.domainKey));
-              domains.add(domain);
+              if (domain) domains.add(domain);
               patchQuotationNumberForDomains([...domains]);
+            }}
+            onChangeRemark={(id, remark) => {
+              setCartItems((prev) => prev.map((p) => (p.id === id ? { ...p, remark } : p)));
             }}
           />
 

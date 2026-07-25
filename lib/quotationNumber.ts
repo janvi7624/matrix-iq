@@ -4,7 +4,8 @@ export const DOMAIN_QUOTE_PREFIX: Record<DomainKey, string> = {
   av: 'AV',
   robotics: 'ROBO',
   ai: 'AI',
-  si: 'SI'
+  si: 'SI',
+  visitiq: 'VIQ'
 };
 
 export function computeQuotationPrefix(domains: DomainKey[]): string {

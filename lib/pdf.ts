@@ -23,21 +23,32 @@ function buildPdfTableRows(lineItems: LineItem[], productGroups: ProductGroup[])
   let sr = 1;
   const asRow = (item: LineItem) => [String(sr++), item.description, item.unit, String(item.qty), formatNumberPdf(item.rate), formatNumberPdf(item.amount)];
 
-  if (groups.length <= 1) {
+  if (!groups.length) {
     lineItems.forEach((item) => rows.push(asRow(item)));
     return rows;
   }
 
   groups.forEach((group, gi) => {
-    rows.push([
-      {
-        content: `Product ${gi + 1}: ${group.label}`,
-        colSpan: 6,
-        styles: { fillColor: [243, 244, 246], fontStyle: 'bold', textColor: [17, 24, 39], halign: 'left' }
-      }
-    ]);
+    if (groups.length > 1) {
+      rows.push([
+        {
+          content: `Product ${gi + 1}: ${group.label}`,
+          colSpan: 6,
+          styles: { fillColor: [243, 244, 246], fontStyle: 'bold', textColor: [17, 24, 39], halign: 'left' }
+        }
+      ]);
+    }
     for (let i = group.start; i < group.end; i++) {
       rows.push(asRow(lineItems[i]));
+    }
+    if (group.remark && group.remark.trim()) {
+      rows.push([
+        {
+          content: `Remark: ${group.remark.trim()}`,
+          colSpan: 6,
+          styles: { fillColor: [255, 255, 255], fontStyle: 'italic', fontSize: 8.5, textColor: [107, 114, 128], halign: 'left' }
+        }
+      ]);
     }
   });
   return rows;

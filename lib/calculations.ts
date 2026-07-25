@@ -35,7 +35,7 @@ export function composeQuote(params: {
   cartItems.forEach((item) => {
     const start = lineItems.length;
     lineItems.push(...item.lineItems);
-    productGroups.push({ label: item.label, start, end: lineItems.length });
+    productGroups.push({ label: item.label, start, end: lineItems.length, remark: item.remark });
     cartTotal += item.subtotal;
   });
 
