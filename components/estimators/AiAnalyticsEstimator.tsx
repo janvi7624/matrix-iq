@@ -117,7 +117,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
         <div className={styles.field}>
           <label className={styles.label} htmlFor="aiPricingMode">Pricing mode</label>
           <select id="aiPricingMode" className={styles.formControl} value={pricingMode} onChange={(e) => setPricingMode(e.target.value as PricingMode)}>
-            <option value="ala-carte">À-la-carte (pick individual analytics)</option>
+            <option value="ala-carte">Individual Pricing (pick individual analytics)</option>
             <option value="bundle">Bundle (recommended package, best savings)</option>
           </select>
         </div>
@@ -147,7 +147,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
           <div className={styles.lineItemRow}>
             <span style={{ flex: 1 }}>
               Bundle price at {AI_SLAB_LABELS[slabIndex]}: <strong>{formatMoney(selectedBundle.tiers[slabIndex] / billingDivisor)}{periodUnitSuffix}</strong>
-              {' '}(à-la-carte value {formatMoney(selectedBundle.aLaCarteValue)}/cam/yr — save {selectedBundle.savingsPercent}%)
+              {' '}(Individual pricing value {formatMoney(selectedBundle.aLaCarteValue)}/cam/yr — save {selectedBundle.savingsPercent}%)
             </span>
           </div>
         </div>

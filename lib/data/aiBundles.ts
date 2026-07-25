@@ -123,7 +123,7 @@ export const AI_SALES_GUIDELINES = [
   'Bundle prices already include the volume discount — do NOT stack additional discounts without approval.',
   'Discount authority: up to 5% → Sales Executive · 5–10% → Sales Manager · >10% → Management.',
   'Floor price: never quote below the 500+ slab rate of a bundle for any deal.',
-  'Mix & match: if a client needs analytics across bundles, quote the nearest bundle + add à-la-carte features.',
+  'Mix & match: if a client needs analytics across bundles, quote the nearest bundle + add Individual Pricing features.',
   'Quote validity: 30 days. Benchmarked for Gujarat / West India, FY 2025–26.',
   'On-premise hardware (servers, GPU, storage, cameras, networking) is quoted SEPARATELY and is not part of the prices above.'
 ];
