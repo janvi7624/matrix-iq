@@ -74,7 +74,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
     <div className={styles.body}>
       <header className={styles.header}>
         <div className={styles.headerBrand}>
-          <Image src="/NANTA.jpeg" alt="NANTA logo" width={38} height={38} className={styles.headerLogo} unoptimized />
+          <Image src="/NANTA.png" alt="NANTA logo" width={38} height={38} className={styles.headerLogo} unoptimized />
           <div>
             <h1>{title}</h1>
             <div className={styles.sub}>{subtitle}</div>

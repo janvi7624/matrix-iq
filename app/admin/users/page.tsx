@@ -156,7 +156,7 @@ export default function ManageUsersPage() {
     <div className={historyStyles.body}>
       <header className={historyStyles.header}>
         <div className={historyStyles.headerBrand}>
-          <Image src="/NANTA.jpeg" alt="NANTA logo" width={38} height={38} className={historyStyles.headerLogo} unoptimized />
+          <Image src="/NANTA.png" alt="NANTA logo" width={38} height={38} className={historyStyles.headerLogo} unoptimized />
           <div>
             <h1>NANTA Admin — Manage Users</h1>
             <div className={historyStyles.sub}>Create and manage login accounts for the Sales Quotation Estimator.</div>
