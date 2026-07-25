@@ -73,9 +73,9 @@
     height: 50px;
     width: auto;
     border-radius: 14px;
-    background: #ffffff;
+    /* background:transparent; */
     padding: 8px;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    /* box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); */
 }
 .brandTitle {
     display: flex;
