@@ -41,7 +41,7 @@ function LoginForm() {
   return (
     <div className={styles.loginWrap}>
       <form className={styles.loginCard} onSubmit={handleSubmit}>
-        <Image src="/NANTA.jpeg" alt="NANTA logo" width={96} height={96} className={styles.loginLogo} unoptimized />
+        <Image src="/NANTA.png" alt="NANTA logo" width={96} height={96} className={styles.loginLogo} unoptimized />
         <h1>NANTA Sales Quotation Estimator</h1>
         <span className={styles.sub}>Sign in with your username and password to continue.</span>
         {error && <div className={styles.loginError}>{error}</div>}

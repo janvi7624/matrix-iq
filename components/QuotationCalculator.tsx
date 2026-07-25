@@ -296,7 +296,7 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
           </div>
         </div>
         <div className={styles.brandHeader}>
-          <Image src="/NANTA.jpeg" alt="NANTA logo" width={50} height={50} className={styles.brandLogo} unoptimized />
+          <Image src="/NANTA.png" alt="NANTA logo" width={50} height={50} className={styles.brandLogo} unoptimized />
           <div className={styles.brandTitle}>
             <h1 className={styles.h1}>Sales Quotation Estimator</h1>
             <span className={styles.tagline}>NANTA-branded estimator for standee and LED display pricing</span>

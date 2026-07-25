@@ -108,7 +108,7 @@ export async function generateQuotationPdf(input: QuotationPdfInput): Promise<vo
 
   let logoDataUrl: string | null = null;
   try {
-    logoDataUrl = await loadImageAsDataURL('/NANTA.jpeg');
+    logoDataUrl = await loadImageAsDataURL('/NANTA.png');
   } catch {
     logoDataUrl = null;
   }
