@@ -312,9 +312,9 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
                 <option value="">-- Select domain --</option>
                 <option value="av">AV</option>
                 <option value="robotics">Robotics</option>
-                <option value="ai">AI Video Analytics (VMS)</option>
+                <option value="ai">AI Video Analytics (Video Management System)</option>
                 <option value="si">System Integration</option>
-                <option value="visitiq">VisitIQ VMS (Visitor Management)</option>
+                <option value="visitiq">VisitIQ VMS (Visitor Management System)</option>
               </select>
             </div>
             <div className={styles.field}>
