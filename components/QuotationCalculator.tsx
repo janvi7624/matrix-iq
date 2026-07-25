@@ -321,6 +321,7 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
             <div className={styles.field}>
               <label className={styles.label} htmlFor="projectType">Project type</label>
               <select id="projectType" className={styles.formControl} value={avProjectType} onChange={(e) => setAvProjectType(e.target.value as AvProjectType)}>
+                <option value="av-solution">AV Solution (suggest by room size)</option>
                 <option value="standee">Standee</option>
                 <option value="led">LED Display</option>
                 <option value="interactive-panel">Interactive Flat Panel</option>
@@ -331,8 +332,9 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
           </div>
         )}
 
-        {isAv && (
+        {isAv && avProjectType === 'av-solution' && (
           <div className={styles.domainPanel}>
+            <h2 className={styles.h2}>AV Solution</h2>
             <div className={`${styles.row} ${styles.columns}`}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="roomSeats">Room size (number of seats)</label>

@@ -1,6 +1,6 @@
 export type DomainKey = 'av' | 'robotics' | 'ai' | 'si';
 
-export type AvProjectType = 'standee' | 'led' | 'interactive-panel' | 'conference' | 'cables';
+export type AvProjectType = 'standee' | 'led' | 'interactive-panel' | 'conference' | 'cables' | 'av-solution';
 
 export interface LineItem {
   description: string;

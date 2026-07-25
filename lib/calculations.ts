@@ -18,7 +18,15 @@ export function composeQuote(params: {
   const lineItems: LineItem[] = [];
   const productGroups: ProductGroup[] = [];
 
-  if (activeResult) {
+  // Only fold the currently-open (not yet "added") product into the quote when
+  // nothing has been explicitly added — so a quick single-product quote still
+  // works with zero clicks. Once anything is in the cart, whatever the user
+  // happens to have open in the estimator is just a live preview and must be
+  // explicitly added via "Add to Quote" before it counts, otherwise switching
+  // products to look at pricing would silently tack an extra line onto the PDF.
+  const includeActiveResult = Boolean(activeResult) && cartItems.length === 0;
+
+  if (includeActiveResult && activeResult) {
     lineItems.push(...activeResult.lineItems);
     productGroups.push({ label: activeResult.label, start: 0, end: lineItems.length });
   }
@@ -50,7 +58,7 @@ export function composeQuote(params: {
     productGroups.push({ label: 'Custom products', start, end: lineItems.length });
   }
 
-  const subtotal = (activeResult?.subtotal || 0) + cartTotal + customProductsTotal;
+  const subtotal = (includeActiveResult ? activeResult?.subtotal || 0 : 0) + cartTotal + customProductsTotal;
   const markedUpTotal = subtotal * (1 + markupPercent / 100);
 
   let discountTotal = 0;
