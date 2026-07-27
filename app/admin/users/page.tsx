@@ -166,8 +166,11 @@ export default function ManageUsersPage() {
           <Link className={historyStyles.button} href="/admin">
             &larr; Quotation History
           </Link>
+          <Link className={historyStyles.button} href="/quotation">
+            Calculator
+          </Link>
           <Link className={historyStyles.button} href="/">
-            Back to Calculator
+            Back to Dashboard
           </Link>
         </div>
       </header>

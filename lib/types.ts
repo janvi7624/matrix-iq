@@ -133,4 +133,60 @@ export interface QuotationRecord {
   gst_amount: number;
   total: number;
   validity_days: number;
+  last_follow_up_at: string;
+  follow_up_notes_json: string;
+}
+
+export interface SiteVisitRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  client_name: string;
+  client_company: string;
+  address: string;
+  visit_date: string;
+  attendees: string;
+  findings: string;
+  linked_quotation_number: string;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  next_steps: string;
+  updated_at: string;
+}
+
+export interface CrmRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  company: string;
+  contact_person: string;
+  phone: string;
+  email: string;
+  status: 'lead' | 'prospect' | 'customer';
+  source: string;
+  notes: string;
+}
+
+export interface DemoScheduleRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  client_name: string;
+  product_domain: string;
+  scheduled_at: string;
+  assigned_rep: string;
+  status: 'scheduled' | 'done' | 'cancelled';
+  notes: string;
+}
+
+export interface TravelScheduleRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  origin: string;
+  destination: string;
+  start_date: string;
+  end_date: string;
+  purpose: string;
+  linked_client: string;
+  expense_note: string;
 }

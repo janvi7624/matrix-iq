@@ -78,12 +78,36 @@ export async function createQuotation(input: CreateQuotationInput): Promise<Quot
     discount_total: Number(input.discountTotal) || 0,
     gst_amount: Number(input.gstAmount) || 0,
     total: Number(input.total) || 0,
-    validity_days: Number(input.validityDays) || 7
+    validity_days: Number(input.validityDays) || 7,
+    last_follow_up_at: '',
+    follow_up_notes_json: '[]'
   };
 
   records.push(record);
   await writeQuotations(records);
   return record;
+}
+
+export async function logQuotationFollowUp(id: string, by: string, note: string): Promise<QuotationRecord | null> {
+  const records = await readQuotations();
+  const index = records.findIndex((r) => r.id === id);
+  if (index === -1) return null;
+
+  const existing = records[index];
+  let notes: unknown[] = [];
+  try {
+    const parsed = JSON.parse(existing.follow_up_notes_json || '[]');
+    notes = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    notes = [];
+  }
+  const at = new Date().toISOString();
+  notes.push({ at, by, note });
+
+  const updated: QuotationRecord = { ...existing, last_follow_up_at: at, follow_up_notes_json: JSON.stringify(notes) };
+  records[index] = updated;
+  await writeQuotations(records);
+  return updated;
 }
 
 export async function deleteQuotation(id: string): Promise<boolean> {
@@ -125,7 +149,8 @@ const CSV_COLUMNS: { key: keyof QuotationRecord; header: string }[] = [
   { key: 'discount_total', header: 'Discount' },
   { key: 'gst_amount', header: 'GST' },
   { key: 'total', header: 'Total' },
-  { key: 'validity_days', header: 'Validity (days)' }
+  { key: 'validity_days', header: 'Validity (days)' },
+  { key: 'last_follow_up_at', header: 'Last Follow-Up' }
 ];
 
 function csvEscape(value: unknown): string {

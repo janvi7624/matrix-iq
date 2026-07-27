@@ -280,6 +280,9 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
             <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role]}`}>{ROLE_LABELS[currentUser.role]}</span>
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
+            <a className={styles.secondaryButton} href="/">
+              &larr; Dashboard
+            </a>
             {currentUser.role !== 'user' && (
               <>
                 <a className={styles.secondaryButton} href="/quotation-history" target="_blank" rel="noreferrer">

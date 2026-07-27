@@ -106,6 +106,46 @@
 .deleteBtn:hover { background: rgba(220, 38, 38, 0.1); }
 .empty { text-align: center; padding: 40px; color: #9ca3af; }
 
+.followUpBadge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 700;
+    background: rgba(220, 38, 38, 0.12);
+    color: #b91c1c;
+    white-space: nowrap;
+}
+.followUpOk {
+    display: inline-block;
+    font-size: 12px;
+    color: #9ca3af;
+}
+.followUpForm {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.followUpForm input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 13px;
+}
+.followUpForm button {
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.followUpForm button:hover { background: #b91c1c; }
+
 .loginWrap {
     min-height: 100vh;
     display: flex;

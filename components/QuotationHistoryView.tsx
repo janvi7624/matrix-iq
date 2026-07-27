@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { QuotationRecord } from '@/lib/types';
+import { needsFollowUp } from '@/lib/followUp';
 import QuotationTable from './QuotationTable';
 import styles from './quotationHistory.module.css';
 
@@ -23,6 +24,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   const [loaded, setLoaded] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [canDelete, setCanDelete] = useState(false);
+  const [followUpOnly, setFollowUpOnly] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -52,6 +54,8 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
     loadQuotations('');
   }, [loadQuotations]);
 
+  const visibleRows = useMemo(() => (followUpOnly ? rows.filter((r) => needsFollowUp(r)) : rows), [rows, followUpOnly]);
+
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
     router.push('/login');
@@ -70,6 +74,21 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
     }
   }
 
+  async function handleLogFollowUp(id: string, note: string) {
+    try {
+      const response = await fetch(`/api/admin/quotations/${id}/follow-up`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note })
+      });
+      if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+      const updated: QuotationRecord = await response.json();
+      setRows((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    } catch {
+      alert('Could not log this follow-up. Please try again.');
+    }
+  }
+
   return (
     <div className={styles.body}>
       <header className={styles.header}>
@@ -82,7 +101,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link className={styles.button} href="/">
-            &larr; Back to Calculator
+            &larr; Back to Dashboard
           </Link>
           <button type="button" className={styles.button} onClick={handleLogout}>
             Log out
@@ -106,6 +125,10 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
           <button type="button" className={styles.button} onClick={() => loadQuotations(searchValue.trim())}>
             Refresh
           </button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, whiteSpace: 'nowrap' }}>
+            <input type="checkbox" checked={followUpOnly} onChange={(e) => setFollowUpOnly(e.target.checked)} />
+            Needs follow-up only
+          </label>
           <a className={styles.button} href="/api/admin/quotations/export.csv">
             Export CSV
           </a>
@@ -116,7 +139,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
           )}
         </div>
         <div className={styles.status}>{status}</div>
-        {loaded && <QuotationTable rows={rows} onDelete={canDelete ? handleDelete : undefined} />}
+        {loaded && <QuotationTable rows={visibleRows} onDelete={canDelete ? handleDelete : undefined} onLogFollowUp={handleLogFollowUp} />}
       </main>
     </div>
   );
