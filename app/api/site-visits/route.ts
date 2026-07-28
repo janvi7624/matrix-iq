@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { siteVisitStore } from '@/lib/siteVisitStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { SiteVisitRecord } from '@/lib/types';
+import { DomainKey, SiteVisitRecord, VisitStage } from '@/lib/types';
+
+const VALID_CATEGORIES: (DomainKey | '')[] = ['', 'av', 'robotics', 'ai', 'si', 'visitiq'];
+const VALID_STAGES: (VisitStage | '')[] = ['', 'hot', 'warm', 'cold'];
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+}
 
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
@@ -23,26 +31,34 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
-  const clientName = typeof body.clientName === 'string' ? body.clientName.trim() : '';
+  const companyName = typeof body.companyName === 'string' ? body.companyName.trim() : '';
   const visitDate = typeof body.visitDate === 'string' ? body.visitDate : '';
-  if (!clientName || !visitDate) {
-    return NextResponse.json({ error: 'Client name and visit date are required' }, { status: 400 });
+  if (!companyName || !visitDate) {
+    return NextResponse.json({ error: 'Company name and visit date are required' }, { status: 400 });
   }
+
+  const category = VALID_CATEGORIES.includes(body.category) ? (body.category as DomainKey | '') : '';
+  const stage = VALID_STAGES.includes(body.stage) ? (body.stage as VisitStage | '') : '';
 
   const now = new Date().toISOString();
   const record: SiteVisitRecord = {
     id: `${Date.now()}`,
     created_at: now,
     created_by: viewer.username,
-    client_name: clientName,
-    client_company: typeof body.clientCompany === 'string' ? body.clientCompany.trim() : '',
-    address: typeof body.address === 'string' ? body.address.trim() : '',
+    company_name: companyName,
+    contact_person: typeof body.contactPerson === 'string' ? body.contactPerson.trim() : '',
     visit_date: visitDate,
-    attendees: typeof body.attendees === 'string' ? body.attendees.trim() : '',
-    findings: typeof body.findings === 'string' ? body.findings.trim() : '',
-    linked_quotation_number: typeof body.linkedQuotationNumber === 'string' ? body.linkedQuotationNumber.trim() : '',
-    status: body.status === 'completed' || body.status === 'cancelled' ? body.status : 'scheduled',
-    next_steps: typeof body.nextSteps === 'string' ? body.nextSteps.trim() : '',
+    team_technical: toStringArray(body.teamTechnical),
+    team_sales: toStringArray(body.teamSales),
+    purpose: typeof body.purpose === 'string' ? body.purpose.trim() : '',
+    category,
+    visit_details: typeof body.visitDetails === 'string' ? body.visitDetails.trim() : '',
+    image_urls: toStringArray(body.imageUrls),
+    action_plan: typeof body.actionPlan === 'string' ? body.actionPlan.trim() : '',
+    reminder_date: typeof body.reminderDate === 'string' ? body.reminderDate : '',
+    stage,
+    status: 'open',
+    updates: [],
     updated_at: now
   };
 

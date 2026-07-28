@@ -8,6 +8,7 @@ import { generateQuotationPdf } from '@/lib/pdf';
 import { computeQuotationPrefix, generateDraftQuotationNumber, refreshDraftQuotationNumber } from '@/lib/quotationNumber';
 import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey, DomainResult, QuotationDetails, UserRole } from '@/lib/types';
 import { getRoomSuggestions } from '@/lib/roomSuggestions';
+import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import StandeeEstimator from './estimators/StandeeEstimator';
 import LedEstimator, { LedModelPreset } from './estimators/LedEstimator';
 import ConferenceEstimator, { ModelPreset } from './estimators/ConferenceEstimator';
@@ -24,14 +25,6 @@ import DiscountsList from './DiscountsList';
 import CustomProductsList from './CustomProductsList';
 import SummaryPanel from './SummaryPanel';
 import styles from './calculator.module.css';
-
-const DOMAIN_DISPLAY_NAME: Record<DomainKey, string> = {
-  av: 'AV',
-  robotics: 'Robotics',
-  ai: 'AI Video Analytics',
-  si: 'System Integration',
-  visitiq: 'VisitIQ VMS'
-};
 
 const DEFAULT_COST_INPUTS: CostInputs = { installationCost: 0, fabricationCost: 0, scaffoldingCost: 0, markupPercent: 0 };
 

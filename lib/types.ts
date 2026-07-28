@@ -137,19 +137,39 @@ export interface QuotationRecord {
   follow_up_notes_json: string;
 }
 
+// Lead-temperature tag captured at registration and revisited on every update.
+export type VisitStage = 'hot' | 'warm' | 'cold';
+
+// One entry in a site visit's ongoing project log — added after the initial
+// registration, e.g. "team went back, here's what's changed since".
+export interface SiteVisitUpdateEntry {
+  id: string;
+  updated_at: string;
+  updated_by: string;
+  team_technical: string[];
+  team_sales: string[];
+  project_details: string;
+  ongoing_activities: string;
+}
+
 export interface SiteVisitRecord {
   id: string;
   created_at: string;
   created_by: string;
-  client_name: string;
-  client_company: string;
-  address: string;
+  company_name: string;
+  contact_person: string;
   visit_date: string;
-  attendees: string;
-  findings: string;
-  linked_quotation_number: string;
-  status: 'scheduled' | 'completed' | 'cancelled';
-  next_steps: string;
+  team_technical: string[];
+  team_sales: string[];
+  purpose: string;
+  category: DomainKey | '';
+  visit_details: string;
+  image_urls: string[];
+  action_plan: string;
+  reminder_date: string;
+  stage: VisitStage | '';
+  status: 'open' | 'closed';
+  updates: SiteVisitUpdateEntry[];
   updated_at: string;
 }
 

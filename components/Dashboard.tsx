@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { QuotationRecord, UserRole } from '@/lib/types';
+import { QuotationRecord, SiteVisitRecord, UserRole } from '@/lib/types';
 import { needsFollowUp } from '@/lib/followUp';
+import { isReminderDue } from '@/lib/siteVisitReminder';
 import PortalHeader from './PortalHeader';
 import styles from './dashboard.module.css';
 import historyStyles from './quotationHistory.module.css';
@@ -20,7 +21,7 @@ interface Tile {
 
 const TILES: Tile[] = [
   { title: 'Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', href: '/quotation' },
-  { title: 'Site Visit Report', desc: 'Log a site visit — client, address, attendees, and findings.', href: '/site-visits' },
+  { title: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', href: '/site-visits' },
   { title: 'CRM', desc: 'Track leads, prospects, and customers.', href: '/crm' },
   { title: 'Demo Schedule', desc: 'Book and track product demos.', href: '/demo-schedule' },
   { title: 'Update Details of Visit', desc: 'Close out or update an existing site visit report.', href: '/site-visits?focus=open' },
@@ -29,6 +30,7 @@ const TILES: Tile[] = [
 
 export default function Dashboard({ currentUser }: DashboardProps) {
   const [followUpCount, setFollowUpCount] = useState<number | null>(null);
+  const [reminderCount, setReminderCount] = useState<number | null>(null);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin';
 
@@ -39,6 +41,13 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       .then((rows: QuotationRecord[]) => setFollowUpCount(rows.filter((r) => needsFollowUp(r)).length))
       .catch(() => setFollowUpCount(null));
   }, [isPrivileged]);
+
+  useEffect(() => {
+    fetch('/api/site-visits')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: SiteVisitRecord[]) => setReminderCount(rows.filter((r) => isReminderDue(r)).length))
+      .catch(() => setReminderCount(null));
+  }, []);
 
   return (
     <div className={historyStyles.body}>
@@ -52,6 +61,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               {followUpCount} quotation{followUpCount === 1 ? '' : 's'} need{followUpCount === 1 ? 's' : ''} a follow-up.
             </span>
             <Link href="/quotation-history">Review now &rarr;</Link>
+          </div>
+        )}
+
+        {reminderCount !== null && reminderCount > 0 && (
+          <div className={styles.followUpBanner}>
+            <span>
+              {reminderCount} site visit reminder{reminderCount === 1 ? '' : 's'} due.
+            </span>
+            <Link href="/site-visits?focus=open">Review now &rarr;</Link>
           </div>
         )}
 

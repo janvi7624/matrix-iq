@@ -2,21 +2,30 @@
 
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { SiteVisitRecord } from '@/lib/types';
+import { DomainKey, SiteVisitRecord, VisitStage } from '@/lib/types';
+import { TECHNICAL_TEAM, SALES_TEAM } from '@/lib/teamMembers';
+import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
+import { isReminderDue, STAGE_LABEL, STAGE_HINT } from '@/lib/siteVisitReminder';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
 const EMPTY_FORM = {
-  clientName: '',
-  clientCompany: '',
-  address: '',
+  companyName: '',
+  contactPerson: '',
   visitDate: '',
-  attendees: '',
-  findings: '',
-  linkedQuotationNumber: '',
-  nextSteps: ''
+  teamTechnical: [] as string[],
+  teamSales: [] as string[],
+  purpose: '',
+  category: '' as DomainKey | '',
+  visitDetails: '',
+  imageUrls: [] as string[],
+  actionPlan: '',
+  reminderDate: '',
+  stage: '' as VisitStage | ''
 };
+
+const EMPTY_UPDATE_FORM = { teamTechnical: [] as string[], teamSales: [] as string[], projectDetails: '', ongoingActivities: '' };
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -27,84 +36,280 @@ function formatDate(iso: string): string {
   }
 }
 
-function SiteVisitRow({ visit, onUpdate, onDelete }: { visit: SiteVisitRecord; onUpdate: (id: string, patch: Record<string, unknown>) => Promise<void>; onDelete: (id: string) => void }) {
-  const [expanded, setExpanded] = useState(false);
-  const [findings, setFindings] = useState(visit.findings);
-  const [nextSteps, setNextSteps] = useState(visit.next_steps);
+function formatDateTime(iso: string): string {
+  if (!iso) return '-';
+  try {
+    return new Date(iso).toLocaleString('en-IN');
+  } catch {
+    return iso;
+  }
+}
+
+function toggleInArray(list: string[], value: string): string[] {
+  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+}
+
+function TeamCheckboxes({
+  label,
+  options,
+  selected,
+  onChange
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  return (
+    <div className={calcStyles.field}>
+      <label className={calcStyles.label}>{label}</label>
+      <div className={historyStyles.teamGrid}>
+        {options.map((name) => (
+          <label key={name}>
+            <input type="checkbox" checked={selected.includes(name)} onChange={() => onChange(toggleInArray(selected, name))} />
+            {name}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StagePicker({ value, onChange }: { value: VisitStage | ''; onChange: (v: VisitStage) => void }) {
+  const stages: VisitStage[] = ['hot', 'warm', 'cold'];
+  return (
+    <div className={calcStyles.field}>
+      <label className={calcStyles.label}>Stage of the client</label>
+      <div className={historyStyles.stageOptions}>
+        {stages.map((s) => (
+          <div
+            key={s}
+            className={`${historyStyles.stageOption} ${value === s ? historyStyles.stageOptionActive : ''}`}
+            onClick={() => onChange(s)}
+          >
+            <strong>{STAGE_LABEL[s]}</strong>
+            <span>{STAGE_HINT[s]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ImageUploader({ imageUrls, onChange }: { imageUrls: string[]; onChange: (urls: string[]) => void }) {
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFiles(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    setUploading(true);
+    try {
+      const body = new FormData();
+      Array.from(fileList).forEach((f) => body.append('files', f));
+      const response = await fetch('/api/site-visits/upload', { method: 'POST', body });
+      if (!response.ok) throw new Error(String(response.status));
+      const data: { urls: string[] } = await response.json();
+      onChange([...imageUrls, ...data.urls]);
+    } catch {
+      alert('Could not upload one or more images. Try a smaller file (max 8MB each).');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className={calcStyles.field}>
+      <label className={calcStyles.label}>Images (optional)</label>
+      <input type="file" accept="image/*" multiple disabled={uploading} onChange={(e) => handleFiles(e.target.files)} />
+      {uploading && <div className={calcStyles.small}>Uploading…</div>}
+      {imageUrls.length > 0 && (
+        <div className={historyStyles.imageStrip}>
+          {imageUrls.map((url) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={url} src={url} alt="Site visit" onClick={() => onChange(imageUrls.filter((u) => u !== url))} title="Click to remove" />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SiteVisitDetail({
+  visit,
+  onPatch,
+  onAddUpdate,
+  onClose
+}: {
+  visit: SiteVisitRecord;
+  onPatch: (id: string, patch: Record<string, unknown>) => Promise<void>;
+  onAddUpdate: (id: string, entry: typeof EMPTY_UPDATE_FORM) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [actionPlan, setActionPlan] = useState(visit.action_plan);
+  const [reminderDate, setReminderDate] = useState(visit.reminder_date);
+  const [stage, setStage] = useState(visit.stage);
   const [status, setStatus] = useState(visit.status);
   const [busy, setBusy] = useState(false);
+  const [updateForm, setUpdateForm] = useState(EMPTY_UPDATE_FORM);
+  const [addingUpdate, setAddingUpdate] = useState(false);
 
-  async function handleSave() {
+  async function handleSaveDetails() {
     setBusy(true);
     try {
-      await onUpdate(visit.id, { findings, nextSteps, status });
+      await onPatch(visit.id, { actionPlan, reminderDate, stage, status });
     } finally {
       setBusy(false);
     }
   }
 
+  async function handleAddUpdate(e: FormEvent) {
+    e.preventDefault();
+    if (!updateForm.projectDetails.trim() && !updateForm.ongoingActivities.trim()) {
+      alert('Add project details or ongoing activities.');
+      return;
+    }
+    setAddingUpdate(true);
+    try {
+      await onAddUpdate(visit.id, updateForm);
+      setUpdateForm(EMPTY_UPDATE_FORM);
+    } finally {
+      setAddingUpdate(false);
+    }
+  }
+
   return (
-    <>
-      <tr>
-        <td>
-          <button type="button" className={historyStyles.toggleBtn} onClick={() => setExpanded((v) => !v)}>
-            {expanded ? '−' : '+'}
-          </button>
-        </td>
-        <td>{formatDate(visit.visit_date)}</td>
-        <td>
-          {visit.client_name}
-          {visit.client_company ? ` (${visit.client_company})` : ''}
-        </td>
-        <td>{visit.status}</td>
-        <td>{visit.next_steps || '-'}</td>
-        <td>{visit.created_by}</td>
-        <td>
-          <button type="button" className={historyStyles.deleteBtn} onClick={() => onDelete(visit.id)}>
-            Delete
-          </button>
-        </td>
-      </tr>
-      {expanded && (
-        <tr className={historyStyles.detailsRow}>
-          <td colSpan={7}>
-            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Address</label>
-                <div className={calcStyles.small}>{visit.address || '-'}</div>
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Attendees</label>
-                <div className={calcStyles.small}>{visit.attendees || '-'}</div>
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Linked quotation</label>
-                <div className={calcStyles.small}>{visit.linked_quotation_number || '-'}</div>
-              </div>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Status</label>
-              <select className={calcStyles.formControl} value={status} onChange={(e) => setStatus(e.target.value as SiteVisitRecord['status'])}>
-                <option value="scheduled">Scheduled</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Findings</label>
-              <textarea className={calcStyles.formControl} rows={3} value={findings} onChange={(e) => setFindings(e.target.value)} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Next steps</label>
-              <textarea className={calcStyles.formControl} rows={2} value={nextSteps} onChange={(e) => setNextSteps(e.target.value)} />
-            </div>
-            <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleSave}>
-              {busy ? 'Saving…' : 'Save update'}
-            </button>
-          </td>
-        </tr>
+    <div className={historyStyles.detailPanel}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <div>
+          <h2 className={calcStyles.h2} style={{ margin: 0 }}>
+            {visit.company_name}
+          </h2>
+          <div className={calcStyles.small}>
+            Visited {formatDate(visit.visit_date)} by {visit.created_by}
+            {visit.contact_person ? ` · Contact: ${visit.contact_person}` : ''}
+          </div>
+        </div>
+        <button type="button" className={historyStyles.button} onClick={onClose}>
+          Close
+        </button>
+      </div>
+
+      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Purpose</label>
+          <div className={calcStyles.small}>{visit.purpose || '-'}</div>
+        </div>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Category</label>
+          <div className={calcStyles.small}>{visit.category ? DOMAIN_DISPLAY_NAME[visit.category] : '-'}</div>
+        </div>
+      </div>
+      <div className={calcStyles.field}>
+        <label className={calcStyles.label}>Visit details</label>
+        <div className={calcStyles.small}>{visit.visit_details || '-'}</div>
+      </div>
+      <div className={calcStyles.field}>
+        <label className={calcStyles.label}>Team on registration visit</label>
+        <div className={calcStyles.small}>
+          {[...visit.team_technical, ...visit.team_sales].join(', ') || '-'}
+        </div>
+      </div>
+      {visit.image_urls.length > 0 && (
+        <div className={historyStyles.imageStrip}>
+          {visit.image_urls.map((url) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <a key={url} href={url} target="_blank" rel="noreferrer">
+              <img src={url} alt="Site visit" />
+            </a>
+          ))}
+        </div>
       )}
-    </>
+
+      <hr style={{ margin: '18px 0', border: 'none', borderTop: '1px solid #e5e7eb' }} />
+
+      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Action plan</label>
+          <textarea className={calcStyles.formControl} rows={2} value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} />
+        </div>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Reminder date</label>
+          <input type="date" className={calcStyles.formControl} value={reminderDate} onChange={(e) => setReminderDate(e.target.value)} />
+        </div>
+      </div>
+      <StagePicker value={stage} onChange={setStage} />
+      <div className={calcStyles.field}>
+        <label className={calcStyles.label}>Status</label>
+        <select className={calcStyles.formControl} value={status} onChange={(e) => setStatus(e.target.value as SiteVisitRecord['status'])}>
+          <option value="open">Open</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+      <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleSaveDetails}>
+        {busy ? 'Saving…' : 'Save details'}
+      </button>
+
+      <hr style={{ margin: '18px 0', border: 'none', borderTop: '1px solid #e5e7eb' }} />
+
+      <h3 style={{ marginTop: 0 }}>Project updates</h3>
+      <div className={historyStyles.timeline}>
+        {visit.updates.length === 0 && <div className={calcStyles.small}>No updates logged yet.</div>}
+        {visit.updates
+          .slice()
+          .reverse()
+          .map((u) => (
+            <div key={u.id} className={historyStyles.timelineEntry}>
+              <div className={historyStyles.timelineMeta}>
+                {formatDateTime(u.updated_at)} · {u.updated_by}
+                {[...u.team_technical, ...u.team_sales].length > 0 ? ` · Team: ${[...u.team_technical, ...u.team_sales].join(', ')}` : ''}
+              </div>
+              {u.project_details && <div><strong>Project details:</strong> {u.project_details}</div>}
+              {u.ongoing_activities && <div><strong>Ongoing activities:</strong> {u.ongoing_activities}</div>}
+            </div>
+          ))}
+      </div>
+
+      <h3>Log a new update</h3>
+      <form onSubmit={handleAddUpdate}>
+        <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+          <TeamCheckboxes
+            label="Technical team involved"
+            options={TECHNICAL_TEAM}
+            selected={updateForm.teamTechnical}
+            onChange={(next) => setUpdateForm((f) => ({ ...f, teamTechnical: next }))}
+          />
+          <TeamCheckboxes
+            label="Sales team involved"
+            options={SALES_TEAM}
+            selected={updateForm.teamSales}
+            onChange={(next) => setUpdateForm((f) => ({ ...f, teamSales: next }))}
+          />
+        </div>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Project details</label>
+          <textarea
+            className={calcStyles.formControl}
+            rows={2}
+            value={updateForm.projectDetails}
+            onChange={(e) => setUpdateForm((f) => ({ ...f, projectDetails: e.target.value }))}
+          />
+        </div>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Ongoing activities</label>
+          <textarea
+            className={calcStyles.formControl}
+            rows={2}
+            value={updateForm.ongoingActivities}
+            onChange={(e) => setUpdateForm((f) => ({ ...f, ongoingActivities: e.target.value }))}
+          />
+        </div>
+        <div className={calcStyles.small} style={{ marginBottom: 8 }}>
+          Date of updation is recorded automatically: {formatDateTime(new Date().toISOString())}
+        </div>
+        <button type="submit" className={calcStyles.btn} disabled={addingUpdate}>
+          {addingUpdate ? 'Saving…' : 'Add update'}
+        </button>
+      </form>
+    </div>
   );
 }
 
@@ -116,6 +321,7 @@ function SiteVisitsContent() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [openOnly, setOpenOnly] = useState(searchParams.get('focus') === 'open');
+  const [openId, setOpenId] = useState<string | null>(null);
 
   async function load() {
     setStatus('Loading...');
@@ -136,12 +342,13 @@ function SiteVisitsContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const visibleVisits = useMemo(() => (openOnly ? visits.filter((v) => v.status === 'scheduled') : visits), [visits, openOnly]);
+  const visibleVisits = useMemo(() => (openOnly ? visits.filter((v) => v.status === 'open') : visits), [visits, openOnly]);
+  const openVisit = useMemo(() => visits.find((v) => v.id === openId) || null, [visits, openId]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    if (!form.clientName.trim() || !form.visitDate) {
-      alert('Client name and visit date are required.');
+    if (!form.companyName.trim() || !form.visitDate) {
+      alert('Company name and visit date are required.');
       return;
     }
     setCreating(true);
@@ -161,7 +368,7 @@ function SiteVisitsContent() {
     }
   }
 
-  async function handleUpdate(id: string, patch: Record<string, unknown>) {
+  async function handlePatch(id: string, patch: Record<string, unknown>) {
     try {
       const response = await fetch(`/api/site-visits/${id}`, {
         method: 'PATCH',
@@ -175,12 +382,17 @@ function SiteVisitsContent() {
     }
   }
 
+  async function handleAddUpdate(id: string, entry: typeof EMPTY_UPDATE_FORM) {
+    await handlePatch(id, { action: 'addUpdate', ...entry });
+  }
+
   async function handleDelete(id: string) {
     if (!window.confirm('Delete this site visit report? This cannot be undone.')) return;
     try {
       const response = await fetch(`/api/site-visits/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setVisits((prev) => prev.filter((v) => v.id !== id));
+      if (openId === id) setOpenId(null);
     } catch {
       alert('Could not delete this site visit.');
     }
@@ -188,55 +400,85 @@ function SiteVisitsContent() {
 
   return (
     <div className={historyStyles.body}>
-      <PortalHeader title="Site Visit Reports" subtitle="Log client site visits and track findings and next steps." />
+      <PortalHeader title="Site Visit Reports" subtitle="Register a visit, then keep logging project updates over time." />
       <main className={historyStyles.main}>
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Log a site visit</h2>
+        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Register a site visit</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Client name *</label>
-              <input className={calcStyles.formControl} value={form.clientName} onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))} required />
+              <label className={calcStyles.label}>Company name *</label>
+              <input className={calcStyles.formControl} value={form.companyName} onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))} required />
             </div>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Client company</label>
-              <input className={calcStyles.formControl} value={form.clientCompany} onChange={(e) => setForm((f) => ({ ...f, clientCompany: e.target.value }))} />
+              <label className={calcStyles.label}>Contact person</label>
+              <input className={calcStyles.formControl} value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Visit date *</label>
               <input type="date" className={calcStyles.formControl} value={form.visitDate} onChange={(e) => setForm((f) => ({ ...f, visitDate: e.target.value }))} required />
             </div>
           </div>
+
+          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+            <TeamCheckboxes
+              label="Technical team involved"
+              options={TECHNICAL_TEAM}
+              selected={form.teamTechnical}
+              onChange={(next) => setForm((f) => ({ ...f, teamTechnical: next }))}
+            />
+            <TeamCheckboxes
+              label="Sales team involved"
+              options={SALES_TEAM}
+              selected={form.teamSales}
+              onChange={(next) => setForm((f) => ({ ...f, teamSales: next }))}
+            />
+          </div>
+
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Address</label>
-              <input className={calcStyles.formControl} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+              <label className={calcStyles.label}>Purpose of visit</label>
+              <input className={calcStyles.formControl} value={form.purpose} onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))} />
             </div>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Attendees</label>
-              <input className={calcStyles.formControl} value={form.attendees} onChange={(e) => setForm((f) => ({ ...f, attendees: e.target.value }))} />
+              <label className={calcStyles.label}>Category</label>
+              <select className={calcStyles.formControl} value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as DomainKey | '' }))}>
+                <option value="">-- Select category --</option>
+                {(Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[]).map((k) => (
+                  <option key={k} value={k}>{DOMAIN_DISPLAY_NAME[k]}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className={calcStyles.field}>
+            <label className={calcStyles.label}>Visit details (technical brief)</label>
+            <textarea className={calcStyles.formControl} rows={3} value={form.visitDetails} onChange={(e) => setForm((f) => ({ ...f, visitDetails: e.target.value }))} />
+          </div>
+
+          <ImageUploader imageUrls={form.imageUrls} onChange={(urls) => setForm((f) => ({ ...f, imageUrls: urls }))} />
+
+          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Action plan</label>
+              <textarea className={calcStyles.formControl} rows={2} value={form.actionPlan} onChange={(e) => setForm((f) => ({ ...f, actionPlan: e.target.value }))} />
             </div>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Linked quotation number</label>
-              <input className={calcStyles.formControl} value={form.linkedQuotationNumber} onChange={(e) => setForm((f) => ({ ...f, linkedQuotationNumber: e.target.value }))} />
+              <label className={calcStyles.label}>Reminder date</label>
+              <input type="date" className={calcStyles.formControl} value={form.reminderDate} onChange={(e) => setForm((f) => ({ ...f, reminderDate: e.target.value }))} />
             </div>
           </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Findings</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.findings} onChange={(e) => setForm((f) => ({ ...f, findings: e.target.value }))} />
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Next steps</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.nextSteps} onChange={(e) => setForm((f) => ({ ...f, nextSteps: e.target.value }))} />
-          </div>
+
+          <StagePicker value={form.stage} onChange={(v) => setForm((f) => ({ ...f, stage: v }))} />
+
           <button type="submit" className={calcStyles.btn} disabled={creating}>
-            {creating ? 'Saving…' : 'Log site visit'}
+            {creating ? 'Saving…' : 'Register site visit'}
           </button>
         </form>
 
         <div className={historyStyles.toolbar} style={{ marginTop: 24 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5 }}>
             <input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />
-            Scheduled (open) visits only
+            Open visits only
           </label>
           <button type="button" className={historyStyles.button} onClick={load}>
             Refresh
@@ -247,11 +489,12 @@ function SiteVisitsContent() {
           <table className={historyStyles.table}>
             <thead>
               <tr>
-                <th></th>
                 <th>Visit Date</th>
-                <th>Client</th>
+                <th>Company</th>
+                <th>Category</th>
+                <th>Stage</th>
                 <th>Status</th>
-                <th>Next Steps</th>
+                <th>Reminder</th>
                 <th>Logged By</th>
                 <th></th>
               </tr>
@@ -259,15 +502,40 @@ function SiteVisitsContent() {
             <tbody>
               {visibleVisits.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className={historyStyles.empty}>
+                  <td colSpan={8} className={historyStyles.empty}>
                     No site visits recorded yet.
                   </td>
                 </tr>
               ) : (
-                visibleVisits.map((v) => <SiteVisitRow key={v.id} visit={v} onUpdate={handleUpdate} onDelete={handleDelete} />)
+                visibleVisits.map((v) => (
+                  <tr key={v.id}>
+                    <td>{formatDate(v.visit_date)}</td>
+                    <td>
+                      {v.company_name}
+                      {v.contact_person ? ` (${v.contact_person})` : ''}
+                    </td>
+                    <td>{v.category ? DOMAIN_DISPLAY_NAME[v.category] : '-'}</td>
+                    <td>{v.stage ? <span className={historyStyles.stageBadge}>{STAGE_LABEL[v.stage]}</span> : '-'}</td>
+                    <td>{v.status === 'open' ? 'Open' : 'Closed'}</td>
+                    <td>{isReminderDue(v) ? <span className={historyStyles.reminderBadge}>Reminder due</span> : <span className={historyStyles.followUpOk}>-</span>}</td>
+                    <td>{v.created_by}</td>
+                    <td style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" className={historyStyles.button} onClick={() => setOpenId(v.id)}>
+                        Open
+                      </button>
+                      <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(v.id)}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
+        )}
+
+        {openVisit && (
+          <SiteVisitDetail visit={openVisit} onPatch={handlePatch} onAddUpdate={handleAddUpdate} onClose={() => setOpenId(null)} />
         )}
       </main>
     </div>
