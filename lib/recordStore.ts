@@ -39,11 +39,13 @@ export function createRecordStore<T extends { id: string; created_at: string; cr
     return updated;
   }
 
+  // Deletion is admin/superadmin-only across every module here — plain
+  // "user" accounts can create/edit their own records but not remove them.
   async function remove(id: string, viewerUsername: string, viewerIsPrivileged: boolean): Promise<boolean> {
+    if (!viewerIsPrivileged) return false;
     const records = await readAll();
     const existing = records.find((r) => r.id === id);
     if (!existing) return false;
-    if (!viewerIsPrivileged && existing.created_by !== viewerUsername) return false;
     const next = records.filter((r) => r.id !== id);
     await writeAll(next);
     return true;

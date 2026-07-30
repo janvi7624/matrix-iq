@@ -23,8 +23,7 @@ const TILES: Tile[] = [
   { title: 'Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', href: '/quotation' },
   { title: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', href: '/site-visits' },
   { title: 'CRM', desc: 'Track leads, prospects, and customers.', href: '/crm' },
-  { title: 'Demo Schedule', desc: 'Book and track product demos.', href: '/demo-schedule' },
-  { title: 'Update Details of Visit', desc: 'Close out or update an existing site visit report.', href: '/site-visits?focus=open' },
+  { title: 'Demo Schedule', desc: 'Request and approve product demos.', href: '/demo-schedule' },
   { title: 'Travel Schedule', desc: 'Log rep travel for client visits.', href: '/travel-schedule' }
 ];
 

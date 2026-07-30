@@ -158,6 +158,8 @@ export interface SiteVisitRecord {
   created_by: string;
   company_name: string;
   contact_person: string;
+  client_email: string;
+  client_phone: string;
   visit_date: string;
   team_technical: string[];
   team_sales: string[];
@@ -186,15 +188,25 @@ export interface CrmRecord {
   notes: string;
 }
 
+// Sales requests a demo for a domain (picked from the same product list as
+// the quotation calculator) plus an optional technical team member; the
+// request sits 'pending' until an admin/superadmin (standing in for the
+// domain lead — see lib/domainLeads.ts) confirms or rejects it.
+export type DemoRequestStatus = 'pending' | 'confirmed' | 'rejected' | 'done' | 'cancelled';
+
 export interface DemoScheduleRecord {
   id: string;
   created_at: string;
   created_by: string;
   client_name: string;
-  product_domain: string;
+  product_domain: DomainKey | '';
+  technical_members: string[];
   scheduled_at: string;
   assigned_rep: string;
-  status: 'scheduled' | 'done' | 'cancelled';
+  status: DemoRequestStatus;
+  approved_by: string;
+  approved_at: string;
+  decision_note: string;
   notes: string;
 }
 

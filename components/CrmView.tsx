@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { CrmRecord } from '@/lib/types';
+import { CrmRecord, UserRole } from '@/lib/types';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -10,7 +10,12 @@ const EMPTY_FORM = { company: '', contactPerson: '', phone: '', email: '', sourc
 
 const STATUS_LABEL: Record<CrmRecord['status'], string> = { lead: 'Lead', prospect: 'Prospect', customer: 'Customer' };
 
-export default function CrmView() {
+interface CrmViewProps {
+  currentUser: { username: string; role: UserRole };
+}
+
+export default function CrmView({ currentUser }: CrmViewProps) {
+  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin';
   const [records, setRecords] = useState<CrmRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -173,9 +178,11 @@ export default function CrmView() {
                     <td>{r.notes || '-'}</td>
                     <td>{r.created_by}</td>
                     <td>
-                      <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>
-                        Delete
-                      </button>
+                      {isPrivileged && (
+                        <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

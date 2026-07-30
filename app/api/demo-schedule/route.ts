@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { DemoScheduleRecord } from '@/lib/types';
+import { DemoScheduleRecord, DomainKey } from '@/lib/types';
+
+const VALID_DOMAINS: (DomainKey | '')[] = ['', 'av', 'robotics', 'ai', 'si', 'visitiq'];
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+}
 
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
@@ -29,15 +36,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Client name and scheduled date/time are required' }, { status: 400 });
   }
 
+  const productDomain = VALID_DOMAINS.includes(body.productDomain) ? (body.productDomain as DomainKey | '') : '';
+
+  // Every new request starts 'pending' regardless of what the client sends —
+  // it only becomes 'confirmed'/'rejected' via the lead-approval PATCH below.
   const record: DemoScheduleRecord = {
     id: `${Date.now()}`,
     created_at: new Date().toISOString(),
     created_by: viewer.username,
     client_name: clientName,
-    product_domain: typeof body.productDomain === 'string' ? body.productDomain.trim() : '',
+    product_domain: productDomain,
+    technical_members: toStringArray(body.technicalMembers),
     scheduled_at: scheduledAt,
-    assigned_rep: typeof body.assignedRep === 'string' ? body.assignedRep.trim() : viewer.username,
-    status: 'scheduled',
+    assigned_rep: typeof body.assignedRep === 'string' && body.assignedRep.trim() ? body.assignedRep.trim() : viewer.username,
+    status: 'pending',
+    approved_by: '',
+    approved_at: '',
+    decision_note: '',
     notes: typeof body.notes === 'string' ? body.notes.trim() : ''
   };
 

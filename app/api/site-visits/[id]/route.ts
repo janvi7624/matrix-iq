@@ -49,6 +49,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     } else {
       if (typeof body.companyName === 'string' && body.companyName.trim()) patch.company_name = body.companyName.trim();
       if (typeof body.contactPerson === 'string') patch.contact_person = body.contactPerson.trim();
+      if (typeof body.clientEmail === 'string') patch.client_email = body.clientEmail.trim();
+      if (typeof body.clientPhone === 'string') patch.client_phone = body.clientPhone.trim();
       if (typeof body.visitDate === 'string' && body.visitDate) patch.visit_date = body.visitDate;
       if (Array.isArray(body.teamTechnical)) patch.team_technical = toStringArray(body.teamTechnical);
       if (Array.isArray(body.teamSales)) patch.team_sales = toStringArray(body.teamSales);

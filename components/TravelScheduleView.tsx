@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { TravelScheduleRecord } from '@/lib/types';
+import { TravelScheduleRecord, UserRole } from '@/lib/types';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -17,7 +17,12 @@ function formatDate(iso: string): string {
   }
 }
 
-export default function TravelScheduleView() {
+interface TravelScheduleViewProps {
+  currentUser: { username: string; role: UserRole };
+}
+
+export default function TravelScheduleView({ currentUser }: TravelScheduleViewProps) {
+  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin';
   const [records, setRecords] = useState<TravelScheduleRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -158,9 +163,11 @@ export default function TravelScheduleView() {
                     <td>{r.linked_client || '-'}</td>
                     <td>{r.created_by}</td>
                     <td>
-                      <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>
-                        Delete
-                      </button>
+                      {isPrivileged && (
+                        <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

@@ -2,17 +2,24 @@
 
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { DomainKey, SiteVisitRecord, VisitStage } from '@/lib/types';
+import { DomainKey, SiteVisitRecord, UserRole, VisitStage } from '@/lib/types';
 import { TECHNICAL_TEAM, SALES_TEAM } from '@/lib/teamMembers';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { isReminderDue, STAGE_LABEL, STAGE_HINT } from '@/lib/siteVisitReminder';
 import PortalHeader from './PortalHeader';
+import TeamCheckboxes from './TeamCheckboxes';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+
+interface SiteVisitsViewProps {
+  currentUser: { username: string; role: UserRole };
+}
 
 const EMPTY_FORM = {
   companyName: '',
   contactPerson: '',
+  clientEmail: '',
+  clientPhone: '',
   visitDate: '',
   teamTechnical: [] as string[],
   teamSales: [] as string[],
@@ -43,36 +50,6 @@ function formatDateTime(iso: string): string {
   } catch {
     return iso;
   }
-}
-
-function toggleInArray(list: string[], value: string): string[] {
-  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
-}
-
-function TeamCheckboxes({
-  label,
-  options,
-  selected,
-  onChange
-}: {
-  label: string;
-  options: string[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-}) {
-  return (
-    <div className={calcStyles.field}>
-      <label className={calcStyles.label}>{label}</label>
-      <div className={historyStyles.teamGrid}>
-        {options.map((name) => (
-          <label key={name}>
-            <input type="checkbox" checked={selected.includes(name)} onChange={() => onChange(toggleInArray(selected, name))} />
-            {name}
-          </label>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function StagePicker({ value, onChange }: { value: VisitStage | ''; onChange: (v: VisitStage) => void }) {
@@ -195,6 +172,16 @@ function SiteVisitDetail({
 
       <div className={`${calcStyles.row} ${calcStyles.columns}`}>
         <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Client email</label>
+          <div className={calcStyles.small}>{visit.client_email || '-'}</div>
+        </div>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Client phone</label>
+          <div className={calcStyles.small}>{visit.client_phone || '-'}</div>
+        </div>
+      </div>
+      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+        <div className={calcStyles.field}>
           <label className={calcStyles.label}>Purpose</label>
           <div className={calcStyles.small}>{visit.purpose || '-'}</div>
         </div>
@@ -313,15 +300,18 @@ function SiteVisitDetail({
   );
 }
 
-function SiteVisitsContent() {
+function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
   const searchParams = useSearchParams();
+  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin';
   const [visits, setVisits] = useState<SiteVisitRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
+  const [mode, setMode] = useState<'register' | 'update'>(searchParams.get('focus') === 'open' ? 'update' : 'register');
   const [openOnly, setOpenOnly] = useState(searchParams.get('focus') === 'open');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [autofillNotice, setAutofillNotice] = useState('');
 
   async function load() {
     setStatus('Loading...');
@@ -360,12 +350,36 @@ function SiteVisitsContent() {
       });
       if (!response.ok) throw new Error(String(response.status));
       setForm(EMPTY_FORM);
+      setAutofillNotice('');
       await load();
     } catch {
       alert('Could not save this site visit. Please try again.');
     } finally {
       setCreating(false);
     }
+  }
+
+  // Same client, new domain: carry over everything except the visit date,
+  // category, and images so the rep only has to pick the new domain.
+  function handleCompanyBlur() {
+    const name = form.companyName.trim();
+    if (!name) return;
+    const match = visits.find((v) => v.company_name.trim().toLowerCase() === name.toLowerCase());
+    if (!match) return;
+    setForm((f) => ({
+      ...f,
+      contactPerson: f.contactPerson || match.contact_person,
+      clientEmail: f.clientEmail || match.client_email,
+      clientPhone: f.clientPhone || match.client_phone,
+      teamTechnical: f.teamTechnical.length ? f.teamTechnical : match.team_technical,
+      teamSales: f.teamSales.length ? f.teamSales : match.team_sales,
+      purpose: f.purpose || match.purpose,
+      visitDetails: f.visitDetails || match.visit_details,
+      actionPlan: f.actionPlan || match.action_plan,
+      reminderDate: f.reminderDate || match.reminder_date,
+      stage: f.stage || match.stage
+    }));
+    setAutofillNotice(`Loaded details from an earlier visit to ${match.company_name} — just update the category and visit-specific info.`);
   }
 
   async function handlePatch(id: string, patch: Record<string, unknown>) {
@@ -402,12 +416,41 @@ function SiteVisitsContent() {
     <div className={historyStyles.body}>
       <PortalHeader title="Site Visit Reports" subtitle="Register a visit, then keep logging project updates over time." />
       <main className={historyStyles.main}>
+        <div className={historyStyles.modeToggle}>
+          <button
+            type="button"
+            className={`${historyStyles.modeToggleBtn} ${mode === 'register' ? historyStyles.modeToggleBtnActive : ''}`}
+            onClick={() => setMode('register')}
+          >
+            Register new visit
+          </button>
+          <button
+            type="button"
+            className={`${historyStyles.modeToggleBtn} ${mode === 'update' ? historyStyles.modeToggleBtnActive : ''}`}
+            onClick={() => {
+              setMode('update');
+              setOpenOnly(true);
+            }}
+          >
+            Update details of visit
+          </button>
+        </div>
+
+        {mode === 'register' && (
+        <>
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Register a site visit</h2>
+        {autofillNotice && <div className={historyStyles.autofillNotice}>{autofillNotice}</div>}
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Company name *</label>
-              <input className={calcStyles.formControl} value={form.companyName} onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))} required />
+              <input
+                className={calcStyles.formControl}
+                value={form.companyName}
+                onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))}
+                onBlur={handleCompanyBlur}
+                required
+              />
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Contact person</label>
@@ -416,6 +459,17 @@ function SiteVisitsContent() {
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Visit date *</label>
               <input type="date" className={calcStyles.formControl} value={form.visitDate} onChange={(e) => setForm((f) => ({ ...f, visitDate: e.target.value }))} required />
+            </div>
+          </div>
+
+          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Client email</label>
+              <input type="email" className={calcStyles.formControl} value={form.clientEmail} onChange={(e) => setForm((f) => ({ ...f, clientEmail: e.target.value }))} />
+            </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Client contact number</label>
+              <input className={calcStyles.formControl} value={form.clientPhone} onChange={(e) => setForm((f) => ({ ...f, clientPhone: e.target.value }))} />
             </div>
           </div>
 
@@ -474,6 +528,8 @@ function SiteVisitsContent() {
             {creating ? 'Saving…' : 'Register site visit'}
           </button>
         </form>
+        </>
+        )}
 
         <div className={historyStyles.toolbar} style={{ marginTop: 24 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5 }}>
@@ -523,9 +579,11 @@ function SiteVisitsContent() {
                       <button type="button" className={historyStyles.button} onClick={() => setOpenId(v.id)}>
                         Open
                       </button>
-                      <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(v.id)}>
-                        Delete
-                      </button>
+                      {isPrivileged && (
+                        <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(v.id)}>
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -542,10 +600,10 @@ function SiteVisitsContent() {
   );
 }
 
-export default function SiteVisitsView() {
+export default function SiteVisitsView({ currentUser }: SiteVisitsViewProps) {
   return (
     <Suspense fallback={<div className={historyStyles.body} />}>
-      <SiteVisitsContent />
+      <SiteVisitsContent currentUser={currentUser} />
     </Suspense>
   );
 }

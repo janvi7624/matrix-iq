@@ -1,14 +1,39 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { DemoScheduleRecord } from '@/lib/types';
+import { DemoScheduleRecord, DomainKey, UserRole } from '@/lib/types';
+import { TECHNICAL_TEAM } from '@/lib/teamMembers';
+import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
+import { domainLeadLabel } from '@/lib/domainLeads';
 import PortalHeader from './PortalHeader';
+import TeamCheckboxes from './TeamCheckboxes';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
-const EMPTY_FORM = { clientName: '', productDomain: '', scheduledAt: '', assignedRep: '', notes: '' };
+const EMPTY_FORM = {
+  clientName: '',
+  productDomain: '' as DomainKey | '',
+  technicalMembers: [] as string[],
+  scheduledAt: '',
+  assignedRep: '',
+  notes: ''
+};
 
-const STATUS_LABEL: Record<DemoScheduleRecord['status'], string> = { scheduled: 'Scheduled', done: 'Done', cancelled: 'Cancelled' };
+const STATUS_LABEL: Record<DemoScheduleRecord['status'], string> = {
+  pending: 'Pending approval',
+  confirmed: 'Confirmed',
+  rejected: 'Rejected',
+  done: 'Done',
+  cancelled: 'Cancelled'
+};
+
+const STATUS_CLASS: Record<DemoScheduleRecord['status'], string> = {
+  pending: historyStyles.statusPending,
+  confirmed: historyStyles.statusConfirmed,
+  rejected: historyStyles.statusRejected,
+  done: historyStyles.statusDone,
+  cancelled: historyStyles.statusCancelled
+};
 
 function formatDateTime(iso: string): string {
   if (!iso) return '-';
@@ -19,7 +44,12 @@ function formatDateTime(iso: string): string {
   }
 }
 
-export default function DemoScheduleView() {
+interface DemoScheduleViewProps {
+  currentUser: { username: string; role: UserRole };
+}
+
+export default function DemoScheduleView({ currentUser }: DemoScheduleViewProps) {
+  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin';
   const [records, setRecords] = useState<DemoScheduleRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -61,43 +91,61 @@ export default function DemoScheduleView() {
       setForm(EMPTY_FORM);
       await load();
     } catch {
-      alert('Could not save this demo. Please try again.');
+      alert('Could not save this demo request. Please try again.');
     } finally {
       setCreating(false);
     }
   }
 
-  async function handleStatusChange(id: string, next: DemoScheduleRecord['status']) {
+  async function patchRecord(id: string, patch: Record<string, unknown>) {
     try {
       const response = await fetch(`/api/demo-schedule/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: next })
+        body: JSON.stringify(patch)
       });
       if (!response.ok) throw new Error(String(response.status));
       const updated: DemoScheduleRecord = await response.json();
       setRecords((prev) => prev.map((r) => (r.id === id ? updated : r)));
     } catch {
-      alert('Could not update status. Please try again.');
+      alert('Could not update this request. Please try again.');
     }
   }
 
+  function handleApprove(id: string) {
+    patchRecord(id, { status: 'confirmed' });
+  }
+
+  function handleReject(id: string) {
+    const note = window.prompt('Reason for rejecting this demo request (optional):', '') || '';
+    patchRecord(id, { status: 'rejected', decisionNote: note });
+  }
+
+  function handleCancel(id: string) {
+    if (!window.confirm('Cancel this demo request?')) return;
+    patchRecord(id, { status: 'cancelled' });
+  }
+
+  function handleMarkDone(id: string) {
+    patchRecord(id, { status: 'done' });
+  }
+
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this demo booking? This cannot be undone.')) return;
+    if (!window.confirm('Delete this demo request? This cannot be undone.')) return;
     try {
       const response = await fetch(`/api/demo-schedule/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setRecords((prev) => prev.filter((r) => r.id !== id));
     } catch {
-      alert('Could not delete this demo booking.');
+      alert('Could not delete this demo request.');
     }
   }
 
   return (
     <div className={historyStyles.body}>
-      <PortalHeader title="Demo Schedule" subtitle="Book and track product demos." />
+      <PortalHeader title="Demo Schedule" subtitle="Request a product demo — it's confirmed once the domain lead approves." />
       <main className={historyStyles.main}>
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Schedule a demo</h2>
+        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Request a demo</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
@@ -105,8 +153,17 @@ export default function DemoScheduleView() {
               <input className={calcStyles.formControl} value={form.clientName} onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))} required />
             </div>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Product / domain</label>
-              <input className={calcStyles.formControl} placeholder="e.g. AI Video Analytics, VisitIQ VMS" value={form.productDomain} onChange={(e) => setForm((f) => ({ ...f, productDomain: e.target.value }))} />
+              <label className={calcStyles.label}>Product</label>
+              <select
+                className={calcStyles.formControl}
+                value={form.productDomain}
+                onChange={(e) => setForm((f) => ({ ...f, productDomain: e.target.value as DomainKey | '' }))}
+              >
+                <option value="">-- Select product --</option>
+                {(Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[]).map((k) => (
+                  <option key={k} value={k}>{DOMAIN_DISPLAY_NAME[k]}</option>
+                ))}
+              </select>
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Scheduled date &amp; time *</label>
@@ -114,6 +171,12 @@ export default function DemoScheduleView() {
             </div>
           </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+            <TeamCheckboxes
+              label="Technical team member(s) required"
+              options={TECHNICAL_TEAM}
+              selected={form.technicalMembers}
+              onChange={(next) => setForm((f) => ({ ...f, technicalMembers: next }))}
+            />
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Assigned rep</label>
               <input className={calcStyles.formControl} placeholder="Defaults to you" value={form.assignedRep} onChange={(e) => setForm((f) => ({ ...f, assignedRep: e.target.value }))} />
@@ -123,8 +186,13 @@ export default function DemoScheduleView() {
             <label className={calcStyles.label}>Notes</label>
             <textarea className={calcStyles.formControl} rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
           </div>
+          {form.productDomain && (
+            <div className={calcStyles.small} style={{ marginBottom: 8 }}>
+              This request will need approval from the {DOMAIN_DISPLAY_NAME[form.productDomain]} lead ({domainLeadLabel(form.productDomain)}).
+            </div>
+          )}
           <button type="submit" className={calcStyles.btn} disabled={creating}>
-            {creating ? 'Saving…' : 'Schedule demo'}
+            {creating ? 'Sending…' : 'Send request'}
           </button>
         </form>
 
@@ -140,11 +208,11 @@ export default function DemoScheduleView() {
               <tr>
                 <th>Scheduled</th>
                 <th>Client</th>
-                <th>Product / Domain</th>
-                <th>Assigned Rep</th>
+                <th>Product</th>
+                <th>Lead</th>
+                <th>Technical Team</th>
                 <th>Status</th>
-                <th>Notes</th>
-                <th>Booked By</th>
+                <th>Requested By</th>
                 <th></th>
               </tr>
             </thead>
@@ -152,7 +220,7 @@ export default function DemoScheduleView() {
               {records.length === 0 ? (
                 <tr>
                   <td colSpan={8} className={historyStyles.empty}>
-                    No demos scheduled yet.
+                    No demo requests yet.
                   </td>
                 </tr>
               ) : (
@@ -160,25 +228,43 @@ export default function DemoScheduleView() {
                   <tr key={r.id}>
                     <td>{formatDateTime(r.scheduled_at)}</td>
                     <td>{r.client_name}</td>
-                    <td>{r.product_domain || '-'}</td>
-                    <td>{r.assigned_rep || '-'}</td>
+                    <td>{r.product_domain ? DOMAIN_DISPLAY_NAME[r.product_domain] : '-'}</td>
+                    <td>{domainLeadLabel(r.product_domain)}</td>
+                    <td>{r.technical_members.length ? r.technical_members.join(', ') : '-'}</td>
                     <td>
-                      <select
-                        value={r.status}
-                        onChange={(e) => handleStatusChange(r.id, e.target.value as DemoScheduleRecord['status'])}
-                        style={{ padding: '4px 6px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12.5 }}
-                      >
-                        {(Object.keys(STATUS_LABEL) as DemoScheduleRecord['status'][]).map((s) => (
-                          <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-                        ))}
-                      </select>
+                      <span className={`${historyStyles.statusBadge} ${STATUS_CLASS[r.status]}`}>{STATUS_LABEL[r.status]}</span>
+                      {r.status === 'rejected' && r.decision_note && <div className={calcStyles.small}>{r.decision_note}</div>}
+                      {r.approved_by && (r.status === 'confirmed' || r.status === 'rejected') && (
+                        <div className={calcStyles.small}>by {r.approved_by}</div>
+                      )}
                     </td>
-                    <td>{r.notes || '-'}</td>
                     <td>{r.created_by}</td>
-                    <td>
-                      <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>
-                        Delete
-                      </button>
+                    <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {r.status === 'pending' && isPrivileged && (
+                        <>
+                          <button type="button" className={historyStyles.primary} onClick={() => handleApprove(r.id)}>
+                            Approve
+                          </button>
+                          <button type="button" className={historyStyles.deleteBtn} onClick={() => handleReject(r.id)}>
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {(r.status === 'pending' || r.status === 'confirmed') && (r.created_by === currentUser.username || isPrivileged) && (
+                        <button type="button" className={historyStyles.button} onClick={() => handleCancel(r.id)}>
+                          Cancel
+                        </button>
+                      )}
+                      {r.status === 'confirmed' && (
+                        <button type="button" className={historyStyles.button} onClick={() => handleMarkDone(r.id)}>
+                          Mark done
+                        </button>
+                      )}
+                      {isPrivileged && (
+                        <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

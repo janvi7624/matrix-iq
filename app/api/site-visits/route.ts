@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
     created_by: viewer.username,
     company_name: companyName,
     contact_person: typeof body.contactPerson === 'string' ? body.contactPerson.trim() : '',
+    client_email: typeof body.clientEmail === 'string' ? body.clientEmail.trim() : '',
+    client_phone: typeof body.clientPhone === 'string' ? body.clientPhone.trim() : '',
     visit_date: visitDate,
     team_technical: toStringArray(body.teamTechnical),
     team_sales: toStringArray(body.teamSales),

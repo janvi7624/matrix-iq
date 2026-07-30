@@ -24,7 +24,7 @@
     inset: 0;
     z-index: -1;
     border-radius: 28px;
-    background: radial-gradient(circle at top left, rgba(239, 68, 68, 0.12), transparent 30%),
+    background: radial-gradient(circle at top left, rgba(220, 38, 38, 0.12), transparent 30%),
                 radial-gradient(circle at bottom right, rgba(17, 24, 39, 0.06), transparent 40%);
 }
 .h1 {
@@ -125,24 +125,27 @@
     border-radius: 14px;
 }
 .label {
-    font-size: 0.90rem;
-    color: #4e0000;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #374151;
 }
 .formControl {
-    width: 90%;
-    padding: 12px 14px;
-    border-radius: 12px;
-    border: 1px solid rgba(184, 148, 148, 0.25);
-    background: #ffd3d3;
-    color: #000000;
-    font-size: 1rem;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid #d8dbe1;
+    background: #ffffff;
+    color: #111827;
+    font-size: 0.95rem;
     outline: none;
     font-family: inherit;
     resize: vertical;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .formControl:focus {
-    border-color: #38bdf8;
-    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
 }
 .formControlLocked {
     background: #f3f4f6;
@@ -185,35 +188,49 @@
 }
 .summaryItem strong {
     font-weight: 700;
-    color: #ff0000;
+    color: #374151;
 }
 .summaryItem span {
-    color: rgb(95, 0, 0);
+    color: #111827;
+    font-weight: 600;
     text-align: right;
 }
 .h2 {
-    margin: 24px 0 10px;
-    font-size: 1.4rem;
-    color: #ff0000;
+    margin: 28px 0 12px;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #111827;
+    padding-left: 12px;
+    border-left: 4px solid #dc2626;
 }
 .btn {
     padding: 12px 18px;
     border: none;
-    border-radius: 12px;
-    background: #ef4444;
+    border-radius: 10px;
+    background: #dc2626;
     color: #ffffff;
     font-weight: 700;
     cursor: pointer;
-    transition: background 0.2s ease;
+    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.22);
+    transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 .btn:hover {
     background: #b91c1c;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.28);
 }
 .btn:active {
     transform: translateY(1px);
+    box-shadow: 0 3px 10px rgba(220, 38, 38, 0.22);
+}
+.btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+    transform: none;
+    box-shadow: none;
 }
 .btnPrimary {
-    background: #ef4444;
+    background: #dc2626;
     color: #ffffff;
 }
 .btnGhost {
@@ -222,7 +239,7 @@
     border: 1px solid rgba(148, 163, 184, 0.5);
 }
 .btnGhost:hover {
-    background: rgba(239, 68, 68, 0.12);
+    background: rgba(220, 38, 38, 0.12);
 }
 .small {
     font-size: 0.92rem;
@@ -232,7 +249,7 @@
     padding: 20px 20px 16px;
     border-radius: 20px;
     background: #fff1f1;
-    border: 1px solid rgba(239, 68, 68, 0.25);
+    border: 1px solid rgba(220, 38, 38, 0.25);
     margin-bottom: 18px;
 }
 .aiFeatureList {
@@ -245,7 +262,7 @@
 }
 .aiFeatureCategory {
     font-weight: 700;
-    color: #ff0000;
+    color: #b91c1c;
     margin: 14px 0 4px;
     font-size: 0.95rem;
 }
@@ -263,7 +280,7 @@
 .aiFeatureCheckbox {
     width: auto;
     margin-top: 3px;
-    accent-color: #ef4444;
+    accent-color: #dc2626;
 }
 .aiFeatureInfo {
     flex: 1;
@@ -315,15 +332,15 @@
 }
 .secondaryButton {
     background: #ffffff;
-    color: #ef4444;
-    border: 1.5px dashed #ef4444;
+    color: #dc2626;
+    border: 1.5px dashed #dc2626;
     font-weight: 600;
     padding: 10px 16px;
     border-radius: 12px;
     cursor: pointer;
 }
 .secondaryButton:hover {
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba(220, 38, 38, 0.1);
 }
 .hidden {
     display: none;
