@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
+import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DemoScheduleRecord, DomainKey } from '@/lib/types';
 
@@ -32,8 +33,15 @@ export async function POST(request: NextRequest) {
 
   const clientName = typeof body.clientName === 'string' ? body.clientName.trim() : '';
   const scheduledAt = typeof body.scheduledAt === 'string' ? body.scheduledAt : '';
-  if (!clientName || !scheduledAt) {
-    return NextResponse.json({ error: 'Client name and scheduled date/time are required' }, { status: 400 });
+  const projectId = typeof body.projectId === 'string' ? body.projectId.trim() : '';
+  if (!clientName || !scheduledAt || !projectId) {
+    return NextResponse.json({ error: 'Project, client name, and scheduled date/time are required' }, { status: 400 });
+  }
+
+  const project = await findProjectById(projectId);
+  if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  if (!viewer.isPrivileged && project.created_by !== viewer.username) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const productDomain = VALID_DOMAINS.includes(body.productDomain) ? (body.productDomain as DomainKey | '') : '';
@@ -44,7 +52,11 @@ export async function POST(request: NextRequest) {
     id: `${Date.now()}`,
     created_at: new Date().toISOString(),
     created_by: viewer.username,
+    project_id: projectId,
+    quotation_id: typeof body.quotationId === 'string' ? body.quotationId.trim() : '',
     client_name: clientName,
+    company: typeof body.company === 'string' ? body.company.trim() : '',
+    location: typeof body.location === 'string' ? body.location.trim() : '',
     product_domain: productDomain,
     technical_members: toStringArray(body.technicalMembers),
     scheduled_at: scheduledAt,
@@ -53,11 +65,21 @@ export async function POST(request: NextRequest) {
     approved_by: '',
     approved_at: '',
     decision_note: '',
-    notes: typeof body.notes === 'string' ? body.notes.trim() : ''
+    notes: typeof body.notes === 'string' ? body.notes.trim() : '',
+    demo_objective: typeof body.demoObjective === 'string' ? body.demoObjective.trim() : '',
+    outcome: '',
+    customer_rating: 0,
+    key_queries: '',
+    technical_challenges: '',
+    unanswered_queries: '',
+    suggested_next_action: '',
+    next_follow_up_date: '',
+    attachments: []
   };
 
   try {
     const created = await demoScheduleStore.create(record);
+    await appendProjectTimeline(projectId, { by: viewer.username, stage: 'demo', label: `Demo requested for ${new Date(scheduledAt).toLocaleString('en-IN')}` }, 'demo');
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

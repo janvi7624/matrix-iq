@@ -23,12 +23,14 @@ export async function proxy(request: NextRequest) {
   }
 
   const isAdminOnly = ADMIN_ONLY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-  if (isAdminOnly && session.role === 'user') {
+  // "manager" is treated like admin/superadmin (full pipeline visibility);
+  // "technical" is treated like "user" (own-scoped, no admin/user-management access).
+  if (isAdminOnly && (session.role === 'user' || session.role === 'technical')) {
     if (isApi) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.redirect(new URL('/', request.url));
   }
 
-  // "admin" can create/edit users and view quotation history, but never delete
+  // "admin"/"manager" can create/edit users and view quotation history, but never delete
   // anything — only "superadmin" can. Role-escalation checks (an admin trying
   // to create/promote a superadmin) are handled in the user routes themselves.
   if (request.method === 'DELETE' && pathname.startsWith('/api/admin/') && session.role !== 'superadmin') {

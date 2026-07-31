@@ -15,6 +15,7 @@ async function writeQuotations(records: QuotationRecord[]): Promise<void> {
 
 export interface CreateQuotationInput {
   prefix?: string;
+  projectId?: string;
   domains?: DomainKey[];
   preparedBy?: string;
   preparedByPhone?: string;
@@ -61,6 +62,7 @@ export async function createQuotation(input: CreateQuotationInput): Promise<Quot
     id: `${now.getTime()}`,
     quotation_number: quotationNumber,
     created_at: now.toISOString(),
+    project_id: input.projectId || '',
     prepared_by: input.preparedBy || '',
     prepared_by_phone: input.preparedByPhone || '',
     prepared_by_email: input.preparedByEmail || '',
@@ -110,6 +112,11 @@ export async function logQuotationFollowUp(id: string, by: string, note: string)
   return updated;
 }
 
+export async function findQuotationById(id: string): Promise<QuotationRecord | undefined> {
+  const records = await readQuotations();
+  return records.find((r) => r.id === id);
+}
+
 export async function deleteQuotation(id: string): Promise<boolean> {
   const records = await readQuotations();
   const next = records.filter((r) => r.id !== id);
@@ -134,6 +141,7 @@ export async function searchQuotations(query?: string): Promise<QuotationRecord[
 const CSV_COLUMNS: { key: keyof QuotationRecord; header: string }[] = [
   { key: 'quotation_number', header: 'Quotation Number' },
   { key: 'created_at', header: 'Date' },
+  { key: 'project_id', header: 'Project ID' },
   { key: 'prepared_by', header: 'Prepared By' },
   { key: 'prepared_by_phone', header: 'Prepared By Phone' },
   { key: 'prepared_by_email', header: 'Prepared By Email' },

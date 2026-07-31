@@ -95,8 +95,13 @@ export interface CostInputs {
 
 // superadmin: full rights (manage users incl. delete, view/delete quotation history, exports).
 // admin: can create/edit users and view quotation history, but cannot delete users or quotations.
+// manager: same broad visibility as admin across the sales-project pipeline (projects, demos,
+//   approvals, etc.) — added for the Sales/Technical/Manager permission split, not a user-management role.
+// technical: technical-team login; same own-scoped visibility as "user" today (see note in
+//   lib/viewerContext.ts — assignment-based visibility isn't possible while team rosters are
+//   free-text names, not real accounts).
 // user: can only use the calculator to create quotations; no history or user-management access.
-export type UserRole = 'superadmin' | 'admin' | 'user';
+export type UserRole = 'superadmin' | 'admin' | 'manager' | 'technical' | 'user';
 
 export interface UserRecord {
   id: string;
@@ -115,6 +120,7 @@ export interface QuotationRecord {
   id: string;
   quotation_number: string;
   created_at: string;
+  project_id: string;
   prepared_by: string;
   prepared_by_phone: string;
   prepared_by_email: string;
@@ -156,10 +162,12 @@ export interface SiteVisitRecord {
   id: string;
   created_at: string;
   created_by: string;
+  project_id: string;
   company_name: string;
   contact_person: string;
   client_email: string;
   client_phone: string;
+  location: string;
   visit_date: string;
   team_technical: string[];
   team_sales: string[];
@@ -194,11 +202,19 @@ export interface CrmRecord {
 // domain lead — see lib/domainLeads.ts) confirms or rejects it.
 export type DemoRequestStatus = 'pending' | 'confirmed' | 'rejected' | 'done' | 'cancelled';
 
+// Filled in after the demo actually happens — separate from `status` (the
+// pending/confirmed approval flow above it).
+export type DemoOutcome = 'successful' | 'need_followup' | 'pending_decision' | 'cancelled' | '';
+
 export interface DemoScheduleRecord {
   id: string;
   created_at: string;
   created_by: string;
+  project_id: string;
+  quotation_id: string;
   client_name: string;
+  company: string;
+  location: string;
   product_domain: DomainKey | '';
   technical_members: string[];
   scheduled_at: string;
@@ -208,6 +224,16 @@ export interface DemoScheduleRecord {
   approved_at: string;
   decision_note: string;
   notes: string;
+  // Post-demo report fields — filled in once the demo has taken place.
+  demo_objective: string;
+  outcome: DemoOutcome;
+  customer_rating: number; // 0 = not rated, else 1-5
+  key_queries: string;
+  technical_challenges: string;
+  unanswered_queries: string;
+  suggested_next_action: string;
+  next_follow_up_date: string;
+  attachments: string[];
 }
 
 export interface TravelScheduleRecord {
@@ -221,4 +247,112 @@ export interface TravelScheduleRecord {
   purpose: string;
   linked_client: string;
   expense_note: string;
+}
+
+// ---------------------------------------------------------------------------
+// Sales Project Workflow — a Project is the master record every stage below
+// (Site Visit, Quotation, Demo, Customer Response, Negotiation, PO,
+// Installation) attaches to via project_id, so a project's full history can
+// be reconstructed and shown as one timeline.
+// ---------------------------------------------------------------------------
+
+export const PROJECT_STAGES = [
+  'site_visit',
+  'quotation',
+  'demo',
+  'customer_response',
+  'negotiation',
+  'po_received',
+  'installation',
+  'completed',
+  'closed_lost'
+] as const;
+export type ProjectStage = (typeof PROJECT_STAGES)[number];
+
+export type ProjectStatus = 'active' | 'on_hold' | 'won' | 'lost';
+export type ProjectPriority = 'low' | 'medium' | 'high';
+
+export interface ProjectTimelineEvent {
+  id: string;
+  at: string;
+  by: string;
+  stage: ProjectStage | 'created';
+  label: string;
+  remarks: string;
+}
+
+export interface ProjectRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  client_name: string;
+  company: string;
+  contact_person: string;
+  phone: string;
+  email: string;
+  address: string;
+  sales_person: string;
+  status: ProjectStatus;
+  stage: ProjectStage;
+  priority: ProjectPriority;
+  expected_closing_date: string;
+  next_follow_up_date: string;
+  remarks: string;
+  timeline: ProjectTimelineEvent[];
+  updated_at: string;
+}
+
+export type CustomerResponseType = 'interested' | 'not_interested' | 'need_revision' | 'need_new_quotation' | 'budget_issue' | 'competitor';
+
+export interface CustomerResponseRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  project_id: string;
+  demo_id: string;
+  feedback: string;
+  response_type: CustomerResponseType | '';
+  expected_decision_date: string;
+  remarks: string;
+}
+
+export interface NegotiationRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  project_id: string;
+  discussion_date: string;
+  person: string;
+  discussion: string;
+  offer_given: string;
+  discount: string;
+  revised_price: number;
+  expected_closure: string;
+}
+
+export interface PoRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  project_id: string;
+  po_number: string;
+  po_date: string;
+  amount: number;
+  attachment_url: string;
+  advance_received: number;
+  payment_terms: string;
+}
+
+export type InstallationStatus = 'scheduled' | 'in_progress' | 'completed';
+
+export interface InstallationRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  project_id: string;
+  installation_date: string;
+  assigned_engineer: string;
+  status: InstallationStatus;
+  completion_report: string;
+  client_signature: string;
 }

@@ -15,7 +15,7 @@ interface CrmViewProps {
 }
 
 export default function CrmView({ currentUser }: CrmViewProps) {
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin';
+  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const [records, setRecords] = useState<CrmRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');

@@ -18,8 +18,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const existing = await findUserById(id);
     if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const role: UserRole | undefined =
-      body.role === 'superadmin' || body.role === 'admin' || body.role === 'user' ? body.role : undefined;
+    const VALID_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'user'];
+    const role: UserRole | undefined = VALID_ROLES.includes(body.role) ? body.role : undefined;
 
     // An "admin" (non-superadmin) may create/edit ordinary accounts but must not
     // be able to touch superadmin accounts or grant superadmin to anyone.

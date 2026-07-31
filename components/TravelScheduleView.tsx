@@ -22,7 +22,7 @@ interface TravelScheduleViewProps {
 }
 
 export default function TravelScheduleView({ currentUser }: TravelScheduleViewProps) {
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin';
+  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const [records, setRecords] = useState<TravelScheduleRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');

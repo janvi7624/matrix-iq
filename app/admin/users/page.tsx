@@ -7,10 +7,12 @@ import { PublicUser, UserRole } from '@/lib/types';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 
-const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', user: 'User' };
+const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical Team', user: 'User' };
 const ROLE_PILL_CLASS: Record<UserRole, string> = {
   superadmin: historyStyles.rolePillSuperadmin,
   admin: historyStyles.rolePillAdmin,
+  manager: historyStyles.rolePillManager,
+  technical: historyStyles.rolePillTechnical,
   user: historyStyles.rolePillUser
 };
 
@@ -22,6 +24,8 @@ function RoleOptions({ includeSuperadmin }: { includeSuperadmin: boolean }) {
   return (
     <>
       <option value="user">User</option>
+      <option value="technical">Technical Team</option>
+      <option value="manager">Manager</option>
       <option value="admin">Admin</option>
       {includeSuperadmin && <option value="superadmin">Super Admin</option>}
     </>

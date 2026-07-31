@@ -20,6 +20,7 @@ interface Tile {
 }
 
 const TILES: Tile[] = [
+  { title: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', href: '/projects' },
   { title: 'Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', href: '/quotation' },
   { title: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', href: '/site-visits' },
   { title: 'CRM', desc: 'Track leads, prospects, and customers.', href: '/crm' },
@@ -27,11 +28,43 @@ const TILES: Tile[] = [
   { title: 'Travel Schedule', desc: 'Log rep travel for client visits.', href: '/travel-schedule' }
 ];
 
+interface Kpis {
+  totalProjects: number;
+  siteVisitsToday: number;
+  quotationsSent: number;
+  upcomingDemos: number;
+  pendingResponses: number;
+  negotiations: number;
+  wonDeals: number;
+  lostDeals: number;
+  conversionRate: number;
+}
+
+const KPI_LABELS: { key: keyof Kpis; label: string; suffix?: string }[] = [
+  { key: 'totalProjects', label: 'Total Projects' },
+  { key: 'siteVisitsToday', label: 'Site Visits Today' },
+  { key: 'quotationsSent', label: 'Quotations Sent' },
+  { key: 'upcomingDemos', label: 'Upcoming Demos' },
+  { key: 'pendingResponses', label: 'Pending Responses' },
+  { key: 'negotiations', label: 'Negotiations' },
+  { key: 'wonDeals', label: 'Won Deals' },
+  { key: 'lostDeals', label: 'Lost Deals' },
+  { key: 'conversionRate', label: 'Conversion Rate', suffix: '%' }
+];
+
 export default function Dashboard({ currentUser }: DashboardProps) {
   const [followUpCount, setFollowUpCount] = useState<number | null>(null);
   const [reminderCount, setReminderCount] = useState<number | null>(null);
+  const [kpis, setKpis] = useState<Kpis | null>(null);
 
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin';
+  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+
+  useEffect(() => {
+    fetch('/api/projects/kpis')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: Kpis | null) => setKpis(data))
+      .catch(() => setKpis(null));
+  }, []);
 
   useEffect(() => {
     if (!isPrivileged) return;
@@ -69,6 +102,17 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               {reminderCount} site visit reminder{reminderCount === 1 ? '' : 's'} due.
             </span>
             <Link href="/site-visits?focus=open">Review now &rarr;</Link>
+          </div>
+        )}
+
+        {kpis && (
+          <div className={styles.kpiGrid}>
+            {KPI_LABELS.map((k) => (
+              <div key={k.key} className={styles.kpiCard}>
+                <div className={styles.kpiValue}>{kpis[k.key]}{k.suffix || ''}</div>
+                <div className={styles.kpiLabel}>{k.label}</div>
+              </div>
+            ))}
           </div>
         )}
 

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { siteVisitStore } from '@/lib/siteVisitStore';
+import { appendProjectTimeline, findProjectById, projectStore } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { DomainKey, SiteVisitRecord, VisitStage } from '@/lib/types';
+import { DomainKey, ProjectRecord, SiteVisitRecord, VisitStage } from '@/lib/types';
 
 const VALID_CATEGORIES: (DomainKey | '')[] = ['', 'av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_STAGES: (VisitStage | '')[] = ['', 'hot', 'warm', 'cold'];
@@ -39,33 +40,75 @@ export async function POST(request: NextRequest) {
 
   const category = VALID_CATEGORIES.includes(body.category) ? (body.category as DomainKey | '') : '';
   const stage = VALID_STAGES.includes(body.stage) ? (body.stage as VisitStage | '') : '';
-
-  const now = new Date().toISOString();
-  const record: SiteVisitRecord = {
-    id: `${Date.now()}`,
-    created_at: now,
-    created_by: viewer.username,
-    company_name: companyName,
-    contact_person: typeof body.contactPerson === 'string' ? body.contactPerson.trim() : '',
-    client_email: typeof body.clientEmail === 'string' ? body.clientEmail.trim() : '',
-    client_phone: typeof body.clientPhone === 'string' ? body.clientPhone.trim() : '',
-    visit_date: visitDate,
-    team_technical: toStringArray(body.teamTechnical),
-    team_sales: toStringArray(body.teamSales),
-    purpose: typeof body.purpose === 'string' ? body.purpose.trim() : '',
-    category,
-    visit_details: typeof body.visitDetails === 'string' ? body.visitDetails.trim() : '',
-    image_urls: toStringArray(body.imageUrls),
-    action_plan: typeof body.actionPlan === 'string' ? body.actionPlan.trim() : '',
-    reminder_date: typeof body.reminderDate === 'string' ? body.reminderDate : '',
-    stage,
-    status: 'open',
-    updates: [],
-    updated_at: now
-  };
+  const contactPerson = typeof body.contactPerson === 'string' ? body.contactPerson.trim() : '';
+  const clientEmail = typeof body.clientEmail === 'string' ? body.clientEmail.trim() : '';
+  const clientPhone = typeof body.clientPhone === 'string' ? body.clientPhone.trim() : '';
+  const location = typeof body.location === 'string' ? body.location.trim() : '';
 
   try {
+    // Every site visit belongs to a Project. If the caller already has one
+    // (e.g. logging a second visit, or a visit for a different domain with
+    // the same client), link to it; otherwise a new Project is created
+    // automatically so the pipeline always has a master record to attach to.
+    let projectId = typeof body.projectId === 'string' ? body.projectId.trim() : '';
+    if (projectId) {
+      const project = await findProjectById(projectId);
+      if (!project) projectId = '';
+    }
+    if (!projectId) {
+      const now = new Date().toISOString();
+      const newProject: ProjectRecord = {
+        id: `${Date.now()}`,
+        created_at: now,
+        created_by: viewer.username,
+        client_name: contactPerson,
+        company: companyName,
+        contact_person: contactPerson,
+        phone: clientPhone,
+        email: clientEmail,
+        address: location,
+        sales_person: viewer.username,
+        status: 'active',
+        stage: 'site_visit',
+        priority: 'medium',
+        expected_closing_date: '',
+        next_follow_up_date: '',
+        remarks: '',
+        timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created (from site visit)', remarks: '' }],
+        updated_at: now
+      };
+      const createdProject = await projectStore.create(newProject);
+      projectId = createdProject.id;
+    }
+
+    const now = new Date().toISOString();
+    const record: SiteVisitRecord = {
+      id: `${Date.now()}`,
+      created_at: now,
+      created_by: viewer.username,
+      project_id: projectId,
+      company_name: companyName,
+      contact_person: contactPerson,
+      client_email: clientEmail,
+      client_phone: clientPhone,
+      location,
+      visit_date: visitDate,
+      team_technical: toStringArray(body.teamTechnical),
+      team_sales: toStringArray(body.teamSales),
+      purpose: typeof body.purpose === 'string' ? body.purpose.trim() : '',
+      category,
+      visit_details: typeof body.visitDetails === 'string' ? body.visitDetails.trim() : '',
+      image_urls: toStringArray(body.imageUrls),
+      action_plan: typeof body.actionPlan === 'string' ? body.actionPlan.trim() : '',
+      reminder_date: typeof body.reminderDate === 'string' ? body.reminderDate : '',
+      stage,
+      status: 'open',
+      updates: [],
+      updated_at: now
+    };
+
     const created = await siteVisitStore.create(record);
+    await appendProjectTimeline(projectId, { by: viewer.username, stage: 'site_visit', label: `Site visit logged${location ? ` at ${location}` : ''}`, remarks: record.purpose });
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

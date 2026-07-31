@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
+import { appendProjectTimeline } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { DemoScheduleRecord } from '@/lib/types';
+import { DemoOutcome, DemoScheduleRecord } from '@/lib/types';
+
+const VALID_OUTCOMES: (DemoOutcome | '')[] = ['', 'successful', 'need_followup', 'pending_decision', 'cancelled'];
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -35,8 +43,30 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (typeof body.notes === 'string') patch.notes = body.notes.trim();
+    if (typeof body.demoObjective === 'string') patch.demo_objective = body.demoObjective.trim();
+    if (VALID_OUTCOMES.includes(body.outcome)) patch.outcome = body.outcome;
+    if (body.customerRating !== undefined) {
+      const rating = Number(body.customerRating);
+      if (Number.isFinite(rating)) patch.customer_rating = Math.min(5, Math.max(0, Math.round(rating)));
+    }
+    if (typeof body.keyQueries === 'string') patch.key_queries = body.keyQueries.trim();
+    if (typeof body.technicalChallenges === 'string') patch.technical_challenges = body.technicalChallenges.trim();
+    if (typeof body.unansweredQueries === 'string') patch.unanswered_queries = body.unansweredQueries.trim();
+    if (typeof body.suggestedNextAction === 'string') patch.suggested_next_action = body.suggestedNextAction.trim();
+    if (typeof body.nextFollowUpDate === 'string') patch.next_follow_up_date = body.nextFollowUpDate;
+    if (Array.isArray(body.attachments)) patch.attachments = toStringArray(body.attachments);
 
     const updated = await demoScheduleStore.update(id, patch);
+
+    if (patch.outcome && existing.project_id) {
+      await appendProjectTimeline(existing.project_id, {
+        by: viewer.username,
+        stage: 'demo',
+        label: `Demo outcome logged: ${patch.outcome.replace(/_/g, ' ')}`,
+        remarks: patch.suggested_next_action || ''
+      });
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     return apiErrorResponse(error);

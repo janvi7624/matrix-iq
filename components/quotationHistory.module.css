@@ -79,6 +79,8 @@
 }
 .rolePillSuperadmin { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
 .rolePillAdmin { background: rgba(217, 119, 6, 0.14); color: #b45309; }
+.rolePillManager { background: rgba(124, 58, 237, 0.14); color: #6d28d9; }
+.rolePillTechnical { background: rgba(13, 148, 136, 0.14); color: #0f766e; }
 .rolePillUser { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
 .num { font-family: 'Courier New', monospace; font-weight: 600; }
 .amount { font-family: 'Courier New', monospace; text-align: right; white-space: nowrap; }
@@ -278,6 +280,71 @@
 .statusRejected { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
 .statusDone { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
 .statusCancelled { background: #f3f4f6; color: #6b7280; }
+
+.progressTrack {
+    width: 100%;
+    min-width: 90px;
+    height: 8px;
+    border-radius: 999px;
+    background: #eef0f3;
+    overflow: hidden;
+}
+.progressFill {
+    height: 100%;
+    background: linear-gradient(90deg, #dc2626, #b91c1c);
+    border-radius: 999px;
+    transition: width 0.2s ease;
+}
+.progressFillLost { background: #9ca3af; }
+.progressLabel { font-size: 11px; color: #6b7280; margin-top: 3px; }
+
+.stepper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 18px 0;
+}
+.step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: #f3f4f6;
+    color: #6b7280;
+    font-size: 12.5px;
+    font-weight: 600;
+}
+.stepDone { background: rgba(22, 163, 74, 0.12); color: #15803d; }
+.stepCurrent { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
+.stepLost { background: rgba(107, 114, 128, 0.16); color: #374151; }
+
+.cardGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin: 18px 0;
+}
+.miniCard {
+    padding: 16px;
+    border-radius: 14px;
+    background: #fff;
+    border: 1px solid rgba(229, 231, 235, 0.95);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+}
+.miniCardTitle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    font-size: 14px;
+    color: #111827;
+    margin-bottom: 8px;
+}
+.miniCardTitle a { font-size: 12px; font-weight: 600; color: #b91c1c; text-decoration: none; }
+.miniCardEmpty { font-size: 12.5px; color: #9ca3af; }
+.miniCardRow { font-size: 12.5px; color: #374151; padding: 4px 0; border-top: 1px solid #f3f4f6; }
+.miniCardRow:first-of-type { border-top: none; }
 
 .detailPanel {
     margin-top: 18px;

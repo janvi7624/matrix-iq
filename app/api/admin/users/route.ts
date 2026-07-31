@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
   const name = typeof body?.name === 'string' ? body.name.trim() : '';
   const phone = typeof body?.phone === 'string' ? body.phone.trim() : '';
   const email = typeof body?.email === 'string' ? body.email.trim() : '';
-  const requestedRole: UserRole = body?.role === 'superadmin' ? 'superadmin' : body?.role === 'admin' ? 'admin' : 'user';
+  const VALID_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'user'];
+  const requestedRole: UserRole = VALID_ROLES.includes(body?.role) ? body.role : 'user';
 
   // Only a superadmin may create another superadmin — an "admin" account
   // can create/edit users but must not be able to mint itself a superuser.

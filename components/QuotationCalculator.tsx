@@ -1,14 +1,16 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { composeQuote } from '@/lib/calculations';
 import { generateQuotationPdf } from '@/lib/pdf';
 import { computeQuotationPrefix, generateDraftQuotationNumber, refreshDraftQuotationNumber } from '@/lib/quotationNumber';
-import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey, DomainResult, QuotationDetails, UserRole } from '@/lib/types';
+import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey, DomainResult, ProjectRecord, QuotationDetails, UserRole } from '@/lib/types';
 import { getRoomSuggestions } from '@/lib/roomSuggestions';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
+import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import StandeeEstimator from './estimators/StandeeEstimator';
 import LedEstimator, { LedModelPreset } from './estimators/LedEstimator';
 import ConferenceEstimator, { ModelPreset } from './estimators/ConferenceEstimator';
@@ -28,10 +30,12 @@ import styles from './calculator.module.css';
 
 const DEFAULT_COST_INPUTS: CostInputs = { installationCost: 0, fabricationCost: 0, scaffoldingCost: 0, markupPercent: 0 };
 
-const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', user: 'User' };
+const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical Team', user: 'User' };
 const ROLE_PILL_CLASS: Record<UserRole, string> = {
   superadmin: styles.rolePillSuperadmin,
   admin: styles.rolePillAdmin,
+  manager: styles.rolePillManager,
+  technical: styles.rolePillTechnical,
   user: styles.rolePillUser
 };
 
@@ -64,8 +68,9 @@ interface QuotationCalculatorProps {
   currentUser: CurrentUser;
 }
 
-export default function QuotationCalculator({ currentUser }: QuotationCalculatorProps) {
+function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   // Nothing is pre-selected — on login and again after every "Add to Quote",
   // the domain/product-type pickers start blank so a sales rep always has to
   // make an explicit choice for the next product, instead of a leftover
@@ -86,6 +91,19 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
   const [conferencePreset, setConferencePreset] = useState<ModelPreset | null>(null);
   const [cablesPreset, setCablesPreset] = useState<ModelPreset | null>(null);
   const [ledPreset, setLedPreset] = useState<LedModelPreset | null>(null);
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [projectId, setProjectId] = useState(searchParams.get('projectId') || '');
+  const [savedQuotation, setSavedQuotation] = useState<{ id: string; quotation_number: string } | null>(null);
+  const [movingToDemo, setMovingToDemo] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/projects')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: ProjectRecord[]) => setProjects(data))
+      .catch(() => setProjects([]));
+  }, []);
+
+  const selectedProject = useMemo(() => projects.find((p) => p.id === projectId) || null, [projects, projectId]);
 
   const nextId = useRef(1);
   const presetNonce = useRef(1);
@@ -164,6 +182,7 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
     const domainSummary = activeDomains.map((d) => DOMAIN_DISPLAY_NAME[d] || d).join(', ');
     return {
       domains: activeDomains,
+      projectId,
       preparedBy: details.preparedBy,
       preparedByPhone: details.preparedByPhone,
       preparedByEmail: details.preparedByEmail,
@@ -185,7 +204,7 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
     };
   }
 
-  async function saveQuotationToServer(): Promise<{ quotation_number: string } | null> {
+  async function saveQuotationToServer(): Promise<{ id: string; quotation_number: string } | null> {
     try {
       const response = await fetch('/api/quotations', {
         method: 'POST',
@@ -196,6 +215,7 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
       const record = await response.json();
       setDetails((d) => ({ ...d, quotationNumber: record.quotation_number }));
       setLogStatus({ text: `Saved to quotation log as ${record.quotation_number}.`, color: '#15803d' });
+      setSavedQuotation({ id: record.id, quotation_number: record.quotation_number });
       return record;
     } catch {
       setLogStatus({
@@ -203,6 +223,22 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
         color: '#b91c1c'
       });
       return null;
+    }
+  }
+
+  async function handleMoveToDemo() {
+    if (!savedQuotation) return;
+    setMovingToDemo(true);
+    try {
+      const response = await fetch(`/api/quotations/${savedQuotation.id}/move-to-demo`, { method: 'POST' });
+      if (!response.ok) throw new Error(String(response.status));
+      const json = await response.json();
+      setProjects((prev) => prev.map((p) => (p.id === json.project?.id ? json.project : p)));
+      router.push(`/demo-schedule?projectId=${projectId}`);
+    } catch {
+      alert('Could not move this project to the Demo stage.');
+    } finally {
+      setMovingToDemo(false);
     }
   }
 
@@ -253,6 +289,7 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
     setConferencePreset(null);
     setCablesPreset(null);
     setLedPreset(null);
+    setSavedQuotation(null);
   }
 
   async function handleLogout() {
@@ -276,7 +313,7 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
             <a className={styles.secondaryButton} href="/">
               &larr; Dashboard
             </a>
-            {currentUser.role !== 'user' && (
+            {currentUser.role !== 'user' && currentUser.role !== 'technical' && (
               <>
                 <a className={styles.secondaryButton} href="/quotation-history" target="_blank" rel="noreferrer">
                   Quotation History
@@ -301,6 +338,18 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
         <p className={styles.p}>Estimate Robotics, AV, and AI Video Analytics costs with model-based pricing and installation/fabrication/scaffolding costs.</p>
 
         <div className={styles.domainPanel}>
+          <div className={`${styles.row} ${styles.columns}`}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="projectSelect">Project</label>
+              <select id="projectSelect" className={styles.formControl} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                <option value="">-- No project (one will be created) --</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.id} — {p.company || p.client_name} ({PROJECT_STAGE_LABEL[p.stage]})</option>
+                ))}
+              </select>
+              {selectedProject && <div className={styles.small}>Stage: {PROJECT_STAGE_LABEL[selectedProject.stage]}</div>}
+            </div>
+          </div>
           <div className={`${styles.row} ${styles.columns}`}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="domainSelect">Domain</label>
@@ -467,6 +516,23 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
               {logStatus.text}
             </div>
           )}
+          {savedQuotation && (
+            <div className={styles.small} style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {projectId ? (
+                <>
+                  <span>
+                    Project <Link href={`/projects/${projectId}`}>{projectId}</Link>
+                    {selectedProject ? ` · Stage: ${PROJECT_STAGE_LABEL[selectedProject.stage]}` : ''}
+                  </span>
+                  <button type="button" className={styles.secondaryButton} disabled={movingToDemo} onClick={handleMoveToDemo}>
+                    {movingToDemo ? 'Moving…' : 'Move to Demo'}
+                  </button>
+                </>
+              ) : (
+                <span>This quotation wasn&apos;t linked to a project — select one above next time to track it through the pipeline.</span>
+              )}
+            </div>
+          )}
         </div>
 
         <div ref={summaryRef}>
@@ -480,5 +546,13 @@ export default function QuotationCalculator({ currentUser }: QuotationCalculator
         </div>
       </main>
     </div>
+  );
+}
+
+export default function QuotationCalculator({ currentUser }: QuotationCalculatorProps) {
+  return (
+    <Suspense fallback={<div className={styles.page} />}>
+      <QuotationCalculatorContent currentUser={currentUser} />
+    </Suspense>
   );
 }

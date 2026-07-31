@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DomainKey, SiteVisitRecord, UserRole, VisitStage } from '@/lib/types';
 import { TECHNICAL_TEAM, SALES_TEAM } from '@/lib/teamMembers';
@@ -16,10 +17,12 @@ interface SiteVisitsViewProps {
 }
 
 const EMPTY_FORM = {
+  projectId: '',
   companyName: '',
   contactPerson: '',
   clientEmail: '',
   clientPhone: '',
+  location: '',
   visitDate: '',
   teamTechnical: [] as string[],
   teamSales: [] as string[],
@@ -163,6 +166,12 @@ function SiteVisitDetail({
           <div className={calcStyles.small}>
             Visited {formatDate(visit.visit_date)} by {visit.created_by}
             {visit.contact_person ? ` · Contact: ${visit.contact_person}` : ''}
+            {visit.project_id ? (
+              <>
+                {' · '}
+                <Link href={`/projects/${visit.project_id}`}>Project {visit.project_id}</Link>
+              </>
+            ) : ''}
           </div>
         </div>
         <button type="button" className={historyStyles.button} onClick={onClose}>
@@ -178,6 +187,10 @@ function SiteVisitDetail({
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Client phone</label>
           <div className={calcStyles.small}>{visit.client_phone || '-'}</div>
+        </div>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Location</label>
+          <div className={calcStyles.small}>{visit.location || '-'}</div>
         </div>
       </div>
       <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -302,7 +315,7 @@ function SiteVisitDetail({
 
 function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
   const searchParams = useSearchParams();
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin';
+  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const [visits, setVisits] = useState<SiteVisitRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -312,6 +325,12 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
   const [openOnly, setOpenOnly] = useState(searchParams.get('focus') === 'open');
   const [openId, setOpenId] = useState<string | null>(null);
   const [autofillNotice, setAutofillNotice] = useState('');
+  const prefillProjectId = searchParams.get('projectId') || '';
+
+  useEffect(() => {
+    if (prefillProjectId) setForm((f) => ({ ...f, projectId: prefillProjectId }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillProjectId]);
 
   async function load() {
     setStatus('Loading...');
@@ -440,7 +459,11 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
         <>
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Register a site visit</h2>
         {autofillNotice && <div className={historyStyles.autofillNotice}>{autofillNotice}</div>}
+        {prefillProjectId && <div className={historyStyles.autofillNotice}>Linked to project {prefillProjectId}.</div>}
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
+          <div className={calcStyles.small} style={{ marginBottom: 10 }}>
+            {form.projectId ? `This visit will be linked to project ${form.projectId}.` : "No project selected — a new project will be created automatically for this client."}
+          </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Company name *</label>
@@ -470,6 +493,10 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Client contact number</label>
               <input className={calcStyles.formControl} value={form.clientPhone} onChange={(e) => setForm((f) => ({ ...f, clientPhone: e.target.value }))} />
+            </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Location</label>
+              <input className={calcStyles.formControl} value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
             </div>
           </div>
 
@@ -547,6 +574,7 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
               <tr>
                 <th>Visit Date</th>
                 <th>Company</th>
+                <th>Project</th>
                 <th>Category</th>
                 <th>Stage</th>
                 <th>Status</th>
@@ -558,7 +586,7 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
             <tbody>
               {visibleVisits.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className={historyStyles.empty}>
+                  <td colSpan={9} className={historyStyles.empty}>
                     No site visits recorded yet.
                   </td>
                 </tr>
@@ -570,15 +598,19 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
                       {v.company_name}
                       {v.contact_person ? ` (${v.contact_person})` : ''}
                     </td>
+                    <td>{v.project_id ? <Link href={`/projects/${v.project_id}`}>{v.project_id}</Link> : '-'}</td>
                     <td>{v.category ? DOMAIN_DISPLAY_NAME[v.category] : '-'}</td>
                     <td>{v.stage ? <span className={historyStyles.stageBadge}>{STAGE_LABEL[v.stage]}</span> : '-'}</td>
                     <td>{v.status === 'open' ? 'Open' : 'Closed'}</td>
                     <td>{isReminderDue(v) ? <span className={historyStyles.reminderBadge}>Reminder due</span> : <span className={historyStyles.followUpOk}>-</span>}</td>
                     <td>{v.created_by}</td>
-                    <td style={{ display: 'flex', gap: 6 }}>
+                    <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button type="button" className={historyStyles.button} onClick={() => setOpenId(v.id)}>
                         Open
                       </button>
+                      <Link className={historyStyles.button} href={`/quotation${v.project_id ? `?projectId=${v.project_id}` : ''}`}>
+                        Create Quotation
+                      </Link>
                       {isPrivileged && (
                         <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(v.id)}>
                           Delete
