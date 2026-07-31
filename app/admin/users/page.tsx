@@ -254,13 +254,13 @@ export default function ManageUsersPage() {
   return (
     <div className={historyStyles.body}>
       <header className={historyStyles.header}>
-        <div className={historyStyles.headerBrand}>
+        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
           <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
           <div>
             <h1>{BRAND.appName} — User Management</h1>
             <div className={historyStyles.sub}>Administration &rsaquo; create and manage login accounts.</div>
           </div>
-        </div>
+        </Link>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link className={historyStyles.button} href="/admin/roles">
             Role Management

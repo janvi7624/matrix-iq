@@ -18,13 +18,13 @@ export default function RoleManagementPage() {
   return (
     <div className={styles.body}>
       <header className={styles.header}>
-        <div className={styles.headerBrand}>
+        <Link href="/" className={styles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
           <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
           <div>
             <h1>Role Management</h1>
             <div className={styles.sub}>Administration &rsaquo; what each role can see and do across {BRAND.appName}.</div>
           </div>
-        </div>
+        </Link>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link className={styles.button} href="/admin/users">User Management</Link>
           <Link className={styles.button} href="/">Back to Dashboard</Link>

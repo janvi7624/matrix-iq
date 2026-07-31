@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { QuotationRecord, SiteVisitRecord, UserRole } from '@/lib/types';
+import { ModuleConfigRecord, QuotationRecord, SiteVisitRecord, UserRole } from '@/lib/types';
 import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
 import { BRAND } from '@/lib/branding';
@@ -13,45 +13,6 @@ import historyStyles from './quotationHistory.module.css';
 interface DashboardProps {
   currentUser: { name: string; role: UserRole };
 }
-
-interface Tile {
-  title: string;
-  desc: string;
-  href: string;
-  comingSoon?: boolean;
-}
-
-interface TileSection {
-  label: string;
-  tiles: Tile[];
-}
-
-const CRM_TILES: Tile[] = [
-  { title: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', href: '/projects' },
-  { title: 'Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', href: '/quotation' },
-  { title: 'My Quotations', desc: 'Every quotation you’ve created, with status and follow-ups.', href: '/my-quotations' },
-  { title: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', href: '/site-visits' },
-  { title: 'CRM', desc: 'Track leads, prospects, and customers.', href: '/crm' },
-  { title: 'Demo Schedule', desc: 'Request and approve product demos.', href: '/demo-schedule' },
-  { title: 'Travel Schedule', desc: 'Log rep travel for client visits.', href: '/travel-schedule' }
-];
-
-const BACK_OFFICE_TILE: Tile = { title: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', href: '/backoffice' };
-
-const USER_MANAGEMENT_TILE: Tile = { title: 'User Management', desc: 'Create and manage login accounts, roles, and access.', href: '/admin/users' };
-const ROLE_MANAGEMENT_TILE: Tile = { title: 'Role Management', desc: 'What each role can see and do across the platform.', href: '/admin/roles' };
-const AUDIT_LOG_TILE: Tile = { title: 'Audit Log', desc: 'Every status-changing action across the Back Office workflow.', href: '/admin/audit-log' };
-
-const HR_COMING_SOON: Tile[] = [
-  { title: 'Employees', desc: 'Coming soon.', href: '#', comingSoon: true },
-  { title: 'Attendance & Leave', desc: 'Coming soon.', href: '#', comingSoon: true },
-  { title: 'Payroll', desc: 'Coming soon.', href: '#', comingSoon: true }
-];
-const ACCOUNTS_COMING_SOON: Tile[] = [
-  { title: 'Finance & Expenses', desc: 'Coming soon.', href: '#', comingSoon: true },
-  { title: 'Procurement', desc: 'Coming soon.', href: '#', comingSoon: true },
-  { title: 'Inventory & Assets', desc: 'Coming soon.', href: '#', comingSoon: true }
-];
 
 interface QuotationStats {
   total: number;
@@ -135,21 +96,31 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [quotationStats, setQuotationStats] = useState<QuotationStats | null>(null);
   const [backOfficeKpis, setBackOfficeKpis] = useState<BackOfficeKpis | null>(null);
+  const [modules, setModules] = useState<ModuleConfigRecord[] | null>(null);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
   const isSales = currentUser.role === 'user';
   const isManagerTier = currentUser.role === 'manager' || currentUser.role === 'admin' || currentUser.role === 'superadmin';
 
-  const operationsTiles = isBackOffice ? [BACK_OFFICE_TILE] : [];
-  const administrationTiles = isPrivileged ? [USER_MANAGEMENT_TILE, ROLE_MANAGEMENT_TILE, AUDIT_LOG_TILE] : [];
+  // Tiles are entirely config-driven now (Module Manager, /admin/modules) —
+  // enable/disable/rename/reorder/re-section a module without a code change.
+  const sections = useMemo(() => {
+    const groups = new Map<string, ModuleConfigRecord[]>();
+    (modules || []).forEach((m) => {
+      const list = groups.get(m.section) || [];
+      list.push(m);
+      groups.set(m.section, list);
+    });
+    return [...groups.entries()].map(([label, tiles]) => ({ label, tiles: tiles.sort((a, b) => a.order - b.order) }));
+  }, [modules]);
 
-  const sections: TileSection[] = [
-    { label: 'CRM', tiles: CRM_TILES },
-    ...(operationsTiles.length ? [{ label: 'Operations', tiles: operationsTiles }] : []),
-    ...(isPrivileged ? [{ label: 'Human Resources', tiles: HR_COMING_SOON }, { label: 'Accounts', tiles: ACCOUNTS_COMING_SOON }] : []),
-    ...(administrationTiles.length ? [{ label: 'Administration', tiles: administrationTiles }] : [])
-  ];
+  useEffect(() => {
+    fetch('/api/modules')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: ModuleConfigRecord[]) => setModules(data))
+      .catch(() => setModules([]));
+  }, []);
 
   useEffect(() => {
     fetch('/api/projects/kpis')
@@ -190,7 +161,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
   return (
     <div className={historyStyles.body}>
-      <PortalHeader title={BRAND.appName} subtitle={BRAND.tagline} />
+      <PortalHeader title={BRAND.appName} subtitle={BRAND.tagline} showBackLink={false} />
       <main className={historyStyles.main}>
         <div className={styles.greeting}>Welcome back, {currentUser.name}.</div>
 
@@ -280,19 +251,12 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           <div key={section.label}>
             <div className={historyStyles.navGroupLabel}>{section.label}</div>
             <div className={styles.grid}>
-              {section.tiles.map((tile) =>
-                tile.comingSoon ? (
-                  <div key={tile.title} className={`${styles.tile} ${historyStyles.comingSoonTile}`}>
-                    <span className={styles.tileTitle}>{tile.title}</span>
-                    <span className={styles.tileDesc}>{tile.desc}</span>
-                  </div>
-                ) : (
-                  <Link key={tile.title} href={tile.href} className={styles.tile}>
-                    <span className={styles.tileTitle}>{tile.title}</span>
-                    <span className={styles.tileDesc}>{tile.desc}</span>
-                  </Link>
-                )
-              )}
+              {section.tiles.map((tile) => (
+                <Link key={tile.id} href={tile.href} className={styles.tile}>
+                  <span className={styles.tileTitle}>{tile.icon} {tile.label}</span>
+                  <span className={styles.tileDesc}>{tile.desc}</span>
+                </Link>
+              ))}
             </div>
           </div>
         ))}

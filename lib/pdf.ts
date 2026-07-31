@@ -91,6 +91,11 @@ export interface QuotationPdfInput {
   lineItems: LineItem[];
   productGroups: ProductGroup[];
   totals: Totals;
+  // Sourced from Application Configuration (/admin/settings) when available —
+  // falls back to the values below if the caller doesn't fetch/pass it, so
+  // this stays safe to call without them.
+  companyOverride?: { legalName: string; addressLines: string[]; contactEmail: string };
+  termsOverride?: string[];
 }
 
 export async function generateQuotationPdf(input: QuotationPdfInput): Promise<void> {
@@ -140,14 +145,18 @@ export async function generateQuotationPdf(input: QuotationPdfInput): Promise<vo
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
+  const companyLegalName = input.companyOverride?.legalName || 'NANTA Technology Limited';
+  const companyAddressLines = input.companyOverride?.addressLines?.length
+    ? input.companyOverride.addressLines
+    : ['205, F Block, Shivalik Sharda Harmony,', 'Panjarapole Cross Rd, Ambawadi,', 'Ahmedabad, Gujarat - 380015'];
+  const companyContactEmail = input.companyOverride?.contactEmail || 'sales@nantatech.com';
+
   const fromLines = [
-    'NANTA Technology Limited',
-    '205, F Block, Shivalik Sharda Harmony,',
-    'Panjarapole Cross Rd, Ambawadi,',
-    'Ahmedabad, Gujarat - 380015',
+    companyLegalName,
+    ...companyAddressLines,
     `Prepared by: ${input.preparedBy || '-'}`,
     input.preparedByPhone ? `Mobile number: ${input.preparedByPhone}` : '',
-    input.preparedByEmail ? `Email ID: ${input.preparedByEmail}` : 'Email ID: sales@nantatech.com'
+    input.preparedByEmail ? `Email ID: ${input.preparedByEmail}` : `Email ID: ${companyContactEmail}`
   ].filter(Boolean);
 
   const toLines = [
@@ -278,7 +287,11 @@ export async function generateQuotationPdf(input: QuotationPdfInput): Promise<vo
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
-  const allTerms = [...QUOTATION_TERMS, ...customTermLines.map((line, i) => `${QUOTATION_TERMS.length + i + 1}. ${line}`)];
+  // termsOverride/QUOTATION_TERMS entries are raw text (no leading "N."),
+  // strip any legacy embedded numeral just in case, then number everything
+  // uniformly so custom terms continue the same sequence.
+  const baseTerms = (input.termsOverride?.length ? input.termsOverride : QUOTATION_TERMS).map((t) => t.replace(/^\d+\.\s*/, ''));
+  const allTerms = [...baseTerms, ...customTermLines].map((line, i) => `${i + 1}. ${line}`);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (doc as any).autoTable({

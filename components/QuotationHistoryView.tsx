@@ -132,13 +132,13 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   return (
     <div className={styles.body}>
       <header className={styles.header}>
-        <div className={styles.headerBrand}>
+        <Link href="/" className={styles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
           <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
           <div>
             <h1>{title}</h1>
             <div className={styles.sub}>{subtitle}</div>
           </div>
-        </div>
+        </Link>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link className={styles.button} href="/">
             &larr; Back to Dashboard

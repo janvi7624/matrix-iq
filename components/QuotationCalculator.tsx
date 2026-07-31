@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { composeQuote } from '@/lib/calculations';
 import { generateQuotationPdf } from '@/lib/pdf';
 import { computeQuotationPrefix, generateDraftQuotationNumber, refreshDraftQuotationNumber } from '@/lib/quotationNumber';
-import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey, DomainResult, ProjectRecord, QuotationDetails, UserRole } from '@/lib/types';
+import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey, DomainResult, ProjectRecord, PublicAppConfig, QuotationDetails, UserRole } from '@/lib/types';
 import { getRoomSuggestions } from '@/lib/roomSuggestions';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
@@ -97,6 +97,14 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
   const [projectId, setProjectId] = useState(searchParams.get('projectId') || '');
   const [savedQuotation, setSavedQuotation] = useState<{ id: string; quotation_number: string } | null>(null);
   const [movingToDemo, setMovingToDemo] = useState(false);
+  const [publicConfig, setPublicConfig] = useState<PublicAppConfig | null>(null);
+
+  useEffect(() => {
+    fetch('/api/config/public')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: PublicAppConfig | null) => setPublicConfig(data))
+      .catch(() => setPublicConfig(null));
+  }, []);
 
   useEffect(() => {
     fetch('/api/projects')
@@ -264,7 +272,11 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
         customTerms: details.customTerms,
         lineItems: composition.lineItems,
         productGroups: composition.productGroups,
-        totals: composition.totals
+        totals: composition.totals,
+        companyOverride: publicConfig
+          ? { legalName: publicConfig.companyLegalName, addressLines: [publicConfig.addressLine1, publicConfig.addressLine2, publicConfig.addressLine3].filter(Boolean), contactEmail: publicConfig.contactEmail }
+          : undefined,
+        termsOverride: publicConfig?.quotationTerms
       });
     } catch (error) {
       alert('PDF library failed to load or generate. Check your internet connection and try again.');
@@ -489,6 +501,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
           <CustomProductsList
             products={customProducts}
             onAdd={() => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: '', qty: 1, price: 0 }])}
+            onAddFromCatalog={(product) => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: product.name, qty: product.defaultQty || 1, price: product.sellingPrice }])}
             onChangeItem={(id, patch) => setCustomProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))}
             onRemove={(id) => setCustomProducts((prev) => prev.filter((p) => p.id !== id))}
           />

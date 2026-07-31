@@ -89,8 +89,6 @@
 .tableWrap { overflow-x: auto; border-radius: 10px; }
 .navGroupLabel { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin: 26px 2px 4px; }
 .navGroupLabel:first-child { margin-top: 4px; }
-.comingSoonTile { opacity: 0.55; cursor: default; }
-.comingSoonTile:hover { transform: none; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); border-color: rgba(229, 231, 235, 0.95); }
 .num { font-family: 'Courier New', monospace; font-weight: 600; }
 .amount { font-family: 'Courier New', monospace; text-align: right; white-space: nowrap; }
 .detailsRow td { background: #fbfbfc; }
@@ -559,4 +557,93 @@
     font-weight: 600;
     cursor: pointer;
 }
+
+/* Lead Capture module — capture-choice cards, domain tiles, pill/chip selectors */
+.captureChoices { display: flex; flex-direction: column; gap: 12px; }
+.captureCard {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    border-radius: 16px;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    color: #fff;
+    background: linear-gradient(135deg, #b91c1c, #dc2626);
+    box-shadow: 0 6px 20px rgba(220, 38, 38, 0.3);
+    transition: transform 0.15s ease;
+}
+.captureCard:active { transform: scale(0.97); }
+.captureCardIcon { width: 56px; height: 56px; border-radius: 14px; background: rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center; font-size: 28px; flex-shrink: 0; }
+.captureCardTitle { font-size: 16px; font-weight: 800; margin-bottom: 3px; }
+.captureCardSub { font-size: 12.5px; opacity: 0.85; line-height: 1.4; }
+.captureCardGhost { background: #fff; color: #111827; border: 1px solid #e5e7eb; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05); }
+.captureCardGhost .captureCardIcon { background: rgba(220, 38, 38, 0.1); }
+.captureCardGhost .captureCardSub { color: #6b7280; }
+
+.tagGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.tagTile {
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 16px 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.tagTile:active { transform: scale(0.96); }
+.tagTileActive { background: rgba(220, 38, 38, 0.06); border-color: #dc2626; border-width: 2px; }
+.tagTileEmoji { font-size: 28px; display: block; margin-bottom: 6px; }
+.tagTileName { font-size: 13px; font-weight: 700; color: #111827; }
+.tagTileActive .tagTileName { color: #b91c1c; }
+.tagTileHint { font-size: 10.5px; color: #9ca3af; margin-top: 2px; }
+
+.pillWrap { display: flex; flex-wrap: wrap; gap: 8px; }
+.pillBtn {
+    padding: 8px 14px;
+    border-radius: 30px;
+    border: 1.5px solid #e5e7eb;
+    background: #fff;
+    color: #4b5563;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.pillBtn:active { transform: scale(0.95); }
+.pillBtnActive { background: rgba(220, 38, 38, 0.08); border-color: #dc2626; color: #b91c1c; font-weight: 700; }
+
+.chipGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.chipBtn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 62px;
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 8px 6px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+}
+.chipBtn:active { transform: scale(0.95); }
+.chipBtnActive { background: rgba(220, 38, 38, 0.08); border-color: #dc2626; }
+.chipEmoji { font-size: 18px; }
+.chipLabel { font-size: 10.5px; font-weight: 600; color: #4b5563; }
+.chipBtnActive .chipLabel { color: #b91c1c; font-weight: 700; }
+
+.priorityBadge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.priorityBadgeHot { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
+.priorityBadgeWarm { background: rgba(255, 179, 64, 0.18); color: #9a6000; }
+.priorityBadgeCool { background: rgba(48, 209, 88, 0.14); color: #00a35c; }
+
+.scanProgress { text-align: center; padding: 40px 20px; }
+.scanSpinner { width: 48px; height: 48px; border: 4px solid rgba(220, 38, 38, 0.15); border-top-color: #dc2626; border-radius: 50%; margin: 0 auto 16px; animation: leadSpin 0.8s linear infinite; }
+@keyframes leadSpin { to { transform: rotate(360deg); } }
+.scanProgressPct { font-size: 22px; font-weight: 800; color: #dc2626; margin-bottom: 4px; }
+.scanProgressText { font-size: 13px; color: #6b7280; }
 .loginSubmit:disabled { opacity: 0.6; cursor: default; }

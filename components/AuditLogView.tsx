@@ -21,7 +21,7 @@ export default function AuditLogView() {
   const [rows, setRows] = useState<AuditLogEntry[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [loaded, setLoaded] = useState(false);
-  const [entityType, setEntityType] = useState<'' | 'demo' | 'delivery_challan'>('');
+  const [entityType, setEntityType] = useState<'' | 'demo' | 'delivery_challan' | 'custom_module' | 'lead'>('');
 
   async function load() {
     setStatus('Loading...');
@@ -55,23 +55,25 @@ export default function AuditLogView() {
   return (
     <div className={styles.body}>
       <header className={styles.header}>
-        <div className={styles.headerBrand}>
+        <Link href="/" className={styles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
           <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
           <div>
             <h1>Audit Log</h1>
             <div className={styles.sub}>Every status-changing action across the Back Office workflow.</div>
           </div>
-        </div>
+        </Link>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link className={styles.button} href="/">&larr; Back to Dashboard</Link>
         </div>
       </header>
       <main className={styles.main}>
         <div className={styles.toolbar}>
-          <select value={entityType} onChange={(e) => setEntityType(e.target.value as '' | 'demo' | 'delivery_challan')} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db' }}>
+          <select value={entityType} onChange={(e) => setEntityType(e.target.value as '' | 'demo' | 'delivery_challan' | 'custom_module' | 'lead')} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db' }}>
             <option value="">All entities</option>
             <option value="demo">Demo requests</option>
             <option value="delivery_challan">Delivery Challans</option>
+            <option value="custom_module">Custom Modules</option>
+            <option value="lead">Leads</option>
           </select>
           <button type="button" className={styles.button} onClick={handleExportPdf}>Export PDF</button>
           <button type="button" className={styles.button} onClick={load}>Refresh</button>

@@ -9,9 +9,10 @@ import styles from './quotationHistory.module.css';
 interface PortalHeaderProps {
   title: string;
   subtitle: string;
+  showBackLink?: boolean;
 }
 
-export default function PortalHeader({ title, subtitle }: PortalHeaderProps) {
+export default function PortalHeader({ title, subtitle, showBackLink = true }: PortalHeaderProps) {
   const router = useRouter();
 
   async function handleLogout() {
@@ -22,17 +23,19 @@ export default function PortalHeader({ title, subtitle }: PortalHeaderProps) {
 
   return (
     <header className={styles.header}>
-      <div className={styles.headerBrand}>
+      <Link href="/" className={styles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
         <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
         <div>
           <h1>{title}</h1>
           <div className={styles.sub}>{subtitle}</div>
         </div>
-      </div>
+      </Link>
       <div style={{ display: 'flex', gap: 10 }}>
-        <Link className={styles.button} href="/">
-          &larr; Back to Dashboard
-        </Link>
+        {showBackLink && (
+          <Link className={styles.button} href="/">
+            &larr; Back to Dashboard
+          </Link>
+        )}
         <button type="button" className={styles.button} onClick={handleLogout}>
           Log out
         </button>

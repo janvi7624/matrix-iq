@@ -430,7 +430,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead';
   entity_id: string;
   action: string;
   previous_status: string;
@@ -511,4 +511,183 @@ export interface DeliveryChallanRecord {
   status: DcStatus;
   material_return: MaterialReturnChecklist;
   updated_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// No-code admin configuration (section 19) — Application Configuration,
+// Product Master, Module Manager, Custom Module Builder.
+// ---------------------------------------------------------------------------
+
+export interface NotificationTemplate {
+  key: string;
+  label: string;
+  subject: string;
+  body: string;
+}
+
+// Single JSON blob of business settings an Admin can edit without a code
+// change — company/GST/bank details, tax, quotation T&Cs, and the DC number
+// prefix. Notification templates are stored here too, but nothing actually
+// sends email today (no SMTP integration exists) — they're plain text with
+// {{placeholder}} tokens, ready for whenever that's wired up.
+export interface AppConfig {
+  companyName: string;
+  companyLegalName: string;
+  gstNumber: string;
+  panNumber: string;
+  addressLine1: string;
+  addressLine2: string;
+  addressLine3: string;
+  contactPhone: string;
+  contactEmail: string;
+  website: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankIfsc: string;
+  bankName: string;
+  bankBranch: string;
+  currencyCode: string;
+  currencySymbol: string;
+  defaultTaxPercent: number;
+  taxLabel: string;
+  quotationTerms: string[];
+  dcNumberPrefix: string;
+  notificationTemplates: NotificationTemplate[];
+  updated_at: string;
+  updated_by: string;
+}
+
+// Fields shared with the browser (quotation PDF generation) — excludes bank
+// details, which have no reason to leave the server.
+export type PublicAppConfig = Omit<AppConfig, 'bankAccountName' | 'bankAccountNumber' | 'bankIfsc' | 'bankName' | 'bankBranch' | 'notificationTemplates' | 'updated_at' | 'updated_by'>;
+
+export type ProductStatus = 'active' | 'inactive';
+
+export interface ProductRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  name: string;
+  sku: string;
+  category: string;
+  brand: string;
+  description: string;
+  unit: string;
+  defaultQty: number;
+  basePrice: number;
+  sellingPrice: number;
+  taxPercent: number;
+  hsnSac: string;
+  discountPercent: number;
+  imageUrl: string;
+  status: ProductStatus;
+}
+
+// Drives the Dashboard tiles / sidebar for both built-in routes and enabled
+// custom modules — Admin manages this from Module Manager instead of it
+// being hardcoded per component. `key` for a built-in module matches the
+// hardcoded id it used to have (e.g. 'projects', 'quotation'); custom module
+// keys are `custom:<CustomModuleDef.key>`.
+export interface ModuleConfigRecord {
+  id: string;
+  key: string;
+  label: string;
+  desc: string;
+  icon: string;
+  href: string;
+  section: string;
+  order: number;
+  enabled: boolean;
+  isCustom: boolean;
+  visibleToRoles: UserRole[];
+}
+
+export type CustomFieldType =
+  | 'text'
+  | 'number'
+  | 'currency'
+  | 'date'
+  | 'time'
+  | 'dropdown'
+  | 'multiselect'
+  | 'checkbox'
+  | 'radio'
+  | 'textarea'
+  | 'richtext'
+  | 'email'
+  | 'phone'
+  | 'file'
+  | 'image'
+  | 'user'
+  | 'project'
+  | 'product';
+
+export interface CustomFieldDef {
+  id: string;
+  label: string;
+  type: CustomFieldType;
+  required: boolean;
+  options: string[]; // dropdown / multiselect / radio choices
+  order: number;
+}
+
+// A module defined entirely from the UI (Custom Module Builder) — one
+// generic engine (app/modules/[key]) renders list/detail/create/edit for
+// every CustomModuleDef instead of generating per-module code/routes/tables,
+// since Next.js file-based routing can't create new routes at runtime.
+export interface CustomModuleDef {
+  id: string;
+  key: string;
+  name: string;
+  icon: string;
+  section: string;
+  created_at: string;
+  created_by: string;
+  fields: CustomFieldDef[];
+  requiresApproval: boolean;
+  approverRole: UserRole | '';
+  enabled: boolean;
+}
+
+export type CustomRecordStatus = 'active' | 'pending_approval' | 'approved' | 'rejected';
+
+export interface CustomModuleRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  status: CustomRecordStatus;
+  values: Record<string, unknown>;
+  attachments: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Lead Capture (section 20) — converted from the standalone "Nanta Leads"
+// event/trade-show lead-capture HTML tool into a native module. Same
+// created_by-owned pattern as every other record store.
+// ---------------------------------------------------------------------------
+
+export type LeadPriority = 'hot' | 'warm' | 'cool' | '';
+
+export interface LeadRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  name: string;
+  mobile: string;
+  email: string;
+  designation: string;
+  company: string;
+  city: string;
+  card_image_url: string;
+  interests: DomainKey[];
+  sub_interests: string[];
+  priority: LeadPriority;
+  follow_up_actions: string[];
+  budget: string;
+  notes: string;
+  project_id: string;
+  crm_id: string;
 }
