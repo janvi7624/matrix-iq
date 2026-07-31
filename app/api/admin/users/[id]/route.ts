@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { countSuperAdmins, deleteUser, findUserById, updateUser } from '@/lib/userStore';
+import { listActiveRoles } from '@/lib/roleStore';
 import { UserRole, UserStatus } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -18,8 +19,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const existing = await findUserById(id);
     if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const VALID_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
-    const role: UserRole | undefined = VALID_ROLES.includes(body.role) ? body.role : undefined;
+    const activeRoles = await listActiveRoles();
+    const role: UserRole | undefined = activeRoles.some((r) => r.key === body.role) ? body.role : undefined;
     const VALID_STATUSES: UserStatus[] = ['active', 'inactive'];
     const status: UserStatus | undefined = VALID_STATUSES.includes(body.status) ? body.status : undefined;
 

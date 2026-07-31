@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { CustomFieldDef, CustomFieldType, CustomModuleDef, UserRole } from '@/lib/types';
+import { CustomFieldDef, CustomFieldType, CustomModuleDef, RoleRecord, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
@@ -30,7 +30,6 @@ const FIELD_TYPES: { value: CustomFieldType; label: string }[] = [
 ];
 
 const OPTION_TYPES: CustomFieldType[] = ['dropdown', 'multiselect', 'radio'];
-const ROLE_OPTIONS: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
 
 interface ModuleFormState {
   name: string;
@@ -52,6 +51,7 @@ function blankModuleForm(): ModuleFormState {
 
 export default function CustomModuleBuilderPage() {
   const [modules, setModules] = useState<CustomModuleDef[]>([]);
+  const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ModuleFormState>(blankModuleForm());
@@ -73,6 +73,10 @@ export default function CustomModuleBuilderPage() {
 
   useEffect(() => {
     load();
+    fetch('/api/admin/roles')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: RoleRecord[]) => setRoles(data.filter((r) => r.status === 'active')))
+      .catch(() => setRoles([]));
   }, []);
 
   function startCreate() {
@@ -213,7 +217,7 @@ export default function CustomModuleBuilderPage() {
                   <label className={calcStyles.label}>Approver role</label>
                   <select className={calcStyles.formControl} value={form.approverRole} onChange={(e) => setForm((f) => ({ ...f, approverRole: e.target.value as UserRole }))}>
                     <option value="">Select role...</option>
-                    {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                    {roles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
                   </select>
                 </div>
               )}

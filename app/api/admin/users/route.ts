@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { createUser, findUserByUsername, listUsers } from '@/lib/userStore';
+import { listActiveRoles } from '@/lib/roleStore';
 import { UserRole } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -27,8 +28,8 @@ export async function POST(request: NextRequest) {
   const employeeId = typeof body?.employeeId === 'string' ? body.employeeId.trim() : '';
   const department = typeof body?.department === 'string' ? body.department.trim() : '';
   const designation = typeof body?.designation === 'string' ? body.designation.trim() : '';
-  const VALID_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
-  const requestedRole: UserRole = VALID_ROLES.includes(body?.role) ? body.role : 'user';
+  const activeRoles = await listActiveRoles();
+  const requestedRole: UserRole = activeRoles.some((r) => r.key === body?.role) ? body.role : 'user';
 
   // Only a superadmin may create another superadmin — an "admin" account
   // can create/edit users but must not be able to mint itself a superuser.

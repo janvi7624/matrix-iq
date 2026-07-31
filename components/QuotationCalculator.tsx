@@ -321,7 +321,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
         <div className={styles.authBar}>
           <span className={styles.small}>
             Signed in as <strong>{currentUser.name}</strong>
-            <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role]}`}>{ROLE_LABELS[currentUser.role]}</span>
+            <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role] || styles.rolePillUser}`}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
             <a className={styles.secondaryButton} href="/">

@@ -253,7 +253,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
             <div className={styles.grid}>
               {section.tiles.map((tile) => (
                 <Link key={tile.id} href={tile.href} className={styles.tile}>
-                  <span className={styles.tileTitle}>{tile.icon} {tile.label}</span>
+                  <span className={styles.tileTitle}>{tile.label}</span>
                   <span className={styles.tileDesc}>{tile.desc}</span>
                 </Link>
               ))}

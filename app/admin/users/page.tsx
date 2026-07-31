@@ -3,13 +3,14 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { PublicUser, UserRole } from '@/lib/types';
+import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { BRAND } from '@/lib/branding';
 
-const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical Team', backoffice: 'Back Office', user: 'User' };
-const ROLE_PILL_CLASS: Record<UserRole, string> = {
+// Known system roles keep their dedicated pill colors; any admin-created role
+// falls back to a neutral pill so a brand-new role never breaks this lookup.
+const KNOWN_ROLE_PILL_CLASS: Record<string, string> = {
   superadmin: historyStyles.rolePillSuperadmin,
   admin: historyStyles.rolePillAdmin,
   manager: historyStyles.rolePillManager,
@@ -18,8 +19,11 @@ const ROLE_PILL_CLASS: Record<UserRole, string> = {
   user: historyStyles.rolePillUser
 };
 
-function RolePill({ role }: { role: UserRole }) {
-  return <span className={`${historyStyles.rolePill} ${ROLE_PILL_CLASS[role]}`}>{ROLE_LABELS[role]}</span>;
+function RolePill({ role, roles }: { role: UserRole; roles: RoleRecord[] }) {
+  const record = roles.find((r) => r.key === role);
+  const label = record?.label || role;
+  const cls = KNOWN_ROLE_PILL_CLASS[role] || historyStyles.rolePillUser;
+  return <span className={`${historyStyles.rolePill} ${cls}`}>{label}</span>;
 }
 
 function StatusPill({ status }: { status: PublicUser['status'] }) {
@@ -30,15 +34,14 @@ function StatusPill({ status }: { status: PublicUser['status'] }) {
   );
 }
 
-function RoleOptions({ includeSuperadmin }: { includeSuperadmin: boolean }) {
+function RoleOptions({ roles, includeSuperadmin }: { roles: RoleRecord[]; includeSuperadmin: boolean }) {
   return (
     <>
-      <option value="user">User</option>
-      <option value="technical">Technical Team</option>
-      <option value="backoffice">Back Office</option>
-      <option value="manager">Manager</option>
-      <option value="admin">Admin</option>
-      {includeSuperadmin && <option value="superadmin">Super Admin</option>}
+      {roles
+        .filter((r) => r.key !== 'superadmin' || includeSuperadmin)
+        .map((r) => (
+          <option key={r.key} value={r.key}>{r.label}</option>
+        ))}
     </>
   );
 }
@@ -91,6 +94,8 @@ interface UserActivity {
 export default function ManageUsersPage() {
   const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
   const [users, setUsers] = useState<PublicUser[]>([]);
+  const [roles, setRoles] = useState<RoleRecord[]>([]);
+  const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState<NewUserForm>(BLANK_FORM);
   const [createBusy, setCreateBusy] = useState(false);
@@ -121,6 +126,14 @@ export default function ManageUsersPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((me) => setCurrentRole(me?.role || null))
       .catch(() => setCurrentRole(null));
+    fetch('/api/admin/roles')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: RoleRecord[]) => setRoles(data.filter((r) => r.status === 'active')))
+      .catch(() => setRoles([]));
+    fetch('/api/departments')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: DepartmentRecord[]) => setDepartments(data))
+      .catch(() => setDepartments([]));
   }, []);
 
   const isSuperadmin = currentRole === 'superadmin';
@@ -295,7 +308,7 @@ export default function ManageUsersPage() {
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newRole">Role</label>
               <select id="newRole" className={calcStyles.formControl} value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as UserRole }))}>
-                <RoleOptions includeSuperadmin={isSuperadmin} />
+                <RoleOptions roles={roles} includeSuperadmin={isSuperadmin} />
               </select>
             </div>
           </div>
@@ -316,7 +329,10 @@ export default function ManageUsersPage() {
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newDepartment">Department</label>
-              <input id="newDepartment" className={calcStyles.formControl} type="text" placeholder="e.g. Sales, Technical, Back Office" value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} />
+              <select id="newDepartment" className={calcStyles.formControl} value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}>
+                <option value="">Select department...</option>
+                {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+              </select>
             </div>
           </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -375,14 +391,17 @@ export default function ManageUsersPage() {
                             <input className={calcStyles.formControl} value={editState.phone} onChange={(e) => setEditState({ ...editState, phone: e.target.value })} />
                           </td>
                           <td>
-                            <input className={calcStyles.formControl} value={editState.department} onChange={(e) => setEditState({ ...editState, department: e.target.value })} />
+                            <select className={calcStyles.formControl} value={editState.department} onChange={(e) => setEditState({ ...editState, department: e.target.value })}>
+                              <option value="">Select department...</option>
+                              {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+                            </select>
                           </td>
                           <td>
                             <input className={calcStyles.formControl} value={editState.designation} onChange={(e) => setEditState({ ...editState, designation: e.target.value })} />
                           </td>
                           <td>
                             <select className={calcStyles.formControl} value={editState.role} onChange={(e) => setEditState({ ...editState, role: e.target.value as UserRole })}>
-                              <RoleOptions includeSuperadmin={isSuperadmin} />
+                              <RoleOptions roles={roles} includeSuperadmin={isSuperadmin} />
                             </select>
                           </td>
                           <td colSpan={3}>
@@ -404,7 +423,7 @@ export default function ManageUsersPage() {
                           <td>{user.phone || '-'}</td>
                           <td>{user.department || '-'}</td>
                           <td>{user.designation || '-'}</td>
-                          <td><RolePill role={user.role} /></td>
+                          <td><RolePill role={user.role} roles={roles} /></td>
                           <td><StatusPill status={user.status} /></td>
                           <td>{formatDateTime(user.lastLoginAt)}</td>
                           <td>{formatDateTime(user.createdAt)}</td>

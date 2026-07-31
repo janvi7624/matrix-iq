@@ -93,6 +93,10 @@ export interface CostInputs {
   markupPercent: number;
 }
 
+// Roles are admin-defined from the UI (see lib/roleStore.ts / Role Management)
+// — this is a plain string key matching RoleRecord.key, not a fixed union.
+// Six built-in system roles are always seeded and keep these exact keys so
+// every pre-existing role check in the app keeps working unchanged:
 // superadmin: full rights (manage users incl. delete, view/delete quotation history, exports).
 // admin: can create/edit users and view quotation history, but cannot delete users or quotations.
 // manager: same broad visibility as admin across the sales-project pipeline (projects, demos,
@@ -104,7 +108,9 @@ export interface CostInputs {
 //   approval; same own-scoped general visibility as "user"/"technical", but with Back Office
 //   module access.
 // user: can only use the calculator to create quotations; no history or user-management access.
-export type UserRole = 'superadmin' | 'admin' | 'manager' | 'technical' | 'backoffice' | 'user';
+// Any additional role an admin creates in Role Management is just another string key here,
+// with its own isPrivileged tier and permission matrix (see RoleRecord below).
+export type UserRole = string;
 
 // active: can log in normally. inactive: login is blocked (verifyLogin rejects it) —
 // used instead of deleting an account so history/attribution (created_by, audit log,
@@ -690,4 +696,57 @@ export interface LeadRecord {
   notes: string;
   project_id: string;
   crm_id: string;
+}
+
+// ---------------------------------------------------------------------------
+// Department Master & dynamic Role Management (section 21) — replaces the
+// free-text Department field and the fixed UserRole union with UI-managed
+// masters. See lib/departmentStore.ts / lib/roleStore.ts / lib/permissions.ts.
+// ---------------------------------------------------------------------------
+
+export type DepartmentStatus = 'active' | 'inactive';
+
+export interface DepartmentRecord {
+  id: string;
+  name: string;
+  description: string;
+  order: number;
+  status: DepartmentStatus;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+}
+
+// One row of a role's permission matrix, keyed by module (ModuleConfigRecord.key,
+// e.g. 'crm', 'product-master', 'custom:site-inspection').
+export type ModulePermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'export' | 'print' | 'approve' | 'reject' | 'assign';
+export type ModulePermissionSet = Partial<Record<ModulePermissionAction, boolean>>;
+
+export type GlobalCapability = 'manageSettings' | 'manageUsers' | 'manageRoles' | 'manageDepartments';
+
+export interface RolePermissions {
+  modules: Record<string, ModulePermissionSet>;
+  manageSettings: boolean;
+  manageUsers: boolean;
+  manageRoles: boolean;
+  manageDepartments: boolean;
+}
+
+export type RoleStatus = 'active' | 'inactive';
+
+export interface RoleRecord {
+  id: string;
+  key: string; // stable slug — this is what UserRecord.role stores
+  label: string;
+  description: string;
+  isSystem: boolean; // one of the 6 built-in roles — key can't change, can't be deleted
+  isPrivileged: boolean; // reaches /admin/* and sees org-wide data, not just own records
+  status: RoleStatus;
+  order: number;
+  permissions: RolePermissions;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
 }

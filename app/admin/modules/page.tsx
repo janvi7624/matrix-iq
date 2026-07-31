@@ -3,25 +3,31 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ModuleConfigRecord, UserRole } from '@/lib/types';
+import { ModuleConfigRecord, RoleRecord, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 
-const ROLE_ORDER: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
-const ROLE_SHORT: Record<UserRole, string> = { superadmin: 'SA', admin: 'Ad', manager: 'Mgr', technical: 'Tech', backoffice: 'BO', user: 'User' };
+// Short column header for a role — first word, capped so the table stays readable.
+function shortLabel(label: string): string {
+  const first = label.split(' ')[0];
+  return first.length > 6 ? first.slice(0, 6) : first;
+}
 
 export default function ModuleManagerPage() {
   const [modules, setModules] = useState<ModuleConfigRecord[]>([]);
+  const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
 
   async function load() {
     setStatus('Loading...');
     try {
-      const response = await fetch('/api/admin/modules');
-      if (!response.ok) throw new Error(String(response.status));
-      const data: ModuleConfigRecord[] = await response.json();
+      const [modulesRes, rolesRes] = await Promise.all([fetch('/api/admin/modules'), fetch('/api/admin/roles')]);
+      if (!modulesRes.ok) throw new Error(String(modulesRes.status));
+      const data: ModuleConfigRecord[] = await modulesRes.json();
+      const rolesData: RoleRecord[] = rolesRes.ok ? await rolesRes.json() : [];
       setModules(data);
+      setRoles(rolesData.filter((r) => r.status === 'active'));
       setStatus('');
     } catch {
       setStatus('Could not load modules. Refresh to try again.');
@@ -114,7 +120,7 @@ export default function ModuleManagerPage() {
                     <th>Label</th>
                     <th>Href</th>
                     <th>Enabled</th>
-                    {ROLE_ORDER.map((r) => <th key={r} style={{ textAlign: 'center' }}>{ROLE_SHORT[r]}</th>)}
+                    {roles.map((r) => <th key={r.key} style={{ textAlign: 'center' }} title={r.label}>{shortLabel(r.label)}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -137,9 +143,9 @@ export default function ModuleManagerPage() {
                       <td>
                         <input type="checkbox" checked={m.enabled} onChange={(e) => patch(m.id, { enabled: e.target.checked })} />
                       </td>
-                      {ROLE_ORDER.map((r) => (
-                        <td key={r} style={{ textAlign: 'center' }}>
-                          <input type="checkbox" checked={m.visibleToRoles.includes(r)} onChange={() => toggleRole(m, r)} />
+                      {roles.map((r) => (
+                        <td key={r.key} style={{ textAlign: 'center' }}>
+                          <input type="checkbox" checked={m.visibleToRoles.includes(r.key)} onChange={() => toggleRole(m, r.key)} />
                         </td>
                       ))}
                     </tr>

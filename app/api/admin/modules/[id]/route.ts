@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateModuleConfig } from '@/lib/moduleConfigStore';
+import { listRoles } from '@/lib/roleStore';
 import { UserRole } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
-
-const VALID_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,7 +18,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.enabled === 'boolean') patch.enabled = body.enabled;
     if (typeof body.order === 'number') patch.order = body.order;
     if (Array.isArray(body.visibleToRoles)) {
-      patch.visibleToRoles = body.visibleToRoles.filter((r: unknown): r is UserRole => VALID_ROLES.includes(r as UserRole));
+      const validKeys = new Set((await listRoles()).map((r) => r.key));
+      patch.visibleToRoles = body.visibleToRoles.filter((r: unknown): r is UserRole => validKeys.has(r as string));
     }
 
     const updated = await updateModuleConfig(id, patch);

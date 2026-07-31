@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
+import { resolveIsPrivileged } from '@/lib/permissions';
 
 const PUBLIC_PATHS = new Set(['/login', '/api/auth/login', '/api/auth/logout']);
 // admin + superadmin only — plain 'user' accounts are blocked from all of these.
@@ -23,9 +24,11 @@ export async function proxy(request: NextRequest) {
   }
 
   const isAdminOnly = ADMIN_ONLY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-  // "manager" is treated like admin/superadmin (full pipeline visibility);
-  // "technical"/"backoffice" are treated like "user" (own-scoped, no admin/user-management access).
-  if (isAdminOnly && (session.role === 'user' || session.role === 'technical' || session.role === 'backoffice')) {
+  // Whether this role reaches /admin/* now comes from Role Management
+  // (RoleRecord.isPrivileged) instead of a fixed 3-role blocklist, so a
+  // brand-new admin-created role is correctly excluded by default and only
+  // gets in if an admin explicitly marks it privileged.
+  if (isAdminOnly && !(await resolveIsPrivileged(session.role))) {
     if (isApi) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.redirect(new URL('/', request.url));
   }
