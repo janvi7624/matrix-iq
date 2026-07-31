@@ -1,12 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchQuotations } from '@/lib/quotationStore';
+import { searchQuotationsFiltered } from '@/lib/quotationStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { QuotationEffectiveStatus } from '@/lib/types';
 
-// Auth is enforced by middleware.ts (matcher: /api/admin/quotations/:path*).
+const VALID_STATUSES: QuotationEffectiveStatus[] = ['draft', 'sent', 'approved', 'rejected', 'expired'];
+
+// Auth is enforced by proxy.ts (matcher: /api/admin/quotations/:path*) —
+// only admin/manager/superadmin reach this, so it's always org-wide;
+// filters (salesPerson/status/project/date range) narrow that view.
 export async function GET(request: NextRequest) {
   try {
-    const query = request.nextUrl.searchParams.get('q') || '';
-    const records = await searchQuotations(query);
+    const params = request.nextUrl.searchParams;
+    const status = params.get('status');
+    const records = await searchQuotationsFiltered({
+      query: params.get('q') || undefined,
+      ownerUsername: params.get('salesPerson') || undefined,
+      projectId: params.get('projectId') || undefined,
+      status: status && VALID_STATUSES.includes(status as QuotationEffectiveStatus) ? (status as QuotationEffectiveStatus) : undefined,
+      dateFrom: params.get('dateFrom') || undefined,
+      dateTo: params.get('dateTo') || undefined
+    });
     return NextResponse.json(records);
   } catch (error) {
     return apiErrorResponse(error);

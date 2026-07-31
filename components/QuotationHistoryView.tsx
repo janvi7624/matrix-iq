@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { QuotationRecord } from '@/lib/types';
+import { QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { needsFollowUp } from '@/lib/followUp';
+import { BRAND } from '@/lib/branding';
 import QuotationTable from './QuotationTable';
 import styles from './quotationHistory.module.css';
+import calcStyles from './calculator.module.css';
 
 interface QuotationHistoryViewProps {
   title: string;
@@ -15,8 +17,16 @@ interface QuotationHistoryViewProps {
   showXlsxExport?: boolean;
 }
 
-// Auth (login + admin role) is enforced by proxy.ts before this ever renders —
-// this component only handles fetching and displaying the data.
+const STATUS_OPTIONS: { value: QuotationEffectiveStatus; label: string }[] = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'expired', label: 'Expired' }
+];
+
+// Auth (login + admin/manager role) is enforced by proxy.ts before this ever
+// renders — this component only handles fetching, filtering, and displaying.
 export default function QuotationHistoryView({ title, subtitle, showXlsxExport = false }: QuotationHistoryViewProps) {
   const router = useRouter();
   const [rows, setRows] = useState<QuotationRecord[]>([]);
@@ -26,6 +36,12 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   const [canDelete, setCanDelete] = useState(false);
   const [followUpOnly, setFollowUpOnly] = useState(false);
 
+  const [fSalesPerson, setFSalesPerson] = useState('');
+  const [fStatus, setFStatus] = useState<QuotationEffectiveStatus | ''>('');
+  const [fProjectId, setFProjectId] = useState('');
+  const [fFrom, setFFrom] = useState('');
+  const [fTo, setFTo] = useState('');
+
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
@@ -33,12 +49,19 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
       .catch(() => setCanDelete(false));
   }, []);
 
-  const loadQuotations = useCallback(async (query: string) => {
+  const loadQuotations = useCallback(async () => {
     setStatus('Loading...');
     setLoaded(false);
     try {
-      const url = '/api/admin/quotations' + (query ? `?q=${encodeURIComponent(query)}` : '');
-      const response = await fetch(url);
+      const params = new URLSearchParams();
+      if (searchValue.trim()) params.set('q', searchValue.trim());
+      if (fSalesPerson) params.set('salesPerson', fSalesPerson);
+      if (fStatus) params.set('status', fStatus);
+      if (fProjectId.trim()) params.set('projectId', fProjectId.trim());
+      if (fFrom) params.set('dateFrom', fFrom);
+      if (fTo) params.set('dateTo', fTo);
+      const qs = params.toString();
+      const response = await fetch('/api/admin/quotations' + (qs ? `?${qs}` : ''));
       if (!response.ok) throw new Error(`Server responded with ${response.status}`);
       const data: QuotationRecord[] = await response.json();
       setRows(data);
@@ -48,13 +71,15 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
       setStatus('Could not reach the quotation API. Click Refresh to try again.');
       setLoaded(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    loadQuotations('');
+    loadQuotations();
   }, [loadQuotations]);
 
   const visibleRows = useMemo(() => (followUpOnly ? rows.filter((r) => needsFollowUp(r)) : rows), [rows, followUpOnly]);
+  const salesPeople = useMemo(() => Array.from(new Set(rows.map((r) => r.created_by).filter(Boolean))).sort(), [rows]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
@@ -89,11 +114,26 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
     }
   }
 
+  async function handleChangeStatus(id: string, next: QuotationRecord['status']) {
+    try {
+      const response = await fetch(`/api/quotations/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next })
+      });
+      if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+      const updated: QuotationRecord = await response.json();
+      setRows((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    } catch {
+      alert('Could not update the status. Please try again.');
+    }
+  }
+
   return (
     <div className={styles.body}>
       <header className={styles.header}>
         <div className={styles.headerBrand}>
-          <Image src="/NANTA.png" alt="NANTA logo" width={38} height={38} className={styles.headerLogo} unoptimized />
+          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
           <div>
             <h1>{title}</h1>
             <div className={styles.sub}>{subtitle}</div>
@@ -116,13 +156,34 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') loadQuotations(searchValue.trim());
+              if (e.key === 'Enter') loadQuotations();
             }}
           />
-          <button type="button" className={`${styles.button} ${styles.primary}`} onClick={() => loadQuotations(searchValue.trim())}>
+          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
+            <option value="">All sales people</option>
+            {salesPeople.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fStatus} onChange={(e) => setFStatus(e.target.value as QuotationEffectiveStatus | '')}>
+            <option value="">All statuses</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            placeholder="Project ID"
+            value={fProjectId}
+            onChange={(e) => setFProjectId(e.target.value)}
+            style={{ maxWidth: 140 }}
+          />
+          <input type="date" className={calcStyles.formControl} style={{ width: 'auto' }} value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
+          <input type="date" className={calcStyles.formControl} style={{ width: 'auto' }} value={fTo} onChange={(e) => setFTo(e.target.value)} />
+          <button type="button" className={`${styles.button} ${styles.primary}`} onClick={() => loadQuotations()}>
             Search
           </button>
-          <button type="button" className={styles.button} onClick={() => loadQuotations(searchValue.trim())}>
+          <button type="button" className={styles.button} onClick={() => loadQuotations()}>
             Refresh
           </button>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, whiteSpace: 'nowrap' }}>
@@ -139,7 +200,15 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
           )}
         </div>
         <div className={styles.status}>{status}</div>
-        {loaded && <QuotationTable rows={visibleRows} onDelete={canDelete ? handleDelete : undefined} onLogFollowUp={handleLogFollowUp} />}
+        {loaded && (
+          <QuotationTable
+            rows={visibleRows}
+            onDelete={canDelete ? handleDelete : undefined}
+            onLogFollowUp={handleLogFollowUp}
+            showSalesPerson
+            onChangeStatus={handleChangeStatus}
+          />
+        )}
       </main>
     </div>
   );

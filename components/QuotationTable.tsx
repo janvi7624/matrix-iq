@@ -1,10 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { LineItem, ProductGroup, QuotationRecord } from '@/lib/types';
+import { LineItem, ProductGroup, QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { daysSince, needsFollowUp, parseFollowUpNotes } from '@/lib/followUp';
+import { computeEffectiveStatusClient } from '@/lib/quotationStatus';
 import styles from './quotationHistory.module.css';
+
+const STATUS_LABEL: Record<QuotationEffectiveStatus, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  expired: 'Expired'
+};
+
+const STATUS_CLASS: Record<QuotationEffectiveStatus, string> = {
+  draft: styles.statusCancelled,
+  sent: styles.statusPending,
+  approved: styles.statusConfirmed,
+  rejected: styles.statusRejected,
+  expired: styles.statusDone
+};
 
 interface ProductDetailGroup extends Pick<ProductGroup, 'label' | 'remark'> {
   lineItems: LineItem[];
@@ -44,14 +61,28 @@ interface QuotationRowProps {
   row: QuotationRecord;
   onDelete?: (id: string) => void;
   onLogFollowUp: (id: string, note: string) => Promise<void>;
+  showSalesPerson?: boolean;
+  onChangeStatus?: (id: string, status: QuotationRecord['status']) => Promise<void>;
 }
 
-function QuotationRow({ row, onDelete, onLogFollowUp }: QuotationRowProps) {
+function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus }: QuotationRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
   const flagged = needsFollowUp(row);
   const notes = parseFollowUpNotes(row.follow_up_notes_json);
+  const effectiveStatus = computeEffectiveStatusClient(row);
+
+  async function handleStatusChange(next: QuotationRecord['status']) {
+    if (!onChangeStatus) return;
+    setStatusBusy(true);
+    try {
+      await onChangeStatus(row.id, next);
+    } finally {
+      setStatusBusy(false);
+    }
+  }
 
   const detailText = [
     `Prepared by: ${row.prepared_by || '-'}  |  Phone: ${row.prepared_by_phone || '-'}  |  Email: ${row.prepared_by_email || '-'}`,
@@ -92,6 +123,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp }: QuotationRowProps) {
         <td className={styles.num}>{row.quotation_number}</td>
         <td>{formatDate(row.created_at)}</td>
         <td>{row.prepared_by || '-'}</td>
+        {showSalesPerson && <td>{row.created_by || '-'}</td>}
         <td>
           {row.client_name || row.client_company || '-'}
           {row.client_company && row.client_name ? ` (${row.client_company})` : ''}
@@ -100,6 +132,24 @@ function QuotationRow({ row, onDelete, onLogFollowUp }: QuotationRowProps) {
         <td>{row.project_vertical || '-'}</td>
         <td>{row.products_summary || '-'}</td>
         <td className={styles.amount}>{formatMoney(row.total)}</td>
+        <td>
+          {onChangeStatus ? (
+            <select
+              value={row.status}
+              disabled={statusBusy}
+              onChange={(e) => handleStatusChange(e.target.value as QuotationRecord['status'])}
+              style={{ padding: '4px 6px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12.5 }}
+            >
+              <option value="draft">Draft</option>
+              <option value="sent">Sent</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          ) : (
+            <span className={`${styles.statusBadge} ${STATUS_CLASS[effectiveStatus]}`}>{STATUS_LABEL[effectiveStatus]}</span>
+          )}
+          {effectiveStatus === 'expired' && onChangeStatus && <div style={{ fontSize: 11, color: '#9ca3af' }}>(expired)</div>}
+        </td>
         <td>
           {flagged ? (
             <span className={styles.followUpBadge} title="No follow-up logged recently">
@@ -130,7 +180,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp }: QuotationRowProps) {
       </tr>
       {expanded && (
         <tr className={styles.detailsRow}>
-          <td colSpan={11}>
+          <td colSpan={showSalesPerson ? 13 : 12}>
             <pre>{detailText}</pre>
             <div className={styles.followUpForm}>
               <input
@@ -154,9 +204,11 @@ interface QuotationTableProps {
   rows: QuotationRecord[];
   onDelete?: (id: string) => void;
   onLogFollowUp: (id: string, note: string) => Promise<void>;
+  showSalesPerson?: boolean;
+  onChangeStatus?: (id: string, status: QuotationRecord['status']) => Promise<void>;
 }
 
-export default function QuotationTable({ rows, onDelete, onLogFollowUp }: QuotationTableProps) {
+export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus }: QuotationTableProps) {
   return (
     <table className={styles.table}>
       <thead>
@@ -165,11 +217,13 @@ export default function QuotationTable({ rows, onDelete, onLogFollowUp }: Quotat
           <th>Quotation No.</th>
           <th>Date</th>
           <th>Prepared By</th>
+          {showSalesPerson && <th>Sales Person</th>}
           <th>Client</th>
           <th>Domain</th>
           <th>Vertical</th>
           <th>Products</th>
           <th>Total</th>
+          <th>Status</th>
           <th>Follow-up</th>
           <th></th>
         </tr>
@@ -177,12 +231,21 @@ export default function QuotationTable({ rows, onDelete, onLogFollowUp }: Quotat
       <tbody>
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={10} className={styles.empty}>
+            <td colSpan={showSalesPerson ? 13 : 12} className={styles.empty}>
               No quotations recorded yet.
             </td>
           </tr>
         ) : (
-          rows.map((row) => <QuotationRow key={row.id} row={row} onDelete={onDelete} onLogFollowUp={onLogFollowUp} />)
+          rows.map((row) => (
+            <QuotationRow
+              key={row.id}
+              row={row}
+              onDelete={onDelete}
+              onLogFollowUp={onLogFollowUp}
+              showSalesPerson={showSalesPerson}
+              onChangeStatus={onChangeStatus}
+            />
+          ))
         )}
       </tbody>
     </table>

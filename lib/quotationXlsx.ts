@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { QuotationRecord } from './types';
+import { BRAND } from './branding';
 
 const COLUMNS: { header: string; key: keyof QuotationRecord; width: number }[] = [
   { header: 'Quotation Number', key: 'quotation_number', width: 24 },
@@ -25,7 +26,7 @@ const COLUMNS: { header: string; key: keyof QuotationRecord; width: number }[] =
 
 export async function buildQuotationsXlsxBuffer(records: QuotationRecord[]): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'NANTA Sales Quotation Estimator';
+  workbook.creator = `${BRAND.companyName} ${BRAND.appName}`;
   workbook.created = new Date();
 
   const sheet = workbook.addWorksheet('Quotations');

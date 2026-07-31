@@ -1,4 +1,4 @@
-import { QuotationRecord } from './types';
+import { QuotationEffectiveStatus, QuotationRecord, QuotationStatus } from './types';
 import { computeQuotationPrefix, formatQuotationNumber } from './quotationNumber';
 import { DomainKey } from './types';
 import { readJsonBlob, writeJsonBlob } from './blobStore';
@@ -16,6 +16,7 @@ async function writeQuotations(records: QuotationRecord[]): Promise<void> {
 export interface CreateQuotationInput {
   prefix?: string;
   projectId?: string;
+  createdBy?: string;
   domains?: DomainKey[];
   preparedBy?: string;
   preparedByPhone?: string;
@@ -63,6 +64,8 @@ export async function createQuotation(input: CreateQuotationInput): Promise<Quot
     quotation_number: quotationNumber,
     created_at: now.toISOString(),
     project_id: input.projectId || '',
+    created_by: input.createdBy || '',
+    status: 'sent',
     prepared_by: input.preparedBy || '',
     prepared_by_phone: input.preparedByPhone || '',
     prepared_by_email: input.preparedByEmail || '',
@@ -125,23 +128,69 @@ export async function deleteQuotation(id: string): Promise<boolean> {
   return true;
 }
 
-export async function searchQuotations(query?: string): Promise<QuotationRecord[]> {
+export async function updateQuotationStatus(id: string, status: QuotationStatus): Promise<QuotationRecord | null> {
   const records = await readQuotations();
-  const sorted = [...records].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-  if (!query || !query.trim()) return sorted;
+  const index = records.findIndex((r) => r.id === id);
+  if (index === -1) return null;
+  const updated: QuotationRecord = { ...records[index], status };
+  records[index] = updated;
+  await writeQuotations(records);
+  return updated;
+}
 
-  const q = query.trim().toLowerCase();
-  return sorted.filter((r) =>
-    [r.quotation_number, r.prepared_by, r.client_name, r.client_company, r.project_vertical]
-      .filter(Boolean)
-      .some((field) => field.toLowerCase().includes(q))
-  );
+// 'sent' quotations past their validity window read as 'expired' everywhere
+// (stats, filters, badges) without a stored value or background job — the
+// persisted `status` only changes on an explicit user action.
+export function computeEffectiveStatus(record: QuotationRecord): QuotationEffectiveStatus {
+  if (record.status === 'sent') {
+    const createdAt = new Date(record.created_at).getTime();
+    if (!Number.isNaN(createdAt)) {
+      const expiresAt = createdAt + (record.validity_days || 0) * 24 * 60 * 60 * 1000;
+      if (Date.now() > expiresAt) return 'expired';
+    }
+  }
+  return record.status;
+}
+
+export interface QuotationFilters {
+  query?: string;
+  ownerUsername?: string; // scope to only this user's quotations
+  status?: QuotationEffectiveStatus;
+  projectId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export async function searchQuotationsFiltered(filters: QuotationFilters): Promise<QuotationRecord[]> {
+  const records = await readQuotations();
+  let rows = [...records].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+
+  if (filters.ownerUsername) rows = rows.filter((r) => r.created_by === filters.ownerUsername);
+  if (filters.projectId) rows = rows.filter((r) => r.project_id === filters.projectId);
+  if (filters.status) rows = rows.filter((r) => computeEffectiveStatus(r) === filters.status);
+  if (filters.dateFrom) rows = rows.filter((r) => r.created_at.slice(0, 10) >= filters.dateFrom!);
+  if (filters.dateTo) rows = rows.filter((r) => r.created_at.slice(0, 10) <= filters.dateTo!);
+  if (filters.query && filters.query.trim()) {
+    const q = filters.query.trim().toLowerCase();
+    rows = rows.filter((r) =>
+      [r.quotation_number, r.prepared_by, r.created_by, r.client_name, r.client_company, r.project_vertical]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(q))
+    );
+  }
+  return rows;
+}
+
+export async function searchQuotations(query?: string): Promise<QuotationRecord[]> {
+  return searchQuotationsFiltered({ query });
 }
 
 const CSV_COLUMNS: { key: keyof QuotationRecord; header: string }[] = [
   { key: 'quotation_number', header: 'Quotation Number' },
   { key: 'created_at', header: 'Date' },
   { key: 'project_id', header: 'Project ID' },
+  { key: 'created_by', header: 'Created By (username)' },
+  { key: 'status', header: 'Status' },
   { key: 'prepared_by', header: 'Prepared By' },
   { key: 'prepared_by_phone', header: 'Prepared By Phone' },
   { key: 'prepared_by_email', header: 'Prepared By Email' },

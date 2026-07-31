@@ -1,6 +1,7 @@
 'use client';
 
 import { CustomProduct } from '@/lib/types';
+import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
 
 interface CustomProductsListProps {
@@ -40,8 +41,9 @@ export default function CustomProductsList({ products, onAdd, onChangeItem, onRe
                 className={`${styles.formControl} ${styles.lineItemInput}`}
                 min={0}
                 step="any"
-                placeholder="Unit price (₹)"
-                value={item.price}
+                placeholder="Enter Product Price"
+                value={item.price === 0 ? '' : item.price}
+                onFocus={selectAllOnFocusIfZero}
                 onChange={(e) => onChangeItem(item.id, { price: parseFloat(e.target.value) || 0 })}
               />
               <button type="button" className={styles.removeItemBtn} title="Remove product" onClick={() => onRemove(item.id)}>

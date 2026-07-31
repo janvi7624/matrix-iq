@@ -9,7 +9,12 @@ import { poStore } from '@/lib/poStore';
 import { installationStore } from '@/lib/installationStore';
 import { searchQuotations } from '@/lib/quotationStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES } from '@/lib/types';
+import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES } from '@/lib/types';
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+}
 
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
 const VALID_STATUS: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost'];
@@ -70,6 +75,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const remarks = typeof body.remarks === 'string' ? body.remarks.trim() : '';
       if (!remarks) return NextResponse.json({ error: 'Remarks are required' }, { status: 400 });
       const updated = await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label: 'Remark added', remarks });
+      return NextResponse.json(updated);
+    }
+
+    if (body.action === 'addNote') {
+      const text = typeof body.text === 'string' ? body.text.trim() : '';
+      if (!text) return NextResponse.json({ error: 'Note text is required' }, { status: 400 });
+      const note: ProjectNote = { id: `${Date.now()}`, at: new Date().toISOString(), by: viewer.username, text };
+      const updated = await projectStore.update(id, { notes: [...existing.notes, note], updated_at: new Date().toISOString() });
+      return NextResponse.json(updated);
+    }
+
+    if (body.action === 'addAttachment') {
+      const urls = toStringArray(body.urls);
+      if (!urls.length) return NextResponse.json({ error: 'No attachment URLs provided' }, { status: 400 });
+      const updated = await projectStore.update(id, { attachments: [...existing.attachments, ...urls], updated_at: new Date().toISOString() });
+      await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label: `${urls.length} attachment${urls.length === 1 ? '' : 's'} added` });
       return NextResponse.json(updated);
     }
 

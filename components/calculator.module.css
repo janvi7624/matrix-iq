@@ -64,6 +64,7 @@
 .rolePillAdmin { background: rgba(217, 119, 6, 0.14); color: #b45309; }
 .rolePillManager { background: rgba(124, 58, 237, 0.14); color: #6d28d9; }
 .rolePillTechnical { background: rgba(13, 148, 136, 0.14); color: #0f766e; }
+.rolePillBackoffice { background: rgba(202, 138, 4, 0.14); color: #a16207; }
 .rolePillUser { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
 .brandHeader {
     display: flex;

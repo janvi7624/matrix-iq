@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { countSuperAdmins, deleteUser, findUserById, updateUser } from '@/lib/userStore';
-import { UserRole } from '@/lib/types';
+import { UserRole, UserStatus } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
 
 // Base auth + admin/superadmin gating happens in proxy.ts (matcher: /api/admin/:path*),
@@ -18,8 +18,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const existing = await findUserById(id);
     if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const VALID_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'user'];
+    const VALID_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
     const role: UserRole | undefined = VALID_ROLES.includes(body.role) ? body.role : undefined;
+    const VALID_STATUSES: UserStatus[] = ['active', 'inactive'];
+    const status: UserStatus | undefined = VALID_STATUSES.includes(body.status) ? body.status : undefined;
 
     // An "admin" (non-superadmin) may create/edit ordinary accounts but must not
     // be able to touch superadmin accounts or grant superadmin to anyone.
@@ -35,6 +37,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (existing.role === 'superadmin' && role && role !== 'superadmin' && (await countSuperAdmins()) <= 1) {
       return NextResponse.json({ error: 'Cannot demote the last remaining superadmin' }, { status: 400 });
     }
+    if (existing.role === 'superadmin' && status === 'inactive' && (await countSuperAdmins()) <= 1) {
+      return NextResponse.json({ error: 'Cannot deactivate the last remaining superadmin' }, { status: 400 });
+    }
     if (typeof body.password === 'string' && body.password && body.password.length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
@@ -43,7 +48,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       name: typeof body.name === 'string' ? body.name.trim() : undefined,
       phone: typeof body.phone === 'string' ? body.phone.trim() : undefined,
       email: typeof body.email === 'string' ? body.email.trim() : undefined,
+      employeeId: typeof body.employeeId === 'string' ? body.employeeId.trim() : undefined,
+      department: typeof body.department === 'string' ? body.department.trim() : undefined,
+      designation: typeof body.designation === 'string' ? body.designation.trim() : undefined,
       role,
+      status,
       password: typeof body.password === 'string' && body.password ? body.password : undefined
     });
 

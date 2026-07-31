@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { BRAND } from '@/lib/branding';
 import styles from './quotationHistory.module.css';
 
 interface PortalHeaderProps {
@@ -22,7 +23,7 @@ export default function PortalHeader({ title, subtitle }: PortalHeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.headerBrand}>
-        <Image src="/NANTA.png" alt="NANTA logo" width={38} height={38} className={styles.headerLogo} unoptimized />
+        <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
         <div>
           <h1>{title}</h1>
           <div className={styles.sub}>{subtitle}</div>

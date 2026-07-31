@@ -81,7 +81,16 @@
 .rolePillAdmin { background: rgba(217, 119, 6, 0.14); color: #b45309; }
 .rolePillManager { background: rgba(124, 58, 237, 0.14); color: #6d28d9; }
 .rolePillTechnical { background: rgba(13, 148, 136, 0.14); color: #0f766e; }
+.rolePillBackoffice { background: rgba(202, 138, 4, 0.14); color: #a16207; }
 .rolePillUser { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+.statusPill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+.statusPillActive { background: rgba(22, 163, 74, 0.12); color: #15803d; }
+.statusPillInactive { background: rgba(107, 114, 128, 0.14); color: #4b5563; }
+.tableWrap { overflow-x: auto; border-radius: 10px; }
+.navGroupLabel { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin: 26px 2px 4px; }
+.navGroupLabel:first-child { margin-top: 4px; }
+.comingSoonTile { opacity: 0.55; cursor: default; }
+.comingSoonTile:hover { transform: none; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); border-color: rgba(229, 231, 235, 0.95); }
 .num { font-family: 'Courier New', monospace; font-weight: 600; }
 .amount { font-family: 'Courier New', monospace; text-align: right; white-space: nowrap; }
 .detailsRow td { background: #fbfbfc; }
@@ -345,6 +354,151 @@
 .miniCardEmpty { font-size: 12.5px; color: #9ca3af; }
 .miniCardRow { font-size: 12.5px; color: #374151; padding: 4px 0; border-top: 1px solid #f3f4f6; }
 .miniCardRow:first-of-type { border-top: none; }
+
+.wizardSteps {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+}
+.wizardStep {
+    flex: 1;
+    min-width: 90px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+    cursor: pointer;
+    padding: 6px 4px;
+    border-radius: 10px;
+    background: transparent;
+    border: none;
+}
+.wizardStepCircle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    background: #eef0f3;
+    color: #6b7280;
+    border: 2px solid transparent;
+    transition: all 0.15s ease;
+}
+.wizardStepActive .wizardStepCircle { background: #fff; color: #b91c1c; border-color: #dc2626; box-shadow: 0 2px 10px rgba(220, 38, 38, 0.18); }
+.wizardStepDone .wizardStepCircle { background: rgba(22, 163, 74, 0.14); color: #15803d; }
+.wizardStepLabel { font-size: 11.5px; font-weight: 700; color: #6b7280; }
+.wizardStepActive .wizardStepLabel { color: #b91c1c; }
+.wizardStepDone .wizardStepLabel { color: #15803d; }
+
+.wizardCard {
+    padding: 26px 24px;
+    border-radius: 20px;
+    background: #f8fafc;
+    border: 1px solid rgba(209, 213, 219, 0.85);
+    margin-bottom: 18px;
+}
+.wizardCardTitle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #111827;
+    margin: 0 0 6px;
+}
+.wizardCardTitle span:first-child { font-size: 1.8rem; }
+.wizardCardHint { font-size: 13.5px; color: #6b7280; margin-bottom: 18px; }
+
+.wizardNav {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 4px;
+}
+.bigBtn {
+    padding: 16px 28px;
+    font-size: 16px;
+    font-weight: 800;
+    border-radius: 14px;
+    border: none;
+    background: #dc2626;
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.25);
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+.bigBtn:hover { background: #b91c1c; transform: translateY(-1px); }
+.bigBtn:disabled { opacity: 0.55; cursor: default; transform: none; }
+.bigBtnGhost {
+    padding: 16px 28px;
+    font-size: 16px;
+    font-weight: 700;
+    border-radius: 14px;
+    border: 2px solid #d1d5db;
+    background: #fff;
+    color: #374151;
+    cursor: pointer;
+}
+.bigBtnGhost:hover { background: #f3f4f6; }
+
+.requiredMark { color: #dc2626; font-weight: 800; margin-left: 3px; }
+
+.suggestionBox {
+    margin-top: 6px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+}
+.suggestionItem {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 14px;
+    border: none;
+    background: #fff;
+    cursor: pointer;
+    font-size: 13.5px;
+    border-bottom: 1px solid #f3f4f6;
+}
+.suggestionItem:last-child { border-bottom: none; }
+.suggestionItem:hover { background: rgba(220, 38, 38, 0.06); }
+
+.historyCard {
+    margin-top: 8px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(37, 99, 235, 0.06);
+    border: 1px solid rgba(37, 99, 235, 0.18);
+    font-size: 12.5px;
+    color: #1d4ed8;
+}
+
+.reviewGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 24px;
+}
+.reviewRow { font-size: 13.5px; padding: 6px 0; border-bottom: 1px solid #eef0f2; }
+.reviewRow strong { color: #374151; margin-right: 6px; }
+
+.successPanel {
+    text-align: center;
+    padding: 40px 24px;
+}
+.successIcon { font-size: 52px; margin-bottom: 10px; }
+.successActions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 20px;
+}
 
 .detailPanel {
     margin-top: 18px;

@@ -24,7 +24,10 @@ export async function POST(request: NextRequest) {
   const name = typeof body?.name === 'string' ? body.name.trim() : '';
   const phone = typeof body?.phone === 'string' ? body.phone.trim() : '';
   const email = typeof body?.email === 'string' ? body.email.trim() : '';
-  const VALID_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'user'];
+  const employeeId = typeof body?.employeeId === 'string' ? body.employeeId.trim() : '';
+  const department = typeof body?.department === 'string' ? body.department.trim() : '';
+  const designation = typeof body?.designation === 'string' ? body.designation.trim() : '';
+  const VALID_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
   const requestedRole: UserRole = VALID_ROLES.includes(body?.role) ? body.role : 'user';
 
   // Only a superadmin may create another superadmin — an "admin" account
@@ -45,7 +48,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
     }
 
-    const user = await createUser({ username, password, name, phone, email, role: requestedRole });
+    const user = await createUser({ username, password, name, phone, email, role: requestedRole, employeeId, department, designation });
     return NextResponse.json(user, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

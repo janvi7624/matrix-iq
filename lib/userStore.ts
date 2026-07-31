@@ -30,15 +30,36 @@ async function ensureSeedAdmin(users: UserRecord[]): Promise<UserRecord[]> {
     phone: '',
     email: `${username}@nantatech.com`,
     role: 'superadmin',
-    createdAt: new Date().toISOString()
+    employeeId: '',
+    department: '',
+    designation: '',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    lastLoginAt: ''
   };
   const next = [seeded];
   await writeUsersRaw(next);
   return next;
 }
 
+// Records written before employeeId/department/designation/status/lastLoginAt
+// existed won't have them in blob storage — fill in safe defaults on read so
+// older accounts don't get silently treated as inactive (status is undefined,
+// not 'active') or crash on missing fields.
+function normalizeUser(user: UserRecord): UserRecord {
+  return {
+    ...user,
+    employeeId: user.employeeId ?? '',
+    department: user.department ?? '',
+    designation: user.designation ?? '',
+    status: user.status ?? 'active',
+    lastLoginAt: user.lastLoginAt ?? ''
+  };
+}
+
 async function readUsers(): Promise<UserRecord[]> {
-  return ensureSeedAdmin(await readUsersRaw());
+  const users = await ensureSeedAdmin(await readUsersRaw());
+  return users.map(normalizeUser);
 }
 
 function toPublicUser(user: UserRecord): PublicUser {
@@ -62,11 +83,22 @@ export async function findUserByUsername(username: string): Promise<UserRecord |
   return users.find((u) => u.username.toLowerCase() === username.toLowerCase());
 }
 
+// Returns null for a wrong password AND for a correct password on an
+// inactive account — callers don't need to distinguish (either way, no login).
 export async function verifyLogin(username: string, password: string): Promise<UserRecord | null> {
   const user = await findUserByUsername(username);
   if (!user) return null;
+  if (user.status === 'inactive') return null;
   const ok = await verifyPassword(password, user.passwordHash);
   return ok ? user : null;
+}
+
+export async function recordLogin(id: string): Promise<void> {
+  const users = await readUsers();
+  const index = users.findIndex((u) => u.id === id);
+  if (index === -1) return;
+  users[index] = { ...users[index], lastLoginAt: new Date().toISOString() };
+  await writeUsersRaw(users);
 }
 
 export interface CreateUserInput {
@@ -76,6 +108,9 @@ export interface CreateUserInput {
   phone: string;
   email: string;
   role: UserRole;
+  employeeId?: string;
+  department?: string;
+  designation?: string;
 }
 
 export async function createUser(input: CreateUserInput): Promise<PublicUser> {
@@ -92,7 +127,12 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
     phone: input.phone,
     email: input.email,
     role: input.role,
-    createdAt: new Date().toISOString()
+    employeeId: input.employeeId || '',
+    department: input.department || '',
+    designation: input.designation || '',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    lastLoginAt: ''
   };
   users.push(record);
   await writeUsersRaw(users);
@@ -105,6 +145,10 @@ export interface UpdateUserInput {
   email?: string;
   role?: UserRole;
   password?: string;
+  employeeId?: string;
+  department?: string;
+  designation?: string;
+  status?: UserRecord['status'];
 }
 
 export async function updateUser(id: string, patch: UpdateUserInput): Promise<PublicUser | null> {
@@ -119,6 +163,10 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Pu
     phone: patch.phone ?? current.phone,
     email: patch.email ?? current.email,
     role: patch.role ?? current.role,
+    employeeId: patch.employeeId ?? current.employeeId,
+    department: patch.department ?? current.department,
+    designation: patch.designation ?? current.designation,
+    status: patch.status ?? current.status,
     passwordHash: patch.password ? await hashPassword(patch.password) : current.passwordHash
   };
   users[index] = updated;

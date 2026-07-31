@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { appendProjectTimeline } from '@/lib/projectStore';
+import { logAudit } from '@/lib/auditLogStore';
+import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DemoOutcome, DemoScheduleRecord } from '@/lib/types';
 
@@ -24,22 +26,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const records = await demoScheduleStore.list(viewer.username, true);
     const existing = records.find((r) => r.id === id);
     if (!existing) return NextResponse.json({ error: 'Demo not found' }, { status: 404 });
-    if (!viewer.isPrivileged && existing.created_by !== viewer.username) {
+    // The creator/admin/manager can edit anything here; technical/backoffice
+    // are legitimate operators later in the pipeline (marking a demo
+    // complete, filling in the report) even though they didn't create the
+    // request, so they're allowed through too.
+    const isPipelineOperator = viewer.role === 'technical' || viewer.role === 'backoffice';
+    if (!viewer.isPrivileged && !isPipelineOperator && existing.created_by !== viewer.username) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const patch: Partial<DemoScheduleRecord> = {};
+    const previousStatus = existing.status;
 
-    if (body.status === 'confirmed' || body.status === 'rejected') {
-      // Only an admin/superadmin (standing in for the domain lead) may
-      // confirm or reject a pending request.
-      if (!viewer.isPrivileged) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      patch.status = body.status;
-      patch.approved_by = viewer.username;
-      patch.approved_at = new Date().toISOString();
-      if (typeof body.decisionNote === 'string') patch.decision_note = body.decisionNote.trim();
-    } else if (body.status === 'cancelled' || body.status === 'done') {
-      patch.status = body.status;
+    // Simple status nudges that don't need a structured approval payload —
+    // technical-approval and manager-approval have their own sub-routes.
+    if (body.status === 'pending_technical' && existing.status === 'draft') {
+      patch.status = 'pending_technical';
+    } else if (body.status === 'cancelled' && existing.status !== 'dc_closed') {
+      patch.status = 'cancelled';
+    } else if (body.status === 'demo_completed' && existing.status === 'material_dispatched') {
+      patch.status = 'demo_completed';
     }
 
     if (typeof body.notes === 'string') patch.notes = body.notes.trim();
@@ -64,6 +70,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         stage: 'demo',
         label: `Demo outcome logged: ${patch.outcome.replace(/_/g, ' ')}`,
         remarks: patch.suggested_next_action || ''
+      });
+    }
+
+    if (patch.status && patch.status !== previousStatus) {
+      if (existing.project_id) {
+        await appendProjectTimeline(existing.project_id, { by: viewer.username, stage: 'demo', label: `Demo status: ${patch.status.replace(/_/g, ' ')}` });
+      }
+      await logAudit({
+        by: viewer.username,
+        role: viewer.role,
+        entityType: 'demo',
+        entityId: id,
+        action: `Status changed to ${patch.status.replace(/_/g, ' ')}`,
+        previousStatus,
+        newStatus: patch.status,
+        ip: getClientIp(request)
       });
     }
 

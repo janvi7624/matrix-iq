@@ -6,13 +6,15 @@ import Image from 'next/image';
 import { PublicUser, UserRole } from '@/lib/types';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+import { BRAND } from '@/lib/branding';
 
-const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical Team', user: 'User' };
+const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical Team', backoffice: 'Back Office', user: 'User' };
 const ROLE_PILL_CLASS: Record<UserRole, string> = {
   superadmin: historyStyles.rolePillSuperadmin,
   admin: historyStyles.rolePillAdmin,
   manager: historyStyles.rolePillManager,
   technical: historyStyles.rolePillTechnical,
+  backoffice: historyStyles.rolePillBackoffice,
   user: historyStyles.rolePillUser
 };
 
@@ -20,16 +22,34 @@ function RolePill({ role }: { role: UserRole }) {
   return <span className={`${historyStyles.rolePill} ${ROLE_PILL_CLASS[role]}`}>{ROLE_LABELS[role]}</span>;
 }
 
+function StatusPill({ status }: { status: PublicUser['status'] }) {
+  return (
+    <span className={`${historyStyles.statusPill} ${status === 'active' ? historyStyles.statusPillActive : historyStyles.statusPillInactive}`}>
+      {status === 'active' ? 'Active' : 'Inactive'}
+    </span>
+  );
+}
+
 function RoleOptions({ includeSuperadmin }: { includeSuperadmin: boolean }) {
   return (
     <>
       <option value="user">User</option>
       <option value="technical">Technical Team</option>
+      <option value="backoffice">Back Office</option>
       <option value="manager">Manager</option>
       <option value="admin">Admin</option>
       {includeSuperadmin && <option value="superadmin">Super Admin</option>}
     </>
   );
+}
+
+function formatDateTime(iso: string): string {
+  if (!iso) return '-';
+  try {
+    return new Date(iso).toLocaleString('en-IN');
+  } catch {
+    return iso;
+  }
 }
 
 interface NewUserForm {
@@ -39,16 +59,33 @@ interface NewUserForm {
   phone: string;
   email: string;
   role: UserRole;
+  employeeId: string;
+  department: string;
+  designation: string;
 }
 
-const BLANK_FORM: NewUserForm = { username: '', password: '', name: '', phone: '', email: '', role: 'user' };
+const BLANK_FORM: NewUserForm = { username: '', password: '', name: '', phone: '', email: '', role: 'user', employeeId: '', department: '', designation: '' };
 
 interface EditState {
   name: string;
   phone: string;
   email: string;
   role: UserRole;
+  employeeId: string;
+  department: string;
+  designation: string;
   password: string;
+}
+
+interface ActivityItem { id: string; label: string; status: string; at: string; }
+interface ActivitySection { total: number; recent: ActivityItem[]; }
+interface LoginHistoryEntry { id: string; at: string; success: boolean; ip: string; }
+interface UserActivity {
+  projects: ActivitySection;
+  siteVisits: ActivitySection;
+  quotations: ActivitySection;
+  demoRequests: ActivitySection;
+  loginHistory: LoginHistoryEntry[];
 }
 
 export default function ManageUsersPage() {
@@ -61,6 +98,9 @@ export default function ManageUsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
   const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [activityOpenId, setActivityOpenId] = useState<string | null>(null);
+  const [activity, setActivity] = useState<Record<string, UserActivity>>({});
+  const [activityLoading, setActivityLoading] = useState(false);
 
   async function loadUsers() {
     setStatus('Loading...');
@@ -111,22 +151,22 @@ export default function ManageUsersPage() {
 
   function startEdit(user: PublicUser) {
     setEditingId(user.id);
-    setEditState({ name: user.name, phone: user.phone, email: user.email, role: user.role, password: '' });
+    setEditState({
+      name: user.name,
+      phone: user.phone,
+      email: user.email,
+      role: user.role,
+      employeeId: user.employeeId || '',
+      department: user.department || '',
+      designation: user.designation || '',
+      password: ''
+    });
     setRowError((prev) => ({ ...prev, [user.id]: '' }));
   }
 
-  async function saveEdit(id: string) {
-    if (!editState) return;
+  async function patchUser(id: string, payload: Record<string, unknown>): Promise<boolean> {
     setRowError((prev) => ({ ...prev, [id]: '' }));
     try {
-      const payload: Record<string, unknown> = {
-        name: editState.name,
-        phone: editState.phone,
-        email: editState.email,
-        role: editState.role
-      };
-      if (editState.password) payload.password = editState.password;
-
       const response = await fetch(`/api/admin/users/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -135,14 +175,50 @@ export default function ManageUsersPage() {
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         setRowError((prev) => ({ ...prev, [id]: body?.error || 'Could not save changes.' }));
-        return;
+        return false;
       }
-      setEditingId(null);
-      setEditState(null);
       await loadUsers();
+      return true;
     } catch {
       setRowError((prev) => ({ ...prev, [id]: 'Could not reach the server.' }));
+      return false;
     }
+  }
+
+  async function saveEdit(id: string) {
+    if (!editState) return;
+    const payload: Record<string, unknown> = {
+      name: editState.name,
+      phone: editState.phone,
+      email: editState.email,
+      role: editState.role,
+      employeeId: editState.employeeId,
+      department: editState.department,
+      designation: editState.designation
+    };
+    if (editState.password) payload.password = editState.password;
+    const ok = await patchUser(id, payload);
+    if (ok) {
+      setEditingId(null);
+      setEditState(null);
+    }
+  }
+
+  async function toggleStatus(user: PublicUser) {
+    const next = user.status === 'active' ? 'inactive' : 'active';
+    if (next === 'inactive' && !window.confirm(`Deactivate "${user.username}"? They will no longer be able to log in.`)) return;
+    await patchUser(user.id, { status: next });
+  }
+
+  async function resetPassword(user: PublicUser) {
+    const next = window.prompt(`New password for "${user.username}" (min 6 characters):`);
+    if (!next) return;
+    if (next.length < 6) {
+      alert('Password must be at least 6 characters.');
+      return;
+    }
+    const ok = await patchUser(user.id, { password: next });
+    if (ok) alert(`Password reset for "${user.username}".`);
   }
 
   async function handleDelete(user: PublicUser) {
@@ -156,22 +232,41 @@ export default function ManageUsersPage() {
     await loadUsers();
   }
 
+  async function toggleActivity(user: PublicUser) {
+    if (activityOpenId === user.id) {
+      setActivityOpenId(null);
+      return;
+    }
+    setActivityOpenId(user.id);
+    if (activity[user.id]) return;
+    setActivityLoading(true);
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/activity`);
+      if (response.ok) {
+        const data: UserActivity = await response.json();
+        setActivity((prev) => ({ ...prev, [user.id]: data }));
+      }
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
   return (
     <div className={historyStyles.body}>
       <header className={historyStyles.header}>
         <div className={historyStyles.headerBrand}>
-          <Image src="/NANTA.png" alt="NANTA logo" width={38} height={38} className={historyStyles.headerLogo} unoptimized />
+          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
           <div>
-            <h1>NANTA Admin — Manage Users</h1>
-            <div className={historyStyles.sub}>Create and manage login accounts for the Sales Quotation Estimator.</div>
+            <h1>{BRAND.appName} — User Management</h1>
+            <div className={historyStyles.sub}>Administration &rsaquo; create and manage login accounts.</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <Link className={historyStyles.button} href="/admin">
-            &larr; Quotation History
+          <Link className={historyStyles.button} href="/admin/roles">
+            Role Management
           </Link>
-          <Link className={historyStyles.button} href="/quotation">
-            Calculator
+          <Link className={historyStyles.button} href="/admin/audit-log">
+            Audit Log
           </Link>
           <Link className={historyStyles.button} href="/">
             Back to Dashboard
@@ -214,6 +309,22 @@ export default function ManageUsersPage() {
               <input id="newEmail" className={calcStyles.formControl} type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
             </div>
           </div>
+          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="newEmployeeId">Employee ID (optional)</label>
+              <input id="newEmployeeId" className={calcStyles.formControl} type="text" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} />
+            </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="newDepartment">Department</label>
+              <input id="newDepartment" className={calcStyles.formControl} type="text" placeholder="e.g. Sales, Technical, Back Office" value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} />
+            </div>
+          </div>
+          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="newDesignation">Designation</label>
+              <input id="newDesignation" className={calcStyles.formControl} type="text" placeholder="e.g. Sales Executive" value={form.designation} onChange={(e) => setForm((f) => ({ ...f, designation: e.target.value }))} />
+            </div>
+          </div>
           <button type="submit" className={calcStyles.btn} disabled={createBusy}>
             {createBusy ? 'Adding...' : '+ Add user'}
           </button>
@@ -221,76 +332,138 @@ export default function ManageUsersPage() {
 
         <h2 className={calcStyles.h2}>Users</h2>
         <div className={historyStyles.status}>{status}</div>
-        <table className={historyStyles.table}>
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>New password</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => {
-              const isEditing = editingId === user.id;
-              const canManage = isSuperadmin || user.role !== 'superadmin';
-              return (
-                <tr key={user.id}>
-                  <td className={historyStyles.num}>{user.username}</td>
-                  {isEditing && editState ? (
-                    <>
-                      <td>
-                        <input className={calcStyles.formControl} value={editState.name} onChange={(e) => setEditState({ ...editState, name: e.target.value })} />
-                      </td>
-                      <td>
-                        <input className={calcStyles.formControl} value={editState.phone} onChange={(e) => setEditState({ ...editState, phone: e.target.value })} />
-                      </td>
-                      <td>
-                        <input className={calcStyles.formControl} value={editState.email} onChange={(e) => setEditState({ ...editState, email: e.target.value })} />
-                      </td>
-                      <td>
-                        <select className={calcStyles.formControl} value={editState.role} onChange={(e) => setEditState({ ...editState, role: e.target.value as UserRole })}>
-                          <RoleOptions includeSuperadmin={isSuperadmin} />
-                        </select>
-                      </td>
-                      <td>
-                        <input className={calcStyles.formControl} type="password" placeholder="Leave blank to keep" value={editState.password} onChange={(e) => setEditState({ ...editState, password: e.target.value })} />
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveEdit(user.id)}>Save</button>
-                          <button type="button" className={historyStyles.button} onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</button>
-                        </div>
-                        {rowError[user.id] && <div className={historyStyles.loginError}>{rowError[user.id]}</div>}
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td>{user.name}</td>
-                      <td>{user.phone || '-'}</td>
-                      <td>{user.email || '-'}</td>
-                      <td><RolePill role={user.role} /></td>
-                      <td>-</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          {canManage && (
-                            <button type="button" className={historyStyles.button} onClick={() => startEdit(user)}>Edit</button>
+        <div className={historyStyles.tableWrap}>
+          <table className={historyStyles.table}>
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Name</th>
+                <th>Employee ID</th>
+                <th>Email</th>
+                <th>Mobile</th>
+                <th>Department</th>
+                <th>Designation</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Last Login</th>
+                <th>Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => {
+                const isEditing = editingId === user.id;
+                const canManage = isSuperadmin || user.role !== 'superadmin';
+                const isActivityOpen = activityOpenId === user.id;
+                const userActivity = activity[user.id];
+                return (
+                  <>
+                    <tr key={user.id}>
+                      <td className={historyStyles.num}>{user.username}</td>
+                      {isEditing && editState ? (
+                        <>
+                          <td>
+                            <input className={calcStyles.formControl} value={editState.name} onChange={(e) => setEditState({ ...editState, name: e.target.value })} />
+                          </td>
+                          <td>
+                            <input className={calcStyles.formControl} value={editState.employeeId} onChange={(e) => setEditState({ ...editState, employeeId: e.target.value })} />
+                          </td>
+                          <td>
+                            <input className={calcStyles.formControl} value={editState.email} onChange={(e) => setEditState({ ...editState, email: e.target.value })} />
+                          </td>
+                          <td>
+                            <input className={calcStyles.formControl} value={editState.phone} onChange={(e) => setEditState({ ...editState, phone: e.target.value })} />
+                          </td>
+                          <td>
+                            <input className={calcStyles.formControl} value={editState.department} onChange={(e) => setEditState({ ...editState, department: e.target.value })} />
+                          </td>
+                          <td>
+                            <input className={calcStyles.formControl} value={editState.designation} onChange={(e) => setEditState({ ...editState, designation: e.target.value })} />
+                          </td>
+                          <td>
+                            <select className={calcStyles.formControl} value={editState.role} onChange={(e) => setEditState({ ...editState, role: e.target.value as UserRole })}>
+                              <RoleOptions includeSuperadmin={isSuperadmin} />
+                            </select>
+                          </td>
+                          <td colSpan={3}>
+                            <input className={calcStyles.formControl} type="password" placeholder="New password (optional)" value={editState.password} onChange={(e) => setEditState({ ...editState, password: e.target.value })} />
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveEdit(user.id)}>Save</button>
+                              <button type="button" className={historyStyles.button} onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</button>
+                            </div>
+                            {rowError[user.id] && <div className={historyStyles.loginError}>{rowError[user.id]}</div>}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td>{user.name}</td>
+                          <td>{user.employeeId || '-'}</td>
+                          <td>{user.email || '-'}</td>
+                          <td>{user.phone || '-'}</td>
+                          <td>{user.department || '-'}</td>
+                          <td>{user.designation || '-'}</td>
+                          <td><RolePill role={user.role} /></td>
+                          <td><StatusPill status={user.status} /></td>
+                          <td>{formatDateTime(user.lastLoginAt)}</td>
+                          <td>{formatDateTime(user.createdAt)}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              <button type="button" className={historyStyles.toggleBtn} onClick={() => toggleActivity(user)}>
+                                {isActivityOpen ? 'Hide activity' : 'View activity'}
+                              </button>
+                              {canManage && (
+                                <>
+                                  <button type="button" className={historyStyles.button} onClick={() => startEdit(user)}>Edit</button>
+                                  <button type="button" className={historyStyles.button} onClick={() => resetPassword(user)}>Reset Password</button>
+                                  <button type="button" className={historyStyles.button} onClick={() => toggleStatus(user)}>
+                                    {user.status === 'active' ? 'Deactivate' : 'Activate'}
+                                  </button>
+                                </>
+                              )}
+                              {isSuperadmin && (
+                                <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(user)}>Delete</button>
+                              )}
+                            </div>
+                            {rowError[user.id] && <div className={historyStyles.loginError}>{rowError[user.id]}</div>}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                    {isActivityOpen && (
+                      <tr className={historyStyles.detailsRow}>
+                        <td colSpan={12}>
+                          {activityLoading && !userActivity ? (
+                            'Loading activity...'
+                          ) : userActivity ? (
+                            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13 }}>
+                              <div><strong>{userActivity.projects.total}</strong> Projects</div>
+                              <div><strong>{userActivity.siteVisits.total}</strong> Site Visits</div>
+                              <div><strong>{userActivity.quotations.total}</strong> Quotations</div>
+                              <div><strong>{userActivity.demoRequests.total}</strong> Demo Requests</div>
+                              <div style={{ flexBasis: '100%' }}>
+                                <strong>Recent logins:</strong>{' '}
+                                {userActivity.loginHistory.length === 0
+                                  ? 'None recorded yet.'
+                                  : userActivity.loginHistory
+                                      .slice(0, 5)
+                                      .map((h) => `${formatDateTime(h.at)}${h.success ? '' : ' (failed)'}`)
+                                      .join('  •  ')}
+                              </div>
+                            </div>
+                          ) : (
+                            'Could not load activity.'
                           )}
-                          {isSuperadmin && (
-                            <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(user)}>Delete</button>
-                          )}
-                        </div>
-                      </td>
-                    </>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </main>
     </div>
   );

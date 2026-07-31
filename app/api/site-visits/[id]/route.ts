@@ -57,6 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (Array.isArray(body.teamSales)) patch.team_sales = toStringArray(body.teamSales);
       if (typeof body.purpose === 'string') patch.purpose = body.purpose.trim();
       if (VALID_CATEGORIES.includes(body.category)) patch.category = body.category as DomainKey | '';
+      if (Array.isArray(body.productsInterested)) patch.products_interested = toStringArray(body.productsInterested);
       if (typeof body.visitDetails === 'string') patch.visit_details = body.visitDetails.trim();
       if (Array.isArray(body.imageUrls)) patch.image_urls = toStringArray(body.imageUrls);
       if (typeof body.actionPlan === 'string') patch.action_plan = body.actionPlan.trim();

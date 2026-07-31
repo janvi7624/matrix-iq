@@ -1,6 +1,7 @@
 'use client';
 
 import { CostInputs } from '@/lib/types';
+import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
 
 interface CostInputsSectionProps {
@@ -24,7 +25,9 @@ export default function CostInputsSection({ costInputs, onChange, showScaffoldin
                 type="number"
                 step="any"
                 min={0}
-                value={costInputs.installationCost}
+                placeholder="0"
+                value={costInputs.installationCost === 0 ? '' : costInputs.installationCost}
+                onFocus={selectAllOnFocusIfZero}
                 onChange={(e) => onChange({ installationCost: parseFloat(e.target.value) || 0 })}
               />
             </div>
@@ -36,7 +39,9 @@ export default function CostInputsSection({ costInputs, onChange, showScaffoldin
                 type="number"
                 step="any"
                 min={0}
-                value={costInputs.fabricationCost}
+                placeholder="0"
+                value={costInputs.fabricationCost === 0 ? '' : costInputs.fabricationCost}
+                onFocus={selectAllOnFocusIfZero}
                 onChange={(e) => onChange({ fabricationCost: parseFloat(e.target.value) || 0 })}
               />
             </div>
@@ -51,7 +56,9 @@ export default function CostInputsSection({ costInputs, onChange, showScaffoldin
                   type="number"
                   step="any"
                   min={0}
-                  value={costInputs.scaffoldingCost}
+                  placeholder="0"
+                  value={costInputs.scaffoldingCost === 0 ? '' : costInputs.scaffoldingCost}
+                  onFocus={selectAllOnFocusIfZero}
                   onChange={(e) => onChange({ scaffoldingCost: parseFloat(e.target.value) || 0 })}
                 />
               </div>
@@ -68,7 +75,9 @@ export default function CostInputsSection({ costInputs, onChange, showScaffoldin
             type="number"
             step="any"
             min={0}
-            value={costInputs.markupPercent}
+            placeholder="0"
+            value={costInputs.markupPercent === 0 ? '' : costInputs.markupPercent}
+            onFocus={selectAllOnFocusIfZero}
             onChange={(e) => onChange({ markupPercent: parseFloat(e.target.value) || 0 })}
           />
         </div>

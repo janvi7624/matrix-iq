@@ -1,10 +1,11 @@
 import QuotationHistoryView from '@/components/QuotationHistoryView';
+import { BRAND } from '@/lib/branding';
 
 export default function AdminPage() {
   return (
     <QuotationHistoryView
-      title="NANTA Admin — Quotation History"
-      subtitle="Every quotation generated from the Sales Quotation Estimator."
+      title={`${BRAND.appName} — Quotation History`}
+      subtitle="Every quotation generated across the CRM."
       showXlsxExport
     />
   );

@@ -28,13 +28,20 @@ export async function GET(request: NextRequest) {
     const now = Date.now();
 
     const siteVisitsToday = siteVisits.filter((v) => v.visit_date === today).length;
-    const upcomingDemos = demos.filter((d) => d.status === 'confirmed' && d.scheduled_at && new Date(d.scheduled_at).getTime() > now).length;
+    const nonFinalDemoStatuses = new Set(['pending_technical', 'pending_manager', 'pending_backoffice', 'dc_generated', 'material_dispatched']);
+    const upcomingDemos = demos.filter((d) => nonFinalDemoStatuses.has(d.status) && d.scheduled_at && new Date(d.scheduled_at).getTime() > now).length;
     const pendingResponses = projects.filter((p) => p.stage === 'customer_response').length;
     const negotiations = projects.filter((p) => p.stage === 'negotiation').length;
     const wonDeals = projects.filter((p) => p.status === 'won').length;
     const lostDeals = projects.filter((p) => p.status === 'lost').length;
     const decided = wonDeals + lostDeals;
     const conversionRate = decided > 0 ? Math.round((wonDeals / decided) * 100) : 0;
+
+    // Sales dashboard extra
+    const upcomingSiteVisits = siteVisits.filter((v) => v.status === 'open').length;
+    // Manager dashboard extra
+    const pendingApprovals = demos.filter((d) => d.status === 'pending_technical' || d.status === 'pending_manager').length;
+    const activeProjects = projects.filter((p) => p.status === 'active').length;
 
     return NextResponse.json({
       totalProjects: projects.length,
@@ -45,7 +52,10 @@ export async function GET(request: NextRequest) {
       negotiations,
       wonDeals,
       lostDeals,
-      conversionRate
+      conversionRate,
+      upcomingSiteVisits,
+      pendingApprovals,
+      activeProjects
     });
   } catch (error) {
     return apiErrorResponse(error);

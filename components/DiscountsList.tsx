@@ -1,6 +1,7 @@
 'use client';
 
 import { Discount } from '@/lib/types';
+import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
 
 interface DiscountsListProps {
@@ -39,7 +40,8 @@ export default function DiscountsList({ discounts, onAdd, onChangeItem, onRemove
                 min={0}
                 step="any"
                 placeholder="Value"
-                value={discount.value}
+                value={discount.value === 0 ? '' : discount.value}
+                onFocus={selectAllOnFocusIfZero}
                 onChange={(e) => onChangeItem(discount.id, { value: parseFloat(e.target.value) || 0 })}
               />
               <button type="button" className={styles.removeItemBtn} title="Remove discount" onClick={() => onRemove(discount.id)}>

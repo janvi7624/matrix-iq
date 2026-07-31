@@ -50,6 +50,8 @@ export async function POST(request: NextRequest) {
     expected_closing_date: typeof body.expectedClosingDate === 'string' ? body.expectedClosingDate : '',
     next_follow_up_date: typeof body.nextFollowUpDate === 'string' ? body.nextFollowUpDate : '',
     remarks: typeof body.remarks === 'string' ? body.remarks.trim() : '',
+    notes: [],
+    attachments: [],
     timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created', remarks: '' }],
     updated_at: now
   };

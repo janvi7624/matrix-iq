@@ -74,6 +74,8 @@ export async function POST(request: NextRequest) {
         expected_closing_date: '',
         next_follow_up_date: '',
         remarks: '',
+        notes: [],
+        attachments: [],
         timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created (from site visit)', remarks: '' }],
         updated_at: now
       };
@@ -97,6 +99,7 @@ export async function POST(request: NextRequest) {
       team_sales: toStringArray(body.teamSales),
       purpose: typeof body.purpose === 'string' ? body.purpose.trim() : '',
       category,
+      products_interested: toStringArray(body.productsInterested),
       visit_details: typeof body.visitDetails === 'string' ? body.visitDetails.trim() : '',
       image_urls: toStringArray(body.imageUrls),
       action_plan: typeof body.actionPlan === 'string' ? body.actionPlan.trim() : '',

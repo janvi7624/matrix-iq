@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import styles from '@/components/quotationHistory.module.css';
+import { BRAND } from '@/lib/branding';
 
 function LoginForm() {
   const router = useRouter();
@@ -41,9 +42,9 @@ function LoginForm() {
   return (
     <div className={styles.loginWrap}>
       <form className={styles.loginCard} onSubmit={handleSubmit}>
-        <Image src="/NANTA.png" alt="NANTA logo" width={96} height={96} className={styles.loginLogo} unoptimized />
-        <h1>NANTA Sales Quotation Estimator</h1>
-        <span className={styles.sub}>Sign in with your username and password to continue.</span>
+        <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={96} height={96} className={styles.loginLogo} unoptimized />
+        <h1>{BRAND.appName}</h1>
+        <span className={styles.sub}>{BRAND.tagline} — sign in with your username and password to continue.</span>
         {error && <div className={styles.loginError}>{error}</div>}
         <div className={styles.loginField}>
           <label htmlFor="loginUsername">Username</label>

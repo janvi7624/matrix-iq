@@ -24,8 +24,8 @@ export async function proxy(request: NextRequest) {
 
   const isAdminOnly = ADMIN_ONLY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   // "manager" is treated like admin/superadmin (full pipeline visibility);
-  // "technical" is treated like "user" (own-scoped, no admin/user-management access).
-  if (isAdminOnly && (session.role === 'user' || session.role === 'technical')) {
+  // "technical"/"backoffice" are treated like "user" (own-scoped, no admin/user-management access).
+  if (isAdminOnly && (session.role === 'user' || session.role === 'technical' || session.role === 'backoffice')) {
     if (isApi) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.redirect(new URL('/', request.url));
   }

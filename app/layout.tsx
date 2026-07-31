@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { BRAND } from "@/lib/branding";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sales Quotation Estimator",
-  description: "NANTA-branded estimator for AV, Robotics, and AI Video Analytics pricing",
+  title: {
+    default: `${BRAND.appName} — ${BRAND.tagline}`,
+    template: `%s — ${BRAND.appName}`,
+  },
+  description: BRAND.description,
+  applicationName: BRAND.appName,
+  icons: { icon: BRAND.favicon },
+  openGraph: {
+    title: BRAND.appName,
+    description: BRAND.description,
+    siteName: BRAND.appName,
+    type: "website",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: BRAND.themeColor,
 };
 
 export default function RootLayout({

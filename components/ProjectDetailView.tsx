@@ -19,6 +19,7 @@ import {
 import { FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as VISIT_STAGE_LABEL } from '@/lib/siteVisitReminder';
+import { parseFollowUpNotes } from '@/lib/followUp';
 import { exportListToPdf } from '@/lib/exportPdf';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
@@ -78,6 +79,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [instForm, setInstForm] = useState(EMPTY_INSTALLATION);
   const [respForm, setRespForm] = useState(EMPTY_RESPONSE);
   const [busySection, setBusySection] = useState('');
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   async function load() {
     setStatus('Loading...');
@@ -110,6 +114,36 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       await load();
     } catch {
       alert('Could not save this change. Please try again.');
+    }
+  }
+
+  async function handleAddNote(e: FormEvent) {
+    e.preventDefault();
+    if (!noteText.trim()) return;
+    setSavingNote(true);
+    try {
+      await patchProject({ action: 'addNote', text: noteText });
+      setNoteText('');
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function handleUploadAttachment(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    setUploadingAttachment(true);
+    try {
+      const body = new FormData();
+      body.append('folder', 'project');
+      Array.from(fileList).forEach((f) => body.append('files', f));
+      const response = await fetch('/api/uploads', { method: 'POST', body });
+      if (!response.ok) throw new Error(String(response.status));
+      const uploaded: { urls: string[] } = await response.json();
+      await patchProject({ action: 'addAttachment', urls: uploaded.urls });
+    } catch {
+      alert('Could not upload one or more attachments.');
+    } finally {
+      setUploadingAttachment(false);
     }
   }
 
@@ -259,6 +293,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const currentIdx = FORWARD_STAGES.indexOf(project.stage);
   const totalPoAmount = purchaseOrders.reduce((sum, po) => sum + po.amount, 0);
   const totalAdvance = purchaseOrders.reduce((sum, po) => sum + po.advance_received, 0);
+  const followUps = quotations
+    .flatMap((q) => parseFollowUpNotes(q.follow_up_notes_json).map((n) => ({ ...n, quotationNumber: q.quotation_number })))
+    .sort((a, b) => (a.at < b.at ? 1 : -1));
 
   return (
     <div className={historyStyles.body}>
@@ -435,7 +472,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             ) : (
               demos.map((d) => (
                 <div key={d.id} className={historyStyles.miniCardRow}>
-                  {formatDateTime(d.scheduled_at)} — {d.status}{d.outcome ? ` · ${d.outcome.replace(/_/g, ' ')}` : ''} {d.product_domain ? `(${DOMAIN_DISPLAY_NAME[d.product_domain]})` : ''}
+                  {formatDateTime(d.scheduled_at)} — {d.status}{d.outcome ? ` · ${d.outcome.replace(/_/g, ' ')}` : ''} {d.product_domains.length ? `(${d.product_domains.map((k) => DOMAIN_DISPLAY_NAME[k]).join(', ')})` : ''}
                 </div>
               ))
             )}
@@ -565,6 +602,56 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div className={historyStyles.miniCardRow}>PO total: ₹{totalPoAmount.toLocaleString('en-IN')}</div>
             <div className={historyStyles.miniCardRow}>Advance received: ₹{totalAdvance.toLocaleString('en-IN')}</div>
             <div className={historyStyles.miniCardRow}>Balance due: ₹{Math.max(0, totalPoAmount - totalAdvance).toLocaleString('en-IN')}</div>
+          </div>
+
+          <div className={historyStyles.miniCard}>
+            <div className={historyStyles.miniCardTitle}>Follow-ups ({followUps.length})</div>
+            {followUps.length === 0 ? (
+              <div className={historyStyles.miniCardEmpty}>No follow-ups logged on this project's quotations yet.</div>
+            ) : (
+              followUps.slice(0, 8).map((f, idx) => (
+                <div key={idx} className={historyStyles.miniCardRow}>
+                  {formatDateTime(f.at)} — {f.by} ({f.quotationNumber}): {f.note || '(no note)'}
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className={historyStyles.miniCard}>
+            <div className={historyStyles.miniCardTitle}>Notes ({project.notes.length})</div>
+            {project.notes.length === 0 ? (
+              <div className={historyStyles.miniCardEmpty}>No notes yet.</div>
+            ) : (
+              project.notes
+                .slice()
+                .reverse()
+                .map((n) => (
+                  <div key={n.id} className={historyStyles.miniCardRow}>
+                    {formatDateTime(n.at)} — {n.by}: {n.text}
+                  </div>
+                ))
+            )}
+            <form onSubmit={handleAddNote} style={{ marginTop: 10 }}>
+              <textarea className={calcStyles.formControl} rows={2} placeholder="Add a note…" value={noteText} onChange={(e) => setNoteText(e.target.value)} style={{ marginBottom: 6 }} />
+              <button type="submit" className={calcStyles.btn} disabled={savingNote}>
+                {savingNote ? 'Saving…' : 'Add note'}
+              </button>
+            </form>
+          </div>
+
+          <div className={historyStyles.miniCard}>
+            <div className={historyStyles.miniCardTitle}>Attachments ({project.attachments.length})</div>
+            {project.attachments.length === 0 ? (
+              <div className={historyStyles.miniCardEmpty}>No attachments yet.</div>
+            ) : (
+              project.attachments.map((url) => (
+                <div key={url} className={historyStyles.miniCardRow}>
+                  <a href={url} target="_blank" rel="noreferrer">{url.split('/').pop()}</a>
+                </div>
+              ))
+            )}
+            <input type="file" multiple disabled={uploadingAttachment} onChange={(e) => handleUploadAttachment(e.target.files)} style={{ marginTop: 10 }} />
+            {uploadingAttachment && <div className={calcStyles.small}>Uploading…</div>}
           </div>
         </div>
 

@@ -100,8 +100,16 @@ export interface CostInputs {
 // technical: technical-team login; same own-scoped visibility as "user" today (see note in
 //   lib/viewerContext.ts — assignment-based visibility isn't possible while team rosters are
 //   free-text names, not real accounts).
+// backoffice: prepares/dispatches/closes Delivery Challans once a demo request clears manager
+//   approval; same own-scoped general visibility as "user"/"technical", but with Back Office
+//   module access.
 // user: can only use the calculator to create quotations; no history or user-management access.
-export type UserRole = 'superadmin' | 'admin' | 'manager' | 'technical' | 'user';
+export type UserRole = 'superadmin' | 'admin' | 'manager' | 'technical' | 'backoffice' | 'user';
+
+// active: can log in normally. inactive: login is blocked (verifyLogin rejects it) —
+// used instead of deleting an account so history/attribution (created_by, audit log,
+// etc.) stays intact for someone who's left or is on leave.
+export type UserStatus = 'active' | 'inactive';
 
 export interface UserRecord {
   id: string;
@@ -111,16 +119,39 @@ export interface UserRecord {
   phone: string;
   email: string;
   role: UserRole;
+  employeeId: string;
+  department: string;
+  designation: string;
+  status: UserStatus;
   createdAt: string;
+  lastLoginAt: string;
 }
 
 export type PublicUser = Omit<UserRecord, 'passwordHash'>;
+
+// Append-only login attempt log — separate from the Back Office audit log
+// since it's keyed by username/pre-session rather than by entity id.
+export interface LoginHistoryEntry {
+  id: string;
+  username: string;
+  at: string;
+  success: boolean;
+  ip: string;
+}
+
+// draft: saved but not yet finalized. sent: PDF generated/handed to client (default on save).
+// approved/rejected: client decision recorded manually. "Expired" isn't stored — it's computed
+// from validity_days vs created_at whenever status is still 'sent' (see quotationStore.ts).
+export type QuotationStatus = 'draft' | 'sent' | 'approved' | 'rejected';
+export type QuotationEffectiveStatus = QuotationStatus | 'expired';
 
 export interface QuotationRecord {
   id: string;
   quotation_number: string;
   created_at: string;
   project_id: string;
+  created_by: string;
+  status: QuotationStatus;
   prepared_by: string;
   prepared_by_phone: string;
   prepared_by_email: string;
@@ -173,6 +204,7 @@ export interface SiteVisitRecord {
   team_sales: string[];
   purpose: string;
   category: DomainKey | '';
+  products_interested: string[];
   visit_details: string;
   image_urls: string[];
   action_plan: string;
@@ -196,15 +228,51 @@ export interface CrmRecord {
   notes: string;
 }
 
-// Sales requests a demo for a domain (picked from the same product list as
-// the quotation calculator) plus an optional technical team member; the
-// request sits 'pending' until an admin/superadmin (standing in for the
-// domain lead — see lib/domainLeads.ts) confirms or rejects it.
-export type DemoRequestStatus = 'pending' | 'confirmed' | 'rejected' | 'done' | 'cancelled';
+// Back Office workflow (see lib/domainLeads.ts for the informational lead
+// label): Sales creates a request (draft or straight to pending_technical) →
+// assigned Technical person approves/rejects/reschedules availability →
+// Manager approves/rejects/modifies → approved requests move to Back Office,
+// which generates a Delivery Challan, dispatches materials, and — once the
+// demo happens and materials come back — verifies and closes the DC.
+export type DemoRequestStatus =
+  | 'draft'
+  | 'pending_technical'
+  | 'pending_manager'
+  | 'pending_backoffice'
+  | 'dc_generated'
+  | 'material_dispatched'
+  | 'demo_completed'
+  | 'material_returned'
+  | 'dc_closed'
+  | 'cancelled';
+
+export type DemoPriority = 'low' | 'medium' | 'high';
 
 // Filled in after the demo actually happens — separate from `status` (the
-// pending/confirmed approval flow above it).
+// approval/fulfillment pipeline above it).
 export type DemoOutcome = 'successful' | 'need_followup' | 'pending_decision' | 'cancelled' | '';
+
+export interface DemoProductLine {
+  product: string;
+  quantity: number;
+}
+
+export interface DemoTechnicalApproval {
+  decision: 'approved' | 'rejected' | 'reschedule' | '';
+  availability: 'available' | 'not_available' | '';
+  remarks: string;
+  expected_arrival_time: string;
+  decided_by: string;
+  decided_at: string;
+}
+
+export interface DemoManagerApproval {
+  decision: 'approved' | 'rejected' | 'modified' | '';
+  remarks: string;
+  reassigned_engineer: string;
+  decided_by: string;
+  decided_at: string;
+}
 
 export interface DemoScheduleRecord {
   id: string;
@@ -215,14 +283,17 @@ export interface DemoScheduleRecord {
   client_name: string;
   company: string;
   location: string;
-  product_domain: DomainKey | '';
+  product_domains: DomainKey[];
+  products_demonstrated: string[];
+  products_required: DemoProductLine[];
+  priority: DemoPriority;
+  assigned_technical_person: string;
   technical_members: string[];
   scheduled_at: string;
   assigned_rep: string;
   status: DemoRequestStatus;
-  approved_by: string;
-  approved_at: string;
-  decision_note: string;
+  technical_approval: DemoTechnicalApproval;
+  manager_approval: DemoManagerApproval;
   notes: string;
   // Post-demo report fields — filled in once the demo has taken place.
   demo_objective: string;
@@ -281,6 +352,13 @@ export interface ProjectTimelineEvent {
   remarks: string;
 }
 
+export interface ProjectNote {
+  id: string;
+  at: string;
+  by: string;
+  text: string;
+}
+
 export interface ProjectRecord {
   id: string;
   created_at: string;
@@ -298,6 +376,8 @@ export interface ProjectRecord {
   expected_closing_date: string;
   next_follow_up_date: string;
   remarks: string;
+  notes: ProjectNote[];
+  attachments: string[];
   timeline: ProjectTimelineEvent[];
   updated_at: string;
 }
@@ -343,6 +423,22 @@ export interface PoRecord {
   payment_terms: string;
 }
 
+// Append-only record of every status-changing action across the Back Office
+// workflow (demo approvals, DC lifecycle) — see lib/auditLogStore.ts.
+export interface AuditLogEntry {
+  id: string;
+  at: string;
+  by: string;
+  role: UserRole;
+  entity_type: 'demo' | 'delivery_challan';
+  entity_id: string;
+  action: string;
+  previous_status: string;
+  new_status: string;
+  remarks: string;
+  ip: string;
+}
+
 export type InstallationStatus = 'scheduled' | 'in_progress' | 'completed';
 
 export interface InstallationRecord {
@@ -355,4 +451,64 @@ export interface InstallationRecord {
   status: InstallationStatus;
   completion_report: string;
   client_signature: string;
+}
+
+// ---------------------------------------------------------------------------
+// Back Office — Delivery Challan (DC). Generated once a demo request clears
+// manager approval; tracks materials out, dispatch, and — after the demo —
+// verified return and closure. See lib/deliveryChallanStore.ts.
+// ---------------------------------------------------------------------------
+
+export type DcStatus = 'prepared' | 'dispatched' | 'returned' | 'closed';
+
+export interface DcLineItem {
+  product: string;
+  serialNumber: string;
+  quantity: number;
+}
+
+// One of the fixed example tags from the spec, or 'custom' for free text.
+export type BackOfficeRemarkTag =
+  | 'good_condition'
+  | 'minor_scratch'
+  | 'major_damage'
+  | 'adapter_missing'
+  | 'power_cable_missing'
+  | 'wrong_serial_number'
+  | 'packing_damaged'
+  | 'custom';
+
+export interface MaterialReturnChecklist {
+  returned: boolean;
+  condition: 'good' | 'minor_damage' | 'major_damage' | '';
+  missing: boolean;
+  damaged: boolean;
+  accessories: {
+    powerCable: boolean;
+    remote: boolean;
+    adapter: boolean;
+    stand: boolean;
+    packing: boolean;
+  };
+  serialNumberVerified: boolean;
+  remarkTags: BackOfficeRemarkTag[];
+  remarks: string;
+}
+
+export interface DeliveryChallanRecord {
+  id: string;
+  dc_number: string;
+  created_at: string;
+  created_by: string;
+  project_id: string;
+  demo_id: string;
+  client_name: string;
+  items: DcLineItem[];
+  issued_by: string;
+  issued_date: string;
+  expected_return_date: string;
+  assigned_engineer: string;
+  status: DcStatus;
+  material_return: MaterialReturnChecklist;
+  updated_at: string;
 }

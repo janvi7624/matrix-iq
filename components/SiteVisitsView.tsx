@@ -3,37 +3,19 @@
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { DomainKey, SiteVisitRecord, UserRole, VisitStage } from '@/lib/types';
+import { SiteVisitRecord, UserRole, VisitStage } from '@/lib/types';
 import { TECHNICAL_TEAM, SALES_TEAM } from '@/lib/teamMembers';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { isReminderDue, STAGE_LABEL, STAGE_HINT } from '@/lib/siteVisitReminder';
 import PortalHeader from './PortalHeader';
 import TeamCheckboxes from './TeamCheckboxes';
+import SiteVisitWizard, { SiteVisitWizardForm } from './SiteVisitWizard';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
 interface SiteVisitsViewProps {
   currentUser: { username: string; role: UserRole };
 }
-
-const EMPTY_FORM = {
-  projectId: '',
-  companyName: '',
-  contactPerson: '',
-  clientEmail: '',
-  clientPhone: '',
-  location: '',
-  visitDate: '',
-  teamTechnical: [] as string[],
-  teamSales: [] as string[],
-  purpose: '',
-  category: '' as DomainKey | '',
-  visitDetails: '',
-  imageUrls: [] as string[],
-  actionPlan: '',
-  reminderDate: '',
-  stage: '' as VisitStage | ''
-};
 
 const EMPTY_UPDATE_FORM = { teamTechnical: [] as string[], teamSales: [] as string[], projectDetails: '', ongoingActivities: '' };
 
@@ -72,43 +54,6 @@ function StagePicker({ value, onChange }: { value: VisitStage | ''; onChange: (v
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function ImageUploader({ imageUrls, onChange }: { imageUrls: string[]; onChange: (urls: string[]) => void }) {
-  const [uploading, setUploading] = useState(false);
-
-  async function handleFiles(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) return;
-    setUploading(true);
-    try {
-      const body = new FormData();
-      Array.from(fileList).forEach((f) => body.append('files', f));
-      const response = await fetch('/api/site-visits/upload', { method: 'POST', body });
-      if (!response.ok) throw new Error(String(response.status));
-      const data: { urls: string[] } = await response.json();
-      onChange([...imageUrls, ...data.urls]);
-    } catch {
-      alert('Could not upload one or more images. Try a smaller file (max 8MB each).');
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  return (
-    <div className={calcStyles.field}>
-      <label className={calcStyles.label}>Images (optional)</label>
-      <input type="file" accept="image/*" multiple disabled={uploading} onChange={(e) => handleFiles(e.target.files)} />
-      {uploading && <div className={calcStyles.small}>Uploading…</div>}
-      {imageUrls.length > 0 && (
-        <div className={historyStyles.imageStrip}>
-          {imageUrls.map((url) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={url} src={url} alt="Site visit" onClick={() => onChange(imageUrls.filter((u) => u !== url))} title="Click to remove" />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -319,18 +264,11 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
   const [visits, setVisits] = useState<SiteVisitRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
-  const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [mode, setMode] = useState<'register' | 'update'>(searchParams.get('focus') === 'open' ? 'update' : 'register');
   const [openOnly, setOpenOnly] = useState(searchParams.get('focus') === 'open');
   const [openId, setOpenId] = useState<string | null>(null);
-  const [autofillNotice, setAutofillNotice] = useState('');
   const prefillProjectId = searchParams.get('projectId') || '';
-
-  useEffect(() => {
-    if (prefillProjectId) setForm((f) => ({ ...f, projectId: prefillProjectId }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillProjectId]);
 
   async function load() {
     setStatus('Loading...');
@@ -354,51 +292,24 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
   const visibleVisits = useMemo(() => (openOnly ? visits.filter((v) => v.status === 'open') : visits), [visits, openOnly]);
   const openVisit = useMemo(() => visits.find((v) => v.id === openId) || null, [visits, openId]);
 
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    if (!form.companyName.trim() || !form.visitDate) {
-      alert('Company name and visit date are required.');
-      return;
-    }
+  async function handleWizardSubmit(wizardForm: SiteVisitWizardForm): Promise<SiteVisitRecord | null> {
     setCreating(true);
     try {
       const response = await fetch('/api/site-visits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(wizardForm)
       });
       if (!response.ok) throw new Error(String(response.status));
-      setForm(EMPTY_FORM);
-      setAutofillNotice('');
+      const created: SiteVisitRecord = await response.json();
       await load();
+      return created;
     } catch {
       alert('Could not save this site visit. Please try again.');
+      return null;
     } finally {
       setCreating(false);
     }
-  }
-
-  // Same client, new domain: carry over everything except the visit date,
-  // category, and images so the rep only has to pick the new domain.
-  function handleCompanyBlur() {
-    const name = form.companyName.trim();
-    if (!name) return;
-    const match = visits.find((v) => v.company_name.trim().toLowerCase() === name.toLowerCase());
-    if (!match) return;
-    setForm((f) => ({
-      ...f,
-      contactPerson: f.contactPerson || match.contact_person,
-      clientEmail: f.clientEmail || match.client_email,
-      clientPhone: f.clientPhone || match.client_phone,
-      teamTechnical: f.teamTechnical.length ? f.teamTechnical : match.team_technical,
-      teamSales: f.teamSales.length ? f.teamSales : match.team_sales,
-      purpose: f.purpose || match.purpose,
-      visitDetails: f.visitDetails || match.visit_details,
-      actionPlan: f.actionPlan || match.action_plan,
-      reminderDate: f.reminderDate || match.reminder_date,
-      stage: f.stage || match.stage
-    }));
-    setAutofillNotice(`Loaded details from an earlier visit to ${match.company_name} — just update the category and visit-specific info.`);
   }
 
   async function handlePatch(id: string, patch: Record<string, unknown>) {
@@ -456,106 +367,7 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
         </div>
 
         {mode === 'register' && (
-        <>
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Register a site visit</h2>
-        {autofillNotice && <div className={historyStyles.autofillNotice}>{autofillNotice}</div>}
-        {prefillProjectId && <div className={historyStyles.autofillNotice}>Linked to project {prefillProjectId}.</div>}
-        <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
-          <div className={calcStyles.small} style={{ marginBottom: 10 }}>
-            {form.projectId ? `This visit will be linked to project ${form.projectId}.` : "No project selected — a new project will be created automatically for this client."}
-          </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Company name *</label>
-              <input
-                className={calcStyles.formControl}
-                value={form.companyName}
-                onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))}
-                onBlur={handleCompanyBlur}
-                required
-              />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Contact person</label>
-              <input className={calcStyles.formControl} value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Visit date *</label>
-              <input type="date" className={calcStyles.formControl} value={form.visitDate} onChange={(e) => setForm((f) => ({ ...f, visitDate: e.target.value }))} required />
-            </div>
-          </div>
-
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Client email</label>
-              <input type="email" className={calcStyles.formControl} value={form.clientEmail} onChange={(e) => setForm((f) => ({ ...f, clientEmail: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Client contact number</label>
-              <input className={calcStyles.formControl} value={form.clientPhone} onChange={(e) => setForm((f) => ({ ...f, clientPhone: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Location</label>
-              <input className={calcStyles.formControl} value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
-            </div>
-          </div>
-
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <TeamCheckboxes
-              label="Technical team involved"
-              options={TECHNICAL_TEAM}
-              selected={form.teamTechnical}
-              onChange={(next) => setForm((f) => ({ ...f, teamTechnical: next }))}
-            />
-            <TeamCheckboxes
-              label="Sales team involved"
-              options={SALES_TEAM}
-              selected={form.teamSales}
-              onChange={(next) => setForm((f) => ({ ...f, teamSales: next }))}
-            />
-          </div>
-
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Purpose of visit</label>
-              <input className={calcStyles.formControl} value={form.purpose} onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Category</label>
-              <select className={calcStyles.formControl} value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as DomainKey | '' }))}>
-                <option value="">-- Select category --</option>
-                {(Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[]).map((k) => (
-                  <option key={k} value={k}>{DOMAIN_DISPLAY_NAME[k]}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Visit details (technical brief)</label>
-            <textarea className={calcStyles.formControl} rows={3} value={form.visitDetails} onChange={(e) => setForm((f) => ({ ...f, visitDetails: e.target.value }))} />
-          </div>
-
-          <ImageUploader imageUrls={form.imageUrls} onChange={(urls) => setForm((f) => ({ ...f, imageUrls: urls }))} />
-
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Action plan</label>
-              <textarea className={calcStyles.formControl} rows={2} value={form.actionPlan} onChange={(e) => setForm((f) => ({ ...f, actionPlan: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Reminder date</label>
-              <input type="date" className={calcStyles.formControl} value={form.reminderDate} onChange={(e) => setForm((f) => ({ ...f, reminderDate: e.target.value }))} />
-            </div>
-          </div>
-
-          <StagePicker value={form.stage} onChange={(v) => setForm((f) => ({ ...f, stage: v }))} />
-
-          <button type="submit" className={calcStyles.btn} disabled={creating}>
-            {creating ? 'Saving…' : 'Register site visit'}
-          </button>
-        </form>
-        </>
+          <SiteVisitWizard visits={visits} prefillProjectId={prefillProjectId} creating={creating} onSubmit={handleWizardSubmit} />
         )}
 
         <div className={historyStyles.toolbar} style={{ marginTop: 24 }}>

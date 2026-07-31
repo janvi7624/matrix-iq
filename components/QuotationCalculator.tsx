@@ -11,6 +11,7 @@ import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey
 import { getRoomSuggestions } from '@/lib/roomSuggestions';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
+import { BRAND } from '@/lib/branding';
 import StandeeEstimator from './estimators/StandeeEstimator';
 import LedEstimator, { LedModelPreset } from './estimators/LedEstimator';
 import ConferenceEstimator, { ModelPreset } from './estimators/ConferenceEstimator';
@@ -30,12 +31,13 @@ import styles from './calculator.module.css';
 
 const DEFAULT_COST_INPUTS: CostInputs = { installationCost: 0, fabricationCost: 0, scaffoldingCost: 0, markupPercent: 0 };
 
-const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical Team', user: 'User' };
+const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical Team', backoffice: 'Back Office', user: 'User' };
 const ROLE_PILL_CLASS: Record<UserRole, string> = {
   superadmin: styles.rolePillSuperadmin,
   admin: styles.rolePillAdmin,
   manager: styles.rolePillManager,
   technical: styles.rolePillTechnical,
+  backoffice: styles.rolePillBackoffice,
   user: styles.rolePillUser
 };
 
@@ -313,15 +315,10 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
             <a className={styles.secondaryButton} href="/">
               &larr; Dashboard
             </a>
-            {currentUser.role !== 'user' && currentUser.role !== 'technical' && (
-              <>
-                <a className={styles.secondaryButton} href="/quotation-history" target="_blank" rel="noreferrer">
-                  Quotation History
-                </a>
-                <a className={styles.secondaryButton} href="/admin/users" target="_blank" rel="noreferrer">
-                  Manage Users
-                </a>
-              </>
+            {currentUser.role !== 'user' && currentUser.role !== 'technical' && currentUser.role !== 'backoffice' && (
+              <a className={styles.secondaryButton} href="/quotation-history" target="_blank" rel="noreferrer">
+                Quotation History
+              </a>
             )}
             <button type="button" className={styles.secondaryButton} onClick={handleLogout}>
               Log out
@@ -329,7 +326,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
           </div>
         </div>
         <div className={styles.brandHeader}>
-          <Image src="/NANTA.png" alt="NANTA logo" width={50} height={50} className={styles.brandLogo} unoptimized />
+          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={50} height={50} className={styles.brandLogo} unoptimized />
           <div className={styles.brandTitle}>
             <h1 className={styles.h1}>Sales Quotation Estimator</h1>
             <span className={styles.tagline}>NANTA-branded estimator for standee and LED display pricing</span>
