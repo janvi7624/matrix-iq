@@ -90,3 +90,21 @@
     color: #6b7280;
     margin-top: 2px;
 }
+.kpiCardAlert {
+    background: #fef2f2;
+    border: 1px solid rgba(220, 38, 38, 0.35);
+    text-decoration: none;
+    display: block;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.kpiCardAlert:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.15);
+}
+.kpiCardAlert .kpiValue {
+    color: #b91c1c;
+}
+.kpiCardAlert .kpiLabel {
+    color: #b91c1c;
+    font-weight: 600;
+}

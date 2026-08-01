@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { LineItem, ProductGroup, QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { daysSince, needsFollowUp, parseFollowUpNotes } from '@/lib/followUp';
@@ -55,6 +56,63 @@ function renderProductDetail(productsJson: string): string {
       return `${group.label}\n${lines}${remarkLine}`;
     })
     .join('\n\n');
+}
+
+// Version History — every revision of one quotation, oldest first, each row
+// showing its price delta vs. the version right before it (the app's
+// lightweight take on "compare versions": read down the column rather than
+// picking two versions into a dedicated diff screen).
+function VersionHistory({ quotationId }: { quotationId: string }) {
+  const [versions, setVersions] = useState<QuotationRecord[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/quotations/${quotationId}/versions`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: QuotationRecord[]) => setVersions(data))
+      .catch(() => setLoadError(true));
+  }, [quotationId]);
+
+  if (loadError) return <div className={styles.small}>Could not load version history.</div>;
+  if (!versions) return <div className={styles.small}>Loading version history…</div>;
+  if (versions.length <= 1) return <div className={styles.small}>No revisions yet — this is the only version.</div>;
+
+  return (
+    <table className={styles.table} style={{ marginTop: 10 }}>
+      <thead>
+        <tr>
+          <th>Version</th>
+          <th>Quotation No.</th>
+          <th>Edited By</th>
+          <th>Date</th>
+          <th>Reason</th>
+          <th>Products</th>
+          <th>Total</th>
+          <th>Δ vs previous</th>
+        </tr>
+      </thead>
+      <tbody>
+        {versions.map((v, i) => {
+          const prev = i > 0 ? versions[i - 1] : null;
+          const delta = prev ? v.total - prev.total : 0;
+          return (
+            <tr key={v.id}>
+              <td>{v.revision_number === 0 ? 'Original' : `Rev ${v.revision_number}`}</td>
+              <td className={styles.num}>{v.quotation_number}</td>
+              <td>{v.created_by}</td>
+              <td>{formatDate(v.created_at)}</td>
+              <td>{v.revision_reason || '-'}</td>
+              <td>{v.products_summary || '-'}</td>
+              <td className={styles.amount}>{formatMoney(v.total)}</td>
+              <td style={{ color: delta > 0 ? '#b91c1c' : delta < 0 ? '#15803d' : '#6b7280', fontWeight: 600 }}>
+                {prev ? `${delta > 0 ? '+' : ''}${formatMoney(delta)}` : '-'}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
 }
 
 interface QuotationRowProps {
@@ -120,7 +178,12 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
             {expanded ? '−' : '+'}
           </button>
         </td>
-        <td className={styles.num}>{row.quotation_number}</td>
+        <td className={styles.num}>
+          {row.quotation_number}
+          {row.revision_number > 0 && (
+            <span className={`${styles.rolePill} ${styles.rolePillBackoffice}`} style={{ marginLeft: 6 }}>Rev {row.revision_number}</span>
+          )}
+        </td>
         <td>{formatDate(row.created_at)}</td>
         <td>{row.prepared_by || '-'}</td>
         {showSalesPerson && <td>{row.created_by || '-'}</td>}
@@ -162,20 +225,25 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
           )}
         </td>
         <td>
-          {onDelete && (
-            <button
-              type="button"
-              className={styles.deleteBtn}
-              title="Delete this quotation"
-              onClick={() => {
-                if (window.confirm(`Delete quotation ${row.quotation_number}? This cannot be undone.`)) {
-                  onDelete(row.id);
-                }
-              }}
-            >
-              Delete
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <Link href={`/quotation?reviseId=${row.id}`} className={styles.toggleBtn} title="Create a new version of this quotation">
+              Revise
+            </Link>
+            {onDelete && (
+              <button
+                type="button"
+                className={styles.deleteBtn}
+                title="Delete this quotation"
+                onClick={() => {
+                  if (window.confirm(`Delete quotation ${row.quotation_number}? This cannot be undone.`)) {
+                    onDelete(row.id);
+                  }
+                }}
+              >
+                Delete
+              </button>
+            )}
+          </div>
         </td>
       </tr>
       {expanded && (
@@ -193,6 +261,8 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
                 {busy ? 'Logging…' : 'Log follow-up'}
               </button>
             </div>
+            <div className={styles.navGroupLabel}>Version History</div>
+            <VersionHistory quotationId={row.id} />
           </td>
         </tr>
       )}

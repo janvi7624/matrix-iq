@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { projectStore } from '@/lib/projectStore';
+import { migrateCrmToProjects } from '@/lib/crmMigration';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectPriority, ProjectRecord } from '@/lib/types';
 
@@ -11,6 +12,7 @@ export async function GET(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
+    await migrateCrmToProjects();
     const records = await projectStore.list(viewer.username, viewer.isPrivileged);
     return NextResponse.json(records);
   } catch (error) {
@@ -44,6 +46,7 @@ export async function POST(request: NextRequest) {
     email: typeof body.email === 'string' ? body.email.trim() : '',
     address: typeof body.address === 'string' ? body.address.trim() : '',
     sales_person: salesPerson,
+    source: typeof body.source === 'string' ? body.source.trim() : '',
     status: 'active',
     stage: 'site_visit',
     priority: VALID_PRIORITY.includes(body.priority) ? body.priority : 'medium',

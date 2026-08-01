@@ -12,24 +12,50 @@ const PRIVILEGED_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 // added later without a matching seed) simply won't appear until an admin
 // adds it via Module Manager.
 const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
-  { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: '📁', href: '/projects', section: 'CRM', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'quotation', label: 'Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', icon: '🧾', href: '/quotation', section: 'CRM', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'my-quotations', label: 'My Quotations', desc: 'Every quotation you’ve created, with status and follow-ups.', icon: '📋', href: '/my-quotations', section: 'CRM', order: 3, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: '📍', href: '/site-visits', section: 'CRM', order: 4, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'crm', label: 'CRM', desc: 'Track leads, prospects, and customers.', icon: '🤝', href: '/crm', section: 'CRM', order: 5, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'leads', label: 'Lead Capture', desc: 'Scan a business card at an event and qualify the lead on the spot.', icon: '📇', href: '/leads', section: 'CRM', order: 6, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: '🖥️', href: '/demo-schedule', section: 'CRM', order: 7, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: '🚗', href: '/travel-schedule', section: 'CRM', order: 8, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: '📁', href: '/projects', section: 'Sales Pipeline', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'quotation', label: 'New Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', icon: '🧾', href: '/quotation', section: 'Sales Pipeline', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'my-quotations', label: 'Existing Quotations', desc: "Every quotation you've created, with status, versions, and follow-ups.", icon: '📋', href: '/my-quotations', section: 'Sales Pipeline', order: 3, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: '📍', href: '/site-visits', section: 'Sales Pipeline', order: 4, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'leads', label: 'Lead Capture', desc: 'Scan a business card at an event and qualify the lead on the spot.', icon: '📇', href: '/leads', section: 'Sales Pipeline', order: 6, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: '🖥️', href: '/demo-schedule', section: 'Sales Pipeline', order: 7, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: '🚗', href: '/travel-schedule', section: 'Sales Pipeline', order: 8, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'backoffice', label: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', icon: '📦', href: '/backoffice', section: 'Operations', order: 1, enabled: true, isCustom: false, visibleToRoles: ['backoffice', 'admin', 'superadmin', 'manager'] },
   { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: '👤', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'role-management', label: 'Role Management', desc: 'What each role can see and do across the platform.', icon: '🛡️', href: '/admin/roles', section: 'Administration', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'department-master', label: 'Department Master', desc: 'Departments used across user profiles.', icon: '🏢', href: '/admin/departments', section: 'Administration', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'performance-review', label: 'Performance Review', desc: 'A full performance dashboard for one employee at a time — CRM, sales, projects, and activity history.', icon: '📊', href: '/admin/performance-review', section: 'Reports', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'audit-log', label: 'Audit Log', desc: 'Every status-changing action across the Back Office workflow.', icon: '🕒', href: '/admin/audit-log', section: 'Administration', order: 4, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'product-master', label: 'Product Master', desc: 'Manage the product catalog used across quotations.', icon: '🏷️', href: '/admin/products', section: 'Administration', order: 5, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'app-settings', label: 'Application Settings', desc: 'Company details, tax, terms, and numbering.', icon: '⚙️', href: '/admin/settings', section: 'Administration', order: 6, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'module-manager', label: 'Module Manager', desc: 'Enable, disable, rename, and reorder every module.', icon: '🧩', href: '/admin/modules', section: 'Administration', order: 7, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'custom-modules', label: 'Custom Module Builder', desc: 'Create new business modules without writing code.', icon: '🛠️', href: '/admin/custom-modules', section: 'Administration', order: 8, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES }
 ];
+
+// One-time forced relabels for built-in modules renamed in a later release
+// (section 23: Quotation -> New Quotation, My Quotations -> Existing
+// Quotations) — only applied if the stored label still matches the OLD
+// default exactly, so an admin's own custom label is never overwritten.
+const FORCED_RELABELS: Record<string, string> = {
+  quotation: 'New Quotation',
+  'my-quotations': 'Existing Quotations'
+};
+const OLD_DEFAULT_LABELS: Record<string, string> = {
+  quotation: 'Quotation',
+  'my-quotations': 'My Quotations'
+};
+
+// CRM was merged into Projects (section 23) — its own module tile/route no
+// longer exists, so strip it from any already-persisted config instead of
+// leaving a dead tile pointing at a removed page.
+const RETIRED_KEYS = new Set(['crm']);
+
+// The Dashboard section these modules used to be grouped under was literally
+// named "CRM" — renamed to "Sales Pipeline" now that CRM itself is gone, so
+// the section header on screen doesn't still say "CRM". Same
+// don't-clobber-an-admin-edit guard as FORCED_RELABELS above.
+const RESECTIONED_KEYS = new Set(['projects', 'quotation', 'my-quotations', 'site-visits', 'leads', 'demo-schedule', 'travel-schedule']);
+const OLD_SECTION = 'CRM';
+const NEW_SECTION = 'Sales Pipeline';
 
 async function readAll(): Promise<ModuleConfigRecord[]> {
   const stored = await readJsonBlob<ModuleConfigRecord[]>(DATA_PATHNAME, []);
@@ -45,10 +71,29 @@ async function readAll(): Promise<ModuleConfigRecord[]> {
   // without touching anything an admin has already customized.
   const existingKeys = new Set(stored.map((m) => m.key));
   const missing = SEED_MODULES.filter((m) => !existingKeys.has(m.key));
-  if (missing.length === 0) return stored;
-  const withMissing = [...stored, ...missing.map((m, i) => ({ ...m, id: `seed-new-${Date.now()}-${i}` }))];
-  await writeJsonBlob(DATA_PATHNAME, withMissing);
-  return withMissing;
+
+  let relabeled = false;
+  const relabeledStored = stored
+    .filter((m) => !RETIRED_KEYS.has(m.key))
+    .map((m) => {
+      let next = m;
+      const forced = FORCED_RELABELS[m.key];
+      if (forced && next.label === OLD_DEFAULT_LABELS[m.key]) {
+        relabeled = true;
+        next = { ...next, label: forced };
+      }
+      if (RESECTIONED_KEYS.has(m.key) && next.section === OLD_SECTION) {
+        relabeled = true;
+        next = { ...next, section: NEW_SECTION };
+      }
+      return next;
+    });
+  const removedAny = relabeledStored.length !== stored.length;
+
+  if (missing.length === 0 && !relabeled && !removedAny) return stored;
+  const result = [...relabeledStored, ...missing.map((m, i) => ({ ...m, id: `seed-new-${Date.now()}-${i}` }))];
+  await writeJsonBlob(DATA_PATHNAME, result);
+  return result;
 }
 
 async function writeAll(records: ModuleConfigRecord[]): Promise<void> {

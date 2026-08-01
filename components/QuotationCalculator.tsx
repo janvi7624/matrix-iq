@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { composeQuote } from '@/lib/calculations';
 import { generateQuotationPdf } from '@/lib/pdf';
 import { computeQuotationPrefix, generateDraftQuotationNumber, refreshDraftQuotationNumber } from '@/lib/quotationNumber';
-import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey, DomainResult, ProjectRecord, PublicAppConfig, QuotationDetails, UserRole } from '@/lib/types';
+import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey, DomainResult, ProjectRecord, PublicAppConfig, QuotationDetails, QuotationRecord, UserRole } from '@/lib/types';
 import { getRoomSuggestions } from '@/lib/roomSuggestions';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
@@ -99,6 +99,36 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
   const [savedQuotation, setSavedQuotation] = useState<{ id: string; quotation_number: string } | null>(null);
   const [movingToDemo, setMovingToDemo] = useState(false);
   const [publicConfig, setPublicConfig] = useState<PublicAppConfig | null>(null);
+
+  const reviseId = searchParams.get('reviseId') || '';
+  const [revisingFrom, setRevisingFrom] = useState<{ id: string; quotationNumber: string } | null>(null);
+  const [revisionReason, setRevisionReason] = useState('');
+
+  useEffect(() => {
+    if (!reviseId) return;
+    fetch(`/api/quotations/${reviseId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((source: QuotationRecord | null) => {
+        if (!source || !source.quotation_number) return;
+        setRevisingFrom({ id: reviseId, quotationNumber: source.quotation_number });
+        setProjectId(source.project_id || '');
+        setDetails((d) => ({
+          ...d,
+          preparedBy: source.prepared_by || d.preparedBy,
+          preparedByPhone: source.prepared_by_phone || d.preparedByPhone,
+          preparedByEmail: source.prepared_by_email || d.preparedByEmail,
+          clientName: source.client_name || '',
+          clientCompany: source.client_company || '',
+          clientEmail: source.client_email || '',
+          clientPhone: source.client_phone || '',
+          clientAddress: source.client_address || '',
+          projectVertical: source.project_vertical || '',
+          validityDays: source.validity_days || d.validityDays
+        }));
+      })
+      .catch(() => null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviseId]);
 
   useEffect(() => {
     fetch('/api/config/public')
@@ -216,21 +246,30 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
   }
 
   async function saveQuotationToServer(): Promise<{ id: string; quotation_number: string } | null> {
+    const isRevision = !!revisingFrom;
+    const url = isRevision ? `/api/quotations/${revisingFrom!.id}/revise` : '/api/quotations';
+    const payload = isRevision ? { ...buildQuotationPayload(), reason: revisionReason } : buildQuotationPayload();
     try {
-      const response = await fetch('/api/quotations', {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildQuotationPayload())
+        body: JSON.stringify(payload)
       });
-      if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || `Server responded with ${response.status}`);
+      }
       const record = await response.json();
       setDetails((d) => ({ ...d, quotationNumber: record.quotation_number }));
-      setLogStatus({ text: `Saved to quotation log as ${record.quotation_number}.`, color: '#15803d' });
+      setLogStatus({
+        text: isRevision ? `Saved as revision ${record.quotation_number} (original ${revisingFrom!.quotationNumber} unchanged).` : `Saved to quotation log as ${record.quotation_number}.`,
+        color: '#15803d'
+      });
       setSavedQuotation({ id: record.id, quotation_number: record.quotation_number });
       return record;
-    } catch {
+    } catch (error) {
       setLogStatus({
-        text: 'Quotation record server not reachable — PDF generated locally but NOT logged.',
+        text: error instanceof Error && isRevision ? error.message : 'Quotation record server not reachable — PDF generated locally but NOT logged.',
         color: '#b91c1c'
       });
       return null;
@@ -254,6 +293,10 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
   }
 
   async function handleDownloadPdf() {
+    if (revisingFrom && !revisionReason.trim()) {
+      alert('Enter a reason for this revision before saving.');
+      return;
+    }
     setPdfBusy(true);
     try {
       const record = await saveQuotationToServer();
@@ -322,7 +365,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
         <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
           <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
           <div>
-            <h1>Quotation Maker</h1>
+            <h1>New Quotation</h1>
             <div className={historyStyles.sub}>Configure a product, add it to the quote, and generate a client-ready PDF.</div>
           </div>
         </Link>
@@ -338,6 +381,24 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
         </div>
       </header>
       <main className={historyStyles.main}>
+        {revisingFrom && (
+          <div className={styles.sectionPanel} style={{ border: '1px solid #dc2626', background: '#fef2f2' }}>
+            <div style={{ fontWeight: 700, color: '#b91c1c', marginBottom: 6 }}>
+              Revising {revisingFrom.quotationNumber} — the original stays unchanged. Reconfigure the products below, then save to create a new version.
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="revisionReason">Reason for this revision (required)</label>
+              <input
+                id="revisionReason"
+                className={styles.formControl}
+                placeholder="e.g. Client requested a lower quantity, price renegotiated…"
+                value={revisionReason}
+                onChange={(e) => setRevisionReason(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+        )}
         <div className={styles.sectionPanel}>
           <div className={`${styles.row} ${styles.columns}`}>
             <div className={styles.field}>

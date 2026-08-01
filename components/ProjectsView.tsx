@@ -17,6 +17,7 @@ const EMPTY_FORM = {
   email: '',
   address: '',
   salesPerson: '',
+  source: '',
   priority: 'medium' as ProjectPriority,
   expectedClosingDate: '',
   remarks: ''
@@ -195,6 +196,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Sales person</label>
                 <input className={calcStyles.formControl} placeholder="Defaults to you" value={form.salesPerson} onChange={(e) => setForm((f) => ({ ...f, salesPerson: e.target.value }))} />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Source</label>
+                <input className={calcStyles.formControl} placeholder="Referral, website, cold call…" value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))} />
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Priority</label>

@@ -41,11 +41,11 @@ type LeadSubmitResult = LeadRecord & { duplicate?: boolean; duplicateCapturedBy?
 interface LeadCaptureWizardProps {
   creating: boolean;
   onSubmit: (form: LeadForm) => Promise<LeadSubmitResult | null>;
-  onConvertToCrm: (leadId: string) => Promise<boolean>;
+  onConvertToProject: (leadId: string) => Promise<boolean>;
   onViewAllLeads: () => void;
 }
 
-export default function LeadCaptureWizard({ creating, onSubmit, onConvertToCrm, onViewAllLeads }: LeadCaptureWizardProps) {
+export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProject, onViewAllLeads }: LeadCaptureWizardProps) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<LeadForm>(emptyForm());
   const [scanning, setScanning] = useState(false);
@@ -162,7 +162,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToCrm, 
     if (!successRecord) return;
     setConverting(true);
     try {
-      const ok = await onConvertToCrm(successRecord.id);
+      const ok = await onConvertToProject(successRecord.id);
       if (ok) setConverted(true);
     } finally {
       setConverting(false);
@@ -195,10 +195,10 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToCrm, 
             <button type="button" className={historyStyles.bigBtnGhost} onClick={onViewAllLeads}>📋 View All Leads</button>
             {!converted ? (
               <button type="button" className={historyStyles.bigBtnGhost} disabled={converting} onClick={handleConvert}>
-                {converting ? 'Converting…' : '🤝 Convert to CRM Contact'}
+                {converting ? 'Converting…' : '📁 Convert to Project'}
               </button>
             ) : (
-              <div className={historyStyles.autofillNotice}>Added to the CRM pipeline.</div>
+              <div className={historyStyles.autofillNotice}>Added to the project pipeline.</div>
             )}
           </div>
         </div>

@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
         email: clientEmail,
         address: location,
         sales_person: viewer.username,
+        source: '',
         status: 'active',
         stage: 'site_visit',
         priority: 'medium',

@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { leadStore } from '@/lib/leadStore';
-import { crmStore } from '@/lib/crmStore';
+import { projectStore } from '@/lib/projectStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
-import { CrmRecord } from '@/lib/types';
+import { ProjectRecord } from '@/lib/types';
 
-// Links a captured lead into the existing CRM pipeline (lib/crmStore.ts) —
-// keeps the lead's card/notes context so the sales team doesn't retype
-// anything once a trade-show contact is worth tracking as a real prospect.
+// Links a captured lead into the sales pipeline as a Project — CRM was
+// merged into Projects (section 23), so this is now the single "turn a lead
+// into a tracked pipeline record" action, replacing the old "Convert to CRM
+// Contact" flow (which created a separate, thinner CrmRecord).
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!viewer.isPrivileged && lead.created_by !== viewer.username) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    if (lead.crm_id) return NextResponse.json({ error: 'Already converted to a CRM contact' }, { status: 400 });
+    if (lead.project_id) return NextResponse.json({ error: 'Already converted to a project' }, { status: 400 });
 
     const noteParts = [
       lead.designation ? `Designation: ${lead.designation}` : '',
@@ -33,33 +34,45 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       lead.notes
     ].filter(Boolean);
 
-    const crmRecord: CrmRecord = {
+    const now = new Date().toISOString();
+    const project: ProjectRecord = {
       id: `${Date.now()}`,
-      created_at: new Date().toISOString(),
+      created_at: now,
       created_by: viewer.username,
+      client_name: lead.name,
       company: lead.company,
       contact_person: lead.name,
       phone: lead.mobile,
       email: lead.email,
-      status: 'lead',
+      address: lead.city,
+      sales_person: viewer.username,
       source: 'Event Lead Capture',
-      notes: noteParts.join(' | ')
+      status: 'active',
+      stage: 'site_visit',
+      priority: lead.priority === 'hot' ? 'high' : lead.priority === 'warm' ? 'medium' : 'low',
+      expected_closing_date: '',
+      next_follow_up_date: '',
+      remarks: noteParts.join(' | '),
+      notes: [],
+      attachments: [],
+      timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created from a captured lead', remarks: noteParts.join(' | ') }],
+      updated_at: now
     };
-    const createdCrm = await crmStore.create(crmRecord);
-    const updatedLead = await leadStore.update(id, { crm_id: createdCrm.id, updated_at: new Date().toISOString() });
+    const createdProject = await projectStore.create(project);
+    const updatedLead = await leadStore.update(id, { project_id: createdProject.id, updated_at: now });
 
     await logAudit({
       by: viewer.username,
       role: viewer.role,
       entityType: 'lead',
       entityId: id,
-      action: `Converted to CRM contact ${createdCrm.id}`,
+      action: `Converted to project ${createdProject.id}`,
       previousStatus: '',
       newStatus: '',
       ip: getClientIp(request)
     });
 
-    return NextResponse.json({ lead: updatedLead, crm: createdCrm });
+    return NextResponse.json({ lead: updatedLead, project: createdProject });
   } catch (error) {
     return apiErrorResponse(error);
   }

@@ -5,8 +5,21 @@ import { readJsonBlob, writeJsonBlob } from './blobStore';
 
 const DATA_PATHNAME = 'data/quotations.json';
 
+// Records written before versioning existed won't have these fields in blob
+// storage — default them to "original, unversioned" so every reader (list,
+// revise, version-history) can rely on them always being present.
+function normalizeQuotation(record: QuotationRecord): QuotationRecord {
+  return {
+    ...record,
+    original_quotation_id: record.original_quotation_id ?? '',
+    revision_number: record.revision_number ?? 0,
+    revision_reason: record.revision_reason ?? ''
+  };
+}
+
 async function readQuotations(): Promise<QuotationRecord[]> {
-  return readJsonBlob<QuotationRecord[]>(DATA_PATHNAME, []);
+  const records = await readJsonBlob<QuotationRecord[]>(DATA_PATHNAME, []);
+  return records.map(normalizeQuotation);
 }
 
 async function writeQuotations(records: QuotationRecord[]): Promise<void> {
@@ -85,12 +98,80 @@ export async function createQuotation(input: CreateQuotationInput): Promise<Quot
     total: Number(input.total) || 0,
     validity_days: Number(input.validityDays) || 7,
     last_follow_up_at: '',
-    follow_up_notes_json: '[]'
+    follow_up_notes_json: '[]',
+    original_quotation_id: '',
+    revision_number: 0,
+    revision_reason: ''
   };
 
   records.push(record);
   await writeQuotations(records);
   return record;
+}
+
+// Creates a new, independent QuotationRecord linked back to the ORIGINAL
+// (root) quotation — the original itself is never mutated. Numbered
+// QT-00123 -> QT-00123.01 -> QT-00123.02 off the root's own quotation_number,
+// regardless of which existing version the revision was made from.
+export async function createQuotationRevision(sourceId: string, input: CreateQuotationInput, reason: string): Promise<QuotationRecord | null> {
+  const records = await readQuotations();
+  const source = records.find((r) => r.id === sourceId);
+  if (!source) return null;
+  const rootId = source.original_quotation_id || source.id;
+  const root = records.find((r) => r.id === rootId);
+  if (!root) return null;
+
+  const nextRevisionNumber = records.filter((r) => r.original_quotation_id === rootId).length + 1;
+  const quotationNumber = `${root.quotation_number}.${String(nextRevisionNumber).padStart(2, '0')}`;
+  const now = new Date();
+
+  const record: QuotationRecord = {
+    id: `${now.getTime()}`,
+    quotation_number: quotationNumber,
+    created_at: now.toISOString(),
+    project_id: input.projectId ?? root.project_id,
+    created_by: input.createdBy || '',
+    status: 'sent',
+    prepared_by: input.preparedBy ?? root.prepared_by,
+    prepared_by_phone: input.preparedByPhone ?? root.prepared_by_phone,
+    prepared_by_email: input.preparedByEmail ?? root.prepared_by_email,
+    client_name: input.clientName ?? root.client_name,
+    client_company: input.clientCompany ?? root.client_company,
+    client_email: input.clientEmail ?? root.client_email,
+    client_phone: input.clientPhone ?? root.client_phone,
+    client_address: input.clientAddress ?? root.client_address,
+    project_vertical: input.projectVertical ?? root.project_vertical,
+    domain_summary: input.domainSummary ?? root.domain_summary,
+    products_summary: input.productsSummary ?? root.products_summary,
+    products_json: input.products !== undefined ? JSON.stringify(input.products) : root.products_json,
+    subtotal: input.subtotal !== undefined ? Number(input.subtotal) || 0 : root.subtotal,
+    markup_percent: input.markupPercent !== undefined ? Number(input.markupPercent) || 0 : root.markup_percent,
+    discount_total: input.discountTotal !== undefined ? Number(input.discountTotal) || 0 : root.discount_total,
+    gst_amount: input.gstAmount !== undefined ? Number(input.gstAmount) || 0 : root.gst_amount,
+    total: input.total !== undefined ? Number(input.total) || 0 : root.total,
+    validity_days: input.validityDays !== undefined ? Number(input.validityDays) || 7 : root.validity_days,
+    last_follow_up_at: '',
+    follow_up_notes_json: '[]',
+    original_quotation_id: rootId,
+    revision_number: nextRevisionNumber,
+    revision_reason: reason
+  };
+
+  records.push(record);
+  await writeQuotations(records);
+  return record;
+}
+
+// Every version of one quotation — the root plus every revision — oldest
+// first, so a version-history table reads top-to-bottom in creation order.
+export async function listQuotationVersions(anyVersionId: string): Promise<QuotationRecord[]> {
+  const records = await readQuotations();
+  const anyVersion = records.find((r) => r.id === anyVersionId);
+  if (!anyVersion) return [];
+  const rootId = anyVersion.original_quotation_id || anyVersion.id;
+  return records
+    .filter((r) => r.id === rootId || r.original_quotation_id === rootId)
+    .sort((a, b) => a.revision_number - b.revision_number);
 }
 
 export async function logQuotationFollowUp(id: string, by: string, note: string): Promise<QuotationRecord | null> {

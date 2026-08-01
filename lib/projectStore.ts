@@ -9,11 +9,25 @@ const base = createRecordStore<ProjectRecord>(DATA_PATHNAME);
 // record store — Project.created_by is always set to the sales person, so a
 // plain "user"/"technical" account only sees their own projects.
 export const projectStore = {
-  list: base.list,
+  list: async (viewerUsername: string, viewerIsPrivileged: boolean) => (await base.list(viewerUsername, viewerIsPrivileged)).map(normalizeProject),
   create: base.create,
   update: base.update,
   remove: base.remove
 };
+
+// Records written before `notes`/`attachments` existed on ProjectRecord won't
+// have them in blob storage — every reader of a single project must go
+// through this so the View page (and anything else touching `.notes`/
+// `.attachments`) never crashes on `undefined.length`.
+function normalizeProject(project: ProjectRecord): ProjectRecord {
+  return {
+    ...project,
+    notes: project.notes ?? [],
+    attachments: project.attachments ?? [],
+    timeline: project.timeline ?? [],
+    source: project.source ?? ''
+  };
+}
 
 async function readAll(): Promise<ProjectRecord[]> {
   return readJsonBlob<ProjectRecord[]>(DATA_PATHNAME, []);
@@ -25,7 +39,8 @@ async function writeAll(records: ProjectRecord[]): Promise<void> {
 
 export async function findProjectById(id: string): Promise<ProjectRecord | undefined> {
   const records = await readAll();
-  return records.find((p) => p.id === id);
+  const project = records.find((p) => p.id === id);
+  return project ? normalizeProject(project) : undefined;
 }
 
 // Appends one timeline entry and, when `advanceStageTo` is given, moves the

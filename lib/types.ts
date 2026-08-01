@@ -178,6 +178,14 @@ export interface QuotationRecord {
   validity_days: number;
   last_follow_up_at: string;
   follow_up_notes_json: string;
+  // Quotation versioning (section 23) — '' / 0 for an original quotation.
+  // A revision points original_quotation_id at the ROOT original's id (not
+  // the previous revision), so "every version of QT-00123" is one filter.
+  // quotation_number for a revision is the root's number with a .01/.02/...
+  // suffix appended; the root's own quotation_number/fields are never edited.
+  original_quotation_id: string;
+  revision_number: number;
+  revision_reason: string;
 }
 
 // Lead-temperature tag captured at registration and revisited on every update.
@@ -219,19 +227,6 @@ export interface SiteVisitRecord {
   status: 'open' | 'closed';
   updates: SiteVisitUpdateEntry[];
   updated_at: string;
-}
-
-export interface CrmRecord {
-  id: string;
-  created_at: string;
-  created_by: string;
-  company: string;
-  contact_person: string;
-  phone: string;
-  email: string;
-  status: 'lead' | 'prospect' | 'customer';
-  source: string;
-  notes: string;
 }
 
 // Back Office workflow (see lib/domainLeads.ts for the informational lead
@@ -376,6 +371,10 @@ export interface ProjectRecord {
   email: string;
   address: string;
   sales_person: string;
+  // Where this project/contact originated (referral, website, cold call...) —
+  // carried over from the retired CRM module (section 23), which had this as
+  // its one distinct field beyond what Projects already tracked.
+  source: string;
   status: ProjectStatus;
   stage: ProjectStage;
   priority: ProjectPriority;
@@ -436,7 +435,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation';
   entity_id: string;
   action: string;
   previous_status: string;
@@ -694,8 +693,10 @@ export interface LeadRecord {
   follow_up_actions: string[];
   budget: string;
   notes: string;
+  // Set once "Convert to Project" runs (section 23 — CRM was merged into
+  // Projects, so this is now the single "already converted" marker;
+  // previously there was a separate crm_id for a since-retired CRM module).
   project_id: string;
-  crm_id: string;
 }
 
 // ---------------------------------------------------------------------------

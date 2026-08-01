@@ -1,6 +1,7 @@
 import { LeadRecord } from './types';
 import { createRecordStore } from './recordStore';
 import { readJsonBlob } from './blobStore';
+import { isLeadUnattended } from './followUp';
 
 const DATA_PATHNAME = 'data/leads.json';
 const base = createRecordStore<LeadRecord>(DATA_PATHNAME);
@@ -43,6 +44,7 @@ export interface LeadStats {
   total: number;
   today: number;
   hot: number;
+  unattended: number;
 }
 
 export async function computeLeadStats(viewerUsername: string, viewerIsPrivileged: boolean): Promise<LeadStats> {
@@ -51,6 +53,7 @@ export async function computeLeadStats(viewerUsername: string, viewerIsPrivilege
   return {
     total: leads.length,
     today: leads.filter((l) => new Date(l.created_at).toDateString() === todayStr).length,
-    hot: leads.filter((l) => l.priority === 'hot').length
+    hot: leads.filter((l) => l.priority === 'hot').length,
+    unattended: leads.filter(isLeadUnattended).length
   };
 }

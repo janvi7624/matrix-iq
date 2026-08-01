@@ -21,7 +21,7 @@ export default function AuditLogView() {
   const [rows, setRows] = useState<AuditLogEntry[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [loaded, setLoaded] = useState(false);
-  const [entityType, setEntityType] = useState<'' | 'demo' | 'delivery_challan' | 'custom_module' | 'lead'>('');
+  const [entityType, setEntityType] = useState<'' | 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation'>('');
 
   async function load() {
     setStatus('Loading...');
@@ -68,12 +68,13 @@ export default function AuditLogView() {
       </header>
       <main className={styles.main}>
         <div className={styles.toolbar}>
-          <select value={entityType} onChange={(e) => setEntityType(e.target.value as '' | 'demo' | 'delivery_challan' | 'custom_module' | 'lead')} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db' }}>
+          <select value={entityType} onChange={(e) => setEntityType(e.target.value as '' | 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation')} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db' }}>
             <option value="">All entities</option>
             <option value="demo">Demo requests</option>
             <option value="delivery_challan">Delivery Challans</option>
             <option value="custom_module">Custom Modules</option>
             <option value="lead">Leads</option>
+            <option value="quotation">Quotations</option>
           </select>
           <button type="button" className={styles.button} onClick={handleExportPdf}>Export PDF</button>
           <button type="button" className={styles.button} onClick={load}>Refresh</button>

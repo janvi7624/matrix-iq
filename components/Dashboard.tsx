@@ -23,10 +23,11 @@ interface QuotationStats {
   expired: number;
 }
 
+// "Draft"/"Sent" cards were removed from the Dashboard (section 23) — kept
+// on QuotationStats/the API response since Quotation History still uses
+// those counts, just no longer rendered as Dashboard tiles here.
 const QUOTATION_STAT_LABELS: { key: keyof QuotationStats; label: string }[] = [
   { key: 'total', label: 'Total Quotations' },
-  { key: 'draft', label: 'Draft Quotations' },
-  { key: 'sent', label: 'Sent Quotations' },
   { key: 'approved', label: 'Approved Quotations' },
   { key: 'rejected', label: 'Rejected Quotations' },
   { key: 'expired', label: 'Expired Quotations' }
@@ -97,6 +98,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [quotationStats, setQuotationStats] = useState<QuotationStats | null>(null);
   const [backOfficeKpis, setBackOfficeKpis] = useState<BackOfficeKpis | null>(null);
   const [modules, setModules] = useState<ModuleConfigRecord[] | null>(null);
+  const [unattendedLeads, setUnattendedLeads] = useState<number | null>(null);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
@@ -159,6 +161,16 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       .catch(() => setReminderCount(null));
   }, []);
 
+  // Sales sees only their own unattended leads, Manager/Admin/Superadmin see
+  // the org-wide count — same own-vs-privileged scoping every other module
+  // uses, enforced server-side in computeLeadStats.
+  useEffect(() => {
+    fetch('/api/leads/stats')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { unattended: number } | null) => setUnattendedLeads(data ? data.unattended : null))
+      .catch(() => setUnattendedLeads(null));
+  }, []);
+
   return (
     <div className={historyStyles.body}>
       <PortalHeader title={BRAND.appName} subtitle={BRAND.tagline} showBackLink={false} />
@@ -199,6 +211,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               {backOfficeKpis.pendingVerification > 0 && `${backOfficeKpis.pendingVerification} DC${backOfficeKpis.pendingVerification === 1 ? '' : 's'} awaiting material return verification.`}
             </span>
             <Link href="/backoffice">Review now &rarr;</Link>
+          </div>
+        )}
+
+        {unattendedLeads !== null && (
+          <div className={styles.kpiGrid}>
+            <Link href="/leads?filter=unattended" className={`${styles.kpiCard} ${styles.kpiCardAlert}`}>
+              <div className={styles.kpiValue}>🚨 {unattendedLeads}</div>
+              <div className={styles.kpiLabel}>Unattended Leads</div>
+            </Link>
           </div>
         )}
 

@@ -323,7 +323,8 @@
     font-weight: 600;
 }
 .stepDone { background: rgba(22, 163, 74, 0.12); color: #15803d; }
-.stepCurrent { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
+.stepCurrent { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+.stepDelayed { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
 .stepLost { background: rgba(107, 114, 128, 0.16); color: #374151; }
 
 .cardGrid {
@@ -770,3 +771,86 @@
     .actionBtn { justify-content: center; }
 }
 .loginSubmit:disabled { opacity: 0.6; cursor: default; }
+
+/* Project Details — header/progress-percent, summary card row, quick-action
+   panel, and a tab bar so the page reads as a workspace, not one long scroll. */
+.projectHeaderTop { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px; margin-bottom: 4px; }
+.projectHeaderMeta { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: #6b7280; margin-top: 4px; }
+.projectHeaderMeta strong { color: #111827; }
+.projectProgressRing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 84px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: #fff;
+    border: 1px solid rgba(229, 231, 235, 0.95);
+}
+.projectProgressRingValue { font-size: 22px; font-weight: 800; color: #dc2626; }
+.projectProgressRingLabel { font-size: 10.5px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.summaryCardGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+.summaryCard {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid rgba(229, 231, 235, 0.95);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+}
+.summaryCardLabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 4px; }
+.summaryCardValue { font-size: 14px; font-weight: 600; color: #111827; }
+
+.quickActionGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin: 16px 0 22px;
+}
+.quickActionBtn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px 10px;
+    border-radius: 14px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.quickActionBtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08); border-color: #dc2626; }
+.quickActionBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.quickActionIcon { font-size: 22px; }
+.quickActionDanger { border-color: rgba(220, 38, 38, 0.35); color: #b91c1c; }
+
+.tabBar { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 2px solid #e5e7eb; margin: 20px 0 18px; overflow-x: auto; }
+.tabBtn {
+    padding: 10px 16px;
+    border: none;
+    background: none;
+    color: #6b7280;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    white-space: nowrap;
+}
+.tabBtn:hover { color: #111827; }
+.tabBtnActive { color: #dc2626; border-bottom-color: #dc2626; }
+@media (max-width: 640px) {
+    .quickActionGrid { grid-template-columns: repeat(2, 1fr); }
+    .summaryCardGrid { grid-template-columns: repeat(2, 1fr); }
+}

@@ -104,8 +104,7 @@ export async function POST(request: NextRequest) {
       follow_up_actions: followUpActions,
       budget,
       notes,
-      project_id: '',
-      crm_id: ''
+      project_id: ''
     };
     const created = await leadStore.create(record);
     await logAudit({

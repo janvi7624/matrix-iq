@@ -84,7 +84,7 @@ export default function MyQuotationsView() {
 
   return (
     <div className={historyStyles.body}>
-      <PortalHeader title="My Quotations" subtitle="Quotations you've created — visible only to you." />
+      <PortalHeader title="Existing Quotations" subtitle="Quotations you've created — visible only to you." />
       <main className={historyStyles.main}>
         <div className={historyStyles.toolbar}>
           <input

@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { DomainKey, LeadPriority, LeadRecord, UserRole } from '@/lib/types';
 import { LEAD_DOMAIN_TILES, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
+import { isLeadUnattended } from '@/lib/followUp';
 import PortalHeader from './PortalHeader';
 import LeadCaptureWizard from './LeadCaptureWizard';
 import historyStyles from './quotationHistory.module.css';
@@ -29,17 +32,20 @@ function PriorityBadge({ priority }: { priority: LeadPriority }) {
   return <span className={`${historyStyles.priorityBadge} ${cls}`}>{LEAD_PRIORITY_META[priority].icon} {priority.toUpperCase()}</span>;
 }
 
-export default function LeadsView({ currentUser }: LeadsViewProps) {
-  const [mode, setMode] = useState<'capture' | 'list'>('capture');
+function LeadsViewContent({ currentUser }: LeadsViewProps) {
+  const searchParams = useSearchParams();
+  const startUnattended = searchParams.get('filter') === 'unattended';
+  const [mode, setMode] = useState<'capture' | 'list'>(startUnattended ? 'list' : 'capture');
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<LeadPriority | ''>('');
   const [interestFilter, setInterestFilter] = useState<DomainKey | ''>('');
+  const [unattendedOnly, setUnattendedOnly] = useState(startUnattended);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [page, setPage] = useState(1);
-  const [stats, setStats] = useState<{ total: number; today: number; hot: number } | null>(null);
+  const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number } | null>(null);
 
   async function loadLeads() {
     setStatus('Loading...');
@@ -76,20 +82,21 @@ export default function LeadsView({ currentUser }: LeadsViewProps) {
     }
     if (priorityFilter) rows = rows.filter((l) => l.priority === priorityFilter);
     if (interestFilter) rows = rows.filter((l) => l.interests.includes(interestFilter));
+    if (unattendedOnly) rows = rows.filter(isLeadUnattended);
     const sorted = [...rows].sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name);
       if (sortBy === 'oldest') return a.created_at < b.created_at ? -1 : 1;
       return a.created_at < b.created_at ? 1 : -1;
     });
     return sorted;
-  }, [leads, q, priorityFilter, interestFilter, sortBy]);
+  }, [leads, q, priorityFilter, interestFilter, unattendedOnly, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(visibleLeads.length / PAGE_SIZE));
   const pageRows = visibleLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
-  }, [q, priorityFilter, interestFilter, sortBy]);
+  }, [q, priorityFilter, interestFilter, unattendedOnly, sortBy]);
 
   async function handleSubmitLead(form: {
     name: string; mobile: string; email: string; designation: string; company: string; city: string; cardImageUrl: string;
@@ -131,8 +138,8 @@ export default function LeadsView({ currentUser }: LeadsViewProps) {
     loadLeads();
   }
 
-  async function handleConvertToCrm(leadId: string): Promise<boolean> {
-    const response = await fetch(`/api/leads/${leadId}/convert-to-crm`, { method: 'POST' });
+  async function handleConvertToProject(leadId: string): Promise<boolean> {
+    const response = await fetch(`/api/leads/${leadId}/convert-to-project`, { method: 'POST' });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
       alert(body?.error || 'Could not convert this lead.');
@@ -173,6 +180,15 @@ export default function LeadsView({ currentUser }: LeadsViewProps) {
               <div style={{ fontSize: 24, fontWeight: 800, color: '#b91c1c' }}>{stats.hot} 🔥</div>
               <div className={calcStyles.small}>Hot Leads</div>
             </div>
+            <button
+              type="button"
+              className={calcStyles.sectionPanel}
+              style={{ flex: 1, minWidth: 120, textAlign: 'center', cursor: 'pointer', border: unattendedOnly ? '1px solid #dc2626' : undefined }}
+              onClick={() => { setMode('list'); setUnattendedOnly(true); }}
+            >
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#b91c1c' }}>🚨 {stats.unattended}</div>
+              <div className={calcStyles.small}>Unattended</div>
+            </button>
           </div>
         )}
 
@@ -190,7 +206,7 @@ export default function LeadsView({ currentUser }: LeadsViewProps) {
         </div>
 
         {mode === 'capture' && (
-          <LeadCaptureWizard creating={creating} onSubmit={handleSubmitLead} onConvertToCrm={handleConvertToCrm} onViewAllLeads={showAllLeads} />
+          <LeadCaptureWizard creating={creating} onSubmit={handleSubmitLead} onConvertToProject={handleConvertToProject} onViewAllLeads={showAllLeads} />
         )}
 
         {mode === 'list' && (
@@ -212,6 +228,14 @@ export default function LeadsView({ currentUser }: LeadsViewProps) {
                 <option value="oldest">Oldest first</option>
                 <option value="name">Name (A-Z)</option>
               </select>
+              <button
+                type="button"
+                className={`${historyStyles.modeToggleBtn} ${unattendedOnly ? historyStyles.modeToggleBtnActive : ''}`}
+                style={unattendedOnly ? { color: '#b91c1c', borderColor: '#dc2626' } : undefined}
+                onClick={() => setUnattendedOnly((v) => !v)}
+              >
+                🚨 Unattended only
+              </button>
               <button type="button" className={historyStyles.button} onClick={loadLeads}>Refresh</button>
               <a className={historyStyles.button} href="/api/leads/export.csv">Export CSV</a>
               <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
@@ -248,10 +272,10 @@ export default function LeadsView({ currentUser }: LeadsViewProps) {
                       <td>{formatDateTime(l.created_at)}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {!l.crm_id ? (
-                            <button type="button" className={historyStyles.button} onClick={() => handleConvertToCrm(l.id)}>To CRM</button>
+                          {!l.project_id ? (
+                            <button type="button" className={historyStyles.button} onClick={() => handleConvertToProject(l.id)}>To Project</button>
                           ) : (
-                            <span className={calcStyles.small}>In CRM</span>
+                            <Link href={`/projects/${l.project_id}`} className={calcStyles.small}>View Project</Link>
                           )}
                           {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(l)}>Delete</button>}
                         </div>
@@ -276,5 +300,13 @@ export default function LeadsView({ currentUser }: LeadsViewProps) {
         )}
       </main>
     </div>
+  );
+}
+
+export default function LeadsView(props: LeadsViewProps) {
+  return (
+    <Suspense fallback={<div className={historyStyles.body} />}>
+      <LeadsViewContent {...props} />
+    </Suspense>
   );
 }
