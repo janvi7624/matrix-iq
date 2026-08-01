@@ -646,4 +646,127 @@
 @keyframes leadSpin { to { transform: rotate(360deg); } }
 .scanProgressPct { font-size: 22px; font-weight: 800; color: #dc2626; margin-bottom: 4px; }
 .scanProgressText { font-size: 13px; color: #6b7280; }
+
+/* Permission matrix (Role Management) — bigger touch targets, clickable
+   cells, collapsible module groups, sticky header row/column. */
+.permToolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.permGroup { border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 16px; overflow: hidden; background: #fff; }
+.permGroupHeader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 16px;
+    background: #f9fafb;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+}
+.permGroupHeader:hover { background: #f3f4f6; }
+.permGroupChevron { display: inline-block; transition: transform 0.15s ease; color: #6b7280; font-size: 12px; }
+.permGroupChevronOpen { transform: rotate(90deg); }
+.permGroupCount { margin-left: auto; font-size: 12px; font-weight: 600; color: #6b7280; background: #eef0f2; padding: 3px 10px; border-radius: 999px; }
+.permTableScroll { max-height: 480px; overflow: auto; }
+.permTable { width: 100%; border-collapse: collapse; }
+.permTable th, .permTable td { padding: 0; border-bottom: 1px solid #eef0f2; }
+.permTable thead th {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 2;
+    padding: 10px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #374151;
+    text-align: center;
+    border-bottom: 2px solid #e5e7eb;
+    white-space: nowrap;
+}
+.permTable thead th:first-child { text-align: left; left: 0; z-index: 3; background: #fff; min-width: 180px; }
+.permModuleCell {
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 1;
+    padding: 12px 14px !important;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #111827;
+    white-space: nowrap;
+    border-right: 1px solid #eef0f2;
+}
+.permTable tbody tr:hover td { background: #fef8f8; }
+.permTable tbody tr:hover .permModuleCell { background: #fef8f8; }
+.permCheckboxLabel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 10px;
+    cursor: pointer;
+    user-select: none;
+}
+.permCheckboxLabel input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #dc2626;
+}
+.permColumnHeaderBtn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 6px;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+}
+.permColumnHeaderBtn input[type="checkbox"] { width: 16px; height: 16px; accent-color: #dc2626; cursor: pointer; }
+.permColumnHeaderBtn:hover { color: #dc2626; }
+.permRowSelectLabel { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.permRowSelectLabel input[type="checkbox"] { width: 18px; height: 18px; accent-color: #dc2626; cursor: pointer; }
+@media (max-width: 720px) {
+    .permGroupHeader { font-size: 13px; padding: 12px; }
+    .permTable thead th { font-size: 10.5px; padding: 8px 4px; }
+    .permCheckboxLabel { padding: 10px 6px; }
+    .permCheckboxLabel input[type="checkbox"] { width: 18px; height: 18px; }
+}
+
+/* Grouped action bar (Back Office DC actions, and anywhere else a page needs
+   Primary/Secondary/Danger buttons instead of one flat row). */
+.actionBar { display: flex; flex-direction: column; gap: 14px; margin: 16px 0; }
+.actionGroup { display: flex; flex-direction: column; gap: 8px; }
+.actionGroupLabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
+.actionGroupButtons { display: flex; gap: 10px; flex-wrap: wrap; }
+.actionBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.actionBtn:active:not(:disabled) { transform: translateY(1px); }
+.actionBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.actionBtnPrimary { background: #dc2626; border-color: #dc2626; color: #fff; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25); }
+.actionBtnPrimary:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(220, 38, 38, 0.32); }
+.actionBtnSecondary { background: #fff; border-color: #d1d5db; color: #111827; }
+.actionBtnSecondary:hover:not(:disabled) { background: #f3f4f6; border-color: #9ca3af; }
+.actionBtnDanger { background: #fff; border-color: #fecaca; color: #b91c1c; }
+.actionBtnDanger:hover:not(:disabled) { background: #fef2f2; border-color: #dc2626; }
+.actionIcon { font-size: 15px; line-height: 1; }
+@media (max-width: 560px) {
+    .actionGroupButtons { flex-direction: column; align-items: stretch; }
+    .actionBtn { justify-content: center; }
+}
 .loginSubmit:disabled { opacity: 0.6; cursor: default; }

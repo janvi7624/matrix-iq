@@ -70,18 +70,19 @@ function GenerateDcPanel({ demo, onGenerated }: { demo: DemoScheduleRecord; onGe
         <label className={calcStyles.label}>Expected return date</label>
         <input type="date" className={calcStyles.formControl} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
       </div>
-      <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleGenerate}>
-        {busy ? 'Generating…' : 'Generate Delivery Challan'}
+      <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary}`} disabled={busy} onClick={handleGenerate}>
+        <span className={historyStyles.actionIcon}>📦</span> {busy ? 'Generating…' : 'Create Delivery Challan'}
       </button>
     </div>
   );
 }
 
-function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanRecord; canManage: boolean; onUpdated: (dc: DeliveryChallanRecord) => void; onDelete: (id: string) => void }) {
+function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanRecord; canManage: boolean; onUpdated: (dc: DeliveryChallanRecord) => void; onDelete: (id: string) => Promise<void> }) {
   const [items, setItems] = useState<DcLineItem[]>(dc.items);
   const [assignedEngineer, setAssignedEngineer] = useState(dc.assigned_engineer);
   const [expectedReturnDate, setExpectedReturnDate] = useState(dc.expected_return_date);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [returned, setReturned] = useState(dc.material_return.returned);
   const [condition, setCondition] = useState(dc.material_return.condition);
@@ -125,6 +126,25 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
     );
   }
 
+  async function handleDeleteClick() {
+    setDeleting(true);
+    try {
+      await onDelete(dc.id);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function handleDispatchClick() {
+    if (!window.confirm(`Dispatch materials for ${dc.dc_number}? Serial numbers can no longer be edited after dispatch.`)) return;
+    patch('dispatch', {});
+  }
+
+  function handleCloseClick() {
+    if (!window.confirm(`Close ${dc.dc_number}? This finalizes the Delivery Challan.`)) return;
+    patch('close', {});
+  }
+
   return (
     <div className={historyStyles.detailPanel}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
@@ -143,11 +163,27 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
         <span className={`${historyStyles.statusBadge} ${DC_STATUS_CLASS[dc.status]}`}>{DC_STATUS_LABEL[dc.status]}</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, margin: '12px 0', flexWrap: 'wrap' }}>
-        <button type="button" className={historyStyles.button} onClick={handleExportPdf}>Generate PDF</button>
-        <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
+      <div className={historyStyles.actionBar} style={{ margin: '12px 0' }}>
+        <div className={historyStyles.actionGroup}>
+          <div className={historyStyles.actionGroupLabel}>Secondary Actions</div>
+          <div className={historyStyles.actionGroupButtons}>
+            <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnSecondary}`} onClick={handleExportPdf}>
+              <span className={historyStyles.actionIcon}>⬇️</span> Download PDF
+            </button>
+            <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnSecondary}`} onClick={() => window.print()}>
+              <span className={historyStyles.actionIcon}>🖨️</span> Print DC
+            </button>
+          </div>
+        </div>
         {canManage && dc.status === 'prepared' && (
-          <button type="button" className={historyStyles.deleteBtn} onClick={() => onDelete(dc.id)}>Delete DC</button>
+          <div className={historyStyles.actionGroup}>
+            <div className={historyStyles.actionGroupLabel}>Danger Zone</div>
+            <div className={historyStyles.actionGroupButtons}>
+              <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnDanger}`} disabled={deleting} onClick={handleDeleteClick}>
+                <span className={historyStyles.actionIcon}>🗑️</span> {deleting ? 'Deleting…' : 'Delete DC'}
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -193,13 +229,16 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
               <input type="date" className={calcStyles.formControl} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" className={historyStyles.button} disabled={busy} onClick={() => patch('updateItems', { items, assignedEngineer, expectedReturnDate })}>
-              Save Serial Numbers
-            </button>
-            <button type="button" className={historyStyles.primary} disabled={busy} onClick={() => patch('dispatch', {})}>
-              Dispatch
-            </button>
+          <div className={historyStyles.actionGroup}>
+            <div className={historyStyles.actionGroupLabel}>Primary Actions</div>
+            <div className={historyStyles.actionGroupButtons}>
+              <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnSecondary}`} disabled={busy} onClick={() => patch('updateItems', { items, assignedEngineer, expectedReturnDate })}>
+                <span className={historyStyles.actionIcon}>💾</span> {busy ? 'Saving…' : 'Save Serial Numbers'}
+              </button>
+              <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary}`} disabled={busy} onClick={handleDispatchClick}>
+                <span className={historyStyles.actionIcon}>🚚</span> {busy ? 'Dispatching…' : 'Dispatch Material'}
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -268,14 +307,19 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
             </div>
             <textarea className={calcStyles.formControl} rows={2} placeholder="Additional detail…" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
           </div>
-          <button
-            type="button"
-            className={calcStyles.btn}
-            disabled={busy}
-            onClick={() => patch('verifyReturn', { returned, condition, missing, damaged, accessories, serialNumberVerified, remarkTags, remarks })}
-          >
-            {busy ? 'Saving…' : 'Verify Return'}
-          </button>
+          <div className={historyStyles.actionGroup}>
+            <div className={historyStyles.actionGroupLabel}>Primary Actions</div>
+            <div className={historyStyles.actionGroupButtons}>
+              <button
+                type="button"
+                className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary}`}
+                disabled={busy}
+                onClick={() => patch('verifyReturn', { returned, condition, missing, damaged, accessories, serialNumberVerified, remarkTags, remarks })}
+              >
+                <span className={historyStyles.actionIcon}>✅</span> {busy ? 'Saving…' : 'Verify & Receive Material'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -290,9 +334,14 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
             <div className={historyStyles.reviewRow}><strong>Remarks:</strong> {dc.material_return.remarkTags.map((t) => BACK_OFFICE_REMARK_LABEL[t]).join(', ') || '-'}{dc.material_return.remarks ? ` — ${dc.material_return.remarks}` : ''}</div>
           </div>
           {canManage && (
-            <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => patch('close', {})} style={{ marginTop: 10 }}>
-              Close DC
-            </button>
+            <div className={historyStyles.actionGroup} style={{ marginTop: 10 }}>
+              <div className={historyStyles.actionGroupLabel}>Primary Actions</div>
+              <div className={historyStyles.actionGroupButtons}>
+                <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary}`} disabled={busy} onClick={handleCloseClick}>
+                  <span className={historyStyles.actionIcon}>🔒</span> {busy ? 'Closing…' : 'Close DC'}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

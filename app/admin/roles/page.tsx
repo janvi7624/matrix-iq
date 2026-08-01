@@ -45,6 +45,7 @@ export default function RoleManagementPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState<{ label: string; description: string } | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   async function load() {
     setStatus('Loading...');
@@ -184,6 +185,45 @@ export default function RoleManagementPage() {
     await patch(r.id, { permissions });
   }
 
+  // "Select Entire Row" — every action for one module, in a single save.
+  async function toggleModuleRow(r: RoleRecord, moduleKey: string) {
+    const currentSet = r.permissions.modules[moduleKey] || {};
+    const allOn = PERMISSION_ACTIONS.every((a) => currentSet[a.key]);
+    const nextSet: RolePermissions['modules'][string] = {};
+    PERMISSION_ACTIONS.forEach((a) => { nextSet[a.key] = !allOn; });
+    const permissions: RolePermissions = { ...r.permissions, modules: { ...r.permissions.modules, [moduleKey]: nextSet } };
+    await patch(r.id, { permissions });
+  }
+
+  // "Select Entire Column" — one action across every module in a section, in a single save.
+  async function toggleActionColumn(r: RoleRecord, sectionModules: ModuleConfigRecord[], action: ModulePermissionAction) {
+    const allOn = sectionModules.every((m) => !!(r.permissions.modules[m.key] || {})[action]);
+    const modules = { ...r.permissions.modules };
+    sectionModules.forEach((m) => {
+      modules[m.key] = { ...(modules[m.key] || {}), [action]: !allOn };
+    });
+    await patch(r.id, { permissions: { ...r.permissions, modules } });
+  }
+
+  async function setAllPermissions(r: RoleRecord, value: boolean) {
+    const modulesMap: RolePermissions['modules'] = {};
+    modules.forEach((m) => {
+      const set: RolePermissions['modules'][string] = {};
+      PERMISSION_ACTIONS.forEach((a) => { set[a.key] = value; });
+      modulesMap[m.key] = set;
+    });
+    await patch(r.id, { permissions: { modules: modulesMap, manageSettings: value, manageUsers: value, manageRoles: value, manageDepartments: value } });
+  }
+
+  function toggleGroup(section: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      return next;
+    });
+  }
+
   return (
     <div className={historyStyles.body}>
       <header className={historyStyles.header}>
@@ -299,47 +339,86 @@ export default function RoleManagementPage() {
             <div className={historyStyles.status} style={{ marginBottom: 12 }}>
               Changes save immediately. Actions left unchecked here fall back to the role&apos;s Privileged flag above for modules that don&apos;t have an explicit permission set yet.
             </div>
+
+            <div className={historyStyles.permToolbar}>
+              <button type="button" className={historyStyles.button} onClick={() => setCollapsedGroups(new Set())}>Expand All</button>
+              <button type="button" className={historyStyles.button} onClick={() => setCollapsedGroups(new Set(modulesBySection.keys()))}>Collapse All</button>
+              <span style={{ width: 1, alignSelf: 'stretch', background: '#e5e7eb' }} />
+              <button type="button" className={historyStyles.button} onClick={() => setAllPermissions(selectedRole, true)}>Select All Permissions</button>
+              <button type="button" className={historyStyles.button} onClick={() => setAllPermissions(selectedRole, false)}>Clear All Permissions</button>
+            </div>
+
             <div className={calcStyles.sectionPanel} style={{ marginBottom: 18 }}>
-              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              <div className={historyStyles.navGroupLabel} style={{ marginTop: 0 }}>Global capabilities</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {GLOBAL_CAPABILITIES.map((cap) => (
-                  <label key={cap.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+                  <label key={cap.key} className={historyStyles.permRowSelectLabel} style={{ padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: 10 }}>
                     <input type="checkbox" checked={selectedRole.permissions[cap.key]} onChange={() => toggleGlobalCapability(selectedRole, cap.key)} />
-                    {cap.label}
+                    <span style={{ fontSize: 13.5, fontWeight: 600 }}>{cap.label}</span>
                   </label>
                 ))}
               </div>
             </div>
 
-            {[...modulesBySection.entries()].map(([section, list]) => (
-              <div key={section} style={{ marginBottom: 20 }}>
-                <div className={historyStyles.navGroupLabel}>{section}</div>
-                <div className={historyStyles.tableWrap}>
-                  <table className={historyStyles.table}>
-                    <thead>
-                      <tr>
-                        <th>Module</th>
-                        {PERMISSION_ACTIONS.map((a) => <th key={a.key} style={{ textAlign: 'center' }}>{a.label}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {list.map((m) => {
-                        const set = selectedRole.permissions.modules[m.key] || {};
-                        return (
-                          <tr key={m.key}>
-                            <td>{m.label}</td>
+            {[...modulesBySection.entries()].map(([section, list]) => {
+              const collapsed = collapsedGroups.has(section);
+              return (
+                <div key={section} className={historyStyles.permGroup}>
+                  <button type="button" className={historyStyles.permGroupHeader} onClick={() => toggleGroup(section)}>
+                    <span className={`${historyStyles.permGroupChevron} ${!collapsed ? historyStyles.permGroupChevronOpen : ''}`}>▶</span>
+                    {section}
+                    <span className={historyStyles.permGroupCount}>{list.length} module{list.length === 1 ? '' : 's'}</span>
+                  </button>
+                  {!collapsed && (
+                    <div className={historyStyles.permTableScroll}>
+                      <table className={historyStyles.permTable}>
+                        <thead>
+                          <tr>
+                            <th>Module</th>
                             {PERMISSION_ACTIONS.map((a) => (
-                              <td key={a.key} style={{ textAlign: 'center' }}>
-                                <input type="checkbox" checked={!!set[a.key]} onChange={() => toggleModuleAction(selectedRole, m.key, a.key)} />
-                              </td>
+                              <th key={a.key}>
+                                <button
+                                  type="button"
+                                  className={historyStyles.permColumnHeaderBtn}
+                                  title={`Toggle "${a.label}" for every module in ${section}`}
+                                  onClick={() => toggleActionColumn(selectedRole, list, a.key)}
+                                >
+                                  <input type="checkbox" readOnly checked={list.every((m) => !!(selectedRole.permissions.modules[m.key] || {})[a.key])} />
+                                  {a.label}
+                                </button>
+                              </th>
                             ))}
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {list.map((m) => {
+                            const set = selectedRole.permissions.modules[m.key] || {};
+                            const allOn = PERMISSION_ACTIONS.every((a) => set[a.key]);
+                            return (
+                              <tr key={m.key}>
+                                <td className={historyStyles.permModuleCell}>
+                                  <label className={historyStyles.permRowSelectLabel} title="Select entire row">
+                                    <input type="checkbox" checked={allOn} onChange={() => toggleModuleRow(selectedRole, m.key)} />
+                                    {m.label}
+                                  </label>
+                                </td>
+                                {PERMISSION_ACTIONS.map((a) => (
+                                  <td key={a.key}>
+                                    <label className={historyStyles.permCheckboxLabel}>
+                                      <input type="checkbox" checked={!!set[a.key]} onChange={() => toggleModuleAction(selectedRole, m.key, a.key)} />
+                                    </label>
+                                  </td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

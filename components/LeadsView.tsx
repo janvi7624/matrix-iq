@@ -94,7 +94,7 @@ export default function LeadsView({ currentUser }: LeadsViewProps) {
   async function handleSubmitLead(form: {
     name: string; mobile: string; email: string; designation: string; company: string; city: string; cardImageUrl: string;
     interests: DomainKey[]; subInterests: string[]; priority: LeadPriority; followUpActions: string[]; budget: string; notes: string;
-  }): Promise<LeadRecord | null> {
+  }): Promise<(LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string }) | null> {
     setCreating(true);
     try {
       const response = await fetch('/api/leads', {
@@ -106,16 +106,29 @@ export default function LeadsView({ currentUser }: LeadsViewProps) {
         alert('Could not save this lead. Please try again.');
         return null;
       }
-      const created: LeadRecord = await response.json();
-      setLeads((prev) => [created, ...prev]);
+      const result: LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string } = await response.json();
+      // A merged duplicate updates an existing row in place instead of
+      // prepending a second copy of the same contact.
+      setLeads((prev) => {
+        const index = prev.findIndex((l) => l.id === result.id);
+        if (index === -1) return [result, ...prev];
+        const next = [...prev];
+        next[index] = result;
+        return next;
+      });
       loadStats();
-      return created;
+      return result;
     } catch {
       alert('Could not reach the server.');
       return null;
     } finally {
       setCreating(false);
     }
+  }
+
+  function showAllLeads() {
+    setMode('list');
+    loadLeads();
   }
 
   async function handleConvertToCrm(leadId: string): Promise<boolean> {
@@ -170,17 +183,14 @@ export default function LeadsView({ currentUser }: LeadsViewProps) {
           <button
             type="button"
             className={`${historyStyles.modeToggleBtn} ${mode === 'list' ? historyStyles.modeToggleBtnActive : ''}`}
-            onClick={() => {
-              setMode('list');
-              loadLeads();
-            }}
+            onClick={showAllLeads}
           >
             📋 All Leads
           </button>
         </div>
 
         {mode === 'capture' && (
-          <LeadCaptureWizard creating={creating} onSubmit={handleSubmitLead} onConvertToCrm={handleConvertToCrm} />
+          <LeadCaptureWizard creating={creating} onSubmit={handleSubmitLead} onConvertToCrm={handleConvertToCrm} onViewAllLeads={showAllLeads} />
         )}
 
         {mode === 'list' && (

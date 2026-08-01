@@ -28,6 +28,7 @@ import DiscountsList from './DiscountsList';
 import CustomProductsList from './CustomProductsList';
 import SummaryPanel from './SummaryPanel';
 import styles from './calculator.module.css';
+import historyStyles from './quotationHistory.module.css';
 
 const DEFAULT_COST_INPUTS: CostInputs = { installationCost: 0, fabricationCost: 0, scaffoldingCost: 0, markupPercent: 0 };
 
@@ -316,37 +317,28 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
   const showScaffolding = isAv && (avProjectType === 'standee' || avProjectType === 'led');
 
   return (
-    <div className={styles.page}>
-      <main className={styles.converter}>
-        <div className={styles.authBar}>
-          <span className={styles.small}>
-            Signed in as <strong>{currentUser.name}</strong>
-            <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role] || styles.rolePillUser}`}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
-          </span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <a className={styles.secondaryButton} href="/">
-              &larr; Dashboard
-            </a>
-            {currentUser.role !== 'user' && currentUser.role !== 'technical' && currentUser.role !== 'backoffice' && (
-              <a className={styles.secondaryButton} href="/quotation-history" target="_blank" rel="noreferrer">
-                Quotation History
-              </a>
-            )}
-            <button type="button" className={styles.secondaryButton} onClick={handleLogout}>
-              Log out
-            </button>
+    <div className={historyStyles.body}>
+      <header className={historyStyles.header}>
+        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
+          <div>
+            <h1>Quotation Maker</h1>
+            <div className={historyStyles.sub}>Configure a product, add it to the quote, and generate a client-ready PDF.</div>
           </div>
+        </Link>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role] || styles.rolePillUser}`}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
+          {currentUser.role !== 'user' && currentUser.role !== 'technical' && currentUser.role !== 'backoffice' && (
+            <Link className={historyStyles.button} href="/quotation-history" target="_blank" rel="noreferrer">
+              Quotation History
+            </Link>
+          )}
+          <Link className={historyStyles.button} href="/">&larr; Back to Dashboard</Link>
+          <button type="button" className={historyStyles.button} onClick={handleLogout}>Log out</button>
         </div>
-        <div className={styles.brandHeader}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={50} height={50} className={styles.brandLogo} unoptimized />
-          <div className={styles.brandTitle}>
-            <h1 className={styles.h1}>Sales Quotation Estimator</h1>
-            <span className={styles.tagline}>NANTA-branded estimator for standee and LED display pricing</span>
-          </div>
-        </div>
-        <p className={styles.p}>Estimate Robotics, AV, and AI Video Analytics costs with model-based pricing and installation/fabrication/scaffolding costs.</p>
-
-        <div className={styles.domainPanel}>
+      </header>
+      <main className={historyStyles.main}>
+        <div className={styles.sectionPanel}>
           <div className={`${styles.row} ${styles.columns}`}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="projectSelect">Project</label>
@@ -410,7 +402,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
         )}
 
         {((!domain) || (isAv && !avProjectType)) && (
-          <div className={styles.domainPanel}>
+          <div className={styles.sectionPanel}>
             <div className={styles.small}>
               {!domain
                 ? 'Select a domain above to start configuring a product for this quote.'
@@ -420,7 +412,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
         )}
 
         {isAv && avProjectType === 'av-solution' && (
-          <div className={styles.domainPanel}>
+          <div className={styles.sectionPanel}>
             <h2 className={styles.h2}>AV Solution</h2>
             <div className={`${styles.row} ${styles.columns}`}>
               <div className={styles.field}>
@@ -448,7 +440,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
                 <span style={{ flex: 1 }}>
                   <strong>{item.categoryLabel}:</strong> {item.modelLabel} — {item.reason}
                 </span>
-                <button type="button" className={styles.secondaryButton} onClick={() => applyRoomSuggestion(item)}>
+                <button type="button" className={historyStyles.button} onClick={() => applyRoomSuggestion(item)}>
                   Use this
                 </button>
               </div>
@@ -534,7 +526,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
                     Project <Link href={`/projects/${projectId}`}>{projectId}</Link>
                     {selectedProject ? ` · Stage: ${PROJECT_STAGE_LABEL[selectedProject.stage]}` : ''}
                   </span>
-                  <button type="button" className={styles.secondaryButton} disabled={movingToDemo} onClick={handleMoveToDemo}>
+                  <button type="button" className={historyStyles.button} disabled={movingToDemo} onClick={handleMoveToDemo}>
                     {movingToDemo ? 'Moving…' : 'Move to Demo'}
                   </button>
                 </>

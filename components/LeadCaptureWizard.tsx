@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import Link from 'next/link';
 import { DomainKey, LeadPriority, LeadRecord } from '@/lib/types';
 import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { preprocessCardImage, scanBusinessCard } from '@/lib/cardOcr';
@@ -37,19 +36,22 @@ const STEPS = [
   { icon: '✅', label: 'Review & Submit' }
 ];
 
+type LeadSubmitResult = LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string };
+
 interface LeadCaptureWizardProps {
   creating: boolean;
-  onSubmit: (form: LeadForm) => Promise<LeadRecord | null>;
+  onSubmit: (form: LeadForm) => Promise<LeadSubmitResult | null>;
   onConvertToCrm: (leadId: string) => Promise<boolean>;
+  onViewAllLeads: () => void;
 }
 
-export default function LeadCaptureWizard({ creating, onSubmit, onConvertToCrm }: LeadCaptureWizardProps) {
+export default function LeadCaptureWizard({ creating, onSubmit, onConvertToCrm, onViewAllLeads }: LeadCaptureWizardProps) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<LeadForm>(emptyForm());
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanNote, setScanNote] = useState('');
-  const [successRecord, setSuccessRecord] = useState<LeadRecord | null>(null);
+  const [successRecord, setSuccessRecord] = useState<LeadSubmitResult | null>(null);
   const [converting, setConverting] = useState(false);
   const [converted, setConverted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -171,8 +173,15 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToCrm }
     return (
       <div className={historyStyles.wizardCard}>
         <div className={historyStyles.successPanel}>
-          <div className={historyStyles.successIcon}>✅</div>
-          <h2 className={calcStyles.h2} style={{ marginTop: 0, borderLeft: 'none', paddingLeft: 0 }}>Lead saved!</h2>
+          <div className={historyStyles.successIcon}>{successRecord.duplicate ? '🔄' : '✅'}</div>
+          <h2 className={calcStyles.h2} style={{ marginTop: 0, borderLeft: 'none', paddingLeft: 0 }}>
+            {successRecord.duplicate ? 'Lead already existed — details merged' : 'Lead saved!'}
+          </h2>
+          {successRecord.duplicate && (
+            <div className={historyStyles.autofillNotice}>
+              This contact was already captured{successRecord.duplicateCapturedBy ? ` by ${successRecord.duplicateCapturedBy}` : ''}. We updated the existing record instead of creating a duplicate.
+            </div>
+          )}
           <div className={calcStyles.small}>
             {successRecord.name || successRecord.company}
             {successRecord.priority && (
@@ -183,7 +192,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToCrm }
           </div>
           <div className={historyStyles.successActions}>
             <button type="button" className={historyStyles.bigBtn} onClick={handleCaptureNext}>📸 Scan Next Lead</button>
-            <Link className={historyStyles.bigBtnGhost} href="/leads?view=list">📋 View All Leads</Link>
+            <button type="button" className={historyStyles.bigBtnGhost} onClick={onViewAllLeads}>📋 View All Leads</button>
             {!converted ? (
               <button type="button" className={historyStyles.bigBtnGhost} disabled={converting} onClick={handleConvert}>
                 {converting ? 'Converting…' : '🤝 Convert to CRM Contact'}
