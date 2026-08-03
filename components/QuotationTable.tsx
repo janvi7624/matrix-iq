@@ -6,6 +6,7 @@ import { LineItem, ProductGroup, QuotationEffectiveStatus, QuotationRecord } fro
 import { formatMoney } from '@/lib/format';
 import { daysSince, needsFollowUp, parseFollowUpNotes } from '@/lib/followUp';
 import { computeEffectiveStatusClient } from '@/lib/quotationStatus';
+import { useConfirm } from './ui/ConfirmDialog';
 import styles from './quotationHistory.module.css';
 
 const STATUS_LABEL: Record<QuotationEffectiveStatus, string> = {
@@ -124,6 +125,7 @@ interface QuotationRowProps {
 }
 
 function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus }: QuotationRowProps) {
+  const confirm = useConfirm();
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -234,8 +236,8 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
                 type="button"
                 className={styles.deleteBtn}
                 title="Delete this quotation"
-                onClick={() => {
-                  if (window.confirm(`Delete quotation ${row.quotation_number}? This cannot be undone.`)) {
+                onClick={async () => {
+                  if (await confirm({ message: `Delete quotation ${row.quotation_number}? This cannot be undone.`, danger: true })) {
                     onDelete(row.id);
                   }
                 }}

@@ -6,6 +6,7 @@ import QuotationTable from './QuotationTable';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
 
 const STATUS_OPTIONS: { value: QuotationEffectiveStatus; label: string }[] = [
   { value: 'draft', label: 'Draft' },
@@ -24,6 +25,7 @@ export default function MyQuotationsView() {
   const [fProjectId, setFProjectId] = useState('');
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
+  const toast = useToast();
 
   const load = useCallback(async () => {
     setStatus('Loading...');
@@ -63,7 +65,7 @@ export default function MyQuotationsView() {
       const updated: QuotationRecord = await response.json();
       setRows((prev) => prev.map((r) => (r.id === id ? updated : r)));
     } catch {
-      alert('Could not log this follow-up. Please try again.');
+      toast.error('Could not log this follow-up. Please try again.');
     }
   }
 
@@ -78,7 +80,7 @@ export default function MyQuotationsView() {
       const updated: QuotationRecord = await response.json();
       setRows((prev) => prev.map((r) => (r.id === id ? updated : r)));
     } catch {
-      alert('Could not update the status. Please try again.');
+      toast.error('Could not update the status. Please try again.');
     }
   }
 

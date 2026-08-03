@@ -7,6 +7,8 @@ import { exportListToPdf } from '@/lib/exportPdf';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 
 const EMPTY_FORM = { projectId: '', installationDate: '', assignedEngineer: '' };
 
@@ -104,6 +106,8 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   async function load() {
     setStatus('Loading...');
@@ -127,7 +131,7 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!form.projectId || !form.installationDate) {
-      alert('Project and installation date are required.');
+      toast.error('Project and installation date are required.');
       return;
     }
     setCreating(true);
@@ -141,7 +145,7 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
       setForm(EMPTY_FORM);
       await load();
     } catch {
-      alert('Could not save this installation. Please try again.');
+      toast.error('Could not save this installation. Please try again.');
     } finally {
       setCreating(false);
     }
@@ -157,18 +161,18 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
       if (!response.ok) throw new Error(String(response.status));
       await load();
     } catch {
-      alert('Could not save this update.');
+      toast.error('Could not save this update.');
     }
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this installation? This cannot be undone.')) return;
+    if (!(await confirm({ message: 'Delete this installation? This cannot be undone.', danger: true }))) return;
     try {
       const response = await fetch(`/api/installation/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setRecords((prev) => prev.filter((r) => r.id !== id));
     } catch {
-      alert('Could not delete this installation.');
+      toast.error('Could not delete this installation.');
     }
   }
 

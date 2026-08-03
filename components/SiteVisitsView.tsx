@@ -10,6 +10,8 @@ import { isReminderDue, STAGE_LABEL, STAGE_HINT } from '@/lib/siteVisitReminder'
 import PortalHeader from './PortalHeader';
 import TeamCheckboxes from './TeamCheckboxes';
 import SiteVisitWizard, { SiteVisitWizardForm } from './SiteVisitWizard';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -69,6 +71,7 @@ function SiteVisitDetail({
   onAddUpdate: (id: string, entry: typeof EMPTY_UPDATE_FORM) => Promise<void>;
   onClose: () => void;
 }) {
+  const toast = useToast();
   const [actionPlan, setActionPlan] = useState(visit.action_plan);
   const [reminderDate, setReminderDate] = useState(visit.reminder_date);
   const [stage, setStage] = useState(visit.stage);
@@ -89,7 +92,7 @@ function SiteVisitDetail({
   async function handleAddUpdate(e: FormEvent) {
     e.preventDefault();
     if (!updateForm.projectDetails.trim() && !updateForm.ongoingActivities.trim()) {
-      alert('Add project details or ongoing activities.');
+      toast.error('Add project details or ongoing activities.');
       return;
     }
     setAddingUpdate(true);
@@ -259,6 +262,8 @@ function SiteVisitDetail({
 }
 
 function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const [visits, setVisits] = useState<SiteVisitRecord[]>([]);
@@ -305,7 +310,7 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
       await load();
       return created;
     } catch {
-      alert('Could not save this site visit. Please try again.');
+      toast.error('Could not save this site visit. Please try again.');
       return null;
     } finally {
       setCreating(false);
@@ -322,7 +327,7 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
       if (!response.ok) throw new Error(String(response.status));
       await load();
     } catch {
-      alert('Could not save this update. Please try again.');
+      toast.error('Could not save this update. Please try again.');
     }
   }
 
@@ -331,14 +336,14 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this site visit report? This cannot be undone.')) return;
+    if (!(await confirm({ message: 'Delete this site visit report? This cannot be undone.', danger: true }))) return;
     try {
       const response = await fetch(`/api/site-visits/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setVisits((prev) => prev.filter((v) => v.id !== id));
       if (openId === id) setOpenId(null);
     } catch {
-      alert('Could not delete this site visit.');
+      toast.error('Could not delete this site visit.');
     }
   }
 

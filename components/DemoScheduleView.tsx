@@ -13,6 +13,8 @@ import PortalHeader from './PortalHeader';
 import TeamCheckboxes from './TeamCheckboxes';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 
 const ALL_DOMAINS = Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[];
 
@@ -83,6 +85,7 @@ function TechnicalApprovalForm({ demoId, onDone }: { demoId: string; onDone: (up
   const [expectedArrivalTime, setExpectedArrivalTime] = useState('');
   const [newScheduledAt, setNewScheduledAt] = useState('');
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   async function decide(decision: 'approved' | 'rejected' | 'reschedule') {
     setBusy(true);
@@ -95,7 +98,7 @@ function TechnicalApprovalForm({ demoId, onDone }: { demoId: string; onDone: (up
       if (!response.ok) throw new Error(String(response.status));
       onDone(await response.json());
     } catch {
-      alert('Could not save the technical approval decision.');
+      toast.error('Could not save the technical approval decision.');
     } finally {
       setBusy(false);
     }
@@ -140,6 +143,7 @@ function ManagerApprovalForm({ demoId, onDone }: { demoId: string; onDone: (upda
   const [reassignedEngineer, setReassignedEngineer] = useState('');
   const [newScheduledAt, setNewScheduledAt] = useState('');
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   async function decide(decision: 'approved' | 'rejected' | 'modified') {
     setBusy(true);
@@ -152,7 +156,7 @@ function ManagerApprovalForm({ demoId, onDone }: { demoId: string; onDone: (upda
       if (!response.ok) throw new Error(String(response.status));
       onDone(await response.json());
     } catch {
-      alert('Could not save the manager approval decision.');
+      toast.error('Could not save the manager approval decision.');
     } finally {
       setBusy(false);
     }
@@ -224,6 +228,7 @@ function DemoRow({
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const toast = useToast();
 
   async function handleUpload(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
@@ -237,7 +242,7 @@ function DemoRow({
       const data: { urls: string[] } = await response.json();
       setReport((r) => ({ ...r, attachments: [...r.attachments, ...data.urls] }));
     } catch {
-      alert('Could not upload one or more attachments.');
+      toast.error('Could not upload one or more attachments.');
     } finally {
       setUploading(false);
     }
@@ -416,6 +421,8 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState({ ...EMPTY_FORM, projectId: searchParams.get('projectId') || '' });
   const [creating, setCreating] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   async function load() {
     setStatus('Loading...');
@@ -473,7 +480,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   async function handleCreate(e: FormEvent, submit: boolean) {
     e.preventDefault();
     if (!form.projectId || !form.clientName.trim() || !form.scheduledAt) {
-      alert('Project, client name, and scheduled date/time are required.');
+      toast.error('Project, client name, and scheduled date/time are required.');
       return;
     }
     setCreating(true);
@@ -487,7 +494,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
       setForm(EMPTY_FORM);
       await load();
     } catch {
-      alert('Could not save this demo request. Please try again.');
+      toast.error('Could not save this demo request. Please try again.');
     } finally {
       setCreating(false);
     }
@@ -504,7 +511,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
       const updated: DemoScheduleRecord = await response.json();
       setRecords((prev) => prev.map((r) => (r.id === id ? updated : r)));
     } catch {
-      alert('Could not update this request. Please try again.');
+      toast.error('Could not update this request. Please try again.');
     }
   }
 
@@ -512,8 +519,8 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
     patchRecord(id, { status: 'pending_technical' });
   }
 
-  function handleCancel(id: string) {
-    if (!window.confirm('Cancel this demo request?')) return;
+  async function handleCancel(id: string) {
+    if (!(await confirm({ message: 'Cancel this demo request?' }))) return;
     patchRecord(id, { status: 'cancelled' });
   }
 
@@ -526,13 +533,13 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this demo request? This cannot be undone.')) return;
+    if (!(await confirm({ message: 'Delete this demo request? This cannot be undone.', danger: true }))) return;
     try {
       const response = await fetch(`/api/demo-schedule/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setRecords((prev) => prev.filter((r) => r.id !== id));
     } catch {
-      alert('Could not delete this demo request.');
+      toast.error('Could not delete this demo request.');
     }
   }
 

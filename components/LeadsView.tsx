@@ -10,6 +10,8 @@ import PortalHeader from './PortalHeader';
 import LeadCaptureWizard from './LeadCaptureWizard';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 
 interface LeadsViewProps {
   currentUser: { username: string; role: UserRole };
@@ -33,6 +35,8 @@ function PriorityBadge({ priority }: { priority: LeadPriority }) {
 }
 
 function LeadsViewContent({ currentUser }: LeadsViewProps) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const startUnattended = searchParams.get('filter') === 'unattended';
   const [mode, setMode] = useState<'capture' | 'list'>(startUnattended ? 'list' : 'capture');
@@ -110,7 +114,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
         body: JSON.stringify(form)
       });
       if (!response.ok) {
-        alert('Could not save this lead. Please try again.');
+        toast.error('Could not save this lead. Please try again.');
         return null;
       }
       const result: LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string } = await response.json();
@@ -126,7 +130,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       loadStats();
       return result;
     } catch {
-      alert('Could not reach the server.');
+      toast.error('Could not reach the server.');
       return null;
     } finally {
       setCreating(false);
@@ -142,7 +146,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     const response = await fetch(`/api/leads/${leadId}/convert-to-project`, { method: 'POST' });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      alert(body?.error || 'Could not convert this lead.');
+      toast.error(body?.error || 'Could not convert this lead.');
       return false;
     }
     await loadLeads();
@@ -150,10 +154,10 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   }
 
   async function handleDelete(lead: LeadRecord) {
-    if (!window.confirm(`Delete the lead for "${lead.name || lead.company}"? This cannot be undone.`)) return;
+    if (!(await confirm({ message: `Delete the lead for "${lead.name || lead.company}"? This cannot be undone.`, danger: true }))) return;
     const response = await fetch(`/api/leads/${lead.id}`, { method: 'DELETE' });
     if (!response.ok) {
-      alert('Could not delete this lead.');
+      toast.error('Could not delete this lead.');
       return;
     }
     setLeads((prev) => prev.filter((l) => l.id !== lead.id));

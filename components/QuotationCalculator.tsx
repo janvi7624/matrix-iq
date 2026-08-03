@@ -27,10 +27,19 @@ import CartList from './CartList';
 import DiscountsList from './DiscountsList';
 import CustomProductsList from './CustomProductsList';
 import SummaryPanel from './SummaryPanel';
+import { useToast } from './ui/ToastProvider';
 import styles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 
 const DEFAULT_COST_INPUTS: CostInputs = { installationCost: 0, fabricationCost: 0, scaffoldingCost: 0, markupPercent: 0 };
+
+// Presented as 3 guided steps instead of one long scrolling form — a sales
+// rep always knows exactly where they are and what's left to do.
+const WIZARD_STEPS = [
+  { icon: '📦', label: 'Build the Quote' },
+  { icon: '👤', label: 'Client Details' },
+  { icon: '📤', label: 'Review & Send' }
+];
 
 const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical Team', backoffice: 'Back Office', user: 'User' };
 const ROLE_PILL_CLASS: Record<UserRole, string> = {
@@ -103,6 +112,28 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
   const reviseId = searchParams.get('reviseId') || '';
   const [revisingFrom, setRevisingFrom] = useState<{ id: string; quotationNumber: string } | null>(null);
   const [revisionReason, setRevisionReason] = useState('');
+
+  const toast = useToast();
+  const [wizardStep, setWizardStep] = useState(0);
+  const [stepError, setStepError] = useState('');
+
+  function goNext() {
+    if (wizardStep === 0 && cartItems.length === 0) {
+      setStepError('Add at least one product to the quote before continuing.');
+      return;
+    }
+    if (wizardStep === 1 && !details.clientName.trim() && !details.clientCompany.trim()) {
+      setStepError("Enter the client's name or company before continuing.");
+      return;
+    }
+    setStepError('');
+    setWizardStep((s) => Math.min(WIZARD_STEPS.length - 1, s + 1));
+  }
+
+  function goBack() {
+    setStepError('');
+    setWizardStep((s) => Math.max(0, s - 1));
+  }
 
   useEffect(() => {
     if (!reviseId) return;
@@ -194,7 +225,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
 
   function handleAddToQuote() {
     if (!activeResult || !activeResult.lineItems.length) {
-      alert('Configure a product above before adding it to the quote.');
+      toast.error('Pick a product and configure it above before adding it to the quote.');
       return;
     }
     const newItem: CartItem = { ...activeResult, id: nextId.current++ };
@@ -286,7 +317,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
       setProjects((prev) => prev.map((p) => (p.id === json.project?.id ? json.project : p)));
       router.push(`/demo-schedule?projectId=${projectId}`);
     } catch {
-      alert('Could not move this project to the Demo stage.');
+      toast.error('Could not move this project to the Demo stage. Please try again.');
     } finally {
       setMovingToDemo(false);
     }
@@ -294,7 +325,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
 
   async function handleDownloadPdf() {
     if (revisingFrom && !revisionReason.trim()) {
-      alert('Enter a reason for this revision before saving.');
+      toast.error('Enter a reason for this revision before saving.');
       return;
     }
     setPdfBusy(true);
@@ -323,7 +354,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
         termsOverride: publicConfig?.quotationTerms
       });
     } catch (error) {
-      alert('PDF library failed to load or generate. Check your internet connection and try again.');
+      toast.error('PDF library failed to load or generate. Check your internet connection and try again.');
       // eslint-disable-next-line no-console
       console.error(error);
     } finally {
@@ -348,6 +379,8 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
     setCablesPreset(null);
     setLedPreset(null);
     setSavedQuotation(null);
+    setWizardStep(0);
+    setStepError('');
   }
 
   async function handleLogout() {
@@ -399,213 +432,254 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
             </div>
           </div>
         )}
-        <div className={styles.sectionPanel}>
-          <div className={`${styles.row} ${styles.columns}`}>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="projectSelect">Project</label>
-              <select id="projectSelect" className={styles.formControl} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                <option value="">-- No project (one will be created) --</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.id} — {p.company || p.client_name} ({PROJECT_STAGE_LABEL[p.stage]})</option>
-                ))}
-              </select>
-              {selectedProject && <div className={styles.small}>Stage: {PROJECT_STAGE_LABEL[selectedProject.stage]}</div>}
-            </div>
-          </div>
-          <div className={`${styles.row} ${styles.columns}`}>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="domainSelect">Domain</label>
-              <select id="domainSelect" className={styles.formControl} value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey | '')}>
-                <option value="">-- Select domain --</option>
-                <option value="av">AV</option>
-                <option value="robotics">Robotics</option>
-                <option value="ai">AI Video Analytics (Video Management System)</option>
-                <option value="si">System Integration</option>
-                <option value="visitiq">VisitIQ VMS (Visitor Management System)</option>
-              </select>
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="projectVertical">Project vertical (optional)</label>
-              <select
-                id="projectVertical"
-                className={styles.formControl}
-                value={details.projectVertical}
-                onChange={(e) => setDetails((d) => ({ ...d, projectVertical: e.target.value }))}
-              >
-                <option value="">Not specified</option>
-                <option value="Corporate">Corporate</option>
-                <option value="Retail">Retail</option>
-                <option value="Education">Education</option>
-                <option value="Hospitality">Hospitality</option>
-                <option value="Healthcare">Healthcare</option>
-                <option value="Government">Government</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-          </div>
-        </div>
 
-        {isAv && (
-          <div className={styles.row}>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="projectType">Project type</label>
-              <select id="projectType" className={styles.formControl} value={avProjectType} onChange={(e) => setAvProjectType(e.target.value as AvProjectType | '')}>
-                <option value="">-- Select product type --</option>
-                <option value="av-solution">AV Solution (suggest by room size)</option>
-                <option value="standee">Standee</option>
-                <option value="led">LED Display</option>
-                <option value="interactive-panel">Interactive Flat Panel</option>
-                <option value="conference">Conferencing Cameras &amp; Microphones</option>
-                <option value="cables">AV Cables</option>
-              </select>
-            </div>
-          </div>
-        )}
-
-        {((!domain) || (isAv && !avProjectType)) && (
-          <div className={styles.sectionPanel}>
-            <div className={styles.small}>
-              {!domain
-                ? 'Select a domain above to start configuring a product for this quote.'
-                : 'Select a product type above to start configuring this product.'}
-            </div>
-          </div>
-        )}
-
-        {isAv && avProjectType === 'av-solution' && (
-          <div className={styles.sectionPanel}>
-            <h2 className={styles.h2}>AV Solution</h2>
-            <div className={`${styles.row} ${styles.columns}`}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="roomSeats">Room size (number of seats)</label>
-                <input
-                  id="roomSeats"
-                  className={styles.formControl}
-                  type="number"
-                  step={1}
-                  min={1}
-                  value={roomSeats}
-                  onChange={(e) => setRoomSeats(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                />
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label}>Suggested for</label>
-                <div className={styles.small} style={{ paddingTop: 10 }}>{roomSuggestions.tierLabel}</div>
-              </div>
-            </div>
-            <div className={styles.small} style={{ marginBottom: 8 }}>
-              Tailored suggestions across every AV product category for this room size — click one to switch the project type and apply it. (Standees are lobby/signage kiosks, so they're not sized by seat count.)
-            </div>
-            {roomSuggestions.items.map((item) => (
-              <div key={item.avProjectType} className={styles.lineItemRow}>
-                <span style={{ flex: 1 }}>
-                  <strong>{item.categoryLabel}:</strong> {item.modelLabel} — {item.reason}
-                </span>
-                <button type="button" className={historyStyles.button} onClick={() => applyRoomSuggestion(item)}>
-                  Use this
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <StandeeEstimator key={`standee-${resetKey}`} active={isAv && avProjectType === 'standee'} costInputs={costInputs} onResultChange={setActiveResult} />
-        <LedEstimator key={`led-${resetKey}`} active={isAv && avProjectType === 'led'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={ledPreset} />
-        <ConferenceEstimator key={`conference-${resetKey}`} active={isAv && avProjectType === 'conference'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={conferencePreset} />
-        <InteractivePanelEstimator key={`ifp-${resetKey}`} active={isAv && avProjectType === 'interactive-panel'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={interactivePanelPreset} />
-        <CablesEstimator key={`cables-${resetKey}`} active={isAv && avProjectType === 'cables'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={cablesPreset} />
-        <RoboticsEstimator key={`robotics-${resetKey}`} active={domain === 'robotics'} onResultChange={setActiveResult} />
-        <AiAnalyticsEstimator key={`ai-${resetKey}`} active={domain === 'ai'} onResultChange={setActiveResult} />
-        <SiEstimator key={`si-${resetKey}`} active={domain === 'si'} onResultChange={setActiveResult} />
-        <VisitIqEstimator key={`visitiq-${resetKey}`} active={domain === 'visitiq'} onResultChange={setActiveResult} />
-
-        <QuotationDetailsForm details={details} onChange={(patch) => setDetails((d) => ({ ...d, ...patch }))} />
-
-        <h2 className={styles.h2}>Cost Inputs</h2>
-        <div className={styles.sectionPanel}>
-          <CostInputsSection
-            costInputs={costInputs}
-            onChange={(patch) => setCostInputs((c) => ({ ...c, ...patch }))}
-            showInstallFabrication={isAv}
-            showScaffolding={showScaffolding}
-          />
-
-          <CartList
-            items={cartItems}
-            onAdd={handleAddToQuote}
-            onRemove={(id) => {
-              setCartItems((prev) => prev.filter((p) => p.id !== id));
-              const domains = new Set(cartItems.filter((p) => p.id !== id).map((i) => i.domainKey));
-              if (domain) domains.add(domain);
-              patchQuotationNumberForDomains([...domains]);
-            }}
-            onChangeRemark={(id, remark) => {
-              setCartItems((prev) => prev.map((p) => (p.id === id ? { ...p, remark } : p)));
-            }}
-          />
-
-          <DiscountsList
-            discounts={discounts}
-            onAdd={() => setDiscounts((prev) => [...prev, { id: nextId.current++, label: 'Discount', type: 'percent', value: 0 }])}
-            onChangeItem={(id, patch) => setDiscounts((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)))}
-            onRemove={(id) => setDiscounts((prev) => prev.filter((d) => d.id !== id))}
-          />
-
-          <CustomProductsList
-            products={customProducts}
-            onAdd={() => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: '', qty: 1, price: 0 }])}
-            onAddFromCatalog={(product) => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: product.name, qty: product.defaultQty || 1, price: product.sellingPrice }])}
-            onChangeItem={(id, patch) => setCustomProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))}
-            onRemove={(id) => setCustomProducts((prev) => prev.filter((p) => p.id !== id))}
-          />
-
-          <div className={styles.actions}>
+        <div className={historyStyles.wizardSteps}>
+          {WIZARD_STEPS.map((s, i) => (
             <button
+              key={s.label}
               type="button"
-              className={styles.btn}
-              onClick={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className={`${historyStyles.wizardStep} ${i === wizardStep ? historyStyles.wizardStepActive : ''} ${i < wizardStep ? historyStyles.wizardStepDone : ''}`}
+              onClick={() => i < wizardStep && setWizardStep(i)}
             >
-              Calculate Estimate
+              <span className={historyStyles.wizardStepCircle}>{i < wizardStep ? '✓' : s.icon}</span>
+              <span className={historyStyles.wizardStepLabel}>{i + 1}. {s.label}</span>
             </button>
-            <button type="button" className={styles.btn} disabled={pdfBusy} onClick={handleDownloadPdf}>
-              {pdfBusy ? 'Working…' : 'Download PDF'}
-            </button>
-            <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={handleReset}>
-              Reset All
-            </button>
-          </div>
-          {logStatus && (
-            <div className={styles.small} style={{ color: logStatus.color }}>
-              {logStatus.text}
-            </div>
-          )}
-          {savedQuotation && (
-            <div className={styles.small} style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              {projectId ? (
-                <>
-                  <span>
-                    Project <Link href={`/projects/${projectId}`}>{projectId}</Link>
-                    {selectedProject ? ` · Stage: ${PROJECT_STAGE_LABEL[selectedProject.stage]}` : ''}
-                  </span>
-                  <button type="button" className={historyStyles.button} disabled={movingToDemo} onClick={handleMoveToDemo}>
-                    {movingToDemo ? 'Moving…' : 'Move to Demo'}
-                  </button>
-                </>
-              ) : (
-                <span>This quotation wasn&apos;t linked to a project — select one above next time to track it through the pipeline.</span>
-              )}
-            </div>
-          )}
+          ))}
         </div>
 
-        <div ref={summaryRef}>
-          <SummaryPanel
-            activeResult={activeResult}
-            cartCount={cartItems.length}
-            cartSubtotal={cartTotal}
-            customProductsTotal={customProductsTotal}
-            totals={composition.totals}
-          />
+        {stepError && <div className={historyStyles.loginError}>{stepError}</div>}
+
+        {wizardStep === 0 && (
+          <div className={historyStyles.wizardCard}>
+            <h2 className={historyStyles.wizardCardTitle}><span>📦</span> Build the Quote</h2>
+            <div className={historyStyles.wizardCardHint}>Pick a product, configure it below, then add it to the quote. Repeat to add more products to the same quote.</div>
+
+            <div className={styles.sectionPanel}>
+              <div className={`${styles.row} ${styles.columns}`}>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="projectSelect">Project</label>
+                  <select id="projectSelect" className={styles.formControl} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                    <option value="">-- No project (one will be created) --</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.id} — {p.company || p.client_name} ({PROJECT_STAGE_LABEL[p.stage]})</option>
+                    ))}
+                  </select>
+                  {selectedProject && <div className={styles.small}>Stage: {PROJECT_STAGE_LABEL[selectedProject.stage]}</div>}
+                </div>
+              </div>
+              <div className={`${styles.row} ${styles.columns}`}>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="domainSelect">What are you quoting?</label>
+                  <select id="domainSelect" className={styles.formControl} value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey | '')}>
+                    <option value="">-- Choose a product category --</option>
+                    <option value="av">AV</option>
+                    <option value="robotics">Robotics</option>
+                    <option value="ai">AI Video Analytics (Video Management System)</option>
+                    <option value="si">System Integration</option>
+                    <option value="visitiq">VisitIQ VMS (Visitor Management System)</option>
+                  </select>
+                </div>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="projectVertical">Client&apos;s industry (optional)</label>
+                  <select
+                    id="projectVertical"
+                    className={styles.formControl}
+                    value={details.projectVertical}
+                    onChange={(e) => setDetails((d) => ({ ...d, projectVertical: e.target.value }))}
+                  >
+                    <option value="">Not specified</option>
+                    <option value="Corporate">Corporate</option>
+                    <option value="Retail">Retail</option>
+                    <option value="Education">Education</option>
+                    <option value="Hospitality">Hospitality</option>
+                    <option value="Healthcare">Healthcare</option>
+                    <option value="Government">Government</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {isAv && (
+              <div className={styles.row}>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="projectType">Product type</label>
+                  <select id="projectType" className={styles.formControl} value={avProjectType} onChange={(e) => setAvProjectType(e.target.value as AvProjectType | '')}>
+                    <option value="">-- Select product type --</option>
+                    <option value="av-solution">AV Solution (suggest by room size)</option>
+                    <option value="standee">Standee</option>
+                    <option value="led">LED Display</option>
+                    <option value="interactive-panel">Interactive Flat Panel</option>
+                    <option value="conference">Conferencing Cameras &amp; Microphones</option>
+                    <option value="cables">AV Cables</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {((!domain) || (isAv && !avProjectType)) && (
+              <div className={styles.sectionPanel}>
+                <div className={styles.small}>
+                  {!domain
+                    ? 'Choose a product category above to start configuring a product for this quote.'
+                    : 'Select a product type above to start configuring this product.'}
+                </div>
+              </div>
+            )}
+
+            {isAv && avProjectType === 'av-solution' && (
+              <div className={styles.sectionPanel}>
+                <h2 className={styles.h2}>AV Solution</h2>
+                <div className={`${styles.row} ${styles.columns}`}>
+                  <div className={styles.field}>
+                    <label className={styles.label} htmlFor="roomSeats">Room size (number of seats)</label>
+                    <input
+                      id="roomSeats"
+                      className={styles.formControl}
+                      type="number"
+                      step={1}
+                      min={1}
+                      value={roomSeats}
+                      onChange={(e) => setRoomSeats(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    />
+                  </div>
+                  <div className={styles.field}>
+                    <label className={styles.label}>Suggested for</label>
+                    <div className={styles.small} style={{ paddingTop: 10 }}>{roomSuggestions.tierLabel}</div>
+                  </div>
+                </div>
+                <div className={styles.small} style={{ marginBottom: 8 }}>
+                  Tailored suggestions across every AV product category for this room size — click one to switch the product type and apply it. (Standees are lobby/signage kiosks, so they're not sized by seat count.)
+                </div>
+                {roomSuggestions.items.map((item) => (
+                  <div key={item.avProjectType} className={styles.lineItemRow}>
+                    <span style={{ flex: 1 }}>
+                      <strong>{item.categoryLabel}:</strong> {item.modelLabel} — {item.reason}
+                    </span>
+                    <button type="button" className={historyStyles.button} onClick={() => applyRoomSuggestion(item)}>
+                      Use this
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <StandeeEstimator key={`standee-${resetKey}`} active={isAv && avProjectType === 'standee'} costInputs={costInputs} onResultChange={setActiveResult} />
+            <LedEstimator key={`led-${resetKey}`} active={isAv && avProjectType === 'led'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={ledPreset} />
+            <ConferenceEstimator key={`conference-${resetKey}`} active={isAv && avProjectType === 'conference'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={conferencePreset} />
+            <InteractivePanelEstimator key={`ifp-${resetKey}`} active={isAv && avProjectType === 'interactive-panel'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={interactivePanelPreset} />
+            <CablesEstimator key={`cables-${resetKey}`} active={isAv && avProjectType === 'cables'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={cablesPreset} />
+            <RoboticsEstimator key={`robotics-${resetKey}`} active={domain === 'robotics'} onResultChange={setActiveResult} />
+            <AiAnalyticsEstimator key={`ai-${resetKey}`} active={domain === 'ai'} onResultChange={setActiveResult} />
+            <SiEstimator key={`si-${resetKey}`} active={domain === 'si'} onResultChange={setActiveResult} />
+            <VisitIqEstimator key={`visitiq-${resetKey}`} active={domain === 'visitiq'} onResultChange={setActiveResult} />
+
+            <h2 className={styles.h2}>Cost &amp; Add to Quote</h2>
+            <div className={styles.sectionPanel}>
+              <CostInputsSection
+                costInputs={costInputs}
+                onChange={(patch) => setCostInputs((c) => ({ ...c, ...patch }))}
+                showInstallFabrication={isAv}
+                showScaffolding={showScaffolding}
+              />
+
+              <CartList
+                items={cartItems}
+                onAdd={handleAddToQuote}
+                onRemove={(id) => {
+                  setCartItems((prev) => prev.filter((p) => p.id !== id));
+                  const domains = new Set(cartItems.filter((p) => p.id !== id).map((i) => i.domainKey));
+                  if (domain) domains.add(domain);
+                  patchQuotationNumberForDomains([...domains]);
+                }}
+                onChangeRemark={(id, remark) => {
+                  setCartItems((prev) => prev.map((p) => (p.id === id ? { ...p, remark } : p)));
+                }}
+              />
+
+              <DiscountsList
+                discounts={discounts}
+                onAdd={() => setDiscounts((prev) => [...prev, { id: nextId.current++, label: 'Discount', type: 'percent', value: 0 }])}
+                onChangeItem={(id, patch) => setDiscounts((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)))}
+                onRemove={(id) => setDiscounts((prev) => prev.filter((d) => d.id !== id))}
+              />
+
+              <CustomProductsList
+                products={customProducts}
+                onAdd={() => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: '', qty: 1, price: 0 }])}
+                onAddFromCatalog={(product) => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: product.name, qty: product.defaultQty || 1, price: product.sellingPrice }])}
+                onChangeItem={(id, patch) => setCustomProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))}
+                onRemove={(id) => setCustomProducts((prev) => prev.filter((p) => p.id !== id))}
+              />
+            </div>
+          </div>
+        )}
+
+        {wizardStep === 1 && (
+          <div className={historyStyles.wizardCard}>
+            <h2 className={historyStyles.wizardCardTitle}><span>👤</span> Client Details</h2>
+            <div className={historyStyles.wizardCardHint}>Who is this quotation for?</div>
+            <QuotationDetailsForm details={details} onChange={(patch) => setDetails((d) => ({ ...d, ...patch }))} />
+          </div>
+        )}
+
+        {wizardStep === 2 && (
+          <div className={historyStyles.wizardCard}>
+            <h2 className={historyStyles.wizardCardTitle}><span>📤</span> Review &amp; Send</h2>
+            <div className={historyStyles.wizardCardHint}>Check the total below, then save and download the client-ready PDF.</div>
+
+            <div ref={summaryRef}>
+              <SummaryPanel
+                activeResult={activeResult}
+                cartCount={cartItems.length}
+                cartSubtotal={cartTotal}
+                customProductsTotal={customProductsTotal}
+                totals={composition.totals}
+              />
+            </div>
+
+            <div className={styles.actions} style={{ marginTop: 18 }}>
+              <button type="button" className={styles.btn} disabled={pdfBusy} onClick={handleDownloadPdf}>
+                {pdfBusy ? 'Working…' : 'Save & Download PDF'}
+              </button>
+              <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={handleReset}>
+                Start Over
+              </button>
+            </div>
+            {logStatus && (
+              <div className={styles.small} style={{ color: logStatus.color }}>
+                {logStatus.text}
+              </div>
+            )}
+            {savedQuotation && (
+              <div className={styles.small} style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                {projectId ? (
+                  <>
+                    <span>
+                      Project <Link href={`/projects/${projectId}`}>{projectId}</Link>
+                      {selectedProject ? ` · Stage: ${PROJECT_STAGE_LABEL[selectedProject.stage]}` : ''}
+                    </span>
+                    <button type="button" className={historyStyles.button} disabled={movingToDemo} onClick={handleMoveToDemo}>
+                      {movingToDemo ? 'Moving…' : 'Move to Demo'}
+                    </button>
+                  </>
+                ) : (
+                  <span>This quotation wasn&apos;t linked to a project — select one above next time to track it through the pipeline.</span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className={historyStyles.wizardNav}>
+          {wizardStep > 0 ? (
+            <button type="button" className={historyStyles.bigBtnGhost} onClick={goBack}>← Back</button>
+          ) : <span />}
+          {wizardStep < WIZARD_STEPS.length - 1 && (
+            <button type="button" className={historyStyles.bigBtn} onClick={goNext}>
+              Next: {WIZARD_STEPS[wizardStep + 1].label} →
+            </button>
+          )}
         </div>
       </main>
     </div>

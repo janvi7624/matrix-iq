@@ -8,6 +8,7 @@ import { QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { needsFollowUp } from '@/lib/followUp';
 import { BRAND } from '@/lib/branding';
 import QuotationTable from './QuotationTable';
+import { useToast } from './ui/ToastProvider';
 import styles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -29,6 +30,7 @@ const STATUS_OPTIONS: { value: QuotationEffectiveStatus; label: string }[] = [
 // renders — this component only handles fetching, filtering, and displaying.
 export default function QuotationHistoryView({ title, subtitle, showXlsxExport = false }: QuotationHistoryViewProps) {
   const router = useRouter();
+  const toast = useToast();
   const [rows, setRows] = useState<QuotationRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [loaded, setLoaded] = useState(false);
@@ -95,7 +97,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
       setRows(next);
       setStatus(next.length ? `${next.length} quotation${next.length === 1 ? '' : 's'} found.` : '');
     } catch {
-      alert('Could not delete this quotation. Please try again.');
+      toast.error('Could not delete this quotation. Please try again.');
     }
   }
 
@@ -110,7 +112,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
       const updated: QuotationRecord = await response.json();
       setRows((prev) => prev.map((r) => (r.id === id ? updated : r)));
     } catch {
-      alert('Could not log this follow-up. Please try again.');
+      toast.error('Could not log this follow-up. Please try again.');
     }
   }
 
@@ -125,7 +127,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
       const updated: QuotationRecord = await response.json();
       setRows((prev) => prev.map((r) => (r.id === id ? updated : r)));
     } catch {
-      alert('Could not update the status. Please try again.');
+      toast.error('Could not update the status. Please try again.');
     }
   }
 

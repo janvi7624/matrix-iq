@@ -8,6 +8,8 @@ import { BRAND } from '@/lib/branding';
 import CustomFieldInput from './CustomFieldInput';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 
 const STATUS_LABEL: Record<CustomModuleRecord['status'], string> = {
   active: 'Active',
@@ -39,6 +41,8 @@ export default function CustomModuleView({ moduleKey }: CustomModuleViewProps) {
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const toast = useToast();
+  const confirm = useConfirm();
 
   async function load() {
     setStatus('Loading...');
@@ -133,17 +137,17 @@ export default function CustomModuleView({ moduleKey }: CustomModuleViewProps) {
       body: JSON.stringify({ action })
     });
     if (!response.ok) {
-      alert('Could not record your decision.');
+      toast.error('Could not record your decision.');
       return;
     }
     await load();
   }
 
   async function handleDelete(record: CustomModuleRecord) {
-    if (!window.confirm('Delete this record? This cannot be undone.')) return;
+    if (!(await confirm({ message: 'Delete this record? This cannot be undone.', danger: true }))) return;
     const response = await fetch(`/api/custom-modules/${moduleKey}/records/${record.id}`, { method: 'DELETE' });
     if (!response.ok) {
-      alert('Could not delete this record.');
+      toast.error('Could not delete this record.');
       return;
     }
     await load();

@@ -9,6 +9,8 @@ import { exportListToPdf } from '@/lib/exportPdf';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 
 const DC_STATUS_LABEL: Record<DcStatus, string> = { prepared: 'Prepared', dispatched: 'Dispatched', returned: 'Returned', closed: 'Closed' };
 const DC_STATUS_CLASS: Record<DcStatus, string> = {
@@ -30,6 +32,7 @@ function formatDate(iso: string): string {
 function GenerateDcPanel({ demo, onGenerated }: { demo: DemoScheduleRecord; onGenerated: (dc: DeliveryChallanRecord) => void }) {
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   async function handleGenerate() {
     setBusy(true);
@@ -45,7 +48,7 @@ function GenerateDcPanel({ demo, onGenerated }: { demo: DemoScheduleRecord; onGe
       }
       onGenerated(await response.json());
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Could not generate the Delivery Challan.');
+      toast.error(error instanceof Error ? error.message : 'Could not generate the Delivery Challan.');
     } finally {
       setBusy(false);
     }
@@ -92,6 +95,8 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
   const [serialNumberVerified, setSerialNumberVerified] = useState(dc.material_return.serialNumberVerified);
   const [remarkTags, setRemarkTags] = useState<BackOfficeRemarkTag[]>(dc.material_return.remarkTags);
   const [remarks, setRemarks] = useState(dc.material_return.remarks);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   async function patch(action: string, extra: Record<string, unknown>) {
     setBusy(true);
@@ -107,7 +112,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
       }
       onUpdated(await response.json());
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Could not save this change.');
+      toast.error(error instanceof Error ? error.message : 'Could not save this change.');
     } finally {
       setBusy(false);
     }
@@ -135,13 +140,13 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
     }
   }
 
-  function handleDispatchClick() {
-    if (!window.confirm(`Dispatch materials for ${dc.dc_number}? Serial numbers can no longer be edited after dispatch.`)) return;
+  async function handleDispatchClick() {
+    if (!(await confirm({ message: `Dispatch materials for ${dc.dc_number}? Serial numbers can no longer be edited after dispatch.`, danger: true }))) return;
     patch('dispatch', {});
   }
 
-  function handleCloseClick() {
-    if (!window.confirm(`Close ${dc.dc_number}? This finalizes the Delivery Challan.`)) return;
+  async function handleCloseClick() {
+    if (!(await confirm({ message: `Close ${dc.dc_number}? This finalizes the Delivery Challan.`, danger: true }))) return;
     patch('close', {});
   }
 
@@ -360,6 +365,8 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
   const [openId, setOpenId] = useState<string | null>(null);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   async function load() {
     setStatus('Loading...');
@@ -391,13 +398,13 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
   const linkedDc = useMemo(() => (demoIdParam ? dcs.find((d) => d.demo_id === demoIdParam) : null), [demoIdParam, dcs]);
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this Delivery Challan? This cannot be undone.')) return;
+    if (!(await confirm({ message: 'Delete this Delivery Challan? This cannot be undone.', danger: true }))) return;
     try {
       const response = await fetch(`/api/delivery-challans/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setDcs((prev) => prev.filter((d) => d.id !== id));
     } catch {
-      alert('Could not delete this Delivery Challan.');
+      toast.error('Could not delete this Delivery Challan.');
     }
   }
 

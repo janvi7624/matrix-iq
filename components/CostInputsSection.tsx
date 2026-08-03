@@ -80,6 +80,7 @@ export default function CostInputsSection({ costInputs, onChange, showScaffoldin
             onFocus={selectAllOnFocusIfZero}
             onChange={(e) => onChange({ markupPercent: parseFloat(e.target.value) || 0 })}
           />
+          <span className={styles.lockedHint}>Extra profit margin added on top of cost — leave at 0 if not applicable.</span>
         </div>
       </div>
     </>

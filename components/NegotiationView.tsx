@@ -7,6 +7,8 @@ import { exportListToPdf } from '@/lib/exportPdf';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 
 const EMPTY_FORM = { projectId: '', discussionDate: '', person: '', discussion: '', offerGiven: '', discount: '', revisedPrice: '', expectedClosure: '' };
 
@@ -31,6 +33,8 @@ export default function NegotiationView({ currentUser }: NegotiationViewProps) {
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   async function load() {
     setStatus('Loading...');
@@ -54,7 +58,7 @@ export default function NegotiationView({ currentUser }: NegotiationViewProps) {
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!form.projectId || !form.discussionDate) {
-      alert('Project and discussion date are required.');
+      toast.error('Project and discussion date are required.');
       return;
     }
     setCreating(true);
@@ -68,20 +72,20 @@ export default function NegotiationView({ currentUser }: NegotiationViewProps) {
       setForm(EMPTY_FORM);
       await load();
     } catch {
-      alert('Could not save this entry. Please try again.');
+      toast.error('Could not save this entry. Please try again.');
     } finally {
       setCreating(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this negotiation entry? This cannot be undone.')) return;
+    if (!(await confirm({ message: 'Delete this negotiation entry? This cannot be undone.', danger: true }))) return;
     try {
       const response = await fetch(`/api/negotiation/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setRecords((prev) => prev.filter((r) => r.id !== id));
     } catch {
-      alert('Could not delete this entry.');
+      toast.error('Could not delete this entry.');
     }
   }
 

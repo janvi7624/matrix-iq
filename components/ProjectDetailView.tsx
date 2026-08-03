@@ -25,6 +25,8 @@ import { exportListToPdf } from '@/lib/exportPdf';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 
 interface DetailResponse {
   project: ProjectRecord;
@@ -89,6 +91,8 @@ interface ProjectDetailViewProps {
 }
 
 export default function ProjectDetailView({ projectId, currentUser }: ProjectDetailViewProps) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const [data, setData] = useState<DetailResponse | null>(null);
   const [status, setStatus] = useState('Loading...');
@@ -143,7 +147,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       if (!response.ok) throw new Error(String(response.status));
       await load();
     } catch {
-      alert('Could not save this change. Please try again.');
+      toast.error('Could not save this change. Please try again.');
     }
   }
 
@@ -171,7 +175,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       const uploaded: { urls: string[] } = await response.json();
       await patchProject({ action: 'addAttachment', urls: uploaded.urls });
     } catch {
-      alert('Could not upload one or more attachments.');
+      toast.error('Could not upload one or more attachments.');
     } finally {
       setUploadingAttachment(false);
     }
@@ -192,7 +196,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   async function handleAddNegotiation(e: FormEvent) {
     e.preventDefault();
     if (!negForm.discussionDate) {
-      alert('Discussion date is required.');
+      toast.error('Discussion date is required.');
       return;
     }
     setBusySection('negotiation');
@@ -206,14 +210,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       setNegForm(EMPTY_NEGOTIATION);
       await load();
     } catch {
-      alert('Could not save this negotiation entry.');
+      toast.error('Could not save this negotiation entry.');
     } finally {
       setBusySection('');
     }
   }
 
   async function handleDeleteNegotiation(id: string) {
-    if (!window.confirm('Delete this negotiation entry?')) return;
+    if (!(await confirm({ message: 'Delete this negotiation entry?', danger: true }))) return;
     await fetch(`/api/negotiation/${id}`, { method: 'DELETE' });
     await load();
   }
@@ -221,7 +225,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   async function handleAddPo(e: FormEvent) {
     e.preventDefault();
     if (!poForm.poNumber.trim()) {
-      alert('PO number is required.');
+      toast.error('PO number is required.');
       return;
     }
     setBusySection('po');
@@ -235,14 +239,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       setPoForm(EMPTY_PO);
       await load();
     } catch {
-      alert('Could not save this PO.');
+      toast.error('Could not save this PO.');
     } finally {
       setBusySection('');
     }
   }
 
   async function handleDeletePo(id: string) {
-    if (!window.confirm('Delete this PO?')) return;
+    if (!(await confirm({ message: 'Delete this PO?', danger: true }))) return;
     await fetch(`/api/po/${id}`, { method: 'DELETE' });
     await load();
   }
@@ -250,7 +254,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   async function handleAddInstallation(e: FormEvent) {
     e.preventDefault();
     if (!instForm.installationDate) {
-      alert('Installation date is required.');
+      toast.error('Installation date is required.');
       return;
     }
     setBusySection('installation');
@@ -264,7 +268,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       setInstForm(EMPTY_INSTALLATION);
       await load();
     } catch {
-      alert('Could not save this installation.');
+      toast.error('Could not save this installation.');
     } finally {
       setBusySection('');
     }
@@ -292,7 +296,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       setRespForm(EMPTY_RESPONSE);
       await load();
     } catch {
-      alert('Could not save this response.');
+      toast.error('Could not save this response.');
     } finally {
       setBusySection('');
     }
@@ -321,10 +325,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     if (!outcome) return;
     const normalized = outcome.trim().toLowerCase();
     if (normalized !== 'won' && normalized !== 'lost') {
-      alert('Please type exactly "won" or "lost".');
+      toast.error('Please type exactly "won" or "lost".');
       return;
     }
-    if (!window.confirm(`Close this project as ${normalized === 'won' ? 'Won' : 'Closed Lost'}? This updates the final stage.`)) return;
+    if (!(await confirm({ message: `Close this project as ${normalized === 'won' ? 'Won' : 'Closed Lost'}? This updates the final stage.`, danger: true }))) return;
     await patchProject({ stage: normalized === 'won' ? 'completed' : 'closed_lost' });
   }
 
@@ -474,7 +478,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             href={latestDemo ? `/backoffice?demoId=${latestDemo.id}` : '#'}
             className={historyStyles.quickActionBtn}
             aria-disabled={!latestDemo}
-            onClick={(e) => { if (!latestDemo) { e.preventDefault(); alert('Schedule a demo first — a Delivery Challan is generated from an approved demo request.'); } }}
+            onClick={(e) => { if (!latestDemo) { e.preventDefault(); toast.error('Schedule a demo first — a Delivery Challan is generated from an approved demo request.'); } }}
           >
             <span className={historyStyles.quickActionIcon}>📦</span> Generate DC
           </Link>

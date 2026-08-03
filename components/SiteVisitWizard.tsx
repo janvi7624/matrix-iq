@@ -8,6 +8,7 @@ import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { getDomainProducts } from '@/lib/domainProducts';
 import { STAGE_LABEL, STAGE_HINT } from '@/lib/siteVisitReminder';
 import TeamCheckboxes from './TeamCheckboxes';
+import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -68,6 +69,7 @@ function Required() {
 
 function ImageUploader({ imageUrls, onChange }: { imageUrls: string[]; onChange: (urls: string[]) => void }) {
   const [uploading, setUploading] = useState(false);
+  const toast = useToast();
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
@@ -80,7 +82,7 @@ function ImageUploader({ imageUrls, onChange }: { imageUrls: string[]; onChange:
       const data: { urls: string[] } = await response.json();
       onChange([...imageUrls, ...data.urls]);
     } catch {
-      alert('Could not upload one or more images. Try a smaller file (max 8MB each).');
+      toast.error('Could not upload one or more photos. Try a smaller file (max 8MB each).');
     } finally {
       setUploading(false);
     }
@@ -116,6 +118,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
   const [autofillNotice, setAutofillNotice] = useState('');
   const [historySummary, setHistorySummary] = useState<{ visitCount: number; lastQuotation: QuotationRecord | null; lastDemo: DemoScheduleRecord | null } | null>(null);
   const [successRecord, setSuccessRecord] = useState<SiteVisitRecord | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
 
   useEffect(() => {
     if (prefillProjectId) setForm((f) => ({ ...f, projectId: prefillProjectId }));
@@ -180,13 +183,15 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
   function goNext() {
     const error = validateStep(step);
     if (error) {
-      alert(error);
+      setErrors([error]);
       return;
     }
+    setErrors([]);
     setStep((s) => Math.min(STEPS.length - 1, s + 1));
   }
 
   function goBack() {
+    setErrors([]);
     setStep((s) => Math.max(0, s - 1));
   }
 
@@ -195,7 +200,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
       const error = validateStep(i);
       if (error) {
         setStep(i);
-        alert(error);
+        setErrors([error]);
         return;
       }
     }
@@ -209,6 +214,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
     setSuccessRecord(null);
     setHistorySummary(null);
     setAutofillNotice('');
+    setErrors([]);
     setForm(emptyForm(prefillProjectId));
     setStep(0);
   }
@@ -266,6 +272,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
           <>
             <h2 className={historyStyles.wizardCardTitle}><span>🏢</span> Client Information</h2>
             <div className={historyStyles.wizardCardHint}>Start typing a company name — if they've visited before, we'll suggest their saved details.</div>
+            {errors.length > 0 && <div className={historyStyles.loginError}>{errors[0]}</div>}
             {autofillNotice && <div className={historyStyles.autofillNotice}>{autofillNotice}</div>}
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Company name<Required /></label>
@@ -314,6 +321,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
           <>
             <h2 className={historyStyles.wizardCardTitle}><span>📍</span> Visit Information</h2>
             <div className={historyStyles.wizardCardHint}>When and where did (or will) this visit happen?</div>
+            {errors.length > 0 && <div className={historyStyles.loginError}>{errors[0]}</div>}
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Visit date<Required /></label>

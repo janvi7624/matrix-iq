@@ -8,6 +8,8 @@ import { exportListToPdf } from '@/lib/exportPdf';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 
 const EMPTY_FORM = {
   clientName: '',
@@ -49,6 +51,8 @@ interface ProjectsViewProps {
 }
 
 export default function ProjectsView({ currentUser }: ProjectsViewProps) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -102,7 +106,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!form.clientName.trim() && !form.company.trim()) {
-      alert('Client name or company is required.');
+      toast.error('Client name or company is required.');
       return;
     }
     setCreating(true);
@@ -117,20 +121,20 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       setShowForm(false);
       await load();
     } catch {
-      alert('Could not create this project. Please try again.');
+      toast.error('Could not create this project. Please try again.');
     } finally {
       setCreating(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this project? This cannot be undone.')) return;
+    if (!(await confirm({ message: 'Delete this project? This cannot be undone.', danger: true }))) return;
     try {
       const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setProjects((prev) => prev.filter((p) => p.id !== id));
     } catch {
-      alert('Could not delete this project.');
+      toast.error('Could not delete this project.');
     }
   }
 

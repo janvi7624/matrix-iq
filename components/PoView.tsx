@@ -7,6 +7,8 @@ import { exportListToPdf } from '@/lib/exportPdf';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 
 const EMPTY_FORM = { projectId: '', poNumber: '', poDate: '', amount: '', advanceReceived: '', paymentTerms: '', attachmentUrl: '' };
 
@@ -24,6 +26,8 @@ interface PoViewProps {
 }
 
 export default function PoView({ currentUser }: PoViewProps) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const [records, setRecords] = useState<PoRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -64,7 +68,7 @@ export default function PoView({ currentUser }: PoViewProps) {
       const data: { urls: string[] } = await response.json();
       setForm((f) => ({ ...f, attachmentUrl: data.urls[0] || '' }));
     } catch {
-      alert('Could not upload this attachment.');
+      toast.error('Could not upload this attachment.');
     } finally {
       setUploading(false);
     }
@@ -73,7 +77,7 @@ export default function PoView({ currentUser }: PoViewProps) {
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!form.projectId || !form.poNumber.trim()) {
-      alert('Project and PO number are required.');
+      toast.error('Project and PO number are required.');
       return;
     }
     setCreating(true);
@@ -87,20 +91,20 @@ export default function PoView({ currentUser }: PoViewProps) {
       setForm(EMPTY_FORM);
       await load();
     } catch {
-      alert('Could not save this PO. Please try again.');
+      toast.error('Could not save this PO. Please try again.');
     } finally {
       setCreating(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this PO? This cannot be undone.')) return;
+    if (!(await confirm({ message: 'Delete this PO? This cannot be undone.', danger: true }))) return;
     try {
       const response = await fetch(`/api/po/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setRecords((prev) => prev.filter((r) => r.id !== id));
     } catch {
-      alert('Could not delete this PO.');
+      toast.error('Could not delete this PO.');
     }
   }
 

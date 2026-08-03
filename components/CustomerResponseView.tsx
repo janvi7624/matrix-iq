@@ -7,6 +7,8 @@ import { exportListToPdf } from '@/lib/exportPdf';
 import PortalHeader from './PortalHeader';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 
 const EMPTY_FORM = { projectId: '', demoId: '', feedback: '', responseType: '' as CustomerResponseType | '', expectedDecisionDate: '', remarks: '' };
 
@@ -40,6 +42,8 @@ export default function CustomerResponseView({ currentUser }: CustomerResponseVi
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   async function load() {
     setStatus('Loading...');
@@ -63,7 +67,7 @@ export default function CustomerResponseView({ currentUser }: CustomerResponseVi
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!form.projectId) {
-      alert('Project is required.');
+      toast.error('Project is required.');
       return;
     }
     setCreating(true);
@@ -77,20 +81,20 @@ export default function CustomerResponseView({ currentUser }: CustomerResponseVi
       setForm(EMPTY_FORM);
       await load();
     } catch {
-      alert('Could not save this response. Please try again.');
+      toast.error('Could not save this response. Please try again.');
     } finally {
       setCreating(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this response? This cannot be undone.')) return;
+    if (!(await confirm({ message: 'Delete this response? This cannot be undone.', danger: true }))) return;
     try {
       const response = await fetch(`/api/customer-response/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setRecords((prev) => prev.filter((r) => r.id !== id));
     } catch {
-      alert('Could not delete this response.');
+      toast.error('Could not delete this response.');
     }
   }
 

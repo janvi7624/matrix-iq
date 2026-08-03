@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CustomFieldDef, ProductRecord, ProjectRecord } from '@/lib/types';
 import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
+import { useToast } from './ui/ToastProvider';
 
 interface UserLite {
   username: string;
@@ -25,6 +26,7 @@ export default function CustomFieldInput({ field, value, onChange }: CustomField
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (field.type === 'user' && users.length === 0) {
@@ -50,7 +52,7 @@ export default function CustomFieldInput({ field, value, onChange }: CustomField
       const body: { urls: string[] } = await response.json();
       onChange(body.urls[0] || '');
     } catch {
-      alert('Upload failed. Please try again.');
+      toast.error('Upload failed. Please try again.');
     } finally {
       setUploading(false);
     }

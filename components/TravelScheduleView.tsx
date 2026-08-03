@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { TravelScheduleRecord, UserRole } from '@/lib/types';
 import PortalHeader from './PortalHeader';
+import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -23,6 +25,8 @@ interface TravelScheduleViewProps {
 
 export default function TravelScheduleView({ currentUser }: TravelScheduleViewProps) {
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  const toast = useToast();
+  const confirm = useConfirm();
   const [records, setRecords] = useState<TravelScheduleRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -50,7 +54,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!form.destination.trim() || !form.startDate) {
-      alert('Destination and start date are required.');
+      toast.error('Destination and start date are required.');
       return;
     }
     setCreating(true);
@@ -64,20 +68,20 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
       setForm(EMPTY_FORM);
       await load();
     } catch {
-      alert('Could not save this travel entry. Please try again.');
+      toast.error('Could not save this travel entry. Please try again.');
     } finally {
       setCreating(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this travel entry? This cannot be undone.')) return;
+    if (!(await confirm({ message: 'Delete this travel entry? This cannot be undone.', danger: true }))) return;
     try {
       const response = await fetch(`/api/travel-schedule/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
       setRecords((prev) => prev.filter((r) => r.id !== id));
     } catch {
-      alert('Could not delete this travel entry.');
+      toast.error('Could not delete this travel entry.');
     }
   }
 
