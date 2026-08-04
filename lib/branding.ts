@@ -7,10 +7,10 @@
 // business documents from the company, not from "the app", so they keep
 // referencing companyName/companyLegalName regardless of appName.
 export const BRAND = {
-  appName: 'NantaOS',
-  shortName: 'NantaOS',
-  tagline: 'One Platform. Every Department.',
-  description: 'The unified enterprise platform for CRM, sales, projects, and operations — built for NANTA Technology Limited.',
+  appName: 'OrbitIQ',
+  shortName: 'OrbitIQ',
+  tagline: 'Every Business Activity. One Central Platform.',
+  description: 'OrbitIQ — the central platform around which every business activity revolves, unifying CRM, sales, projects, and operations for NANTA Technology Limited.',
   version: '1.0.0',
   companyName: 'NANTA',
   companyLegalName: 'NANTA Technology Limited',
