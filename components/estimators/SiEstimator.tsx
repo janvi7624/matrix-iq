@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '@/lib/format';
+import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem, SiItem } from '@/lib/types';
 import styles from '../calculator.module.css';
 
@@ -62,6 +63,7 @@ export default function SiEstimator({ active, onResultChange }: SiEstimatorProps
                 step={1}
                 placeholder="Qty"
                 value={item.qty}
+                onFocus={selectAllOnFocus}
                 onChange={(e) => updateItem(item.id, { qty: Math.max(1, parseInt(e.target.value, 10) || 1) })}
               />
               <input
@@ -71,6 +73,7 @@ export default function SiEstimator({ active, onResultChange }: SiEstimatorProps
                 step="any"
                 placeholder="Unit price (₹)"
                 value={item.price}
+                onFocus={selectAllOnFocus}
                 onChange={(e) => updateItem(item.id, { price: parseFloat(e.target.value) || 0 })}
               />
               <button type="button" className={styles.removeItemBtn} title="Remove item" onClick={() => setItems((prev) => prev.filter((i) => i.id !== item.id))}>

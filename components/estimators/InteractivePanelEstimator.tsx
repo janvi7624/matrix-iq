@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { interactivePanelProducts } from '@/lib/data/interactivePanelProducts';
 import { formatMoney } from '@/lib/format';
+import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { ModelPreset } from './ConferenceEstimator';
 import styles from '../calculator.module.css';
@@ -85,7 +86,7 @@ export default function InteractivePanelEstimator({ active, costInputs, onResult
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ifpQuantity">Quantity</label>
-          <input id="ifpQuantity" className={styles.formControl} type="number" step={1} min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))} />
+          <input id="ifpQuantity" className={styles.formControl} type="number" step={1} min={1} value={quantity} onFocus={selectAllOnFocus} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))} />
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ifpDetails">Model details</label>

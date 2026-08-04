@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { standeeModels, STANDEE_CATEGORIES, STANDEE_PREVIEW_BY_CATEGORY } from '@/lib/data/standeeModels';
 import { formatMoney } from '@/lib/format';
+import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import styles from '../calculator.module.css';
 
@@ -129,7 +130,7 @@ export default function StandeeEstimator({ active, costInputs, onResultChange }:
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="standeeQuantity">Quantity</label>
-          <input id="standeeQuantity" className={styles.formControl} type="number" step={1} min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))} />
+          <input id="standeeQuantity" className={styles.formControl} type="number" step={1} min={1} value={quantity} onFocus={selectAllOnFocus} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))} />
         </div>
       </div>
       <div className={`${styles.row} ${styles.columns}`}>
@@ -160,6 +161,7 @@ export default function StandeeEstimator({ active, costInputs, onResultChange }:
             step="any"
             min={0}
             value={installationPerUnit}
+            onFocus={selectAllOnFocus}
             onChange={(e) => setInstallationPerUnit(parseFloat(e.target.value) || 0)}
           />
         </div>
@@ -172,6 +174,7 @@ export default function StandeeEstimator({ active, costInputs, onResultChange }:
             step="any"
             min={0}
             value={fabricationPerUnit}
+            onFocus={selectAllOnFocus}
             onChange={(e) => setFabricationPerUnit(parseFloat(e.target.value) || 0)}
           />
         </div>
@@ -186,6 +189,7 @@ export default function StandeeEstimator({ active, costInputs, onResultChange }:
             step="any"
             min={0}
             value={scaffoldingPerUnit}
+            onFocus={selectAllOnFocus}
             onChange={(e) => setScaffoldingPerUnit(parseFloat(e.target.value) || 0)}
           />
         </div>

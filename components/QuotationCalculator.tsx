@@ -9,6 +9,7 @@ import { generateQuotationPdf } from '@/lib/pdf';
 import { computeQuotationPrefix, generateDraftQuotationNumber, refreshDraftQuotationNumber } from '@/lib/quotationNumber';
 import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey, DomainResult, ProjectRecord, PublicAppConfig, QuotationDetails, QuotationRecord, UserRole } from '@/lib/types';
 import { getRoomSuggestions } from '@/lib/roomSuggestions';
+import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import { BRAND } from '@/lib/branding';
@@ -78,9 +79,14 @@ function defaultDetails(currentUser: CurrentUser): QuotationDetails {
 
 interface QuotationCalculatorProps {
   currentUser: CurrentUser;
+  // Markup %, discounts, and custom-product pricing are locked for everyone
+  // except Manager/Admin/Super Admin (Role Management's isPrivileged flag) —
+  // a regular sales rep can configure and add products but can't change the
+  // numbers that set profit margin.
+  canEditPricing: boolean;
 }
 
-function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
+function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCalculatorProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Nothing is pre-selected — on login and again after every "Add to Quote",
@@ -540,6 +546,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
                       step={1}
                       min={1}
                       value={roomSeats}
+                      onFocus={selectAllOnFocus}
                       onChange={(e) => setRoomSeats(Math.max(1, parseInt(e.target.value, 10) || 1))}
                     />
                   </div>
@@ -581,10 +588,12 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
                 onChange={(patch) => setCostInputs((c) => ({ ...c, ...patch }))}
                 showInstallFabrication={isAv}
                 showScaffolding={showScaffolding}
+                canEditMarkup={canEditPricing}
               />
 
               <CartList
                 items={cartItems}
+                hasActiveProduct={!!activeResult && activeResult.lineItems.length > 0}
                 onAdd={handleAddToQuote}
                 onRemove={(id) => {
                   setCartItems((prev) => prev.filter((p) => p.id !== id));
@@ -602,6 +611,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
                 onAdd={() => setDiscounts((prev) => [...prev, { id: nextId.current++, label: 'Discount', type: 'percent', value: 0 }])}
                 onChangeItem={(id, patch) => setDiscounts((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)))}
                 onRemove={(id) => setDiscounts((prev) => prev.filter((d) => d.id !== id))}
+                canEdit={canEditPricing}
               />
 
               <CustomProductsList
@@ -610,6 +620,7 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
                 onAddFromCatalog={(product) => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: product.name, qty: product.defaultQty || 1, price: product.sellingPrice }])}
                 onChangeItem={(id, patch) => setCustomProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))}
                 onRemove={(id) => setCustomProducts((prev) => prev.filter((p) => p.id !== id))}
+                canEditPrice={canEditPricing}
               />
             </div>
           </div>
@@ -686,10 +697,10 @@ function QuotationCalculatorContent({ currentUser }: QuotationCalculatorProps) {
   );
 }
 
-export default function QuotationCalculator({ currentUser }: QuotationCalculatorProps) {
+export default function QuotationCalculator({ currentUser, canEditPricing }: QuotationCalculatorProps) {
   return (
     <Suspense fallback={<div className={styles.page} />}>
-      <QuotationCalculatorContent currentUser={currentUser} />
+      <QuotationCalculatorContent currentUser={currentUser} canEditPricing={canEditPricing} />
     </Suspense>
   );
 }

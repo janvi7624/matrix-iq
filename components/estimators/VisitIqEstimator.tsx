@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { visitIqAddOns, visitIqPlans } from '@/lib/data/visitiq';
 import { formatMoney } from '@/lib/format';
+import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
 import styles from '../calculator.module.css';
 
@@ -134,15 +135,15 @@ export default function VisitIqEstimator({ active, onResultChange }: VisitIqEsti
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="visitiqExtraRobots">Extra Temi robots ({formatMoney(1599)}/mo each)</label>
-          <input id="visitiqExtraRobots" className={styles.formControl} type="number" step={1} min={0} value={extraRobots} onChange={(e) => setExtraRobots(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+          <input id="visitiqExtraRobots" className={styles.formControl} type="number" step={1} min={0} value={extraRobots} onFocus={selectAllOnFocus} onChange={(e) => setExtraRobots(Math.max(0, parseInt(e.target.value, 10) || 0))} />
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="visitiqExtraKiosks">Extra kiosk screens ({formatMoney(699)}/mo each)</label>
-          <input id="visitiqExtraKiosks" className={styles.formControl} type="number" step={1} min={0} value={extraKiosks} onChange={(e) => setExtraKiosks(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+          <input id="visitiqExtraKiosks" className={styles.formControl} type="number" step={1} min={0} value={extraKiosks} onFocus={selectAllOnFocus} onChange={(e) => setExtraKiosks(Math.max(0, parseInt(e.target.value, 10) || 0))} />
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="visitiqExtraEmployees">Extra employee blocks of 25 ({formatMoney(299)}/mo each)</label>
-          <input id="visitiqExtraEmployees" className={styles.formControl} type="number" step={1} min={0} value={extraEmployeeBlocks} onChange={(e) => setExtraEmployeeBlocks(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+          <input id="visitiqExtraEmployees" className={styles.formControl} type="number" step={1} min={0} value={extraEmployeeBlocks} onFocus={selectAllOnFocus} onChange={(e) => setExtraEmployeeBlocks(Math.max(0, parseInt(e.target.value, 10) || 0))} />
         </div>
       </div>
 

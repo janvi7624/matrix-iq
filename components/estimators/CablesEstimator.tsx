@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { CABLE_SERIES, cableProducts } from '@/lib/data/cableProducts';
 import { formatMoney } from '@/lib/format';
+import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { ModelPreset } from './ConferenceEstimator';
 import styles from '../calculator.module.css';
@@ -118,7 +119,7 @@ export default function CablesEstimator({ active, costInputs, onResultChange, pr
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="cableQuantity">Quantity</label>
-          <input id="cableQuantity" className={styles.formControl} type="number" step={1} min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))} />
+          <input id="cableQuantity" className={styles.formControl} type="number" step={1} min={1} value={quantity} onFocus={selectAllOnFocus} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))} />
         </div>
       </div>
       <div className={`${styles.row} ${styles.columns}`}>

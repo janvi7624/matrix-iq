@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { roboticsProducts } from '@/lib/data/roboticsProducts';
 import { formatMoney } from '@/lib/format';
+import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
 import styles from '../calculator.module.css';
 
@@ -72,7 +73,7 @@ export default function RoboticsEstimator({ active, onResultChange }: RoboticsEs
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="roboticsQuantity">Quantity</label>
-          <input id="roboticsQuantity" className={styles.formControl} type="number" step={1} min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))} />
+          <input id="roboticsQuantity" className={styles.formControl} type="number" step={1} min={1} value={quantity} onFocus={selectAllOnFocus} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))} />
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="roboticsDetails">Model details</label>

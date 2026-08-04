@@ -9,9 +9,13 @@ interface CartListProps {
   onAdd: () => void;
   onRemove: (id: number) => void;
   onChangeRemark: (id: number, remark: string) => void;
+  // Whether a product is actually configured above right now — used to make
+  // the "add" button visually obvious as the next step (solid, primary)
+  // instead of looking like just another dashed "+" button on the page.
+  hasActiveProduct: boolean;
 }
 
-export default function CartList({ items, onAdd, onRemove, onChangeRemark }: CartListProps) {
+export default function CartList({ items, onAdd, onRemove, onChangeRemark, hasActiveProduct }: CartListProps) {
   return (
     <div className={styles.row}>
       <div className={styles.field}>
@@ -36,10 +40,19 @@ export default function CartList({ items, onAdd, onRemove, onChangeRemark }: Car
             </div>
           ))}
         </div>
-        <button type="button" className={styles.secondaryButton} onClick={onAdd}>
-          + Add configured product to quote
+        <button
+          type="button"
+          className={hasActiveProduct ? styles.btn : styles.secondaryButton}
+          onClick={onAdd}
+          style={{ width: '100%' }}
+        >
+          {hasActiveProduct ? '✅ Add This Product to the Quote' : 'Add This Product to the Quote'}
         </button>
-        <div className={styles.small}>Configure a product above (any domain), then click this to add it here. Change the domain/model and click again to add another product to the same quote.</div>
+        <div className={styles.small}>
+          {hasActiveProduct
+            ? 'Ready to add. Tap the button above, then pick another product to add more.'
+            : 'Fill in the product details above first — this button turns solid red once it’s ready to add.'}
+        </div>
       </div>
     </div>
   );

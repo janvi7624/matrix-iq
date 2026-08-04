@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AI_SLAB_LABELS, aiAnalytics, getAiSlabIndex } from '@/lib/data/aiAnalytics';
 import { AI_SALES_GUIDELINES, AI_SETUP_COST_BY_SLAB, AI_WORKED_EXAMPLE, aiBundles, resolveBundleFeatureNames } from '@/lib/data/aiBundles';
 import { formatMoney, slugify } from '@/lib/format';
+import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
 import styles from '../calculator.module.css';
 
@@ -105,7 +106,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="aiCameraCount">Number of cameras</label>
-          <input id="aiCameraCount" className={styles.formControl} type="number" step={1} min={1} value={cameraCount} onChange={(e) => setCameraCount(parseInt(e.target.value, 10) || 1)} />
+          <input id="aiCameraCount" className={styles.formControl} type="number" step={1} min={1} value={cameraCount} onFocus={selectAllOnFocus} onChange={(e) => setCameraCount(parseInt(e.target.value, 10) || 1)} />
         </div>
         <div className={styles.field}>
           <label className={styles.label}>Volume slab</label>
@@ -156,7 +157,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="aiOneTimeCost">One-time implementation &amp; configuration cost (₹)</label>
-          <input id="aiOneTimeCost" className={styles.formControl} type="number" step="any" min={0} value={oneTimeCost} onChange={(e) => setOneTimeCost(parseFloat(e.target.value) || 0)} />
+          <input id="aiOneTimeCost" className={styles.formControl} type="number" step="any" min={0} value={oneTimeCost} onFocus={selectAllOnFocus} onChange={(e) => setOneTimeCost(parseFloat(e.target.value) || 0)} />
           <div className={styles.small} style={{ marginTop: 6 }}>
             Recommended for {AI_SLAB_LABELS[slabIndex]}: {formatMoney(recommendedSetupCost)}{' '}
             <button type="button" className={styles.secondaryButton} onClick={() => setOneTimeCost(recommendedSetupCost)}>

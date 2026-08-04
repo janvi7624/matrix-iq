@@ -1,6 +1,7 @@
 'use client';
 
 import { QuotationDetails } from '@/lib/types';
+import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
 
 interface QuotationDetailsFormProps {
@@ -78,6 +79,7 @@ export default function QuotationDetailsForm({ details, onChange }: QuotationDet
               step={1}
               min={1}
               value={details.validityDays}
+              onFocus={selectAllOnFocus}
               onChange={(e) => onChange({ validityDays: Math.max(1, parseInt(e.target.value, 10) || 1) })}
             />
           </div>

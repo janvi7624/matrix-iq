@@ -16,6 +16,7 @@ import {
   parseCustomRatio
 } from '@/lib/ledEngineering';
 import { formatMoney } from '@/lib/format';
+import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import styles from '../calculator.module.css';
 
@@ -181,11 +182,11 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledHeight">Height</label>
-          <input id="ledHeight" className={styles.formControl} type="number" step="any" min={0} value={height} onChange={(e) => setHeight(parseFloat(e.target.value) || 0)} />
+          <input id="ledHeight" className={styles.formControl} type="number" step="any" min={0} value={height} onFocus={selectAllOnFocus} onChange={(e) => setHeight(parseFloat(e.target.value) || 0)} />
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledWidth">Width</label>
-          <input id="ledWidth" className={styles.formControl} type="number" step="any" min={0} value={width} onChange={(e) => setWidth(parseFloat(e.target.value) || 0)} />
+          <input id="ledWidth" className={styles.formControl} type="number" step="any" min={0} value={width} onFocus={selectAllOnFocus} onChange={(e) => setWidth(parseFloat(e.target.value) || 0)} />
         </div>
       </div>
       <div className={`${styles.row} ${styles.columns}`}>
