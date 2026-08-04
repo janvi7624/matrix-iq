@@ -44,7 +44,11 @@ function LoginForm() {
       <form className={styles.loginCard} onSubmit={handleSubmit}>
         <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={96} height={96} className={styles.loginLogo} unoptimized />
         <h1>{BRAND.appName}</h1>
-        <span className={styles.sub}>{BRAND.tagline} — sign in with your username and password to continue.</span>
+        <span className={styles.sub}>
+          {BRAND.tagline}
+          <br />
+          Sign in with your username and password to continue.
+        </span>
         {error && <div className={styles.loginError}>{error}</div>}
         <div className={styles.loginField}>
           <label htmlFor="loginUsername">Username</label>
