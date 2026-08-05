@@ -322,6 +322,71 @@ export interface TravelScheduleRecord {
 }
 
 // ---------------------------------------------------------------------------
+// Marketing Requests — any employee asks the Marketing team for something
+// (brochure, banner, social post, video, etc.); a reviewer (Manager+, or a
+// role explicitly granted the "approve" capability on this module — see
+// lib/permissions.ts's isModuleActionAllowed) commits a delivery timeline
+// that then becomes permanently locked. There is no edit/override path for
+// `timeline` anywhere in the app once it's set — see set-timeline route.
+// ---------------------------------------------------------------------------
+
+export type MarketingRequestType =
+  | 'brochure_flyer'
+  | 'social_media'
+  | 'banner_standee'
+  | 'video_reel'
+  | 'email_campaign'
+  | 'website_update'
+  | 'product_photography'
+  | 'event_collateral'
+  | 'other';
+
+export type MarketingRequestPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export type MarketingRequestStatus =
+  | 'submitted'
+  | 'timeline_set'
+  | 'in_progress'
+  | 'completed'
+  | 'rejected'
+  | 'cancelled';
+
+export interface MarketingRequestTimeline {
+  expectedDeliveryDate: string;
+  setBy: string;
+  setAt: string;
+  remarks: string;
+}
+
+export interface MarketingRequestComment {
+  id: string;
+  at: string;
+  by: string;
+  text: string;
+}
+
+export interface MarketingRequestRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  project_id: string;
+  title: string;
+  request_type: MarketingRequestType;
+  description: string;
+  priority: MarketingRequestPriority;
+  needed_by_date: string;
+  attachments: string[];
+  status: MarketingRequestStatus;
+  // null until a reviewer commits it — once non-null, permanently locked.
+  timeline: MarketingRequestTimeline | null;
+  rejection_reason: string;
+  completion_notes: string;
+  delivered_files: string[];
+  comments: MarketingRequestComment[];
+}
+
+// ---------------------------------------------------------------------------
 // Sales Project Workflow — a Project is the master record every stage below
 // (Site Visit, Quotation, Demo, Customer Response, Negotiation, PO,
 // Installation) attaches to via project_id, so a project's full history can
@@ -435,7 +500,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request';
   entity_id: string;
   action: string;
   previous_status: string;

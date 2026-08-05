@@ -99,6 +99,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [backOfficeKpis, setBackOfficeKpis] = useState<BackOfficeKpis | null>(null);
   const [modules, setModules] = useState<ModuleConfigRecord[] | null>(null);
   const [unattendedLeads, setUnattendedLeads] = useState<number | null>(null);
+  const [marketingStats, setMarketingStats] = useState<{ isReviewer: boolean; awaitingReview?: number; myOpenCount?: number } | null>(null);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
@@ -171,6 +172,13 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       .catch(() => setUnattendedLeads(null));
   }, []);
 
+  useEffect(() => {
+    fetch('/api/marketing-requests/stats')
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setMarketingStats)
+      .catch(() => setMarketingStats(null));
+  }, []);
+
   return (
     <div className={historyStyles.body}>
       <PortalHeader title={BRAND.appName} subtitle={BRAND.tagline} showBackLink={false} />
@@ -219,6 +227,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
             <Link href="/leads?filter=unattended" className={`${styles.kpiCard} ${styles.kpiCardAlert}`}>
               <div className={styles.kpiValue}>🚨 {unattendedLeads}</div>
               <div className={styles.kpiLabel}>Unattended Leads</div>
+            </Link>
+          </div>
+        )}
+
+        {marketingStats?.isReviewer && !!marketingStats.awaitingReview && (
+          <div className={styles.kpiGrid}>
+            <Link href="/marketing-requests?filter=submitted" className={`${styles.kpiCard} ${styles.kpiCardAlert}`}>
+              <div className={styles.kpiValue}>📣 {marketingStats.awaitingReview}</div>
+              <div className={styles.kpiLabel}>Marketing Tickets Awaiting Review</div>
             </Link>
           </div>
         )}
