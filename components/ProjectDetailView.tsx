@@ -22,7 +22,7 @@ import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as VISIT_STAGE_LABEL } from '@/lib/siteVisitReminder';
 import { parseFollowUpNotes } from '@/lib/followUp';
 import { exportListToPdf } from '@/lib/exportPdf';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -334,13 +334,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
   if (status && !data) {
     return (
-      <div className={historyStyles.body}>
-        <PortalHeader title="Project Detail" subtitle="Loading…" />
-        <main className={historyStyles.main}>
+      <AppShell title="Project Detail" subtitle="Loading…">
           <div className={historyStyles.status}>{status}</div>
           <Link className={historyStyles.button} href="/projects">&larr; All Projects</Link>
-        </main>
-      </div>
+      </AppShell>
     );
   }
   if (!data) return null;
@@ -362,9 +359,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const lastActivity = [...project.timeline].sort((a, b) => (a.at < b.at ? 1 : -1))[0];
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title={project.client_name || project.company || `Project ${project.id}`} subtitle={`Project ${project.id} — the central workspace for this deal.`} />
-      <main className={historyStyles.main}>
+    <AppShell title={project.client_name || project.company || `Project ${project.id}`} subtitle={`Project ${project.id} — the central workspace for this deal.`}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           <Link className={historyStyles.button} href="/projects">&larr; All Projects</Link>
           <button type="button" className={historyStyles.button} onClick={handleExportPdf}>Export Timeline PDF</button>
@@ -779,7 +774,6 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             </form>
           </div>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

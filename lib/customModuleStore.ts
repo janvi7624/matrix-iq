@@ -1,31 +1,58 @@
-import { readJsonBlob, writeJsonBlob } from './blobStore';
+import { Model } from 'sequelize';
 import { CustomFieldDef, CustomModuleDef } from './types';
+import { db, isUuid, sequelize } from './db';
 import { upsertCustomModuleTile, removeCustomModuleTile, isModuleVisibleToRole } from './moduleConfigStore';
 import { ViewerContext } from './viewerContext';
 
-const DATA_PATHNAME = 'data/customModules.json';
-
-async function readAll(): Promise<CustomModuleDef[]> {
-  return readJsonBlob<CustomModuleDef[]>(DATA_PATHNAME, []);
+function isoOrEmpty(value: unknown): string {
+  if (!value) return '';
+  return value instanceof Date ? value.toISOString() : String(value);
 }
 
-async function writeAll(records: CustomModuleDef[]): Promise<void> {
-  await writeJsonBlob(DATA_PATHNAME, records);
+const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
+const fieldsInclude = { model: db.CustomModuleField, as: 'fields', separate: true, order: [['order', 'ASC']] };
+
+function toRecord(row: Model): CustomModuleDef {
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  const fields = ((plain.fields as Record<string, unknown>[]) ?? []).map(
+    (f): CustomFieldDef => ({
+      id: f.id as string,
+      label: (f.label as string) ?? '',
+      type: f.type as CustomFieldDef['type'],
+      required: f.required as boolean,
+      options: (f.options as string[]) ?? [],
+      order: f.order as number
+    })
+  );
+  return {
+    id: plain.id as string,
+    key: plain.key as string,
+    name: (plain.name as string) ?? '',
+    icon: (plain.icon as string) ?? '',
+    section: (plain.section as string) ?? '',
+    created_at: isoOrEmpty(plain.createdAt),
+    created_by: (plain.creator as { username?: string } | null)?.username ?? '',
+    fields,
+    requiresApproval: plain.requiresApproval as boolean,
+    approverRole: (plain.approverRole as string) ?? '',
+    enabled: plain.enabled as boolean
+  };
 }
 
 export async function listCustomModules(): Promise<CustomModuleDef[]> {
-  const records = await readAll();
-  return [...records].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  const rows = await db.CustomModule.findAll({ include: [creatorInclude, fieldsInclude] as never, order: [['createdAt', 'DESC']] });
+  return rows.map(toRecord);
 }
 
 export async function findCustomModuleById(id: string): Promise<CustomModuleDef | undefined> {
-  const records = await readAll();
-  return records.find((m) => m.id === id);
+  if (!isUuid(id)) return undefined;
+  const row = await db.CustomModule.findByPk(id, { include: [creatorInclude, fieldsInclude] as never });
+  return row ? toRecord(row) : undefined;
 }
 
 export async function findCustomModuleByKey(key: string): Promise<CustomModuleDef | undefined> {
-  const records = await readAll();
-  return records.find((m) => m.key === key);
+  const row = await db.CustomModule.findOne({ where: { key } as never, include: [creatorInclude, fieldsInclude] as never });
+  return row ? toRecord(row) : undefined;
 }
 
 // Shared by every /api/custom-modules/[key]/* route — resolves the module
@@ -39,11 +66,13 @@ export async function getModuleForViewer(key: string, viewer: ViewerContext): Pr
 }
 
 function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || `module-${Date.now()}`;
+  return (
+    name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || `module-${Date.now()}`
+  );
 }
 
 export interface CustomModuleInput {
@@ -57,58 +86,84 @@ export interface CustomModuleInput {
 }
 
 export async function createCustomModule(input: CustomModuleInput, createdBy: string): Promise<CustomModuleDef> {
-  const records = await readAll();
+  const existingKeys = new Set((await db.CustomModule.findAll({ attributes: ['key'] })).map((m) => m.get('key') as string));
   let key = slugify(input.name);
   let suffix = 1;
-  while (records.some((m) => m.key === key)) {
+  while (existingKeys.has(key)) {
     key = `${slugify(input.name)}-${++suffix}`;
   }
+  const creator = await db.User.findOne({ where: { username: createdBy } as never });
 
-  const record: CustomModuleDef = {
-    id: `${Date.now()}`,
-    key,
-    name: input.name,
-    icon: input.icon || '🧩',
-    section: input.section || 'Custom Modules',
-    created_at: new Date().toISOString(),
-    created_by: createdBy,
-    fields: input.fields.map((f, i) => ({ ...f, order: i })),
-    requiresApproval: input.requiresApproval,
-    approverRole: input.approverRole,
-    enabled: input.enabled
-  };
-  records.push(record);
-  await writeAll(records);
-  await upsertCustomModuleTile({ key: record.key, label: record.name, icon: record.icon, section: record.section, enabled: record.enabled });
-  return record;
+  const id = await sequelize.transaction(async (t) => {
+    const row = await db.CustomModule.create(
+      { key, name: input.name, icon: input.icon || '🧩', section: input.section || 'Custom Modules', createdBy: creator ? creator.get('id') : null, requiresApproval: input.requiresApproval, approverRole: input.approverRole, enabled: input.enabled } as never,
+      { transaction: t }
+    );
+    if (input.fields.length) {
+      await db.CustomModuleField.bulkCreate(
+        input.fields.map((f, i) => ({ customModuleId: row.get('id'), label: f.label, type: f.type, required: f.required, options: f.options, order: i })) as never,
+        { transaction: t }
+      );
+    }
+    return row.get('id') as string;
+  });
+
+  const created = (await findCustomModuleById(id)) as CustomModuleDef;
+  await upsertCustomModuleTile({ key: created.key, label: created.name, icon: created.icon, section: created.section, enabled: created.enabled });
+  return created;
 }
 
 export async function updateCustomModule(id: string, patch: Partial<CustomModuleInput>): Promise<CustomModuleDef | null> {
-  const records = await readAll();
-  const index = records.findIndex((m) => m.id === id);
-  if (index === -1) return null;
+  if (!isUuid(id)) return null;
+  const row = await db.CustomModule.findByPk(id);
+  if (!row) return null;
 
-  const updated: CustomModuleDef = {
-    ...records[index],
-    name: patch.name ?? records[index].name,
-    icon: patch.icon ?? records[index].icon,
-    section: patch.section ?? records[index].section,
-    fields: patch.fields ? patch.fields.map((f, i) => ({ ...f, order: i })) : records[index].fields,
-    requiresApproval: patch.requiresApproval ?? records[index].requiresApproval,
-    approverRole: patch.approverRole ?? records[index].approverRole,
-    enabled: patch.enabled ?? records[index].enabled
-  };
-  records[index] = updated;
-  await writeAll(records);
+  await sequelize.transaction(async (t) => {
+    const attrs: Record<string, unknown> = {};
+    if (patch.name !== undefined) attrs.name = patch.name;
+    if (patch.icon !== undefined) attrs.icon = patch.icon;
+    if (patch.section !== undefined) attrs.section = patch.section;
+    if (patch.requiresApproval !== undefined) attrs.requiresApproval = patch.requiresApproval;
+    if (patch.approverRole !== undefined) attrs.approverRole = patch.approverRole;
+    if (patch.enabled !== undefined) attrs.enabled = patch.enabled;
+    if (Object.keys(attrs).length) await row.update(attrs as never, { transaction: t });
+
+    if (patch.fields) {
+      // Diff-sync rather than delete-and-recreate: existing field ids are
+      // real UUIDs already referenced by custom_module_records.values keys,
+      // so a retained field must keep its id, not get a fresh one.
+      const existingRows = await db.CustomModuleField.findAll({ where: { customModuleId: id } as never, transaction: t });
+      const existingIds = new Set(existingRows.map((f) => f.get('id') as string));
+      const incomingIds = new Set(patch.fields.filter((f) => existingIds.has(f.id)).map((f) => f.id));
+
+      const toDelete = existingRows.filter((f) => !incomingIds.has(f.get('id') as string));
+      if (toDelete.length) {
+        await db.CustomModuleField.destroy({ where: { id: toDelete.map((f) => f.get('id')) } as never, transaction: t });
+      }
+
+      for (let i = 0; i < patch.fields.length; i++) {
+        const f = patch.fields[i];
+        const attrs = { label: f.label, type: f.type, required: f.required, options: f.options, order: i };
+        if (existingIds.has(f.id)) {
+          await db.CustomModuleField.update(attrs as never, { where: { id: f.id } as never, transaction: t });
+        } else {
+          await db.CustomModuleField.create({ customModuleId: id, ...attrs } as never, { transaction: t });
+        }
+      }
+    }
+  });
+
+  const updated = (await findCustomModuleById(id)) as CustomModuleDef;
   await upsertCustomModuleTile({ key: updated.key, label: updated.name, icon: updated.icon, section: updated.section, enabled: updated.enabled });
   return updated;
 }
 
 export async function deleteCustomModule(id: string): Promise<boolean> {
-  const records = await readAll();
-  const existing = records.find((m) => m.id === id);
-  if (!existing) return false;
-  await writeAll(records.filter((m) => m.id !== id));
-  await removeCustomModuleTile(existing.key);
+  if (!isUuid(id)) return false;
+  const row = await db.CustomModule.findByPk(id);
+  if (!row) return false;
+  const key = row.get('key') as string;
+  await row.destroy();
+  await removeCustomModuleTile(key);
   return true;
 }

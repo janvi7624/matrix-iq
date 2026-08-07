@@ -1,40 +1,45 @@
-import { readJsonBlob, writeJsonBlob } from './blobStore';
+import { Model } from 'sequelize';
 import { DepartmentRecord } from './types';
-import { listUsers } from './userStore';
+import { db, isUuid } from './db';
 
-const DATA_PATHNAME = 'data/departments.json';
+function isoOrEmpty(value: unknown): string {
+  if (!value) return '';
+  return value instanceof Date ? value.toISOString() : String(value);
+}
 
 // First-run seed only — from here on, Super Admin manages departments entirely
 // from /admin/departments. No department name is hardcoded anywhere else in
 // the app; the User form's Department field reads from this list.
 const SEED_NAMES = ['Sales', 'Technical', 'Back Office', 'Accounts', 'HR', 'Purchase', 'Inventory', 'Marketing', 'Management', 'Administration'];
 
-async function readAll(): Promise<DepartmentRecord[]> {
-  const stored = await readJsonBlob<DepartmentRecord[]>(DATA_PATHNAME, []);
-  if (stored.length > 0) return stored;
-  const now = new Date().toISOString();
-  const seeded: DepartmentRecord[] = SEED_NAMES.map((name, i) => ({
-    id: `seed-${i}`,
-    name,
-    description: '',
-    order: i + 1,
-    status: 'active',
-    created_at: now,
-    created_by: 'system',
-    updated_at: now,
-    updated_by: 'system'
-  }));
-  await writeJsonBlob(DATA_PATHNAME, seeded);
-  return seeded;
+async function ensureSeeded(): Promise<void> {
+  const count = await db.Department.count();
+  if (count > 0) return;
+  await db.Department.bulkCreate(SEED_NAMES.map((name, i) => ({ name, description: '', order: i + 1, status: 'active' })) as never);
 }
 
-async function writeAll(records: DepartmentRecord[]): Promise<void> {
-  await writeJsonBlob(DATA_PATHNAME, records);
+const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
+const updaterInclude = { model: db.User, as: 'updater', attributes: ['id', 'username'] };
+
+function toRecord(row: Model): DepartmentRecord {
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  return {
+    id: plain.id as string,
+    name: plain.name as string,
+    description: (plain.description as string) ?? '',
+    order: plain.order as number,
+    status: plain.status as DepartmentRecord['status'],
+    created_at: isoOrEmpty(plain.createdAt),
+    created_by: (plain.creator as { username?: string } | null)?.username ?? '',
+    updated_at: isoOrEmpty(plain.updatedAt),
+    updated_by: (plain.updater as { username?: string } | null)?.username ?? ''
+  };
 }
 
 export async function listDepartments(): Promise<DepartmentRecord[]> {
-  const records = await readAll();
-  return [...records].sort((a, b) => a.order - b.order);
+  await ensureSeeded();
+  const rows = await db.Department.findAll({ include: [creatorInclude, updaterInclude], order: [['order', 'ASC']] });
+  return rows.map(toRecord);
 }
 
 export async function listActiveDepartments(): Promise<DepartmentRecord[]> {
@@ -43,8 +48,9 @@ export async function listActiveDepartments(): Promise<DepartmentRecord[]> {
 }
 
 export async function findDepartmentById(id: string): Promise<DepartmentRecord | undefined> {
-  const records = await readAll();
-  return records.find((d) => d.id === id);
+  if (!isUuid(id)) return undefined;
+  const row = await db.Department.findByPk(id, { include: [creatorInclude, updaterInclude] });
+  return row ? toRecord(row) : undefined;
 }
 
 export interface DepartmentInput {
@@ -53,23 +59,18 @@ export interface DepartmentInput {
 }
 
 export async function createDepartment(input: DepartmentInput, createdBy: string): Promise<DepartmentRecord> {
-  const records = await readAll();
-  const now = new Date().toISOString();
-  const maxOrder = records.reduce((acc, d) => Math.max(acc, d.order), 0);
-  const record: DepartmentRecord = {
-    id: `${Date.now()}`,
+  await ensureSeeded();
+  const maxOrder = ((await db.Department.max('order')) as number) || 0;
+  const creator = await db.User.findOne({ where: { username: createdBy } as never });
+  const row = await db.Department.create({
     name: input.name,
     description: input.description || '',
     order: maxOrder + 1,
     status: 'active',
-    created_at: now,
-    created_by: createdBy,
-    updated_at: now,
-    updated_by: createdBy
-  };
-  records.push(record);
-  await writeAll(records);
-  return record;
+    createdBy: creator ? creator.get('id') : null,
+    updatedBy: creator ? creator.get('id') : null
+  } as never);
+  return (await findDepartmentById(row.get('id') as string)) as DepartmentRecord;
 }
 
 export interface DepartmentUpdateInput {
@@ -79,46 +80,34 @@ export interface DepartmentUpdateInput {
 }
 
 export async function updateDepartment(id: string, patch: DepartmentUpdateInput, updatedBy: string): Promise<DepartmentRecord | null> {
-  const records = await readAll();
-  const index = records.findIndex((d) => d.id === id);
-  if (index === -1) return null;
-  records[index] = {
-    ...records[index],
-    name: patch.name ?? records[index].name,
-    description: patch.description ?? records[index].description,
-    status: patch.status ?? records[index].status,
-    updated_at: new Date().toISOString(),
-    updated_by: updatedBy
-  };
-  await writeAll(records);
-  return records[index];
+  if (!isUuid(id)) return null;
+  const row = await db.Department.findByPk(id);
+  if (!row) return null;
+  const updater = await db.User.findOne({ where: { username: updatedBy } as never });
+  await row.update({ name: patch.name, description: patch.description, status: patch.status, updatedBy: updater ? updater.get('id') : null } as never);
+  return (await findDepartmentById(id)) ?? null;
 }
 
 export async function reorderDepartments(orderedIds: string[]): Promise<void> {
-  const records = await readAll();
-  const byId = new Map(records.map((d) => [d.id, d]));
-  orderedIds.forEach((id, i) => {
-    const record = byId.get(id);
-    if (record) record.order = i + 1;
-  });
-  await writeAll([...byId.values()]);
+  await Promise.all(orderedIds.map((id, i) => db.Department.update({ order: i + 1 } as never, { where: { id } as never })));
 }
 
 // A department in use by at least one user can't be deleted (would leave
 // user records pointing at a department that no longer exists) — deactivate
 // it instead so it drops out of new-user dropdowns without breaking history.
 export async function isDepartmentInUse(name: string): Promise<boolean> {
-  const users = await listUsers();
-  return users.some((u) => u.department === name);
+  const count = await db.User.count({ where: { department: name } as never });
+  return count > 0;
 }
 
 export async function deleteDepartment(id: string): Promise<{ ok: boolean; reason?: string }> {
-  const records = await readAll();
-  const existing = records.find((d) => d.id === id);
-  if (!existing) return { ok: false, reason: 'Department not found' };
-  if (await isDepartmentInUse(existing.name)) {
+  if (!isUuid(id)) return { ok: false, reason: 'Department not found' };
+  const row = await db.Department.findByPk(id);
+  if (!row) return { ok: false, reason: 'Department not found' };
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  if (await isDepartmentInUse(plain.name as string)) {
     return { ok: false, reason: 'Department is assigned to one or more users — deactivate it instead' };
   }
-  await writeAll(records.filter((d) => d.id !== id));
+  await row.destroy();
   return { ok: true };
 }

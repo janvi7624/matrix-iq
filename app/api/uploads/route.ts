@@ -1,4 +1,4 @@
-import { put } from '@vercel/blob';
+import { putFile } from '@/lib/supabaseStorage';
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -24,9 +24,9 @@ export async function POST(request: NextRequest) {
       if (file.size > MAX_FILE_BYTES) {
         return NextResponse.json({ error: `${file.name} is larger than 10MB` }, { status: 400 });
       }
-      const pathname = `uploads/${folder}/${viewer.username}/${Date.now()}-${file.name}`;
-      const blob = await put(pathname, file, { access: 'private', addRandomSuffix: true });
-      urls.push(`/api/uploads/file/${blob.pathname.split('/').map(encodeURIComponent).join('/')}`);
+      const pathname = `uploads/${folder}/${viewer.username}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${file.name}`;
+      const { pathname: stored } = await putFile(pathname, file);
+      urls.push(`/api/uploads/file/${stored.split('/').map(encodeURIComponent).join('/')}`);
     }
 
     return NextResponse.json({ urls });

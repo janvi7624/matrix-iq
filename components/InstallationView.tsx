@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { InstallationRecord, ProjectRecord, UserRole } from '@/lib/types';
 import { exportListToPdf } from '@/lib/exportPdf';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -186,9 +186,7 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Installation" subtitle="Schedule installs, assign an engineer, and close out with a completion report." />
-      <main className={historyStyles.main}>
+    <AppShell title="Installation" subtitle="Schedule installs, assign an engineer, and close out with a completion report.">
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Schedule an installation</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -244,7 +242,6 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
             </tbody>
           </table>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { TravelScheduleRecord, UserRole } from '@/lib/types';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import historyStyles from './quotationHistory.module.css';
@@ -86,9 +86,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Travel Schedule" subtitle="Log rep travel for client visits." />
-      <main className={historyStyles.main}>
+    <AppShell title="Travel Schedule" subtitle="Log rep travel for client visits.">
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Add travel entry</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -179,7 +177,6 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
             </tbody>
           </table>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

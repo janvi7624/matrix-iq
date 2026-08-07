@@ -1,17 +1,26 @@
-import { readJsonBlob, writeJsonBlob } from './blobStore';
+import { Model } from 'sequelize';
 import { CustomModuleDef, CustomModuleRecord, CustomRecordStatus } from './types';
+import { db, isUuid } from './db';
 import { ViewerContext } from './viewerContext';
 
-function pathnameFor(moduleKey: string): string {
-  return `data/customModuleRecords/${moduleKey}.json`;
+function isoOrEmpty(value: unknown): string {
+  if (!value) return '';
+  return value instanceof Date ? value.toISOString() : String(value);
 }
 
-async function readAll(moduleKey: string): Promise<CustomModuleRecord[]> {
-  return readJsonBlob<CustomModuleRecord[]>(pathnameFor(moduleKey), []);
-}
+const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
 
-async function writeAll(moduleKey: string, records: CustomModuleRecord[]): Promise<void> {
-  await writeJsonBlob(pathnameFor(moduleKey), records);
+function toRecord(row: Model): CustomModuleRecord {
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  return {
+    id: plain.id as string,
+    created_at: isoOrEmpty(plain.createdAt),
+    created_by: (plain.creator as { username?: string } | null)?.username ?? '',
+    updated_at: isoOrEmpty(plain.updatedAt),
+    status: plain.status as CustomRecordStatus,
+    values: (plain.values as Record<string, unknown>) ?? {},
+    attachments: (plain.attachments as string[]) ?? []
+  };
 }
 
 // Same "privileged sees everything, everyone else sees only their own" rule
@@ -19,56 +28,51 @@ async function writeAll(moduleKey: string, records: CustomModuleRecord[]): Promi
 // designated approver role can also see records still pending their
 // decision (otherwise they'd have no way to find what needs approving).
 export async function listCustomModuleRecords(def: CustomModuleDef, viewer: ViewerContext): Promise<CustomModuleRecord[]> {
-  const records = await readAll(def.key);
   const isApproverForPending = def.requiresApproval && def.approverRole && viewer.role === def.approverRole;
-  const scoped = viewer.isPrivileged
-    ? records
-    : records.filter((r) => r.created_by === viewer.username || (isApproverForPending && r.status === 'pending_approval'));
-  return [...scoped].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  const rows = await db.CustomModuleRecord.findAll({ where: { customModuleId: def.id } as never, include: [creatorInclude], order: [['createdAt', 'DESC']] });
+  const records = rows.map(toRecord);
+  if (viewer.isPrivileged) return records;
+  return records.filter((r) => r.created_by === viewer.username || (isApproverForPending && r.status === 'pending_approval'));
 }
 
 export async function findCustomModuleRecordById(moduleKey: string, id: string): Promise<CustomModuleRecord | undefined> {
-  const records = await readAll(moduleKey);
-  return records.find((r) => r.id === id);
+  if (!isUuid(id)) return undefined;
+  const def = await db.CustomModule.findOne({ where: { key: moduleKey } as never });
+  if (!def) return undefined;
+  const row = await db.CustomModuleRecord.findOne({ where: { id, customModuleId: def.get('id') } as never, include: [creatorInclude] });
+  return row ? toRecord(row) : undefined;
 }
 
 export async function createCustomModuleRecord(def: CustomModuleDef, values: Record<string, unknown>, attachments: string[], createdBy: string): Promise<CustomModuleRecord> {
-  const records = await readAll(def.key);
-  const now = new Date().toISOString();
-  const record: CustomModuleRecord = {
-    id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-    created_at: now,
-    created_by: createdBy,
-    updated_at: now,
+  const creator = await db.User.findOne({ where: { username: createdBy } as never });
+  const row = await db.CustomModuleRecord.create({
+    customModuleId: def.id,
+    createdBy: creator ? creator.get('id') : null,
     status: def.requiresApproval ? 'pending_approval' : 'active',
     values,
     attachments
-  };
-  records.push(record);
-  await writeAll(def.key, records);
-  return record;
+  } as never);
+  const withAssoc = await db.CustomModuleRecord.findByPk(row.get('id') as string, { include: [creatorInclude] });
+  return toRecord(withAssoc as Model);
 }
 
 export async function updateCustomModuleRecord(moduleKey: string, id: string, patch: { values?: Record<string, unknown>; attachments?: string[]; status?: CustomRecordStatus }): Promise<CustomModuleRecord | null> {
-  const records = await readAll(moduleKey);
-  const index = records.findIndex((r) => r.id === id);
-  if (index === -1) return null;
-  const updated: CustomModuleRecord = {
-    ...records[index],
-    values: patch.values ?? records[index].values,
-    attachments: patch.attachments ?? records[index].attachments,
-    status: patch.status ?? records[index].status,
-    updated_at: new Date().toISOString()
-  };
-  records[index] = updated;
-  await writeAll(moduleKey, records);
-  return updated;
+  if (!isUuid(id)) return null;
+  const def = await db.CustomModule.findOne({ where: { key: moduleKey } as never });
+  if (!def) return null;
+  const row = await db.CustomModuleRecord.findOne({ where: { id, customModuleId: def.get('id') } as never });
+  if (!row) return null;
+  await row.update({ values: patch.values, attachments: patch.attachments, status: patch.status } as never);
+  const withAssoc = await db.CustomModuleRecord.findByPk(id, { include: [creatorInclude] });
+  return toRecord(withAssoc as Model);
 }
 
 export async function deleteCustomModuleRecord(moduleKey: string, id: string): Promise<boolean> {
-  const records = await readAll(moduleKey);
-  const next = records.filter((r) => r.id !== id);
-  if (next.length === records.length) return false;
-  await writeAll(moduleKey, next);
+  if (!isUuid(id)) return false;
+  const def = await db.CustomModule.findOne({ where: { key: moduleKey } as never });
+  if (!def) return false;
+  const row = await db.CustomModuleRecord.findOne({ where: { id, customModuleId: def.get('id') } as never });
+  if (!row) return false;
+  await row.destroy();
   return true;
 }

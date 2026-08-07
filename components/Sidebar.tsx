@@ -1,0 +1,203 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
+import { ModuleConfigRecord, UserRole } from '@/lib/types';
+import { BRAND } from '@/lib/branding';
+import styles from './sidebar.module.css';
+
+interface Viewer {
+  name: string;
+  role: UserRole;
+  department?: string;
+}
+
+const ROLE_LABEL: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical', backoffice: 'Back Office', user: 'Sales' };
+
+// Curated shortcuts for the Quick Actions panel — a subset of the full nav,
+// matched by module key so it stays role-authorized "for free" (only shows
+// entries the /api/modules response actually contains for this viewer).
+const QUICK_ACTION_KEYS = ['quotation', 'site-visits', 'demo-schedule', 'projects'];
+const QUICK_ACTION_ICONS: Record<string, string> = { quotation: '🧾', 'site-visits': '📍', 'demo-schedule': '🖥️', projects: '📁' };
+
+// Data-driven from the same /api/modules endpoint the Dashboard tile grid
+// uses (lib/moduleConfigStore.ts's listVisibleModules) — already filtered
+// server-side to modules that are enabled AND visible to the caller's role,
+// so "role authorized only" needs no extra logic here.
+export default function Sidebar() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [modules, setModules] = useState<ModuleConfigRecord[] | null>(null);
+  const [viewer, setViewer] = useState<Viewer | null>(null);
+  const [badges, setBadges] = useState<Record<string, number>>({});
+  const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/modules')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: ModuleConfigRecord[]) => setModules(data))
+      .catch(() => setModules([]));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: Viewer | null) => setViewer(data))
+      .catch(() => setViewer(null));
+  }, []);
+
+  // One badge count per module key, each sourced from the same stats
+  // endpoints the Dashboard KPI banners already use — purely presentational,
+  // no new business logic, just surfacing existing numbers in the nav.
+  useEffect(() => {
+    if (!viewer) return;
+    const isPrivileged = viewer.role === 'admin' || viewer.role === 'superadmin' || viewer.role === 'manager';
+    const isBackOffice = viewer.role === 'backoffice' || isPrivileged;
+    const isManagerTier = viewer.role === 'manager' || viewer.role === 'admin' || viewer.role === 'superadmin';
+
+    fetch('/api/leads/stats').then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (d?.unattended) setBadges((b) => ({ ...b, leads: d.unattended }));
+    }).catch(() => null);
+
+    fetch('/api/marketing-requests/stats').then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (d?.isReviewer && d.awaitingReview) setBadges((b) => ({ ...b, 'marketing-requests': d.awaitingReview }));
+    }).catch(() => null);
+
+    if (viewer.role === 'technical' || isManagerTier) {
+      fetch('/api/projects/kpis').then((r) => (r.ok ? r.json() : null)).then((d) => {
+        if (d?.pendingApprovals) setBadges((b) => ({ ...b, 'demo-schedule': d.pendingApprovals }));
+      }).catch(() => null);
+    }
+
+    if (isBackOffice) {
+      fetch('/api/backoffice/kpis').then((r) => (r.ok ? r.json() : null)).then((d) => {
+        const count = (d?.pendingDc || 0) + (d?.pendingVerification || 0);
+        if (count) setBadges((b) => ({ ...b, backoffice: count }));
+      }).catch(() => null);
+    }
+  }, [viewer]);
+
+  // Explicit user choice wins; otherwise default to a compact rail on
+  // tablet-width screens and fully expanded everywhere else.
+  useEffect(() => {
+    const saved = window.localStorage.getItem('sidebar-collapsed');
+    if (saved !== null) {
+      setCollapsed(saved === 'true');
+    } else {
+      setCollapsed(window.innerWidth > 768 && window.innerWidth <= 1080);
+    }
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      window.localStorage.setItem('sidebar-collapsed', String(next));
+      return next;
+    });
+  }
+
+  // Closes the mobile drawer automatically after navigating to a new page.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  const sections = useMemo(() => {
+    const groups = new Map<string, ModuleConfigRecord[]>();
+    (modules || []).forEach((m) => {
+      const list = groups.get(m.section) || [];
+      list.push(m);
+      groups.set(m.section, list);
+    });
+    return [...groups.entries()].map(([label, tiles]) => ({ label, tiles: tiles.sort((a, b) => a.order - b.order) }));
+  }, [modules]);
+
+  const quickActions = useMemo(() => {
+    const byKey = new Map((modules || []).map((m) => [m.key, m]));
+    return QUICK_ACTION_KEYS.map((key) => byKey.get(key)).filter((m): m is ModuleConfigRecord => !!m);
+  }, [modules]);
+
+  function isActive(href: string): boolean {
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+    router.push('/login');
+    router.refresh();
+  }
+
+  const initials = viewer?.name ? viewer.name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') : '?';
+
+  return (
+    <>
+      <button type="button" className={styles.toggleBtn} onClick={() => setOpen((v) => !v)} aria-label="Toggle navigation menu">
+        {open ? '✕' : '☰'}
+      </button>
+      {open && <div className={styles.overlay} onClick={() => setOpen(false)} />}
+      <aside className={`${styles.sidebar} ${open ? styles.sidebarOpen : ''} ${collapsed ? styles.sidebarCollapsed : ''}`}>
+        <div className={styles.brand}>
+          <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={32} height={32} className={styles.brandLogo} unoptimized />
+          <div className={styles.brandText}>
+            <div className={styles.brandName}>{BRAND.appName}</div>
+            <div className={styles.brandMeta}>v{BRAND.version}</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          className={styles.collapseBtn}
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          ‹
+        </button>
+
+        <nav className={styles.nav}>
+          <Link href="/" className={`${styles.link} ${isActive('/') ? styles.linkActive : ''}`} data-tooltip="Dashboard">
+            <span className={styles.linkIcon}>🏠</span>
+            <span className={styles.linkLabel}>Dashboard</span>
+          </Link>
+          {sections.map((section) => (
+            <div key={section.label}>
+              <div className={styles.sectionLabel}>{section.label}</div>
+              {section.tiles.map((tile) => (
+                <Link key={tile.id} href={tile.href} className={`${styles.link} ${isActive(tile.href) ? styles.linkActive : ''}`} data-tooltip={tile.label}>
+                  <span className={styles.linkIcon}>{tile.icon}</span>
+                  <span className={styles.linkLabel}>{tile.label}</span>
+                  {!!badges[tile.key] && <span className={styles.badge}>{badges[tile.key]}</span>}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        {quickActions.length > 0 && (
+          <div className={styles.quickActions}>
+            <div className={styles.quickActionsLabel}>Quick Actions</div>
+            <div className={styles.quickActionsGrid}>
+              {quickActions.map((m) => (
+                <Link key={m.id} href={m.href} className={styles.quickActionBtn}>
+                  <span className={styles.quickActionIcon}>{QUICK_ACTION_ICONS[m.key] || m.icon}</span>
+                  {m.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className={styles.profile}>
+          <div className={styles.avatar}>{initials}</div>
+          <div className={styles.profileInfo}>
+            <div className={styles.profileName}>{viewer?.name || '…'}</div>
+            <div className={styles.profileMeta}>{viewer ? ROLE_LABEL[viewer.role] : ''}{viewer?.department ? ` · ${viewer.department}` : ''}</div>
+          </div>
+          <button type="button" className={styles.logoutBtn} onClick={handleLogout} title="Log out" aria-label="Log out">⏻</button>
+        </div>
+      </aside>
+    </>
+  );
+}

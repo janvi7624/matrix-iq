@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { DomainKey, LeadPriority, LeadRecord, UserRole } from '@/lib/types';
 import { LEAD_DOMAIN_TILES, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import LeadCaptureWizard from './LeadCaptureWizard';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -167,9 +167,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Lead Capture" subtitle="Scan a business card at an event, qualify the lead, and follow up — all in one flow." />
-      <main className={historyStyles.main}>
+    <AppShell title="Lead Capture" subtitle="Scan a business card at an event, qualify the lead, and follow up — all in one flow.">
         {stats && (
           <div className={calcStyles.row} style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
             <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
@@ -302,14 +300,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             )}
           </>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }
 
 export default function LeadsView(props: LeadsViewProps) {
   return (
-    <Suspense fallback={<div className={historyStyles.body} />}>
+    <Suspense fallback={<AppShell title="Lead Capture" subtitle="Scan a business card at an event, qualify the lead, and follow up — all in one flow.">{null}</AppShell>}>
       <LeadsViewContent {...props} />
     </Suspense>
   );

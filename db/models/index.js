@@ -1,12 +1,53 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
+// Static requires instead of sequelize-cli's default fs.readdirSync +
+// dynamic require(path.join(__dirname, file)) — Next.js/Turbopack bundles
+// this file for every route/page that touches the store layer (via
+// lib/db.ts) and can't statically follow a dynamic require of sibling files
+// in the same directory ("server relative imports are not implemented yet").
+// sequelize-cli itself (npm run db:migrate) doesn't go through a bundler, so
+// this only needed to change for the app's own runtime, not migrations.
 const Sequelize = require('sequelize');
-const process = require('process');
-const basename = path.basename(__filename);
-const env = process.env.NODE_ENV || 'development';
-const config = require(path.join(__dirname, '..', 'config', 'config.js'))[env];
+const config = require('../config/config.js')[process.env.NODE_ENV || 'development'];
+
+const modelDefiners = [
+  require('./role.js'),
+  require('./user.js'),
+  require('./department.js'),
+  require('./project.js'),
+  require('./projectNote.js'),
+  require('./projectTimelineEvent.js'),
+  require('./lead.js'),
+  require('./siteVisit.js'),
+  require('./siteVisitUpdate.js'),
+  require('./quotation.js'),
+  require('./quotationProduct.js'),
+  require('./quotationFollowUp.js'),
+  require('./demoSchedule.js'),
+  require('./demoProductLine.js'),
+  require('./customerResponse.js'),
+  require('./negotiation.js'),
+  require('./purchaseOrder.js'),
+  require('./installation.js'),
+  require('./deliveryChallan.js'),
+  require('./deliveryChallanItem.js'),
+  require('./productCategory.js'),
+  require('./product.js'),
+  require('./productPricing.js'),
+  require('./travelSchedule.js'),
+  require('./marketingRequest.js'),
+  require('./marketingRequestComment.js'),
+  require('./auditLog.js'),
+  require('./loginHistory.js'),
+  require('./moduleConfig.js'),
+  require('./customModule.js'),
+  require('./customModuleField.js'),
+  require('./customModuleRecord.js'),
+  require('./appConfig.js'),
+  require('./attachment.js'),
+  require('./notification.js')
+];
+
 const db = {};
 
 let sequelize;
@@ -18,20 +59,10 @@ if (config.use_env_variable) {
   sequelize = new Sequelize(config.database, config.username, config.password, config);
 }
 
-fs
-  .readdirSync(__dirname)
-  .filter((file) => {
-    return (
-      file.indexOf('.') !== 0 &&
-      file !== basename &&
-      file.slice(-3) === '.js' &&
-      file.indexOf('.test.js') === -1
-    );
-  })
-  .forEach((file) => {
-    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
-    db[model.name] = model;
-  });
+for (const define of modelDefiners) {
+  const model = define(sequelize, Sequelize.DataTypes);
+  db[model.name] = model;
+}
 
 Object.keys(db).forEach((modelName) => {
   if (db[modelName].associate) {

@@ -1,15 +1,29 @@
-import { readJsonBlob, writeJsonBlob } from './blobStore';
+import { Model, Op } from 'sequelize';
 import { ProductRecord, ProductStatus } from './types';
 import { toCsv, csvRowsToObjects, parseCsv } from './csv';
+import { db, isUuid } from './db';
 
-const DATA_PATHNAME = 'data/products.json';
+const FIELDS = ['name', 'sku', 'category', 'brand', 'description', 'unit', 'hsnSac', 'imageUrl', 'status'] as const;
+const NUMBER_FIELDS = ['defaultQty', 'basePrice', 'sellingPrice', 'taxPercent', 'discountPercent'] as const;
 
-async function readAll(): Promise<ProductRecord[]> {
-  return readJsonBlob<ProductRecord[]>(DATA_PATHNAME, []);
+function isoOrEmpty(value: unknown): string {
+  if (!value) return '';
+  return value instanceof Date ? value.toISOString() : String(value);
 }
 
-async function writeAll(records: ProductRecord[]): Promise<void> {
-  await writeJsonBlob(DATA_PATHNAME, records);
+const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
+
+function toRecord(row: Model): ProductRecord {
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  const record: Record<string, unknown> = {
+    id: plain.id,
+    created_at: isoOrEmpty(plain.createdAt),
+    created_by: (plain.creator as { username?: string } | null)?.username ?? '',
+    updated_at: isoOrEmpty(plain.updatedAt)
+  };
+  for (const f of FIELDS) record[f] = plain[f] ?? '';
+  for (const f of NUMBER_FIELDS) record[f] = Number(plain[f] ?? 0);
+  return record as unknown as ProductRecord;
 }
 
 export interface ProductFilters {
@@ -20,16 +34,16 @@ export interface ProductFilters {
 }
 
 export async function listProducts(filters: ProductFilters = {}): Promise<ProductRecord[]> {
-  const records = await readAll();
-  const q = filters.q?.trim().toLowerCase();
-  const filtered = records.filter((p) => {
-    if (filters.status && p.status !== filters.status) return false;
-    if (filters.category && p.category !== filters.category) return false;
-    if (filters.brand && p.brand !== filters.brand) return false;
-    if (q && !`${p.name} ${p.sku} ${p.category} ${p.brand} ${p.description}`.toLowerCase().includes(q)) return false;
-    return true;
-  });
-  return [...filtered].sort((a, b) => (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
+  const where: Record<string, unknown> = {};
+  if (filters.status) where.status = filters.status;
+  if (filters.category) where.category = filters.category;
+  if (filters.brand) where.brand = filters.brand;
+  if (filters.q?.trim()) {
+    const q = `%${filters.q.trim()}%`;
+    where[Op.or as never] = [{ name: { [Op.iLike]: q } }, { sku: { [Op.iLike]: q } }, { category: { [Op.iLike]: q } }, { brand: { [Op.iLike]: q } }, { description: { [Op.iLike]: q } }];
+  }
+  const rows = await db.Product.findAll({ where: where as never, include: [creatorInclude], order: [['name', 'ASC']] });
+  return rows.map(toRecord);
 }
 
 // Used by the Quotation module's catalog picker — active products only, no
@@ -39,8 +53,9 @@ export async function listActiveProducts(): Promise<ProductRecord[]> {
 }
 
 export async function findProductById(id: string): Promise<ProductRecord | undefined> {
-  const records = await readAll();
-  return records.find((p) => p.id === id);
+  if (!isUuid(id)) return undefined;
+  const row = await db.Product.findByPk(id, { include: [creatorInclude] });
+  return row ? toRecord(row) : undefined;
 }
 
 export interface ProductInput {
@@ -60,55 +75,53 @@ export interface ProductInput {
   status: ProductStatus;
 }
 
-function newId(): string {
-  return `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-}
-
 export async function createProduct(input: ProductInput, createdBy: string): Promise<ProductRecord> {
-  const records = await readAll();
-  const now = new Date().toISOString();
-  const record: ProductRecord = { id: newId(), created_at: now, created_by: createdBy, updated_at: now, ...input };
-  records.push(record);
-  await writeAll(records);
-  return record;
+  const creator = await db.User.findOne({ where: { username: createdBy } as never });
+  const row = await db.Product.create({ ...input, createdBy: creator ? creator.get('id') : null } as never);
+  return (await findProductById(row.get('id') as string)) as ProductRecord;
 }
 
 export async function updateProduct(id: string, patch: Partial<ProductInput>): Promise<ProductRecord | null> {
-  const records = await readAll();
-  const index = records.findIndex((p) => p.id === id);
-  if (index === -1) return null;
-  const updated: ProductRecord = { ...records[index], ...patch, updated_at: new Date().toISOString() };
-  records[index] = updated;
-  await writeAll(records);
-  return updated;
+  if (!isUuid(id)) return null;
+  const row = await db.Product.findByPk(id);
+  if (!row) return null;
+  await row.update(patch as never);
+  return (await findProductById(id)) ?? null;
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {
-  const records = await readAll();
-  const next = records.filter((p) => p.id !== id);
-  if (next.length === records.length) return false;
-  await writeAll(next);
+  if (!isUuid(id)) return false;
+  const row = await db.Product.findByPk(id);
+  if (!row) return false;
+  await row.destroy();
   return true;
 }
 
 export async function duplicateProduct(id: string, createdBy: string): Promise<ProductRecord | null> {
-  const original = await findProductById(id);
+  if (!isUuid(id)) return null;
+  const original = await db.Product.findByPk(id);
   if (!original) return null;
-  const records = await readAll();
-  const now = new Date().toISOString();
-  const copy: ProductRecord = {
-    ...original,
-    id: newId(),
-    name: `${original.name} (Copy)`,
-    sku: original.sku ? `${original.sku}-COPY` : '',
-    created_at: now,
-    created_by: createdBy,
-    updated_at: now,
-    status: 'inactive'
-  };
-  records.push(copy);
-  await writeAll(records);
-  return copy;
+  const originalPlain = original.get({ plain: true }) as Record<string, unknown>;
+  const creator = await db.User.findOne({ where: { username: createdBy } as never });
+
+  const row = await db.Product.create({
+    name: `${originalPlain.name} (Copy)`,
+    sku: originalPlain.sku ? `${originalPlain.sku}-COPY` : '',
+    category: originalPlain.category,
+    brand: originalPlain.brand,
+    description: originalPlain.description,
+    unit: originalPlain.unit,
+    defaultQty: originalPlain.defaultQty,
+    basePrice: originalPlain.basePrice,
+    sellingPrice: originalPlain.sellingPrice,
+    taxPercent: originalPlain.taxPercent,
+    hsnSac: originalPlain.hsnSac,
+    discountPercent: originalPlain.discountPercent,
+    imageUrl: originalPlain.imageUrl,
+    status: 'inactive',
+    createdBy: creator ? creator.get('id') : null
+  } as never);
+  return (await findProductById(row.get('id') as string)) ?? null;
 }
 
 export interface BulkPriceUpdateInput {
@@ -119,19 +132,13 @@ export interface BulkPriceUpdateInput {
 }
 
 export async function bulkUpdatePrices(input: BulkPriceUpdateInput): Promise<number> {
-  const records = await readAll();
-  const idSet = new Set(input.ids);
-  let count = 0;
-  const now = new Date().toISOString();
-  const next = records.map((p) => {
-    if (!idSet.has(p.id)) return p;
-    count++;
-    const current = p[input.field];
+  const rows = await db.Product.findAll({ where: { id: { [Op.in]: input.ids } } as never });
+  for (const row of rows) {
+    const current = Number(row.get(input.field) ?? 0);
     const nextValue = input.mode === 'flat' ? Math.max(0, input.value) : Math.max(0, current + (current * input.value) / 100);
-    return { ...p, [input.field]: Math.round(nextValue * 100) / 100, updated_at: now };
-  });
-  await writeAll(next);
-  return count;
+    await row.update({ [input.field]: Math.round(nextValue * 100) / 100 } as never);
+  }
+  return rows.length;
 }
 
 const CSV_COLUMNS: { key: keyof ProductRecord; header: string }[] = [
@@ -173,9 +180,8 @@ export async function importProductsFromCsv(text: string, createdBy: string): Pr
 }
 
 export async function importProductRows(rows: Record<string, string>[], createdBy: string): Promise<ImportResult> {
-  const records = await readAll();
   const result: ImportResult = { created: 0, updated: 0, skipped: 0, errors: [] };
-  const now = new Date().toISOString();
+  const creator = await db.User.findOne({ where: { username: createdBy } as never });
 
   for (const row of rows) {
     const name = row['Product Name'] || row['name'] || '';
@@ -183,10 +189,10 @@ export async function importProductRows(rows: Record<string, string>[], createdB
       result.skipped++;
       continue;
     }
-    const sku = row['SKU'] || row['sku'] || '';
+    const sku = (row['SKU'] || row['sku'] || '').trim();
     const input: ProductInput = {
       name: name.trim(),
-      sku: sku.trim(),
+      sku,
       category: row['Category'] || row['category'] || '',
       brand: row['Brand'] || row['brand'] || '',
       description: row['Description'] || row['description'] || '',
@@ -201,16 +207,15 @@ export async function importProductRows(rows: Record<string, string>[], createdB
       status: (row['Status'] || row['status'] || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active'
     };
 
-    const existingIndex = sku ? records.findIndex((p) => p.sku && p.sku.toLowerCase() === sku.toLowerCase()) : -1;
-    if (existingIndex >= 0) {
-      records[existingIndex] = { ...records[existingIndex], ...input, updated_at: now };
+    const existing = sku ? await db.Product.findOne({ where: { sku: { [Op.iLike]: sku } } as never }) : null;
+    if (existing) {
+      await existing.update(input as never);
       result.updated++;
     } else {
-      records.push({ id: `${Date.now()}-${Math.floor(Math.random() * 100000)}-${result.created}`, created_at: now, created_by: createdBy, updated_at: now, ...input });
+      await db.Product.create({ ...input, createdBy: creator ? creator.get('id') : null } as never);
       result.created++;
     }
   }
 
-  await writeAll(records);
   return result;
 }

@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { BackOfficeRemarkTag, DcLineItem, DcStatus, DeliveryChallanRecord, DemoScheduleRecord, UserRole } from '@/lib/types';
 import { BACK_OFFICE_REMARK_LABEL, BACK_OFFICE_REMARK_TAGS } from '@/lib/backOfficeRemarks';
 import { exportListToPdf } from '@/lib/exportPdf';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -413,9 +413,7 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Back Office Operations" subtitle="Delivery Challans — materials out, dispatched, returned, and closed." />
-      <main className={historyStyles.main}>
+    <AppShell title="Back Office Operations" subtitle="Delivery Challans — materials out, dispatched, returned, and closed.">
         {demoForGenerate && <GenerateDcPanel demo={demoForGenerate} onGenerated={(dc) => { setDcs((prev) => [dc, ...prev]); }} />}
         {linkedDc && (
           <DcDetail dc={linkedDc} canManage={canManage} onUpdated={handleUpdated} onDelete={handleDelete} />
@@ -470,14 +468,13 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
             return dc ? <DcDetail dc={dc} canManage={canManage} onUpdated={handleUpdated} onDelete={handleDelete} /> : null;
           })()
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }
 
 export default function BackOfficeView({ currentUser }: { currentUser: { username: string; role: UserRole } }) {
   return (
-    <Suspense fallback={<div className={historyStyles.body} />}>
+    <Suspense fallback={<AppShell title="Back Office Operations" subtitle="Delivery Challans — prepare, dispatch, verify returns, close.">{null}</AppShell>}>
       <BackOfficeContent currentUser={currentUser} />
     </Suspense>
   );

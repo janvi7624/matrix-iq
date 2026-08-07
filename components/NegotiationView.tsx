@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { NegotiationRecord, ProjectRecord, UserRole } from '@/lib/types';
 import { exportListToPdf } from '@/lib/exportPdf';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -99,9 +99,7 @@ export default function NegotiationView({ currentUser }: NegotiationViewProps) {
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Negotiation" subtitle="Discussion history for every project — offers, discounts, revised pricing." />
-      <main className={historyStyles.main}>
+    <AppShell title="Negotiation" subtitle="Discussion history for every project — offers, discounts, revised pricing.">
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Log a discussion</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -198,7 +196,6 @@ export default function NegotiationView({ currentUser }: NegotiationViewProps) {
             </tbody>
           </table>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import QuotationTable from './QuotationTable';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -85,9 +85,7 @@ export default function MyQuotationsView() {
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Existing Quotations" subtitle="Quotations you've created — visible only to you." />
-      <main className={historyStyles.main}>
+    <AppShell title="Existing Quotations" subtitle="Quotations you've created — visible only to you.">
         <div className={historyStyles.toolbar}>
           <input
             type="text"
@@ -116,7 +114,6 @@ export default function MyQuotationsView() {
         </div>
         <div className={historyStyles.status}>{status}</div>
         {loaded && <QuotationTable rows={rows} onLogFollowUp={handleLogFollowUp} onChangeStatus={handleChangeStatus} />}
-      </main>
-    </div>
+    </AppShell>
   );
 }

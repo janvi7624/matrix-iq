@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PoRecord, ProjectRecord, UserRole } from '@/lib/types';
 import { exportListToPdf } from '@/lib/exportPdf';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -118,9 +118,7 @@ export default function PoView({ currentUser }: PoViewProps) {
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Purchase Orders" subtitle="PO number, amount, advance received, and payment terms per project." />
-      <main className={historyStyles.main}>
+    <AppShell title="Purchase Orders" subtitle="PO number, amount, advance received, and payment terms per project.">
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Log a PO</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -215,7 +213,6 @@ export default function PoView({ currentUser }: PoViewProps) {
             </tbody>
           </table>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

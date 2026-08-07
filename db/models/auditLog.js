@@ -7,7 +7,9 @@ module.exports = (sequelize, DataTypes) => {
     // Best-effort resolved id alongside the `by` username string.
     actor_id: { type: DataTypes.UUID },
     role: { type: DataTypes.STRING },
-    entity_type: { type: DataTypes.ENUM('demo', 'delivery_challan', 'custom_module', 'lead', 'quotation') },
+    // Plain string (widened from a narrow ENUM in the 2026-08-06 migration)
+    // so new auditable entity types never require a schema migration.
+    entity_type: { type: DataTypes.STRING },
     // Polymorphic — intentionally NOT a real FK constraint since entity_type
     // determines which table entity_id points into.
     entity_id: { type: DataTypes.UUID },

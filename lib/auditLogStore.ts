@@ -1,14 +1,27 @@
+import { Model } from 'sequelize';
 import { AuditLogEntry, UserRole } from './types';
-import { readJsonBlob, writeJsonBlob } from './blobStore';
+import { db } from './db';
 
-const DATA_PATHNAME = 'data/auditLog.json';
-
-async function readAll(): Promise<AuditLogEntry[]> {
-  return readJsonBlob<AuditLogEntry[]>(DATA_PATHNAME, []);
+function isoOrEmpty(value: unknown): string {
+  if (!value) return '';
+  return value instanceof Date ? value.toISOString() : String(value);
 }
 
-async function writeAll(records: AuditLogEntry[]): Promise<void> {
-  await writeJsonBlob(DATA_PATHNAME, records);
+function toRecord(row: Model): AuditLogEntry {
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  return {
+    id: plain.id as string,
+    at: isoOrEmpty(plain.at),
+    by: (plain.by as string) ?? '',
+    role: (plain.role as UserRole) ?? '',
+    entity_type: plain.entity_type as AuditLogEntry['entity_type'],
+    entity_id: (plain.entity_id as string) ?? '',
+    action: (plain.action as string) ?? '',
+    previous_status: (plain.previous_status as string) ?? '',
+    new_status: (plain.new_status as string) ?? '',
+    remarks: (plain.remarks as string) ?? '',
+    ip: (plain.ip as string) ?? ''
+  };
 }
 
 export interface LogAuditInput {
@@ -28,29 +41,29 @@ export interface LogAuditInput {
 // logging hiccup can't block the actual workflow action.
 export async function logAudit(input: LogAuditInput): Promise<void> {
   try {
-    const records = await readAll();
-    const entry: AuditLogEntry = {
-      id: `${Date.now()}`,
-      at: new Date().toISOString(),
+    const actor = await db.User.findOne({ where: { username: input.by } as never });
+    await db.AuditLog.create({
+      at: new Date(),
       by: input.by,
+      actor_id: actor ? actor.get('id') : null,
       role: input.role,
       entity_type: input.entityType,
-      entity_id: input.entityId,
+      entity_id: input.entityId || null,
       action: input.action,
       previous_status: input.previousStatus,
       new_status: input.newStatus,
       remarks: input.remarks || '',
       ip: input.ip || ''
-    };
-    records.push(entry);
-    await writeAll(records);
+    } as never);
   } catch {
     // never let audit logging break the actual workflow action
   }
 }
 
 export async function listAuditLog(entityType?: AuditLogEntry['entity_type'], entityId?: string): Promise<AuditLogEntry[]> {
-  const records = await readAll();
-  const sorted = [...records].sort((a, b) => (a.at < b.at ? 1 : -1));
-  return sorted.filter((r) => (!entityType || r.entity_type === entityType) && (!entityId || r.entity_id === entityId));
+  const where: Record<string, unknown> = {};
+  if (entityType) where.entity_type = entityType;
+  if (entityId) where.entity_id = entityId;
+  const rows = await db.AuditLog.findAll({ where: where as never, order: [['at', 'DESC']] });
+  return rows.map(toRecord);
 }

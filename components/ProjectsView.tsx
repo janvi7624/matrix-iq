@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
 import { FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { exportListToPdf } from '@/lib/exportPdf';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -148,9 +148,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Project Dashboard" subtitle="Every sales project, site visit to close, in one pipeline." />
-      <main className={historyStyles.main}>
+    <AppShell title="Project Dashboard" subtitle="Every sales project, site visit to close, in one pipeline.">
         <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
           <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
             {showForm ? 'Cancel' : '+ New Project'}
@@ -321,7 +319,6 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             </tbody>
           </table>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

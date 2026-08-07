@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CustomerResponseRecord, CustomerResponseType, ProjectRecord, UserRole } from '@/lib/types';
 import { exportListToPdf } from '@/lib/exportPdf';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -108,9 +108,7 @@ export default function CustomerResponseView({ currentUser }: CustomerResponseVi
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Customer Response" subtitle="What clients said after the demo." />
-      <main className={historyStyles.main}>
+    <AppShell title="Customer Response" subtitle="What clients said after the demo.">
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Log a customer response</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -194,7 +192,6 @@ export default function CustomerResponseView({ currentUser }: CustomerResponseVi
             </tbody>
           </table>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

@@ -9,7 +9,7 @@ import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { domainLeadLabels } from '@/lib/domainLeads';
 import { getDomainProducts } from '@/lib/domainProducts';
 import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import TeamCheckboxes from './TeamCheckboxes';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -544,9 +544,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Demo Schedule" subtitle="Request a demo — technical availability, then manager approval, then Back Office handles materials." />
-      <main className={historyStyles.main}>
+    <AppShell title="Demo Schedule" subtitle="Request a demo — technical availability, then manager approval, then Back Office handles materials.">
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Request a demo</h2>
         <form className={calcStyles.sectionPanel} onSubmit={(e) => handleCreate(e, true)}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -755,14 +753,13 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             </tbody>
           </table>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }
 
 export default function DemoScheduleView({ currentUser }: { currentUser: { username: string; role: UserRole } }) {
   return (
-    <Suspense fallback={<div className={historyStyles.body} />}>
+    <Suspense fallback={<AppShell title="Demo Schedule" subtitle="Request and approve product demos.">{null}</AppShell>}>
       <DemoScheduleContent currentUser={currentUser} />
     </Suspense>
   );

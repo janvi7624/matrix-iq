@@ -8,9 +8,11 @@ module.exports = (sequelize, DataTypes) => {
     email: { type: DataTypes.STRING },
     roleId: { type: DataTypes.UUID, allowNull: false },
     employeeId: { type: DataTypes.STRING },
-    // Free text per existing UserRecord.department — departments master exists
-    // separately as the `departments` table but is not a FK here.
+    // Free text per existing UserRecord.department, kept for API compatibility.
+    // departmentId (added in the 2026-08-06 migration) is the real FK; the
+    // store layer keeps this string in sync with it on every read/write.
     department: { type: DataTypes.STRING },
+    departmentId: { type: DataTypes.UUID },
     designation: { type: DataTypes.STRING },
     status: { type: DataTypes.ENUM('active', 'inactive'), allowNull: false, defaultValue: 'active' },
     lastLoginAt: { type: DataTypes.DATE }
@@ -22,6 +24,7 @@ module.exports = (sequelize, DataTypes) => {
 
   User.associate = (models) => {
     User.belongsTo(models.Role, { foreignKey: 'roleId', as: 'role' });
+    User.belongsTo(models.Department, { foreignKey: 'departmentId', as: 'departmentRef' });
   };
 
   return User;

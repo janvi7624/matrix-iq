@@ -1,7 +1,6 @@
-import { readJsonBlob, writeJsonBlob } from './blobStore';
+import { Model } from 'sequelize';
 import { AppConfig, PublicAppConfig } from './types';
-
-const DATA_PATHNAME = 'data/appConfig.json';
+import { db } from './db';
 
 // Seeded from the values that were previously hardcoded in lib/pdf.ts /
 // lib/deliveryChallanStore.ts, so nothing changes on the first read — an
@@ -52,13 +51,58 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   updated_by: ''
 };
 
-function normalize(config: Partial<AppConfig>): AppConfig {
-  return { ...DEFAULT_APP_CONFIG, ...config };
+function isoOrEmpty(value: unknown): string {
+  if (!value) return '';
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+const updaterInclude = { model: db.User, as: 'updater', attributes: ['id', 'username'] };
+
+function toRecord(row: Model): AppConfig {
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  return {
+    companyName: (plain.companyName as string) ?? '',
+    companyLegalName: (plain.companyLegalName as string) ?? '',
+    gstNumber: (plain.gstNumber as string) ?? '',
+    panNumber: (plain.panNumber as string) ?? '',
+    addressLine1: (plain.addressLine1 as string) ?? '',
+    addressLine2: (plain.addressLine2 as string) ?? '',
+    addressLine3: (plain.addressLine3 as string) ?? '',
+    contactPhone: (plain.contactPhone as string) ?? '',
+    contactEmail: (plain.contactEmail as string) ?? '',
+    website: (plain.website as string) ?? '',
+    bankAccountName: (plain.bankAccountName as string) ?? '',
+    bankAccountNumber: (plain.bankAccountNumber as string) ?? '',
+    bankIfsc: (plain.bankIfsc as string) ?? '',
+    bankName: (plain.bankName as string) ?? '',
+    bankBranch: (plain.bankBranch as string) ?? '',
+    currencyCode: (plain.currencyCode as string) ?? '',
+    currencySymbol: (plain.currencySymbol as string) ?? '',
+    defaultTaxPercent: Number(plain.defaultTaxPercent ?? 0),
+    taxLabel: (plain.taxLabel as string) ?? '',
+    quotationTerms: (plain.quotationTerms as string[]) ?? [],
+    dcNumberPrefix: (plain.dcNumberPrefix as string) ?? '',
+    notificationTemplates: (plain.notificationTemplates as AppConfig['notificationTemplates']) ?? [],
+    updated_at: isoOrEmpty(plain.updatedAt),
+    updated_by: (plain.updater as { username?: string } | null)?.username ?? ''
+  };
+}
+
+// Singleton — always exactly one row. Created lazily from DEFAULT_APP_CONFIG
+// on first read/write since a fresh DB starts with none.
+async function getOrCreateRow() {
+  const existing = await db.AppConfig.findOne({ include: [updaterInclude] });
+  if (existing) return existing;
+  const { updated_at: _updatedAt, updated_by: _updatedBy, ...defaults } = DEFAULT_APP_CONFIG;
+  void _updatedAt;
+  void _updatedBy;
+  const row = await db.AppConfig.create({ ...defaults } as never);
+  return (await db.AppConfig.findByPk(row.get('id') as string, { include: [updaterInclude] })) as NonNullable<typeof row>;
 }
 
 export async function getAppConfig(): Promise<AppConfig> {
-  const stored = await readJsonBlob<Partial<AppConfig> | null>(DATA_PATHNAME, null);
-  return normalize(stored || {});
+  const row = await getOrCreateRow();
+  return toRecord(row);
 }
 
 export async function getPublicAppConfig(): Promise<PublicAppConfig> {
@@ -76,8 +120,11 @@ export async function getPublicAppConfig(): Promise<PublicAppConfig> {
 }
 
 export async function updateAppConfig(patch: Partial<AppConfig>, updatedBy: string): Promise<AppConfig> {
-  const current = await getAppConfig();
-  const next: AppConfig = { ...current, ...patch, updated_at: new Date().toISOString(), updated_by: updatedBy };
-  await writeJsonBlob(DATA_PATHNAME, next);
-  return next;
+  const row = await getOrCreateRow();
+  const updater = await db.User.findOne({ where: { username: updatedBy } as never });
+  const { updated_at: _updatedAt, updated_by: _updatedBy, ...attrs } = patch;
+  void _updatedAt;
+  void _updatedBy;
+  await row.update({ ...attrs, updatedBy: updater ? updater.get('id') : null } as never);
+  return getAppConfig();
 }

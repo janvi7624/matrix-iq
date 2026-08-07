@@ -7,7 +7,7 @@ import { SiteVisitRecord, UserRole, VisitStage } from '@/lib/types';
 import { TECHNICAL_TEAM, SALES_TEAM } from '@/lib/teamMembers';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { isReminderDue, STAGE_LABEL, STAGE_HINT } from '@/lib/siteVisitReminder';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import TeamCheckboxes from './TeamCheckboxes';
 import SiteVisitWizard, { SiteVisitWizardForm } from './SiteVisitWizard';
 import { useToast } from './ui/ToastProvider';
@@ -348,9 +348,7 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Site Visit Reports" subtitle="Register a visit, then keep logging project updates over time." />
-      <main className={historyStyles.main}>
+    <AppShell title="Site Visit Reports" subtitle="Register a visit, then keep logging project updates over time.">
         <div className={historyStyles.modeToggle}>
           <button
             type="button"
@@ -444,14 +442,19 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
         {openVisit && (
           <SiteVisitDetail visit={openVisit} onPatch={handlePatch} onAddUpdate={handleAddUpdate} onClose={() => setOpenId(null)} />
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }
 
 export default function SiteVisitsView({ currentUser }: SiteVisitsViewProps) {
   return (
-    <Suspense fallback={<div className={historyStyles.body} />}>
+    <Suspense
+      fallback={
+        <AppShell title="Site Visit Reports" subtitle="Register a visit, then keep logging project updates over time.">
+          {null}
+        </AppShell>
+      }
+    >
       <SiteVisitsContent currentUser={currentUser} />
     </Suspense>
   );

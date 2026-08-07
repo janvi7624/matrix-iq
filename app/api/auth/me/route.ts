@@ -16,7 +16,9 @@ export async function GET(request: NextRequest) {
       name: user.name,
       phone: user.phone,
       email: user.email,
-      role: user.role
+      role: user.role,
+      department: user.department,
+      designation: user.designation
     });
   } catch (error) {
     return apiErrorResponse(error);

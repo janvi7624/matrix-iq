@@ -1,65 +1,34 @@
+import { Model, fn, col, where as sqlWhere } from 'sequelize';
 import { PublicUser, UserRecord, UserRole } from './types';
 import { hashPassword, verifyPassword } from './passwords';
-import { readJsonBlob, writeJsonBlob } from './blobStore';
+import { db, isUuid } from './db';
+import { listRoles, findRoleByKey } from './roleStore';
 
-const DATA_PATHNAME = 'data/users.json';
-
-async function readUsersRaw(): Promise<UserRecord[]> {
-  return readJsonBlob<UserRecord[]>(DATA_PATHNAME, []);
+function isoOrEmpty(value: unknown): string {
+  if (!value) return '';
+  return value instanceof Date ? value.toISOString() : String(value);
 }
 
-async function writeUsersRaw(users: UserRecord[]): Promise<void> {
-  await writeJsonBlob(DATA_PATHNAME, users);
-}
+const roleInclude = { model: db.Role, as: 'role', attributes: ['id', 'key'] };
+const deptInclude = { model: db.Department, as: 'departmentRef', attributes: ['id', 'name'] };
 
-// One-time bootstrap: if no users exist yet, seed a single superadmin account
-// from ADMIN_USERNAME / ADMIN_PASSWORD so there's always a way in. Once any
-// user exists, accounts are managed entirely through the /admin/users UI.
-async function ensureSeedAdmin(users: UserRecord[]): Promise<UserRecord[]> {
-  if (users.length > 0) return users;
-  const username = process.env.ADMIN_USERNAME;
-  const password = process.env.ADMIN_PASSWORD;
-  if (!username || !password) return users;
-
-  const passwordHash = await hashPassword(password);
-  const seeded: UserRecord = {
-    id: `${Date.now()}`,
-    username,
-    passwordHash,
-    name: 'Admin',
-    phone: '',
-    email: `${username}@nantatech.com`,
-    role: 'superadmin',
-    employeeId: '',
-    department: '',
-    designation: '',
-    status: 'active',
-    createdAt: new Date().toISOString(),
-    lastLoginAt: ''
-  };
-  const next = [seeded];
-  await writeUsersRaw(next);
-  return next;
-}
-
-// Records written before employeeId/department/designation/status/lastLoginAt
-// existed won't have them in blob storage — fill in safe defaults on read so
-// older accounts don't get silently treated as inactive (status is undefined,
-// not 'active') or crash on missing fields.
-function normalizeUser(user: UserRecord): UserRecord {
+function toUserRecord(row: Model): UserRecord {
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
   return {
-    ...user,
-    employeeId: user.employeeId ?? '',
-    department: user.department ?? '',
-    designation: user.designation ?? '',
-    status: user.status ?? 'active',
-    lastLoginAt: user.lastLoginAt ?? ''
+    id: plain.id as string,
+    username: plain.username as string,
+    passwordHash: plain.passwordHash as string,
+    name: (plain.name as string) ?? '',
+    phone: (plain.phone as string) ?? '',
+    email: (plain.email as string) ?? '',
+    role: (plain.role as { key?: string } | null)?.key ?? '',
+    employeeId: (plain.employeeId as string) ?? '',
+    department: (plain.departmentRef as { name?: string } | null)?.name ?? (plain.department as string) ?? '',
+    designation: (plain.designation as string) ?? '',
+    status: (plain.status as UserRecord['status']) ?? 'active',
+    createdAt: isoOrEmpty(plain.createdAt),
+    lastLoginAt: isoOrEmpty(plain.lastLoginAt)
   };
-}
-
-async function readUsers(): Promise<UserRecord[]> {
-  const users = await ensureSeedAdmin(await readUsersRaw());
-  return users.map(normalizeUser);
 }
 
 function toPublicUser(user: UserRecord): PublicUser {
@@ -68,19 +37,63 @@ function toPublicUser(user: UserRecord): PublicUser {
   return rest;
 }
 
+// One-time bootstrap: if no users exist yet, seed a single superadmin account
+// from ADMIN_USERNAME / ADMIN_PASSWORD so there's always a way in. Once any
+// user exists, accounts are managed entirely through the /admin/users UI.
+async function ensureSeedAdmin(): Promise<void> {
+  const count = await db.User.count();
+  if (count > 0) return;
+  const username = process.env.ADMIN_USERNAME;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!username || !password) return;
+
+  await listRoles(); // ensures the built-in roles (incl. 'superadmin') exist
+  const superadminRole = await findRoleByKey('superadmin');
+  if (!superadminRole) return;
+
+  const passwordHash = await hashPassword(password);
+  await db.User.create({
+    username,
+    passwordHash,
+    name: 'Admin',
+    phone: '',
+    email: `${username}@nantatech.com`,
+    roleId: superadminRole.id,
+    employeeId: '',
+    department: '',
+    designation: '',
+    status: 'active'
+  } as never);
+}
+
+async function resolveDepartmentId(name: string): Promise<string | null> {
+  if (!name) return null;
+  const dept = await db.Department.findOne({ where: { name } as never });
+  return dept ? (dept.get('id') as string) : null;
+}
+
 export async function listUsers(): Promise<PublicUser[]> {
-  const users = await readUsers();
-  return users.map(toPublicUser).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+  await ensureSeedAdmin();
+  const rows = await db.User.findAll({ include: [roleInclude, deptInclude], order: [['createdAt', 'ASC']] });
+  return rows.map((r) => toPublicUser(toUserRecord(r)));
 }
 
 export async function findUserById(id: string): Promise<UserRecord | undefined> {
-  const users = await readUsers();
-  return users.find((u) => u.id === id);
+  // A session cookie issued before the Supabase migration carries an old
+  // Date.now()-based id — treat that the same as "no such user" (forces
+  // re-login) instead of letting Postgres throw on the malformed UUID.
+  if (!isUuid(id)) return undefined;
+  const row = await db.User.findByPk(id, { include: [roleInclude, deptInclude] });
+  return row ? toUserRecord(row) : undefined;
 }
 
 export async function findUserByUsername(username: string): Promise<UserRecord | undefined> {
-  const users = await readUsers();
-  return users.find((u) => u.username.toLowerCase() === username.toLowerCase());
+  await ensureSeedAdmin();
+  const row = await db.User.findOne({
+    where: sqlWhere(fn('lower', col('username')), username.toLowerCase()) as never,
+    include: [roleInclude, deptInclude]
+  });
+  return row ? toUserRecord(row) : undefined;
 }
 
 // Returns null for a wrong password AND for a correct password on an
@@ -94,11 +107,10 @@ export async function verifyLogin(username: string, password: string): Promise<U
 }
 
 export async function recordLogin(id: string): Promise<void> {
-  const users = await readUsers();
-  const index = users.findIndex((u) => u.id === id);
-  if (index === -1) return;
-  users[index] = { ...users[index], lastLoginAt: new Date().toISOString() };
-  await writeUsersRaw(users);
+  if (!isUuid(id)) return;
+  const row = await db.User.findByPk(id);
+  if (!row) return;
+  await row.update({ lastLoginAt: new Date() } as never);
 }
 
 export interface CreateUserInput {
@@ -114,29 +126,32 @@ export interface CreateUserInput {
 }
 
 export async function createUser(input: CreateUserInput): Promise<PublicUser> {
-  const users = await readUsers();
-  if (users.some((u) => u.username.toLowerCase() === input.username.toLowerCase())) {
-    throw new Error('Username already exists');
-  }
+  const existing = await db.User.findOne({
+    where: sqlWhere(fn('lower', col('username')), input.username.toLowerCase()) as never
+  });
+  if (existing) throw new Error('Username already exists');
+
+  const role = await db.Role.findOne({ where: { key: input.role } as never });
+  if (!role) throw new Error('Unknown role');
+
   const passwordHash = await hashPassword(input.password);
-  const record: UserRecord = {
-    id: `${Date.now()}`,
+  const departmentId = await resolveDepartmentId(input.department || '');
+  const row = await db.User.create({
     username: input.username,
     passwordHash,
     name: input.name,
     phone: input.phone,
     email: input.email,
-    role: input.role,
+    roleId: role.get('id'),
     employeeId: input.employeeId || '',
     department: input.department || '',
+    departmentId,
     designation: input.designation || '',
-    status: 'active',
-    createdAt: new Date().toISOString(),
-    lastLoginAt: ''
-  };
-  users.push(record);
-  await writeUsersRaw(users);
-  return toPublicUser(record);
+    status: 'active'
+  } as never);
+
+  const created = await db.User.findByPk(row.get('id') as string, { include: [roleInclude, deptInclude] });
+  return toPublicUser(toUserRecord(created as Model));
 }
 
 export interface UpdateUserInput {
@@ -152,37 +167,44 @@ export interface UpdateUserInput {
 }
 
 export async function updateUser(id: string, patch: UpdateUserInput): Promise<PublicUser | null> {
-  const users = await readUsers();
-  const index = users.findIndex((u) => u.id === id);
-  if (index === -1) return null;
+  if (!isUuid(id)) return null;
+  const row = await db.User.findByPk(id);
+  if (!row) return null;
 
-  const current = users[index];
-  const updated: UserRecord = {
-    ...current,
-    name: patch.name ?? current.name,
-    phone: patch.phone ?? current.phone,
-    email: patch.email ?? current.email,
-    role: patch.role ?? current.role,
-    employeeId: patch.employeeId ?? current.employeeId,
-    department: patch.department ?? current.department,
-    designation: patch.designation ?? current.designation,
-    status: patch.status ?? current.status,
-    passwordHash: patch.password ? await hashPassword(patch.password) : current.passwordHash
+  const attrs: Record<string, unknown> = {
+    name: patch.name,
+    phone: patch.phone,
+    email: patch.email,
+    employeeId: patch.employeeId,
+    designation: patch.designation,
+    status: patch.status
   };
-  users[index] = updated;
-  await writeUsersRaw(users);
-  return toPublicUser(updated);
+  if (patch.role !== undefined) {
+    const role = await db.Role.findOne({ where: { key: patch.role } as never });
+    if (!role) throw new Error('Unknown role');
+    attrs.roleId = role.get('id');
+  }
+  if (patch.department !== undefined) {
+    attrs.department = patch.department;
+    attrs.departmentId = await resolveDepartmentId(patch.department);
+  }
+  if (patch.password) attrs.passwordHash = await hashPassword(patch.password);
+
+  await row.update(attrs as never);
+  const updated = await db.User.findByPk(id, { include: [roleInclude, deptInclude] });
+  return toPublicUser(toUserRecord(updated as Model));
 }
 
 export async function deleteUser(id: string): Promise<boolean> {
-  const users = await readUsers();
-  const next = users.filter((u) => u.id !== id);
-  if (next.length === users.length) return false;
-  await writeUsersRaw(next);
+  if (!isUuid(id)) return false;
+  const row = await db.User.findByPk(id);
+  if (!row) return false;
+  await row.destroy();
   return true;
 }
 
 export async function countSuperAdmins(): Promise<number> {
-  const users = await readUsers();
-  return users.filter((u) => u.role === 'superadmin').length;
+  const role = await db.Role.findOne({ where: { key: 'superadmin' } as never });
+  if (!role) return 0;
+  return db.User.count({ where: { roleId: role.get('id') } as never });
 }

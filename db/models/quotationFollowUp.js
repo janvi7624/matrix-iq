@@ -3,7 +3,7 @@ module.exports = (sequelize, DataTypes) => {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
     quotation_id: { type: DataTypes.UUID, allowNull: false },
     note: { type: DataTypes.TEXT },
-    created_by: { type: DataTypes.STRING }
+    created_by: { type: DataTypes.UUID }
   }, {
     tableName: 'quotation_follow_ups',
     underscored: true,
@@ -17,6 +17,7 @@ module.exports = (sequelize, DataTypes) => {
 
   QuotationFollowUp.associate = (models) => {
     QuotationFollowUp.belongsTo(models.Quotation, { foreignKey: 'quotation_id', as: 'quotation' });
+    QuotationFollowUp.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
   };
 
   return QuotationFollowUp;

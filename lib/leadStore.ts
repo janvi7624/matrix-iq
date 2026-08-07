@@ -1,10 +1,27 @@
 import { LeadRecord } from './types';
 import { createRecordStore } from './recordStore';
-import { readJsonBlob } from './blobStore';
+import { db, isUuid } from './db';
 import { isLeadUnattended } from './followUp';
 
-const DATA_PATHNAME = 'data/leads.json';
-const base = createRecordStore<LeadRecord>(DATA_PATHNAME);
+const LEAD_FIELDS = [
+  { name: 'updated_at', kind: 'date' as const, column: 'updatedAt' },
+  { name: 'name' },
+  { name: 'mobile' },
+  { name: 'email' },
+  { name: 'designation' },
+  { name: 'company' },
+  { name: 'city' },
+  { name: 'card_image_url' },
+  { name: 'interests', kind: 'json' as const },
+  { name: 'sub_interests', kind: 'json' as const },
+  { name: 'priority', kind: 'nullable' as const },
+  { name: 'follow_up_actions', kind: 'json' as const },
+  { name: 'budget' },
+  { name: 'notes' },
+  { name: 'project_id', kind: 'nullable' as const }
+];
+
+const base = createRecordStore<LeadRecord>(db.Lead, LEAD_FIELDS);
 
 export const leadStore = {
   list: base.list,
@@ -14,8 +31,9 @@ export const leadStore = {
 };
 
 export async function findLeadById(id: string): Promise<LeadRecord | undefined> {
-  const records = await readJsonBlob<LeadRecord[]>(DATA_PATHNAME, []);
-  return records.find((l) => l.id === id);
+  if (!isUuid(id)) return undefined;
+  const row = await db.Lead.findByPk(id, { include: [{ model: db.User, as: 'creator', attributes: ['id', 'username'] }] });
+  return row ? base.toRecord(row) : undefined;
 }
 
 // Same mobile number or email address, whoever scanned it — the trade-show
@@ -36,7 +54,7 @@ export async function findDuplicateLead(mobile: string, email: string): Promise<
   const normEmail = normalizeEmail(email);
   if (!normMobile && !normEmail) return undefined;
 
-  const records = await readJsonBlob<LeadRecord[]>(DATA_PATHNAME, []);
+  const records = await base.readAll();
   return records.find((l) => (normMobile && normalizeMobile(l.mobile) === normMobile) || (normEmail && normalizeEmail(l.email) === normEmail));
 }
 

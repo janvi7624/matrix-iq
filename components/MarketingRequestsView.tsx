@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { MarketingRequestPriority, MarketingRequestRecord, MarketingRequestStatus, MarketingRequestType, ProjectRecord, UserRole } from '@/lib/types';
 import { MARKETING_PRIORITY_META, MARKETING_REQUEST_TYPE_LABEL, MARKETING_STATUS_LABEL, isMarketingRequestOverdue } from '@/lib/marketingRequestHelpers';
-import PortalHeader from './PortalHeader';
+import AppShell from './AppShell';
 import MarketingRequestWizard, { MarketingRequestForm } from './MarketingRequestWizard';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
@@ -372,9 +372,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
   }
 
   return (
-    <div className={historyStyles.body}>
-      <PortalHeader title="Marketing Requests" subtitle="Ask Marketing for what you need, and track the delivery timeline they commit to." />
-      <main className={historyStyles.main}>
+    <AppShell title="Marketing Requests" subtitle="Ask Marketing for what you need, and track the delivery timeline they commit to.">
         <div className={historyStyles.modeToggle}>
           <button type="button" className={`${historyStyles.modeToggleBtn} ${mode === 'new' ? historyStyles.modeToggleBtnActive : ''}`} onClick={() => setMode('new')}>
             📣 New Request
@@ -446,14 +444,13 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
             </div>
           </>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }
 
 export default function MarketingRequestsView(props: MarketingRequestsViewProps) {
   return (
-    <Suspense fallback={<div className={historyStyles.body} />}>
+    <Suspense fallback={<AppShell title="Marketing Requests" subtitle="Ask Marketing for what you need, and track the delivery timeline they commit to.">{null}</AppShell>}>
       <MarketingRequestsViewContent {...props} />
     </Suspense>
   );

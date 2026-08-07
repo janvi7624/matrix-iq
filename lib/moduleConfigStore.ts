@@ -1,7 +1,7 @@
-import { readJsonBlob, writeJsonBlob } from './blobStore';
+import { Model } from 'sequelize';
 import { ModuleConfigRecord, UserRole } from './types';
+import { db, isUuid } from './db';
 
-const DATA_PATHNAME = 'data/moduleConfig.json';
 const ALL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
 const PRIVILEGED_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 
@@ -25,6 +25,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'role-management', label: 'Role Management', desc: 'What each role can see and do across the platform.', icon: '🛡️', href: '/admin/roles', section: 'Administration', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'department-master', label: 'Department Master', desc: 'Departments used across user profiles.', icon: '🏢', href: '/admin/departments', section: 'Administration', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'performance-review', label: 'Performance Review', desc: 'A full performance dashboard for one employee at a time — CRM, sales, projects, and activity history.', icon: '📊', href: '/admin/performance-review', section: 'Reports', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'analytics', label: 'Analytics', desc: 'Quotation, project, and pipeline performance at a glance.', icon: '📈', href: '/analytics', section: 'Reports', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'audit-log', label: 'Audit Log', desc: 'Every status-changing action across the Back Office workflow.', icon: '🕒', href: '/admin/audit-log', section: 'Administration', order: 4, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'product-master', label: 'Product Master', desc: 'Manage the product catalog used across quotations.', icon: '🏷️', href: '/admin/products', section: 'Administration', order: 5, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'app-settings', label: 'Application Settings', desc: 'Company details, tax, terms, and numbering.', icon: '⚙️', href: '/admin/settings', section: 'Administration', order: 6, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -58,52 +59,53 @@ const RESECTIONED_KEYS = new Set(['projects', 'quotation', 'my-quotations', 'sit
 const OLD_SECTION = 'CRM';
 const NEW_SECTION = 'Sales Pipeline';
 
-async function readAll(): Promise<ModuleConfigRecord[]> {
-  const stored = await readJsonBlob<ModuleConfigRecord[]>(DATA_PATHNAME, []);
-  if (stored.length === 0) {
-    const seeded = SEED_MODULES.map((m, i) => ({ ...m, id: `seed-${i}` }));
-    await writeJsonBlob(DATA_PATHNAME, seeded);
-    return seeded;
-  }
-
-  // A built-in module added after the config was first seeded (e.g. a new
-  // module shipped in a later release) won't be in an already-persisted
-  // file — reconcile any missing SEED_MODULES keys in so it still appears,
-  // without touching anything an admin has already customized.
-  const existingKeys = new Set(stored.map((m) => m.key));
-  const missing = SEED_MODULES.filter((m) => !existingKeys.has(m.key));
-
-  let relabeled = false;
-  const relabeledStored = stored
-    .filter((m) => !RETIRED_KEYS.has(m.key))
-    .map((m) => {
-      let next = m;
-      const forced = FORCED_RELABELS[m.key];
-      if (forced && next.label === OLD_DEFAULT_LABELS[m.key]) {
-        relabeled = true;
-        next = { ...next, label: forced };
-      }
-      if (RESECTIONED_KEYS.has(m.key) && next.section === OLD_SECTION) {
-        relabeled = true;
-        next = { ...next, section: NEW_SECTION };
-      }
-      return next;
-    });
-  const removedAny = relabeledStored.length !== stored.length;
-
-  if (missing.length === 0 && !relabeled && !removedAny) return stored;
-  const result = [...relabeledStored, ...missing.map((m, i) => ({ ...m, id: `seed-new-${Date.now()}-${i}` }))];
-  await writeJsonBlob(DATA_PATHNAME, result);
-  return result;
+function toRecord(row: Model): ModuleConfigRecord {
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  return {
+    id: plain.id as string,
+    key: plain.key as string,
+    label: (plain.label as string) ?? '',
+    desc: (plain.desc as string) ?? '',
+    icon: (plain.icon as string) ?? '',
+    href: (plain.href as string) ?? '',
+    section: (plain.section as string) ?? '',
+    order: plain.order as number,
+    enabled: plain.enabled as boolean,
+    isCustom: plain.isCustom as boolean,
+    visibleToRoles: (plain.visibleToRoles as UserRole[]) ?? []
+  };
 }
 
-async function writeAll(records: ModuleConfigRecord[]): Promise<void> {
-  await writeJsonBlob(DATA_PATHNAME, records);
+async function ensureSeededAndReconciled(): Promise<void> {
+  const count = await db.ModuleConfig.count();
+  if (count === 0) {
+    await db.ModuleConfig.bulkCreate(SEED_MODULES.map((m) => ({ ...m })) as never);
+    return;
+  }
+
+  await db.ModuleConfig.destroy({ where: { key: [...RETIRED_KEYS] } as never });
+
+  const stored = await db.ModuleConfig.findAll();
+  for (const row of stored) {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    const key = plain.key as string;
+    const attrs: Record<string, unknown> = {};
+    const forced = FORCED_RELABELS[key];
+    if (forced && plain.label === OLD_DEFAULT_LABELS[key]) attrs.label = forced;
+    if (RESECTIONED_KEYS.has(key) && plain.section === OLD_SECTION) attrs.section = NEW_SECTION;
+    if (Object.keys(attrs).length) await row.update(attrs as never);
+  }
+
+  const existingKeys = new Set((await db.ModuleConfig.findAll({ attributes: ['key'] })).map((m) => m.get('key') as string));
+  const missing = SEED_MODULES.filter((m) => !existingKeys.has(m.key));
+  if (missing.length) await db.ModuleConfig.bulkCreate(missing.map((m) => ({ ...m })) as never);
 }
 
 export async function listModuleConfigs(): Promise<ModuleConfigRecord[]> {
-  const records = await readAll();
-  return [...records].sort((a, b) => (a.section === b.section ? a.order - b.order : a.section.localeCompare(b.section)));
+  await ensureSeededAndReconciled();
+  const rows = await db.ModuleConfig.findAll();
+  const records = rows.map(toRecord);
+  return records.sort((a, b) => (a.section === b.section ? a.order - b.order : a.section.localeCompare(b.section)));
 }
 
 // What Dashboard actually renders — enabled modules visible to this role.
@@ -124,22 +126,15 @@ export async function isModuleVisibleToRole(fullKey: string, role: UserRole): Pr
 }
 
 export async function updateModuleConfig(id: string, patch: Partial<Omit<ModuleConfigRecord, 'id' | 'key' | 'isCustom'>>): Promise<ModuleConfigRecord | null> {
-  const records = await readAll();
-  const index = records.findIndex((m) => m.id === id);
-  if (index === -1) return null;
-  records[index] = { ...records[index], ...patch };
-  await writeAll(records);
-  return records[index];
+  if (!isUuid(id)) return null;
+  const row = await db.ModuleConfig.findByPk(id);
+  if (!row) return null;
+  await row.update(patch as never);
+  return toRecord(row);
 }
 
 export async function reorderModules(orderedIds: string[]): Promise<void> {
-  const records = await readAll();
-  const byId = new Map(records.map((m) => [m.id, m]));
-  orderedIds.forEach((id, i) => {
-    const record = byId.get(id);
-    if (record) record.order = i + 1;
-  });
-  await writeAll([...byId.values()]);
+  await Promise.all(orderedIds.map((id, i) => db.ModuleConfig.update({ order: i + 1 } as never, { where: { id } as never })));
 }
 
 // Called when a Custom Module is created/updated/deleted (see
@@ -148,29 +143,32 @@ export async function reorderModules(orderedIds: string[]): Promise<void> {
 // shows up on the Dashboard/sidebar is still controlled here like any other
 // module.
 export async function upsertCustomModuleTile(input: { key: string; label: string; icon: string; section: string; enabled: boolean }): Promise<void> {
-  const records = await readAll();
   const fullKey = `custom:${input.key}`;
-  const index = records.findIndex((m) => m.key === fullKey);
-  const maxOrder = records.filter((m) => m.section === (input.section || 'Custom Modules')).reduce((acc, m) => Math.max(acc, m.order), 0);
-  const tile: ModuleConfigRecord = {
-    id: index >= 0 ? records[index].id : `custom-${Date.now()}`,
+  const existing = await db.ModuleConfig.findOne({ where: { key: fullKey } as never });
+
+  if (existing) {
+    await existing.update({ label: input.label, icon: input.icon || '🧩', section: input.section || 'Custom Modules', enabled: input.enabled } as never);
+    return;
+  }
+
+  const section = input.section || 'Custom Modules';
+  const rowsInSection = await db.ModuleConfig.findAll({ where: { section } as never, attributes: ['order'] });
+  const maxOrder = rowsInSection.reduce((acc, r) => Math.max(acc, r.get('order') as number), 0);
+
+  await db.ModuleConfig.create({
     key: fullKey,
     label: input.label,
     desc: 'Custom module',
     icon: input.icon || '🧩',
     href: `/modules/${input.key}`,
-    section: input.section || 'Custom Modules',
-    order: index >= 0 ? records[index].order : maxOrder + 1,
+    section,
+    order: maxOrder + 1,
     enabled: input.enabled,
     isCustom: true,
-    visibleToRoles: index >= 0 ? records[index].visibleToRoles : ['superadmin', 'admin', 'manager']
-  };
-  if (index >= 0) records[index] = tile;
-  else records.push(tile);
-  await writeAll(records);
+    visibleToRoles: ['superadmin', 'admin', 'manager']
+  } as never);
 }
 
 export async function removeCustomModuleTile(key: string): Promise<void> {
-  const records = await readAll();
-  await writeAll(records.filter((m) => m.key !== `custom:${key}`));
+  await db.ModuleConfig.destroy({ where: { key: `custom:${key}` } as never });
 }
