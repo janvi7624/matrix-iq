@@ -7,6 +7,8 @@ import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
+import { SkeletonRows } from './ui/Skeleton';
+import ErrorState from './ui/ErrorState';
 
 const STATUS_OPTIONS: { value: QuotationEffectiveStatus; label: string }[] = [
   { value: 'draft', label: 'Draft' },
@@ -20,6 +22,8 @@ export default function MyQuotationsView() {
   const [rows, setRows] = useState<QuotationRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [fStatus, setFStatus] = useState<QuotationEffectiveStatus | ''>('');
   const [fProjectId, setFProjectId] = useState('');
@@ -30,6 +34,8 @@ export default function MyQuotationsView() {
   const load = useCallback(async () => {
     setStatus('Loading...');
     setLoaded(false);
+    setLoading(true);
+    setLoadFailed(false);
     try {
       const params = new URLSearchParams();
       if (searchValue.trim()) params.set('q', searchValue.trim());
@@ -46,6 +52,9 @@ export default function MyQuotationsView() {
       setLoaded(true);
     } catch {
       setStatus('Could not reach the quotation API. Try refreshing.');
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -112,8 +121,14 @@ export default function MyQuotationsView() {
             Refresh
           </button>
         </div>
-        <div className={historyStyles.status}>{status}</div>
-        {loaded && <QuotationTable rows={rows} onLogFollowUp={handleLogFollowUp} onChangeStatus={handleChangeStatus} />}
+        {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
+        {loading ? (
+          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={12} /></div>
+        ) : loadFailed ? (
+          <ErrorState message="Could not load quotations — check your connection and try again." onRetry={load} />
+        ) : (
+          loaded && <QuotationTable rows={rows} onLogFollowUp={handleLogFollowUp} onChangeStatus={handleChangeStatus} />
+        )}
     </AppShell>
   );
 }

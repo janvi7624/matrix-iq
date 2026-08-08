@@ -101,7 +101,11 @@ export interface RoleInput {
 
 export async function createRole(input: RoleInput, createdBy: string): Promise<RoleRecord> {
   await ensureSeeded();
-  const existingKeys = new Set((await db.Role.findAll({ attributes: ['key'] })).map((r) => r.get('key') as string));
+  // paranoid:false — the unique index on `key` isn't partial (doesn't
+  // exclude soft-deleted rows), so a slug that collides with a previously
+  // *deleted* role would still hit a raw Postgres unique-violation below
+  // instead of picking a free suffix like it does for an active collision.
+  const existingKeys = new Set((await db.Role.findAll({ attributes: ['key'], paranoid: false })).map((r) => r.get('key') as string));
   let key = slugify(input.label);
   let suffix = 1;
   while (existingKeys.has(key)) {

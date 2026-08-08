@@ -1,7 +1,7 @@
 import { Model } from 'sequelize';
 import { CustomFieldDef, CustomModuleDef } from './types';
 import { db, isUuid, sequelize } from './db';
-import { upsertCustomModuleTile, removeCustomModuleTile, isModuleVisibleToRole } from './moduleConfigStore';
+import { upsertCustomModuleTile, removeCustomModuleTile, isModuleAccessAllowed } from './moduleConfigStore';
 import { ViewerContext } from './viewerContext';
 
 function isoOrEmpty(value: unknown): string {
@@ -58,10 +58,15 @@ export async function findCustomModuleByKey(key: string): Promise<CustomModuleDe
 // Shared by every /api/custom-modules/[key]/* route — resolves the module
 // AND enforces that it's enabled + visible to the caller's role, so a
 // direct API call can't bypass what Module Manager says this role may see.
+// Access is gated entirely through moduleConfigStore's ModuleConfigRecord —
+// the actual Module Manager tile — not CustomModuleDef.enabled, which is a
+// separate flag from the Custom Module Builder's own admin surface and was
+// previously left unsynced with Module Manager's disable toggle (a disabled
+// tile still let privileged viewers straight through).
 export async function getModuleForViewer(key: string, viewer: ViewerContext): Promise<CustomModuleDef | null> {
   const module_ = await findCustomModuleByKey(key);
-  if (!module_ || !module_.enabled) return null;
-  if (!viewer.isPrivileged && !(await isModuleVisibleToRole(`custom:${key}`, viewer.role))) return null;
+  if (!module_) return null;
+  if (!(await isModuleAccessAllowed(`custom:${key}`, viewer))) return null;
   return module_;
 }
 

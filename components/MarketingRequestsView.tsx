@@ -9,6 +9,9 @@ import AppShell from './AppShell';
 import MarketingRequestWizard, { MarketingRequestForm } from './MarketingRequestWizard';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { SkeletonRows } from './ui/Skeleton';
+import EmptyState from './ui/EmptyState';
+import ErrorState from './ui/ErrorState';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -256,6 +259,8 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
   const [requests, setRequests] = useState<MarketingRequestRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<MarketingRequestStatus | ''>(startAwaitingReview ? 'submitted' : '');
@@ -263,6 +268,8 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
 
   async function loadRequests() {
     setStatus('Loading...');
+    setLoading(true);
+    setLoadFailed(false);
     try {
       const response = await fetch('/api/marketing-requests');
       if (!response.ok) throw new Error(String(response.status));
@@ -271,6 +278,9 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
       setStatus(data.length ? `${data.length} request${data.length === 1 ? '' : 's'}.` : 'No marketing requests yet.');
     } catch {
       setStatus('Could not load marketing requests. Refresh to try again.');
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -404,8 +414,13 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               </select>
               <button type="button" className={historyStyles.button} onClick={loadRequests}>Refresh</button>
             </div>
-            <div className={historyStyles.status}>{status}</div>
+            {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
+            {loading ? (
+              <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={8} /></div>
+            ) : loadFailed ? (
+              <ErrorState message="Could not load marketing requests — check your connection and try again." onRetry={loadRequests} />
+            ) : (
             <div className={historyStyles.tableWrap}>
               <table className={historyStyles.table}>
                 <thead>
@@ -437,11 +452,19 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                     />
                   ))}
                   {visible.length === 0 && (
-                    <tr><td colSpan={8} className={historyStyles.empty}>No requests match.</td></tr>
+                    <tr><td colSpan={8}>
+                      <EmptyState
+                        icon="📣"
+                        title={requests.length === 0 ? 'No marketing requests yet' : 'No requests match your filters'}
+                        message={requests.length === 0 ? 'Send a request to Marketing to get started.' : 'Try clearing a filter or search term.'}
+                        action={requests.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('new')}>📣 New Request</button> : undefined}
+                      />
+                    </td></tr>
                   )}
                 </tbody>
               </table>
             </div>
+            )}
           </>
         )}
     </AppShell>

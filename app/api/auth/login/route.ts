@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     await Promise.all([recordLogin(user.id), logLoginAttempt({ username, success: true, ip })]);
-    const token = await createSessionToken(user);
+    const token = await createSessionToken({ id: user.id, username: user.username, role: user.role, mustChangePassword: user.mustChangePassword });
     const response = NextResponse.json({
       ok: true,
       user: { name: user.name, phone: user.phone, email: user.email, role: user.role, username: user.username }

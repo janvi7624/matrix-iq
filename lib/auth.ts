@@ -14,6 +14,10 @@ export interface SessionPayload {
   username: string;
   role: UserRole;
   exp: number;
+  // True only for accounts created via bulk employee import until the
+  // employee changes their temporary password — proxy.ts uses this to lock
+  // the account to /change-password without a DB lookup on every request.
+  mustChangePassword?: boolean;
 }
 
 function toBase64Url(bytes: ArrayBuffer): string {
@@ -36,14 +40,15 @@ async function getSigningKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
 }
 
-export async function createSessionToken(user: { id: string; username: string; role: UserRole }): Promise<string> {
+export async function createSessionToken(user: { id: string; username: string; role: UserRole; mustChangePassword?: boolean }): Promise<string> {
   const secret = process.env.ADMIN_SESSION_SECRET;
   if (!secret) throw new Error('ADMIN_SESSION_SECRET is not configured');
   const payload: SessionPayload = {
     sub: user.id,
     username: user.username,
     role: user.role,
-    exp: Date.now() + SESSION_TTL_MS
+    exp: Date.now() + SESSION_TTL_MS,
+    mustChangePassword: user.mustChangePassword || undefined
   };
   const payloadJson = toBase64Url(encoder.encode(JSON.stringify(payload)).buffer as ArrayBuffer);
   const key = await getSigningKey(secret);

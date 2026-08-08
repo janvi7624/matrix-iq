@@ -25,9 +25,11 @@ function toUserRecord(row: Model): UserRecord {
     employeeId: (plain.employeeId as string) ?? '',
     department: (plain.departmentRef as { name?: string } | null)?.name ?? (plain.department as string) ?? '',
     designation: (plain.designation as string) ?? '',
+    location: (plain.location as string) ?? '',
     status: (plain.status as UserRecord['status']) ?? 'active',
     createdAt: isoOrEmpty(plain.createdAt),
-    lastLoginAt: isoOrEmpty(plain.lastLoginAt)
+    lastLoginAt: isoOrEmpty(plain.lastLoginAt),
+    mustChangePassword: (plain.mustChangePassword as boolean) ?? false
   };
 }
 
@@ -123,6 +125,8 @@ export interface CreateUserInput {
   employeeId?: string;
   department?: string;
   designation?: string;
+  location?: string;
+  mustChangePassword?: boolean;
 }
 
 export async function createUser(input: CreateUserInput): Promise<PublicUser> {
@@ -147,7 +151,9 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
     department: input.department || '',
     departmentId,
     designation: input.designation || '',
-    status: 'active'
+    location: input.location || '',
+    status: 'active',
+    mustChangePassword: input.mustChangePassword ?? false
   } as never);
 
   const created = await db.User.findByPk(row.get('id') as string, { include: [roleInclude, deptInclude] });
@@ -163,7 +169,9 @@ export interface UpdateUserInput {
   employeeId?: string;
   department?: string;
   designation?: string;
+  location?: string;
   status?: UserRecord['status'];
+  mustChangePassword?: boolean;
 }
 
 export async function updateUser(id: string, patch: UpdateUserInput): Promise<PublicUser | null> {
@@ -177,6 +185,7 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Pu
     email: patch.email,
     employeeId: patch.employeeId,
     designation: patch.designation,
+    location: patch.location,
     status: patch.status
   };
   if (patch.role !== undefined) {
@@ -189,6 +198,7 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Pu
     attrs.departmentId = await resolveDepartmentId(patch.department);
   }
   if (patch.password) attrs.passwordHash = await hashPassword(patch.password);
+  if (patch.mustChangePassword !== undefined) attrs.mustChangePassword = patch.mustChangePassword;
 
   await row.update(attrs as never);
   const updated = await db.User.findByPk(id, { include: [roleInclude, deptInclude] });

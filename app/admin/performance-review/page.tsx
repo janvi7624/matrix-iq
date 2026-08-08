@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -148,9 +149,12 @@ async function exportReviewPdf(review: PerformanceReview) {
   doc.save(`performance-review-${review.user.username}.pdf`);
 }
 
-export default function PerformanceReviewPage() {
+function PerformanceReviewPageContent() {
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<PublicUser[]>([]);
-  const [selected, setSelected] = useState('');
+  // Lets a profile page (app/admin/users/[id]) deep-link straight into one
+  // employee's review via ?user=<username> instead of the manual dropdown.
+  const [selected, setSelected] = useState(() => searchParams.get('user') || '');
   const [review, setReview] = useState<PerformanceReview | null>(null);
   const [status, setStatus] = useState('');
 
@@ -286,5 +290,13 @@ export default function PerformanceReviewPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function PerformanceReviewPage() {
+  return (
+    <Suspense fallback={<div className={historyStyles.body} />}>
+      <PerformanceReviewPageContent />
+    </Suspense>
   );
 }

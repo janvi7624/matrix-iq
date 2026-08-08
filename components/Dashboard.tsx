@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ModuleConfigRecord, QuotationRecord, SiteVisitRecord, UserRole } from '@/lib/types';
+import { ModuleConfigRecord, ProjectRecord, QuotationRecord, SiteVisitRecord, UserRole } from '@/lib/types';
+import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
+import { formatMoney } from '@/lib/format';
 import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
 import AppShell from './AppShell';
@@ -35,6 +37,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [modules, setModules] = useState<ModuleConfigRecord[] | null>(null);
   const [unattendedLeads, setUnattendedLeads] = useState<number | null>(null);
   const [marketingStats, setMarketingStats] = useState<{ isReviewer: boolean; awaitingReview?: number; myOpenCount?: number } | null>(null);
+  const [recentProjects, setRecentProjects] = useState<ProjectRecord[] | null>(null);
+  const [recentQuotations, setRecentQuotations] = useState<QuotationRecord[] | null>(null);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
@@ -106,6 +110,23 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       .catch(() => setMarketingStats(null));
   }, []);
 
+  // Launchpad: "where do I need to go next" — most recently touched
+  // projects/quotations, reusing the same endpoints Projects/My Quotations
+  // already fetch (own-vs-org-wide scoping already handled server-side).
+  useEffect(() => {
+    fetch('/api/projects')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: ProjectRecord[]) => setRecentProjects([...rows].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 5)))
+      .catch(() => setRecentProjects([]));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/quotations/mine')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: QuotationRecord[]) => setRecentQuotations([...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 5)))
+      .catch(() => setRecentQuotations([]));
+  }, []);
+
   return (
     <AppShell title={BRAND.appName} subtitle={BRAND.tagline} showBackLink={false}>
       <div className={styles.greeting}>Welcome back, {currentUser.name}.</div>
@@ -164,6 +185,47 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           </Link>
         </div>
       )}
+
+      <div className={styles.recentGrid}>
+        <div className={styles.recentCard}>
+          <div className={styles.recentCardHead}>
+            <h3>Recent Projects</h3>
+            <Link href="/projects">View all →</Link>
+          </div>
+          <div className={styles.recentList}>
+            {recentProjects === null && <div className={styles.recentEmpty}>Loading…</div>}
+            {recentProjects?.length === 0 && <div className={styles.recentEmpty}>No projects yet.</div>}
+            {recentProjects?.map((p) => (
+              <Link key={p.id} href={`/projects/${p.id}`} className={styles.recentRow}>
+                <div className={styles.recentRowMain}>
+                  <div className={styles.recentRowTitle}>{p.client_name || p.company || `Project ${p.id}`}</div>
+                  <div className={styles.recentRowMeta}>{PROJECT_STAGE_LABEL[p.stage] || p.stage}</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.recentCard}>
+          <div className={styles.recentCardHead}>
+            <h3>Recent Quotations</h3>
+            <Link href="/my-quotations">View all →</Link>
+          </div>
+          <div className={styles.recentList}>
+            {recentQuotations === null && <div className={styles.recentEmpty}>Loading…</div>}
+            {recentQuotations?.length === 0 && <div className={styles.recentEmpty}>No quotations yet.</div>}
+            {recentQuotations?.map((q) => (
+              <Link key={q.id} href="/my-quotations" className={styles.recentRow}>
+                <div className={styles.recentRowMain}>
+                  <div className={styles.recentRowTitle}>{q.quotation_number}</div>
+                  <div className={styles.recentRowMeta}>{q.client_company || q.client_name || 'No client name'}</div>
+                </div>
+                <div className={styles.recentRowAmount}>{formatMoney(q.total)}</div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
 
       <div className={styles.kpiGrid}>
         <Link href="/analytics" className={styles.kpiCard}>

@@ -1,4 +1,4 @@
-import { Model } from 'sequelize';
+import { Model, fn, col, where as sqlWhere } from 'sequelize';
 import { DepartmentRecord } from './types';
 import { db, isUuid } from './db';
 
@@ -60,8 +60,32 @@ export interface DepartmentInput {
 
 export async function createDepartment(input: DepartmentInput, createdBy: string): Promise<DepartmentRecord> {
   await ensureSeeded();
-  const maxOrder = ((await db.Department.max('order')) as number) || 0;
   const creator = await db.User.findOne({ where: { username: createdBy } as never });
+
+  // The unique index on `name` isn't partial (doesn't exclude soft-deleted
+  // rows), so a name matching a previously-deleted department would hit a
+  // raw Postgres unique-violation on create — restore that row instead
+  // (safe: deleteDepartment only ever soft-deletes a department with zero
+  // assigned users, so there's nothing to reconcile) rather than leaving the
+  // admin stuck unable to reuse a name they can no longer even see.
+  const deletedMatch = await db.Department.findOne({
+    where: sqlWhere(fn('lower', col('name')), input.name.toLowerCase()) as never,
+    paranoid: false
+  });
+  if (deletedMatch && (deletedMatch.get({ plain: true }) as Record<string, unknown>).deletedAt) {
+    await deletedMatch.restore();
+    const maxOrder = ((await db.Department.max('order')) as number) || 0;
+    await deletedMatch.update({
+      name: input.name,
+      description: input.description || '',
+      order: maxOrder + 1,
+      status: 'active',
+      updatedBy: creator ? creator.get('id') : null
+    } as never);
+    return (await findDepartmentById(deletedMatch.get('id') as string)) as DepartmentRecord;
+  }
+
+  const maxOrder = ((await db.Department.max('order')) as number) || 0;
   const row = await db.Department.create({
     name: input.name,
     description: input.description || '',

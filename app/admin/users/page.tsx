@@ -1,12 +1,14 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { BRAND } from '@/lib/branding';
+
+const PAGE_SIZE = 20;
 
 // Known system roles keep their dedicated pill colors; any admin-created role
 // falls back to a neutral pill so a brand-new role never breaks this lookup.
@@ -107,6 +109,15 @@ export default function ManageUsersPage() {
   const [activity, setActivity] = useState<Record<string, UserActivity>>({});
   const [activityLoading, setActivityLoading] = useState(false);
 
+  // Employee Directory — search/filters/pagination over the same user list
+  // the add-user form already loads, same client-side pattern as LeadsView.
+  const [q, setQ] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'' | PublicUser['status']>('');
+  const [designationFilter, setDesignationFilter] = useState('');
+  const [page, setPage] = useState(1);
+
   async function loadUsers() {
     setStatus('Loading...');
     try {
@@ -137,6 +148,32 @@ export default function ManageUsersPage() {
   }, []);
 
   const isSuperadmin = currentRole === 'superadmin';
+  const isAdminTier = isSuperadmin || currentRole === 'admin';
+
+  const designations = useMemo(
+    () => [...new Set(users.map((u) => u.designation).filter(Boolean))].sort(),
+    [users]
+  );
+
+  const visibleUsers = useMemo(() => {
+    let rows = users;
+    if (q.trim()) {
+      const needle = q.trim().toLowerCase();
+      rows = rows.filter((u) => `${u.name} ${u.employeeId} ${u.email} ${u.username}`.toLowerCase().includes(needle));
+    }
+    if (departmentFilter) rows = rows.filter((u) => u.department === departmentFilter);
+    if (roleFilter) rows = rows.filter((u) => u.role === roleFilter);
+    if (statusFilter) rows = rows.filter((u) => u.status === statusFilter);
+    if (designationFilter) rows = rows.filter((u) => u.designation === designationFilter);
+    return rows;
+  }, [users, q, departmentFilter, roleFilter, statusFilter, designationFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleUsers.length / PAGE_SIZE));
+  const pageRows = visibleUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q, departmentFilter, roleFilter, statusFilter, designationFilter]);
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
@@ -275,6 +312,11 @@ export default function ManageUsersPage() {
           </div>
         </Link>
         <div style={{ display: 'flex', gap: 10 }}>
+          {isAdminTier && (
+            <Link className={`${historyStyles.button} ${historyStyles.primary}`} href="/admin/users/import">
+              Import Employees
+            </Link>
+          )}
           <Link className={historyStyles.button} href="/admin/roles">
             Role Management
           </Link>
@@ -346,8 +388,33 @@ export default function ManageUsersPage() {
           </button>
         </form>
 
-        <h2 className={calcStyles.h2}>Users</h2>
+        <h2 className={calcStyles.h2}>Employee Directory</h2>
         <div className={historyStyles.status}>{status}</div>
+        <div className={historyStyles.toolbar}>
+          <input
+            type="text"
+            placeholder="Search name, employee ID, email, or username..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+            <option value="">All departments</option>
+            {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+          </select>
+          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+            <option value="">All roles</option>
+            {roles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+          </select>
+          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | PublicUser['status'])}>
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={designationFilter} onChange={(e) => setDesignationFilter(e.target.value)}>
+            <option value="">All designations</option>
+            {designations.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
         <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
@@ -367,7 +434,12 @@ export default function ManageUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => {
+              {pageRows.length === 0 && (
+                <tr><td colSpan={12} style={{ textAlign: 'center', padding: 24, color: '#9ca3af' }}>
+                  {users.length === 0 ? 'No users yet.' : 'No employees match your filters.'}
+                </td></tr>
+              )}
+              {pageRows.map((user) => {
                 const isEditing = editingId === user.id;
                 const canManage = isSuperadmin || user.role !== 'superadmin';
                 const isActivityOpen = activityOpenId === user.id;
@@ -429,6 +501,9 @@ export default function ManageUsersPage() {
                           <td>{formatDateTime(user.createdAt)}</td>
                           <td>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              <Link href={`/admin/users/${user.id}`} className={historyStyles.toggleBtn}>
+                                View Profile
+                              </Link>
                               <button type="button" className={historyStyles.toggleBtn} onClick={() => toggleActivity(user)}>
                                 {isActivityOpen ? 'Hide activity' : 'View activity'}
                               </button>
@@ -483,6 +558,13 @@ export default function ManageUsersPage() {
             </tbody>
           </table>
         </div>
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center', marginTop: 14 }}>
+            <button type="button" className={historyStyles.button} disabled={page === 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
+            <span className={calcStyles.small}>Page {page} of {totalPages}</span>
+            <button type="button" className={historyStyles.button} disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>Next →</button>
+          </div>
+        )}
       </main>
     </div>
   );

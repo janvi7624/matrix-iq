@@ -128,9 +128,13 @@ export interface UserRecord {
   employeeId: string;
   department: string;
   designation: string;
+  location: string;
   status: UserStatus;
   createdAt: string;
   lastLoginAt: string;
+  // True only for accounts created via bulk employee import until the
+  // employee changes their temporary password (see lib/auth.ts, proxy.ts).
+  mustChangePassword: boolean;
 }
 
 export type PublicUser = Omit<UserRecord, 'passwordHash'>;
@@ -500,7 +504,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import';
   entity_id: string;
   action: string;
   previous_status: string;

@@ -1,8 +1,8 @@
 /* ---------------------------------------------------------------------
-   Sidebar — restyled to match the app's existing design system: same red
-   accent (#dc2626/#b91c1c), same card radius/shadow language as
-   dashboard.module.css's .tile/.kpiCard, same neutral grays as
-   quotationHistory.module.css. No new colors introduced.
+   Sidebar — matches the MatrixIQ design system via the tokens in
+   app/globals.css (--mx-*): same brand red, same card radius/shadow
+   language as dashboard.module.css's .tile/.kpiCard, same neutral grays as
+   quotationHistory.module.css.
 --------------------------------------------------------------------- */
 
 .layout {
@@ -105,7 +105,7 @@
 }
 .collapseBtn:hover {
     background: #fff1f1;
-    color: #b91c1c;
+    color: var(--mx-brand-hover);
     box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
 }
 .sidebarCollapsed .collapseBtn {
@@ -183,12 +183,12 @@
 }
 .link:hover .linkIcon {
     background: rgba(220, 38, 38, 0.09);
-    color: #b91c1c;
+    color: var(--mx-brand-hover);
     transform: translateY(-1px);
 }
 .linkActive {
     background: rgba(220, 38, 38, 0.08);
-    color: #b91c1c;
+    color: var(--mx-brand-hover);
     font-weight: 700;
 }
 .linkActive::before {
@@ -200,14 +200,14 @@
     width: 3px;
     height: 18px;
     border-radius: 0 3px 3px 0;
-    background: #dc2626;
+    background: var(--mx-brand);
 }
 .linkActive .linkIcon {
-    background: #dc2626;
+    background: var(--mx-brand);
     color: #fff;
 }
 .linkActive:hover {
-    color: #b91c1c;
+    color: var(--mx-brand-hover);
 }
 
 .linkIcon {
@@ -240,12 +240,12 @@
     padding: 0 5px;
     border-radius: 999px;
     background: rgba(220, 38, 38, 0.13);
-    color: #b91c1c;
+    color: var(--mx-brand-hover);
     font-size: 10.5px;
     font-weight: 800;
 }
 .linkActive .badge {
-    background: #dc2626;
+    background: var(--mx-brand);
     color: #fff;
 }
 
@@ -319,7 +319,7 @@
 .quickActionBtn:hover {
     background: #fff1f1;
     border-color: rgba(220, 38, 38, 0.3);
-    color: #b91c1c;
+    color: var(--mx-brand-hover);
     transform: translateY(-1px);
 }
 .quickActionIcon {
@@ -346,7 +346,7 @@
     width: 34px;
     height: 34px;
     border-radius: 10px;
-    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    background: linear-gradient(135deg, var(--mx-brand), var(--mx-brand-hover));
     color: #fff;
     font-size: 13px;
     font-weight: 800;
@@ -390,7 +390,7 @@
 }
 .logoutBtn:hover {
     background: rgba(220, 38, 38, 0.1);
-    color: #b91c1c;
+    color: var(--mx-brand-hover);
 }
 .sidebarCollapsed .profile {
     padding: 8px;

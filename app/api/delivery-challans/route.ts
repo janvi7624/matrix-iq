@@ -26,7 +26,11 @@ export async function GET(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const records = await deliveryChallanStore.list(viewer.username, viewer.isPrivileged);
+    // Same reasoning as demo-schedule's GET — a DC is created by whichever
+    // Back Office user generated it, but the whole team needs to see the
+    // shared dispatch/return queue, not just DCs they personally made.
+    const canSeeQueue = viewer.isPrivileged || viewer.role === 'backoffice';
+    const records = await deliveryChallanStore.list(viewer.username, canSeeQueue);
     return NextResponse.json(records);
   } catch (error) {
     return apiErrorResponse(error);

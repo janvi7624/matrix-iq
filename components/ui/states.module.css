@@ -1,0 +1,87 @@
+/* Shared loading/empty/error primitives — see components/ui/Skeleton.tsx,
+   EmptyState.tsx, ErrorState.tsx. Uses the MatrixIQ tokens from
+   app/globals.css so these automatically match whatever module drops them in. */
+
+.skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--mx-surface-sunken);
+    border-radius: var(--mx-radius-sm);
+}
+.skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    animation: mxShimmer 1.4s infinite;
+}
+@keyframes mxShimmer {
+    100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .skeleton::after { animation: none; }
+}
+
+.skeletonRow {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-top: 1px solid var(--mx-border);
+}
+.skeletonRow:first-child { border-top: none; }
+.skeletonBlock { height: 14px; border-radius: var(--mx-radius-xs); }
+
+.stateWrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 48px 24px;
+    gap: 6px;
+}
+.stateIcon {
+    font-size: 32px;
+    margin-bottom: 6px;
+    opacity: 0.85;
+}
+.stateTitle {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--mx-ink);
+}
+.stateMessage {
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+    max-width: 44ch;
+}
+.stateAction {
+    margin-top: 14px;
+}
+
+.errorWrap {
+    composes: stateWrap;
+}
+.errorIcon {
+    composes: stateIcon;
+    color: var(--mx-danger);
+}
+.retryBtn {
+    margin-top: 14px;
+    min-height: 40px;
+    padding: 9px 18px;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border-strong);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
+}
+.retryBtn:hover {
+    background: var(--mx-surface-sunken);
+    border-color: var(--mx-ink-faint);
+}

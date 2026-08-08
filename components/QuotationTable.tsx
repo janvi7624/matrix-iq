@@ -7,6 +7,7 @@ import { formatMoney } from '@/lib/format';
 import { daysSince, needsFollowUp, parseFollowUpNotes } from '@/lib/followUp';
 import { computeEffectiveStatusClient } from '@/lib/quotationStatus';
 import { useConfirm } from './ui/ConfirmDialog';
+import EmptyState from './ui/EmptyState';
 import styles from './quotationHistory.module.css';
 
 const STATUS_LABEL: Record<QuotationEffectiveStatus, string> = {
@@ -303,8 +304,8 @@ export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSale
       <tbody>
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={showSalesPerson ? 13 : 12} className={styles.empty}>
-              No quotations recorded yet.
+            <td colSpan={showSalesPerson ? 13 : 12}>
+              <EmptyState icon="🧾" title="No quotations yet" message="Create a quotation to see it listed here, with status, versions, and follow-ups." />
             </td>
           </tr>
         ) : (

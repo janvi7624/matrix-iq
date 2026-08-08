@@ -13,10 +13,10 @@
     position: relative;
     width: min(860px, 100%);
     padding: 34px;
-    border-radius: 28px;
-    background: #ffffff;
-    box-shadow: 0 22px 60px rgba(15, 23, 42, 0.12);
-    border: 1px solid rgba(229, 231, 235, 0.8);
+    border-radius: var(--mx-radius-xl);
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-lg);
+    border: 1px solid var(--mx-border);
 }
 .converter::before {
     content: '';
@@ -45,9 +45,9 @@
     flex-wrap: wrap;
     margin-bottom: 14px;
     padding: 8px 14px;
-    border-radius: 12px;
-    background: #f8fafc;
-    border: 1px solid rgba(209, 213, 219, 0.7);
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border);
 }
 .rolePill {
     display: inline-block;
@@ -60,12 +60,12 @@
     letter-spacing: 0.03em;
     vertical-align: middle;
 }
-.rolePillSuperadmin { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
-.rolePillAdmin { background: rgba(217, 119, 6, 0.14); color: #b45309; }
-.rolePillManager { background: rgba(124, 58, 237, 0.14); color: #6d28d9; }
-.rolePillTechnical { background: rgba(13, 148, 136, 0.14); color: #0f766e; }
-.rolePillBackoffice { background: rgba(202, 138, 4, 0.14); color: #a16207; }
-.rolePillUser { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+.rolePillSuperadmin { background: var(--mx-danger-subtle); color: var(--mx-danger); }
+.rolePillAdmin { background: var(--mx-warning-subtle); color: var(--mx-warning); }
+.rolePillManager { background: var(--mx-role-manager-subtle); color: var(--mx-role-manager); }
+.rolePillTechnical { background: var(--mx-role-technical-subtle); color: var(--mx-role-technical); }
+.rolePillBackoffice { background: var(--mx-role-backoffice-subtle); color: var(--mx-role-backoffice); }
+.rolePillUser { background: var(--mx-info-subtle); color: var(--mx-info); }
 .brandHeader {
     display: flex;
     align-items: center;
@@ -96,9 +96,9 @@
 }
 .sectionPanel {
     padding: 20px 20px 16px;
-    border-radius: 20px;
-    background: #f8fafc;
-    border: 1px solid rgba(209, 213, 219, 0.85);
+    border-radius: var(--mx-radius-xl);
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border);
 }
 .columns {
     grid-template-columns: 1fr 1fr;
@@ -112,9 +112,9 @@
     min-height: 260px;
 }
 .imageHolder {
-    border-radius: 16px;
-    background: #ffffff;
-    border: 1px solid rgba(229, 231, 235, 0.95);
+    border-radius: var(--mx-radius-lg);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
     padding: 12px;
     display: flex;
     align-items: center;
@@ -125,7 +125,7 @@
     max-width: 100%;
     max-height: 220px;
     object-fit: contain;
-    border-radius: 14px;
+    border-radius: var(--mx-radius-md);
 }
 .label {
     font-size: 0.85rem;
@@ -137,24 +137,24 @@
     box-sizing: border-box;
     min-height: 46px;
     padding: 12px 14px;
-    border-radius: 10px;
-    border: 1px solid #d8dbe1;
-    background: #ffffff;
-    color: #111827;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border-strong);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
     /* 16px stops iOS Safari auto-zooming the page when a sales rep taps into a field on their phone. */
     font-size: 16px;
     outline: none;
     font-family: inherit;
     resize: vertical;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .formControl:focus {
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+    border-color: var(--mx-brand);
+    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
 }
 .formControlLocked {
-    background: #f3f4f6;
-    color: #4b5563;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
     cursor: not-allowed;
 }
 .formControlLocked:focus {
@@ -182,14 +182,14 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px 18px;
-    border-radius: 14px;
-    background: #ffffff;
-    border: 1px solid rgba(229, 231, 235, 0.95);
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+    border-radius: var(--mx-radius-lg);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
 }
 .summaryItemHighlight {
-    border-color: #22c55e;
-    background: rgba(34, 197, 94, 0.12);
+    border-color: var(--mx-success);
+    background: var(--mx-success-subtle);
 }
 .summaryItem strong {
     font-weight: 700;
@@ -204,31 +204,31 @@
     margin: 28px 0 12px;
     font-size: 1.3rem;
     font-weight: 700;
-    color: #111827;
+    color: var(--mx-ink);
     padding-left: 12px;
-    border-left: 4px solid #dc2626;
+    border-left: 4px solid var(--mx-brand);
 }
 .btn {
     min-height: 48px;
     padding: 13px 20px;
     border: none;
-    border-radius: 10px;
-    background: #dc2626;
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-brand);
     color: #ffffff;
     font-size: 15px;
     font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.22);
-    transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+    box-shadow: var(--mx-shadow-sm);
+    transition: background var(--mx-duration-base) var(--mx-ease), transform var(--mx-duration-fast) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .btn:hover {
-    background: #b91c1c;
+    background: var(--mx-brand-hover);
     transform: translateY(-1px);
-    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.28);
+    box-shadow: var(--mx-shadow-md);
 }
 .btn:active {
     transform: translateY(1px);
-    box-shadow: 0 3px 10px rgba(220, 38, 38, 0.22);
+    box-shadow: var(--mx-shadow-xs);
 }
 .btn:disabled {
     opacity: 0.6;
@@ -237,16 +237,16 @@
     box-shadow: none;
 }
 .btnPrimary {
-    background: #dc2626;
+    background: var(--mx-brand);
     color: #ffffff;
 }
 .btnGhost {
     background: transparent;
-    color: #111827;
-    border: 1px solid rgba(148, 163, 184, 0.5);
+    color: var(--mx-ink);
+    border: 1px solid var(--mx-border-strong);
 }
 .btnGhost:hover {
-    background: rgba(220, 38, 38, 0.12);
+    background: var(--mx-brand-subtle);
 }
 .small {
     font-size: 0.92rem;
@@ -254,18 +254,18 @@
 }
 .domainPanel {
     padding: 20px 20px 16px;
-    border-radius: 20px;
-    background: #fff1f1;
+    border-radius: var(--mx-radius-xl);
+    background: var(--mx-brand-subtle);
     border: 1px solid rgba(220, 38, 38, 0.25);
     margin-bottom: 18px;
 }
 .aiFeatureList {
     max-height: 440px;
     overflow-y: auto;
-    border: 1px solid rgba(209, 213, 219, 0.85);
-    border-radius: 14px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg);
     padding: 6px 14px;
-    background: #ffffff;
+    background: var(--mx-surface);
 }
 .aiFeatureCategory {
     font-weight: 700;
@@ -325,31 +325,33 @@
     width: 44px;
     height: 44px;
     padding: 0;
-    border-radius: 10px;
-    background: #6b7280;
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-ink-muted);
     color: #ffffff;
     font-weight: 700;
     font-size: 1.2rem;
     line-height: 1;
     border: none;
     cursor: pointer;
+    transition: background var(--mx-duration-base) var(--mx-ease);
 }
 .removeItemBtn:hover {
-    background: #374151;
+    background: var(--mx-ink);
 }
 .secondaryButton {
     min-height: 44px;
-    background: #ffffff;
-    color: #dc2626;
-    border: 1.5px dashed #dc2626;
+    background: var(--mx-surface);
+    color: var(--mx-brand);
+    border: 1.5px dashed var(--mx-brand);
     font-weight: 600;
     font-size: 14.5px;
     padding: 10px 16px;
-    border-radius: 12px;
+    border-radius: var(--mx-radius-md);
     cursor: pointer;
+    transition: background var(--mx-duration-base) var(--mx-ease);
 }
 .secondaryButton:hover {
-    background: rgba(220, 38, 38, 0.1);
+    background: var(--mx-brand-subtle);
 }
 .hidden {
     display: none;

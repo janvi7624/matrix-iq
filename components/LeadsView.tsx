@@ -12,6 +12,9 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { SkeletonRows } from './ui/Skeleton';
+import EmptyState from './ui/EmptyState';
+import ErrorState from './ui/ErrorState';
 
 interface LeadsViewProps {
   currentUser: { username: string; role: UserRole };
@@ -42,6 +45,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [mode, setMode] = useState<'capture' | 'list'>(startUnattended ? 'list' : 'capture');
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<LeadPriority | ''>('');
@@ -53,6 +58,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
   async function loadLeads() {
     setStatus('Loading...');
+    setLoading(true);
+    setLoadFailed(false);
     try {
       const response = await fetch('/api/leads');
       if (!response.ok) throw new Error(String(response.status));
@@ -61,6 +68,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       setStatus(data.length ? `${data.length} lead${data.length === 1 ? '' : 's'}.` : 'No leads captured yet.');
     } catch {
       setStatus('Could not load leads. Refresh to try again.');
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -242,8 +252,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               <a className={historyStyles.button} href="/api/leads/export.csv">Export CSV</a>
               <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
             </div>
-            <div className={historyStyles.status}>{status}</div>
+            {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
+            {loading ? (
+              <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={9} /></div>
+            ) : loadFailed ? (
+              <ErrorState message="Could not load leads — check your connection and try again." onRetry={loadLeads} />
+            ) : (
             <div className={historyStyles.tableWrap}>
               <table className={historyStyles.table}>
                 <thead>
@@ -285,11 +300,19 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                     </tr>
                   ))}
                   {pageRows.length === 0 && (
-                    <tr><td colSpan={10} className={historyStyles.empty}>No leads match.</td></tr>
+                    <tr><td colSpan={10}>
+                      <EmptyState
+                        icon="📇"
+                        title={leads.length === 0 ? 'No leads captured yet' : 'No leads match your filters'}
+                        message={leads.length === 0 ? 'Scan a business card to capture your first lead.' : 'Try clearing a filter or search term.'}
+                        action={leads.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('capture')}>📸 Capture a Lead</button> : undefined}
+                      />
+                    </td></tr>
                   )}
                 </tbody>
               </table>
             </div>
+            )}
 
             {totalPages > 1 && (
               <div style={{ display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center', marginTop: 14 }}>

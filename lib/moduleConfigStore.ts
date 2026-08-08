@@ -114,15 +114,21 @@ export async function listVisibleModules(role: UserRole): Promise<ModuleConfigRe
   return all.filter((m) => m.enabled && m.visibleToRoles.includes(role));
 }
 
-// Real access control for a custom module's record API (not just a
-// dashboard-display concern) — used by /api/custom-modules/[key]/* so a role
-// that isn't supposed to see a module can't reach its data by hitting the
-// API directly even if they know the URL.
-export async function isModuleVisibleToRole(fullKey: string, role: UserRole): Promise<boolean> {
+// Real access control for a module's record/page API — the single source of
+// truth for both built-in modules (see proxy.ts's BUILTIN_MODULE_GATES) and
+// custom modules (see customModuleStore.ts's getModuleForViewer), keyed off
+// THIS store's ModuleConfigRecord (what Module Manager actually edits), not
+// any other per-module "enabled" flag a module's own admin surface might
+// have. A disabled module blocks EVERYONE, including privileged roles; an
+// enabled module restricted to certain roles only blocks non-privileged
+// viewers — so a role that isn't supposed to see a module can't reach its
+// data by hitting the API directly even if they know the URL.
+export async function isModuleAccessAllowed(key: string, viewer: { role: UserRole; isPrivileged: boolean }): Promise<boolean> {
   const all = await listModuleConfigs();
-  const config = all.find((m) => m.key === fullKey);
-  if (!config) return false;
-  return config.enabled && config.visibleToRoles.includes(role);
+  const config = all.find((m) => m.key === key);
+  if (!config || !config.enabled) return false;
+  if (viewer.isPrivileged) return true;
+  return config.visibleToRoles.includes(viewer.role);
 }
 
 export async function updateModuleConfig(id: string, patch: Partial<Omit<ModuleConfigRecord, 'id' | 'key' | 'isCustom'>>): Promise<ModuleConfigRecord | null> {

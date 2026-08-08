@@ -46,6 +46,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.status = 'cancelled';
     } else if (body.status === 'demo_completed' && existing.status === 'material_dispatched') {
       patch.status = 'demo_completed';
+    } else if (typeof body.status === 'string' && body.status) {
+      // A status value was supplied but doesn't match any transition legal
+      // from the current one (e.g. draft -> dc_closed) — reject it rather
+      // than silently ignoring it, so a client bug or bad request is visible
+      // instead of returning 200 with the record unchanged.
+      return NextResponse.json({ error: `Cannot change status from "${existing.status}" to "${body.status}"` }, { status: 400 });
     }
 
     if (typeof body.notes === 'string') patch.notes = body.notes.trim();

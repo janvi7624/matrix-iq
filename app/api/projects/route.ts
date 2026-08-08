@@ -32,7 +32,13 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date().toISOString();
-  const salesPerson = typeof body.salesPerson === 'string' && body.salesPerson.trim() ? body.salesPerson.trim() : viewer.username;
+  // Only a privileged role may attribute a project to someone else (e.g. an
+  // Admin entering data on a sales rep's behalf) — otherwise created_by IS
+  // the ownership/visibility key (see projectStore.list), so letting any
+  // caller set it would let a plain "user" plant projects under another
+  // employee's name or drop one into visibility limbo with a bogus name.
+  const requestedSalesPerson = typeof body.salesPerson === 'string' && body.salesPerson.trim() ? body.salesPerson.trim() : '';
+  const salesPerson = viewer.isPrivileged && requestedSalesPerson ? requestedSalesPerson : viewer.username;
   const record: ProjectRecord = {
     id: `${Date.now()}`,
     created_at: now,

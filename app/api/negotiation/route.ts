@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { negotiationStore } from '@/lib/negotiationStore';
-import { appendProjectTimeline } from '@/lib/projectStore';
+import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { NegotiationRecord } from '@/lib/types';
 
@@ -28,6 +28,12 @@ export async function POST(request: NextRequest) {
   const discussionDate = typeof body.discussionDate === 'string' ? body.discussionDate : '';
   if (!projectId || !discussionDate) {
     return NextResponse.json({ error: 'Project and discussion date are required' }, { status: 400 });
+  }
+
+  const project = await findProjectById(projectId);
+  if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  if (!viewer.isPrivileged && project.created_by !== viewer.username) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const record: NegotiationRecord = {

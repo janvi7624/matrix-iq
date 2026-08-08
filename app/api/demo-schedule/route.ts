@@ -33,7 +33,15 @@ export async function GET(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const records = await demoScheduleStore.list(viewer.username, viewer.isPrivileged);
+    // Technical and Back Office act on demo requests routed to them by the
+    // approval pipeline (pending_technical / pending_backoffice, etc.), not
+    // ones they personally created — own-scoping them like a plain "user"
+    // would leave their entire review queue empty. The technical-approval /
+    // manager-approval / DC action routes are already role-gated (not
+    // ownership-gated), so widening visibility here doesn't grant any new
+    // write capability, only lets them see what they could already act on.
+    const canSeeQueue = viewer.isPrivileged || viewer.role === 'technical' || viewer.role === 'backoffice';
+    const records = await demoScheduleStore.list(viewer.username, canSeeQueue);
     return NextResponse.json(records);
   } catch (error) {
     return apiErrorResponse(error);

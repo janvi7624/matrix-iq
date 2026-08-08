@@ -10,6 +10,9 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { SkeletonRows } from './ui/Skeleton';
+import EmptyState from './ui/EmptyState';
+import ErrorState from './ui/ErrorState';
 
 const EMPTY_FORM = {
   clientName: '',
@@ -57,6 +60,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -71,6 +76,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
 
   async function load() {
     setStatus('Loading...');
+    setLoading(true);
+    setLoadFailed(false);
     try {
       const response = await fetch('/api/projects');
       if (!response.ok) throw new Error(String(response.status));
@@ -80,6 +87,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       setLoaded(true);
     } catch {
       setStatus('Could not reach the projects API. Try refreshing.');
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -257,9 +267,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           <input type="date" className={calcStyles.formControl} style={{ width: 'auto' }} value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
           <input type="date" className={calcStyles.formControl} style={{ width: 'auto' }} value={fTo} onChange={(e) => setFTo(e.target.value)} />
         </div>
-        <div className={historyStyles.status}>{status}</div>
+        {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
-        {loaded && (
+        {loading ? (
+          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={9} /></div>
+        ) : loadFailed ? (
+          <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
+        ) : (
+        loaded && (
           <table className={historyStyles.table}>
             <thead>
               <tr>
@@ -277,8 +292,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className={historyStyles.empty}>
-                    No projects found.
+                  <td colSpan={9}>
+                    <EmptyState
+                      icon="📁"
+                      title={projects.length === 0 ? 'No projects yet' : 'No projects match your filters'}
+                      message={projects.length === 0 ? 'Create your first project to start tracking it through the pipeline.' : 'Try clearing a filter or search term.'}
+                      action={projects.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>+ New Project</button> : undefined}
+                    />
                   </td>
                 </tr>
               ) : (
@@ -318,6 +338,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               )}
             </tbody>
           </table>
+        )
         )}
     </AppShell>
   );

@@ -5,6 +5,87 @@
   --foreground: #171717;
 }
 
+/* ===========================================================================
+   MatrixIQ design tokens — single source of truth for color/radius/shadow/
+   timing, consumed by the shared CSS Modules (calculator.module.css,
+   quotationHistory.module.css, dashboard.module.css, sidebar.module.css) so
+   every module's buttons/cards/badges/status colors come from one palette
+   instead of each file hand-typing its own hex/px values. CSS custom
+   properties cascade globally regardless of CSS Module boundaries, so any
+   .module.css file can reference var(--mx-*) without importing anything.
+
+   Structured so a future dark theme is a single added block that only
+   redefines these tokens (e.g. `[data-theme="dark"] { --mx-surface: ... }`)
+   — no dark theme ships yet, this is just leaving the door open.
+   Breakpoints (not tokenizable in plain CSS media queries): 768px, 1080px.
+=========================================================================== */
+:root {
+  /* Brand */
+  --mx-brand: #dc2626;
+  --mx-brand-hover: #b91c1c;
+  --mx-brand-subtle: rgba(220, 38, 38, 0.08);
+
+  /* Ink / neutrals */
+  --mx-ink: #111827;
+  --mx-ink-muted: #6b7280;
+  --mx-ink-faint: #9ca3af;
+  --mx-surface: #ffffff;
+  --mx-surface-sunken: #f8fafc;
+  --mx-page-bg: #f4f5f7;
+  --mx-border: #e5e7eb;
+  --mx-border-strong: #d1d5db;
+
+  /* Semantic — one hue per meaning, used consistently for status/badges/alerts */
+  --mx-success: #15803d;
+  --mx-success-subtle: rgba(21, 128, 61, 0.12);
+  --mx-warning: #b45309;
+  --mx-warning-subtle: rgba(180, 83, 9, 0.14);
+  --mx-danger: #b91c1c;
+  --mx-danger-subtle: rgba(220, 38, 38, 0.12);
+  --mx-info: #1d4ed8;
+  --mx-info-subtle: rgba(37, 99, 235, 0.12);
+
+  /* Role-identity categorical hues — distinct from semantic colors above;
+     these exist purely to tell 6 roles apart at a glance (rolePill), not to
+     mean success/warning/danger. Superadmin/Admin/User reuse the semantic
+     danger/warning/info tokens since those happen to already be the right
+     hue for those three roles. */
+  --mx-role-manager: #6d28d9;
+  --mx-role-manager-subtle: rgba(124, 58, 237, 0.14);
+  --mx-role-technical: #0f766e;
+  --mx-role-technical-subtle: rgba(13, 148, 136, 0.14);
+  --mx-role-backoffice: #a16207;
+  --mx-role-backoffice-subtle: rgba(202, 138, 4, 0.14);
+
+  /* Radius scale */
+  --mx-radius-xs: 6px;
+  --mx-radius-sm: 9px;
+  --mx-radius-md: 12px;
+  --mx-radius-lg: 16px;
+  --mx-radius-xl: 20px;
+  --mx-radius-full: 999px;
+
+  /* Shadow scale */
+  --mx-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --mx-shadow-sm: 0 4px 12px rgba(15, 23, 42, 0.05);
+  --mx-shadow-md: 0 10px 28px rgba(15, 23, 42, 0.07);
+  --mx-shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.12);
+
+  /* Spacing (8px scale) — for new components; existing inline spacing is unchanged */
+  --mx-space-1: 4px;
+  --mx-space-2: 8px;
+  --mx-space-3: 12px;
+  --mx-space-4: 16px;
+  --mx-space-5: 24px;
+  --mx-space-6: 32px;
+
+  /* Motion */
+  --mx-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --mx-duration-fast: 120ms;
+  --mx-duration-base: 180ms;
+  --mx-duration-slow: 280ms;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

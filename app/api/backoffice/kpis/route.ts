@@ -14,9 +14,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Same team-queue visibility as /api/delivery-challans and
+    // /api/demo-schedule — this route is already backoffice/privileged-only
+    // (checked above), so canSeeQueue is effectively always true here, but
+    // written the same way for consistency with those two routes.
+    const canSeeQueue = viewer.isPrivileged || viewer.role === 'backoffice';
     const [dcs, demos] = await Promise.all([
-      deliveryChallanStore.list(viewer.username, viewer.isPrivileged),
-      demoScheduleStore.list(viewer.username, viewer.isPrivileged)
+      deliveryChallanStore.list(viewer.username, canSeeQueue),
+      demoScheduleStore.list(viewer.username, canSeeQueue)
     ]);
 
     const today = new Date().toISOString().slice(0, 10);

@@ -138,13 +138,37 @@ async function update(id: string, patch: Partial<ProjectRecord>): Promise<Projec
   });
 }
 
-async function remove(id: string, viewerUsername: string, viewerIsPrivileged: boolean): Promise<boolean> {
-  if (!viewerIsPrivileged) return false;
-  if (!isUuid(id)) return false;
+// A project with any dependent record (site visit, quotation, demo,
+// negotiation, PO, customer response, installation, DC) can't be deleted —
+// deleting the project only soft-deletes it (paranoid: true), so nothing is
+// physically lost, but every child record's project_id would silently point
+// at a project that findProjectById can no longer resolve, with no way back
+// to it from those lists. Same "in use -> block, not silently orphan"
+// pattern as lib/departmentStore.ts's deleteDepartment.
+async function isProjectInUse(id: string): Promise<boolean> {
+  const [siteVisits, quotations, demos, negotiations, pos, responses, installations, dcs] = await Promise.all([
+    db.SiteVisit.count({ where: { project_id: id } as never }),
+    db.Quotation.count({ where: { project_id: id } as never }),
+    db.DemoSchedule.count({ where: { project_id: id } as never }),
+    db.Negotiation.count({ where: { project_id: id } as never }),
+    db.PurchaseOrder.count({ where: { project_id: id } as never }),
+    db.CustomerResponse.count({ where: { project_id: id } as never }),
+    db.Installation.count({ where: { project_id: id } as never }),
+    db.DeliveryChallan.count({ where: { project_id: id } as never })
+  ]);
+  return siteVisits + quotations + demos + negotiations + pos + responses + installations + dcs > 0;
+}
+
+async function remove(id: string, viewerUsername: string, viewerIsPrivileged: boolean): Promise<{ ok: boolean; reason?: string }> {
+  if (!viewerIsPrivileged) return { ok: false, reason: 'Project not found' };
+  if (!isUuid(id)) return { ok: false, reason: 'Project not found' };
   const row = await db.Project.findByPk(id);
-  if (!row) return false;
+  if (!row) return { ok: false, reason: 'Project not found' };
+  if (await isProjectInUse(id)) {
+    return { ok: false, reason: 'This project has linked records (site visits, quotations, demos, etc.) and cannot be deleted — its status/stage can still be changed to reflect it is closed/lost.' };
+  }
   await row.destroy();
-  return true;
+  return { ok: true };
 }
 
 // Records written before `notes`/`attachments` existed on ProjectRecord won't

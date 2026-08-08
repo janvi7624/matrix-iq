@@ -1,9 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { BRAND } from '@/lib/branding';
+import { ModuleConfigRecord } from '@/lib/types';
+import GlobalSearch from './GlobalSearch';
 import styles from './quotationHistory.module.css';
 
 interface PortalHeaderProps {
@@ -14,6 +17,21 @@ interface PortalHeaderProps {
 
 export default function PortalHeader({ title, subtitle, showBackLink = true }: PortalHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const [section, setSection] = useState<string | null>(null);
+
+  // Breadcrumb section comes from the same /api/modules data Sidebar already
+  // renders from — same source of truth, so "Section" here always matches
+  // the section header the current page's tile sits under in the sidebar.
+  useEffect(() => {
+    fetch('/api/modules')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((modules: ModuleConfigRecord[]) => {
+        const match = modules.find((m) => pathname === m.href || pathname.startsWith(`${m.href}/`));
+        setSection(match ? match.section : null);
+      })
+      .catch(() => setSection(null));
+  }, [pathname]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
@@ -26,11 +44,13 @@ export default function PortalHeader({ title, subtitle, showBackLink = true }: P
       <Link href="/" className={styles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
         <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
         <div>
+          {section && <div className={styles.breadcrumb}>{section} <span>›</span> {title}</div>}
           <h1>{title}</h1>
           <div className={styles.sub}>{subtitle}</div>
         </div>
       </Link>
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <GlobalSearch />
         {showBackLink && (
           <Link className={styles.button} href="/">
             &larr; Back to Dashboard

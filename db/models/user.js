@@ -14,8 +14,12 @@ module.exports = (sequelize, DataTypes) => {
     department: { type: DataTypes.STRING },
     departmentId: { type: DataTypes.UUID },
     designation: { type: DataTypes.STRING },
+    location: { type: DataTypes.STRING },
     status: { type: DataTypes.ENUM('active', 'inactive'), allowNull: false, defaultValue: 'active' },
-    lastLoginAt: { type: DataTypes.DATE }
+    lastLoginAt: { type: DataTypes.DATE },
+    // Set true only by the bulk employee import (lib/userImportStore.ts) —
+    // cleared the moment the employee successfully changes their password.
+    mustChangePassword: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
   }, {
     tableName: 'users',
     underscored: false,

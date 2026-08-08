@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { installationStore } from '@/lib/installationStore';
-import { appendProjectTimeline } from '@/lib/projectStore';
+import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { InstallationRecord } from '@/lib/types';
 
@@ -28,6 +28,12 @@ export async function POST(request: NextRequest) {
   const installationDate = typeof body.installationDate === 'string' ? body.installationDate : '';
   if (!projectId || !installationDate) {
     return NextResponse.json({ error: 'Project and installation date are required' }, { status: 400 });
+  }
+
+  const project = await findProjectById(projectId);
+  if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  if (!viewer.isPrivileged && project.created_by !== viewer.username) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const record: InstallationRecord = {

@@ -12,6 +12,9 @@ import TeamCheckboxes from './TeamCheckboxes';
 import SiteVisitWizard, { SiteVisitWizardForm } from './SiteVisitWizard';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { SkeletonRows } from './ui/Skeleton';
+import EmptyState from './ui/EmptyState';
+import ErrorState from './ui/ErrorState';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -267,8 +270,9 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
   const searchParams = useSearchParams();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const [visits, setVisits] = useState<SiteVisitRecord[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [creating, setCreating] = useState(false);
   const [mode, setMode] = useState<'register' | 'update'>(searchParams.get('focus') === 'open' ? 'update' : 'register');
   const [openOnly, setOpenOnly] = useState(searchParams.get('focus') === 'open');
@@ -277,15 +281,19 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
 
   async function load() {
     setStatus('Loading...');
+    setLoading(true);
+    setLoadFailed(false);
     try {
       const response = await fetch('/api/site-visits');
       if (!response.ok) throw new Error(String(response.status));
       const data: SiteVisitRecord[] = await response.json();
       setVisits(data);
       setStatus(data.length ? `${data.length} visit${data.length === 1 ? '' : 's'} found.` : '');
-      setLoaded(true);
     } catch {
       setStatus('Could not reach the site visits API. Try refreshing.');
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -382,8 +390,13 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
             Refresh
           </button>
         </div>
-        <div className={historyStyles.status}>{status}</div>
-        {loaded && (
+        {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
+
+        {loading ? (
+          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={9} /></div>
+        ) : loadFailed ? (
+          <ErrorState message="Could not load site visits — check your connection and try again." onRetry={load} />
+        ) : (
           <table className={historyStyles.table}>
             <thead>
               <tr>
@@ -401,8 +414,13 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
             <tbody>
               {visibleVisits.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className={historyStyles.empty}>
-                    No site visits recorded yet.
+                  <td colSpan={9}>
+                    <EmptyState
+                      icon="📍"
+                      title={visits.length === 0 ? 'No site visits recorded yet' : 'No site visits match your filters'}
+                      message={visits.length === 0 ? 'Register a visit to start tracking it here.' : 'Try clearing a filter.'}
+                      action={visits.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('register')}>📍 Register a Visit</button> : undefined}
+                    />
                   </td>
                 </tr>
               ) : (

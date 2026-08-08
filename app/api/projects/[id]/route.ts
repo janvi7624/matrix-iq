@@ -134,8 +134,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const { id } = await params;
   try {
-    const deleted = await projectStore.remove(id, viewer.username, viewer.isPrivileged);
-    if (!deleted) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    const result = await projectStore.remove(id, viewer.username, viewer.isPrivileged);
+    if (!result.ok) {
+      const status = result.reason === 'Project not found' ? 404 : 400;
+      return NextResponse.json({ error: result.reason }, { status });
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiErrorResponse(error);
