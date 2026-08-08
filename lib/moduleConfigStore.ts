@@ -86,9 +86,11 @@ async function ensureSeededAndReconciled(): Promise<void> {
   await db.ModuleConfig.destroy({ where: { key: [...RETIRED_KEYS] } as never });
 
   const stored = await db.ModuleConfig.findAll();
+  const existingKeys = new Set<string>();
   for (const row of stored) {
     const plain = row.get({ plain: true }) as Record<string, unknown>;
     const key = plain.key as string;
+    existingKeys.add(key);
     const attrs: Record<string, unknown> = {};
     const forced = FORCED_RELABELS[key];
     if (forced && plain.label === OLD_DEFAULT_LABELS[key]) attrs.label = forced;
@@ -96,7 +98,9 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }
 
-  const existingKeys = new Set((await db.ModuleConfig.findAll({ attributes: ['key'] })).map((m) => m.get('key') as string));
+  // Reuses the keys already fetched above instead of re-querying the same
+  // table a second time — this function runs on every module-gated request
+  // (see proxy.ts), so a redundant round trip here is paid constantly.
   const missing = SEED_MODULES.filter((m) => !existingKeys.has(m.key));
   if (missing.length) await db.ModuleConfig.bulkCreate(missing.map((m) => ({ ...m })) as never);
 }

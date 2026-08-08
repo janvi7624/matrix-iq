@@ -299,6 +299,14 @@ export async function searchQuotations(query?: string): Promise<QuotationRecord[
   return searchQuotationsFiltered({ query });
 }
 
+// Lightweight count for the Dashboard KPI row — avoids loading every
+// quotation's full row + creator + follow-up includes just to count how many
+// belong to the viewer's own projects.
+export async function countQuotationsForProjects(projectIds: string[]): Promise<number> {
+  if (!projectIds.length) return 0;
+  return db.Quotation.count({ where: { project_id: { [Op.in]: projectIds } } as never });
+}
+
 const CSV_COLUMNS: { key: keyof QuotationRecord; header: string }[] = [
   { key: 'quotation_number', header: 'Quotation Number' },
   { key: 'created_at', header: 'Date' },

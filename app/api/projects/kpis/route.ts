@@ -3,7 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { projectStore } from '@/lib/projectStore';
 import { siteVisitStore } from '@/lib/siteVisitStore';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
-import { searchQuotations } from '@/lib/quotationStore';
+import { countQuotationsForProjects } from '@/lib/quotationStore';
 import { apiErrorResponse } from '@/lib/apiError';
 
 // Aggregated counts for the Dashboard KPI row. Scoped the same way every
@@ -14,15 +14,13 @@ export async function GET(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const [projects, siteVisits, demos, allQuotations] = await Promise.all([
+    const [projects, siteVisits, demos] = await Promise.all([
       projectStore.list(viewer.username, viewer.isPrivileged),
       siteVisitStore.list(viewer.username, viewer.isPrivileged),
-      demoScheduleStore.list(viewer.username, viewer.isPrivileged),
-      searchQuotations()
+      demoScheduleStore.list(viewer.username, viewer.isPrivileged)
     ]);
 
-    const projectIds = new Set(projects.map((p) => p.id));
-    const quotations = allQuotations.filter((q) => projectIds.has(q.project_id));
+    const quotationsCount = await countQuotationsForProjects(projects.map((p) => p.id));
 
     const today = new Date().toISOString().slice(0, 10);
     const now = Date.now();
@@ -46,7 +44,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       totalProjects: projects.length,
       siteVisitsToday,
-      quotationsSent: quotations.length,
+      quotationsSent: quotationsCount,
       upcomingDemos,
       pendingResponses,
       negotiations,

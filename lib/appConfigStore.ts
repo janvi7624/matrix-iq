@@ -125,6 +125,10 @@ export async function updateAppConfig(patch: Partial<AppConfig>, updatedBy: stri
   const { updated_at: _updatedAt, updated_by: _updatedBy, ...attrs } = patch;
   void _updatedAt;
   void _updatedBy;
+  // defaultTaxPercent is the one numeric column here — coerced the same way
+  // every other numeric field in the app is, so a non-numeric value (or a
+  // string from a form field) can't reach Postgres raw and crash with a 500.
+  if (attrs.defaultTaxPercent !== undefined) attrs.defaultTaxPercent = Number(attrs.defaultTaxPercent) || 0;
   await row.update({ ...attrs, updatedBy: updater ? updater.get('id') : null } as never);
   return getAppConfig();
 }
