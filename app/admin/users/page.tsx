@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Fragment, FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types';
@@ -445,8 +445,8 @@ export default function ManageUsersPage() {
                 const isActivityOpen = activityOpenId === user.id;
                 const userActivity = activity[user.id];
                 return (
-                  <>
-                    <tr key={user.id}>
+                  <Fragment key={user.id}>
+                    <tr>
                       <td className={historyStyles.num}>{user.username}</td>
                       {isEditing && editState ? (
                         <>
@@ -552,7 +552,7 @@ export default function ManageUsersPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
