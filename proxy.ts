@@ -20,7 +20,7 @@ import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 // gets a privilege check without a DB call: baked into the signed token at
 // login/token-reissue time.
 
-const PUBLIC_PATHS = new Set(['/login', '/api/auth/login', '/api/auth/logout']);
+const PUBLIC_PATHS = new Set(['/login', '/api/auth/login', '/api/auth/logout', '/manifest.webmanifest']);
 // admin + superadmin only — plain 'user' accounts are blocked from all of these.
 const ADMIN_ONLY_PREFIXES = ['/admin', '/quotation-history', '/api/admin'];
 // Reachable even while a bulk-imported account is force-locked to changing
