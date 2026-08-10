@@ -4,6 +4,7 @@ import { verifyLogin, recordLogin } from '@/lib/userStore';
 import { logLoginAttempt } from '@/lib/loginHistoryStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
+import { resolveIsPrivileged } from '@/lib/permissions';
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -22,8 +23,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
 
-    await Promise.all([recordLogin(user.id), logLoginAttempt({ username, success: true, ip })]);
-    const token = await createSessionToken({ id: user.id, username: user.username, role: user.role, mustChangePassword: user.mustChangePassword });
+    const [, , isPrivileged] = await Promise.all([recordLogin(user.id), logLoginAttempt({ username, success: true, ip }), resolveIsPrivileged(user.role)]);
+    const token = await createSessionToken({ id: user.id, username: user.username, role: user.role, mustChangePassword: user.mustChangePassword, isPrivileged });
     const response = NextResponse.json({
       ok: true,
       user: { name: user.name, phone: user.phone, email: user.email, role: user.role, username: user.username }

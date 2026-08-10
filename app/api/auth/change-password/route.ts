@@ -3,6 +3,7 @@ import { SESSION_COOKIE, createSessionToken, getSessionFromRequest } from '@/lib
 import { findUserById, updateUser } from '@/lib/userStore';
 import { verifyPassword } from '@/lib/passwords';
 import { apiErrorResponse } from '@/lib/apiError';
+import { resolveIsPrivileged } from '@/lib/permissions';
 
 // Self-service — works for any logged-in account, not only ones force-locked
 // by mustChangePassword (see proxy.ts), so it doubles as a normal "change my
@@ -32,7 +33,8 @@ export async function POST(request: NextRequest) {
 
     await updateUser(user.id, { password: newPassword, mustChangePassword: false });
 
-    const token = await createSessionToken({ id: user.id, username: user.username, role: user.role, mustChangePassword: false });
+    const isPrivileged = await resolveIsPrivileged(user.role);
+    const token = await createSessionToken({ id: user.id, username: user.username, role: user.role, mustChangePassword: false, isPrivileged });
     const response = NextResponse.json({ ok: true });
     response.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,

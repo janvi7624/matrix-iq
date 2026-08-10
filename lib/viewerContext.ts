@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getSessionFromRequest } from './auth';
 import { UserRole } from './types';
 import { resolveIsPrivileged } from './permissions';
+import { findUserById } from './userStore';
 
 export interface ViewerContext {
   username: string;
@@ -21,6 +22,15 @@ export interface ViewerContext {
 export async function getViewerContext(request: NextRequest): Promise<ViewerContext | null> {
   const session = await getSessionFromRequest(request);
   if (!session) return null;
+  // The session token has no server-side revocation of its own — this closes
+  // that gap for every route that resolves a viewer through here: a
+  // deactivated/deleted account's already-issued token stops working on its
+  // very next call into this function, instead of staying valid for the rest
+  // of its (up to 8-hour) lifetime. Deliberately NOT done in proxy.ts/lib/
+  // auth.ts — see the comment in proxy.ts on why that file must stay free of
+  // any Sequelize-touching import.
+  const currentUser = await findUserById(session.sub);
+  if (!currentUser || currentUser.status === 'inactive') return null;
   const isPrivileged = await resolveIsPrivileged(session.role);
   return { username: session.username, role: session.role, isPrivileged };
 }
