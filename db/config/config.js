@@ -16,9 +16,25 @@ const DUMMY_DATABASE_URL = 'postgres://user:pass@localhost:5432/placeholder';
 const url = process.env.DATABASE_URL || DUMMY_DATABASE_URL;
 const schema = process.env.DATABASE_SCHEMA || 'public';
 
+// Sequelize's own ConnectionManager._loadDialectModule() does a computed
+// require(dialectModule) internally (node_modules/sequelize/lib/dialects/
+// abstract/connection-manager.js) — no bundler's static tracer (Turbopack,
+// webpack, @vercel/nft) can see that call coming, since the module name is
+// resolved at runtime from the `dialect` option, not a literal string in
+// source. That's the actual mechanism behind "Please install pg package
+// manually" surviving multiple deploy-tracing fixes: pg was never missing,
+// Sequelize's own internal require of it was the one call no trace step
+// could follow. Passing dialectModule directly here makes
+// _loadDialectModule return this object and skip that internal require
+// entirely (it checks config.dialectModule before ever calling require) —
+// so pg only needs to be reachable via the plain, static `require('pg')`
+// two lines up, which every bundler traces exactly like any other import.
+const pg = require('pg');
+
 const base = {
   url,
   dialect: 'postgres',
+  dialectModule: pg,
   dialectOptions: {
     ssl: { require: true, rejectUnauthorized: false }
   },
