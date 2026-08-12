@@ -22,12 +22,10 @@ const base = {
   dialectOptions: {
     ssl: { require: true, rejectUnauthorized: false }
   },
-  dialectModule: pg,
   define: {
     schema
   }
 };
-
 
 module.exports = {
   development: base,
