@@ -4,7 +4,10 @@ module.exports = (sequelize, DataTypes) => {
     delivery_challan_id: { type: DataTypes.UUID, allowNull: false },
     product: { type: DataTypes.STRING },
     serial_number: { type: DataTypes.STRING },
-    quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 }
+    quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    // Set only by Back Office (enforced in the updateItems route, not here) —
+    // shown on the generated PDF.
+    price: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 }
   }, {
     tableName: 'delivery_challan_items',
     underscored: true,

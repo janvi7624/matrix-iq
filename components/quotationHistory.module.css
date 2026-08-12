@@ -652,9 +652,10 @@
 .chipLabel { font-size: 10.5px; font-weight: 600; color: #4b5563; }
 .chipBtnActive .chipLabel { color: #b91c1c; font-weight: 700; }
 
-.priorityBadge { display: inline-block; padding: 3px 10px; border-radius: var(--mx-radius-full); font-size: 11px; font-weight: 700; }
+.priorityBadge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--mx-radius-full); font-size: 11px; font-weight: 700; white-space: nowrap; }
 .priorityBadgeHot { background: var(--mx-danger-subtle); color: var(--mx-danger); }
 .priorityBadgeWarm { background: var(--mx-warning-subtle); color: var(--mx-warning); }
+.priorityBadgeInfo { background: var(--mx-info-subtle); color: var(--mx-info); }
 .priorityBadgeCool { background: var(--mx-success-subtle); color: var(--mx-success); }
 
 .scanProgress { text-align: center; padding: 40px 20px; }
@@ -685,8 +686,15 @@
 .permGroupChevron { display: inline-block; transition: transform 0.15s ease; color: #6b7280; font-size: 12px; }
 .permGroupChevronOpen { transform: rotate(90deg); }
 .permGroupCount { margin-left: auto; font-size: 12px; font-weight: 600; color: #6b7280; background: #eef0f2; padding: 3px 10px; border-radius: 999px; }
-.permTableScroll { max-height: 480px; overflow: auto; }
-.permTable { width: 100%; border-collapse: collapse; }
+/* overflow: auto (not overflow-y) is deliberate — the table below gets a
+   per-column min-width so it genuinely widens past the container on phone
+   screens and scrolls horizontally as a set, matching Option B from the
+   responsive audit (controlled horizontal scroll where a true table is
+   necessary) instead of squeezing 9 checkbox columns down to illegible
+   size. The sticky module-name column stays visible as the anchor while
+   the action columns scroll underneath it. */
+.permTableScroll { max-height: 480px; overflow: auto; -webkit-overflow-scrolling: touch; }
+.permTable { width: 100%; min-width: 640px; border-collapse: collapse; }
 .permTable th, .permTable td { padding: 0; border-bottom: 1px solid #eef0f2; }
 .permTable thead th {
     position: sticky;
@@ -694,6 +702,7 @@
     background: #fff;
     z-index: 2;
     padding: 10px 8px;
+    min-width: 52px;
     font-size: 12px;
     font-weight: 700;
     color: #374151;
@@ -701,13 +710,14 @@
     border-bottom: 2px solid #e5e7eb;
     white-space: nowrap;
 }
-.permTable thead th:first-child { text-align: left; left: 0; z-index: 3; background: #fff; min-width: 180px; }
+.permTable thead th:first-child { text-align: left; left: 0; z-index: 3; background: #fff; min-width: 160px; }
 .permModuleCell {
     position: sticky;
     left: 0;
     background: #fff;
     z-index: 1;
     padding: 12px 14px !important;
+    min-width: 160px;
     font-size: 13.5px;
     font-weight: 600;
     color: #111827;
@@ -748,10 +758,12 @@
 .permRowSelectLabel { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .permRowSelectLabel input[type="checkbox"] { width: 18px; height: 18px; accent-color: #dc2626; cursor: pointer; }
 @media (max-width: 720px) {
+    /* Font/padding trim only — checkbox size and tap-target padding are
+       deliberately left untouched here (was 18px + 6px padding, too small
+       to tap reliably); the table scrolls horizontally instead of the
+       columns shrinking below a usable size. */
     .permGroupHeader { font-size: 13px; padding: 12px; }
     .permTable thead th { font-size: 10.5px; padding: 8px 4px; }
-    .permCheckboxLabel { padding: 10px 6px; }
-    .permCheckboxLabel input[type="checkbox"] { width: 18px; height: 18px; }
 }
 
 /* Grouped action bar (Back Office DC actions, and anywhere else a page needs
@@ -763,8 +775,10 @@
 .actionBtn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     padding: 12px 20px;
+    min-height: 44px;
     border-radius: var(--mx-radius-md);
     font-size: 14px;
     font-weight: 700;
@@ -774,13 +788,34 @@
 }
 .actionBtn:active:not(:disabled) { transform: translateY(1px); }
 .actionBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.actionBtn:focus-visible { outline: 2px solid var(--mx-brand); outline-offset: 2px; }
 .actionBtnPrimary { background: var(--mx-brand); border-color: var(--mx-brand); color: #fff; box-shadow: var(--mx-shadow-sm); }
 .actionBtnPrimary:hover:not(:disabled) { background: var(--mx-brand-hover); border-color: var(--mx-brand-hover); transform: translateY(-1px); box-shadow: var(--mx-shadow-md); }
 .actionBtnSecondary { background: var(--mx-surface); border-color: var(--mx-border-strong); color: var(--mx-ink); }
 .actionBtnSecondary:hover:not(:disabled) { background: var(--mx-surface-sunken); border-color: var(--mx-ink-faint); }
 .actionBtnDanger { background: var(--mx-surface); border-color: #fecaca; color: var(--mx-danger); }
 .actionBtnDanger:hover:not(:disabled) { background: var(--mx-danger-subtle); border-color: var(--mx-brand); }
+.actionBtnSuccess { background: var(--mx-success); border-color: var(--mx-success); color: #fff; box-shadow: var(--mx-shadow-sm); }
+.actionBtnSuccess:hover:not(:disabled) { background: #0f6e30; border-color: #0f6e30; transform: translateY(-1px); box-shadow: var(--mx-shadow-md); }
+.actionBtnGhost { background: transparent; border-color: transparent; color: var(--mx-ink-muted); }
+.actionBtnGhost:hover:not(:disabled) { background: var(--mx-surface-sunken); color: var(--mx-ink); }
+.actionBtnCompact { padding: 7px 14px; min-height: 36px; font-size: 13px; }
 .actionIcon { font-size: 15px; line-height: 1; }
+.actionSpinner {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: actionSpin 0.7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .actionSpinner { animation-duration: 1.5s; }
+}
+@keyframes actionSpin {
+    to { transform: rotate(360deg); }
+}
 @media (max-width: 560px) {
     .actionGroupButtons { flex-direction: column; align-items: stretch; }
     .actionBtn { justify-content: center; }
@@ -847,12 +882,50 @@
 }
 .quickActionBtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--mx-shadow-md); border-color: var(--mx-brand); }
 .quickActionBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.quickActionBtn:focus-visible { outline: 2px solid var(--mx-brand); outline-offset: 2px; }
 .quickActionIcon { font-size: 22px; }
 .quickActionDanger { border-color: rgba(220, 38, 38, 0.35); color: var(--mx-danger); }
+/* display: contents at desktop/tablet — the overflow group's buttons sit
+   directly in the parent grid, invisible as a "group." Only at <=480px
+   (below where the grid has already reached 2 columns) does it actually
+   collapse behind the More-actions toggle, since 12 buttons in 2 columns
+   is still a lot of scrolling on a phone. */
+.quickActionOverflow { display: contents; }
+.quickActionMoreBtn {
+    display: none;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px;
+    border-radius: var(--mx-radius-lg);
+    background: var(--mx-surface-sunken);
+    border: 1px dashed var(--mx-border-strong);
+    color: var(--mx-ink-muted);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.quickActionMoreBtn:hover { color: var(--mx-ink); border-color: var(--mx-ink-faint); }
 
-.tabBar { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 2px solid var(--mx-border); margin: 20px 0 18px; overflow-x: auto; }
+/* A true horizontally-scrollable pill row, not a wrap-to-multiple-lines
+   bar — flex-wrap previously fought overflow-x (wrap always won, so
+   overflow-x was dead) and 14-tab pages like Project Detail wrapped
+   messily instead of scrolling. */
+.tabBar {
+    display: flex;
+    gap: 4px;
+    border-bottom: 2px solid var(--mx-border);
+    margin: 20px 0 18px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+.tabBar::-webkit-scrollbar { display: none; }
 .tabBtn {
+    flex-shrink: 0;
     padding: 10px 16px;
+    min-height: 44px;
     border: none;
     background: none;
     color: var(--mx-ink-muted);
@@ -864,11 +937,17 @@
     white-space: nowrap;
     transition: color var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
 }
+.tabBtn:focus-visible { outline: 2px solid var(--mx-brand); outline-offset: -2px; }
 .tabBtn:hover { color: var(--mx-ink); }
 .tabBtnActive { color: var(--mx-brand); border-bottom-color: var(--mx-brand); }
 @media (max-width: 640px) {
     .quickActionGrid { grid-template-columns: repeat(2, 1fr); }
     .summaryCardGrid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+    .quickActionOverflow { display: none; }
+    .quickActionOverflowOpen { display: contents; }
+    .quickActionMoreBtn { display: flex; }
 }
 
 @media (max-width: 768px) {
@@ -909,3 +988,36 @@
         min-width: 130px;
     }
 }
+
+/* Vertical workflow stepper (components/ui/WorkflowStepper.tsx) — used for
+   Demo Schedule's Sales -> Technical -> Manager -> Back Office -> DC ->
+   Demo -> Return -> Close chain, which previously had no visual
+   representation at all beyond a single flat status badge. Vertical by
+   design (not horizontal) so it never needs its own responsive rework —
+   the same layout already works at every width. */
+.stepper { display: flex; flex-direction: column; }
+.stepperItem { display: flex; gap: 12px; position: relative; }
+.stepperItem:last-child .stepperLine { display: none; }
+.stepperMarker { display: flex; flex-direction: column; align-items: center; }
+.stepperDot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 800;
+    flex-shrink: 0;
+    z-index: 1;
+}
+.stepperDotDone { background: var(--mx-success); color: #fff; }
+.stepperDotCurrent { background: var(--mx-brand); color: #fff; box-shadow: 0 0 0 4px var(--mx-brand-subtle); }
+.stepperDotUpcoming { background: var(--mx-surface); border: 2px solid var(--mx-border-strong); color: var(--mx-ink-faint); }
+.stepperDotSkipped { background: rgba(107, 114, 128, 0.14); color: var(--mx-ink-muted); }
+.stepperLine { width: 2px; flex: 1; min-height: 20px; background: var(--mx-border-strong); margin: 2px 0; }
+.stepperLineDone { background: var(--mx-success); }
+.stepperBody { padding-bottom: 18px; min-width: 0; }
+.stepperLabel { font-size: 13.5px; font-weight: 700; color: var(--mx-ink); }
+.stepperLabelUpcoming { color: var(--mx-ink-faint); font-weight: 600; }
+.stepperMeta { font-size: 12px; color: var(--mx-ink-muted); margin-top: 2px; }

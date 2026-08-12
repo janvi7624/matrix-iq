@@ -311,7 +311,7 @@ export default function ManageUsersPage() {
             <div className={historyStyles.sub}>Administration &rsaquo; create and manage login accounts.</div>
           </div>
         </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {isAdminTier && (
             <Link className={`${historyStyles.button} ${historyStyles.primary}`} href="/admin/users/import">
               Import Employees

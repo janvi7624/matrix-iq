@@ -15,6 +15,9 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import Button from './ui/Button';
+import StatusBadge, { StatusTone } from './ui/StatusBadge';
+import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
 
 const ALL_DOMAINS = Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[];
 
@@ -48,18 +51,49 @@ const STATUS_LABEL: Record<DemoRequestStatus, string> = {
   cancelled: 'Cancelled'
 };
 
-const STATUS_CLASS: Record<DemoRequestStatus, string> = {
-  draft: historyStyles.statusCancelled,
-  pending_technical: historyStyles.statusPending,
-  pending_manager: historyStyles.statusPending,
-  pending_backoffice: historyStyles.statusPending,
-  dc_generated: historyStyles.statusConfirmed,
-  material_dispatched: historyStyles.statusConfirmed,
-  demo_completed: historyStyles.statusDone,
-  material_returned: historyStyles.statusDone,
-  dc_closed: historyStyles.statusDone,
-  cancelled: historyStyles.statusRejected
+const STATUS_TONE: Record<DemoRequestStatus, StatusTone> = {
+  draft: 'cancelled',
+  pending_technical: 'pending',
+  pending_manager: 'pending',
+  pending_backoffice: 'pending',
+  dc_generated: 'confirmed',
+  material_dispatched: 'confirmed',
+  demo_completed: 'done',
+  material_returned: 'done',
+  dc_closed: 'done',
+  cancelled: 'rejected'
 };
+
+// The approval chain has never had a visual representation beyond this flat
+// status badge — each named status IS a reached milestone once the record
+// is at or past it, so "done" is simply "index <= current index."
+const DEMO_STAGES: { key: DemoRequestStatus; label: string }[] = [
+  { key: 'pending_technical', label: 'Sales Request Submitted' },
+  { key: 'pending_manager', label: 'Technical Approval' },
+  { key: 'pending_backoffice', label: 'Manager Approval' },
+  { key: 'dc_generated', label: 'Back Office — DC Generated' },
+  { key: 'material_dispatched', label: 'Material Dispatched' },
+  { key: 'demo_completed', label: 'Demo Completed' },
+  { key: 'material_returned', label: 'Material Returned' },
+  { key: 'dc_closed', label: 'DC Closed' }
+];
+
+// Cancellation can happen from any status and doesn't record which stage it
+// was cancelled at, so a cancelled demo gets a plain badge instead of a
+// fabricated stepper position.
+function buildDemoSteps(record: DemoScheduleRecord): StepperStep[] | null {
+  if (record.status === 'cancelled') return null;
+  const idx = record.status === 'draft' ? -1 : DEMO_STAGES.findIndex((s) => s.key === record.status);
+  return DEMO_STAGES.map((s, i) => {
+    let meta: string | undefined;
+    if (s.key === 'pending_manager' && record.technical_approval.decision) {
+      meta = `${record.technical_approval.decision} by ${record.technical_approval.decided_by}`;
+    } else if (s.key === 'pending_backoffice' && record.manager_approval.decision) {
+      meta = `${record.manager_approval.decision} by ${record.manager_approval.decided_by}`;
+    }
+    return { key: s.key, label: s.label, state: i <= idx ? 'done' : i === idx + 1 ? 'current' : 'upcoming', meta };
+  });
+}
 
 const PRIORITY_LABEL: Record<DemoPriority, string> = { low: 'Low', medium: 'Medium', high: 'High' };
 
@@ -129,10 +163,10 @@ function TechnicalApprovalForm({ demoId, onDone }: { demoId: string; onDone: (up
         <label className={calcStyles.label}>Reschedule to (only used for Reschedule)</label>
         <input type="datetime-local" className={calcStyles.formControl} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
       </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" className={historyStyles.primary} disabled={busy} onClick={() => decide('approved')}>Approve</button>
-        <button type="button" className={historyStyles.deleteBtn} disabled={busy} onClick={() => decide('rejected')}>Reject</button>
-        <button type="button" className={historyStyles.button} disabled={busy} onClick={() => decide('reschedule')}>Reschedule</button>
+      <div className={historyStyles.actionGroupButtons}>
+        <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
+        <Button variant="danger" icon="✕" loading={busy} loadingLabel="Rejecting…" onClick={() => decide('rejected')}>Reject</Button>
+        <Button variant="secondary" loading={busy} onClick={() => decide('reschedule')}>Reschedule</Button>
       </div>
     </div>
   );
@@ -184,10 +218,10 @@ function ManagerApprovalForm({ demoId, onDone }: { demoId: string; onDone: (upda
         <label className={calcStyles.label}>Remarks</label>
         <textarea className={calcStyles.formControl} rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
       </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" className={historyStyles.primary} disabled={busy} onClick={() => decide('approved')}>Approve</button>
-        <button type="button" className={historyStyles.deleteBtn} disabled={busy} onClick={() => decide('rejected')}>Reject</button>
-        <button type="button" className={historyStyles.button} disabled={busy} onClick={() => decide('modified')}>Save Changes (Modify)</button>
+      <div className={historyStyles.actionGroupButtons}>
+        <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
+        <Button variant="danger" icon="✕" loading={busy} loadingLabel="Rejecting…" onClick={() => decide('rejected')}>Reject</Button>
+        <Button variant="secondary" loading={busy} onClick={() => decide('modified')}>Save Changes (Modify)</Button>
       </div>
     </div>
   );
@@ -275,7 +309,7 @@ function DemoRow({
         <td>{PRIORITY_LABEL[record.priority]}</td>
         <td>{record.assigned_technical_person || '-'}</td>
         <td>
-          <span className={`${historyStyles.statusBadge} ${STATUS_CLASS[record.status]}`}>{STATUS_LABEL[record.status]}</span>
+          <StatusBadge tone={STATUS_TONE[record.status]} label={STATUS_LABEL[record.status]} />
           {record.outcome && <div className={calcStyles.small}>Outcome: {OUTCOME_LABEL[record.outcome]}</div>}
         </td>
         <td>{record.created_by}</td>
@@ -325,6 +359,15 @@ function DemoRow({
                 <div className={calcStyles.small}>{record.demo_objective}</div>
               </div>
             )}
+            {(() => {
+              const steps = buildDemoSteps(record);
+              return steps ? (
+                <div className={calcStyles.field} style={{ marginBottom: 12 }}>
+                  <label className={calcStyles.label}>Workflow progress</label>
+                  <WorkflowStepper steps={steps} />
+                </div>
+              ) : null;
+            })()}
             {record.technical_approval.decision && (
               <div className={calcStyles.field} style={{ marginBottom: 8 }}>
                 <label className={calcStyles.label}>Technical approval</label>
@@ -713,6 +756,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
         </div>
         <div className={historyStyles.status}>{status}</div>
         {loaded && (
+          <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
               <tr>
@@ -752,6 +796,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
               )}
             </tbody>
           </table>
+          </div>
         )}
     </AppShell>
   );

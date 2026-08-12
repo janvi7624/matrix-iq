@@ -184,3 +184,21 @@
     color: var(--mx-ink-faint);
     padding: 8px 0;
 }
+
+/* This file had zero responsive handling before — the module-tile grid,
+   KPI grid, and recent-items grid all used auto-fill/auto-fit minmax()
+   widths (240px / 150px / 320px) that hold up reasonably down to tablet,
+   but 320px-wide phones sit right at or under the .recentGrid minimum,
+   forcing horizontal overflow. */
+@media (max-width: 768px) {
+    .grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .tile { padding: 16px; }
+    .kpiGrid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+    .recentGrid { grid-template-columns: 1fr; gap: 12px; }
+}
+@media (max-width: 400px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+    .kpiGrid { grid-template-columns: 1fr 1fr; }
+    .kpiValue { font-size: 1.35rem; }
+    .followUpBanner { flex-direction: column; align-items: flex-start; }
+}

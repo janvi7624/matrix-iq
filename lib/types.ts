@@ -557,6 +557,8 @@ export interface DcLineItem {
   product: string;
   serialNumber: string;
   quantity: number;
+  // Set only by Back Office — shown on the generated PDF.
+  price: number;
 }
 
 // One of the fixed example tags from the spec, or 'custom' for free text.
@@ -593,10 +595,15 @@ export interface DeliveryChallanRecord {
   created_at: string;
   created_by: string;
   project_id: string;
+  // Empty for a manual DC — Back Office creating one directly with no
+  // Sales Request/approval chain behind it.
   demo_id: string;
   client_name: string;
+  client_address: string;
+  client_phone: string;
   items: DcLineItem[];
   issued_by: string;
+  issued_by_phone: string;
   issued_date: string;
   expected_return_date: string;
   assigned_engineer: string;

@@ -101,6 +101,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [data, setData] = useState<DetailResponse | null>(null);
   const [status, setStatus] = useState('Loading...');
   const [tab, setTab] = useState<TabKey>('overview');
+  const [showMoreActions, setShowMoreActions] = useState(false);
   const [remarkText, setRemarkText] = useState('');
   const [savingRemark, setSavingRemark] = useState(false);
 
@@ -467,45 +468,54 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <Link href={`/demo-schedule?projectId=${project.id}`} className={historyStyles.quickActionBtn}>
             <span className={historyStyles.quickActionIcon}>🖥️</span> Schedule Demo
           </Link>
-          <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('responses')}>
-            <span className={historyStyles.quickActionIcon}>💬</span> Customer Response
-          </button>
-          <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('negotiations')}>
-            <span className={historyStyles.quickActionIcon}>🤝</span> Negotiation
-          </button>
-          <Link
-            href={latestDemo ? `/backoffice?demoId=${latestDemo.id}` : '#'}
-            className={historyStyles.quickActionBtn}
-            aria-disabled={!latestDemo}
-            onClick={(e) => { if (!latestDemo) { e.preventDefault(); toast.error('Schedule a demo first — a Delivery Challan is generated from an approved demo request.'); } }}
-          >
-            <span className={historyStyles.quickActionIcon}>📦</span> Generate DC
-          </Link>
-          <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('po')}>
-            <span className={historyStyles.quickActionIcon}>📄</span> Upload PO
-          </button>
-          <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('installation')}>
-            <span className={historyStyles.quickActionIcon}>🔧</span> Installation
-          </button>
-          <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('activity')}>
-            <span className={historyStyles.quickActionIcon}>⏰</span> Add Follow-up
-          </button>
-          <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('notes')}>
-            <span className={historyStyles.quickActionIcon}>📝</span> Add Notes
-          </button>
-          <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('documents')}>
-            <span className={historyStyles.quickActionIcon}>📎</span> Upload Documents
-          </button>
-          {canEdit && (
-            <button type="button" className={historyStyles.quickActionBtn} onClick={handleAssignTeam}>
-              <span className={historyStyles.quickActionIcon}>👥</span> Assign Team
+          {/* Below ~480px this second group collapses behind "More actions"
+              — the 3 buttons above (start something new) stay immediately
+              visible; the rest (in-page tab shortcuts + admin actions) don't
+              need to fight for space on a phone screen by default. */}
+          <div className={`${historyStyles.quickActionOverflow} ${showMoreActions ? historyStyles.quickActionOverflowOpen : ''}`}>
+            <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('responses')}>
+              <span className={historyStyles.quickActionIcon}>💬</span> Customer Response
             </button>
-          )}
-          {canEdit && !isClosed && (
-            <button type="button" className={`${historyStyles.quickActionBtn} ${historyStyles.quickActionDanger}`} onClick={handleCloseProject}>
-              <span className={historyStyles.quickActionIcon}>🔒</span> Close Project
+            <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('negotiations')}>
+              <span className={historyStyles.quickActionIcon}>🤝</span> Negotiation
             </button>
-          )}
+            <Link
+              href={latestDemo ? `/backoffice?demoId=${latestDemo.id}` : '#'}
+              className={historyStyles.quickActionBtn}
+              aria-disabled={!latestDemo}
+              onClick={(e) => { if (!latestDemo) { e.preventDefault(); toast.error('Schedule a demo first — a Delivery Challan is generated from an approved demo request.'); } }}
+            >
+              <span className={historyStyles.quickActionIcon}>📦</span> Generate DC
+            </Link>
+            <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('po')}>
+              <span className={historyStyles.quickActionIcon}>📄</span> Upload PO
+            </button>
+            <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('installation')}>
+              <span className={historyStyles.quickActionIcon}>🔧</span> Installation
+            </button>
+            <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('activity')}>
+              <span className={historyStyles.quickActionIcon}>⏰</span> Add Follow-up
+            </button>
+            <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('notes')}>
+              <span className={historyStyles.quickActionIcon}>📝</span> Add Notes
+            </button>
+            <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('documents')}>
+              <span className={historyStyles.quickActionIcon}>📎</span> Upload Documents
+            </button>
+            {canEdit && (
+              <button type="button" className={historyStyles.quickActionBtn} onClick={handleAssignTeam}>
+                <span className={historyStyles.quickActionIcon}>👥</span> Assign Team
+              </button>
+            )}
+            {canEdit && !isClosed && (
+              <button type="button" className={`${historyStyles.quickActionBtn} ${historyStyles.quickActionDanger}`} onClick={handleCloseProject}>
+                <span className={historyStyles.quickActionIcon}>🔒</span> Close Project
+              </button>
+            )}
+          </div>
+          <button type="button" className={historyStyles.quickActionMoreBtn} onClick={() => setShowMoreActions((v) => !v)} aria-expanded={showMoreActions}>
+            <span className={historyStyles.quickActionIcon}>⋮</span> {showMoreActions ? 'Fewer actions' : 'More actions'}
+          </button>
         </div>
 
         {/* Tabs */}

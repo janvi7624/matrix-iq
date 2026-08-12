@@ -32,6 +32,11 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: BRAND.themeColor,
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  // Deliberately not setting maximumScale/userScalable — locking pinch-zoom
+  // fails WCAG 1.4.4 and isn't needed to fix any layout issue here.
 };
 
 export default function RootLayout({

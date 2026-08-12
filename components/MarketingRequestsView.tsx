@@ -14,21 +14,33 @@ import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import Button from './ui/Button';
+import SharedStatusBadge, { StatusTone } from './ui/StatusBadge';
+import SharedPriorityBadge, { PriorityTone } from './ui/PriorityBadge';
 
 interface MarketingRequestsViewProps {
   currentUser: { username: string; role: UserRole };
   isReviewer: boolean;
 }
 
-const STATUS_CLASS: Record<MarketingRequestStatus, string> = {
-  submitted: historyStyles.statusPending,
-  timeline_set: historyStyles.statusDone,
-  in_progress: historyStyles.statusConfirmed,
-  waiting_info: historyStyles.statusPending,
-  ready_for_review: historyStyles.statusDone,
-  completed: historyStyles.statusConfirmed,
-  rejected: historyStyles.statusRejected,
-  cancelled: historyStyles.statusCancelled
+const STATUS_TONE: Record<MarketingRequestStatus, StatusTone> = {
+  submitted: 'pending',
+  timeline_set: 'done',
+  in_progress: 'confirmed',
+  waiting_info: 'pending',
+  ready_for_review: 'done',
+  completed: 'confirmed',
+  rejected: 'rejected',
+  cancelled: 'cancelled'
+};
+
+// low -> urgent escalates cool (safe) -> info -> warm -> hot, reusing the
+// same 4 tokens PriorityBadge already exposes rather than inventing colors.
+const PRIORITY_TONE: Record<MarketingRequestPriority, PriorityTone> = {
+  low: 'cool',
+  medium: 'info',
+  high: 'warm',
+  urgent: 'hot'
 };
 
 type QuickFilter = 'urgent' | 'high' | 'overdue' | 'dueToday' | 'dueSoon' | null;
@@ -76,13 +88,13 @@ function formatDateTime(iso: string): string {
 
 function PriorityBadge({ priority }: { priority: MarketingRequestPriority }) {
   const meta = MARKETING_PRIORITY_META[priority];
-  return <span className={historyStyles.priorityBadge} style={{ background: 'rgba(107,114,128,0.12)', color: '#374151' }}>{meta.icon} {meta.label}</span>;
+  return <SharedPriorityBadge tone={PRIORITY_TONE[priority]} icon={meta.icon} label={meta.label} />;
 }
 
 const PRIORITY_ORDER: MarketingRequestPriority[] = ['low', 'medium', 'high', 'urgent'];
 
 function StatusBadge({ status }: { status: MarketingRequestStatus }) {
-  return <span className={`${historyStyles.statusBadge} ${STATUS_CLASS[status]}`}>{MARKETING_STATUS_LABEL[status]}</span>;
+  return <SharedStatusBadge tone={STATUS_TONE[status]} label={MARKETING_STATUS_LABEL[status]} />;
 }
 
 interface RowProps {
@@ -186,11 +198,11 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                       </div>
                     </div>
                     <span className={calcStyles.small} style={{ display: 'block', margin: '4px 0 10px' }}>Once you save this, it becomes permanent — it can&apos;t be edited afterward, so double-check the date.</span>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <button type="button" className={calcStyles.btn} disabled={busy || !timelineDate} onClick={() => run(() => onSetTimeline(r.id, timelineDate, timelineRemarks))}>
-                        {busy ? 'Saving…' : '🔒 Commit Timeline'}
-                      </button>
-                      <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} onClick={() => setShowReject(true)}>Decline Request</button>
+                    <div className={historyStyles.actionGroupButtons}>
+                      <Button variant="primary" icon="🔒" loading={busy} loadingLabel="Saving…" disabled={!timelineDate} onClick={() => run(() => onSetTimeline(r.id, timelineDate, timelineRemarks))}>
+                        Commit Timeline
+                      </Button>
+                      <Button variant="ghost" onClick={() => setShowReject(true)}>Decline Request</Button>
                     </div>
                   </div>
                 )
@@ -234,36 +246,38 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                     <label className={calcStyles.label}>Reason for declining</label>
                     <input className={calcStyles.formControl} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} autoFocus />
                   </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button type="button" className={historyStyles.deleteBtn} disabled={busy || !rejectReason.trim()} onClick={() => run(() => onReject(r.id, rejectReason))}>
-                      {busy ? 'Declining…' : 'Confirm Decline'}
-                    </button>
-                    <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} onClick={() => setShowReject(false)}>Cancel</button>
+                  <div className={historyStyles.actionGroupButtons}>
+                    <Button variant="danger" icon="✕" loading={busy} loadingLabel="Declining…" disabled={!rejectReason.trim()} onClick={() => run(() => onReject(r.id, rejectReason))}>
+                      Confirm Decline
+                    </Button>
+                    <Button variant="ghost" onClick={() => setShowReject(false)}>Cancel</Button>
                   </div>
                 </div>
               )}
 
               {isReviewer && r.status === 'timeline_set' && (
-                <button type="button" className={calcStyles.btn} style={{ marginTop: 12 }} disabled={busy} onClick={() => run(() => onStatusAction(r.id, 'start'))}>
-                  {busy ? 'Updating…' : '▶ Mark In Progress'}
-                </button>
+                <div style={{ marginTop: 12 }}>
+                  <Button variant="primary" icon="▶" loading={busy} loadingLabel="Updating…" onClick={() => run(() => onStatusAction(r.id, 'start'))}>
+                    Mark In Progress
+                  </Button>
+                </div>
               )}
 
               {isReviewer && (r.status === 'in_progress' || r.status === 'ready_for_review') && !showComplete && (
-                <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-                  <button type="button" className={calcStyles.btn} onClick={() => setShowComplete(true)}>✅ Mark Completed</button>
+                <div className={historyStyles.actionGroupButtons} style={{ marginTop: 12 }}>
+                  <Button variant="success" icon="✅" onClick={() => setShowComplete(true)}>Mark Completed</Button>
                   {r.status === 'in_progress' && !showWait && (
                     <>
-                      <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} onClick={() => setShowWait(true)}>⏸ Waiting for Info</button>
-                      <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} disabled={busy} onClick={() => run(() => onStatusAction(r.id, 'ready_for_review'))}>
-                        📤 Ready for Review
-                      </button>
+                      <Button variant="secondary" icon="⏸" onClick={() => setShowWait(true)}>Waiting for Info</Button>
+                      <Button variant="secondary" icon="📤" loading={busy} onClick={() => run(() => onStatusAction(r.id, 'ready_for_review'))}>
+                        Ready for Review
+                      </Button>
                     </>
                   )}
                   {r.status === 'ready_for_review' && (
-                    <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} disabled={busy} onClick={() => run(() => onStatusAction(r.id, 'reopen'))}>
-                      ↩ Reopen for Rework
-                    </button>
+                    <Button variant="secondary" icon="↩" loading={busy} onClick={() => run(() => onStatusAction(r.id, 'reopen'))}>
+                      Reopen for Rework
+                    </Button>
                   )}
                 </div>
               )}
@@ -273,23 +287,26 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                     <label className={calcStyles.label}>What information are you waiting on?</label>
                     <input className={calcStyles.formControl} value={waitRemarks} onChange={(e) => setWaitRemarks(e.target.value)} autoFocus />
                   </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button
-                      type="button"
-                      className={calcStyles.btn}
-                      disabled={busy || !waitRemarks.trim()}
+                  <div className={historyStyles.actionGroupButtons}>
+                    <Button
+                      variant="primary"
+                      loading={busy}
+                      loadingLabel="Saving…"
+                      disabled={!waitRemarks.trim()}
                       onClick={() => run(() => onStatusAction(r.id, 'wait_for_info', { remarks: waitRemarks }).then(() => setShowWait(false)))}
                     >
-                      {busy ? 'Saving…' : 'Confirm'}
-                    </button>
-                    <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} onClick={() => setShowWait(false)}>Cancel</button>
+                      Confirm
+                    </Button>
+                    <Button variant="ghost" onClick={() => setShowWait(false)}>Cancel</Button>
                   </div>
                 </div>
               )}
               {isReviewer && r.status === 'waiting_info' && (
-                <button type="button" className={calcStyles.btn} style={{ marginTop: 12 }} disabled={busy} onClick={() => run(() => onStatusAction(r.id, 'resume'))}>
-                  {busy ? 'Updating…' : '▶ Resume Work'}
-                </button>
+                <div style={{ marginTop: 12 }}>
+                  <Button variant="primary" icon="▶" loading={busy} loadingLabel="Updating…" onClick={() => run(() => onStatusAction(r.id, 'resume'))}>
+                    Resume Work
+                  </Button>
+                </div>
               )}
               {isReviewer && (r.status === 'in_progress' || r.status === 'ready_for_review') && showComplete && (
                 <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
@@ -297,11 +314,11 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                     <label className={calcStyles.label}>Completion notes (optional)</label>
                     <textarea className={calcStyles.formControl} rows={3} value={completionNotes} onChange={(e) => setCompletionNotes(e.target.value)} />
                   </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => run(() => onStatusAction(r.id, 'complete', { completionNotes }))}>
-                      {busy ? 'Saving…' : 'Confirm Completed'}
-                    </button>
-                    <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} onClick={() => setShowComplete(false)}>Cancel</button>
+                  <div className={historyStyles.actionGroupButtons}>
+                    <Button variant="success" loading={busy} loadingLabel="Saving…" onClick={() => run(() => onStatusAction(r.id, 'complete', { completionNotes }))}>
+                      Confirm Completed
+                    </Button>
+                    <Button variant="ghost" onClick={() => setShowComplete(false)}>Cancel</Button>
                   </div>
                 </div>
               )}
@@ -318,9 +335,9 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
               )}
 
               {isOwner && r.status === 'submitted' && (
-                <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} style={{ marginTop: 12 }} disabled={busy} onClick={() => run(() => onCancel(r.id))}>
-                  Cancel My Request
-                </button>
+                <div style={{ marginTop: 12 }}>
+                  <Button variant="ghost" loading={busy} onClick={() => run(() => onCancel(r.id))}>Cancel My Request</Button>
+                </div>
               )}
 
               {/* Comments — visible to anyone who can see this row (own ticket, or a reviewer). */}
@@ -335,21 +352,18 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                     </div>
                   ))}
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                  <input className={calcStyles.formControl} placeholder="Add a comment…" value={commentText} onChange={(e) => setCommentText(e.target.value)} />
-                  <button
-                    type="button"
-                    className={historyStyles.button}
-                    disabled={!commentText.trim()}
-                    onClick={() => { onComment(r.id, commentText); setCommentText(''); }}
-                  >
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  <input className={calcStyles.formControl} style={{ flex: '1 1 200px' }} placeholder="Add a comment…" value={commentText} onChange={(e) => setCommentText(e.target.value)} />
+                  <Button variant="secondary" compact disabled={!commentText.trim()} onClick={() => { onComment(r.id, commentText); setCommentText(''); }}>
                     Post
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               {canDelete && (
-                <button type="button" className={historyStyles.deleteBtn} style={{ marginTop: 16 }} onClick={() => onDelete(r)}>Delete Request</button>
+                <div style={{ marginTop: 16 }}>
+                  <Button variant="danger" icon="🗑️" onClick={() => onDelete(r)}>Delete Request</Button>
+                </div>
               )}
             </div>
           </td>

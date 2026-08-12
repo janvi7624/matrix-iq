@@ -82,7 +82,7 @@ export default function ApplicationSettingsPage() {
             <div className={styles.sub}>Administration &rsaquo; company details, tax, terms, and numbering — no code required.</div>
           </div>
         </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link className={styles.button} href="/admin/products">Product Master</Link>
           <Link className={styles.button} href="/admin/modules">Module Manager</Link>
           <Link className={styles.button} href="/">Back to Dashboard</Link>

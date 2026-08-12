@@ -142,7 +142,7 @@ export default function DepartmentMasterPage() {
             <div className={historyStyles.sub}>Administration &rsaquo; departments used across user profiles — no code change required.</div>
           </div>
         </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link className={historyStyles.button} href="/admin/users">User Management</Link>
           <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
         </div>

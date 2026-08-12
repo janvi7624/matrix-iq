@@ -191,7 +191,7 @@ function PerformanceReviewPageContent() {
             <div className={historyStyles.sub}>Administration &rsaquo; a full performance dashboard for one employee at a time.</div>
           </div>
         </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
         </div>
       </header>

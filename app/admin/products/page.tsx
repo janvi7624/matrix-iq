@@ -204,7 +204,7 @@ export default function ProductMasterPage() {
             <div className={historyStyles.sub}>Administration &rsaquo; products available to pick from in every quotation&apos;s Custom Products list.</div>
           </div>
         </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link className={historyStyles.button} href="/admin/settings">Application Settings</Link>
           <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
         </div>

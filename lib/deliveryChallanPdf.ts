@@ -1,4 +1,5 @@
 import { DeliveryChallanRecord } from './types';
+import { formatNumberPdf } from './format';
 
 // Demo-dispatch specific — matches the wording on the company's actual
 // paper/PDF Delivery Challan (public/DC.pdf), not the sale-oriented
@@ -10,8 +11,13 @@ const DC_TERMS = [
   'IF ANY STRETCH OR MISS HANDLING FOUND OR ANY ITEM FOUND MISSING, COMPLETE UNIT WILL BE BILLED AT ITS MRP TO PARTNER.'
 ];
 
+// Fixed paper-letterhead wording — deliberately NOT sourced from
+// AppConfig.companyLegalName, which correctly says the full legal name
+// "NANTA Technology Limited" elsewhere (e.g. quotations). The real DC pad
+// this app's PDF is modeled on prints "NANTA TECH LIMITED".
+const DC_COMPANY_NAME = 'NANTA TECH LIMITED';
+
 export interface DeliveryChallanPdfCompanyOverride {
-  legalName: string;
   addressLines: string[];
   contactPhone?: string;
 }
@@ -25,6 +31,27 @@ function formatDate(iso: string): string {
   }
 }
 
+function loadImageAsDataURL(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('canvas 2d context unavailable');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch (error) {
+        reject(error);
+      }
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts?: { companyOverride?: DeliveryChallanPdfCompanyOverride }): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const { applyPlugin } = await import('jspdf-autotable');
@@ -35,89 +62,150 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   const marginX = 14;
   const rightX = pageWidth - marginX;
 
-  const companyLegalName = opts?.companyOverride?.legalName || 'NANTA Technology Limited';
   const companyAddressLines = opts?.companyOverride?.addressLines?.length
     ? opts.companyOverride.addressLines
     : ['205, F Block, Shivalik Sharda Harmony,', 'Panjarapole Cross Rd, Ambawadi,', 'Ahmedabad, Gujarat - 380015'];
   const companyContactPhone = opts?.companyOverride?.contactPhone || '';
 
-  // Header banner
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.3);
-  doc.rect(marginX, 12, rightX - marginX, 8);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.setTextColor(0, 0, 0);
-  doc.text('RETURNABLE DELIVERY CHALLAN', pageWidth / 2, 17.5, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text('Original', rightX - 2, 24, { align: 'right' });
+  let logoDataUrl: string | null = null;
+  try {
+    logoDataUrl = await loadImageAsDataURL('/NANTA.png');
+  } catch {
+    logoDataUrl = null;
+  }
 
-  // From / recipient block
-  let y = 27;
+  // Letterhead — logo + company name + address, mirroring the quotation
+  // PDF's header block.
+  const logoW = 20;
+  const logoH = 14;
+  if (logoDataUrl) {
+    doc.addImage(logoDataUrl, 'PNG', marginX, 10, logoW, logoH, undefined, 'FAST');
+  }
+  const brandX = logoDataUrl ? marginX + logoW + 4 : marginX;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text(companyLegalName.toUpperCase(), marginX + 1, y + 4);
+  doc.setFontSize(13);
+  doc.setTextColor(17, 24, 39);
+  doc.text(DC_COMPANY_NAME, brandX, 15);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(90, 90, 90);
+  companyAddressLines.forEach((line, i) => doc.text(line, brandX, 19.5 + i * 3.4));
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(220, 38, 38);
+  doc.text('RETURNABLE DELIVERY CHALLAN', rightX, 15, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  companyAddressLines.forEach((line, i) => doc.text(line, marginX + 1, y + 8.5 + i * 4));
-  if (companyContactPhone) doc.text(`Mo: ${companyContactPhone}`, marginX + 1, y + 8.5 + companyAddressLines.length * 4);
+  doc.setTextColor(60, 60, 60);
+  doc.text(`Challan No: ${dc.dc_number}`, rightX, 20, { align: 'right' });
+  doc.text(`Date: ${formatDate(dc.issued_date)}   |   Status: ${dc.status.charAt(0).toUpperCase() + dc.status.slice(1)}`, rightX, 24.5, { align: 'right' });
 
-  const infoBoxX = pageWidth - 70;
-  doc.text(`Challan :- ${dc.dc_number}`, infoBoxX, y + 4);
-  doc.text(`DATE :- ${formatDate(dc.issued_date)}`, infoBoxX, y + 8.5);
-  doc.text(`Dispatch Throught :- ${dc.assigned_engineer || '-'}`, infoBoxX, y + 13);
-  doc.text(`Return date :- ${formatDate(dc.expected_return_date)}`, infoBoxX, y + 17.5);
-
-  y += 24;
-  doc.setDrawColor(150, 150, 150);
+  let y = 30;
+  doc.setDrawColor(220, 38, 38);
+  doc.setLineWidth(0.6);
   doc.line(marginX, y, rightX, y);
   y += 5;
 
+  // From / To — bordered boxes, same visual treatment as the quotation
+  // PDF's "Quotation From" / "Quotation For" boxes.
+  const boxWidth = (pageWidth - marginX * 2 - 6) / 2;
+  const boxY = y;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  const clientAddressWrapped = dc.client_address ? doc.splitTextToSize(dc.client_address, boxWidth - 8) : [];
+
+  const fromLines = [dc.issued_by || '-', ...companyAddressLines, dc.issued_by_phone || companyContactPhone ? `Contact: ${dc.issued_by_phone || companyContactPhone}` : ''].filter(Boolean);
+  const toLines = [dc.client_name || 'N/A', ...clientAddressWrapped, dc.client_phone ? `Contact: ${dc.client_phone}` : ''].filter(Boolean);
+
+  const boxLineHeight = 4.4;
+  const boxTopPadding = 12;
+  const boxBottomPadding = 6;
+  const maxLines = Math.max(fromLines.length, toLines.length);
+  const boxHeight = Math.max(28, boxTopPadding + maxLines * boxLineHeight + boxBottomPadding);
+
+  doc.setDrawColor(210, 200, 200);
+  doc.setFillColor(249, 245, 245);
+  doc.roundedRect(marginX, boxY, boxWidth, boxHeight, 2, 2, 'FD');
+  doc.roundedRect(marginX + boxWidth + 6, boxY, boxWidth, boxHeight, 2, 2, 'FD');
+
+  doc.setTextColor(17, 24, 39);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text('Delivery Challan From', marginX + 4, boxY + 6);
+  doc.text('Delivery Challan To', marginX + boxWidth + 10, boxY + 6);
+
   doc.setFontSize(9);
-  doc.text('Name -', marginX + 1, y);
+  doc.text(fromLines[0], marginX + 4, boxY + boxTopPadding);
+  doc.text(toLines[0], marginX + boxWidth + 10, boxY + boxTopPadding);
+
   doc.setFont('helvetica', 'normal');
-  doc.text(dc.client_name || 'N/A', marginX + 16, y);
-  y += 5;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Status -', marginX + 1, y);
+  doc.setFontSize(8.2);
+  fromLines.slice(1).forEach((line, i) => doc.text(line, marginX + 4, boxY + boxTopPadding + (i + 1) * boxLineHeight));
+  toLines.slice(1).forEach((line, i) => doc.text(line, marginX + boxWidth + 10, boxY + boxTopPadding + (i + 1) * boxLineHeight));
+
+  y = boxY + boxHeight + 8;
   doc.setFont('helvetica', 'normal');
-  doc.text(dc.status.charAt(0).toUpperCase() + dc.status.slice(1), marginX + 16, y);
+  doc.setFontSize(8.5);
+  doc.setTextColor(60, 60, 60);
+  doc.text(`Dispatch Through: ${dc.assigned_engineer || '-'}`, marginX, y);
+  doc.text(`Expected Return Date: ${formatDate(dc.expected_return_date)}`, rightX, y, { align: 'right' });
 
   y += 6;
-  doc.setDrawColor(150, 150, 150);
-  doc.line(marginX, y, rightX, y);
-  y += 6;
 
-  // Line items
-  const rows = dc.items.map((item, i) => [String(i + 1), item.product, item.serialNumber || '-', String(item.quantity)]);
+  // Line items — Price is Back-Office-entered only (enforced in the
+  // updateItems route), shown here whenever it's set.
+  const rows = dc.items.map((item, i) => [
+    String(i + 1),
+    item.product,
+    item.serialNumber || '-',
+    String(item.quantity),
+    formatNumberPdf(item.price || 0)
+  ]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (doc as any).autoTable({
     startY: y,
-    head: [['Sr.No', 'Description', 'Serial Number', 'Qty']],
+    head: [['Sr.No', 'Description', 'Serial Number', 'Qty', 'Price']],
     body: rows,
     theme: 'grid',
     styles: { font: 'helvetica', fontSize: 9.5, cellPadding: 3, textColor: [17, 24, 39], valign: 'middle', lineColor: [0, 0, 0], lineWidth: 0.2 },
     headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center', lineColor: [0, 0, 0], lineWidth: 0.2 },
     columnStyles: {
-      0: { cellWidth: 16, halign: 'center' },
+      0: { cellWidth: 14, halign: 'center' },
       1: { cellWidth: 'auto', halign: 'left' },
-      2: { cellWidth: 40, halign: 'center' },
-      3: { cellWidth: 20, halign: 'center' }
+      2: { cellWidth: 34, halign: 'center' },
+      3: { cellWidth: 16, halign: 'center' },
+      4: { cellWidth: 28, halign: 'right', font: 'courier', fontSize: 9 }
     },
     margin: { left: marginX, right: marginX }
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  y = (doc as any).lastAutoTable.finalY + 8;
+  y = (doc as any).lastAutoTable.finalY + 4;
 
+  const total = dc.items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
+  if (total > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(17, 24, 39);
+    doc.text('Total:', rightX - 40, y + 5);
+    doc.setFont('courier', 'bold');
+    doc.text(formatNumberPdf(total), rightX, y + 5, { align: 'right' });
+    y += 10;
+  } else {
+    y += 4;
+  }
+
+  y += 4;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
+  doc.setTextColor(17, 24, 39);
   doc.text('Terms & condition:', marginX, y);
   y += 5;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
+  doc.setTextColor(60, 60, 60);
   DC_TERMS.forEach((term, i) => {
     const wrapped = doc.splitTextToSize(`${i + 1}. ${term}`, rightX - marginX);
     doc.text(wrapped, marginX, y);
@@ -130,7 +218,8 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   y += 6;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text(`For: ${companyLegalName.toUpperCase()}`, rightX - 2, y, { align: 'right' });
+  doc.setTextColor(17, 24, 39);
+  doc.text(`For: ${DC_COMPANY_NAME}`, rightX - 2, y, { align: 'right' });
   y += 14;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);

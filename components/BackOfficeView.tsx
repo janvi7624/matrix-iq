@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { BackOfficeRemarkTag, DcLineItem, DcStatus, DeliveryChallanRecord, DemoScheduleRecord, PublicAppConfig, UserRole } from '@/lib/types';
+import { BackOfficeRemarkTag, DcLineItem, DcStatus, DeliveryChallanRecord, DemoScheduleRecord, ProjectRecord, PublicAppConfig, UserRole } from '@/lib/types';
 import { BACK_OFFICE_REMARK_LABEL, BACK_OFFICE_REMARK_TAGS } from '@/lib/backOfficeRemarks';
 import { generateDeliveryChallanPdf } from '@/lib/deliveryChallanPdf';
 import AppShell from './AppShell';
@@ -11,13 +11,15 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import Button from './ui/Button';
+import StatusBadge, { StatusTone } from './ui/StatusBadge';
 
 const DC_STATUS_LABEL: Record<DcStatus, string> = { prepared: 'Prepared', dispatched: 'Dispatched', returned: 'Returned', closed: 'Closed' };
-const DC_STATUS_CLASS: Record<DcStatus, string> = {
-  prepared: historyStyles.statusPending,
-  dispatched: historyStyles.statusConfirmed,
-  returned: historyStyles.statusDone,
-  closed: historyStyles.statusCancelled
+const DC_STATUS_TONE: Record<DcStatus, StatusTone> = {
+  prepared: 'pending',
+  dispatched: 'confirmed',
+  returned: 'done',
+  closed: 'cancelled'
 };
 
 function formatDate(iso: string): string {
@@ -73,9 +75,159 @@ function GenerateDcPanel({ demo, onGenerated }: { demo: DemoScheduleRecord; onGe
         <label className={calcStyles.label}>Expected return date</label>
         <input type="date" className={calcStyles.formControl} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
       </div>
-      <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary}`} disabled={busy} onClick={handleGenerate}>
-        <span className={historyStyles.actionIcon}>📦</span> {busy ? 'Generating…' : 'Create Delivery Challan'}
-      </button>
+      <Button variant="primary" icon="📦" loading={busy} loadingLabel="Generating…" onClick={handleGenerate}>Create Delivery Challan</Button>
+    </div>
+  );
+}
+
+const EMPTY_MANUAL_ITEM = { product: '', serialNumber: '', quantity: 1, price: 0 };
+
+// No demo, no approval chain — a walk-in / custom dispatch. Client details
+// are free text unless a Project is optionally picked to prefill from.
+function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectRecord[]; onGenerated: (dc: DeliveryChallanRecord) => void; onCancel: () => void }) {
+  const [projectId, setProjectId] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [clientAddress, setClientAddress] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [assignedEngineer, setAssignedEngineer] = useState('');
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
+  const [items, setItems] = useState<DcLineItem[]>([{ ...EMPTY_MANUAL_ITEM }]);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+
+  function pickProject(id: string) {
+    setProjectId(id);
+    const project = projects.find((p) => p.id === id);
+    if (project) {
+      setClientName(project.client_name || project.company || clientName);
+      setClientAddress(project.address || clientAddress);
+      setClientPhone(project.phone || clientPhone);
+    }
+  }
+
+  function updateItem(idx: number, patch: Partial<DcLineItem>) {
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  }
+
+  async function handleGenerate() {
+    if (!clientName.trim()) {
+      toast.error('Client name is required.');
+      return;
+    }
+    const validItems = items.filter((i) => i.product.trim());
+    if (!validItems.length) {
+      toast.error('At least one item is required.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await fetch('/api/delivery-challans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: projectId || undefined,
+          clientName,
+          clientAddress,
+          clientPhone,
+          assignedEngineer,
+          expectedReturnDate,
+          items: validItems
+        })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || String(response.status));
+      }
+      onGenerated(await response.json());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not create the Delivery Challan.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={historyStyles.detailPanel} style={{ marginTop: 0 }}>
+      <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Create Manual Delivery Challan</h2>
+      <div className={calcStyles.small} style={{ marginBottom: 12 }}>
+        No linked Sales Request — for a walk-in or custom dispatch that never went through demo approval.
+      </div>
+      <div className={calcStyles.field}>
+        <label className={calcStyles.label}>Link to a project (optional — prefills client details)</label>
+        <select className={calcStyles.formControl} value={projectId} onChange={(e) => pickProject(e.target.value)}>
+          <option value="">— None —</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.client_name}{p.company ? ` (${p.company})` : ''}</option>
+          ))}
+        </select>
+      </div>
+      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Client name *</label>
+          <input className={calcStyles.formControl} value={clientName} onChange={(e) => setClientName(e.target.value)} />
+        </div>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Client phone</label>
+          <input className={calcStyles.formControl} value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} />
+        </div>
+      </div>
+      <div className={calcStyles.field}>
+        <label className={calcStyles.label}>Client address</label>
+        <input className={calcStyles.formControl} value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} />
+      </div>
+      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Assigned engineer</label>
+          <input className={calcStyles.formControl} value={assignedEngineer} onChange={(e) => setAssignedEngineer(e.target.value)} />
+        </div>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Expected return date</label>
+          <input type="date" className={calcStyles.formControl} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
+        </div>
+      </div>
+
+      <div className={calcStyles.label} style={{ marginBottom: 8, marginTop: 12 }}>Items</div>
+      <div className={historyStyles.tableWrap}>
+      <table className={historyStyles.table}>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Serial Number</th>
+            <th>Quantity</th>
+            <th>Price</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, idx) => (
+            <tr key={idx}>
+              <td><input className={calcStyles.formControl} value={item.product} onChange={(e) => updateItem(idx, { product: e.target.value })} /></td>
+              <td><input className={calcStyles.formControl} value={item.serialNumber} onChange={(e) => updateItem(idx, { serialNumber: e.target.value })} /></td>
+              <td><input type="number" min={1} className={calcStyles.formControl} value={item.quantity} onChange={(e) => updateItem(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })} /></td>
+              <td><input type="number" min={0} step="0.01" className={calcStyles.formControl} value={item.price || ''} placeholder="0" onChange={(e) => updateItem(idx, { price: Number(e.target.value) || 0 })} /></td>
+              <td>
+                <Button
+                  variant="ghost"
+                  compact
+                  disabled={items.length === 1}
+                  onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}
+                >
+                  Remove
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <Button variant="secondary" compact onClick={() => setItems((prev) => [...prev, { ...EMPTY_MANUAL_ITEM }])}>+ Add Item</Button>
+      </div>
+
+      <div className={historyStyles.actionGroupButtons} style={{ marginTop: 16 }}>
+        <Button variant="primary" icon="📦" loading={busy} loadingLabel="Creating…" onClick={handleGenerate}>Create Delivery Challan</Button>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
     </div>
   );
 }
@@ -133,7 +285,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
   function handleExportPdf() {
     generateDeliveryChallanPdf(dc, {
       companyOverride: publicConfig
-        ? { legalName: publicConfig.companyLegalName, addressLines: [publicConfig.addressLine1, publicConfig.addressLine2, publicConfig.addressLine3].filter(Boolean), contactPhone: publicConfig.contactPhone }
+        ? { addressLines: [publicConfig.addressLine1, publicConfig.addressLine2, publicConfig.addressLine3].filter(Boolean), contactPhone: publicConfig.contactPhone }
         : undefined
     });
   }
@@ -172,40 +324,36 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
             )}
           </div>
         </div>
-        <span className={`${historyStyles.statusBadge} ${DC_STATUS_CLASS[dc.status]}`}>{DC_STATUS_LABEL[dc.status]}</span>
+        <StatusBadge tone={DC_STATUS_TONE[dc.status]} label={DC_STATUS_LABEL[dc.status]} />
       </div>
 
       <div className={historyStyles.actionBar} style={{ margin: '12px 0' }}>
         <div className={historyStyles.actionGroup}>
           <div className={historyStyles.actionGroupLabel}>Secondary Actions</div>
           <div className={historyStyles.actionGroupButtons}>
-            <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnSecondary}`} onClick={handleExportPdf}>
-              <span className={historyStyles.actionIcon}>⬇️</span> Download PDF
-            </button>
-            <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnSecondary}`} onClick={() => window.print()}>
-              <span className={historyStyles.actionIcon}>🖨️</span> Print DC
-            </button>
+            <Button variant="secondary" icon="⬇️" onClick={handleExportPdf}>Download PDF</Button>
+            <Button variant="secondary" icon="🖨️" onClick={() => window.print()}>Print DC</Button>
           </div>
         </div>
         {canManage && dc.status === 'prepared' && (
           <div className={historyStyles.actionGroup}>
             <div className={historyStyles.actionGroupLabel}>Danger Zone</div>
             <div className={historyStyles.actionGroupButtons}>
-              <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnDanger}`} disabled={deleting} onClick={handleDeleteClick}>
-                <span className={historyStyles.actionIcon}>🗑️</span> {deleting ? 'Deleting…' : 'Delete DC'}
-              </button>
+              <Button variant="danger" icon="🗑️" loading={deleting} loadingLabel="Deleting…" onClick={handleDeleteClick}>Delete DC</Button>
             </div>
           </div>
         )}
       </div>
 
       <h3 style={{ marginTop: 0 }}>Materials</h3>
+      <div className={historyStyles.tableWrap}>
       <table className={historyStyles.table}>
         <thead>
           <tr>
             <th>Product</th>
             <th>Serial Number</th>
             <th>Quantity</th>
+            <th>Price</th>
           </tr>
         </thead>
         <tbody>
@@ -224,10 +372,26 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
                 )}
               </td>
               <td>{item.quantity}</td>
+              <td>
+                {canManage && dc.status === 'prepared' ? (
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className={calcStyles.formControl}
+                    value={item.price || ''}
+                    placeholder="0"
+                    onChange={(e) => setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, price: Number(e.target.value) || 0 } : it)))}
+                  />
+                ) : (
+                  item.price ? item.price.toLocaleString('en-IN') : '-'
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
 
       {canManage && dc.status === 'prepared' && (
         <>
@@ -244,12 +408,8 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
           <div className={historyStyles.actionGroup}>
             <div className={historyStyles.actionGroupLabel}>Primary Actions</div>
             <div className={historyStyles.actionGroupButtons}>
-              <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnSecondary}`} disabled={busy} onClick={() => patch('updateItems', { items, assignedEngineer, expectedReturnDate })}>
-                <span className={historyStyles.actionIcon}>💾</span> {busy ? 'Saving…' : 'Save Serial Numbers'}
-              </button>
-              <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary}`} disabled={busy} onClick={handleDispatchClick}>
-                <span className={historyStyles.actionIcon}>🚚</span> {busy ? 'Dispatching…' : 'Dispatch Material'}
-              </button>
+              <Button variant="secondary" icon="💾" loading={busy} loadingLabel="Saving…" onClick={() => patch('updateItems', { items, assignedEngineer, expectedReturnDate })}>Save Serial Numbers</Button>
+              <Button variant="primary" icon="🚚" loading={busy} loadingLabel="Dispatching…" onClick={handleDispatchClick}>Dispatch Material</Button>
             </div>
           </div>
         </>
@@ -322,14 +482,15 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
           <div className={historyStyles.actionGroup}>
             <div className={historyStyles.actionGroupLabel}>Primary Actions</div>
             <div className={historyStyles.actionGroupButtons}>
-              <button
-                type="button"
-                className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary}`}
-                disabled={busy}
+              <Button
+                variant="success"
+                icon="✅"
+                loading={busy}
+                loadingLabel="Saving…"
                 onClick={() => patch('verifyReturn', { returned, condition, missing, damaged, accessories, serialNumberVerified, remarkTags, remarks })}
               >
-                <span className={historyStyles.actionIcon}>✅</span> {busy ? 'Saving…' : 'Verify & Receive Material'}
-              </button>
+                Verify &amp; Receive Material
+              </Button>
             </div>
           </div>
         </div>
@@ -349,9 +510,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
             <div className={historyStyles.actionGroup} style={{ marginTop: 10 }}>
               <div className={historyStyles.actionGroupLabel}>Primary Actions</div>
               <div className={historyStyles.actionGroupButtons}>
-                <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary}`} disabled={busy} onClick={handleCloseClick}>
-                  <span className={historyStyles.actionIcon}>🔒</span> {busy ? 'Closing…' : 'Close DC'}
-                </button>
+                <Button variant="success" icon="🔒" loading={busy} loadingLabel="Closing…" onClick={handleCloseClick}>Close DC</Button>
               </div>
             </div>
           )}
@@ -369,9 +528,11 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
 
   const [dcs, setDcs] = useState<DeliveryChallanRecord[]>([]);
   const [demos, setDemos] = useState<DemoScheduleRecord[]>([]);
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [showManualDc, setShowManualDc] = useState(false);
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -392,6 +553,7 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
 
   useEffect(() => {
     load();
+    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
   }, []);
 
   const demoForGenerate = useMemo(() => {
@@ -425,13 +587,22 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
         {linkedDc && (
           <DcDetail dc={linkedDc} canManage={canManage} onUpdated={handleUpdated} onDelete={handleDelete} />
         )}
+        {canManage && showManualDc && (
+          <ManualDcPanel
+            projects={projects}
+            onCancel={() => setShowManualDc(false)}
+            onGenerated={(dc) => { setDcs((prev) => [dc, ...prev]); setShowManualDc(false); toast.success(`${dc.dc_number} created.`); }}
+          />
+        )}
 
-        <h2 className={calcStyles.h2} style={{ marginTop: demoForGenerate || linkedDc ? 24 : 0 }}>All Delivery Challans</h2>
+        <h2 className={calcStyles.h2} style={{ marginTop: demoForGenerate || linkedDc || showManualDc ? 24 : 0 }}>All Delivery Challans</h2>
         <div className={historyStyles.toolbar}>
+          {canManage && !showManualDc && <Button variant="primary" icon="➕" compact onClick={() => setShowManualDc(true)}>Create Manual DC</Button>}
           <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
         </div>
         <div className={historyStyles.status}>{status}</div>
         {loaded && (
+          <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
               <tr>
@@ -456,7 +627,7 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
                     <td>{dc.project_id ? <Link href={`/projects/${dc.project_id}`}>{dc.project_id}</Link> : '-'}</td>
                     <td>{dc.client_name}</td>
                     <td>{dc.assigned_engineer || '-'}</td>
-                    <td><span className={`${historyStyles.statusBadge} ${DC_STATUS_CLASS[dc.status]}`}>{DC_STATUS_LABEL[dc.status]}</span></td>
+                    <td><StatusBadge tone={DC_STATUS_TONE[dc.status]} label={DC_STATUS_LABEL[dc.status]} /></td>
                     <td>{formatDate(dc.issued_date)}</td>
                     <td>
                       <button type="button" className={historyStyles.button} onClick={() => setOpenId(openId === dc.id ? null : dc.id)}>
@@ -468,6 +639,7 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
               )}
             </tbody>
           </table>
+          </div>
         )}
         {openId && !linkedDc && (
           (() => {

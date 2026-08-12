@@ -181,7 +181,7 @@ export default function CustomModuleBuilderPage() {
             <div className={historyStyles.sub}>Administration &rsaquo; create new business modules — fields, approval, and permissions — without writing code.</div>
           </div>
         </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link className={historyStyles.button} href="/admin/modules">Module Manager</Link>
           <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
         </div>

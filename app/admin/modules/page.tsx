@@ -97,7 +97,7 @@ export default function ModuleManagerPage() {
             <div className={historyStyles.sub}>Administration &rsaquo; enable, disable, rename, reorder, and set role visibility for every module — no code required.</div>
           </div>
         </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link className={historyStyles.button} href="/admin/custom-modules">Custom Module Builder</Link>
           <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
         </div>

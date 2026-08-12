@@ -234,7 +234,7 @@ export default function RoleManagementPage() {
             <div className={historyStyles.sub}>Administration &rsaquo; create roles and configure what each one can see and do — no code required.</div>
           </div>
         </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link className={historyStyles.button} href="/admin/users">User Management</Link>
           <Link className={historyStyles.button} href="/admin/departments">Department Master</Link>
           <Link className={historyStyles.button} href="/">Back to Dashboard</Link>

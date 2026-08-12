@@ -4,9 +4,15 @@ module.exports = (sequelize, DataTypes) => {
     dc_number: { type: DataTypes.STRING, unique: true },
     created_by: { type: DataTypes.UUID },
     project_id: { type: DataTypes.UUID },
-    demo_id: { type: DataTypes.UUID, allowNull: false },
+    // Nullable — a manual DC (Back Office creating one directly, with no
+    // Sales Request/approval chain behind it) has no demo to link to.
+    demo_id: { type: DataTypes.UUID, allowNull: true },
     client_name: { type: DataTypes.STRING },
+    client_address: { type: DataTypes.STRING },
+    client_phone: { type: DataTypes.STRING },
     issued_by: { type: DataTypes.STRING },
+    // Resolved from the issuing employee's User.phone once, at creation time.
+    issued_by_phone: { type: DataTypes.STRING },
     issued_date: { type: DataTypes.DATEONLY },
     expected_return_date: { type: DataTypes.DATEONLY },
     assigned_engineer: { type: DataTypes.STRING },

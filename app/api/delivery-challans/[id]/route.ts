@@ -22,11 +22,15 @@ const VALID_REMARK_TAGS: BackOfficeRemarkTag[] = [
 function toItems(value: unknown): DcLineItem[] {
   if (!Array.isArray(value)) return [];
   return value
-    .filter((v): v is { product: unknown; serialNumber: unknown; quantity: unknown } => v && typeof v === 'object')
+    .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
     .map((v) => ({
       product: typeof v.product === 'string' ? v.product.trim() : '',
       serialNumber: typeof v.serialNumber === 'string' ? v.serialNumber.trim() : '',
-      quantity: Math.max(1, Number(v.quantity) || 1)
+      quantity: Math.max(1, Number(v.quantity) || 1),
+      // Price is Back Office-only — this whole route is already gated to
+      // backoffice/privileged (see the PATCH handler below), so no
+      // additional per-field check is needed here.
+      price: Math.max(0, Number(v.price) || 0)
     }))
     .filter((v) => v.product);
 }
