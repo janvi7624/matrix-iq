@@ -13,6 +13,11 @@ export default function ApplicationSettingsPage() {
   const [status, setStatus] = useState('Loading...');
   const [saving, setSaving] = useState(false);
   const [termsText, setTermsText] = useState('');
+  const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
+  }, []);
 
   async function load() {
     setStatus('Loading...');
@@ -201,6 +206,22 @@ export default function ApplicationSettingsPage() {
               </div>
               <div className={styles.status}>
                 Quotation numbers keep their fixed NT-&lt;domain&gt;-DD/MM/YYYY/### format for now — changing that format touches active parsing logic across the calculator and isn&apos;t safe to make config-driven yet.
+              </div>
+            </div>
+
+            <h2 className={calcStyles.h2}>Marketing Settings</h2>
+            <div className={calcStyles.sectionPanel}>
+              <div className={calcStyles.field} style={{ maxWidth: 320 }}>
+                <label className={calcStyles.label}>Marketing Owner</label>
+                <select className={calcStyles.formControl} value={config.marketingOwnerId} onChange={(e) => set('marketingOwnerId', e.target.value)}>
+                  <option value="">— None selected —</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name || u.username} ({u.username})</option>
+                  ))}
+                </select>
+              </div>
+              <div className={styles.status}>
+                New Marketing Requests are assigned to this person by default when they&apos;re created. This is separate from the Role Management &quot;approve&quot; permission on the marketing-requests module, which controls who can review tickets — the Marketing Owner is just who a new ticket lands on first.
               </div>
             </div>
 

@@ -5,6 +5,7 @@ import { isModuleActionAllowed } from '@/lib/permissions';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
+import { notifyUsers } from '@/lib/notificationStore';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -43,6 +44,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       remarks: reason,
       ip: getClientIp(request)
     });
+
+    if (existing.created_by && existing.created_by !== viewer.username) {
+      await notifyUsers([existing.created_by], {
+        title: 'Marketing request declined',
+        body: `"${existing.title}" was declined: ${reason}`,
+        type: 'marketing_request_rejected',
+        entityType: 'marketing_request',
+        entityId: id
+      });
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

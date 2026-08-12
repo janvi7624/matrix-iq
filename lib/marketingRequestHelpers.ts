@@ -23,9 +23,11 @@ export const MARKETING_PRIORITY_META: Record<MarketingRequestPriority, { icon: s
 };
 
 export const MARKETING_STATUS_LABEL: Record<MarketingRequestStatus, string> = {
-  submitted: 'Awaiting Review',
+  submitted: 'New / Awaiting Review',
   timeline_set: 'Timeline Set',
   in_progress: 'In Progress',
+  waiting_info: 'Waiting for Information',
+  ready_for_review: 'Ready for Review',
   completed: 'Completed',
   rejected: 'Declined',
   cancelled: 'Cancelled'

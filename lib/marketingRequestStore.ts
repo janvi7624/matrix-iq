@@ -49,7 +49,9 @@ function rowToComment(plain: Record<string, unknown>): MarketingRequestComment {
 }
 
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
+const assigneeInclude = { model: db.User, as: 'assignee', attributes: ['id', 'username'] };
 const commentsInclude = { model: db.MarketingRequestComment, as: 'comments' };
+const ALL_INCLUDES = [creatorInclude, assigneeInclude, commentsInclude];
 
 function toRecord(row: Model): MarketingRequestRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -57,6 +59,7 @@ function toRecord(row: Model): MarketingRequestRecord {
     id: plain.id,
     created_at: isoOrEmpty(plain.createdAt),
     created_by: (plain.creator as { username?: string } | null)?.username ?? '',
+    assigned_to: (plain.assignee as { username?: string } | null)?.username ?? '',
     updated_at: isoOrEmpty(plain.updatedAt),
     comments: ((plain.comments as Record<string, unknown>[]) ?? [])
       .map(rowToComment)
@@ -72,7 +75,7 @@ function toRecord(row: Model): MarketingRequestRecord {
 }
 
 async function readAll(): Promise<MarketingRequestRecord[]> {
-  const rows = await db.MarketingRequest.findAll({ include: [creatorInclude, commentsInclude], order: [['created_at', 'DESC']] });
+  const rows = await db.MarketingRequest.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
@@ -82,7 +85,7 @@ async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promis
     const user = await db.User.findOne({ where: { username: viewerUsername } as never });
     where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
   }
-  const rows = await db.MarketingRequest.findAll({ where: where as never, include: [creatorInclude, commentsInclude], order: [['created_at', 'DESC']] });
+  const rows = await db.MarketingRequest.findAll({ where: where as never, include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
@@ -90,15 +93,33 @@ async function create(record: MarketingRequestRecord): Promise<MarketingRequestR
   const attrs: Record<string, unknown> = {};
   for (const { name, kind = 'string' } of FIELDS) attrs[name] = toAttr((record as unknown as Record<string, unknown>)[name], kind);
   const creator = await db.User.findOne({ where: { username: record.created_by } as never });
+  const assignee = record.assigned_to ? await db.User.findOne({ where: { username: record.assigned_to } as never }) : null;
 
   return sequelize.transaction(async (t) => {
-    const row = await db.MarketingRequest.create({ ...attrs, created_by: creator ? creator.get('id') : null } as never, { transaction: t });
+    const row = await db.MarketingRequest.create(
+      { ...attrs, created_by: creator ? creator.get('id') : null, assigned_to_id: assignee ? assignee.get('id') : null } as never,
+      { transaction: t }
+    );
     if (record.comments?.length) {
       await db.MarketingRequestComment.bulkCreate(record.comments.map((c) => commentToRow(c, row.get('id') as string)) as never, { transaction: t });
     }
-    const withAssoc = await db.MarketingRequest.findByPk(row.get('id') as string, { include: [creatorInclude, commentsInclude], transaction: t });
+    const withAssoc = await db.MarketingRequest.findByPk(row.get('id') as string, { include: ALL_INCLUDES, transaction: t });
     return toRecord(withAssoc as Model);
   });
+}
+
+// Dedicated write path for assignment — mirrors why `timeline` has its own
+// route instead of going through the generic update()/FIELDS patch: the
+// record shape exposes a resolved username (`assigned_to`), but the column
+// is a raw FK (`assigned_to_id`), so the assign route passes the id directly
+// rather than round-tripping through a username lookup.
+async function assign(id: string, assigneeId: string | null): Promise<MarketingRequestRecord | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.MarketingRequest.findByPk(id);
+  if (!row) return null;
+  await row.update({ assigned_to_id: assigneeId } as never);
+  const withAssoc = await db.MarketingRequest.findByPk(id, { include: ALL_INCLUDES });
+  return toRecord(withAssoc as Model);
 }
 
 async function update(id: string, patch: Partial<MarketingRequestRecord>): Promise<MarketingRequestRecord | null> {
@@ -121,7 +142,7 @@ async function update(id: string, patch: Partial<MarketingRequestRecord>): Promi
       }
     }
 
-    const withAssoc = await db.MarketingRequest.findByPk(id, { include: [creatorInclude, commentsInclude], transaction: t });
+    const withAssoc = await db.MarketingRequest.findByPk(id, { include: ALL_INCLUDES, transaction: t });
     return toRecord(withAssoc as Model);
   });
 }
@@ -135,4 +156,4 @@ async function remove(id: string, viewerUsername: string, viewerIsPrivileged: bo
   return true;
 }
 
-export const marketingRequestStore = { list, create, update, remove, readAll };
+export const marketingRequestStore = { list, create, update, remove, readAll, assign };

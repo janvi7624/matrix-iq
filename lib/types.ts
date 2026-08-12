@@ -351,6 +351,8 @@ export type MarketingRequestStatus =
   | 'submitted'
   | 'timeline_set'
   | 'in_progress'
+  | 'waiting_info'
+  | 'ready_for_review'
   | 'completed'
   | 'rejected'
   | 'cancelled';
@@ -375,6 +377,9 @@ export interface MarketingRequestRecord {
   created_by: string;
   updated_at: string;
   project_id: string;
+  // Who is actively working the ticket — independent of status. Empty
+  // string when unassigned.
+  assigned_to: string;
   title: string;
   request_type: MarketingRequestType;
   description: string;
@@ -513,6 +518,19 @@ export interface AuditLogEntry {
   ip: string;
 }
 
+// In-app only — no email/SMS integration exists in this app. See
+// lib/notificationStore.ts.
+export interface NotificationRecord {
+  id: string;
+  created_at: string;
+  title: string;
+  body: string;
+  type: string;
+  entity_type: string;
+  entity_id: string;
+  is_read: boolean;
+}
+
 export type InstallationStatus = 'scheduled' | 'in_progress' | 'completed';
 
 export interface InstallationRecord {
@@ -627,13 +645,18 @@ export interface AppConfig {
   quotationTerms: string[];
   dcNumberPrefix: string;
   notificationTemplates: NotificationTemplate[];
+  // The default person new Marketing Requests are assigned to — set in
+  // Administration > Application Settings > Marketing Settings. Empty
+  // string when unset (id) / unresolved (username).
+  marketingOwnerId: string;
+  marketingOwnerUsername: string;
   updated_at: string;
   updated_by: string;
 }
 
 // Fields shared with the browser (quotation PDF generation) — excludes bank
 // details, which have no reason to leave the server.
-export type PublicAppConfig = Omit<AppConfig, 'bankAccountName' | 'bankAccountNumber' | 'bankIfsc' | 'bankName' | 'bankBranch' | 'notificationTemplates' | 'updated_at' | 'updated_by'>;
+export type PublicAppConfig = Omit<AppConfig, 'bankAccountName' | 'bankAccountNumber' | 'bankIfsc' | 'bankName' | 'bankBranch' | 'notificationTemplates' | 'marketingOwnerId' | 'marketingOwnerUsername' | 'updated_at' | 'updated_by'>;
 
 export type ProductStatus = 'active' | 'inactive';
 

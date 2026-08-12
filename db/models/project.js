@@ -44,6 +44,7 @@ module.exports = (sequelize, DataTypes) => {
     Project.hasMany(models.PurchaseOrder, { foreignKey: 'project_id', as: 'purchaseOrders' });
     Project.hasMany(models.Installation, { foreignKey: 'project_id', as: 'installations' });
     Project.hasMany(models.DeliveryChallan, { foreignKey: 'project_id', as: 'deliveryChallans' });
+    Project.hasMany(models.MarketingRequest, { foreignKey: 'project_id', as: 'marketingRequests' });
   };
 
   return Project;

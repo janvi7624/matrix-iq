@@ -24,6 +24,10 @@ module.exports = (sequelize, DataTypes) => {
     quotationTerms: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     dcNumberPrefix: { type: DataTypes.STRING },
     notificationTemplates: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // The default person new Marketing Requests route to — distinct from
+    // the role-level "approve" capability (lib/permissions.ts), which
+    // governs who CAN review a ticket, not who it lands on by default.
+    marketingOwnerId: { type: DataTypes.UUID },
     updatedBy: { type: DataTypes.UUID }
   }, {
     tableName: 'app_config',
@@ -33,6 +37,7 @@ module.exports = (sequelize, DataTypes) => {
 
   AppConfig.associate = (models) => {
     AppConfig.belongsTo(models.User, { foreignKey: 'updatedBy', as: 'updater' });
+    AppConfig.belongsTo(models.User, { foreignKey: 'marketingOwnerId', as: 'marketingOwner' });
   };
 
   return AppConfig;

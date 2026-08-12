@@ -3,6 +3,11 @@ module.exports = (sequelize, DataTypes) => {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
     created_by: { type: DataTypes.UUID },
     project_id: { type: DataTypes.UUID },
+    // Who is actively working the ticket — independent of status (a ticket
+    // can be in_progress AND assigned). Defaults to the configured Marketing
+    // Owner (app_config.marketingOwnerId) at creation time; see
+    // lib/marketingRequestStore.ts.
+    assigned_to_id: { type: DataTypes.UUID },
     title: { type: DataTypes.STRING },
     request_type: {
       type: DataTypes.ENUM(
@@ -15,7 +20,7 @@ module.exports = (sequelize, DataTypes) => {
     needed_by_date: { type: DataTypes.DATEONLY },
     attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     status: {
-      type: DataTypes.ENUM('submitted', 'timeline_set', 'in_progress', 'completed', 'rejected', 'cancelled'),
+      type: DataTypes.ENUM('submitted', 'timeline_set', 'in_progress', 'waiting_info', 'ready_for_review', 'completed', 'rejected', 'cancelled'),
       allowNull: false,
       defaultValue: 'submitted'
     },
@@ -33,6 +38,7 @@ module.exports = (sequelize, DataTypes) => {
 
   MarketingRequest.associate = (models) => {
     MarketingRequest.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
+    MarketingRequest.belongsTo(models.User, { foreignKey: 'assigned_to_id', as: 'assignee' });
     MarketingRequest.belongsTo(models.Project, { foreignKey: 'project_id', as: 'project' });
     MarketingRequest.hasMany(models.MarketingRequestComment, { foreignKey: 'marketing_request_id', as: 'comments' });
   };

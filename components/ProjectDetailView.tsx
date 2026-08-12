@@ -7,6 +7,7 @@ import {
   DeliveryChallanRecord,
   DemoScheduleRecord,
   InstallationRecord,
+  MarketingRequestRecord,
   NegotiationRecord,
   PoRecord,
   ProjectPriority,
@@ -22,6 +23,7 @@ import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as VISIT_STAGE_LABEL } from '@/lib/siteVisitReminder';
 import { parseFollowUpNotes } from '@/lib/followUp';
 import { exportListToPdf } from '@/lib/exportPdf';
+import { MARKETING_STATUS_LABEL } from '@/lib/marketingRequestHelpers';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -38,6 +40,7 @@ interface DetailResponse {
   purchaseOrders: PoRecord[];
   installations: InstallationRecord[];
   deliveryChallans: DeliveryChallanRecord[];
+  marketingRequests: MarketingRequestRecord[];
 }
 
 const STATUS_LABEL: Record<ProjectStatus, string> = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost' };
@@ -52,6 +55,7 @@ const TABS = [
   { key: 'responses', label: 'Customer Responses' },
   { key: 'negotiations', label: 'Negotiations' },
   { key: 'dc', label: 'Delivery Challans' },
+  { key: 'marketing', label: 'Marketing Requests' },
   { key: 'po', label: 'Purchase Orders' },
   { key: 'installation', label: 'Installation' },
   { key: 'documents', label: 'Documents' },
@@ -342,7 +346,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   }
   if (!data) return null;
 
-  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans } = data;
+  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests } = data;
   const currentIdx = FORWARD_STAGES.indexOf(project.stage);
   const isClosed = project.stage === 'closed_lost' || project.status === 'lost' || project.stage === 'completed';
   const isOverdue = !isClosed && !!project.next_follow_up_date && project.next_follow_up_date < new Date().toISOString().slice(0, 10);
@@ -682,6 +686,15 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div className={historyStyles.miniCardTitle}>Delivery Challans ({deliveryChallans.length})<Link href="/backoffice">+ View in Back Office</Link></div>
             {deliveryChallans.length === 0 ? <div className={historyStyles.miniCardEmpty}>No Delivery Challans yet.</div> : deliveryChallans.map((dc) => (
               <div key={dc.id} className={historyStyles.miniCardRow}>{dc.dc_number} — {DC_STATUS_LABEL[dc.status]} · Issued {formatDate(dc.issued_date)}</div>
+            ))}
+          </div>
+        )}
+
+        {tab === 'marketing' && (
+          <div className={historyStyles.miniCard}>
+            <div className={historyStyles.miniCardTitle}>Marketing Requests ({marketingRequests.length})<Link href="/marketing-requests">+ View in Marketing</Link></div>
+            {marketingRequests.length === 0 ? <div className={historyStyles.miniCardEmpty}>No Marketing Requests for this project yet.</div> : marketingRequests.map((mr) => (
+              <div key={mr.id} className={historyStyles.miniCardRow}>{mr.title} — {MARKETING_STATUS_LABEL[mr.status]}{mr.assigned_to ? ` · Assigned to ${mr.assigned_to}` : ''}</div>
             ))}
           </div>
         )}

@@ -24,10 +24,37 @@ const STATUS_CLASS: Record<MarketingRequestStatus, string> = {
   submitted: historyStyles.statusPending,
   timeline_set: historyStyles.statusDone,
   in_progress: historyStyles.statusConfirmed,
+  waiting_info: historyStyles.statusPending,
+  ready_for_review: historyStyles.statusDone,
   completed: historyStyles.statusConfirmed,
   rejected: historyStyles.statusRejected,
   cancelled: historyStyles.statusCancelled
 };
+
+type QuickFilter = 'urgent' | 'high' | 'overdue' | 'dueToday' | 'dueSoon' | null;
+
+function isOpenTicket(r: MarketingRequestRecord): boolean {
+  return r.status !== 'completed' && r.status !== 'rejected' && r.status !== 'cancelled';
+}
+
+function daysUntilDue(r: MarketingRequestRecord): number | null {
+  if (!r.timeline) return null;
+  const due = new Date(r.timeline.expectedDeliveryDate).getTime();
+  if (Number.isNaN(due)) return null;
+  return Math.ceil((due - Date.now()) / (1000 * 60 * 60 * 24));
+}
+
+function isDueToday(r: MarketingRequestRecord): boolean {
+  if (!isOpenTicket(r)) return false;
+  const days = daysUntilDue(r);
+  return days !== null && days === 0;
+}
+
+function isDueSoon(r: MarketingRequestRecord): boolean {
+  if (!isOpenTicket(r)) return false;
+  const days = daysUntilDue(r);
+  return days !== null && days > 0 && days <= 3;
+}
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -52,6 +79,8 @@ function PriorityBadge({ priority }: { priority: MarketingRequestPriority }) {
   return <span className={historyStyles.priorityBadge} style={{ background: 'rgba(107,114,128,0.12)', color: '#374151' }}>{meta.icon} {meta.label}</span>;
 }
 
+const PRIORITY_ORDER: MarketingRequestPriority[] = ['low', 'medium', 'high', 'urgent'];
+
 function StatusBadge({ status }: { status: MarketingRequestStatus }) {
   return <span className={`${historyStyles.statusBadge} ${STATUS_CLASS[status]}`}>{MARKETING_STATUS_LABEL[status]}</span>;
 }
@@ -60,16 +89,18 @@ interface RowProps {
   record: MarketingRequestRecord;
   currentUser: { username: string; role: UserRole };
   isReviewer: boolean;
+  users: { id: string; username: string; name: string }[];
   onSetTimeline: (id: string, expectedDeliveryDate: string, remarks: string) => Promise<void>;
   onReject: (id: string, reason: string) => Promise<void>;
   onCancel: (id: string) => Promise<void>;
-  onStart: (id: string) => Promise<void>;
-  onComplete: (id: string, completionNotes: string) => Promise<void>;
+  onStatusAction: (id: string, action: 'start' | 'wait_for_info' | 'resume' | 'ready_for_review' | 'reopen' | 'complete', extra?: Record<string, unknown>) => Promise<void>;
+  onAssign: (id: string, assigneeId: string) => Promise<void>;
+  onPriorityChange: (id: string, priority: MarketingRequestPriority) => Promise<void>;
   onComment: (id: string, text: string) => Promise<void>;
   onDelete: (record: MarketingRequestRecord) => Promise<void>;
 }
 
-function MarketingRequestRow({ record: r, currentUser, isReviewer, onSetTimeline, onReject, onCancel, onStart, onComplete, onComment, onDelete }: RowProps) {
+function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetTimeline, onReject, onCancel, onStatusAction, onAssign, onPriorityChange, onComment, onDelete }: RowProps) {
   const [expanded, setExpanded] = useState(false);
   const [timelineDate, setTimelineDate] = useState('');
   const [timelineRemarks, setTimelineRemarks] = useState('');
@@ -78,6 +109,8 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, onSetTimeline
   const [showComplete, setShowComplete] = useState(false);
   const [completionNotes, setCompletionNotes] = useState('');
   const [commentText, setCommentText] = useState('');
+  const [waitRemarks, setWaitRemarks] = useState('');
+  const [showWait, setShowWait] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const isOwner = r.created_by === currentUser.username;
@@ -104,13 +137,14 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, onSetTimeline
           {overdue && <span className={historyStyles.reminderBadge} style={{ marginLeft: 6 }}>⏰ Overdue</span>}
         </td>
         <td>{r.created_by}</td>
+        <td>{r.assigned_to || <span style={{ opacity: 0.55 }}>Unassigned</span>}</td>
         <td>{r.timeline ? <span title={`Set by ${r.timeline.setBy} on ${formatDateTime(r.timeline.setAt)}`}>🔒 {formatDate(r.timeline.expectedDeliveryDate)}</span> : '-'}</td>
         <td>{formatDate(r.created_at)}</td>
         <td><button type="button" className={historyStyles.toggleBtn} onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>{expanded ? 'Hide' : 'View'}</button></td>
       </tr>
       {expanded && (
         <tr className={historyStyles.detailsRow}>
-          <td colSpan={8}>
+          <td colSpan={9}>
             <div style={{ padding: '4px 2px' }}>
               <div className={calcStyles.small} style={{ marginBottom: 10, whiteSpace: 'pre-wrap' }}>{r.description}</div>
 
@@ -162,6 +196,38 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, onSetTimeline
                 )
               )}
 
+              {isReviewer && (
+                <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 12 }}>
+                  <div className={calcStyles.field}>
+                    <label className={calcStyles.label}>Assigned to</label>
+                    <select
+                      className={calcStyles.formControl}
+                      disabled={busy}
+                      value={users.find((u) => u.username === r.assigned_to)?.id ?? ''}
+                      onChange={(e) => run(() => onAssign(r.id, e.target.value))}
+                    >
+                      <option value="">— Unassigned —</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>{u.name || u.username} ({u.username})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={calcStyles.field}>
+                    <label className={calcStyles.label}>Priority</label>
+                    <select
+                      className={calcStyles.formControl}
+                      disabled={busy}
+                      value={r.priority}
+                      onChange={(e) => run(() => onPriorityChange(r.id, e.target.value as MarketingRequestPriority))}
+                    >
+                      {PRIORITY_ORDER.map((p) => (
+                        <option key={p} value={p}>{MARKETING_PRIORITY_META[p].icon} {MARKETING_PRIORITY_META[p].label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {isReviewer && r.status === 'submitted' && showReject && (
                 <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
                   <div className={calcStyles.field}>
@@ -178,27 +244,70 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, onSetTimeline
               )}
 
               {isReviewer && r.status === 'timeline_set' && (
-                <button type="button" className={calcStyles.btn} style={{ marginTop: 12 }} disabled={busy} onClick={() => run(() => onStart(r.id))}>
+                <button type="button" className={calcStyles.btn} style={{ marginTop: 12 }} disabled={busy} onClick={() => run(() => onStatusAction(r.id, 'start'))}>
                   {busy ? 'Updating…' : '▶ Mark In Progress'}
                 </button>
               )}
 
-              {isReviewer && r.status === 'in_progress' && !showComplete && (
-                <button type="button" className={calcStyles.btn} style={{ marginTop: 12 }} onClick={() => setShowComplete(true)}>✅ Mark Completed</button>
+              {isReviewer && (r.status === 'in_progress' || r.status === 'ready_for_review') && !showComplete && (
+                <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+                  <button type="button" className={calcStyles.btn} onClick={() => setShowComplete(true)}>✅ Mark Completed</button>
+                  {r.status === 'in_progress' && !showWait && (
+                    <>
+                      <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} onClick={() => setShowWait(true)}>⏸ Waiting for Info</button>
+                      <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} disabled={busy} onClick={() => run(() => onStatusAction(r.id, 'ready_for_review'))}>
+                        📤 Ready for Review
+                      </button>
+                    </>
+                  )}
+                  {r.status === 'ready_for_review' && (
+                    <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} disabled={busy} onClick={() => run(() => onStatusAction(r.id, 'reopen'))}>
+                      ↩ Reopen for Rework
+                    </button>
+                  )}
+                </div>
               )}
-              {isReviewer && r.status === 'in_progress' && showComplete && (
+              {isReviewer && r.status === 'in_progress' && showWait && (
+                <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
+                  <div className={calcStyles.field}>
+                    <label className={calcStyles.label}>What information are you waiting on?</label>
+                    <input className={calcStyles.formControl} value={waitRemarks} onChange={(e) => setWaitRemarks(e.target.value)} autoFocus />
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      type="button"
+                      className={calcStyles.btn}
+                      disabled={busy || !waitRemarks.trim()}
+                      onClick={() => run(() => onStatusAction(r.id, 'wait_for_info', { remarks: waitRemarks }).then(() => setShowWait(false)))}
+                    >
+                      {busy ? 'Saving…' : 'Confirm'}
+                    </button>
+                    <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} onClick={() => setShowWait(false)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+              {isReviewer && r.status === 'waiting_info' && (
+                <button type="button" className={calcStyles.btn} style={{ marginTop: 12 }} disabled={busy} onClick={() => run(() => onStatusAction(r.id, 'resume'))}>
+                  {busy ? 'Updating…' : '▶ Resume Work'}
+                </button>
+              )}
+              {isReviewer && (r.status === 'in_progress' || r.status === 'ready_for_review') && showComplete && (
                 <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
                   <div className={calcStyles.field}>
                     <label className={calcStyles.label}>Completion notes (optional)</label>
                     <textarea className={calcStyles.formControl} rows={3} value={completionNotes} onChange={(e) => setCompletionNotes(e.target.value)} />
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => run(() => onComplete(r.id, completionNotes))}>
+                    <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => run(() => onStatusAction(r.id, 'complete', { completionNotes }))}>
                       {busy ? 'Saving…' : 'Confirm Completed'}
                     </button>
                     <button type="button" className={`${calcStyles.btn} ${calcStyles.btnGhost}`} onClick={() => setShowComplete(false)}>Cancel</button>
                   </div>
                 </div>
+              )}
+
+              {r.status === 'waiting_info' && (
+                <div className={historyStyles.autofillNotice} style={{ marginTop: 12 }}>⏸ Waiting for information from you — check the comments below.</div>
               )}
 
               {r.status === 'completed' && r.completion_notes && (
@@ -265,6 +374,9 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<MarketingRequestStatus | ''>(startAwaitingReview ? 'submitted' : '');
   const [typeFilter, setTypeFilter] = useState<MarketingRequestType | ''>('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>(null);
+  const [assignedToMeOnly, setAssignedToMeOnly] = useState(false);
+  const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
 
   async function loadRequests() {
     setStatus('Loading...');
@@ -287,7 +399,19 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
   useEffect(() => {
     loadRequests();
     fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
+    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
   }, []);
+
+  const triageCounts = useMemo(() => {
+    const open = requests.filter(isOpenTicket);
+    return {
+      urgent: open.filter((r) => r.priority === 'urgent').length,
+      high: open.filter((r) => r.priority === 'high').length,
+      overdue: requests.filter(isMarketingRequestOverdue).length,
+      dueToday: open.filter(isDueToday).length,
+      dueSoon: open.filter(isDueSoon).length
+    };
+  }, [requests]);
 
   const visible = useMemo(() => {
     let rows = requests;
@@ -297,8 +421,14 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
     }
     if (statusFilter) rows = rows.filter((r) => r.status === statusFilter);
     if (typeFilter) rows = rows.filter((r) => r.request_type === typeFilter);
+    if (assignedToMeOnly) rows = rows.filter((r) => r.assigned_to === currentUser.username);
+    if (quickFilter === 'urgent') rows = rows.filter((r) => isOpenTicket(r) && r.priority === 'urgent');
+    else if (quickFilter === 'high') rows = rows.filter((r) => isOpenTicket(r) && r.priority === 'high');
+    else if (quickFilter === 'overdue') rows = rows.filter(isMarketingRequestOverdue);
+    else if (quickFilter === 'dueToday') rows = rows.filter(isDueToday);
+    else if (quickFilter === 'dueSoon') rows = rows.filter(isDueSoon);
     return [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-  }, [requests, q, statusFilter, typeFilter]);
+  }, [requests, q, statusFilter, typeFilter, assignedToMeOnly, quickFilter, currentUser.username]);
 
   function replaceRecord(updated: MarketingRequestRecord) {
     setRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -359,12 +489,25 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
     await postAction(`/api/marketing-requests/${id}/cancel`, {}, 'Request cancelled.');
   }
 
-  async function handleStart(id: string) {
-    await postAction(`/api/marketing-requests/${id}/status`, { action: 'start' }, 'Marked in progress.');
+  const STATUS_ACTION_MESSAGE: Record<string, string> = {
+    start: 'Marked in progress.',
+    wait_for_info: 'Marked waiting for information.',
+    resume: 'Resumed.',
+    ready_for_review: 'Marked ready for review.',
+    reopen: 'Reopened for rework.',
+    complete: 'Marked completed.'
+  };
+
+  async function handleStatusAction(id: string, action: 'start' | 'wait_for_info' | 'resume' | 'ready_for_review' | 'reopen' | 'complete', extra?: Record<string, unknown>) {
+    await postAction(`/api/marketing-requests/${id}/status`, { action, ...extra }, STATUS_ACTION_MESSAGE[action]);
   }
 
-  async function handleComplete(id: string, completionNotes: string) {
-    await postAction(`/api/marketing-requests/${id}/status`, { action: 'complete', completionNotes }, 'Marked completed.');
+  async function handleAssign(id: string, assigneeId: string) {
+    await postAction(`/api/marketing-requests/${id}/assign`, { assigneeId }, assigneeId ? 'Assigned.' : 'Unassigned.');
+  }
+
+  async function handlePriorityChange(id: string, priority: MarketingRequestPriority) {
+    await postAction(`/api/marketing-requests/${id}/priority`, { priority }, 'Priority updated.');
   }
 
   async function handleComment(id: string, text: string) {
@@ -398,6 +541,35 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
 
         {mode === 'list' && (
           <>
+            {isReviewer && !loading && !loadFailed && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                {([
+                  ['urgent', '🔴 Urgent', triageCounts.urgent],
+                  ['high', '🟠 High Priority', triageCounts.high],
+                  ['overdue', '⚠️ Overdue', triageCounts.overdue],
+                  ['dueToday', '📅 Due Today', triageCounts.dueToday],
+                  ['dueSoon', '⏳ Due Soon', triageCounts.dueSoon]
+                ] as [QuickFilter, string, number][]).map(([key, label, count]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setQuickFilter((prev) => (prev === key ? null : key))}
+                    className={calcStyles.sectionPanel}
+                    style={{
+                      minWidth: 120,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      border: quickFilter === key ? '2px solid #dc2626' : '1px solid #e5e7eb',
+                      background: quickFilter === key ? 'rgba(220,38,38,0.06)' : undefined
+                    }}
+                  >
+                    <div style={{ fontSize: 12, opacity: 0.75 }}>{label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700 }}>{count}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div className={historyStyles.toolbar}>
               <input type="text" placeholder="Search title, description, requester..." value={q} onChange={(e) => setQ(e.target.value)} />
               <select className={calcStyles.formControl} style={{ width: 'auto' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as MarketingRequestStatus | '')}>
@@ -412,12 +584,21 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                   <option key={t} value={t}>{MARKETING_REQUEST_TYPE_LABEL[t]}</option>
                 ))}
               </select>
+              {isReviewer && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                  <input type="checkbox" checked={assignedToMeOnly} onChange={(e) => setAssignedToMeOnly(e.target.checked)} />
+                  My Marketing Tickets
+                </label>
+              )}
+              {quickFilter && (
+                <button type="button" className={`${historyStyles.button}`} onClick={() => setQuickFilter(null)}>Clear triage filter</button>
+              )}
               <button type="button" className={historyStyles.button} onClick={loadRequests}>Refresh</button>
             </div>
             {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
             {loading ? (
-              <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={8} /></div>
+              <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={9} /></div>
             ) : loadFailed ? (
               <ErrorState message="Could not load marketing requests — check your connection and try again." onRetry={loadRequests} />
             ) : (
@@ -430,6 +611,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                     <th>Priority</th>
                     <th>Status</th>
                     <th>Requested By</th>
+                    <th>Assigned To</th>
                     <th>Timeline</th>
                     <th>Created</th>
                     <th></th>
@@ -442,17 +624,19 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                       record={r}
                       currentUser={currentUser}
                       isReviewer={isReviewer}
+                      users={users}
                       onSetTimeline={handleSetTimeline}
                       onReject={handleReject}
                       onCancel={handleCancel}
-                      onStart={handleStart}
-                      onComplete={handleComplete}
+                      onStatusAction={handleStatusAction}
+                      onAssign={handleAssign}
+                      onPriorityChange={handlePriorityChange}
                       onComment={handleComment}
                       onDelete={handleDelete}
                     />
                   ))}
                   {visible.length === 0 && (
-                    <tr><td colSpan={8}>
+                    <tr><td colSpan={9}>
                       <EmptyState
                         icon="📣"
                         title={requests.length === 0 ? 'No marketing requests yet' : 'No requests match your filters'}

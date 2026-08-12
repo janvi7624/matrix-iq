@@ -7,6 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { BRAND } from '@/lib/branding';
 import { ModuleConfigRecord } from '@/lib/types';
 import GlobalSearch from './GlobalSearch';
+import NotificationBell from './NotificationBell';
 import styles from './quotationHistory.module.css';
 
 interface PortalHeaderProps {
@@ -51,6 +52,7 @@ export default function PortalHeader({ title, subtitle, showBackLink = true }: P
       </Link>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <GlobalSearch />
+        <NotificationBell />
         {showBackLink && (
           <Link className={styles.button} href="/">
             &larr; Back to Dashboard

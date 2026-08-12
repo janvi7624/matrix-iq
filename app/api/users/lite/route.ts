@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const users = await listUsers();
-    return NextResponse.json(users.filter((u) => u.status === 'active').map((u) => ({ username: u.username, name: u.name })));
+    return NextResponse.json(users.filter((u) => u.status === 'active').map((u) => ({ id: u.id, username: u.username, name: u.name })));
   } catch (error) {
     return apiErrorResponse(error);
   }

@@ -5,6 +5,8 @@ import { isModuleActionAllowed } from '@/lib/permissions';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
+import { getAppConfig } from '@/lib/appConfigStore';
+import { notifyUsers } from '@/lib/notificationStore';
 import { MarketingRequestPriority, MarketingRequestRecord, MarketingRequestType } from '@/lib/types';
 
 const VALID_TYPES: MarketingRequestType[] = [
@@ -54,10 +56,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Title and description are required' }, { status: 400 });
   }
 
+  // New tickets default-route to the configured Marketing Owner — see
+  // Administration > Application Settings > Marketing Settings.
+  const appConfig = await getAppConfig();
+
   const record: MarketingRequestRecord = {
     id: `${Date.now()}`,
     created_at: new Date().toISOString(),
     created_by: viewer.username,
+    assigned_to: appConfig.marketingOwnerUsername,
     updated_at: new Date().toISOString(),
     project_id: typeof body.projectId === 'string' ? body.projectId.trim() : '',
     title,
@@ -87,6 +94,15 @@ export async function POST(request: NextRequest) {
       remarks: title,
       ip: getClientIp(request)
     });
+    if (created.assigned_to && created.assigned_to !== viewer.username) {
+      await notifyUsers([created.assigned_to], {
+        title: 'New marketing request',
+        body: `${viewer.username} submitted "${title}"`,
+        type: 'marketing_request_created',
+        entityType: 'marketing_request',
+        entityId: created.id
+      });
+    }
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

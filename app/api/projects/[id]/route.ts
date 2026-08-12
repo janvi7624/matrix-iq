@@ -9,6 +9,7 @@ import { poStore } from '@/lib/poStore';
 import { installationStore } from '@/lib/installationStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { searchQuotations } from '@/lib/quotationStore';
+import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES } from '@/lib/types';
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations] = await Promise.all([
+    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests] = await Promise.all([
       siteVisitStore.list(viewer.username, true),
       demoScheduleStore.list(viewer.username, true),
       customerResponseStore.list(viewer.username, true),
@@ -40,7 +41,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       poStore.list(viewer.username, true),
       installationStore.list(viewer.username, true),
       deliveryChallanStore.list(viewer.username, true),
-      searchQuotations()
+      searchQuotations(),
+      marketingRequestStore.list(viewer.username, true)
     ]);
 
     return NextResponse.json({
@@ -52,7 +54,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       purchaseOrders: purchaseOrders.filter((r) => r.project_id === id),
       installations: installations.filter((r) => r.project_id === id),
       deliveryChallans: deliveryChallans.filter((r) => r.project_id === id),
-      quotations: quotations.filter((r) => r.project_id === id)
+      quotations: quotations.filter((r) => r.project_id === id),
+      marketingRequests: marketingRequests.filter((r) => r.project_id === id)
     });
   } catch (error) {
     return apiErrorResponse(error);

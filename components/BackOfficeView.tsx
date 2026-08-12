@@ -3,9 +3,9 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { BackOfficeRemarkTag, DcLineItem, DcStatus, DeliveryChallanRecord, DemoScheduleRecord, UserRole } from '@/lib/types';
+import { BackOfficeRemarkTag, DcLineItem, DcStatus, DeliveryChallanRecord, DemoScheduleRecord, PublicAppConfig, UserRole } from '@/lib/types';
 import { BACK_OFFICE_REMARK_LABEL, BACK_OFFICE_REMARK_TAGS } from '@/lib/backOfficeRemarks';
-import { exportListToPdf } from '@/lib/exportPdf';
+import { generateDeliveryChallanPdf } from '@/lib/deliveryChallanPdf';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -95,8 +95,16 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
   const [serialNumberVerified, setSerialNumberVerified] = useState(dc.material_return.serialNumberVerified);
   const [remarkTags, setRemarkTags] = useState<BackOfficeRemarkTag[]>(dc.material_return.remarkTags);
   const [remarks, setRemarks] = useState(dc.material_return.remarks);
+  const [publicConfig, setPublicConfig] = useState<PublicAppConfig | null>(null);
   const toast = useToast();
   const confirm = useConfirm();
+
+  useEffect(() => {
+    fetch('/api/config/public')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: PublicAppConfig | null) => setPublicConfig(data))
+      .catch(() => setPublicConfig(null));
+  }, []);
 
   async function patch(action: string, extra: Record<string, unknown>) {
     setBusy(true);
@@ -123,12 +131,11 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
   }
 
   function handleExportPdf() {
-    exportListToPdf(
-      `Delivery Challan ${dc.dc_number}`,
-      ['Product', 'Serial Number', 'Quantity'],
-      dc.items.map((i) => [i.product, i.serialNumber || '-', i.quantity]),
-      `${dc.dc_number}.pdf`
-    );
+    generateDeliveryChallanPdf(dc, {
+      companyOverride: publicConfig
+        ? { legalName: publicConfig.companyLegalName, addressLines: [publicConfig.addressLine1, publicConfig.addressLine2, publicConfig.addressLine3].filter(Boolean), contactPhone: publicConfig.contactPhone }
+        : undefined
+    });
   }
 
   async function handleDeleteClick() {
