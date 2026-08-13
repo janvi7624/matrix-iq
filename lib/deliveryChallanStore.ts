@@ -143,7 +143,12 @@ export async function findDeliveryChallanById(id: string): Promise<DeliveryChall
 // Configuration > Number Series); changing it only affects new DCs —
 // existing dc_numbers keep whatever prefix they were created with.
 export async function nextDcNumber(): Promise<string> {
-  const [rows, config] = await Promise.all([db.DeliveryChallan.findAll({ attributes: ['dc_number'] }), getAppConfig()]);
+  // paranoid: false — a soft-deleted DC's dc_number still occupies the
+  // column's real unique constraint at the DB level (Sequelize's paranoid
+  // exclusion is an app-level query filter, not a DB-level one), so the
+  // default findAll (which excludes deleted rows) could recompute a number
+  // that collides with one a deleted row still physically holds.
+  const [rows, config] = await Promise.all([db.DeliveryChallan.findAll({ attributes: ['dc_number'], paranoid: false }), getAppConfig()]);
   const prefix = config.dcNumberPrefix || 'NT-DC-';
   const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`^${escapedPrefix}(\\d+)$`);

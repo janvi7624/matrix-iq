@@ -6,19 +6,21 @@ import { standeeModels, STANDEE_CATEGORIES, STANDEE_PREVIEW_BY_CATEGORY } from '
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
+import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface StandeeEstimatorProps {
   active: boolean;
   costInputs: CostInputs;
   onResultChange: (result: DomainResult) => void;
+  overrides: OverrideMap;
 }
 
 function firstModelForCategory(category: string): string {
   return Object.keys(standeeModels).find((key) => standeeModels[key].category === category) || '';
 }
 
-export default function StandeeEstimator({ active, costInputs, onResultChange }: StandeeEstimatorProps) {
+export default function StandeeEstimator({ active, costInputs, onResultChange, overrides }: StandeeEstimatorProps) {
   const [category, setCategory] = useState<string>(STANDEE_CATEGORIES[0]);
   const [modelKey, setModelKey] = useState<string>(() => firstModelForCategory(STANDEE_CATEGORIES[0]));
   const [priceTier, setPriceTier] = useState<'partner' | 'endUser'>('partner');
@@ -44,7 +46,11 @@ export default function StandeeEstimator({ active, costInputs, onResultChange }:
     setScaffoldingPerUnit(m.scaffoldingPerUnit);
   }, [modelKey]);
 
-  const model = standeeModels[modelKey];
+  const model = useMemo(() => {
+    const base = standeeModels[modelKey];
+    if (!base) return undefined;
+    return applyOverride(base, overrides.get(overrideMapKey('standee', modelKey)), 'details');
+  }, [modelKey, overrides]);
 
   const result = useMemo<DomainResult | null>(() => {
     if (!model) return null;

@@ -27,6 +27,7 @@ import { MARKETING_STATUS_LABEL } from '@/lib/marketingRequestHelpers';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 
@@ -573,13 +574,13 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Expected closing date</label>
                 {canEdit ? (
-                  <input type="date" className={calcStyles.formControl} value={project.expected_closing_date} onChange={(e) => patchProject({ expectedClosingDate: e.target.value })} />
+                  <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={project.expected_closing_date} onChange={(e) => patchProject({ expectedClosingDate: e.target.value })} />
                 ) : <div className={calcStyles.small}>{formatDate(project.expected_closing_date)}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Next follow-up date</label>
                 {canEdit ? (
-                  <input type="date" className={calcStyles.formControl} value={project.next_follow_up_date} onChange={(e) => patchProject({ nextFollowUpDate: e.target.value })} />
+                  <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={project.next_follow_up_date} onChange={(e) => patchProject({ nextFollowUpDate: e.target.value })} />
                 ) : <div className={calcStyles.small}>{formatDate(project.next_follow_up_date)}</div>}
               </div>
               <div className={calcStyles.field}>
@@ -684,7 +685,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               </div>
               <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 6 }}>
                 <input type="number" className={calcStyles.formControl} placeholder="Revised price" value={negForm.revisedPrice} onChange={(e) => setNegForm((f) => ({ ...f, revisedPrice: e.target.value }))} />
-                <input type="date" className={calcStyles.formControl} placeholder="Expected closure" value={negForm.expectedClosure} onChange={(e) => setNegForm((f) => ({ ...f, expectedClosure: e.target.value }))} />
+                <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} placeholder="Expected closure" value={negForm.expectedClosure} onChange={(e) => setNegForm((f) => ({ ...f, expectedClosure: e.target.value }))} />
               </div>
               <button type="submit" className={calcStyles.btn} disabled={busySection === 'negotiation'}>{busySection === 'negotiation' ? 'Saving…' : 'Log discussion'}</button>
             </form>

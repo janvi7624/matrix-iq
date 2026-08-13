@@ -50,12 +50,12 @@ export default function PortalHeader({ title, subtitle, showBackLink = true }: P
           <div className={styles.sub}>{subtitle}</div>
         </div>
       </Link>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+      <div className={styles.headerActions}>
         <GlobalSearch />
         <NotificationBell />
         {showBackLink && (
-          <Link className={styles.button} href="/">
-            &larr; Back to Dashboard
+          <Link className={`${styles.button} ${styles.headerBackLink}`} href="/">
+            &larr; <span className={styles.headerBackLinkLabel}>Back to Dashboard</span>
           </Link>
         )}
         <button type="button" className={styles.button} onClick={handleLogout}>

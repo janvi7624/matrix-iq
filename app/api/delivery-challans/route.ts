@@ -99,7 +99,10 @@ export async function POST(request: NextRequest) {
         issued_by_phone: issuedByPhone,
         issued_date: now.slice(0, 10),
         expected_return_date: typeof body.expectedReturnDate === 'string' ? body.expectedReturnDate : '',
-        assigned_engineer: demo.manager_approval.reassigned_engineer || demo.assigned_technical_person,
+        // The name on the DC is the requester (sales rep who owns the deal,
+        // or whoever submitted the request if no rep was set) — not the
+        // technical person who ran the demo. Displayed as "Requested By".
+        assigned_engineer: demo.assigned_rep || demo.created_by,
         status: 'prepared',
         material_return: emptyChecklist(),
         updated_at: now

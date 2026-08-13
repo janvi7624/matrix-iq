@@ -7,6 +7,7 @@ import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { ModelPreset } from './ConferenceEstimator';
+import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface InteractivePanelEstimatorProps {
@@ -14,11 +15,12 @@ interface InteractivePanelEstimatorProps {
   costInputs: CostInputs;
   onResultChange: (result: DomainResult) => void;
   presetModel?: ModelPreset | null;
+  overrides: OverrideMap;
 }
 
 type Tier = 'distributor' | 'partner' | 'customer';
 
-export default function InteractivePanelEstimator({ active, costInputs, onResultChange, presetModel }: InteractivePanelEstimatorProps) {
+export default function InteractivePanelEstimator({ active, costInputs, onResultChange, presetModel, overrides }: InteractivePanelEstimatorProps) {
   const modelKeys = Object.keys(interactivePanelProducts);
   const [modelKey, setModelKey] = useState(modelKeys[0]);
   const [priceTier, setPriceTier] = useState<Tier>('distributor');
@@ -29,7 +31,11 @@ export default function InteractivePanelEstimator({ active, costInputs, onResult
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetModel?.nonce]);
 
-  const product = interactivePanelProducts[modelKey];
+  const product = useMemo(() => {
+    const base = interactivePanelProducts[modelKey];
+    if (!base) return undefined;
+    return applyOverride(base, overrides.get(overrideMapKey('interactive-panel', modelKey)), 'name');
+  }, [modelKey, overrides]);
 
   const result = useMemo<DomainResult | null>(() => {
     if (!product) return null;

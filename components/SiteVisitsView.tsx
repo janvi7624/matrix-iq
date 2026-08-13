@@ -17,6 +17,7 @@ import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { todayDateInputValue } from '@/lib/dateHelpers';
 
 interface SiteVisitsViewProps {
   currentUser: { username: string; role: UserRole };
@@ -184,7 +185,7 @@ function SiteVisitDetail({
         </div>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Reminder date</label>
-          <input type="date" className={calcStyles.formControl} value={reminderDate} onChange={(e) => setReminderDate(e.target.value)} />
+          <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={reminderDate} onChange={(e) => setReminderDate(e.target.value)} />
         </div>
       </div>
       <StagePicker value={stage} onChange={setStage} />

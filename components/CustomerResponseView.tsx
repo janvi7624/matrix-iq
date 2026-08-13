@@ -9,6 +9,7 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { todayDateInputValue } from '@/lib/dateHelpers';
 
 const EMPTY_FORM = { projectId: '', demoId: '', feedback: '', responseType: '' as CustomerResponseType | '', expectedDecisionDate: '', remarks: '' };
 
@@ -132,7 +133,7 @@ export default function CustomerResponseView({ currentUser }: CustomerResponseVi
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Expected decision date</label>
-              <input type="date" className={calcStyles.formControl} value={form.expectedDecisionDate} onChange={(e) => setForm((f) => ({ ...f, expectedDecisionDate: e.target.value }))} />
+              <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={form.expectedDecisionDate} onChange={(e) => setForm((f) => ({ ...f, expectedDecisionDate: e.target.value }))} />
             </div>
           </div>
           <div className={calcStyles.field}>

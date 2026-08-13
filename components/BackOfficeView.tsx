@@ -13,6 +13,7 @@ import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import Button from './ui/Button';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
+import { todayDateInputValue } from '@/lib/dateHelpers';
 
 const DC_STATUS_LABEL: Record<DcStatus, string> = { prepared: 'Prepared', dispatched: 'Dispatched', returned: 'Returned', closed: 'Closed' };
 const DC_STATUS_TONE: Record<DcStatus, StatusTone> = {
@@ -73,7 +74,7 @@ function GenerateDcPanel({ demo, onGenerated }: { demo: DemoScheduleRecord; onGe
       </div>
       <div className={calcStyles.field}>
         <label className={calcStyles.label}>Expected return date</label>
-        <input type="date" className={calcStyles.formControl} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
+        <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
       </div>
       <Button variant="primary" icon="📦" loading={busy} loadingLabel="Generating…" onClick={handleGenerate}>Create Delivery Challan</Button>
     </div>
@@ -177,12 +178,12 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
       </div>
       <div className={`${calcStyles.row} ${calcStyles.columns}`}>
         <div className={calcStyles.field}>
-          <label className={calcStyles.label}>Assigned engineer</label>
+          <label className={calcStyles.label}>Requested By</label>
           <input className={calcStyles.formControl} value={assignedEngineer} onChange={(e) => setAssignedEngineer(e.target.value)} />
         </div>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Expected return date</label>
-          <input type="date" className={calcStyles.formControl} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
+          <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
         </div>
       </div>
 
@@ -285,7 +286,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
   function handleExportPdf() {
     generateDeliveryChallanPdf(dc, {
       companyOverride: publicConfig
-        ? { addressLines: [publicConfig.addressLine1, publicConfig.addressLine2, publicConfig.addressLine3].filter(Boolean), contactPhone: publicConfig.contactPhone }
+        ? { legalName: publicConfig.companyLegalName, addressLines: [publicConfig.addressLine1, publicConfig.addressLine2, publicConfig.addressLine3].filter(Boolean), contactPhone: publicConfig.contactPhone }
         : undefined
     });
   }
@@ -397,12 +398,12 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
         <>
           <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 12 }}>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Assigned engineer</label>
+              <label className={calcStyles.label}>Requested By</label>
               <input className={calcStyles.formControl} value={assignedEngineer} onChange={(e) => setAssignedEngineer(e.target.value)} />
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Expected return date</label>
-              <input type="date" className={calcStyles.formControl} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
+              <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
             </div>
           </div>
           <div className={historyStyles.actionGroup}>
@@ -609,7 +610,7 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
                 <th>DC Number</th>
                 <th>Project</th>
                 <th>Client</th>
-                <th>Assigned Engineer</th>
+                <th>Requested By</th>
                 <th>Status</th>
                 <th>Issued Date</th>
                 <th></th>

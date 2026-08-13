@@ -11,13 +11,14 @@ const DC_TERMS = [
   'IF ANY STRETCH OR MISS HANDLING FOUND OR ANY ITEM FOUND MISSING, COMPLETE UNIT WILL BE BILLED AT ITS MRP TO PARTNER.'
 ];
 
-// Fixed paper-letterhead wording — deliberately NOT sourced from
-// AppConfig.companyLegalName, which correctly says the full legal name
-// "NANTA Technology Limited" elsewhere (e.g. quotations). The real DC pad
-// this app's PDF is modeled on prints "NANTA TECH LIMITED".
-const DC_COMPANY_NAME = 'NANTA TECH LIMITED';
+// Same source as the quotation PDF (AppConfig.companyLegalName, via
+// companyOverride) — both should always say the same company name, so
+// there's one place an admin corrects it rather than two hardcoded strings
+// that can drift apart.
+const DC_COMPANY_NAME_FALLBACK = 'NANTA TECH LIMITED';
 
 export interface DeliveryChallanPdfCompanyOverride {
+  legalName?: string;
   addressLines: string[];
   contactPhone?: string;
 }
@@ -62,6 +63,7 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   const marginX = 14;
   const rightX = pageWidth - marginX;
 
+  const companyLegalName = opts?.companyOverride?.legalName || DC_COMPANY_NAME_FALLBACK;
   const companyAddressLines = opts?.companyOverride?.addressLines?.length
     ? opts.companyOverride.addressLines
     : ['205, F Block, Shivalik Sharda Harmony,', 'Panjarapole Cross Rd, Ambawadi,', 'Ahmedabad, Gujarat - 380015'];
@@ -85,7 +87,7 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(17, 24, 39);
-  doc.text(DC_COMPANY_NAME, brandX, 15);
+  doc.text(companyLegalName.toUpperCase(), brandX, 15);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(90, 90, 90);
@@ -149,7 +151,7 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(60, 60, 60);
-  doc.text(`Dispatch Through: ${dc.assigned_engineer || '-'}`, marginX, y);
+  doc.text(`Requested By: ${dc.assigned_engineer || '-'}`, marginX, y);
   doc.text(`Expected Return Date: ${formatDate(dc.expected_return_date)}`, rightX, y, { align: 'right' });
 
   y += 6;
@@ -219,7 +221,7 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(17, 24, 39);
-  doc.text(`For: ${DC_COMPANY_NAME}`, rightX - 2, y, { align: 'right' });
+  doc.text(`For: ${companyLegalName.toUpperCase()}`, rightX - 2, y, { align: 'right' });
   y += 14;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);

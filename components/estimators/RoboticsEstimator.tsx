@@ -6,22 +6,28 @@ import { roboticsProducts } from '@/lib/data/roboticsProducts';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
+import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface RoboticsEstimatorProps {
   active: boolean;
   onResultChange: (result: DomainResult) => void;
+  overrides: OverrideMap;
 }
 
 type Tier = 'distributor' | 'partner' | 'customer';
 
-export default function RoboticsEstimator({ active, onResultChange }: RoboticsEstimatorProps) {
+export default function RoboticsEstimator({ active, onResultChange, overrides }: RoboticsEstimatorProps) {
   const modelKeys = Object.keys(roboticsProducts);
   const [modelKey, setModelKey] = useState(modelKeys[0]);
   const [priceTier, setPriceTier] = useState<Tier>('distributor');
   const [quantity, setQuantity] = useState(1);
 
-  const product = roboticsProducts[modelKey];
+  const product = useMemo(() => {
+    const base = roboticsProducts[modelKey];
+    if (!base) return undefined;
+    return applyOverride(base, overrides.get(overrideMapKey('robotics', modelKey)), 'description');
+  }, [modelKey, overrides]);
 
   const result = useMemo<DomainResult | null>(() => {
     if (!product) return null;

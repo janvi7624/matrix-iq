@@ -96,7 +96,7 @@ export const avCameraProducts: Record<string, CameraProduct> = {
   'NT-VX630AL': {
     modelTag: 'VX630AL',
     category: 'PTZ',
-    description: 'Conferencing Device (ADPM), 4K PTZ camera, 1/1.8" sensor, 4K60, 30x optical zoom, AI tracking. SDI + HDMI + LAN + USB 2.0.',
+    description: 'Conferencing Device (ADPM), 4K PTZ camera, 1/1.8" sensor, 4K60, 30x optical zoom, AI tracking, ReID. SDI + HDMI + LAN + USB 2.0, NDI/Dante. Built for large / broadcast rooms.',
     distributorPrice: 127500,
     partnerPrice: 142805,
     customerPrice: 164225,

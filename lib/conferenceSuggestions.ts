@@ -39,13 +39,16 @@ export function getConferenceSuggestion(seats: number): ConferenceSuggestion {
       tierLabel: `Medium/large room (9–14 seats)`,
       primaryModel: 'NT-M2000S',
       primaryReason: '12x optical zoom dual-lens video bar with AI tracking — reaches further down a longer table.',
-      additional: [{ model: 'NT-A10W', reason: 'Extends microphone/speaker pickup to ~10m for seats far from the table center.' }]
+      additional: [
+        { model: 'NT-A10W', reason: 'Extends microphone/speaker pickup to ~10m for seats far from the table center.' },
+        { model: 'NT-VX71UVS', reason: 'Medium-room PTZ alternative with gesture control and RS232/RS485 for integration with room automation.' }
+      ]
     };
   }
   return {
     tierLabel: `Boardroom (15+ seats)`,
-    primaryModel: 'NT-EC-HD-30X',
-    primaryReason: '30x optical zoom PTZ camera with presenter tracking for large boardrooms.',
+    primaryModel: 'NT-VX630AL',
+    primaryReason: '30x optical zoom 4K60 PTZ camera built for large/broadcast rooms — NDI/Dante and ReID support handle boardrooms that also feed a broadcast or recording pipeline.',
     additional: [
       { model: 'NT-A10W', reason: 'Speakerphone with ~10m pickup range for the main seating area.' },
       { model: 'NT-M702A/C', reason: 'PoE-cascadable microphone — add one at the far end of a long table for full coverage.' }

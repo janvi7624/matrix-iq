@@ -9,24 +9,52 @@ import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
 import AppShell from './AppShell';
 import { BRAND } from '@/lib/branding';
+import { useModuleSections } from '@/lib/useModuleSections';
+import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
+import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
+import { iconForSection } from '@/lib/sectionIcons';
 import styles from './dashboard.module.css';
-import historyStyles from './quotationHistory.module.css';
 
 interface DashboardProps {
-  currentUser: { name: string; role: UserRole };
+  currentUser: { name: string; role: UserRole; department?: string };
 }
 
-// Only the fields the two banners below still need — the full KPI grids
-// (quotation stats, pipeline KPIs, Back Office KPIs) moved to /analytics
-// (components/AnalyticsView.tsx) so the Dashboard stays focused on
-// navigation instead of a long stack of number boxes.
+// The full KPI grids live at /analytics (components/AnalyticsView.tsx) — the
+// Dashboard only pulls in the subset it needs for the attention panel and,
+// for Manager+, the Team Overview strip below it.
 interface Kpis {
   pendingApprovals: number;
+  totalProjects: number;
+  activeProjects: number;
+  conversionRate: number;
 }
 
 interface BackOfficeKpis {
   pendingDc: number;
   pendingVerification: number;
+}
+
+interface QuotationStatsSummary {
+  total: number;
+  sent: number;
+  approved: number;
+  rejected: number;
+}
+
+interface AttentionItem {
+  key: string;
+  icon: string;
+  label: string;
+  count: number;
+  href: string;
+  tone: 'urgent' | 'info';
+}
+
+function timeOfDayGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
 export default function Dashboard({ currentUser }: DashboardProps) {
@@ -39,6 +67,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [marketingStats, setMarketingStats] = useState<{ isReviewer: boolean; awaitingReview?: number; myOpenCount?: number } | null>(null);
   const [recentProjects, setRecentProjects] = useState<ProjectRecord[] | null>(null);
   const [recentQuotations, setRecentQuotations] = useState<QuotationRecord[] | null>(null);
+  const [quotationStats, setQuotationStats] = useState<QuotationStatsSummary | null>(null);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
@@ -46,15 +75,18 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
   // Tiles are entirely config-driven now (Module Manager, /admin/modules) —
   // enable/disable/rename/reorder/re-section a module without a code change.
-  const sections = useMemo(() => {
-    const groups = new Map<string, ModuleConfigRecord[]>();
-    (modules || []).forEach((m) => {
-      const list = groups.get(m.section) || [];
-      list.push(m);
-      groups.set(m.section, list);
-    });
-    return [...groups.entries()].map(([label, tiles]) => ({ label, tiles: tiles.sort((a, b) => a.order - b.order) }));
-  }, [modules]);
+  const sections = useModuleSections(modules);
+
+  // The viewer's department's own category surfaces first, everything else
+  // keeps its existing relative order after it — reorder, not hide.
+  const primarySection = primarySectionForDepartment(currentUser.department);
+  const orderedSections = useMemo(() => {
+    if (!primarySection) return sections;
+    const idx = sections.findIndex((s) => s.label === primarySection);
+    if (idx <= 0) return sections;
+    return [sections[idx], ...sections.slice(0, idx), ...sections.slice(idx + 1)];
+  }, [sections, primarySection]);
+  const { isExpanded, toggle } = useCollapsibleSections(primarySection);
 
   useEffect(() => {
     fetch('/api/modules')
@@ -127,63 +159,106 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       .catch(() => setRecentQuotations([]));
   }, []);
 
+  useEffect(() => {
+    if (!isManagerTier) return;
+    fetch('/api/quotations/stats')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: QuotationStatsSummary | null) => setQuotationStats(data))
+      .catch(() => setQuotationStats(null));
+  }, [isManagerTier]);
+
+  // One unified "what needs me right now" list instead of a stack of
+  // identically-styled banners — built from exactly the same data the old
+  // banners used, just prioritized (urgent first) and given a positive
+  // empty state instead of silently rendering nothing.
+  const attentionItems = useMemo<AttentionItem[]>(() => {
+    const items: AttentionItem[] = [];
+    if (isPrivileged && followUpCount) {
+      items.push({ key: 'followup', icon: '⏰', label: `Quotation${followUpCount === 1 ? '' : 's'} needing a follow-up`, count: followUpCount, href: '/quotation-history', tone: 'urgent' });
+    }
+    if ((currentUser.role === 'technical' || isManagerTier) && kpis?.pendingApprovals) {
+      items.push({ key: 'demo-approvals', icon: '🖥️', label: `Demo request${kpis.pendingApprovals === 1 ? '' : 's'} awaiting approval`, count: kpis.pendingApprovals, href: '/demo-schedule', tone: 'urgent' });
+    }
+    if (isBackOffice && backOfficeKpis?.pendingDc) {
+      items.push({ key: 'dc', icon: '📦', label: `Demo${backOfficeKpis.pendingDc === 1 ? '' : 's'} awaiting a Delivery Challan`, count: backOfficeKpis.pendingDc, href: '/backoffice', tone: 'urgent' });
+    }
+    if (isBackOffice && backOfficeKpis?.pendingVerification) {
+      items.push({ key: 'dc-verify', icon: '✅', label: `DC${backOfficeKpis.pendingVerification === 1 ? '' : 's'} awaiting material return verification`, count: backOfficeKpis.pendingVerification, href: '/backoffice', tone: 'urgent' });
+    }
+    if (unattendedLeads) {
+      items.push({ key: 'leads', icon: '📇', label: 'Unattended leads', count: unattendedLeads, href: '/leads?filter=unattended', tone: 'urgent' });
+    }
+    if (marketingStats?.isReviewer && marketingStats.awaitingReview) {
+      items.push({ key: 'marketing', icon: '📣', label: 'Marketing tickets awaiting review', count: marketingStats.awaitingReview, href: '/marketing-requests?filter=submitted', tone: 'info' });
+    }
+    if (reminderCount) {
+      items.push({ key: 'sitevisit', icon: '📍', label: `Site visit reminder${reminderCount === 1 ? '' : 's'} due`, count: reminderCount, href: '/site-visits?focus=open', tone: 'info' });
+    }
+    return items;
+  }, [isPrivileged, followUpCount, currentUser.role, isManagerTier, kpis, isBackOffice, backOfficeKpis, unattendedLeads, marketingStats, reminderCount]);
+
+  // Only declare "you're all caught up" once every signal this role
+  // actually receives has resolved — otherwise a still-loading dashboard
+  // would flash a false all-clear before the real counts arrive.
+  const attentionLoading =
+    reminderCount === null ||
+    unattendedLeads === null ||
+    kpis === null ||
+    marketingStats === null ||
+    (isPrivileged && followUpCount === null) ||
+    (isBackOffice && backOfficeKpis === null);
+
   return (
     <AppShell title={BRAND.appName} subtitle={BRAND.tagline} showBackLink={false}>
-      <div className={styles.greeting}>Welcome back, {currentUser.name}.</div>
+      <div className={styles.greetingRow}>
+        <div className={styles.greeting}>{timeOfDayGreeting()}, {currentUser.name}.</div>
+        <Link href="/quotation" className={styles.primaryCta}>+ New Quotation</Link>
+      </div>
 
-      {isPrivileged && followUpCount !== null && followUpCount > 0 && (
-        <div className={styles.followUpBanner}>
-          <span>
-            {followUpCount} quotation{followUpCount === 1 ? '' : 's'} need{followUpCount === 1 ? 's' : ''} a follow-up.
-          </span>
-          <Link href="/quotation-history">Review now &rarr;</Link>
-        </div>
-      )}
+      <div className={styles.attentionPanel}>
+        <div className={styles.attentionHead}>Needs Your Attention</div>
+        {attentionItems.length > 0 ? (
+          <div className={styles.attentionList}>
+            {attentionItems.map((item) => (
+              <Link key={item.key} href={item.href} className={`${styles.attentionRow} ${item.tone === 'urgent' ? styles.attentionUrgent : ''}`}>
+                <span className={styles.attentionIcon}>{item.icon}</span>
+                <span className={styles.attentionLabel}>{item.label}</span>
+                <span className={styles.attentionCount}>{item.count}</span>
+                <span className={styles.attentionArrow}>→</span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className={styles.attentionEmpty}>{attentionLoading ? 'Checking…' : "🎉 You're all caught up."}</div>
+        )}
+      </div>
 
-      {reminderCount !== null && reminderCount > 0 && (
-        <div className={styles.followUpBanner}>
-          <span>
-            {reminderCount} site visit reminder{reminderCount === 1 ? '' : 's'} due.
-          </span>
-          <Link href="/site-visits?focus=open">Review now &rarr;</Link>
-        </div>
-      )}
-
-      {(currentUser.role === 'technical' || isManagerTier) && kpis && kpis.pendingApprovals > 0 && (
-        <div className={styles.followUpBanner}>
-          <span>
-            {kpis.pendingApprovals} demo request{kpis.pendingApprovals === 1 ? '' : 's'} awaiting approval.
-          </span>
-          <Link href="/demo-schedule">Review now &rarr;</Link>
-        </div>
-      )}
-
-      {isBackOffice && backOfficeKpis && (backOfficeKpis.pendingDc > 0 || backOfficeKpis.pendingVerification > 0) && (
-        <div className={styles.followUpBanner}>
-          <span>
-            {backOfficeKpis.pendingDc > 0 && `${backOfficeKpis.pendingDc} demo${backOfficeKpis.pendingDc === 1 ? '' : 's'} awaiting a Delivery Challan. `}
-            {backOfficeKpis.pendingVerification > 0 && `${backOfficeKpis.pendingVerification} DC${backOfficeKpis.pendingVerification === 1 ? '' : 's'} awaiting material return verification.`}
-          </span>
-          <Link href="/backoffice">Review now &rarr;</Link>
-        </div>
-      )}
-
-      {unattendedLeads !== null && (
-        <div className={styles.kpiGrid}>
-          <Link href="/leads?filter=unattended" className={`${styles.kpiCard} ${styles.kpiCardAlert}`}>
-            <div className={styles.kpiValue}>🚨 {unattendedLeads}</div>
-            <div className={styles.kpiLabel}>Unattended Leads</div>
-          </Link>
-        </div>
-      )}
-
-      {marketingStats?.isReviewer && !!marketingStats.awaitingReview && (
-        <div className={styles.kpiGrid}>
-          <Link href="/marketing-requests?filter=submitted" className={`${styles.kpiCard} ${styles.kpiCardAlert}`}>
-            <div className={styles.kpiValue}>📣 {marketingStats.awaitingReview}</div>
-            <div className={styles.kpiLabel}>Marketing Tickets Awaiting Review</div>
-          </Link>
-        </div>
+      {isManagerTier && (
+        <>
+          <div className={styles.sectionHeading}>Team Overview</div>
+          <div className={styles.kpiGrid}>
+            <div className={styles.kpiCard}>
+              <div className={styles.kpiValue}>{kpis ? kpis.totalProjects : '—'}</div>
+              <div className={styles.kpiLabel}>Total Projects</div>
+            </div>
+            <div className={styles.kpiCard}>
+              <div className={styles.kpiValue}>{kpis ? kpis.activeProjects : '—'}</div>
+              <div className={styles.kpiLabel}>Active Projects</div>
+            </div>
+            <div className={styles.kpiCard}>
+              <div className={styles.kpiValue}>{quotationStats ? quotationStats.sent : '—'}</div>
+              <div className={styles.kpiLabel}>Quotations Sent</div>
+            </div>
+            <div className={styles.kpiCard}>
+              <div className={styles.kpiValue}>{kpis ? kpis.pendingApprovals : '—'}</div>
+              <div className={styles.kpiLabel}>Pending Approvals</div>
+            </div>
+            <div className={styles.kpiCard}>
+              <div className={styles.kpiValue}>{kpis ? `${kpis.conversionRate}%` : '—'}</div>
+              <div className={styles.kpiLabel}>Conversion Rate</div>
+            </div>
+          </div>
+        </>
       )}
 
       <div className={styles.recentGrid}>
@@ -234,17 +309,24 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         </Link>
       </div>
 
-      {sections.map((section) => (
+      {orderedSections.map((section) => (
         <div key={section.label}>
-          <div className={historyStyles.navGroupLabel}>{section.label}</div>
-          <div className={styles.grid}>
-            {section.tiles.map((tile) => (
-              <Link key={tile.id} href={tile.href} className={styles.tile}>
-                <span className={styles.tileTitle}>{tile.label}</span>
-                <span className={styles.tileDesc}>{tile.desc}</span>
-              </Link>
-            ))}
-          </div>
+          <button type="button" className={styles.sectionToggle} aria-expanded={isExpanded(section.label)} onClick={() => toggle(section.label)}>
+            <span className={styles.sectionToggleIcon}>{iconForSection(section.label)}</span>
+            <span className={styles.sectionToggleLabel}>{section.label}</span>
+            <span className={styles.sectionToggleCount}>{section.tiles.length}</span>
+            <span className={styles.sectionChevron}>›</span>
+          </button>
+          {isExpanded(section.label) && (
+            <div className={styles.grid}>
+              {section.tiles.map((tile) => (
+                <Link key={tile.id} href={tile.href} className={styles.tile}>
+                  <span className={styles.tileTitle}>{tile.label}</span>
+                  <span className={styles.tileDesc}>{tile.desc}</span>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </AppShell>

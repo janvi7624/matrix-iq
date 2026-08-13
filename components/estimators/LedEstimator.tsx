@@ -18,6 +18,7 @@ import {
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
+import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 export interface LedModelPreset {
@@ -32,6 +33,7 @@ interface LedEstimatorProps {
   costInputs: CostInputs;
   onResultChange: (result: DomainResult) => void;
   presetModel?: LedModelPreset | null;
+  overrides: OverrideMap;
 }
 
 function firstModelForCategory(category: 'indoor' | 'outdoor'): string {
@@ -39,7 +41,7 @@ function firstModelForCategory(category: 'indoor' | 'outdoor'): string {
   return Object.keys(ledModels).find((key) => categoriesToShow.includes(ledModels[key].category)) || '';
 }
 
-export default function LedEstimator({ active, costInputs, onResultChange, presetModel }: LedEstimatorProps) {
+export default function LedEstimator({ active, costInputs, onResultChange, presetModel, overrides }: LedEstimatorProps) {
   const [height, setHeight] = useState(4);
   const [width, setWidth] = useState(6);
   const [unit, setUnit] = useState<LedUnit>('ft');
@@ -70,7 +72,11 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetModel?.nonce]);
 
-  const model = ledModels[modelKey];
+  const model = useMemo(() => {
+    const base = ledModels[modelKey];
+    if (!base) return undefined;
+    return applyOverride(base, overrides.get(overrideMapKey('led', modelKey)), 'details');
+  }, [modelKey, overrides]);
   const dimensions = { height, width, unit };
 
   // Preserve physical size when the unit changes — convert the entered

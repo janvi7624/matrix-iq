@@ -22,6 +22,7 @@ import RoboticsEstimator from './estimators/RoboticsEstimator';
 import AiAnalyticsEstimator from './estimators/AiAnalyticsEstimator';
 import SiEstimator from './estimators/SiEstimator';
 import VisitIqEstimator from './estimators/VisitIqEstimator';
+import { buildOverrideMap, CatalogOverrideRow, OverrideMap } from '@/lib/catalogOverrides';
 import QuotationDetailsForm from './QuotationDetailsForm';
 import CostInputsSection from './CostInputsSection';
 import CartList from './CartList';
@@ -114,6 +115,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
   const [savedQuotation, setSavedQuotation] = useState<{ id: string; quotation_number: string } | null>(null);
   const [movingToDemo, setMovingToDemo] = useState(false);
   const [publicConfig, setPublicConfig] = useState<PublicAppConfig | null>(null);
+  const [overrides, setOverrides] = useState<OverrideMap>(new Map());
 
   const reviseId = searchParams.get('reviseId') || '';
   const [revisingFrom, setRevisingFrom] = useState<{ id: string; quotationNumber: string } | null>(null);
@@ -179,6 +181,13 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
       .then((r) => (r.ok ? r.json() : []))
       .then((data: ProjectRecord[]) => setProjects(data))
       .catch(() => setProjects([]));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/product-overrides')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: CatalogOverrideRow[]) => setOverrides(buildOverrideMap(rows)))
+      .catch(() => setOverrides(new Map()));
   }, []);
 
   const selectedProject = useMemo(() => projects.find((p) => p.id === projectId) || null, [projects, projectId]);
@@ -571,15 +580,15 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
               </div>
             )}
 
-            <StandeeEstimator key={`standee-${resetKey}`} active={isAv && avProjectType === 'standee'} costInputs={costInputs} onResultChange={setActiveResult} />
-            <LedEstimator key={`led-${resetKey}`} active={isAv && avProjectType === 'led'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={ledPreset} />
-            <ConferenceEstimator key={`conference-${resetKey}`} active={isAv && avProjectType === 'conference'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={conferencePreset} />
-            <InteractivePanelEstimator key={`ifp-${resetKey}`} active={isAv && avProjectType === 'interactive-panel'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={interactivePanelPreset} />
-            <CablesEstimator key={`cables-${resetKey}`} active={isAv && avProjectType === 'cables'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={cablesPreset} />
-            <RoboticsEstimator key={`robotics-${resetKey}`} active={domain === 'robotics'} onResultChange={setActiveResult} />
-            <AiAnalyticsEstimator key={`ai-${resetKey}`} active={domain === 'ai'} onResultChange={setActiveResult} />
+            <StandeeEstimator key={`standee-${resetKey}`} active={isAv && avProjectType === 'standee'} costInputs={costInputs} onResultChange={setActiveResult} overrides={overrides} />
+            <LedEstimator key={`led-${resetKey}`} active={isAv && avProjectType === 'led'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={ledPreset} overrides={overrides} />
+            <ConferenceEstimator key={`conference-${resetKey}`} active={isAv && avProjectType === 'conference'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={conferencePreset} overrides={overrides} />
+            <InteractivePanelEstimator key={`ifp-${resetKey}`} active={isAv && avProjectType === 'interactive-panel'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={interactivePanelPreset} overrides={overrides} />
+            <CablesEstimator key={`cables-${resetKey}`} active={isAv && avProjectType === 'cables'} costInputs={costInputs} onResultChange={setActiveResult} presetModel={cablesPreset} overrides={overrides} />
+            <RoboticsEstimator key={`robotics-${resetKey}`} active={domain === 'robotics'} onResultChange={setActiveResult} overrides={overrides} />
+            <AiAnalyticsEstimator key={`ai-${resetKey}`} active={domain === 'ai'} onResultChange={setActiveResult} canEditPricing={canEditPricing} overrides={overrides} />
             <SiEstimator key={`si-${resetKey}`} active={domain === 'si'} onResultChange={setActiveResult} />
-            <VisitIqEstimator key={`visitiq-${resetKey}`} active={domain === 'visitiq'} onResultChange={setActiveResult} />
+            <VisitIqEstimator key={`visitiq-${resetKey}`} active={domain === 'visitiq'} onResultChange={setActiveResult} overrides={overrides} />
 
             <h2 className={styles.h2}>Cost &amp; Add to Quote</h2>
             <div className={styles.sectionPanel}>

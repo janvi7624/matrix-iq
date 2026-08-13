@@ -6,6 +6,10 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { ModuleConfigRecord, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
+import { useModuleSections } from '@/lib/useModuleSections';
+import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
+import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
+import { iconForSection } from '@/lib/sectionIcons';
 import styles from './sidebar.module.css';
 
 interface Viewer {
@@ -104,15 +108,9 @@ export default function Sidebar() {
     setOpen(false);
   }, [pathname]);
 
-  const sections = useMemo(() => {
-    const groups = new Map<string, ModuleConfigRecord[]>();
-    (modules || []).forEach((m) => {
-      const list = groups.get(m.section) || [];
-      list.push(m);
-      groups.set(m.section, list);
-    });
-    return [...groups.entries()].map(([label, tiles]) => ({ label, tiles: tiles.sort((a, b) => a.order - b.order) }));
-  }, [modules]);
+  const sections = useModuleSections(modules);
+  const primarySection = primarySectionForDepartment(viewer?.department);
+  const { isExpanded, toggle } = useCollapsibleSections(primarySection);
 
   const quickActions = useMemo(() => {
     const byKey = new Map((modules || []).map((m) => [m.key, m]));
@@ -163,14 +161,26 @@ export default function Sidebar() {
           </Link>
           {sections.map((section) => (
             <div key={section.label}>
-              <div className={styles.sectionLabel}>{section.label}</div>
-              {section.tiles.map((tile) => (
-                <Link key={tile.id} href={tile.href} className={`${styles.link} ${isActive(tile.href) ? styles.linkActive : ''}`} data-tooltip={tile.label}>
-                  <span className={styles.linkIcon}>{tile.icon}</span>
-                  <span className={styles.linkLabel}>{tile.label}</span>
-                  {!!badges[tile.key] && <span className={styles.badge}>{badges[tile.key]}</span>}
-                </Link>
-              ))}
+              <button
+                type="button"
+                className={styles.sectionLabel}
+                aria-expanded={isExpanded(section.label)}
+                onClick={() => toggle(section.label)}
+              >
+                <span className={styles.sectionLabelMain}>
+                  <span className={styles.sectionIcon}>{iconForSection(section.label)}</span>
+                  <span className={styles.sectionLabelText}>{section.label}</span>
+                </span>
+                <span className={styles.sectionChevron}>›</span>
+              </button>
+              {(collapsed || isExpanded(section.label)) &&
+                section.tiles.map((tile) => (
+                  <Link key={tile.id} href={tile.href} className={`${styles.link} ${isActive(tile.href) ? styles.linkActive : ''}`} data-tooltip={tile.label}>
+                    <span className={styles.linkIcon}>{tile.icon}</span>
+                    <span className={styles.linkLabel}>{tile.label}</span>
+                    {!!badges[tile.key] && <span className={styles.badge}>{badges[tile.key]}</span>}
+                  </Link>
+                ))}
             </div>
           ))}
         </nav>

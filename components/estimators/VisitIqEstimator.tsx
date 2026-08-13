@@ -5,11 +5,13 @@ import { visitIqAddOns, visitIqPlans } from '@/lib/data/visitiq';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
+import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface VisitIqEstimatorProps {
   active: boolean;
   onResultChange: (result: DomainResult) => void;
+  overrides: OverrideMap;
 }
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -19,7 +21,7 @@ function formatLimit(value: number | null): string {
   return String(value);
 }
 
-export default function VisitIqEstimator({ active, onResultChange }: VisitIqEstimatorProps) {
+export default function VisitIqEstimator({ active, onResultChange, overrides }: VisitIqEstimatorProps) {
   const [planId, setPlanId] = useState('business');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('yearly');
   const [extraRobots, setExtraRobots] = useState(0);
@@ -27,7 +29,16 @@ export default function VisitIqEstimator({ active, onResultChange }: VisitIqEsti
   const [extraEmployeeBlocks, setExtraEmployeeBlocks] = useState(0);
   const [addOnFlags, setAddOnFlags] = useState<Record<string, boolean>>({});
 
-  const plan = useMemo(() => visitIqPlans.find((p) => p.id === planId) || visitIqPlans[0], [planId]);
+  const effectivePlans = useMemo(
+    () => visitIqPlans.map((p) => applyOverride(p, overrides.get(overrideMapKey('visitiq-plan', p.id)), 'name')),
+    [overrides]
+  );
+  const effectiveAddOns = useMemo(
+    () => visitIqAddOns.map((a) => applyOverride(a, overrides.get(overrideMapKey('visitiq-addon', a.key)), 'label')),
+    [overrides]
+  );
+
+  const plan = useMemo(() => effectivePlans.find((p) => p.id === planId) || effectivePlans[0], [planId, effectivePlans]);
   const periodUnit = billingCycle === 'yearly' ? 'Year' : 'Month';
   const cycleMultiplier = billingCycle === 'yearly' ? 12 : 1;
 
@@ -52,7 +63,7 @@ export default function VisitIqEstimator({ active, onResultChange }: VisitIqEsti
     ];
     qtyAddOns.forEach(({ key, qty }) => {
       if (qty <= 0) return;
-      const addOn = visitIqAddOns.find((a) => a.key === key);
+      const addOn = effectiveAddOns.find((a) => a.key === key);
       if (!addOn || addOn.monthlyPrice == null) return;
       const rate = addOn.monthlyPrice * cycleMultiplier;
       const amount = rate * qty;
@@ -62,7 +73,7 @@ export default function VisitIqEstimator({ active, onResultChange }: VisitIqEsti
 
     ['receptionistModule', 'whiteLabel', 'dedicatedServer'].forEach((key) => {
       if (!addOnFlags[key]) return;
-      const addOn = visitIqAddOns.find((a) => a.key === key);
+      const addOn = effectiveAddOns.find((a) => a.key === key);
       if (!addOn || addOn.monthlyPrice == null) return;
       const rate = addOn.monthlyPrice * cycleMultiplier;
       subtotal += rate;
@@ -70,7 +81,7 @@ export default function VisitIqEstimator({ active, onResultChange }: VisitIqEsti
     });
 
     if (addOnFlags.oneTimeSetup) {
-      const setup = visitIqAddOns.find((a) => a.key === 'oneTimeSetup');
+      const setup = effectiveAddOns.find((a) => a.key === 'oneTimeSetup');
       const amount = setup?.monthlyPrice || 0;
       subtotal += amount;
       lineItems.push({ description: 'One-Time Setup', qty: 1, rate: amount, amount, unit: 'Nos' });
@@ -87,7 +98,7 @@ export default function VisitIqEstimator({ active, onResultChange }: VisitIqEsti
     ];
 
     return { label: `VisitIQ VMS — ${plan.name} plan`, domainKey: 'visitiq', lineItems, subtotal, summary };
-  }, [plan, billingCycle, periodUnit, cycleMultiplier, extraRobots, extraKiosks, extraEmployeeBlocks, addOnFlags]);
+  }, [plan, billingCycle, periodUnit, cycleMultiplier, extraRobots, extraKiosks, extraEmployeeBlocks, addOnFlags, effectiveAddOns]);
 
   useEffect(() => {
     if (active && result) onResultChange(result);
@@ -104,7 +115,7 @@ export default function VisitIqEstimator({ active, onResultChange }: VisitIqEsti
         <div className={styles.field}>
           <label className={styles.label} htmlFor="visitiqPlan">Plan</label>
           <select id="visitiqPlan" className={styles.formControl} value={planId} onChange={(e) => setPlanId(e.target.value)}>
-            {visitIqPlans.map((p) => (
+            {effectivePlans.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} ({p.subtitle}){p.badge ? ` — ${p.badge}` : ''}
               </option>
@@ -148,7 +159,7 @@ export default function VisitIqEstimator({ active, onResultChange }: VisitIqEsti
       </div>
 
       <div className={styles.field}>
-        {visitIqAddOns
+        {effectiveAddOns
           .filter((a) => !['extraRobot', 'extraKiosk', 'extraEmployees25'].includes(a.key))
           .map((addOn) => (
             <label key={addOn.key} className={styles.aiFeatureItem}>

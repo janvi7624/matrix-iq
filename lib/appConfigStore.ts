@@ -8,7 +8,7 @@ import { db } from './db';
 // /admin/settings.
 export const DEFAULT_APP_CONFIG: AppConfig = {
   companyName: 'NANTA',
-  companyLegalName: 'NANTA Technology Limited',
+  companyLegalName: 'NANTA TECH LIMITED',
   gstNumber: '',
   panNumber: '',
   addressLine1: '205, F Block, Shivalik Sharda Harmony,',

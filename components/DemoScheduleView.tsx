@@ -13,6 +13,7 @@ import AppShell from './AppShell';
 import TeamCheckboxes from './TeamCheckboxes';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { nowDatetimeInputValue, todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import Button from './ui/Button';
@@ -161,7 +162,7 @@ function TechnicalApprovalForm({ demoId, onDone }: { demoId: string; onDone: (up
       </div>
       <div className={calcStyles.field}>
         <label className={calcStyles.label}>Reschedule to (only used for Reschedule)</label>
-        <input type="datetime-local" className={calcStyles.formControl} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
+        <input type="datetime-local" className={calcStyles.formControl} min={nowDatetimeInputValue()} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
       </div>
       <div className={historyStyles.actionGroupButtons}>
         <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
@@ -211,7 +212,7 @@ function ManagerApprovalForm({ demoId, onDone }: { demoId: string; onDone: (upda
         </div>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Modify schedule (optional)</label>
-          <input type="datetime-local" className={calcStyles.formControl} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
+          <input type="datetime-local" className={calcStyles.formControl} min={nowDatetimeInputValue()} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
         </div>
       </div>
       <div className={calcStyles.field}>
@@ -313,24 +314,24 @@ function DemoRow({
           {record.outcome && <div className={calcStyles.small}>Outcome: {OUTCOME_LABEL[record.outcome]}</div>}
         </td>
         <td>{record.created_by}</td>
-        <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <td className={historyStyles.actionGroupButtons}>
           {record.status === 'draft' && isOwner && (
-            <button type="button" className={historyStyles.primary} onClick={() => onSubmitDraft(record.id)}>Submit for Approval</button>
+            <Button variant="primary" compact onClick={() => onSubmitDraft(record.id)}>Submit for Approval</Button>
           )}
           {record.status === 'pending_backoffice' && (
-            <Link className={historyStyles.primary} href={`/backoffice?demoId=${record.id}`}>Generate DC →</Link>
+            <Link className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary} ${historyStyles.actionBtnCompact}`} href={`/backoffice?demoId=${record.id}`}>Generate DC →</Link>
           )}
           {(record.status === 'dc_generated' || record.status === 'material_dispatched' || record.status === 'material_returned') && (
-            <Link className={historyStyles.button} href={`/backoffice?demoId=${record.id}`}>View DC →</Link>
+            <Link className={`${historyStyles.actionBtn} ${historyStyles.actionBtnSecondary} ${historyStyles.actionBtnCompact}`} href={`/backoffice?demoId=${record.id}`}>View DC →</Link>
           )}
           {record.status === 'material_dispatched' && (isTechnical || currentUser.role === 'backoffice') && (
-            <button type="button" className={historyStyles.button} onClick={() => onMarkCompleted(record.id)}>Mark Demo Completed</button>
+            <Button variant="success" compact onClick={() => onMarkCompleted(record.id)}>Mark Demo Completed</Button>
           )}
           {!['cancelled', 'dc_closed', 'material_returned', 'demo_completed'].includes(record.status) && (isOwner || isPrivileged) && (
-            <button type="button" className={historyStyles.button} onClick={() => onCancel(record.id)}>Cancel</button>
+            <Button variant="ghost" compact onClick={() => onCancel(record.id)}>Cancel</Button>
           )}
           {isPrivileged && (
-            <button type="button" className={historyStyles.deleteBtn} onClick={() => onDelete(record.id)}>Delete</button>
+            <Button variant="danger" compact onClick={() => onDelete(record.id)}>Delete</Button>
           )}
         </td>
       </tr>
@@ -338,14 +339,18 @@ function DemoRow({
       {record.status === 'pending_technical' && isTechnical && (
         <tr>
           <td colSpan={10}>
-            <TechnicalApprovalForm demoId={record.id} onDone={onApprovalDone} />
+            <div className={historyStyles.wideCellPin}>
+              <TechnicalApprovalForm demoId={record.id} onDone={onApprovalDone} />
+            </div>
           </td>
         </tr>
       )}
       {record.status === 'pending_manager' && isPrivileged && (
         <tr>
           <td colSpan={10}>
-            <ManagerApprovalForm demoId={record.id} onDone={onApprovalDone} />
+            <div className={historyStyles.wideCellPin}>
+              <ManagerApprovalForm demoId={record.id} onDone={onApprovalDone} />
+            </div>
           </td>
         </tr>
       )}
@@ -353,6 +358,7 @@ function DemoRow({
       {expanded && (
         <tr className={historyStyles.detailsRow}>
           <td colSpan={10}>
+           <div className={historyStyles.wideCellPin}>
             {record.demo_objective && (
               <div className={calcStyles.field} style={{ marginBottom: 8 }}>
                 <label className={calcStyles.label}>Demo objective</label>
@@ -414,7 +420,7 @@ function DemoRow({
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Next follow-up date</label>
-                <input type="date" className={calcStyles.formControl} value={report.nextFollowUpDate} onChange={(e) => setReport((r) => ({ ...r, nextFollowUpDate: e.target.value }))} />
+                <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={report.nextFollowUpDate} onChange={(e) => setReport((r) => ({ ...r, nextFollowUpDate: e.target.value }))} />
               </div>
             </div>
             <div className={calcStyles.field}>
@@ -448,6 +454,7 @@ function DemoRow({
             <button type="button" className={calcStyles.btn} disabled={saving} onClick={handleSaveReport}>
               {saving ? 'Saving…' : 'Save report'}
             </button>
+           </div>
           </td>
         </tr>
       )}
@@ -690,7 +697,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Demo date &amp; time *</label>
-              <input type="datetime-local" className={calcStyles.formControl} value={form.scheduledAt} onChange={(e) => setForm((f) => ({ ...f, scheduledAt: e.target.value }))} required />
+              <input type="datetime-local" className={calcStyles.formControl} min={nowDatetimeInputValue()} value={form.scheduledAt} onChange={(e) => setForm((f) => ({ ...f, scheduledAt: e.target.value }))} required />
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Location</label>

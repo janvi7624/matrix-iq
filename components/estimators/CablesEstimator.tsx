@@ -7,6 +7,7 @@ import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { ModelPreset } from './ConferenceEstimator';
+import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface CablesEstimatorProps {
@@ -14,6 +15,7 @@ interface CablesEstimatorProps {
   costInputs: CostInputs;
   onResultChange: (result: DomainResult) => void;
   presetModel?: ModelPreset | null;
+  overrides: OverrideMap;
 }
 
 type Tier = 'distributor' | 'partner' | 'customer';
@@ -26,7 +28,7 @@ function firstModelForSeries(seriesKey: string): string {
   );
 }
 
-export default function CablesEstimator({ active, costInputs, onResultChange, presetModel }: CablesEstimatorProps) {
+export default function CablesEstimator({ active, costInputs, onResultChange, presetModel, overrides }: CablesEstimatorProps) {
   const seriesKeys = Object.keys(CABLE_SERIES);
   const [seriesKey, setSeriesKey] = useState(seriesKeys[0]);
   const [modelKey, setModelKey] = useState<string>(() => firstModelForSeries(seriesKeys[0]));
@@ -49,7 +51,11 @@ export default function CablesEstimator({ active, costInputs, onResultChange, pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetModel?.nonce]);
 
-  const product = cableProducts[modelKey];
+  const product = useMemo(() => {
+    const base = cableProducts[modelKey];
+    if (!base) return undefined;
+    return applyOverride(base, overrides.get(overrideMapKey('cables', modelKey)), 'description');
+  }, [modelKey, overrides]);
   const series = product ? CABLE_SERIES[product.series] : undefined;
 
   const result = useMemo<DomainResult | null>(() => {

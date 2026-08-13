@@ -17,6 +17,7 @@ import calcStyles from './calculator.module.css';
 import Button from './ui/Button';
 import SharedStatusBadge, { StatusTone } from './ui/StatusBadge';
 import SharedPriorityBadge, { PriorityTone } from './ui/PriorityBadge';
+import { todayDateInputValue } from '@/lib/dateHelpers';
 
 interface MarketingRequestsViewProps {
   currentUser: { username: string; role: UserRole };
@@ -157,7 +158,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
       {expanded && (
         <tr className={historyStyles.detailsRow}>
           <td colSpan={9}>
-            <div style={{ padding: '4px 2px' }}>
+            <div className={historyStyles.wideCellPin} style={{ padding: '4px 2px' }}>
               <div className={calcStyles.small} style={{ marginBottom: 10, whiteSpace: 'pre-wrap' }}>{r.description}</div>
 
               {r.project_id && (
@@ -190,7 +191,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                     <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                       <div className={calcStyles.field}>
                         <label className={calcStyles.label}>Expected delivery date</label>
-                        <input type="date" className={calcStyles.formControl} value={timelineDate} onChange={(e) => setTimelineDate(e.target.value)} />
+                        <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={timelineDate} onChange={(e) => setTimelineDate(e.target.value)} />
                       </div>
                       <div className={calcStyles.field}>
                         <label className={calcStyles.label}>Remarks (optional)</label>

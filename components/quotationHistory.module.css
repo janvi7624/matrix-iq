@@ -30,6 +30,22 @@
 }
 .header h1 { font-size: 20px; margin: 0; }
 .sub { font-size: 12.5px; color: #9ca3af; }
+.headerActions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.headerBackLink { white-space: nowrap; }
+.headerBackLinkLabel { display: inline; }
+
+/* Sidebar's mobile hamburger (sidebar.module.css .toggleBtn) is
+   position:fixed at top:14/left:14, 40x40, active at the same 768px
+   breakpoint — without this the header's own logo/brand sits directly
+   underneath it and gets covered. Push the header content right, clear of
+   the button, and drop the "Back to Dashboard" text (the hamburger already
+   provides primary nav on mobile, so the label is redundant weight) so the
+   actions row has room to actually settle instead of cramming logout/bell/
+   search/back-link onto one line. */
+@media (max-width: 768px) {
+    .header { padding-left: 62px; }
+    .headerBackLinkLabel { display: none; }
+}
 .breadcrumb {
     font-size: 11px;
     font-weight: 600;
@@ -101,6 +117,15 @@
 .statusPillActive { background: var(--mx-success-subtle); color: var(--mx-success); }
 .statusPillInactive { background: rgba(107, 114, 128, 0.14); color: var(--mx-ink-muted); }
 .tableWrap { overflow-x: auto; border-radius: var(--mx-radius-sm); }
+/* A colSpan-injected approval form / expanded-detail row inherits the whole
+   wide table's natural width (it's still a table cell), so without this the
+   user has to scroll the table horizontally just to reach the Approve
+   button even though the form itself would fit narrower. Sticky pins the
+   cell's content to the left edge of .tableWrap's own scroll viewport
+   (its nearest scrolling ancestor), independent of the table's real width —
+   the table row underneath still scrolls normally, only this content stays
+   put. */
+.wideCellPin { position: sticky; left: 0; display: inline-block; max-width: calc(100vw - 48px); }
 .navGroupLabel { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin: 26px 2px 4px; }
 .navGroupLabel:first-child { margin-top: 4px; }
 .num { font-family: 'Courier New', monospace; font-weight: 600; }
@@ -1021,3 +1046,57 @@
 .stepperLabel { font-size: 13.5px; font-weight: 700; color: var(--mx-ink); }
 .stepperLabelUpcoming { color: var(--mx-ink-faint); font-weight: 600; }
 .stepperMeta { font-size: 12px; color: var(--mx-ink-muted); margin-top: 2px; }
+
+/* Notification dropdown (components/NotificationBell.tsx) — every color
+   explicit rather than inherited. The panel previously relied on `color:
+   inherit` cascading down from `body`, which flips to a near-white
+   `--foreground` under prefers-color-scheme: dark (see globals.css); paired
+   with the panel's own hardcoded white background, that read as white text
+   on a white panel. Using the --mx-* tokens directly (fixed, non-dark-mode-
+   reactive, same as every other panel in the app) fixes it and matches how
+   the rest of the app already avoids this. */
+.notifPanel {
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-md);
+    box-shadow: var(--mx-shadow-lg);
+    color: var(--mx-ink);
+}
+.notifHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--mx-border);
+    color: var(--mx-ink);
+}
+.notifMarkAllBtn {
+    background: none;
+    border: none;
+    color: var(--mx-brand);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 32px;
+    padding: 4px 6px;
+}
+.notifMarkAllBtn:hover { color: var(--mx-brand-hover); text-decoration: underline; }
+.notifEmpty {
+    padding: 16px;
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+    text-align: center;
+}
+.notifItem {
+    display: block;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--mx-border);
+    text-decoration: none;
+    color: var(--mx-ink);
+    background: transparent;
+}
+.notifItem:hover { background: var(--mx-surface-sunken); }
+.notifItemUnread { background: var(--mx-brand-subtle); }
+.notifItemTitle { font-size: 13px; color: var(--mx-ink); }
+.notifItemBody { font-size: 12px; color: var(--mx-ink-muted); margin-top: 2px; }
+.notifItemTime { font-size: 10.5px; color: var(--mx-ink-faint); margin-top: 4px; }

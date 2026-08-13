@@ -145,7 +145,7 @@ export async function generateQuotationPdf(input: QuotationPdfInput): Promise<vo
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  const companyLegalName = input.companyOverride?.legalName || 'NANTA Technology Limited';
+  const companyLegalName = input.companyOverride?.legalName || 'NANTA TECH LIMITED';
   const companyAddressLines = input.companyOverride?.addressLines?.length
     ? input.companyOverride.addressLines
     : ['205, F Block, Shivalik Sharda Harmony,', 'Panjarapole Cross Rd, Ambawadi,', 'Ahmedabad, Gujarat - 380015'];

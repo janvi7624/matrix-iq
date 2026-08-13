@@ -88,36 +88,33 @@ export default function NotificationBell() {
       </button>
       {open && (
         <div
+          className={styles.notifPanel}
           style={{
             position: 'absolute', right: 0, top: '110%', width: 340, maxHeight: 420, overflowY: 'auto',
-            background: 'var(--card-bg, #fff)', border: '1px solid #e5e7eb', borderRadius: 10,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 50
+            zIndex: 50
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid #f0f0f0' }}>
+          <div className={styles.notifHeader}>
             <strong style={{ fontSize: 13.5 }}>Notifications</strong>
             {unreadCount > 0 && (
-              <button type="button" onClick={markAllRead} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 12, cursor: 'pointer' }}>
+              <button type="button" onClick={markAllRead} className={styles.notifMarkAllBtn}>
                 Mark all read
               </button>
             )}
           </div>
           {notifications.length === 0 ? (
-            <div style={{ padding: 16, fontSize: 13, opacity: 0.65, textAlign: 'center' }}>No notifications yet.</div>
+            <div className={styles.notifEmpty}>No notifications yet.</div>
           ) : (
             notifications.map((n) => (
               <a
                 key={n.id}
                 href={ENTITY_LINK[n.entity_type] || '#'}
                 onClick={() => markRead(n.id)}
-                style={{
-                  display: 'block', padding: '10px 12px', borderBottom: '1px solid #f5f5f5',
-                  textDecoration: 'none', color: 'inherit', background: n.is_read ? 'transparent' : 'rgba(220,38,38,0.05)'
-                }}
+                className={`${styles.notifItem} ${n.is_read ? '' : styles.notifItemUnread}`}
               >
-                <div style={{ fontSize: 13, fontWeight: n.is_read ? 400 : 700 }}>{n.title}</div>
-                <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>{n.body}</div>
-                <div style={{ fontSize: 10.5, opacity: 0.55, marginTop: 4 }}>{formatDateTime(n.created_at)}</div>
+                <div className={styles.notifItemTitle} style={{ fontWeight: n.is_read ? 400 : 700 }}>{n.title}</div>
+                <div className={styles.notifItemBody}>{n.body}</div>
+                <div className={styles.notifItemTime}>{formatDateTime(n.created_at)}</div>
               </a>
             ))
           )}

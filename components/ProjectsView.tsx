@@ -9,6 +9,7 @@ import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
+import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
@@ -223,7 +224,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Expected closing date</label>
-                <input type="date" className={calcStyles.formControl} value={form.expectedClosingDate} onChange={(e) => setForm((f) => ({ ...f, expectedClosingDate: e.target.value }))} />
+                <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={form.expectedClosingDate} onChange={(e) => setForm((f) => ({ ...f, expectedClosingDate: e.target.value }))} />
               </div>
             </div>
             <div className={calcStyles.field}>

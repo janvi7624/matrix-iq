@@ -34,6 +34,7 @@ const modelDefiners = [
   require('./productCategory.js'),
   require('./product.js'),
   require('./productPricing.js'),
+  require('./productCatalogOverride.js'),
   require('./travelSchedule.js'),
   require('./marketingRequest.js'),
   require('./marketingRequestComment.js'),

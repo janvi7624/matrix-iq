@@ -6,17 +6,28 @@ import { AI_SALES_GUIDELINES, AI_SETUP_COST_BY_SLAB, AI_WORKED_EXAMPLE, aiBundle
 import { formatMoney, slugify } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
+import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface AiAnalyticsEstimatorProps {
   active: boolean;
   onResultChange: (result: DomainResult) => void;
+  canEditPricing: boolean;
+  overrides: OverrideMap;
 }
 
-type PricingMode = 'ala-carte' | 'bundle';
-type BillingCycle = 'yearly' | 'monthly';
+type PricingMode = 'ala-carte' | 'bundle' | 'custom-bundle';
+type BillingCycle = 'yearly' | 'monthly' | 'onetime';
+type InfraCostMode = 'none' | 'hardware' | 'cloud' | 'client';
 
-export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnalyticsEstimatorProps) {
+const CUSTOM_BUNDLE_MIN_FEATURES = 3;
+const CUSTOM_BUNDLE_DISCOUNT_PERCENT = 40;
+
+function isDetectionFeature(name: string): boolean {
+  return name.includes('Detection');
+}
+
+export default function AiAnalyticsEstimator({ active, onResultChange, canEditPricing, overrides }: AiAnalyticsEstimatorProps) {
   const [cameraCount, setCameraCount] = useState(25);
   const [oneTimeCost, setOneTimeCost] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -24,24 +35,54 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
   const [pricingMode, setPricingMode] = useState<PricingMode>('ala-carte');
   const [bundleIndex, setBundleIndex] = useState(1); // default to "Advanced Security"
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('yearly');
+  const [includeAmc, setIncludeAmc] = useState(true);
+  const [amcPercent, setAmcPercent] = useState(20);
+  const [infraCostMode, setInfraCostMode] = useState<InfraCostMode>('none');
+  const [hardwareCost, setHardwareCost] = useState(0);
+  const [cloudCost, setCloudCost] = useState(0);
+  const [detectionOverrides, setDetectionOverrides] = useState<Record<number, number>>({});
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const effectiveCameraCount = Math.max(1, Math.round(cameraCount) || 1);
   const slabIndex = getAiSlabIndex(effectiveCameraCount);
   const billingDivisor = billingCycle === 'monthly' ? 12 : 1;
   const periodLabel = billingCycle === 'monthly' ? 'month' : 'year';
-  const periodUnitSuffix = billingCycle === 'monthly' ? '/cam/mo' : '/cam/yr';
+  const periodUnitSuffix = billingCycle === 'monthly' ? '/cam/mo' : billingCycle === 'onetime' ? '/cam (one-time)' : '/cam/yr';
   const recommendedSetupCost = AI_SETUP_COST_BY_SLAB[slabIndex];
+
+  // Non-privileged viewers can't be in a mode they can't select — defensive
+  // reset if role context ever changes mid-session.
+  useEffect(() => {
+    if (!canEditPricing && pricingMode === 'custom-bundle') setPricingMode('ala-carte');
+  }, [canEditPricing, pricingMode]);
+
+  const effectiveAnalytics = useMemo(
+    () => aiAnalytics.map((f) => applyOverride(f, overrides.get(overrideMapKey('ai-analytics', f.name)), null)),
+    [overrides]
+  );
+  const effectiveBundles = useMemo(
+    () => aiBundles.map((b) => applyOverride(b, overrides.get(overrideMapKey('ai-bundles', b.name)), 'name')),
+    [overrides]
+  );
 
   const categories = useMemo(() => {
     const seen: string[] = [];
-    aiAnalytics.forEach((f) => {
+    effectiveAnalytics.forEach((f) => {
       if (!seen.includes(f.category)) seen.push(f.category);
     });
     return seen;
-  }, []);
+  }, [effectiveAnalytics]);
 
-  const selectedBundle = aiBundles[bundleIndex] || aiBundles[0];
+  const selectedBundle = effectiveBundles[bundleIndex] || effectiveBundles[0];
+
+  function featureRate(feature: { tiers: [number, number, number, number, number] }, index: number): number {
+    const override = detectionOverrides[index];
+    if (override !== undefined) return override;
+    return feature.tiers[slabIndex] / billingDivisor;
+  }
+
+  const customBundleCount = pricingMode === 'custom-bundle' ? selected.size : 0;
+  const customBundleQualifies = customBundleCount >= CUSTOM_BUNDLE_MIN_FEATURES;
 
   const result = useMemo<DomainResult | null>(() => {
     let analyticsSubtotal = 0;
@@ -61,31 +102,108 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
         unit: `License${periodUnitSuffix}`
       });
       label = `AI Video Analytics — ${selectedBundle.name} bundle — ${effectiveCameraCount} cameras`;
+    } else if (pricingMode === 'custom-bundle') {
+      if (canEditPricing && customBundleQualifies) {
+        const pickedNames: string[] = [];
+        let aLaCarteSum = 0;
+        effectiveAnalytics.forEach((feature, index) => {
+          if (!selected.has(index)) return;
+          aLaCarteSum += featureRate(feature, index);
+          pickedNames.push(feature.name);
+        });
+        const rate = aLaCarteSum * (1 - CUSTOM_BUNDLE_DISCOUNT_PERCENT / 100);
+        const amount = rate * effectiveCameraCount;
+        analyticsSubtotal += amount;
+        lineItems.push({
+          description: `Custom Bundle — sales-assembled (${pickedNames.length} analytics: ${pickedNames.join(', ')}) — ${CUSTOM_BUNDLE_DISCOUNT_PERCENT}% off list`,
+          qty: effectiveCameraCount,
+          rate,
+          amount,
+          unit: `License${periodUnitSuffix}`
+        });
+        label = `AI Video Analytics — Custom Bundle (${pickedNames.length} analytics) — ${effectiveCameraCount} cameras`;
+      }
+      // Fewer than CUSTOM_BUNDLE_MIN_FEATURES selected (or not privileged) ->
+      // intentionally no line item yet; the UI below shows why.
     } else {
-      aiAnalytics.forEach((feature, index) => {
+      effectiveAnalytics.forEach((feature, index) => {
         if (!selected.has(index)) return;
-        const rate = feature.tiers[slabIndex] / billingDivisor;
+        const rate = featureRate(feature, index);
         const amount = rate * effectiveCameraCount;
         analyticsSubtotal += amount;
         lineItems.push({ description: `${feature.name} (${feature.category})`, qty: effectiveCameraCount, rate, amount, unit: `License${periodUnitSuffix}` });
       });
     }
 
+    // AMC — only meaningful once the license is a one-time purchase; the
+    // recurring yearly/monthly modes already re-bill every period, so a
+    // maintenance contract on top of that would double-charge.
+    let amcAmount = 0;
+    if (billingCycle === 'onetime' && includeAmc && analyticsSubtotal > 0) {
+      amcAmount = analyticsSubtotal * ((Number(amcPercent) || 0) / 100);
+      lineItems.push({
+        description: `AMC — Annual Maintenance Contract (Year 2 onward, ${amcPercent}% p.a. of license value)`,
+        qty: 1,
+        rate: amcAmount,
+        amount: amcAmount,
+        unit: 'per year'
+      });
+    }
+
     const oneTime = Number(oneTimeCost) || 0;
     if (oneTime) lineItems.push({ description: 'One-time implementation & configuration', qty: 1, rate: oneTime, amount: oneTime, unit: 'Nos' });
+
+    let infraAmount = 0;
+    if (infraCostMode === 'hardware' && hardwareCost) {
+      infraAmount = Number(hardwareCost) || 0;
+      lineItems.push({ description: 'Hardware / on-site server cost (one-time)', qty: 1, rate: infraAmount, amount: infraAmount, unit: 'Nos' });
+    } else if (infraCostMode === 'cloud' && cloudCost) {
+      infraAmount = Number(cloudCost) || 0;
+      lineItems.push({ description: 'Cloud / server hosting cost', qty: 1, rate: infraAmount, amount: infraAmount, unit: 'per month' });
+    }
 
     const summary = [
       { label: 'Cameras', value: String(effectiveCameraCount) },
       { label: 'Volume slab', value: AI_SLAB_LABELS[slabIndex] },
-      { label: 'Pricing mode', value: pricingMode === 'bundle' ? `Bundle — ${selectedBundle.name}` : 'À-la-carte' },
-      { label: 'Billing cycle', value: billingCycle === 'monthly' ? 'Monthly' : 'Yearly' },
+      {
+        label: 'Pricing mode',
+        value: pricingMode === 'bundle' ? `Bundle — ${selectedBundle.name}` : pricingMode === 'custom-bundle' ? `Custom Bundle (${customBundleCount} analytics)` : 'À-la-carte'
+      },
+      { label: 'Billing cycle', value: billingCycle === 'monthly' ? 'Monthly' : billingCycle === 'onetime' ? 'One-Time (Permanent License)' : 'Yearly' },
       ...(pricingMode === 'ala-carte' ? [{ label: 'Analytics selected', value: String(selected.size) }] : []),
       { label: `Analytics subtotal (per ${periodLabel})`, value: formatMoney(analyticsSubtotal) },
-      ...(oneTime ? [{ label: 'One-time implementation cost', value: formatMoney(oneTime) }] : [])
+      ...(amcAmount ? [{ label: `AMC (${amcPercent}% p.a.)`, value: formatMoney(amcAmount) }] : []),
+      ...(oneTime ? [{ label: 'One-time implementation cost', value: formatMoney(oneTime) }] : []),
+      ...(infraCostMode === 'hardware' ? [{ label: 'Hardware cost (one-time)', value: formatMoney(infraAmount) }] : []),
+      ...(infraCostMode === 'cloud' ? [{ label: 'Cloud cost (per month)', value: formatMoney(infraAmount) }] : []),
+      ...(infraCostMode === 'client' ? [{ label: 'Infrastructure', value: 'Provided by client' }] : [])
     ];
 
-    return { label, domainKey: 'ai', lineItems, subtotal: analyticsSubtotal + oneTime, summary };
-  }, [pricingMode, selectedBundle, selected, slabIndex, effectiveCameraCount, oneTimeCost, billingDivisor, periodLabel, periodUnitSuffix, billingCycle]);
+    return { label, domainKey: 'ai', lineItems, subtotal: analyticsSubtotal + amcAmount + oneTime + infraAmount, summary };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    pricingMode,
+    selectedBundle,
+    selected,
+    slabIndex,
+    effectiveCameraCount,
+    oneTimeCost,
+    billingDivisor,
+    periodLabel,
+    periodUnitSuffix,
+    billingCycle,
+    includeAmc,
+    amcPercent,
+    infraCostMode,
+    hardwareCost,
+    cloudCost,
+    detectionOverrides,
+    canEditPricing,
+    customBundleQualifies,
+    customBundleCount,
+    effectiveAnalytics,
+    effectiveBundles
+  ]);
 
   useEffect(() => {
     if (active && result) onResultChange(result);
@@ -99,6 +217,8 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
       return next;
     });
   };
+
+  const showFeaturePicker = pricingMode === 'ala-carte' || pricingMode === 'custom-bundle';
 
   return (
     <section className={`${styles.sectionPanel} ${active ? '' : styles.hidden}`}>
@@ -120,6 +240,9 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
           <select id="aiPricingMode" className={styles.formControl} value={pricingMode} onChange={(e) => setPricingMode(e.target.value as PricingMode)}>
             <option value="ala-carte">Individual Pricing (pick individual analytics)</option>
             <option value="bundle">Bundle (recommended package, best savings)</option>
+            {canEditPricing && (
+              <option value="custom-bundle">Custom Bundle (sales-assembled, {CUSTOM_BUNDLE_DISCOUNT_PERCENT}% off, min {CUSTOM_BUNDLE_MIN_FEATURES} analytics)</option>
+            )}
           </select>
         </div>
         <div className={styles.field}>
@@ -127,17 +250,53 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
           <select id="aiBillingCycle" className={styles.formControl} value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as BillingCycle)}>
             <option value="yearly">Yearly (list price)</option>
             <option value="monthly">Monthly (annual rate ÷ 12)</option>
+            <option value="onetime">One Time (Permanent License)</option>
           </select>
         </div>
       </div>
+
+      {billingCycle === 'onetime' && (
+        <div className={styles.domainPanel}>
+          <div className={styles.field} style={{ marginBottom: 0 }}>
+            <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="checkbox" checked={includeAmc} disabled={!canEditPricing} onChange={(e) => setIncludeAmc(e.target.checked)} />
+              Include AMC (Annual Maintenance Contract) from Year 2
+            </label>
+          </div>
+          {includeAmc && (
+            <div className={`${styles.row} ${styles.columns}`} style={{ marginTop: 8 }}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="aiAmcPercent">AMC % per year (of license value)</label>
+                <input
+                  id="aiAmcPercent"
+                  className={styles.formControl}
+                  type="number"
+                  step="any"
+                  min={0}
+                  max={100}
+                  value={amcPercent}
+                  disabled={!canEditPricing}
+                  onFocus={selectAllOnFocus}
+                  onChange={(e) => setAmcPercent(parseFloat(e.target.value) || 0)}
+                />
+                {!canEditPricing && <span className={styles.lockedHint}>Only a manager can change the AMC percentage.</span>}
+              </div>
+            </div>
+          )}
+          <p className={styles.small} style={{ marginTop: 6 }}>
+            Permanent license — the analytics license is a one-time purchase priced at the current per-camera list rate; no further license fee is billed
+            in later years. AMC covers ongoing support/updates from Year 2 onward.
+          </p>
+        </div>
+      )}
 
       {pricingMode === 'bundle' && (
         <div className={styles.domainPanel}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="aiBundleSelect">Bundle package</label>
             <select id="aiBundleSelect" className={styles.formControl} value={bundleIndex} onChange={(e) => setBundleIndex(parseInt(e.target.value, 10))}>
-              {aiBundles.map((b, i) => (
-                <option key={b.name} value={i}>{b.name} — {b.includedFeatureNames.length || aiAnalytics.length} analytics</option>
+              {effectiveBundles.map((b, i) => (
+                <option key={b.name} value={i}>{b.name} — {b.includedFeatureNames.length || effectiveAnalytics.length} analytics</option>
               ))}
             </select>
           </div>
@@ -154,6 +313,30 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
         </div>
       )}
 
+      {pricingMode === 'custom-bundle' && (
+        <div className={styles.domainPanel}>
+          {!canEditPricing ? (
+            <p className={styles.small}>Custom bundles can only be assembled by a manager or admin.</p>
+          ) : (
+            <>
+              <p className={styles.small}>
+                Pick at least {CUSTOM_BUNDLE_MIN_FEATURES} analytics below — they'll be combined into one bundle line at {CUSTOM_BUNDLE_DISCOUNT_PERCENT}% off
+                their combined list price.
+              </p>
+              <div className={styles.lineItemRow}>
+                <span style={{ flex: 1 }}>
+                  Selected: <strong>{customBundleCount}</strong> analytics
+                  {!customBundleQualifies && customBundleCount > 0 && (
+                    <span style={{ color: '#b91c1c' }}> — need {CUSTOM_BUNDLE_MIN_FEATURES - customBundleCount} more to qualify for the bundle discount.</span>
+                  )}
+                  {customBundleCount === 0 && <span> — select analytics below to start the bundle.</span>}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="aiOneTimeCost">One-time implementation &amp; configuration cost (₹)</label>
@@ -165,9 +348,9 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
             </button>
           </div>
         </div>
-        {pricingMode === 'ala-carte' && (
+        {showFeaturePicker && (
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="aiCategoryJump">Jump to detection category</label>
+            <label className={styles.label} htmlFor="aiCategoryJump">Jump to category</label>
             <select
               id="aiCategoryJump"
               className={styles.formControl}
@@ -187,21 +370,52 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
         )}
       </div>
 
+      <div className={`${styles.row} ${styles.columns}`}>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="aiInfraCostMode">Hardware / cloud infrastructure</label>
+          <select id="aiInfraCostMode" className={styles.formControl} value={infraCostMode} onChange={(e) => setInfraCostMode(e.target.value as InfraCostMode)}>
+            <option value="none">Not included in this quote</option>
+            <option value="hardware">Hardware / on-site server (one-time cost)</option>
+            <option value="cloud">Cloud / hosted server (monthly cost)</option>
+            <option value="client">Client-provided (in client's scope — no cost)</option>
+          </select>
+        </div>
+        {infraCostMode === 'hardware' && (
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="aiHardwareCost">Hardware cost, one-time (₹)</label>
+            <input id="aiHardwareCost" className={styles.formControl} type="number" step="any" min={0} value={hardwareCost} onFocus={selectAllOnFocus} onChange={(e) => setHardwareCost(parseFloat(e.target.value) || 0)} />
+          </div>
+        )}
+        {infraCostMode === 'cloud' && (
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="aiCloudCost">Cloud cost, per month (₹)</label>
+            <input id="aiCloudCost" className={styles.formControl} type="number" step="any" min={0} value={cloudCost} onFocus={selectAllOnFocus} onChange={(e) => setCloudCost(parseFloat(e.target.value) || 0)} />
+          </div>
+        )}
+        {infraCostMode === 'client' && (
+          <div className={styles.field}>
+            <div className={styles.small} style={{ paddingTop: 10 }}>Noted on the quote — no charge added.</div>
+          </div>
+        )}
+      </div>
+
       <p className={styles.small}>
         List pricing, exclusive of 18% GST. Volume slab is based on the total camera count above. The Nanta VMS dashboard is included at no
-        separate license cost — the one-time cost above covers integration, configuration, installation &amp; training only. On-premise hardware
-        (servers, GPU, storage, networking) is quoted separately.
+        separate license cost — the one-time cost above covers integration, configuration, installation &amp; training only.
       </p>
 
-      {pricingMode === 'ala-carte' && (
+      {showFeaturePicker && (
         <div className={styles.field}>
           <label className={styles.label}>Select analytics features</label>
           <div className={styles.aiFeatureList}>
             {(() => {
               let lastCategory: string | null = null;
-              return aiAnalytics.map((feature, index) => {
+              return effectiveAnalytics.map((feature, index) => {
                 const showHeading = feature.category !== lastCategory;
                 lastCategory = feature.category;
+                const detectionEditable = canEditPricing && isDetectionFeature(feature.name);
+                const computedRate = feature.tiers[slabIndex] / billingDivisor;
+                const currentRate = featureRate(feature, index);
                 return (
                   <div key={feature.name}>
                     {showHeading && (
@@ -221,7 +435,41 @@ export default function AiAnalyticsEstimator({ active, onResultChange }: AiAnaly
                         <div className={styles.aiFeatureName}>{feature.name}</div>
                         <div className={styles.aiFeatureDesc}>{feature.desc}</div>
                       </div>
-                      <div className={styles.aiFeaturePrice}>{formatMoney(feature.tiers[slabIndex] / billingDivisor)}{periodUnitSuffix}</div>
+                      {detectionEditable ? (
+                        <div className={styles.aiFeaturePrice} style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={(e) => e.preventDefault()}>
+                          <input
+                            type="number"
+                            step="any"
+                            min={0}
+                            className={styles.formControl}
+                            style={{ width: 100, textAlign: 'right' }}
+                            value={currentRate}
+                            onFocus={selectAllOnFocus}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              setDetectionOverrides((prev) => {
+                                const next = { ...prev };
+                                if (Number.isNaN(value)) delete next[index];
+                                else next[index] = value;
+                                return next;
+                              });
+                            }}
+                          />
+                          <span>{periodUnitSuffix}</span>
+                          {detectionOverrides[index] !== undefined && (
+                            <button
+                              type="button"
+                              className={styles.secondaryButton}
+                              onClick={() => setDetectionOverrides((prev) => { const next = { ...prev }; delete next[index]; return next; })}
+                              title={`Reset to list price ${formatMoney(computedRate)}`}
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className={styles.aiFeaturePrice}>{formatMoney(currentRate)}{periodUnitSuffix}</div>
+                      )}
                     </label>
                   </div>
                 );

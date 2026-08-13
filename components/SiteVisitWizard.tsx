@@ -11,6 +11,7 @@ import TeamCheckboxes from './TeamCheckboxes';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import { todayDateInputValue } from '@/lib/dateHelpers';
 
 export interface SiteVisitWizardForm {
   projectId: string;
@@ -399,7 +400,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Reminder date</label>
-                <input type="date" className={calcStyles.formControl} value={form.reminderDate} onChange={(e) => setForm((f) => ({ ...f, reminderDate: e.target.value }))} />
+                <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={form.reminderDate} onChange={(e) => setForm((f) => ({ ...f, reminderDate: e.target.value }))} />
               </div>
             </div>
             <div className={calcStyles.field}>

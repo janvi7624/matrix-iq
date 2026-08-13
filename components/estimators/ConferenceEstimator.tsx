@@ -6,6 +6,7 @@ import { avCameraProducts } from '@/lib/data/avCameraProducts';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
+import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 export interface ModelPreset {
@@ -18,18 +19,27 @@ interface ConferenceEstimatorProps {
   costInputs: CostInputs;
   onResultChange: (result: DomainResult) => void;
   presetModel?: ModelPreset | null;
+  overrides: OverrideMap;
 }
 
 type Tier = 'partner' | 'distributor' | 'customer';
 
-export default function ConferenceEstimator({ active, costInputs, onResultChange, presetModel }: ConferenceEstimatorProps) {
+export default function ConferenceEstimator({ active, costInputs, onResultChange, presetModel, overrides }: ConferenceEstimatorProps) {
   const modelKeys = Object.keys(avCameraProducts);
   const [modelKey, setModelKey] = useState(modelKeys[0]);
   const [priceTier, setPriceTier] = useState<Tier>('partner');
   const [quantity, setQuantity] = useState(1);
   const [accessoryChecked, setAccessoryChecked] = useState(false);
 
-  const product = avCameraProducts[modelKey];
+  const baseProduct = avCameraProducts[modelKey];
+  const product = useMemo(
+    () => (baseProduct ? applyOverride(baseProduct, overrides.get(overrideMapKey('conference', modelKey)), 'description') : undefined),
+    [baseProduct, modelKey, overrides]
+  );
+  const accessory = useMemo(() => {
+    if (!product?.accessory) return undefined;
+    return applyOverride(product.accessory, overrides.get(overrideMapKey('conference-accessory', modelKey)), 'name');
+  }, [product, modelKey, overrides]);
 
   useEffect(() => {
     if (!product?.accessory) setAccessoryChecked(false);
@@ -48,15 +58,15 @@ export default function ConferenceEstimator({ active, costInputs, onResultChange
 
     let accessoryCost = 0;
     let accessoryUnitPrice = 0;
-    if (product.accessory && accessoryChecked) {
-      accessoryUnitPrice = priceTier === 'partner' ? product.accessory.partnerPrice : priceTier === 'distributor' ? product.accessory.distributorPrice : product.accessory.customerPrice;
+    if (accessory && accessoryChecked) {
+      accessoryUnitPrice = priceTier === 'partner' ? accessory.partnerPrice : priceTier === 'distributor' ? accessory.distributorPrice : accessory.customerPrice;
       accessoryCost = qty * accessoryUnitPrice;
     }
 
     const subtotal = baseCost + accessoryCost + costInputs.installationCost + costInputs.fabricationCost;
 
     const lineItems: LineItem[] = [{ description: `${modelKey} — ${product.description}`, qty, rate: unitPrice, amount: baseCost, unit: 'Nos' }];
-    if (accessoryCost) lineItems.push({ description: product.accessory!.name, qty, rate: accessoryUnitPrice, amount: accessoryCost, unit: 'Nos' });
+    if (accessoryCost) lineItems.push({ description: accessory!.name, qty, rate: accessoryUnitPrice, amount: accessoryCost, unit: 'Nos' });
     if (costInputs.installationCost) lineItems.push({ description: 'Additional installation cost', qty: 1, rate: costInputs.installationCost, amount: costInputs.installationCost, unit: 'Nos' });
     if (costInputs.fabricationCost) lineItems.push({ description: 'Additional fabrication cost', qty: 1, rate: costInputs.fabricationCost, amount: costInputs.fabricationCost, unit: 'Nos' });
 
@@ -73,7 +83,7 @@ export default function ConferenceEstimator({ active, costInputs, onResultChange
     ];
 
     return { label: `Conferencing — ${modelKey}`, domainKey: 'av', lineItems, subtotal, summary };
-  }, [product, modelKey, priceTier, quantity, accessoryChecked, costInputs]);
+  }, [product, accessory, modelKey, priceTier, quantity, accessoryChecked, costInputs]);
 
   useEffect(() => {
     if (active && result) onResultChange(result);
@@ -112,12 +122,12 @@ export default function ConferenceEstimator({ active, costInputs, onResultChange
           <textarea id="conferenceDetails" className={styles.formControl} rows={4} readOnly value={`${product.description}\nModel: ${product.modelTag}\nCategory: ${product.category || ''}`} />
         </div>
       </div>
-      {product.accessory && (
+      {accessory && (
         <div className={`${styles.row} ${styles.columns}`}>
           <div className={styles.field}>
             <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input type="checkbox" style={{ width: 'auto' }} checked={accessoryChecked} onChange={(e) => setAccessoryChecked(e.target.checked)} />
-              <span>{product.accessory.name}</span>
+              <span>{accessory.name}</span>
             </label>
           </div>
         </div>
