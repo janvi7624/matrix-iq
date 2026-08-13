@@ -17,7 +17,8 @@ const FIELDS = [
   { name: 'expected_closing_date', kind: 'nullable' as const },
   { name: 'next_follow_up_date', kind: 'nullable' as const },
   { name: 'remarks' },
-  { name: 'attachments', kind: 'json' as const }
+  { name: 'attachments', kind: 'json' as const },
+  { name: 'assigned_technical_person_id', kind: 'nullable' as const }
 ];
 
 function isoOrEmpty(value: unknown): string {
@@ -57,8 +58,10 @@ function rowToTimelineEvent(plain: Record<string, unknown>): ProjectTimelineEven
 }
 
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
+const assignedTechnicalPersonInclude = { model: db.User, as: 'assignedTechnicalPersonRef', attributes: ['id', 'name'] };
 const notesInclude = { model: db.ProjectNote, as: 'notes' };
 const timelineInclude = { model: db.ProjectTimelineEvent, as: 'timeline' };
+const allIncludes = [creatorInclude, assignedTechnicalPersonInclude, notesInclude, timelineInclude];
 
 function toRecord(row: Model): ProjectRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -67,6 +70,7 @@ function toRecord(row: Model): ProjectRecord {
     created_at: isoOrEmpty(plain.createdAt),
     created_by: (plain.creator as { username?: string } | null)?.username ?? '',
     updated_at: isoOrEmpty(plain.updatedAt),
+    assigned_technical_person_name: (plain.assignedTechnicalPersonRef as { name?: string } | null)?.name ?? '',
     notes: ((plain.notes as Record<string, unknown>[]) ?? []).map(rowToNote).sort((a, b) => (a.at < b.at ? -1 : 1)),
     timeline: ((plain.timeline as Record<string, unknown>[]) ?? []).map(rowToTimelineEvent).sort((a, b) => (a.at < b.at ? -1 : 1))
   };
@@ -80,7 +84,7 @@ function toRecord(row: Model): ProjectRecord {
 }
 
 async function readAll(): Promise<ProjectRecord[]> {
-  const rows = await db.Project.findAll({ include: [creatorInclude, notesInclude, timelineInclude], order: [['created_at', 'DESC']] });
+  const rows = await db.Project.findAll({ include: allIncludes, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
@@ -90,7 +94,7 @@ async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promis
     const user = await db.User.findOne({ where: { username: viewerUsername } as never });
     where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
   }
-  const rows = await db.Project.findAll({ where: where as never, include: [creatorInclude, notesInclude, timelineInclude], order: [['created_at', 'DESC']] });
+  const rows = await db.Project.findAll({ where: where as never, include: allIncludes, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
@@ -106,7 +110,7 @@ async function create(record: ProjectRecord): Promise<ProjectRecord> {
     const row = await db.Project.create({ ...attrs, created_by: creator ? creator.get('id') : null } as never, { transaction: t });
     if (record.notes?.length) await db.ProjectNote.bulkCreate(record.notes.map((n) => noteToRow(n, row.get('id') as string)) as never, { transaction: t });
     if (record.timeline?.length) await db.ProjectTimelineEvent.bulkCreate(record.timeline.map((e) => timelineToRow(e, row.get('id') as string)) as never, { transaction: t });
-    const withAssoc = await db.Project.findByPk(row.get('id') as string, { include: [creatorInclude, notesInclude, timelineInclude], transaction: t });
+    const withAssoc = await db.Project.findByPk(row.get('id') as string, { include: allIncludes, transaction: t });
     return toRecord(withAssoc as Model);
   });
 }
@@ -133,7 +137,7 @@ async function update(id: string, patch: Partial<ProjectRecord>): Promise<Projec
       if (patch.timeline.length) await db.ProjectTimelineEvent.bulkCreate(patch.timeline.map((e) => timelineToRow(e, id)) as never, { transaction: t });
     }
 
-    const withAssoc = await db.Project.findByPk(id, { include: [creatorInclude, notesInclude, timelineInclude], transaction: t });
+    const withAssoc = await db.Project.findByPk(id, { include: allIncludes, transaction: t });
     return toRecord(withAssoc as Model);
   });
 }
@@ -197,7 +201,7 @@ export const projectStore = {
 
 export async function findProjectById(id: string): Promise<ProjectRecord | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.Project.findByPk(id, { include: [creatorInclude, notesInclude, timelineInclude] });
+  const row = await db.Project.findByPk(id, { include: allIncludes });
   return row ? normalizeProject(toRecord(row)) : undefined;
 }
 
@@ -228,7 +232,7 @@ export async function appendProjectTimeline(
       } as never,
       { transaction: t }
     );
-    const withAssoc = await db.Project.findByPk(projectId, { include: [creatorInclude, notesInclude, timelineInclude], transaction: t });
+    const withAssoc = await db.Project.findByPk(projectId, { include: allIncludes, transaction: t });
     return normalizeProject(toRecord(withAssoc as Model));
   });
 }

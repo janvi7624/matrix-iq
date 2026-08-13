@@ -4,9 +4,9 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DemoOutcome, DemoPriority, DemoProductLine, DemoRequestStatus, DemoScheduleRecord, DomainKey, ProjectRecord, QuotationRecord, UserRole } from '@/lib/types';
-import { TECHNICAL_TEAM } from '@/lib/teamMembers';
+import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
-import { domainLeadLabels } from '@/lib/domainLeads';
+import { useDomainLeadLabels } from '@/lib/domainLeads';
 import { getDomainProducts } from '@/lib/domainProducts';
 import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import AppShell from './AppShell';
@@ -31,7 +31,7 @@ const EMPTY_FORM = {
   productDomains: [] as DomainKey[],
   productsRequired: [] as DemoProductLine[],
   priority: 'medium' as DemoPriority,
-  assignedTechnicalPerson: '',
+  assignedTechnicalPersonId: '',
   technicalMembers: [] as string[],
   scheduledAt: '',
   assignedRep: '',
@@ -173,9 +173,9 @@ function TechnicalApprovalForm({ demoId, onDone }: { demoId: string; onDone: (up
   );
 }
 
-function ManagerApprovalForm({ demoId, onDone }: { demoId: string; onDone: (updated: DemoScheduleRecord) => void }) {
+function ManagerApprovalForm({ demoId, technicalRoster, onDone }: { demoId: string; technicalRoster: TechnicalRosterEntry[]; onDone: (updated: DemoScheduleRecord) => void }) {
   const [remarks, setRemarks] = useState('');
-  const [reassignedEngineer, setReassignedEngineer] = useState('');
+  const [reassignedEngineerId, setReassignedEngineerId] = useState('');
   const [newScheduledAt, setNewScheduledAt] = useState('');
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -186,7 +186,7 @@ function ManagerApprovalForm({ demoId, onDone }: { demoId: string; onDone: (upda
       const response = await fetch(`/api/demo-schedule/${demoId}/manager-approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision, remarks, reassignedEngineer, newScheduledAt })
+        body: JSON.stringify({ decision, remarks, reassignedEngineerId, newScheduledAt })
       });
       if (!response.ok) throw new Error(String(response.status));
       onDone(await response.json());
@@ -203,10 +203,10 @@ function ManagerApprovalForm({ demoId, onDone }: { demoId: string; onDone: (upda
       <div className={`${calcStyles.row} ${calcStyles.columns}`}>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Assign different engineer (optional)</label>
-          <select className={calcStyles.formControl} value={reassignedEngineer} onChange={(e) => setReassignedEngineer(e.target.value)}>
+          <select className={calcStyles.formControl} value={reassignedEngineerId} onChange={(e) => setReassignedEngineerId(e.target.value)}>
             <option value="">-- Keep as assigned --</option>
-            {TECHNICAL_TEAM.map((name) => (
-              <option key={name} value={name}>{name}</option>
+            {technicalRoster.map((person) => (
+              <option key={person.id} value={person.id}>{person.name}</option>
             ))}
           </select>
         </div>
@@ -231,6 +231,8 @@ function ManagerApprovalForm({ demoId, onDone }: { demoId: string; onDone: (upda
 function DemoRow({
   record,
   currentUser,
+  technicalRoster,
+  managersByDepartment,
   onCancel,
   onSubmitDraft,
   onMarkCompleted,
@@ -240,6 +242,8 @@ function DemoRow({
 }: {
   record: DemoScheduleRecord;
   currentUser: { username: string; role: UserRole };
+  technicalRoster: TechnicalRosterEntry[];
+  managersByDepartment: Record<string, { id: string; username: string; name: string }[]>;
   onCancel: (id: string) => void;
   onSubmitDraft: (id: string) => void;
   onMarkCompleted: (id: string) => void;
@@ -250,6 +254,19 @@ function DemoRow({
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isTechnical = currentUser.role === 'technical' || isPrivileged;
   const isOwner = record.created_by === currentUser.username;
+
+  // Strict routing: once a real person is assigned, only they (or an
+  // admin/superadmin override) can act on the technical step; only their
+  // domain manager (or the override) can act on the manager step. A demo
+  // with no resolvable assignee/domain manager falls back to the old broad
+  // rule so nothing gets stuck.
+  const isAdminOverride = currentUser.role === 'admin' || currentUser.role === 'superadmin';
+  const assignedRosterEntry = technicalRoster.find((p) => p.id === record.assigned_technical_person_id);
+  const canActTechnical = record.assigned_technical_person_id
+    ? assignedRosterEntry?.username === currentUser.username || isAdminOverride
+    : isTechnical;
+  const domainManagers = assignedRosterEntry?.department ? managersByDepartment[assignedRosterEntry.department] || [] : [];
+  const canActManager = domainManagers.length ? domainManagers.some((m) => m.username === currentUser.username) || isAdminOverride : isPrivileged;
   const [expanded, setExpanded] = useState(false);
   const [report, setReport] = useState({
     outcome: record.outcome,
@@ -336,7 +353,7 @@ function DemoRow({
         </td>
       </tr>
 
-      {record.status === 'pending_technical' && isTechnical && (
+      {record.status === 'pending_technical' && canActTechnical && (
         <tr>
           <td colSpan={10}>
             <div className={historyStyles.wideCellPin}>
@@ -345,11 +362,11 @@ function DemoRow({
           </td>
         </tr>
       )}
-      {record.status === 'pending_manager' && isPrivileged && (
+      {record.status === 'pending_manager' && canActManager && (
         <tr>
           <td colSpan={10}>
             <div className={historyStyles.wideCellPin}>
-              <ManagerApprovalForm demoId={record.id} onDone={onApprovalDone} />
+              <ManagerApprovalForm demoId={record.id} technicalRoster={technicalRoster} onDone={onApprovalDone} />
             </div>
           </td>
         </tr>
@@ -467,7 +484,10 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   const [records, setRecords] = useState<DemoScheduleRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [projectQuotations, setProjectQuotations] = useState<QuotationRecord[]>([]);
+  const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
+  const [managersByDepartment, setManagersByDepartment] = useState<Record<string, { id: string; username: string; name: string }[]>>({});
   const [loaded, setLoaded] = useState(false);
+  const domainLeadLabels = useDomainLeadLabels();
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState({ ...EMPTY_FORM, projectId: searchParams.get('projectId') || '' });
   const [creating, setCreating] = useState(false);
@@ -491,6 +511,14 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
 
   useEffect(() => {
     load();
+    fetch('/api/technical-roster')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: TechnicalRosterEntry[]) => setTechnicalRoster(data))
+      .catch(() => setTechnicalRoster([]));
+    fetch('/api/departments/managers')
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data: Record<string, { id: string; username: string; name: string }[]>) => setManagersByDepartment(data))
+      .catch(() => setManagersByDepartment({}));
   }, []);
 
   useEffect(() => {
@@ -715,10 +743,10 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Assigned technical person</label>
-              <select className={calcStyles.formControl} value={form.assignedTechnicalPerson} onChange={(e) => setForm((f) => ({ ...f, assignedTechnicalPerson: e.target.value }))}>
+              <select className={calcStyles.formControl} value={form.assignedTechnicalPersonId} onChange={(e) => setForm((f) => ({ ...f, assignedTechnicalPersonId: e.target.value }))}>
                 <option value="">-- Select --</option>
-                {TECHNICAL_TEAM.map((name) => (
-                  <option key={name} value={name}>{name}</option>
+                {technicalRoster.map((person) => (
+                  <option key={person.id} value={person.id}>{person.name}</option>
                 ))}
               </select>
             </div>
@@ -729,7 +757,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
           </div>
           <TeamCheckboxes
             label="Technical team member(s) attending"
-            options={TECHNICAL_TEAM}
+            options={technicalRoster.map((person) => person.name)}
             selected={form.technicalMembers}
             onChange={(next) => setForm((f) => ({ ...f, technicalMembers: next }))}
           />
@@ -792,6 +820,8 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
                     key={r.id}
                     record={r}
                     currentUser={currentUser}
+                    technicalRoster={technicalRoster}
+                    managersByDepartment={managersByDepartment}
                     onCancel={handleCancel}
                     onSubmitDraft={handleSubmitDraft}
                     onMarkCompleted={handleMarkCompleted}

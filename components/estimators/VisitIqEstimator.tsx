@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { visitIqAddOns, visitIqPlans } from '@/lib/data/visitiq';
+import { visitIqAddOns, visitIqPlans, VisitIqAddOn, VisitIqPlan } from '@/lib/data/visitiq';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
-import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
+import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface VisitIqEstimatorProps {
@@ -29,14 +29,22 @@ export default function VisitIqEstimator({ active, onResultChange, overrides }: 
   const [extraEmployeeBlocks, setExtraEmployeeBlocks] = useState(0);
   const [addOnFlags, setAddOnFlags] = useState<Record<string, boolean>>({});
 
-  const effectivePlans = useMemo(
-    () => visitIqPlans.map((p) => applyOverride(p, overrides.get(overrideMapKey('visitiq-plan', p.id)), 'name')),
-    [overrides]
-  );
-  const effectiveAddOns = useMemo(
-    () => visitIqAddOns.map((a) => applyOverride(a, overrides.get(overrideMapKey('visitiq-addon', a.key)), 'label')),
-    [overrides]
-  );
+  // Admin-added plans/add-ons (Product Catalog) have no entry in the
+  // hardcoded visitIqPlans/visitIqAddOns arrays — append a synthetic entry
+  // built entirely from the override's `fields` (the complete record for a
+  // brand-new product, not a partial patch).
+  const effectivePlans = useMemo(() => {
+    const base = visitIqPlans.map((p) => applyOverride(p, overrides.get(overrideMapKey('visitiq-plan', p.id)), 'name'));
+    const extraIds = extraProductKeys('visitiq-plan', visitIqPlans.map((p) => p.id), overrides);
+    const extra = extraIds.map((id) => applyOverride({ id } as VisitIqPlan, overrides.get(overrideMapKey('visitiq-plan', id)), 'name'));
+    return [...base, ...extra];
+  }, [overrides]);
+  const effectiveAddOns = useMemo(() => {
+    const base = visitIqAddOns.map((a) => applyOverride(a, overrides.get(overrideMapKey('visitiq-addon', a.key)), 'label'));
+    const extraKeys = extraProductKeys('visitiq-addon', visitIqAddOns.map((a) => a.key), overrides);
+    const extra = extraKeys.map((key) => applyOverride({ key } as VisitIqAddOn, overrides.get(overrideMapKey('visitiq-addon', key)), 'label'));
+    return [...base, ...extra];
+  }, [overrides]);
 
   const plan = useMemo(() => effectivePlans.find((p) => p.id === planId) || effectivePlans[0], [planId, effectivePlans]);
   const periodUnit = billingCycle === 'yearly' ? 'Year' : 'Month';

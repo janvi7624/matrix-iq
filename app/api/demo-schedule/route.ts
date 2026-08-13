@@ -6,6 +6,9 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DemoPriority, DemoProductLine, DemoScheduleRecord, DomainKey } from '@/lib/types';
+import { findUserById } from '@/lib/userStore';
+import { notifyUsers } from '@/lib/notificationStore';
+import { isUserADepartmentManager } from '@/lib/departmentStore';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITY: DemoPriority[] = ['low', 'medium', 'high'];
@@ -40,7 +43,7 @@ export async function GET(request: NextRequest) {
     // manager-approval / DC action routes are already role-gated (not
     // ownership-gated), so widening visibility here doesn't grant any new
     // write capability, only lets them see what they could already act on.
-    const canSeeQueue = viewer.isPrivileged || viewer.role === 'technical' || viewer.role === 'backoffice';
+    const canSeeQueue = viewer.isPrivileged || viewer.role === 'technical' || viewer.role === 'backoffice' || (await isUserADepartmentManager(viewer.username));
     const records = await demoScheduleStore.list(viewer.username, canSeeQueue);
     return NextResponse.json(records);
   } catch (error) {
@@ -73,6 +76,15 @@ export async function POST(request: NextRequest) {
   // approval pipeline (submit: true, the default).
   const status = body.submit === false ? 'draft' : 'pending_technical';
 
+  // The picker now submits a real user id — resolve it to the person's
+  // account and dual-write both the FK (routing/notifications/dashboard
+  // matching) and the display name string (back-compat with anything that
+  // still reads assigned_technical_person as plain text, e.g. PDFs). Falls
+  // back to the legacy free-text field if a caller ever omits the id.
+  const assignedTechnicalPersonId = typeof body.assignedTechnicalPersonId === 'string' ? body.assignedTechnicalPersonId.trim() : '';
+  const assignedPerson = assignedTechnicalPersonId ? await findUserById(assignedTechnicalPersonId) : undefined;
+  const assignedTechnicalPersonName = assignedPerson ? assignedPerson.name : typeof body.assignedTechnicalPerson === 'string' ? body.assignedTechnicalPerson.trim() : '';
+
   const record: DemoScheduleRecord = {
     id: `${Date.now()}`,
     created_at: new Date().toISOString(),
@@ -86,7 +98,8 @@ export async function POST(request: NextRequest) {
     products_demonstrated: [],
     products_required: toProductLines(body.productsRequired),
     priority: VALID_PRIORITY.includes(body.priority) ? body.priority : 'medium',
-    assigned_technical_person: typeof body.assignedTechnicalPerson === 'string' ? body.assignedTechnicalPerson.trim() : '',
+    assigned_technical_person: assignedTechnicalPersonName,
+    assigned_technical_person_id: assignedPerson ? assignedPerson.id : '',
     technical_members: toStringArray(body.technicalMembers),
     scheduled_at: scheduledAt,
     assigned_rep: typeof body.assignedRep === 'string' && body.assignedRep.trim() ? body.assignedRep.trim() : viewer.username,
@@ -108,6 +121,17 @@ export async function POST(request: NextRequest) {
   try {
     const created = await demoScheduleStore.create(record);
     await appendProjectTimeline(projectId, { by: viewer.username, stage: 'demo', label: `Demo requested for ${new Date(scheduledAt).toLocaleString('en-IN')}` }, 'demo');
+
+    if (assignedPerson && status === 'pending_technical') {
+      await notifyUsers([assignedPerson.username], {
+        title: 'New demo request needs your confirmation',
+        body: `${clientName}${record.company ? ` (${record.company})` : ''} — scheduled ${new Date(scheduledAt).toLocaleString('en-IN')}`,
+        type: 'demo_technical_confirmation',
+        entityType: 'demo',
+        entityId: created.id
+      });
+    }
+
     await logAudit({
       by: viewer.username,
       role: viewer.role,

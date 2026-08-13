@@ -77,6 +77,8 @@ export async function POST(request: NextRequest) {
         remarks: '',
         notes: [],
         attachments: [],
+        assigned_technical_person_id: '',
+        assigned_technical_person_name: '',
         timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created (from site visit)', remarks: '' }],
         updated_at: now
       };

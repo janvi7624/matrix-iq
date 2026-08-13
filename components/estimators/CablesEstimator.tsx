@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { CABLE_SERIES, cableProducts } from '@/lib/data/cableProducts';
+import { CABLE_SERIES, cableProducts, CableProduct } from '@/lib/data/cableProducts';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { ModelPreset } from './ConferenceEstimator';
-import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
+import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface CablesEstimatorProps {
@@ -35,12 +35,25 @@ export default function CablesEstimator({ active, costInputs, onResultChange, pr
   const [priceTier, setPriceTier] = useState<Tier>('distributor');
   const [quantity, setQuantity] = useState(1);
 
+  // Admin-added products (Product Catalog) have no entry in the hardcoded
+  // cableProducts file — union their keys in and merge overrides on top of
+  // whatever base exists (or {} for a brand-new product).
+  const modelKeys = useMemo(() => [...Object.keys(cableProducts), ...extraProductKeys('cables', Object.keys(cableProducts), overrides)], [overrides]);
+  const effectiveProducts = useMemo(() => {
+    const map: Record<string, CableProduct> = {};
+    modelKeys.forEach((key) => {
+      map[key] = applyOverride(cableProducts[key] || ({} as CableProduct), overrides.get(overrideMapKey('cables', key)), 'description');
+    });
+    return map;
+  }, [modelKeys, overrides]);
+
   useEffect(() => {
-    if (cableProducts[modelKey]?.series !== seriesKey) {
-      setModelKey(firstModelForSeries(seriesKey));
+    if (effectiveProducts[modelKey]?.series !== seriesKey) {
+      const match = modelKeys.filter((key) => effectiveProducts[key]?.series === seriesKey).sort((a, b) => effectiveProducts[a].lengthMeters - effectiveProducts[b].lengthMeters)[0];
+      setModelKey(match || '');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seriesKey]);
+  }, [seriesKey, effectiveProducts, modelKeys]);
 
   useEffect(() => {
     const presetProduct = presetModel ? cableProducts[presetModel.modelKey] : undefined;
@@ -51,11 +64,7 @@ export default function CablesEstimator({ active, costInputs, onResultChange, pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetModel?.nonce]);
 
-  const product = useMemo(() => {
-    const base = cableProducts[modelKey];
-    if (!base) return undefined;
-    return applyOverride(base, overrides.get(overrideMapKey('cables', modelKey)), 'description');
-  }, [modelKey, overrides]);
+  const product = effectiveProducts[modelKey];
   const series = product ? CABLE_SERIES[product.series] : undefined;
 
   const result = useMemo<DomainResult | null>(() => {
@@ -105,11 +114,11 @@ export default function CablesEstimator({ active, costInputs, onResultChange, pr
         <div className={styles.field}>
           <label className={styles.label} htmlFor="cableModel">Length / SKU</label>
           <select id="cableModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
-            {Object.keys(cableProducts)
-              .filter((key) => cableProducts[key].series === seriesKey)
-              .sort((a, b) => cableProducts[a].lengthMeters - cableProducts[b].lengthMeters)
+            {modelKeys
+              .filter((key) => effectiveProducts[key]?.series === seriesKey)
+              .sort((a, b) => effectiveProducts[a].lengthMeters - effectiveProducts[b].lengthMeters)
               .map((key) => (
-                <option key={key} value={key}>{key} — {cableProducts[key].length}</option>
+                <option key={key} value={key}>{key} — {effectiveProducts[key].length}</option>
               ))}
           </select>
         </div>

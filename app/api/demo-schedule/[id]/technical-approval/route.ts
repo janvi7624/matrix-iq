@@ -6,17 +6,18 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DemoScheduleRecord, DemoTechnicalApproval } from '@/lib/types';
+import { findUserById } from '@/lib/userStore';
+import { listDepartmentManagers } from '@/lib/departmentStore';
+import { notifyUsers } from '@/lib/notificationStore';
 
-// The assigned_technical_person on the request is a free-text name from the
-// fixed roster (no real login yet — same limitation as domain leads, see
-// lib/domainLeads.ts), so the actual approval action is available to any
-// account with the "technical" role, or admin/manager/superadmin as a stand-in.
+// Strict routing (confirmed decision): once a real person is selected as
+// assigned_technical_person_id, only THAT account can respond to this step
+// — admin/superadmin keep a full override. A demo with no resolvable
+// assignee (legacy record predating the real roster) falls back to the old
+// broad "any technical/privileged account" rule so nothing gets stuck.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (viewer.role !== 'technical' && !viewer.isPrivileged) {
-    return NextResponse.json({ error: 'Forbidden — technical team only' }, { status: 403 });
-  }
 
   const { id } = await params;
   const body = await request.json().catch(() => null);
@@ -30,6 +31,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!existing) return NextResponse.json({ error: 'Demo not found' }, { status: 404 });
     if (existing.status !== 'pending_technical') {
       return NextResponse.json({ error: 'This request is not awaiting technical approval' }, { status: 400 });
+    }
+
+    const isOverride = viewer.role === 'admin' || viewer.role === 'superadmin';
+    const assignedPerson = existing.assigned_technical_person_id ? await findUserById(existing.assigned_technical_person_id) : undefined;
+    if (assignedPerson) {
+      if (assignedPerson.username !== viewer.username && !isOverride) {
+        return NextResponse.json({ error: `Forbidden — only ${assignedPerson.name} can respond to this request` }, { status: 403 });
+      }
+    } else if (viewer.role !== 'technical' && !viewer.isPrivileged) {
+      return NextResponse.json({ error: 'Forbidden — technical team only' }, { status: 403 });
     }
 
     const technicalApproval: DemoTechnicalApproval = {
@@ -49,6 +60,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const updated = await demoScheduleStore.update(id, patch);
+
+    if (body.decision === 'approved' && assignedPerson) {
+      if (assignedPerson.department) {
+        const managersByDepartment = await listDepartmentManagers();
+        const managers = managersByDepartment[assignedPerson.department] || [];
+        if (managers.length) {
+          await notifyUsers(managers.map((m) => m.username), {
+            title: 'Demo request needs your approval',
+            body: `${existing.client_name}${existing.company ? ` (${existing.company})` : ''} — confirmed by ${assignedPerson.name}`,
+            type: 'demo_manager_approval',
+            entityType: 'demo',
+            entityId: id
+          });
+        }
+      }
+    }
 
     if (existing.project_id) {
       await appendProjectTimeline(existing.project_id, {

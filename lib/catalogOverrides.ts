@@ -22,10 +22,28 @@ export function buildOverrideMap(rows: CatalogOverrideRow[]): OverrideMap {
 
 // Base record patched with override.fields, plus the rename applied to
 // whichever field `nameField` points at — skipped entirely when `nameField`
-// is null (ai-analytics, where name is a live join key elsewhere).
+// is null (ai-analytics, where name is a live join key elsewhere). When
+// `base` is `{}` (a brand-new, admin-created product with no hardcoded
+// entry), this just returns `override.fields` verbatim — the override row
+// for a new product carries the COMPLETE record, not a partial patch.
 export function applyOverride<T extends object>(base: T, override: CatalogOverrideRow | undefined, nameField: string | null): T {
   if (!override) return base;
   const next: Record<string, unknown> = { ...base, ...(override.fields || {}) };
   if (nameField && override.name) next[nameField] = override.name;
   return next as T;
+}
+
+// Product keys that exist only as an override row (an admin-added new
+// product) for this catalog — not in the hardcoded catalog's own keys.
+// Estimators union this onto their hardcoded key list so new products show
+// up as selectable options.
+export function extraProductKeys(catalogId: string, baseKeys: string[], overrides: OverrideMap): string[] {
+  const baseSet = new Set(baseKeys);
+  const extra: string[] = [];
+  overrides.forEach((row) => {
+    if (row.catalog === catalogId && !baseSet.has(row.productKey) && !extra.includes(row.productKey)) {
+      extra.push(row.productKey);
+    }
+  });
+  return extra;
 }

@@ -6,7 +6,8 @@ module.exports = (sequelize, DataTypes) => {
     order: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     status: { type: DataTypes.ENUM('active', 'inactive'), allowNull: false, defaultValue: 'active' },
     createdBy: { type: DataTypes.UUID },
-    updatedBy: { type: DataTypes.UUID }
+    updatedBy: { type: DataTypes.UUID },
+    managerIds: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
   }, {
     tableName: 'departments',
     underscored: false,

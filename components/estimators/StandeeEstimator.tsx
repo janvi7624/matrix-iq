@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { standeeModels, STANDEE_CATEGORIES, STANDEE_PREVIEW_BY_CATEGORY } from '@/lib/data/standeeModels';
+import { standeeModels, StandeeModel, STANDEE_CATEGORIES, STANDEE_PREVIEW_BY_CATEGORY } from '@/lib/data/standeeModels';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
-import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
+import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface StandeeEstimatorProps {
@@ -29,28 +29,38 @@ export default function StandeeEstimator({ active, costInputs, onResultChange, o
   const [fabricationPerUnit, setFabricationPerUnit] = useState(() => standeeModels[modelKey]?.fabricationPerUnit || 0);
   const [scaffoldingPerUnit, setScaffoldingPerUnit] = useState(() => standeeModels[modelKey]?.scaffoldingPerUnit || 0);
 
+  // Admin-added products (Product Catalog) have no entry in the hardcoded
+  // standeeModels file — union their keys in and merge overrides on top of
+  // whatever base exists (or {} for a brand-new product) so they behave
+  // identically to a hardcoded model everywhere below.
+  const modelKeys = useMemo(() => [...Object.keys(standeeModels), ...extraProductKeys('standee', Object.keys(standeeModels), overrides)], [overrides]);
+  const effectiveModels = useMemo(() => {
+    const map: Record<string, StandeeModel> = {};
+    modelKeys.forEach((key) => {
+      map[key] = applyOverride(standeeModels[key] || ({} as StandeeModel), overrides.get(overrideMapKey('standee', key)), 'details');
+    });
+    return map;
+  }, [modelKeys, overrides]);
+
   useEffect(() => {
-    if (standeeModels[modelKey]?.category !== category) {
-      setModelKey(firstModelForCategory(category));
+    if (effectiveModels[modelKey]?.category !== category) {
+      const match = modelKeys.find((key) => effectiveModels[key]?.category === category);
+      setModelKey(match || '');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category]);
+  }, [category, effectiveModels, modelKeys]);
 
   // Reload the per-unit cost defaults whenever the model changes, but leave
   // them editable in between so a rep can override for a specific quote.
   useEffect(() => {
-    const m = standeeModels[modelKey];
+    const m = effectiveModels[modelKey];
     if (!m) return;
     setInstallationPerUnit(m.installationPerUnit);
     setFabricationPerUnit(m.fabricationPerUnit);
     setScaffoldingPerUnit(m.scaffoldingPerUnit);
-  }, [modelKey]);
+  }, [modelKey, effectiveModels]);
 
-  const model = useMemo(() => {
-    const base = standeeModels[modelKey];
-    if (!base) return undefined;
-    return applyOverride(base, overrides.get(overrideMapKey('standee', modelKey)), 'details');
-  }, [modelKey, overrides]);
+  const model = effectiveModels[modelKey];
 
   const result = useMemo<DomainResult | null>(() => {
     if (!model) return null;
@@ -118,8 +128,8 @@ export default function StandeeEstimator({ active, costInputs, onResultChange, o
         <div className={styles.field}>
           <label className={styles.label} htmlFor="standeeModel">Standee model</label>
           <select id="standeeModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
-            {Object.keys(standeeModels)
-              .filter((key) => standeeModels[key].category === category)
+            {modelKeys
+              .filter((key) => effectiveModels[key]?.category === category)
               .map((key) => (
                 <option key={key} value={key}>{key}</option>
               ))}

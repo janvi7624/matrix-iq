@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ModuleConfigRecord, ProjectRecord, QuotationRecord, SiteVisitRecord, UserRole } from '@/lib/types';
+import { DemoScheduleRecord, ModuleConfigRecord, ProjectRecord, QuotationRecord, SiteVisitRecord, UserRole } from '@/lib/types';
+import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import { formatMoney } from '@/lib/format';
 import { needsFollowUp } from '@/lib/followUp';
@@ -16,8 +17,10 @@ import { iconForSection } from '@/lib/sectionIcons';
 import styles from './dashboard.module.css';
 
 interface DashboardProps {
-  currentUser: { name: string; role: UserRole; department?: string };
+  currentUser: { id: string; username: string; name: string; role: UserRole; department?: string };
 }
+
+type ManagersByDepartment = Record<string, { id: string; username: string; name: string }[]>;
 
 // The full KPI grids live at /analytics (components/AnalyticsView.tsx) — the
 // Dashboard only pulls in the subset it needs for the attention panel and,
@@ -65,9 +68,12 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [modules, setModules] = useState<ModuleConfigRecord[] | null>(null);
   const [unattendedLeads, setUnattendedLeads] = useState<number | null>(null);
   const [marketingStats, setMarketingStats] = useState<{ isReviewer: boolean; awaitingReview?: number; myOpenCount?: number } | null>(null);
-  const [recentProjects, setRecentProjects] = useState<ProjectRecord[] | null>(null);
+  const [allProjects, setAllProjects] = useState<ProjectRecord[] | null>(null);
   const [recentQuotations, setRecentQuotations] = useState<QuotationRecord[] | null>(null);
   const [quotationStats, setQuotationStats] = useState<QuotationStatsSummary | null>(null);
+  const [demos, setDemos] = useState<DemoScheduleRecord[] | null>(null);
+  const [managersByDepartment, setManagersByDepartment] = useState<ManagersByDepartment>({});
+  const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
@@ -148,9 +154,58 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   useEffect(() => {
     fetch('/api/projects')
       .then((r) => (r.ok ? r.json() : []))
-      .then((rows: ProjectRecord[]) => setRecentProjects([...rows].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 5)))
-      .catch(() => setRecentProjects([]));
+      .then((rows: ProjectRecord[]) => setAllProjects(rows))
+      .catch(() => setAllProjects([]));
   }, []);
+
+  // Demo Schedule's list API already grants queue visibility to
+  // technical/backoffice/privileged roles and, as of the real technical
+  // roster, to anyone who manages at least one department — a plain Sales
+  // user just gets their own created demos back, which is fine (they're
+  // never the assignee, so it contributes nothing to the sections below).
+  useEffect(() => {
+    fetch('/api/demo-schedule')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: DemoScheduleRecord[]) => setDemos(rows))
+      .catch(() => setDemos([]));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/departments/managers')
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data: ManagersByDepartment) => setManagersByDepartment(data))
+      .catch(() => setManagersByDepartment({}));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/technical-roster')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: TechnicalRosterEntry[]) => setTechnicalRoster(rows))
+      .catch(() => setTechnicalRoster([]));
+  }, []);
+
+  const recentProjects = useMemo(() => (allProjects ? [...allProjects].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 5) : null), [allProjects]);
+
+  // Departments the viewer manages — drives "Demos awaiting your approval"
+  // and is purely a lib/departmentStore.ts Department.managerIds
+  // relationship, independent of login role.
+  const managedDepartments = useMemo(
+    () => Object.entries(managersByDepartment).filter(([, managers]) => managers.some((m) => m.id === currentUser.id)).map(([name]) => name),
+    [managersByDepartment, currentUser.id]
+  );
+
+  const myAssignedProjects = useMemo(() => (allProjects || []).filter((p) => p.assigned_technical_person_id === currentUser.id), [allProjects, currentUser.id]);
+  const myAssignedDemos = useMemo(() => (demos || []).filter((d) => d.assigned_technical_person_id === currentUser.id), [demos, currentUser.id]);
+  const demosAwaitingMyConfirmation = useMemo(() => myAssignedDemos.filter((d) => d.status === 'pending_technical'), [myAssignedDemos]);
+  const rosterById = useMemo(() => new Map(technicalRoster.map((p) => [p.id, p])), [technicalRoster]);
+  const demosAwaitingMyApproval = useMemo(() => {
+    if (!managedDepartments.length) return [];
+    return (demos || []).filter((d) => {
+      if (d.status !== 'pending_manager') return false;
+      const assigneeDepartment = rosterById.get(d.assigned_technical_person_id)?.department;
+      return !!assigneeDepartment && managedDepartments.includes(assigneeDepartment);
+    });
+  }, [demos, managedDepartments, rosterById]);
 
   useEffect(() => {
     fetch('/api/quotations/mine')
@@ -194,8 +249,41 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (reminderCount) {
       items.push({ key: 'sitevisit', icon: '📍', label: `Site visit reminder${reminderCount === 1 ? '' : 's'} due`, count: reminderCount, href: '/site-visits?focus=open', tone: 'info' });
     }
+    if (demosAwaitingMyConfirmation.length) {
+      items.push({
+        key: 'my-demo-confirm',
+        icon: '🙋',
+        label: `Demo${demosAwaitingMyConfirmation.length === 1 ? '' : 's'} awaiting your confirmation`,
+        count: demosAwaitingMyConfirmation.length,
+        href: '/demo-schedule',
+        tone: 'urgent'
+      });
+    }
+    if (demosAwaitingMyApproval.length) {
+      items.push({
+        key: 'my-demo-approve',
+        icon: '🖋️',
+        label: `Demo${demosAwaitingMyApproval.length === 1 ? '' : 's'} awaiting your approval`,
+        count: demosAwaitingMyApproval.length,
+        href: '/demo-schedule',
+        tone: 'urgent'
+      });
+    }
     return items;
-  }, [isPrivileged, followUpCount, currentUser.role, isManagerTier, kpis, isBackOffice, backOfficeKpis, unattendedLeads, marketingStats, reminderCount]);
+  }, [
+    isPrivileged,
+    followUpCount,
+    currentUser.role,
+    isManagerTier,
+    kpis,
+    isBackOffice,
+    backOfficeKpis,
+    unattendedLeads,
+    marketingStats,
+    reminderCount,
+    demosAwaitingMyConfirmation,
+    demosAwaitingMyApproval
+  ]);
 
   // Only declare "you're all caught up" once every signal this role
   // actually receives has resolved — otherwise a still-loading dashboard
@@ -232,6 +320,45 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           <div className={styles.attentionEmpty}>{attentionLoading ? 'Checking…' : "🎉 You're all caught up."}</div>
         )}
       </div>
+
+      {(myAssignedProjects.length > 0 || myAssignedDemos.length > 0) && (
+        <div className={styles.recentGrid}>
+          <div className={styles.recentCard}>
+            <div className={styles.recentCardHead}>
+              <h3>Projects Assigned to You</h3>
+            </div>
+            <div className={styles.recentList}>
+              {myAssignedProjects.length === 0 && <div className={styles.recentEmpty}>None right now.</div>}
+              {myAssignedProjects.map((p) => (
+                <Link key={p.id} href={`/projects/${p.id}`} className={styles.recentRow}>
+                  <div className={styles.recentRowMain}>
+                    <div className={styles.recentRowTitle}>{p.client_name || p.company || `Project ${p.id}`}</div>
+                    <div className={styles.recentRowMeta}>{PROJECT_STAGE_LABEL[p.stage] || p.stage}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.recentCard}>
+            <div className={styles.recentCardHead}>
+              <h3>Demos Assigned to You</h3>
+              <Link href="/demo-schedule">View all →</Link>
+            </div>
+            <div className={styles.recentList}>
+              {myAssignedDemos.length === 0 && <div className={styles.recentEmpty}>None right now.</div>}
+              {myAssignedDemos.map((d) => (
+                <Link key={d.id} href="/demo-schedule" className={styles.recentRow}>
+                  <div className={styles.recentRowMain}>
+                    <div className={styles.recentRowTitle}>{d.client_name}{d.company ? ` (${d.company})` : ''}</div>
+                    <div className={styles.recentRowMeta}>{d.status.replace(/_/g, ' ')}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {isManagerTier && (
         <>

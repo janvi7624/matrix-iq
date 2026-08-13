@@ -12,6 +12,7 @@ const FIELDS = [
   { name: 'products_demonstrated', kind: 'json' as const },
   { name: 'priority' },
   { name: 'assigned_technical_person' },
+  { name: 'assigned_technical_person_id', kind: 'nullable' as const },
   { name: 'technical_members', kind: 'json' as const },
   { name: 'scheduled_at', kind: 'nullable' as const },
   { name: 'assigned_rep' },

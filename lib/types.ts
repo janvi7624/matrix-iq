@@ -293,6 +293,11 @@ export interface DemoScheduleRecord {
   products_required: DemoProductLine[];
   priority: DemoPriority;
   assigned_technical_person: string;
+  // Real FK to the assigned person's user account — assigned_technical_person
+  // (above) stays a dual-written display/back-compat name string, same
+  // pattern as users.department/departmentId. Empty string when unset or on
+  // demos created before this field existed.
+  assigned_technical_person_id: string;
   technical_members: string[];
   scheduled_at: string;
   assigned_rep: string;
@@ -459,6 +464,8 @@ export interface ProjectRecord {
   attachments: string[];
   timeline: ProjectTimelineEvent[];
   updated_at: string;
+  assigned_technical_person_id: string;
+  assigned_technical_person_name: string;
 }
 
 export type CustomerResponseType = 'interested' | 'not_interested' | 'need_revision' | 'need_new_quotation' | 'budget_issue' | 'competitor';
@@ -816,6 +823,11 @@ export interface DepartmentRecord {
   created_by: string;
   updated_at: string;
   updated_by: string;
+  // Who manages this department — supports more than one (e.g. Sales has
+  // two). Drives demo-schedule domain-manager routing/notifications and
+  // Dashboard "awaiting your approval" visibility; not a login-role concept.
+  managerIds: string[];
+  managerNames: string[];
 }
 
 // One row of a role's permission matrix, keyed by module (ModuleConfigRecord.key,

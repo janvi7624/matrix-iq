@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { roboticsProducts } from '@/lib/data/roboticsProducts';
+import { roboticsProducts, RoboticsProduct } from '@/lib/data/roboticsProducts';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
-import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
+import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface RoboticsEstimatorProps {
@@ -18,16 +18,24 @@ interface RoboticsEstimatorProps {
 type Tier = 'distributor' | 'partner' | 'customer';
 
 export default function RoboticsEstimator({ active, onResultChange, overrides }: RoboticsEstimatorProps) {
-  const modelKeys = Object.keys(roboticsProducts);
-  const [modelKey, setModelKey] = useState(modelKeys[0]);
+  const baseModelKeys = Object.keys(roboticsProducts);
+  const [modelKey, setModelKey] = useState(baseModelKeys[0]);
   const [priceTier, setPriceTier] = useState<Tier>('distributor');
   const [quantity, setQuantity] = useState(1);
 
-  const product = useMemo(() => {
-    const base = roboticsProducts[modelKey];
-    if (!base) return undefined;
-    return applyOverride(base, overrides.get(overrideMapKey('robotics', modelKey)), 'description');
-  }, [modelKey, overrides]);
+  // Admin-added products (Product Catalog) have no entry in the hardcoded
+  // roboticsProducts file — union their keys in and merge overrides on top
+  // of whatever base exists (or {} for a brand-new product).
+  const modelKeys = useMemo(() => [...baseModelKeys, ...extraProductKeys('robotics', baseModelKeys, overrides)], [overrides]);
+  const effectiveProducts = useMemo(() => {
+    const map: Record<string, RoboticsProduct> = {};
+    modelKeys.forEach((key) => {
+      map[key] = applyOverride(roboticsProducts[key] || ({} as RoboticsProduct), overrides.get(overrideMapKey('robotics', key)), 'description');
+    });
+    return map;
+  }, [modelKeys, overrides]);
+
+  const product = effectiveProducts[modelKey];
 
   const result = useMemo<DomainResult | null>(() => {
     if (!product) return null;
@@ -63,7 +71,7 @@ export default function RoboticsEstimator({ active, onResultChange, overrides }:
           <label className={styles.label} htmlFor="roboticsModel">Robot model</label>
           <select id="roboticsModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
             {modelKeys.map((key) => (
-              <option key={key} value={key}>{key} — {roboticsProducts[key].category}</option>
+              <option key={key} value={key}>{key} — {effectiveProducts[key]?.category}</option>
             ))}
           </select>
         </div>

@@ -21,8 +21,9 @@ async function ensureSeeded(): Promise<void> {
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
 const updaterInclude = { model: db.User, as: 'updater', attributes: ['id', 'username'] };
 
-function toRecord(row: Model): DepartmentRecord {
+function toRecord(row: Model, managerNamesById: Map<string, string>): DepartmentRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
+  const managerIds = Array.isArray(plain.managerIds) ? (plain.managerIds as string[]) : [];
   return {
     id: plain.id as string,
     name: plain.name as string,
@@ -32,14 +33,31 @@ function toRecord(row: Model): DepartmentRecord {
     created_at: isoOrEmpty(plain.createdAt),
     created_by: (plain.creator as { username?: string } | null)?.username ?? '',
     updated_at: isoOrEmpty(plain.updatedAt),
-    updated_by: (plain.updater as { username?: string } | null)?.username ?? ''
+    updated_by: (plain.updater as { username?: string } | null)?.username ?? '',
+    managerIds,
+    managerNames: managerIds.map((id) => managerNamesById.get(id)).filter((n): n is string => !!n)
   };
+}
+
+// Batch-resolves every manager id referenced across the given rows into a
+// single id -> name lookup, so listing all departments doesn't issue one
+// query per row.
+async function resolveManagerNames(rows: Model[]): Promise<Map<string, string>> {
+  const allIds = new Set<string>();
+  rows.forEach((row) => {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    (Array.isArray(plain.managerIds) ? (plain.managerIds as string[]) : []).forEach((id) => allIds.add(id));
+  });
+  if (!allIds.size) return new Map();
+  const users = await db.User.findAll({ where: { id: [...allIds] } as never, attributes: ['id', 'name'] });
+  return new Map(users.map((u) => [u.get('id') as string, u.get('name') as string]));
 }
 
 export async function listDepartments(): Promise<DepartmentRecord[]> {
   await ensureSeeded();
   const rows = await db.Department.findAll({ include: [creatorInclude, updaterInclude], order: [['order', 'ASC']] });
-  return rows.map(toRecord);
+  const managerNamesById = await resolveManagerNames(rows);
+  return rows.map((row) => toRecord(row, managerNamesById));
 }
 
 export async function listActiveDepartments(): Promise<DepartmentRecord[]> {
@@ -50,7 +68,9 @@ export async function listActiveDepartments(): Promise<DepartmentRecord[]> {
 export async function findDepartmentById(id: string): Promise<DepartmentRecord | undefined> {
   if (!isUuid(id)) return undefined;
   const row = await db.Department.findByPk(id, { include: [creatorInclude, updaterInclude] });
-  return row ? toRecord(row) : undefined;
+  if (!row) return undefined;
+  const managerNamesById = await resolveManagerNames([row]);
+  return toRecord(row, managerNamesById);
 }
 
 export interface DepartmentInput {
@@ -101,6 +121,7 @@ export interface DepartmentUpdateInput {
   name?: string;
   description?: string;
   status?: DepartmentRecord['status'];
+  managerIds?: string[];
 }
 
 export async function updateDepartment(id: string, patch: DepartmentUpdateInput, updatedBy: string): Promise<DepartmentRecord | null> {
@@ -108,8 +129,63 @@ export async function updateDepartment(id: string, patch: DepartmentUpdateInput,
   const row = await db.Department.findByPk(id);
   if (!row) return null;
   const updater = await db.User.findOne({ where: { username: updatedBy } as never });
-  await row.update({ name: patch.name, description: patch.description, status: patch.status, updatedBy: updater ? updater.get('id') : null } as never);
+  const attrs: Record<string, unknown> = { name: patch.name, description: patch.description, status: patch.status, updatedBy: updater ? updater.get('id') : null };
+  if (patch.managerIds) attrs.managerIds = patch.managerIds;
+  await row.update(attrs as never);
   return (await findDepartmentById(id)) ?? null;
+}
+
+// Grants demo-schedule queue visibility to a real domain manager (see
+// isDepartmentManagerRouting section 5/6 of the plan) independent of their
+// login role — a manager relationship on a department is sufficient on its
+// own, not gated behind being 'manager'/'technical'/'backoffice' role.
+export async function isUserADepartmentManager(username: string): Promise<boolean> {
+  const user = await db.User.findOne({ where: { username } as never });
+  if (!user) return false;
+  const userId = user.get('id') as string;
+  const rows = await db.Department.findAll({ where: { status: 'active' } as never, attributes: ['managerIds'] });
+  return rows.some((row) => {
+    const managerIds = row.get('managerIds') as string[] | null;
+    return Array.isArray(managerIds) && managerIds.includes(userId);
+  });
+}
+
+// All active departments this user manages, resolved to {id, name} — used
+// to match a demo's assigned-person department against the viewer's own
+// managed department(s) for Dashboard "awaiting your approval" visibility.
+export async function departmentsManagedBy(username: string): Promise<{ id: string; name: string }[]> {
+  const user = await db.User.findOne({ where: { username } as never });
+  if (!user) return [];
+  const userId = user.get('id') as string;
+  const rows = await db.Department.findAll({ where: { status: 'active' } as never, attributes: ['id', 'name', 'managerIds'] });
+  return rows
+    .filter((row) => {
+      const managerIds = row.get('managerIds') as string[] | null;
+      return Array.isArray(managerIds) && managerIds.includes(userId);
+    })
+    .map((row) => ({ id: row.get('id') as string, name: row.get('name') as string }));
+}
+
+// {departmentName -> [{id, username, name}]} for every active department
+// with at least one manager — feeds domain-manager routing hints and the
+// Dashboard's "awaiting your approval" matching, both client-side.
+export async function listDepartmentManagers(): Promise<Record<string, { id: string; username: string; name: string }[]>> {
+  const rows = await db.Department.findAll({ where: { status: 'active' } as never, attributes: ['name', 'managerIds'] });
+  const allIds = new Set<string>();
+  const byDept: { name: string; managerIds: string[] }[] = rows.map((row) => {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    const managerIds = Array.isArray(plain.managerIds) ? (plain.managerIds as string[]) : [];
+    managerIds.forEach((id) => allIds.add(id));
+    return { name: plain.name as string, managerIds };
+  });
+  const users = allIds.size ? await db.User.findAll({ where: { id: [...allIds] } as never, attributes: ['id', 'username', 'name'] }) : [];
+  const userById = new Map(users.map((u) => [u.get('id') as string, { id: u.get('id') as string, username: u.get('username') as string, name: u.get('name') as string }]));
+  const result: Record<string, { id: string; username: string; name: string }[]> = {};
+  byDept.forEach(({ name, managerIds }) => {
+    const managers = managerIds.map((id) => userById.get(id)).filter((m): m is { id: string; username: string; name: string } => !!m);
+    if (managers.length) result[name] = managers;
+  });
+  return result;
 }
 
 export async function reorderDepartments(orderedIds: string[]): Promise<void> {

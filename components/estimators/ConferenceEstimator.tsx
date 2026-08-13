@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { avCameraProducts } from '@/lib/data/avCameraProducts';
+import { avCameraProducts, CameraProduct, CameraAccessory } from '@/lib/data/avCameraProducts';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
-import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
+import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 export interface ModelPreset {
@@ -25,25 +25,35 @@ interface ConferenceEstimatorProps {
 type Tier = 'partner' | 'distributor' | 'customer';
 
 export default function ConferenceEstimator({ active, costInputs, onResultChange, presetModel, overrides }: ConferenceEstimatorProps) {
-  const modelKeys = Object.keys(avCameraProducts);
-  const [modelKey, setModelKey] = useState(modelKeys[0]);
+  const baseModelKeys = Object.keys(avCameraProducts);
+  const [modelKey, setModelKey] = useState(baseModelKeys[0]);
   const [priceTier, setPriceTier] = useState<Tier>('partner');
   const [quantity, setQuantity] = useState(1);
   const [accessoryChecked, setAccessoryChecked] = useState(false);
 
+  // Admin-added products (Product Catalog) have no entry in the hardcoded
+  // avCameraProducts file — union their keys in.
+  const modelKeys = useMemo(() => [...baseModelKeys, ...extraProductKeys('conference', baseModelKeys, overrides)], [overrides]);
+
   const baseProduct = avCameraProducts[modelKey];
-  const product = useMemo(
-    () => (baseProduct ? applyOverride(baseProduct, overrides.get(overrideMapKey('conference', modelKey)), 'description') : undefined),
-    [baseProduct, modelKey, overrides]
-  );
+  const conferenceOverride = overrides.get(overrideMapKey('conference', modelKey));
+  const product = useMemo(() => {
+    if (!baseProduct && !conferenceOverride) return undefined;
+    return applyOverride(baseProduct || ({} as CameraProduct), conferenceOverride, 'description');
+  }, [baseProduct, conferenceOverride]);
+
+  // An accessory can be added (via Product Catalog) to ANY existing camera,
+  // even one whose hardcoded base has no `.accessory` at all — so check for
+  // an override first, don't gate on `product.accessory` existing.
+  const accessoryOverride = overrides.get(overrideMapKey('conference-accessory', modelKey));
   const accessory = useMemo(() => {
-    if (!product?.accessory) return undefined;
-    return applyOverride(product.accessory, overrides.get(overrideMapKey('conference-accessory', modelKey)), 'name');
-  }, [product, modelKey, overrides]);
+    if (!product?.accessory && !accessoryOverride) return undefined;
+    return applyOverride(product?.accessory || ({} as CameraAccessory), accessoryOverride, 'name');
+  }, [product, accessoryOverride]);
 
   useEffect(() => {
-    if (!product?.accessory) setAccessoryChecked(false);
-  }, [modelKey, product]);
+    if (!accessory) setAccessoryChecked(false);
+  }, [modelKey, accessory]);
 
   useEffect(() => {
     if (presetModel && avCameraProducts[presetModel.modelKey]) setModelKey(presetModel.modelKey);
@@ -98,9 +108,10 @@ export default function ConferenceEstimator({ active, costInputs, onResultChange
         <div className={styles.field}>
           <label className={styles.label} htmlFor="conferenceModel">Device model</label>
           <select id="conferenceModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
-            {modelKeys.map((key) => (
-              <option key={key} value={key}>{key} — {avCameraProducts[key].modelTag}</option>
-            ))}
+            {modelKeys.map((key) => {
+              const merged = applyOverride(avCameraProducts[key] || ({} as CameraProduct), overrides.get(overrideMapKey('conference', key)), 'description');
+              return <option key={key} value={key}>{key} — {merged.modelTag}</option>;
+            })}
           </select>
         </div>
         <div className={styles.field}>
@@ -132,14 +143,16 @@ export default function ConferenceEstimator({ active, costInputs, onResultChange
           </div>
         </div>
       )}
-      <div className={`${styles.row} ${styles.columns}`}>
-        <div className={`${styles.field} ${styles.standeePreview}`}>
-          <label className={styles.label}>Preview</label>
-          <div className={styles.imageHolder}>
-            <Image src={product.image} alt={`${modelKey} preview`} width={220} height={220} className={styles.previewImg} unoptimized />
+      {product.image && (
+        <div className={`${styles.row} ${styles.columns}`}>
+          <div className={`${styles.field} ${styles.standeePreview}`}>
+            <label className={styles.label}>Preview</label>
+            <div className={styles.imageHolder}>
+              <Image src={product.image} alt={`${modelKey} preview`} width={220} height={220} className={styles.previewImg} unoptimized />
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { interactivePanelProducts } from '@/lib/data/interactivePanelProducts';
+import { interactivePanelProducts, InteractivePanelProduct } from '@/lib/data/interactivePanelProducts';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
 import { ModelPreset } from './ConferenceEstimator';
-import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
+import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface InteractivePanelEstimatorProps {
@@ -21,21 +21,29 @@ interface InteractivePanelEstimatorProps {
 type Tier = 'distributor' | 'partner' | 'customer';
 
 export default function InteractivePanelEstimator({ active, costInputs, onResultChange, presetModel, overrides }: InteractivePanelEstimatorProps) {
-  const modelKeys = Object.keys(interactivePanelProducts);
-  const [modelKey, setModelKey] = useState(modelKeys[0]);
+  const baseModelKeys = Object.keys(interactivePanelProducts);
+  const [modelKey, setModelKey] = useState(baseModelKeys[0]);
   const [priceTier, setPriceTier] = useState<Tier>('distributor');
   const [quantity, setQuantity] = useState(1);
+
+  // Admin-added products (Product Catalog) have no entry in the hardcoded
+  // interactivePanelProducts file — union their keys in and merge overrides
+  // on top of whatever base exists (or {} for a brand-new product).
+  const modelKeys = useMemo(() => [...baseModelKeys, ...extraProductKeys('interactive-panel', baseModelKeys, overrides)], [overrides]);
+  const effectiveProducts = useMemo(() => {
+    const map: Record<string, InteractivePanelProduct> = {};
+    modelKeys.forEach((key) => {
+      map[key] = applyOverride(interactivePanelProducts[key] || ({} as InteractivePanelProduct), overrides.get(overrideMapKey('interactive-panel', key)), 'name');
+    });
+    return map;
+  }, [modelKeys, overrides]);
 
   useEffect(() => {
     if (presetModel && interactivePanelProducts[presetModel.modelKey]) setModelKey(presetModel.modelKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetModel?.nonce]);
 
-  const product = useMemo(() => {
-    const base = interactivePanelProducts[modelKey];
-    if (!base) return undefined;
-    return applyOverride(base, overrides.get(overrideMapKey('interactive-panel', modelKey)), 'name');
-  }, [modelKey, overrides]);
+  const product = effectiveProducts[modelKey];
 
   const result = useMemo<DomainResult | null>(() => {
     if (!product) return null;
@@ -76,7 +84,7 @@ export default function InteractivePanelEstimator({ active, costInputs, onResult
           <label className={styles.label} htmlFor="ifpModel">Panel model</label>
           <select id="ifpModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
             {modelKeys.map((key) => (
-              <option key={key} value={key}>{key} — {interactivePanelProducts[key].name}</option>
+              <option key={key} value={key}>{key} — {effectiveProducts[key]?.name}</option>
             ))}
           </select>
         </div>
@@ -99,14 +107,16 @@ export default function InteractivePanelEstimator({ active, costInputs, onResult
           <textarea id="ifpDetails" className={styles.formControl} rows={4} readOnly value={product.description} />
         </div>
       </div>
-      <div className={`${styles.row} ${styles.columns}`}>
-        <div className={`${styles.field} ${styles.standeePreview}`}>
-          <label className={styles.label}>Preview</label>
-          <div className={styles.imageHolder}>
-            <Image src={product.image} alt={`${modelKey} preview`} width={220} height={220} className={styles.previewImg} unoptimized />
+      {product.image && (
+        <div className={`${styles.row} ${styles.columns}`}>
+          <div className={`${styles.field} ${styles.standeePreview}`}>
+            <label className={styles.label}>Preview</label>
+            <div className={styles.imageHolder}>
+              <Image src={product.image} alt={`${modelKey} preview`} width={220} height={220} className={styles.previewImg} unoptimized />
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

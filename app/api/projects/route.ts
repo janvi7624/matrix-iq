@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { projectStore } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectPriority, ProjectRecord } from '@/lib/types';
+import { findUserById } from '@/lib/userStore';
 
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
 
@@ -39,6 +40,8 @@ export async function POST(request: NextRequest) {
   // employee's name or drop one into visibility limbo with a bogus name.
   const requestedSalesPerson = typeof body.salesPerson === 'string' && body.salesPerson.trim() ? body.salesPerson.trim() : '';
   const salesPerson = viewer.isPrivileged && requestedSalesPerson ? requestedSalesPerson : viewer.username;
+  const assignedTechnicalPersonId = typeof body.assignedTechnicalPersonId === 'string' ? body.assignedTechnicalPersonId.trim() : '';
+  const assignedTechnicalPerson = assignedTechnicalPersonId ? await findUserById(assignedTechnicalPersonId) : undefined;
   const record: ProjectRecord = {
     id: `${Date.now()}`,
     created_at: now,
@@ -59,6 +62,8 @@ export async function POST(request: NextRequest) {
     remarks: typeof body.remarks === 'string' ? body.remarks.trim() : '',
     notes: [],
     attachments: [],
+    assigned_technical_person_id: assignedTechnicalPerson ? assignedTechnicalPerson.id : '',
+    assigned_technical_person_name: assignedTechnicalPerson ? assignedTechnicalPerson.name : '',
     timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created', remarks: '' }],
     updated_at: now
   };

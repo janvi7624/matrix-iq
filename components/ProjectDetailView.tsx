@@ -19,6 +19,7 @@ import {
   UserRole
 } from '@/lib/types';
 import { FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
+import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as VISIT_STAGE_LABEL } from '@/lib/siteVisitReminder';
 import { parseFollowUpNotes } from '@/lib/followUp';
@@ -114,6 +115,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
+
+  useEffect(() => {
+    fetch('/api/technical-roster')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: TechnicalRosterEntry[]) => setTechnicalRoster(rows))
+      .catch(() => setTechnicalRoster([]));
+  }, []);
 
   async function load() {
     setStatus('Loading...');
@@ -586,6 +595,23 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Source</label>
                 <div className={calcStyles.small}>{project.source || '-'}</div>
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Assigned Technical Person</label>
+                {canEdit ? (
+                  <select
+                    className={calcStyles.formControl}
+                    value={project.assigned_technical_person_id}
+                    onChange={(e) => patchProject({ assignedTechnicalPersonId: e.target.value })}
+                  >
+                    <option value="">-- Unassigned --</option>
+                    {technicalRoster.map((person) => (
+                      <option key={person.id} value={person.id}>{person.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className={calcStyles.small}>{project.assigned_technical_person_name || 'Unassigned'}</div>
+                )}
               </div>
             </div>
             <div className={historyStyles.miniCard} style={{ marginTop: 12 }}>

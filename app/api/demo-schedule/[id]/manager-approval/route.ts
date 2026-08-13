@@ -6,11 +6,19 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DemoManagerApproval, DemoScheduleRecord } from '@/lib/types';
+import { findUserById, listUsers } from '@/lib/userStore';
+import { listDepartmentManagers } from '@/lib/departmentStore';
+import { notifyUsers } from '@/lib/notificationStore';
 
+// Strict routing (confirmed decision): only the domain manager(s) of the
+// assigned technical person's department (Department.managerIds) can
+// approve this step — admin/superadmin keep a full override. A demo whose
+// assignee has no department, or whose department has no manager set,
+// falls back to the old broad "any privileged account" rule so nothing
+// gets stuck on an unmapped/legacy record.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!viewer.isPrivileged) return NextResponse.json({ error: 'Forbidden — manager only' }, { status: 403 });
 
   const { id } = await params;
   const body = await request.json().catch(() => null);
@@ -26,16 +34,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'This request is not awaiting manager approval' }, { status: 400 });
     }
 
+    const isOverride = viewer.role === 'admin' || viewer.role === 'superadmin';
+    const assignedPerson = existing.assigned_technical_person_id ? await findUserById(existing.assigned_technical_person_id) : undefined;
+    const domainManagers = assignedPerson?.department ? (await listDepartmentManagers())[assignedPerson.department] || [] : [];
+    if (domainManagers.length) {
+      const isDomainManager = domainManagers.some((m) => m.username === viewer.username);
+      if (!isDomainManager && !isOverride) {
+        return NextResponse.json({ error: `Forbidden — only the ${assignedPerson!.department} manager can approve this request` }, { status: 403 });
+      }
+    } else if (!viewer.isPrivileged) {
+      return NextResponse.json({ error: 'Forbidden — manager only' }, { status: 403 });
+    }
+
+    const reassignedEngineerId = typeof body.reassignedEngineerId === 'string' ? body.reassignedEngineerId.trim() : '';
+    const reassignedEngineer = reassignedEngineerId ? await findUserById(reassignedEngineerId) : undefined;
+
     const managerApproval: DemoManagerApproval = {
       decision: body.decision,
       remarks: typeof body.remarks === 'string' ? body.remarks.trim() : '',
-      reassigned_engineer: typeof body.reassignedEngineer === 'string' ? body.reassignedEngineer.trim() : '',
+      reassigned_engineer: reassignedEngineer ? reassignedEngineer.name : '',
       decided_by: viewer.username,
       decided_at: new Date().toISOString()
     };
 
     const patch: Partial<DemoScheduleRecord> = { manager_approval: managerApproval };
-    if (managerApproval.reassigned_engineer) patch.assigned_technical_person = managerApproval.reassigned_engineer;
+    if (reassignedEngineer) {
+      patch.assigned_technical_person = reassignedEngineer.name;
+      patch.assigned_technical_person_id = reassignedEngineer.id;
+    }
     if (typeof body.newScheduledAt === 'string' && body.newScheduledAt) patch.scheduled_at = body.newScheduledAt;
 
     if (body.decision === 'approved') patch.status = 'pending_backoffice';
@@ -43,6 +69,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // 'modified' stays at pending_manager — schedule/engineer changes above apply, a follow-up call approves.
 
     const updated = await demoScheduleStore.update(id, patch);
+
+    if (body.decision === 'approved') {
+      const users = await listUsers();
+      const backofficeUsernames = users
+        .filter((u) => u.status === 'active' && (u.role === 'backoffice' || u.department === 'Back Office'))
+        .map((u) => u.username);
+      if (backofficeUsernames.length) {
+        await notifyUsers(backofficeUsernames, {
+          title: 'Demo request ready for Back Office',
+          body: `${existing.client_name}${existing.company ? ` (${existing.company})` : ''} — approved by ${viewer.username}`,
+          type: 'demo_backoffice_ready',
+          entityType: 'demo',
+          entityId: id
+        });
+      }
+    }
 
     if (existing.project_id) {
       await appendProjectTimeline(existing.project_id, {

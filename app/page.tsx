@@ -12,5 +12,5 @@ export default async function Home() {
   const user = await findUserById(session.sub);
   if (!user) redirect('/login');
 
-  return <Dashboard currentUser={{ name: user.name, role: user.role, department: user.department }} />;
+  return <Dashboard currentUser={{ id: user.id, username: user.username, name: user.name, role: user.role, department: user.department }} />;
 }

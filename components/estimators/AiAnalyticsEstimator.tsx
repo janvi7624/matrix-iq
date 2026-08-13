@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AI_SLAB_LABELS, aiAnalytics, getAiSlabIndex } from '@/lib/data/aiAnalytics';
-import { AI_SALES_GUIDELINES, AI_SETUP_COST_BY_SLAB, AI_WORKED_EXAMPLE, aiBundles, resolveBundleFeatureNames } from '@/lib/data/aiBundles';
+import { AI_SLAB_LABELS, aiAnalytics, AiAnalyticsFeature, getAiSlabIndex } from '@/lib/data/aiAnalytics';
+import { AI_SALES_GUIDELINES, AI_SETUP_COST_BY_SLAB, AI_WORKED_EXAMPLE, aiBundles, AiBundle, resolveBundleFeatureNames } from '@/lib/data/aiBundles';
 import { formatMoney, slugify } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DomainResult, LineItem } from '@/lib/types';
-import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
+import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 interface AiAnalyticsEstimatorProps {
@@ -56,14 +56,22 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
     if (!canEditPricing && pricingMode === 'custom-bundle') setPricingMode('ala-carte');
   }, [canEditPricing, pricingMode]);
 
-  const effectiveAnalytics = useMemo(
-    () => aiAnalytics.map((f) => applyOverride(f, overrides.get(overrideMapKey('ai-analytics', f.name)), null)),
-    [overrides]
-  );
-  const effectiveBundles = useMemo(
-    () => aiBundles.map((b) => applyOverride(b, overrides.get(overrideMapKey('ai-bundles', b.name)), 'name')),
-    [overrides]
-  );
+  // Admin-added features/bundles (Product Catalog) have no entry in the
+  // hardcoded aiAnalytics/aiBundles arrays — append a synthetic entry built
+  // entirely from the override's `fields` (which, for a brand-new product,
+  // carries the complete record, not a partial patch).
+  const effectiveAnalytics = useMemo(() => {
+    const base = aiAnalytics.map((f) => applyOverride(f, overrides.get(overrideMapKey('ai-analytics', f.name)), null));
+    const extraNames = extraProductKeys('ai-analytics', aiAnalytics.map((f) => f.name), overrides);
+    const extra = extraNames.map((name) => applyOverride({} as AiAnalyticsFeature, overrides.get(overrideMapKey('ai-analytics', name)), null));
+    return [...base, ...extra];
+  }, [overrides]);
+  const effectiveBundles = useMemo(() => {
+    const base = aiBundles.map((b) => applyOverride(b, overrides.get(overrideMapKey('ai-bundles', b.name)), 'name'));
+    const extraNames = extraProductKeys('ai-bundles', aiBundles.map((b) => b.name), overrides);
+    const extra = extraNames.map((name) => applyOverride({} as AiBundle, overrides.get(overrideMapKey('ai-bundles', name)), 'name'));
+    return [...base, ...extra];
+  }, [overrides]);
 
   const categories = useMemo(() => {
     const seen: string[] = [];

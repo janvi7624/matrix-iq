@@ -11,6 +11,7 @@ module.exports = (sequelize, DataTypes) => {
     products_demonstrated: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     priority: { type: DataTypes.ENUM('low', 'medium', 'high'), allowNull: false, defaultValue: 'medium' },
     assigned_technical_person: { type: DataTypes.STRING },
+    assigned_technical_person_id: { type: DataTypes.UUID },
     technical_members: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     scheduled_at: { type: DataTypes.DATE },
     assigned_rep: { type: DataTypes.STRING },
@@ -45,6 +46,7 @@ module.exports = (sequelize, DataTypes) => {
 
   DemoSchedule.associate = (models) => {
     DemoSchedule.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
+    DemoSchedule.belongsTo(models.User, { foreignKey: 'assigned_technical_person_id', as: 'assignedTechnicalPersonRef' });
     DemoSchedule.belongsTo(models.Project, { foreignKey: 'project_id', as: 'project' });
     DemoSchedule.belongsTo(models.Quotation, { foreignKey: 'quotation_id', as: 'quotation' });
     DemoSchedule.hasMany(models.DemoProductLine, { foreignKey: 'demo_schedule_id', as: 'productLines' });

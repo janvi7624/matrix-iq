@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { MarketingRequestPriority, MarketingRequestRecord, MarketingRequestType, ProjectRecord } from '@/lib/types';
 import { MARKETING_PRIORITY_META, MARKETING_REQUEST_TYPE_LABEL } from '@/lib/marketingRequestHelpers';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
+import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -221,6 +222,7 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
               <input
                 type="date"
                 className={calcStyles.formControl}
+                min={todayDateInputValue()}
                 value={form.neededByDate}
                 onChange={(e) => setForm((f) => ({ ...f, neededByDate: e.target.value }))}
               />

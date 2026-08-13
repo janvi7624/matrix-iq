@@ -17,10 +17,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const existing = await findDepartmentById(id);
     if (!existing) return NextResponse.json({ error: 'Department not found' }, { status: 404 });
 
-    const patch: { name?: string; description?: string; status?: 'active' | 'inactive' } = {};
+    const patch: { name?: string; description?: string; status?: 'active' | 'inactive'; managerIds?: string[] } = {};
     if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim();
     if (typeof body.description === 'string') patch.description = body.description.trim();
     if (body.status === 'active' || body.status === 'inactive') patch.status = body.status;
+    if (Array.isArray(body.managerIds) && body.managerIds.every((x: unknown) => typeof x === 'string')) patch.managerIds = body.managerIds;
 
     const updated = await updateDepartment(id, patch, session.username);
     return NextResponse.json(updated);

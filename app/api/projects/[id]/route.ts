@@ -12,6 +12,8 @@ import { searchQuotations } from '@/lib/quotationStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES } from '@/lib/types';
+import { findUserById } from '@/lib/userStore';
+import { notifyUsers } from '@/lib/notificationStore';
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -114,6 +116,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.nextFollowUpDate === 'string') patch.next_follow_up_date = body.nextFollowUpDate;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
 
+    let newlyAssignedPerson: { id: string; username: string; name: string } | undefined;
+    if (typeof body.assignedTechnicalPersonId === 'string') {
+      const nextId = body.assignedTechnicalPersonId.trim();
+      if (nextId !== existing.assigned_technical_person_id) {
+        patch.assigned_technical_person_id = nextId;
+        if (nextId) newlyAssignedPerson = await findUserById(nextId);
+      }
+    }
+
     let updated;
     const stage: ProjectStage | undefined = PROJECT_STAGES.includes(body.stage) ? body.stage : undefined;
     if (stage && stage !== existing.stage) {
@@ -123,6 +134,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       updated = await projectStore.update(id, patch);
     } else {
       updated = existing;
+    }
+
+    if (newlyAssignedPerson) {
+      await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label: `Assigned technical person: ${newlyAssignedPerson.name}` });
+      await notifyUsers([newlyAssignedPerson.username], {
+        title: 'A project was assigned to you',
+        body: `${existing.client_name || existing.company || 'Project'} — assigned as the technical lead`,
+        type: 'project_assigned',
+        entityType: 'project',
+        entityId: id
+      });
     }
 
     return NextResponse.json(updated);

@@ -24,7 +24,8 @@ module.exports = (sequelize, DataTypes) => {
     next_follow_up_date: { type: DataTypes.DATEONLY },
     remarks: { type: DataTypes.TEXT },
     attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
-    created_by: { type: DataTypes.UUID }
+    created_by: { type: DataTypes.UUID },
+    assigned_technical_person_id: { type: DataTypes.UUID }
   }, {
     tableName: 'projects',
     underscored: true,
@@ -33,6 +34,7 @@ module.exports = (sequelize, DataTypes) => {
 
   Project.associate = (models) => {
     Project.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
+    Project.belongsTo(models.User, { foreignKey: 'assigned_technical_person_id', as: 'assignedTechnicalPersonRef' });
     Project.hasMany(models.ProjectNote, { foreignKey: 'project_id', as: 'notes' });
     Project.hasMany(models.ProjectTimelineEvent, { foreignKey: 'project_id', as: 'timeline' });
     Project.hasMany(models.Lead, { foreignKey: 'project_id', as: 'leads' });

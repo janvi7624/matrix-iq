@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { LED_INSTALLATION_RATE_PER_SQFT, ledModels } from '@/lib/data/ledModels';
+import { LED_INSTALLATION_RATE_PER_SQFT, ledModels, LedModel } from '@/lib/data/ledModels';
 import {
   LED_ASPECT_PRESETS,
   LedRedundancyMode,
@@ -18,7 +18,7 @@ import {
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
-import { applyOverride, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
+import { applyOverride, extraProductKeys, overrideMapKey, OverrideMap } from '@/lib/catalogOverrides';
 import styles from '../calculator.module.css';
 
 export interface LedModelPreset {
@@ -54,13 +54,26 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
   const [aspectPreset, setAspectPreset] = useState('16:9');
   const [aspectCustom, setAspectCustom] = useState('16:9');
 
+  // Admin-added products (Product Catalog) have no entry in the hardcoded
+  // ledModels file — union their keys in and merge overrides on top of
+  // whatever base exists (or {} for a brand-new product).
+  const modelKeys = useMemo(() => [...Object.keys(ledModels), ...extraProductKeys('led', Object.keys(ledModels), overrides)], [overrides]);
+  const effectiveModels = useMemo(() => {
+    const map: Record<string, LedModel> = {};
+    modelKeys.forEach((key) => {
+      map[key] = applyOverride(ledModels[key] || ({} as LedModel), overrides.get(overrideMapKey('led', key)), 'details');
+    });
+    return map;
+  }, [modelKeys, overrides]);
+
   useEffect(() => {
     const categoriesToShow = category === 'indoor' ? ['indoor', 'cob'] : [category];
-    if (!categoriesToShow.includes(ledModels[modelKey]?.category)) {
-      setModelKey(firstModelForCategory(category));
+    if (!categoriesToShow.includes(effectiveModels[modelKey]?.category)) {
+      const match = modelKeys.find((key) => categoriesToShow.includes(effectiveModels[key]?.category));
+      setModelKey(match || '');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category]);
+  }, [category, effectiveModels, modelKeys]);
 
   useEffect(() => {
     if (!presetModel || !ledModels[presetModel.modelKey]) return;
@@ -72,11 +85,7 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetModel?.nonce]);
 
-  const model = useMemo(() => {
-    const base = ledModels[modelKey];
-    if (!base) return undefined;
-    return applyOverride(base, overrides.get(overrideMapKey('led', modelKey)), 'details');
-  }, [modelKey, overrides]);
+  const model = effectiveModels[modelKey];
   const dimensions = { height, width, unit };
 
   // Preserve physical size when the unit changes — convert the entered
@@ -261,8 +270,8 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledModel">LED model</label>
           <select id="ledModel" className={styles.formControl} value={modelKey} onChange={(e) => setModelKey(e.target.value)}>
-            {Object.keys(ledModels)
-              .filter((key) => (category === 'indoor' ? ['indoor', 'cob'] : [category]).includes(ledModels[key].category))
+            {modelKeys
+              .filter((key) => (category === 'indoor' ? ['indoor', 'cob'] : [category]).includes(effectiveModels[key]?.category))
               .map((key) => (
                 <option key={key} value={key}>{key}</option>
               ))}

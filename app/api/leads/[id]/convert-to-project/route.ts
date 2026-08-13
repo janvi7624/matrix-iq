@@ -55,6 +55,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       remarks: noteParts.join(' | '),
       notes: [],
       attachments: [],
+      assigned_technical_person_id: '',
+      assigned_technical_person_name: '',
       timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created from a captured lead', remarks: noteParts.join(' | ') }],
       updated_at: now
     };
