@@ -23,10 +23,6 @@ type InfraCostMode = 'none' | 'hardware' | 'cloud' | 'client';
 const CUSTOM_BUNDLE_MIN_FEATURES = 3;
 const CUSTOM_BUNDLE_DISCOUNT_PERCENT = 40;
 
-function isDetectionFeature(name: string): boolean {
-  return name.includes('Detection');
-}
-
 export default function AiAnalyticsEstimator({ active, onResultChange, canEditPricing, overrides }: AiAnalyticsEstimatorProps) {
   const [cameraCount, setCameraCount] = useState(25);
   const [oneTimeCost, setOneTimeCost] = useState(0);
@@ -421,7 +417,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
               return effectiveAnalytics.map((feature, index) => {
                 const showHeading = feature.category !== lastCategory;
                 lastCategory = feature.category;
-                const detectionEditable = canEditPricing && isDetectionFeature(feature.name);
+                const priceEditable = canEditPricing;
                 const computedRate = feature.tiers[slabIndex] / billingDivisor;
                 const currentRate = featureRate(feature, index);
                 return (
@@ -443,7 +439,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
                         <div className={styles.aiFeatureName}>{feature.name}</div>
                         <div className={styles.aiFeatureDesc}>{feature.desc}</div>
                       </div>
-                      {detectionEditable ? (
+                      {priceEditable ? (
                         <div className={styles.aiFeaturePrice} style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={(e) => e.preventDefault()}>
                           <input
                             type="number"
