@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const records = await projectStore.list(viewer.username, viewer.isPrivileged);
+    const records = await projectStore.listLight(viewer.username, viewer.isPrivileged);
     return NextResponse.json(records);
   } catch (error) {
     return apiErrorResponse(error);

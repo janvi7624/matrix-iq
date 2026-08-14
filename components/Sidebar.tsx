@@ -9,7 +9,7 @@ import { BRAND } from '@/lib/branding';
 import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
-import { iconForSection } from '@/lib/sectionIcons';
+import { sectionIconFor, resolveModuleIcon, QUICK_ACTION_ICON, CHROME_ICON } from '@/lib/icons';
 import styles from './sidebar.module.css';
 
 interface Viewer {
@@ -24,7 +24,6 @@ const ROLE_LABEL: Record<UserRole, string> = { superadmin: 'Super Admin', admin:
 // matched by module key so it stays role-authorized "for free" (only shows
 // entries the /api/modules response actually contains for this viewer).
 const QUICK_ACTION_KEYS = ['quotation', 'site-visits', 'demo-schedule', 'projects'];
-const QUICK_ACTION_ICONS: Record<string, string> = { quotation: '🧾', 'site-visits': '📍', 'demo-schedule': '🖥️', projects: '📁' };
 
 // Data-driven from the same /api/modules endpoint the Dashboard tile grid
 // uses (lib/moduleConfigStore.ts's listVisibleModules) — already filtered
@@ -133,7 +132,7 @@ export default function Sidebar() {
   return (
     <>
       <button type="button" className={styles.toggleBtn} onClick={() => setOpen((v) => !v)} aria-label="Toggle navigation menu">
-        {open ? '✕' : '☰'}
+        {open ? <CHROME_ICON.menuClose size={18} /> : <CHROME_ICON.menuOpen size={18} />}
       </button>
       {open && <div className={styles.overlay} onClick={() => setOpen(false)} />}
       <aside className={`${styles.sidebar} ${open ? styles.sidebarOpen : ''} ${collapsed ? styles.sidebarCollapsed : ''}`}>
@@ -151,50 +150,59 @@ export default function Sidebar() {
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          ‹
+          <CHROME_ICON.collapseLeft size={14} />
         </button>
 
         <nav className={styles.nav}>
           <Link href="/" className={`${styles.link} ${isActive('/') ? styles.linkActive : ''}`} data-tooltip="Dashboard">
-            <span className={styles.linkIcon}>🏠</span>
+            <span className={styles.linkIcon}><CHROME_ICON.dashboard size={16} /></span>
             <span className={styles.linkLabel}>Dashboard</span>
           </Link>
-          {sections.map((section) => (
-            <div key={section.label}>
-              <button
-                type="button"
-                className={styles.sectionLabel}
-                aria-expanded={isExpanded(section.label)}
-                onClick={() => toggle(section.label)}
-              >
-                <span className={styles.sectionLabelMain}>
-                  <span className={styles.sectionIcon}>{iconForSection(section.label)}</span>
-                  <span className={styles.sectionLabelText}>{section.label}</span>
-                </span>
-                <span className={styles.sectionChevron}>›</span>
-              </button>
-              {(collapsed || isExpanded(section.label)) &&
-                section.tiles.map((tile) => (
-                  <Link key={tile.id} href={tile.href} className={`${styles.link} ${isActive(tile.href) ? styles.linkActive : ''}`} data-tooltip={tile.label}>
-                    <span className={styles.linkIcon}>{tile.icon}</span>
-                    <span className={styles.linkLabel}>{tile.label}</span>
-                    {!!badges[tile.key] && <span className={styles.badge}>{badges[tile.key]}</span>}
-                  </Link>
-                ))}
-            </div>
-          ))}
+          {sections.map((section) => {
+            const SectionIcon = sectionIconFor(section.label);
+            return (
+              <div key={section.label}>
+                <button
+                  type="button"
+                  className={styles.sectionLabel}
+                  aria-expanded={isExpanded(section.label)}
+                  onClick={() => toggle(section.label)}
+                >
+                  <span className={styles.sectionLabelMain}>
+                    <span className={styles.sectionIcon}><SectionIcon size={13} /></span>
+                    <span className={styles.sectionLabelText}>{section.label}</span>
+                  </span>
+                  <span className={styles.sectionChevron}>›</span>
+                </button>
+                {(collapsed || isExpanded(section.label)) &&
+                  section.tiles.map((tile) => {
+                    const TileIcon = resolveModuleIcon(tile.icon);
+                    return (
+                      <Link key={tile.id} href={tile.href} className={`${styles.link} ${isActive(tile.href) ? styles.linkActive : ''}`} data-tooltip={tile.label}>
+                        <span className={styles.linkIcon}>{TileIcon ? <TileIcon size={16} /> : tile.icon}</span>
+                        <span className={styles.linkLabel}>{tile.label}</span>
+                        {!!badges[tile.key] && <span className={styles.badge}>{badges[tile.key]}</span>}
+                      </Link>
+                    );
+                  })}
+              </div>
+            );
+          })}
         </nav>
 
         {quickActions.length > 0 && (
           <div className={styles.quickActions}>
             <div className={styles.quickActionsLabel}>Quick Actions</div>
             <div className={styles.quickActionsGrid}>
-              {quickActions.map((m) => (
-                <Link key={m.id} href={m.href} className={styles.quickActionBtn}>
-                  <span className={styles.quickActionIcon}>{QUICK_ACTION_ICONS[m.key] || m.icon}</span>
-                  {m.label}
-                </Link>
-              ))}
+              {quickActions.map((m) => {
+                const QuickIcon = QUICK_ACTION_ICON[m.key] || resolveModuleIcon(m.icon);
+                return (
+                  <Link key={m.id} href={m.href} className={styles.quickActionBtn}>
+                    <span className={styles.quickActionIcon}>{QuickIcon ? <QuickIcon size={15} /> : m.icon}</span>
+                    {m.label}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}
@@ -205,7 +213,7 @@ export default function Sidebar() {
             <div className={styles.profileName}>{viewer?.name || '…'}</div>
             <div className={styles.profileMeta}>{viewer ? ROLE_LABEL[viewer.role] : ''}{viewer?.department ? ` · ${viewer.department}` : ''}</div>
           </div>
-          <button type="button" className={styles.logoutBtn} onClick={handleLogout} title="Log out" aria-label="Log out">⏻</button>
+          <button type="button" className={styles.logoutBtn} onClick={handleLogout} title="Log out" aria-label="Log out"><CHROME_ICON.logout size={15} /></button>
         </div>
       </aside>
     </>

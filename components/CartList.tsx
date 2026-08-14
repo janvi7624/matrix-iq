@@ -46,7 +46,7 @@ export default function CartList({ items, onAdd, onRemove, onChangeRemark, hasAc
           onClick={onAdd}
           style={{ width: '100%' }}
         >
-          {hasActiveProduct ? '✅ Add This Product to the Quote' : 'Add This Product to the Quote'}
+          Add This Product to the Quote
         </button>
         <div className={styles.small}>
           {hasActiveProduct

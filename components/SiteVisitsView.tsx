@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { MapPin } from 'lucide-react';
 import { SiteVisitRecord, UserRole, VisitStage } from '@/lib/types';
 import { TECHNICAL_TEAM, SALES_TEAM } from '@/lib/teamMembers';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
@@ -417,10 +418,10 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
                 <tr>
                   <td colSpan={9}>
                     <EmptyState
-                      icon="📍"
+                      icon={MapPin}
                       title={visits.length === 0 ? 'No site visits recorded yet' : 'No site visits match your filters'}
                       message={visits.length === 0 ? 'Register a visit to start tracking it here.' : 'Try clearing a filter.'}
-                      action={visits.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('register')}>📍 Register a Visit</button> : undefined}
+                      action={visits.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('register')}>Register a Visit</button> : undefined}
                     />
                   </td>
                 </tr>

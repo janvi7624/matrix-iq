@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const [projects, quotations, leads, siteVisits] = await Promise.all([
-      projectStore.list(viewer.username, true),
+      projectStore.listLight(viewer.username, true),
       searchQuotations(query),
       leadStore.list(viewer.username, true),
       siteVisitStore.list(viewer.username, true)

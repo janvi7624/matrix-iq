@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { DomainKey, LeadPriority, LeadRecord, UserRole } from '@/lib/types';
 import { LEAD_DOMAIN_TILES, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
+import { AlertTriangle, Flame, Contact } from 'lucide-react';
 import AppShell from './AppShell';
 import LeadCaptureWizard from './LeadCaptureWizard';
 import historyStyles from './quotationHistory.module.css';
@@ -34,7 +35,8 @@ function formatDateTime(iso: string): string {
 function PriorityBadge({ priority }: { priority: LeadPriority }) {
   if (!priority) return <span style={{ color: '#9ca3af', fontSize: 12 }}>-</span>;
   const cls = priority === 'hot' ? historyStyles.priorityBadgeHot : priority === 'warm' ? historyStyles.priorityBadgeWarm : historyStyles.priorityBadgeCool;
-  return <span className={`${historyStyles.priorityBadge} ${cls}`}>{LEAD_PRIORITY_META[priority].icon} {priority.toUpperCase()}</span>;
+  const Icon = LEAD_PRIORITY_META[priority].icon;
+  return <span className={`${historyStyles.priorityBadge} ${cls}`}><Icon size={12} /> {priority.toUpperCase()}</span>;
 }
 
 function LeadsViewContent({ currentUser }: LeadsViewProps) {
@@ -189,7 +191,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               <div className={calcStyles.small}>Captured Today</div>
             </div>
             <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#b91c1c' }}>{stats.hot} 🔥</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{stats.hot} <Flame size={20} /></div>
               <div className={calcStyles.small}>Hot Leads</div>
             </div>
             <button
@@ -198,7 +200,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               style={{ flex: 1, minWidth: 120, textAlign: 'center', cursor: 'pointer', border: unattendedOnly ? '1px solid #dc2626' : undefined }}
               onClick={() => { setMode('list'); setUnattendedOnly(true); }}
             >
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#b91c1c' }}>🚨 {stats.unattended}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><AlertTriangle size={20} /> {stats.unattended}</div>
               <div className={calcStyles.small}>Unattended</div>
             </button>
           </div>
@@ -206,14 +208,14 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
         <div className={historyStyles.modeToggle}>
           <button type="button" className={`${historyStyles.modeToggleBtn} ${mode === 'capture' ? historyStyles.modeToggleBtnActive : ''}`} onClick={() => setMode('capture')}>
-            📸 Capture Lead
+            Capture Lead
           </button>
           <button
             type="button"
             className={`${historyStyles.modeToggleBtn} ${mode === 'list' ? historyStyles.modeToggleBtnActive : ''}`}
             onClick={showAllLeads}
           >
-            📋 All Leads
+            All Leads
           </button>
         </div>
 
@@ -227,13 +229,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               <input type="text" placeholder="Search name, company, city, email, mobile..." value={q} onChange={(e) => setQ(e.target.value)} />
               <select className={calcStyles.formControl} style={{ width: 'auto' }} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as LeadPriority | '')}>
                 <option value="">All priorities</option>
-                <option value="hot">🔥 Hot</option>
-                <option value="warm">♨️ Warm</option>
-                <option value="cool">🧊 Cold</option>
+                <option value="hot">Hot</option>
+                <option value="warm">Warm</option>
+                <option value="cool">Cold</option>
               </select>
               <select className={calcStyles.formControl} style={{ width: 'auto' }} value={interestFilter} onChange={(e) => setInterestFilter(e.target.value as DomainKey | '')}>
                 <option value="">All interests</option>
-                {LEAD_DOMAIN_TILES.map((t) => <option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
+                {LEAD_DOMAIN_TILES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
               <select className={calcStyles.formControl} style={{ width: 'auto' }} value={sortBy} onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}>
                 <option value="newest">Newest first</option>
@@ -246,7 +248,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 style={unattendedOnly ? { color: '#b91c1c', borderColor: '#dc2626' } : undefined}
                 onClick={() => setUnattendedOnly((v) => !v)}
               >
-                🚨 Unattended only
+                Unattended only
               </button>
               <button type="button" className={historyStyles.button} onClick={loadLeads}>Refresh</button>
               <a className={historyStyles.button} href="/api/leads/export.csv">Export CSV</a>
@@ -283,7 +285,17 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                       <td>{l.designation || '-'}</td>
                       <td className={historyStyles.num}>{l.mobile || '-'}</td>
                       <td>{l.email || '-'}</td>
-                      <td>{l.interests.map((d) => LEAD_DOMAIN_TILES.find((t) => t.key === d)?.icon || d).join(' ') || '-'}</td>
+                      <td>
+                        {l.interests.length > 0 ? (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                            {l.interests.map((d) => {
+                              const tile = LEAD_DOMAIN_TILES.find((t) => t.key === d);
+                              const Icon = tile?.icon;
+                              return Icon ? <Icon key={d} size={14} /> : <span key={d}>{d}</span>;
+                            })}
+                          </div>
+                        ) : '-'}
+                      </td>
                       <td><PriorityBadge priority={l.priority} /></td>
                       <td>{l.created_by}</td>
                       <td>{formatDateTime(l.created_at)}</td>
@@ -302,10 +314,10 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                   {pageRows.length === 0 && (
                     <tr><td colSpan={10}>
                       <EmptyState
-                        icon="📇"
+                        icon={Contact}
                         title={leads.length === 0 ? 'No leads captured yet' : 'No leads match your filters'}
                         message={leads.length === 0 ? 'Scan a business card to capture your first lead.' : 'Try clearing a filter or search term.'}
-                        action={leads.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('capture')}>📸 Capture a Lead</button> : undefined}
+                        action={leads.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('capture')}>Capture a Lead</button> : undefined}
                       />
                     </td></tr>
                   )}

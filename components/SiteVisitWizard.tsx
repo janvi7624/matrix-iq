@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { Building2, MapPin, Package, Users, FileText, ClipboardList, CheckCircle2, Search, Clock, Monitor } from 'lucide-react';
 import { DomainKey, ProjectRecord, QuotationRecord, DemoScheduleRecord, SiteVisitRecord, VisitStage } from '@/lib/types';
 import { TECHNICAL_TEAM, SALES_TEAM } from '@/lib/teamMembers';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
@@ -56,12 +57,12 @@ function emptyForm(prefillProjectId: string): SiteVisitWizardForm {
 }
 
 const STEPS = [
-  { icon: '🏢', label: 'Client Information' },
-  { icon: '📍', label: 'Visit Information' },
-  { icon: '📦', label: 'Products Interested' },
-  { icon: '👥', label: 'Team Members' },
-  { icon: '📝', label: 'Notes' },
-  { icon: '✅', label: 'Review & Submit' }
+  { icon: Building2, label: 'Client Information' },
+  { icon: MapPin, label: 'Visit Information' },
+  { icon: Package, label: 'Products Interested' },
+  { icon: Users, label: 'Team Members' },
+  { icon: FileText, label: 'Notes' },
+  { icon: CheckCircle2, label: 'Review & Submit' }
 ];
 
 function Required() {
@@ -224,21 +225,21 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
     return (
       <div className={historyStyles.wizardCard}>
         <div className={historyStyles.successPanel}>
-          <div className={historyStyles.successIcon}>✅</div>
+          <div className={historyStyles.successIcon}><CheckCircle2 size={48} /></div>
           <h2 className={calcStyles.h2} style={{ marginTop: 0, borderLeft: 'none', paddingLeft: 0 }}>Site visit saved!</h2>
           <div className={calcStyles.small}>
             {successRecord.company_name} — {successRecord.project_id ? `linked to project ${successRecord.project_id}` : 'no project linked'}
           </div>
           <div className={historyStyles.successActions}>
             <Link className={historyStyles.bigBtn} href={`/quotation${successRecord.project_id ? `?projectId=${successRecord.project_id}` : ''}`}>
-              📄 Create Quotation
+              <FileText size={16} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />Create Quotation
             </Link>
             <Link className={historyStyles.bigBtn} href={`/demo-schedule${successRecord.project_id ? `?projectId=${successRecord.project_id}` : ''}`}>
-              🎬 Schedule Demo
+              <Monitor size={16} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />Schedule Demo
             </Link>
             {successRecord.project_id && (
               <Link className={historyStyles.bigBtnGhost} href={`/projects/${successRecord.project_id}`}>
-                🕘 View Timeline
+                <Clock size={16} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />View Timeline
               </Link>
             )}
           </div>
@@ -262,7 +263,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
             className={`${historyStyles.wizardStep} ${i === step ? historyStyles.wizardStepActive : ''} ${i < step ? historyStyles.wizardStepDone : ''}`}
             onClick={() => setStep(i)}
           >
-            <span className={historyStyles.wizardStepCircle}>{i < step ? '✓' : s.icon}</span>
+            <span className={historyStyles.wizardStepCircle}>{i < step ? '✓' : <s.icon size={18} />}</span>
             <span className={historyStyles.wizardStepLabel}>{i + 1}. {s.label}</span>
           </button>
         ))}
@@ -271,7 +272,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
       <div className={historyStyles.wizardCard}>
         {step === 0 && (
           <>
-            <h2 className={historyStyles.wizardCardTitle}><span>🏢</span> Client Information</h2>
+            <h2 className={historyStyles.wizardCardTitle}><Building2 size={20} /> Client Information</h2>
             <div className={historyStyles.wizardCardHint}>Start typing a company name — if they've visited before, we'll suggest their saved details.</div>
             {errors.length > 0 && <div className={historyStyles.loginError}>{errors[0]}</div>}
             {autofillNotice && <div className={historyStyles.autofillNotice}>{autofillNotice}</div>}
@@ -288,7 +289,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
                 <div className={historyStyles.suggestionBox}>
                   {suggestions.map((c) => (
                     <button key={c} type="button" className={historyStyles.suggestionItem} onClick={() => applySuggestion(c)}>
-                      🔎 {c} — use this existing client
+                      <Search size={14} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />{c} — use this existing client
                     </button>
                   ))}
                 </div>
@@ -296,7 +297,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
             </div>
             {historySummary && (
               <div className={historyStyles.historyCard}>
-                📋 {historySummary.visitCount} previous visit{historySummary.visitCount === 1 ? '' : 's'} on file.
+                <ClipboardList size={14} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />{historySummary.visitCount} previous visit{historySummary.visitCount === 1 ? '' : 's'} on file.
                 {historySummary.lastQuotation && ` Last quotation: ${historySummary.lastQuotation.quotation_number} (₹${historySummary.lastQuotation.total.toLocaleString('en-IN')}).`}
                 {historySummary.lastDemo && ` Previous demo: ${new Date(historySummary.lastDemo.scheduled_at).toLocaleDateString('en-IN')} (${historySummary.lastDemo.status}).`}
               </div>
@@ -320,7 +321,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
 
         {step === 1 && (
           <>
-            <h2 className={historyStyles.wizardCardTitle}><span>📍</span> Visit Information</h2>
+            <h2 className={historyStyles.wizardCardTitle}><MapPin size={20} /> Visit Information</h2>
             <div className={historyStyles.wizardCardHint}>When and where did (or will) this visit happen?</div>
             {errors.length > 0 && <div className={historyStyles.loginError}>{errors[0]}</div>}
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -342,7 +343,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
 
         {step === 2 && (
           <>
-            <h2 className={historyStyles.wizardCardTitle}><span>📦</span> Products Interested</h2>
+            <h2 className={historyStyles.wizardCardTitle}><Package size={20} /> Products Interested</h2>
             <div className={historyStyles.wizardCardHint}>Pick a category, then tick the specific products the client is interested in.</div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Category</label>
@@ -380,7 +381,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
 
         {step === 3 && (
           <>
-            <h2 className={historyStyles.wizardCardTitle}><span>👥</span> Team Members</h2>
+            <h2 className={historyStyles.wizardCardTitle}><Users size={20} /> Team Members</h2>
             <div className={historyStyles.wizardCardHint}>Who's attending or involved in this visit?</div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <TeamCheckboxes label="Technical team" options={TECHNICAL_TEAM} selected={form.teamTechnical} onChange={(next) => setForm((f) => ({ ...f, teamTechnical: next }))} />
@@ -391,7 +392,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
 
         {step === 4 && (
           <>
-            <h2 className={historyStyles.wizardCardTitle}><span>📝</span> Notes</h2>
+            <h2 className={historyStyles.wizardCardTitle}><FileText size={20} /> Notes</h2>
             <div className={historyStyles.wizardCardHint}>What's the plan, and how urgent is this client?</div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
@@ -423,7 +424,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
 
         {step === 5 && (
           <>
-            <h2 className={historyStyles.wizardCardTitle}><span>✅</span> Review &amp; Submit</h2>
+            <h2 className={historyStyles.wizardCardTitle}><CheckCircle2 size={20} /> Review &amp; Submit</h2>
             <div className={historyStyles.wizardCardHint}>Double-check the details below, then submit.</div>
             <div className={historyStyles.reviewGrid}>
               <div className={historyStyles.reviewRow}><strong>Company:</strong> {form.companyName || '-'}</div>
@@ -455,7 +456,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
             </button>
           ) : (
             <button type="button" className={historyStyles.bigBtn} disabled={creating} onClick={handleSubmit}>
-              {creating ? 'Saving…' : '✅ Submit Site Visit'}
+              {creating ? 'Saving…' : 'Submit Site Visit'}
             </button>
           )}
         </div>

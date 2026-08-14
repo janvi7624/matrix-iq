@@ -62,6 +62,13 @@ const assignedTechnicalPersonInclude = { model: db.User, as: 'assignedTechnicalP
 const notesInclude = { model: db.ProjectNote, as: 'notes' };
 const timelineInclude = { model: db.ProjectTimelineEvent, as: 'timeline' };
 const allIncludes = [creatorInclude, assignedTechnicalPersonInclude, notesInclude, timelineInclude];
+// List views (Dashboard, Projects table, KPIs, search) only ever read the
+// plain project fields — never .notes/.timeline, which for a project with a
+// long history can be the bulk of the row's join cost. toRecord() already
+// defaults both to [] when the include isn't present, so this is a drop-in
+// lighter read for anything that isn't rendering a single project's full
+// history (see findProjectById / performance-review, which still need them).
+const lightIncludes = [creatorInclude, assignedTechnicalPersonInclude];
 
 function toRecord(row: Model): ProjectRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -88,13 +95,24 @@ async function readAll(): Promise<ProjectRecord[]> {
   return rows.map(toRecord);
 }
 
-async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promise<ProjectRecord[]> {
+async function resolveOwnerWhere(viewerUsername: string, viewerIsPrivileged: boolean): Promise<Record<string, unknown>> {
   const where: Record<string, unknown> = {};
   if (!viewerIsPrivileged) {
-    const user = await db.User.findOne({ where: { username: viewerUsername } as never });
+    const user = await db.User.findOne({ where: { username: viewerUsername } as never, attributes: ['id'] });
     where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
   }
+  return where;
+}
+
+async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promise<ProjectRecord[]> {
+  const where = await resolveOwnerWhere(viewerUsername, viewerIsPrivileged);
   const rows = await db.Project.findAll({ where: where as never, include: allIncludes, order: [['created_at', 'DESC']] });
+  return rows.map(toRecord);
+}
+
+async function listLight(viewerUsername: string, viewerIsPrivileged: boolean): Promise<ProjectRecord[]> {
+  const where = await resolveOwnerWhere(viewerUsername, viewerIsPrivileged);
+  const rows = await db.Project.findAll({ where: where as never, include: lightIncludes, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
@@ -194,6 +212,7 @@ function normalizeProject(project: ProjectRecord): ProjectRecord {
 // plain "user"/"technical" account only sees their own projects.
 export const projectStore = {
   list: async (viewerUsername: string, viewerIsPrivileged: boolean) => (await list(viewerUsername, viewerIsPrivileged)).map(normalizeProject),
+  listLight: async (viewerUsername: string, viewerIsPrivileged: boolean) => (await listLight(viewerUsername, viewerIsPrivileged)).map(normalizeProject),
   create,
   update,
   remove

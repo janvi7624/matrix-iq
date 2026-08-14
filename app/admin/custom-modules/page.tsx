@@ -5,8 +5,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { CustomFieldDef, CustomFieldType, CustomModuleDef, RoleRecord, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
+import { MODULE_ICON_OPTIONS, resolveModuleIcon } from '@/lib/icons';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+
+function iconOptionLabel(key: string): string {
+  return key.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+}
 
 const FIELD_TYPES: { value: CustomFieldType; label: string }[] = [
   { value: 'text', label: 'Text' },
@@ -46,7 +51,7 @@ function blankField(): CustomFieldDef {
 }
 
 function blankModuleForm(): ModuleFormState {
-  return { name: '', icon: '🧩', section: 'Custom Modules', requiresApproval: false, approverRole: '', enabled: true, fields: [blankField()] };
+  return { name: '', icon: 'wrench', section: 'Custom Modules', requiresApproval: false, approverRole: '', enabled: true, fields: [blankField()] };
 }
 
 export default function CustomModuleBuilderPage() {
@@ -199,8 +204,18 @@ export default function CustomModuleBuilderPage() {
                 <input className={calcStyles.formControl} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Visitor Register" required />
               </div>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Icon (emoji)</label>
-                <input className={calcStyles.formControl} value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} style={{ maxWidth: 100 }} />
+                <label className={calcStyles.label}>Icon</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {(() => {
+                    const Icon = resolveModuleIcon(form.icon);
+                    return Icon ? <Icon size={18} /> : null;
+                  })()}
+                  <select className={calcStyles.formControl} value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} style={{ maxWidth: 160 }}>
+                    {MODULE_ICON_OPTIONS.map((key) => (
+                      <option key={key} value={key}>{iconOptionLabel(key)}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Sidebar section</label>
@@ -290,9 +305,11 @@ export default function CustomModuleBuilderPage() {
               </tr>
             </thead>
             <tbody>
-              {modules.map((m) => (
+              {modules.map((m) => {
+                const Icon = resolveModuleIcon(m.icon);
+                return (
                 <tr key={m.id}>
-                  <td>{m.icon}</td>
+                  <td>{Icon ? <Icon size={16} /> : m.icon}</td>
                   <td>{m.name}</td>
                   <td>{m.section}</td>
                   <td>{m.fields.length}</td>
@@ -309,7 +326,8 @@ export default function CustomModuleBuilderPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {modules.length === 0 && <tr><td colSpan={7} className={historyStyles.empty}>No custom modules yet.</td></tr>}
             </tbody>
           </table>

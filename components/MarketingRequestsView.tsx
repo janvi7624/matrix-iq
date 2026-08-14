@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { Lock, AlertTriangle, Megaphone, CheckCircle2, Pause, Upload, Undo2, Play, Trash2 } from 'lucide-react';
 import { MarketingRequestPriority, MarketingRequestRecord, MarketingRequestStatus, MarketingRequestType, ProjectRecord, UserRole } from '@/lib/types';
 import { MARKETING_PRIORITY_META, MARKETING_REQUEST_TYPE_LABEL, MARKETING_STATUS_LABEL, isMarketingRequestOverdue } from '@/lib/marketingRequestHelpers';
 import AppShell from './AppShell';
@@ -89,7 +90,7 @@ function formatDateTime(iso: string): string {
 
 function PriorityBadge({ priority }: { priority: MarketingRequestPriority }) {
   const meta = MARKETING_PRIORITY_META[priority];
-  return <SharedPriorityBadge tone={PRIORITY_TONE[priority]} icon={meta.icon} label={meta.label} />;
+  return <SharedPriorityBadge tone={PRIORITY_TONE[priority]} label={meta.label} />;
 }
 
 const PRIORITY_ORDER: MarketingRequestPriority[] = ['low', 'medium', 'high', 'urgent'];
@@ -147,11 +148,15 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
         <td><PriorityBadge priority={r.priority} /></td>
         <td>
           <StatusBadge status={r.status} />
-          {overdue && <span className={historyStyles.reminderBadge} style={{ marginLeft: 6 }}>⏰ Overdue</span>}
+          {overdue && (
+            <span className={historyStyles.reminderBadge} style={{ marginLeft: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <AlertTriangle size={12} /> Overdue
+            </span>
+          )}
         </td>
         <td>{r.created_by}</td>
         <td>{r.assigned_to || <span style={{ opacity: 0.55 }}>Unassigned</span>}</td>
-        <td>{r.timeline ? <span title={`Set by ${r.timeline.setBy} on ${formatDateTime(r.timeline.setAt)}`}>🔒 {formatDate(r.timeline.expectedDeliveryDate)}</span> : '-'}</td>
+        <td>{r.timeline ? <span title={`Set by ${r.timeline.setBy} on ${formatDateTime(r.timeline.setAt)}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lock size={12} /> {formatDate(r.timeline.expectedDeliveryDate)}</span> : '-'}</td>
         <td>{formatDate(r.created_at)}</td>
         <td><button type="button" className={historyStyles.toggleBtn} onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>{expanded ? 'Hide' : 'View'}</button></td>
       </tr>
@@ -179,10 +184,13 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
 
               {/* Timeline — locked forever once set, for every viewer including the reviewer who set it. */}
               {r.timeline ? (
-                <div className={historyStyles.historyCard} style={{ marginTop: 12 }}>
-                  🔒 Committed delivery: <strong>{formatDate(r.timeline.expectedDeliveryDate)}</strong> — set by {r.timeline.setBy} on {formatDateTime(r.timeline.setAt)}
-                  {r.timeline.remarks && <div style={{ marginTop: 4 }}>{r.timeline.remarks}</div>}
-                  <div style={{ fontSize: 11.5, opacity: 0.75, marginTop: 4 }}>This date can&apos;t be changed by anyone once committed.</div>
+                <div className={historyStyles.historyCard} style={{ marginTop: 12, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                  <Lock size={14} style={{ marginTop: 3, flexShrink: 0 }} />
+                  <div>
+                    Committed delivery: <strong>{formatDate(r.timeline.expectedDeliveryDate)}</strong> — set by {r.timeline.setBy} on {formatDateTime(r.timeline.setAt)}
+                    {r.timeline.remarks && <div style={{ marginTop: 4 }}>{r.timeline.remarks}</div>}
+                    <div style={{ fontSize: 11.5, opacity: 0.75, marginTop: 4 }}>This date can&apos;t be changed by anyone once committed.</div>
+                  </div>
                 </div>
               ) : (
                 isReviewer && r.status === 'submitted' && !showReject && (
@@ -200,7 +208,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                     </div>
                     <span className={calcStyles.small} style={{ display: 'block', margin: '4px 0 10px' }}>Once you save this, it becomes permanent — it can&apos;t be edited afterward, so double-check the date.</span>
                     <div className={historyStyles.actionGroupButtons}>
-                      <Button variant="primary" icon="🔒" loading={busy} loadingLabel="Saving…" disabled={!timelineDate} onClick={() => run(() => onSetTimeline(r.id, timelineDate, timelineRemarks))}>
+                      <Button variant="primary" icon={<Lock size={14} />} loading={busy} loadingLabel="Saving…" disabled={!timelineDate} onClick={() => run(() => onSetTimeline(r.id, timelineDate, timelineRemarks))}>
                         Commit Timeline
                       </Button>
                       <Button variant="ghost" onClick={() => setShowReject(true)}>Decline Request</Button>
@@ -234,7 +242,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                       onChange={(e) => run(() => onPriorityChange(r.id, e.target.value as MarketingRequestPriority))}
                     >
                       {PRIORITY_ORDER.map((p) => (
-                        <option key={p} value={p}>{MARKETING_PRIORITY_META[p].icon} {MARKETING_PRIORITY_META[p].label}</option>
+                        <option key={p} value={p}>{MARKETING_PRIORITY_META[p].label}</option>
                       ))}
                     </select>
                   </div>
@@ -258,7 +266,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
 
               {isReviewer && r.status === 'timeline_set' && (
                 <div style={{ marginTop: 12 }}>
-                  <Button variant="primary" icon="▶" loading={busy} loadingLabel="Updating…" onClick={() => run(() => onStatusAction(r.id, 'start'))}>
+                  <Button variant="primary" icon={<Play size={14} />} loading={busy} loadingLabel="Updating…" onClick={() => run(() => onStatusAction(r.id, 'start'))}>
                     Mark In Progress
                   </Button>
                 </div>
@@ -266,17 +274,17 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
 
               {isReviewer && (r.status === 'in_progress' || r.status === 'ready_for_review') && !showComplete && (
                 <div className={historyStyles.actionGroupButtons} style={{ marginTop: 12 }}>
-                  <Button variant="success" icon="✅" onClick={() => setShowComplete(true)}>Mark Completed</Button>
+                  <Button variant="success" icon={<CheckCircle2 size={14} />} onClick={() => setShowComplete(true)}>Mark Completed</Button>
                   {r.status === 'in_progress' && !showWait && (
                     <>
-                      <Button variant="secondary" icon="⏸" onClick={() => setShowWait(true)}>Waiting for Info</Button>
-                      <Button variant="secondary" icon="📤" loading={busy} onClick={() => run(() => onStatusAction(r.id, 'ready_for_review'))}>
+                      <Button variant="secondary" icon={<Pause size={14} />} onClick={() => setShowWait(true)}>Waiting for Info</Button>
+                      <Button variant="secondary" icon={<Upload size={14} />} loading={busy} onClick={() => run(() => onStatusAction(r.id, 'ready_for_review'))}>
                         Ready for Review
                       </Button>
                     </>
                   )}
                   {r.status === 'ready_for_review' && (
-                    <Button variant="secondary" icon="↩" loading={busy} onClick={() => run(() => onStatusAction(r.id, 'reopen'))}>
+                    <Button variant="secondary" icon={<Undo2 size={14} />} loading={busy} onClick={() => run(() => onStatusAction(r.id, 'reopen'))}>
                       Reopen for Rework
                     </Button>
                   )}
@@ -304,7 +312,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
               )}
               {isReviewer && r.status === 'waiting_info' && (
                 <div style={{ marginTop: 12 }}>
-                  <Button variant="primary" icon="▶" loading={busy} loadingLabel="Updating…" onClick={() => run(() => onStatusAction(r.id, 'resume'))}>
+                  <Button variant="primary" icon={<Play size={14} />} loading={busy} loadingLabel="Updating…" onClick={() => run(() => onStatusAction(r.id, 'resume'))}>
                     Resume Work
                   </Button>
                 </div>
@@ -325,11 +333,15 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
               )}
 
               {r.status === 'waiting_info' && (
-                <div className={historyStyles.autofillNotice} style={{ marginTop: 12 }}>⏸ Waiting for information from you — check the comments below.</div>
+                <div className={historyStyles.autofillNotice} style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Pause size={14} /> Waiting for information from you — check the comments below.
+                </div>
               )}
 
               {r.status === 'completed' && r.completion_notes && (
-                <div className={historyStyles.autofillNotice} style={{ marginTop: 12 }}>✅ {r.completion_notes}</div>
+                <div className={historyStyles.autofillNotice} style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CheckCircle2 size={14} /> {r.completion_notes}
+                </div>
               )}
               {r.status === 'rejected' && (
                 <div className={historyStyles.loginError} style={{ marginTop: 12 }}>Declined: {r.rejection_reason}</div>
@@ -363,7 +375,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
 
               {canDelete && (
                 <div style={{ marginTop: 16 }}>
-                  <Button variant="danger" icon="🗑️" onClick={() => onDelete(r)}>Delete Request</Button>
+                  <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => onDelete(r)}>Delete Request</Button>
                 </div>
               )}
             </div>
@@ -543,10 +555,10 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
     <AppShell title="Marketing Requests" subtitle="Ask Marketing for what you need, and track the delivery timeline they commit to.">
         <div className={historyStyles.modeToggle}>
           <button type="button" className={`${historyStyles.modeToggleBtn} ${mode === 'new' ? historyStyles.modeToggleBtnActive : ''}`} onClick={() => setMode('new')}>
-            📣 New Request
+            New Request
           </button>
           <button type="button" className={`${historyStyles.modeToggleBtn} ${mode === 'list' ? historyStyles.modeToggleBtnActive : ''}`} onClick={showAllRequests}>
-            📋 {isReviewer ? 'All Requests' : 'My Requests'}
+            {isReviewer ? 'All Requests' : 'My Requests'}
           </button>
         </div>
 
@@ -559,11 +571,11 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
             {isReviewer && !loading && !loadFailed && (
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
                 {([
-                  ['urgent', '🔴 Urgent', triageCounts.urgent],
-                  ['high', '🟠 High Priority', triageCounts.high],
-                  ['overdue', '⚠️ Overdue', triageCounts.overdue],
-                  ['dueToday', '📅 Due Today', triageCounts.dueToday],
-                  ['dueSoon', '⏳ Due Soon', triageCounts.dueSoon]
+                  ['urgent', 'Urgent', triageCounts.urgent],
+                  ['high', 'High Priority', triageCounts.high],
+                  ['overdue', 'Overdue', triageCounts.overdue],
+                  ['dueToday', 'Due Today', triageCounts.dueToday],
+                  ['dueSoon', 'Due Soon', triageCounts.dueSoon]
                 ] as [QuickFilter, string, number][]).map(([key, label, count]) => (
                   <button
                     key={key}
@@ -653,10 +665,10 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                   {visible.length === 0 && (
                     <tr><td colSpan={9}>
                       <EmptyState
-                        icon="📣"
+                        icon={Megaphone}
                         title={requests.length === 0 ? 'No marketing requests yet' : 'No requests match your filters'}
                         message={requests.length === 0 ? 'Send a request to Marketing to get started.' : 'Try clearing a filter or search term.'}
-                        action={requests.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('new')}>📣 New Request</button> : undefined}
+                        action={requests.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('new')}>New Request</button> : undefined}
                       />
                     </td></tr>
                   )}

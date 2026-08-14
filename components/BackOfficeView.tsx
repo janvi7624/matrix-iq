@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { BackOfficeRemarkTag, DcLineItem, DcStatus, DeliveryChallanRecord, DemoScheduleRecord, ProjectRecord, PublicAppConfig, UserRole } from '@/lib/types';
+import { CheckCircle2, Download, Lock, Package, Plus, Printer, Save, Trash2, Truck } from 'lucide-react';
 import { BACK_OFFICE_REMARK_LABEL, BACK_OFFICE_REMARK_TAGS } from '@/lib/backOfficeRemarks';
 import { generateDeliveryChallanPdf } from '@/lib/deliveryChallanPdf';
 import AppShell from './AppShell';
@@ -76,7 +77,7 @@ function GenerateDcPanel({ demo, onGenerated }: { demo: DemoScheduleRecord; onGe
         <label className={calcStyles.label}>Expected return date</label>
         <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
       </div>
-      <Button variant="primary" icon="📦" loading={busy} loadingLabel="Generating…" onClick={handleGenerate}>Create Delivery Challan</Button>
+      <Button variant="primary" icon={<Package size={16} />} loading={busy} loadingLabel="Generating…" onClick={handleGenerate}>Create Delivery Challan</Button>
     </div>
   );
 }
@@ -226,7 +227,7 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
       </div>
 
       <div className={historyStyles.actionGroupButtons} style={{ marginTop: 16 }}>
-        <Button variant="primary" icon="📦" loading={busy} loadingLabel="Creating…" onClick={handleGenerate}>Create Delivery Challan</Button>
+        <Button variant="primary" icon={<Package size={16} />} loading={busy} loadingLabel="Creating…" onClick={handleGenerate}>Create Delivery Challan</Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
@@ -332,15 +333,15 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
         <div className={historyStyles.actionGroup}>
           <div className={historyStyles.actionGroupLabel}>Secondary Actions</div>
           <div className={historyStyles.actionGroupButtons}>
-            <Button variant="secondary" icon="⬇️" onClick={handleExportPdf}>Download PDF</Button>
-            <Button variant="secondary" icon="🖨️" onClick={() => window.print()}>Print DC</Button>
+            <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportPdf}>Download PDF</Button>
+            <Button variant="secondary" icon={<Printer size={16} />} onClick={() => window.print()}>Print DC</Button>
           </div>
         </div>
         {canManage && dc.status === 'prepared' && (
           <div className={historyStyles.actionGroup}>
             <div className={historyStyles.actionGroupLabel}>Danger Zone</div>
             <div className={historyStyles.actionGroupButtons}>
-              <Button variant="danger" icon="🗑️" loading={deleting} loadingLabel="Deleting…" onClick={handleDeleteClick}>Delete DC</Button>
+              <Button variant="danger" icon={<Trash2 size={16} />} loading={deleting} loadingLabel="Deleting…" onClick={handleDeleteClick}>Delete DC</Button>
             </div>
           </div>
         )}
@@ -409,8 +410,8 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
           <div className={historyStyles.actionGroup}>
             <div className={historyStyles.actionGroupLabel}>Primary Actions</div>
             <div className={historyStyles.actionGroupButtons}>
-              <Button variant="secondary" icon="💾" loading={busy} loadingLabel="Saving…" onClick={() => patch('updateItems', { items, assignedEngineer, expectedReturnDate })}>Save Serial Numbers</Button>
-              <Button variant="primary" icon="🚚" loading={busy} loadingLabel="Dispatching…" onClick={handleDispatchClick}>Dispatch Material</Button>
+              <Button variant="secondary" icon={<Save size={16} />} loading={busy} loadingLabel="Saving…" onClick={() => patch('updateItems', { items, assignedEngineer, expectedReturnDate })}>Save Serial Numbers</Button>
+              <Button variant="primary" icon={<Truck size={16} />} loading={busy} loadingLabel="Dispatching…" onClick={handleDispatchClick}>Dispatch Material</Button>
             </div>
           </div>
         </>
@@ -485,7 +486,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
             <div className={historyStyles.actionGroupButtons}>
               <Button
                 variant="success"
-                icon="✅"
+                icon={<CheckCircle2 size={16} />}
                 loading={busy}
                 loadingLabel="Saving…"
                 onClick={() => patch('verifyReturn', { returned, condition, missing, damaged, accessories, serialNumberVerified, remarkTags, remarks })}
@@ -511,7 +512,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
             <div className={historyStyles.actionGroup} style={{ marginTop: 10 }}>
               <div className={historyStyles.actionGroupLabel}>Primary Actions</div>
               <div className={historyStyles.actionGroupButtons}>
-                <Button variant="success" icon="🔒" loading={busy} loadingLabel="Closing…" onClick={handleCloseClick}>Close DC</Button>
+                <Button variant="success" icon={<Lock size={16} />} loading={busy} loadingLabel="Closing…" onClick={handleCloseClick}>Close DC</Button>
               </div>
             </div>
           )}
@@ -598,7 +599,7 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
 
         <h2 className={calcStyles.h2} style={{ marginTop: demoForGenerate || linkedDc || showManualDc ? 24 : 0 }}>All Delivery Challans</h2>
         <div className={historyStyles.toolbar}>
-          {canManage && !showManualDc && <Button variant="primary" icon="➕" compact onClick={() => setShowManualDc(true)}>Create Manual DC</Button>}
+          {canManage && !showManualDc && <Button variant="primary" icon={<Plus size={16} />} compact onClick={() => setShowManualDc(true)}>Create Manual DC</Button>}
           <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
         </div>
         <div className={historyStyles.status}>{status}</div>

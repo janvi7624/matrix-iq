@@ -1,6 +1,17 @@
 import { Model } from 'sequelize';
 import { RoleRecord, RolePermissions } from './types';
 import { db, isUuid } from './db';
+import { cached, invalidateCache } from './memoCache';
+
+// Roles are edited only via Role Management (rare) but read on nearly every
+// authenticated request (resolveIsPrivileged/hasCapability/isModuleActionAllowed
+// all funnel through findRoleByKey). Caching the one underlying query and
+// having every finder search the cached array in memory turns "2 joined
+// tables read on every request" into "read once per TTL window", with every
+// write path below explicitly invalidating it so an admin's change is never
+// stale for longer than the in-flight request that made it.
+const ROLES_CACHE_KEY = 'roles:all';
+const ROLES_CACHE_TTL_MS = 30_000;
 
 function isoOrEmpty(value: unknown): string {
   if (!value) return '';
@@ -61,9 +72,11 @@ function toRecord(row: Model): RoleRecord {
 }
 
 export async function listRoles(): Promise<RoleRecord[]> {
-  await ensureSeeded();
-  const rows = await db.Role.findAll({ include: [creatorInclude, updaterInclude], order: [['order', 'ASC']] });
-  return rows.map(toRecord);
+  return cached(ROLES_CACHE_KEY, ROLES_CACHE_TTL_MS, async () => {
+    await ensureSeeded();
+    const rows = await db.Role.findAll({ include: [creatorInclude, updaterInclude], order: [['order', 'ASC']] });
+    return rows.map(toRecord);
+  });
 }
 
 export async function listActiveRoles(): Promise<RoleRecord[]> {
@@ -71,15 +84,16 @@ export async function listActiveRoles(): Promise<RoleRecord[]> {
   return records.filter((r) => r.status === 'active');
 }
 
+// Both finders read the cached list instead of issuing their own query —
+// the hot path (resolveIsPrivileged, called on ~every request) no longer
+// touches Postgres at all once the cache is warm.
 export async function findRoleById(id: string): Promise<RoleRecord | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.Role.findByPk(id, { include: [creatorInclude, updaterInclude] });
-  return row ? toRecord(row) : undefined;
+  return (await listRoles()).find((r) => r.id === id);
 }
 
 export async function findRoleByKey(key: string): Promise<RoleRecord | undefined> {
-  const row = await db.Role.findOne({ where: { key } as never, include: [creatorInclude, updaterInclude] });
-  return row ? toRecord(row) : undefined;
+  return (await listRoles()).find((r) => r.key === key);
 }
 
 function slugify(label: string): string {
@@ -127,6 +141,7 @@ export async function createRole(input: RoleInput, createdBy: string): Promise<R
     updatedBy: creator ? creator.get('id') : null
   } as never);
 
+  invalidateCache(ROLES_CACHE_KEY);
   return (await findRoleById(row.get('id') as string)) as RoleRecord;
 }
 
@@ -159,6 +174,7 @@ export async function updateRole(id: string, patch: RoleUpdateInput, updatedBy: 
       updatedBy: updater ? updater.get('id') : null
     } as never
   );
+  invalidateCache(ROLES_CACHE_KEY);
   return (await findRoleById(id)) ?? null;
 }
 
@@ -177,5 +193,6 @@ export async function deleteRole(id: string): Promise<{ ok: boolean; reason?: st
   if (plain.isSystem) return { ok: false, reason: 'Built-in roles cannot be deleted' };
   if (await isRoleAssigned(plain.key as string)) return { ok: false, reason: 'Role is assigned to one or more users — deactivate it instead' };
   await row.destroy();
+  invalidateCache(ROLES_CACHE_KEY);
   return { ok: true };
 }

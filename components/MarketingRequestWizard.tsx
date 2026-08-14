@@ -1,6 +1,11 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import {
+  Megaphone, Flame, Paperclip, CheckCircle2,
+  FileText, Share2, Image as ImageIcon, Video, Mail, Globe, Camera, Calendar, MoreHorizontal,
+  type LucideIcon
+} from 'lucide-react';
 import { MarketingRequestPriority, MarketingRequestRecord, MarketingRequestType, ProjectRecord } from '@/lib/types';
 import { MARKETING_PRIORITY_META, MARKETING_REQUEST_TYPE_LABEL } from '@/lib/marketingRequestHelpers';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
@@ -23,23 +28,23 @@ function emptyForm(): MarketingRequestForm {
   return { title: '', requestType: 'other', description: '', priority: 'medium', neededByDate: '', projectId: '', attachments: [] };
 }
 
-const REQUEST_TYPE_TILES: { key: MarketingRequestType; icon: string }[] = [
-  { key: 'brochure_flyer', icon: '📄' },
-  { key: 'social_media', icon: '📱' },
-  { key: 'banner_standee', icon: '🖼️' },
-  { key: 'video_reel', icon: '🎬' },
-  { key: 'email_campaign', icon: '📧' },
-  { key: 'website_update', icon: '🌐' },
-  { key: 'product_photography', icon: '📷' },
-  { key: 'event_collateral', icon: '🎪' },
-  { key: 'other', icon: '✨' }
+const REQUEST_TYPE_TILES: { key: MarketingRequestType; icon: LucideIcon }[] = [
+  { key: 'brochure_flyer', icon: FileText },
+  { key: 'social_media', icon: Share2 },
+  { key: 'banner_standee', icon: ImageIcon },
+  { key: 'video_reel', icon: Video },
+  { key: 'email_campaign', icon: Mail },
+  { key: 'website_update', icon: Globe },
+  { key: 'product_photography', icon: Camera },
+  { key: 'event_collateral', icon: Calendar },
+  { key: 'other', icon: MoreHorizontal }
 ];
 
-const STEPS = [
-  { icon: '📣', label: 'What Do You Need' },
-  { icon: '🔥', label: 'Priority & Timing' },
-  { icon: '📎', label: 'Attachments' },
-  { icon: '✅', label: 'Review & Submit' }
+const STEPS: { icon: LucideIcon; label: string }[] = [
+  { icon: Megaphone, label: 'What Do You Need' },
+  { icon: Flame, label: 'Priority & Timing' },
+  { icon: Paperclip, label: 'Attachments' },
+  { icon: CheckCircle2, label: 'Review & Submit' }
 ];
 
 interface MarketingRequestWizardProps {
@@ -120,14 +125,14 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
     return (
       <div className={historyStyles.wizardCard}>
         <div className={historyStyles.successPanel}>
-          <div className={historyStyles.successIcon}>✅</div>
+          <div className={historyStyles.successIcon}><CheckCircle2 size={48} /></div>
           <h2 className={calcStyles.h2} style={{ marginTop: 0, borderLeft: 'none', paddingLeft: 0 }}>Request sent to Marketing!</h2>
           <div className={calcStyles.small}>
             {successRecord.title} — Marketing will review it and set a delivery timeline soon.
           </div>
           <div className={historyStyles.successActions}>
-            <button type="button" className={historyStyles.bigBtn} onClick={handleRequestAnother}>📣 Submit Another Request</button>
-            <button type="button" className={historyStyles.bigBtnGhost} onClick={onViewAllRequests}>📋 View All My Requests</button>
+            <button type="button" className={historyStyles.bigBtn} onClick={handleRequestAnother}>Submit Another Request</button>
+            <button type="button" className={historyStyles.bigBtnGhost} onClick={onViewAllRequests}>View All My Requests</button>
           </div>
         </div>
       </div>
@@ -144,7 +149,7 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
             className={`${historyStyles.wizardStep} ${i === step ? historyStyles.wizardStepActive : ''} ${i < step ? historyStyles.wizardStepDone : ''}`}
             onClick={() => i < step && setStep(i)}
           >
-            <span className={historyStyles.wizardStepCircle}>{i < step ? '✓' : s.icon}</span>
+            <span className={historyStyles.wizardStepCircle}>{i < step ? '✓' : <s.icon size={18} />}</span>
             <span className={historyStyles.wizardStepLabel}>{i + 1}. {s.label}</span>
           </button>
         ))}
@@ -153,7 +158,7 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
       <div className={historyStyles.wizardCard}>
         {step === 0 && (
           <>
-            <h2 className={historyStyles.wizardCardTitle}><span>📣</span> What Do You Need?</h2>
+            <h2 className={historyStyles.wizardCardTitle}><Megaphone size={22} /> What Do You Need?</h2>
             <div className={historyStyles.wizardCardHint}>Pick the closest match, then describe it in your own words.</div>
             {errors.length > 0 && <div className={historyStyles.loginError}>{errors[0]}</div>}
             <div className={historyStyles.tagGrid}>
@@ -163,7 +168,7 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
                   className={`${historyStyles.tagTile} ${form.requestType === t.key ? historyStyles.tagTileActive : ''}`}
                   onClick={() => setForm((f) => ({ ...f, requestType: t.key }))}
                 >
-                  <span className={historyStyles.tagTileEmoji}>{t.icon}</span>
+                  <span className={historyStyles.tagTileEmoji}><t.icon size={24} /></span>
                   <div className={historyStyles.tagTileName}>{MARKETING_REQUEST_TYPE_LABEL[t.key]}</div>
                 </div>
               ))}
@@ -203,7 +208,7 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
 
         {step === 1 && (
           <>
-            <h2 className={historyStyles.wizardCardTitle}><span>🔥</span> Priority &amp; Timing</h2>
+            <h2 className={historyStyles.wizardCardTitle}><Flame size={22} /> Priority &amp; Timing</h2>
             <div className={historyStyles.wizardCardHint}>How urgent is this? Marketing will confirm the actual delivery date.</div>
             <div className={historyStyles.stageOptions}>
               {(['urgent', 'high', 'medium', 'low'] as const).map((p) => (
@@ -212,7 +217,7 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
                   className={`${historyStyles.stageOption} ${form.priority === p ? historyStyles.stageOptionActive : ''}`}
                   onClick={() => setForm((f) => ({ ...f, priority: p }))}
                 >
-                  <strong>{MARKETING_PRIORITY_META[p].icon} {MARKETING_PRIORITY_META[p].label}</strong>
+                  <strong>{MARKETING_PRIORITY_META[p].label}</strong>
                   <span>{MARKETING_PRIORITY_META[p].hint}</span>
                 </div>
               ))}
@@ -233,7 +238,7 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
 
         {step === 2 && (
           <>
-            <h2 className={historyStyles.wizardCardTitle}><span>📎</span> Attachments</h2>
+            <h2 className={historyStyles.wizardCardTitle}><Paperclip size={22} /> Attachments</h2>
             <div className={historyStyles.wizardCardHint}>Add reference images, a brief, or a logo file — optional, but it helps Marketing get it right the first time.</div>
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx" multiple style={{ display: 'none' }} onChange={(e) => handleFilesSelected(e.target.files)} />
             <button type="button" className={calcStyles.secondaryButton} disabled={uploading} onClick={() => fileInputRef.current?.click()}>
@@ -252,7 +257,7 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
 
         {step === 3 && (
           <>
-            <h2 className={historyStyles.wizardCardTitle}><span>✅</span> Review &amp; Submit</h2>
+            <h2 className={historyStyles.wizardCardTitle}><CheckCircle2 size={22} /> Review &amp; Submit</h2>
             <div className={historyStyles.wizardCardHint}>Double-check the details below, then send it to Marketing.</div>
             <div className={historyStyles.reviewGrid}>
               <div className={historyStyles.reviewRow}><strong>Type:</strong> {MARKETING_REQUEST_TYPE_LABEL[form.requestType]}</div>
@@ -271,7 +276,7 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
             <button type="button" className={historyStyles.bigBtn} onClick={goNext}>Next →</button>
           ) : (
             <button type="button" className={historyStyles.bigBtn} disabled={creating} onClick={handleSubmit}>
-              {creating ? 'Sending…' : '📣 Send to Marketing'}
+              {creating ? 'Sending…' : 'Send to Marketing'}
             </button>
           )}
         </div>

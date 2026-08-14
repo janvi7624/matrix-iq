@@ -449,7 +449,6 @@
     color: var(--mx-ink);
     margin: 0 0 6px;
 }
-.wizardCardTitle span:first-child { font-size: 1.8rem; }
 .wizardCardHint { font-size: 13.5px; color: var(--mx-ink-muted); margin-bottom: 18px; }
 
 .wizardNav {
@@ -552,7 +551,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(180deg, #f7f7f7 0%, #e5e7eb 100%);
+    background: var(--mx-page-bg);
     padding: 24px;
 }
 .loginLogo {
@@ -577,13 +576,19 @@
 .loginCard h1 { font-size: 19px; margin: 0 0 4px; font-weight: 900; color: var(--mx-brand); text-align: center; }
 .loginCard .sub { display: block; margin-bottom: 22px; text-align: center; }
 .loginField { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-.loginField label { font-size: 13px; color:#dc2626; font-weight: 600; }
+.loginField label { font-size: 13px; color: var(--mx-ink-muted); font-weight: 600; }
 .loginField input {
     padding: 10px 12px;
-    border: 1px solid #b91c1c;
+    border: 1px solid var(--mx-border-strong);
     border-radius: 8px;
     font-size: 14px;
     color: #111827;
+    transition: border-color var(--mx-duration-base) var(--mx-ease);
+}
+.loginField input:focus {
+    outline: none;
+    border-color: var(--mx-brand);
+    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
 }
 .loginError { color: #b91c1c; font-size: 13px; margin-bottom: 12px; }
 .loginSubmit {
@@ -635,7 +640,7 @@
 }
 .tagTile:active { transform: scale(0.96); }
 .tagTileActive { background: rgba(220, 38, 38, 0.06); border-color: #dc2626; border-width: 2px; }
-.tagTileEmoji { font-size: 28px; display: block; margin-bottom: 6px; }
+.tagTileEmoji { display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
 .tagTileName { font-size: 13px; font-weight: 700; color: #111827; }
 .tagTileActive .tagTileName { color: #b91c1c; }
 .tagTileHint { font-size: 10.5px; color: #9ca3af; margin-top: 2px; }
@@ -825,7 +830,7 @@
 .actionBtnGhost { background: transparent; border-color: transparent; color: var(--mx-ink-muted); }
 .actionBtnGhost:hover:not(:disabled) { background: var(--mx-surface-sunken); color: var(--mx-ink); }
 .actionBtnCompact { padding: 7px 14px; min-height: 36px; font-size: 13px; }
-.actionIcon { font-size: 15px; line-height: 1; }
+.actionIcon { font-size: 15px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
 .actionSpinner {
     display: inline-block;
     width: 13px;
@@ -908,7 +913,7 @@
 .quickActionBtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--mx-shadow-md); border-color: var(--mx-brand); }
 .quickActionBtn:disabled { opacity: 0.45; cursor: not-allowed; }
 .quickActionBtn:focus-visible { outline: 2px solid var(--mx-brand); outline-offset: 2px; }
-.quickActionIcon { font-size: 22px; }
+.quickActionIcon { display: flex; align-items: center; justify-content: center; font-size: 22px; }
 .quickActionDanger { border-color: rgba(220, 38, 38, 0.35); color: var(--mx-danger); }
 /* display: contents at desktop/tablet — the overflow group's buttons sit
    directly in the parent grid, invisible as a "group." Only at <=480px

@@ -393,6 +393,9 @@
     transform: translateY(-1px);
 }
 .quickActionIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 15px;
 }
 .sidebarCollapsed .quickActions {
@@ -474,6 +477,8 @@
 /* ---------- Mobile ---------- */
 .toggleBtn {
     display: none;
+    align-items: center;
+    justify-content: center;
     position: fixed;
     top: 14px;
     left: 14px;
@@ -495,7 +500,7 @@
 
 @media (max-width: 768px) {
     .toggleBtn {
-        display: block;
+        display: flex;
     }
     .sidebar {
         position: fixed;

@@ -10,9 +10,9 @@ export function isReminderDue(record: Pick<SiteVisitRecord, 'reminder_date' | 's
 }
 
 export const STAGE_LABEL: Record<'hot' | 'warm' | 'cold', string> = {
-  hot: '🔥 Hot',
-  warm: '♨️ Warm',
-  cold: '🧊 Cold'
+  hot: 'Hot',
+  warm: 'Warm',
+  cold: 'Cold'
 };
 
 export const STAGE_HINT: Record<'hot' | 'warm' | 'cold', string> = {

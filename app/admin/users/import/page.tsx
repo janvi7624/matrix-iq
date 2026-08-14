@@ -300,7 +300,7 @@ export default function ImportEmployeesPage() {
                     </p>
                     <div style={{ marginBottom: 10 }}>
                       <button type="button" className={calcStyles.btn} onClick={exportCredentials} disabled={exporting}>
-                        {exporting ? 'Exporting...' : '⬇ Export User Credentials (Excel)'}
+                        {exporting ? 'Exporting...' : 'Export User Credentials (Excel)'}
                       </button>
                     </div>
                     <div className={historyStyles.tableWrap}>

@@ -1,3 +1,4 @@
+import { AlertTriangle } from 'lucide-react';
 import styles from './states.module.css';
 
 interface ErrorStateProps {
@@ -14,7 +15,7 @@ interface ErrorStateProps {
 export default function ErrorState({ title = 'Unable to load this page', message, onRetry }: ErrorStateProps) {
   return (
     <div className={styles.errorWrap}>
-      <div className={styles.errorIcon}>⚠️</div>
+      <div className={styles.errorIcon}><AlertTriangle size={22} /></div>
       <div className={styles.stateTitle}>{title}</div>
       <div className={styles.stateMessage}>{message}</div>
       {onRetry && (

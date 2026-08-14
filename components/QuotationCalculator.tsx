@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Package, Send, User } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -38,9 +39,9 @@ const DEFAULT_COST_INPUTS: CostInputs = { installationCost: 0, fabricationCost: 
 // Presented as 3 guided steps instead of one long scrolling form — a sales
 // rep always knows exactly where they are and what's left to do.
 const WIZARD_STEPS = [
-  { icon: '📦', label: 'Build the Quote' },
-  { icon: '👤', label: 'Client Details' },
-  { icon: '📤', label: 'Review & Send' }
+  { icon: <Package size={18} />, label: 'Build the Quote' },
+  { icon: <User size={18} />, label: 'Client Details' },
+  { icon: <Send size={18} />, label: 'Review & Send' }
 ];
 
 const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical Team', backoffice: 'Back Office', user: 'User' };
@@ -466,7 +467,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
 
         {wizardStep === 0 && (
           <div className={historyStyles.wizardCard}>
-            <h2 className={historyStyles.wizardCardTitle}><span>📦</span> Build the Quote</h2>
+            <h2 className={historyStyles.wizardCardTitle}><Package size={22} /> Build the Quote</h2>
             <div className={historyStyles.wizardCardHint}>Pick a product, configure it below, then add it to the quote. Repeat to add more products to the same quote.</div>
 
             <div className={styles.sectionPanel}>
@@ -637,7 +638,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
 
         {wizardStep === 1 && (
           <div className={historyStyles.wizardCard}>
-            <h2 className={historyStyles.wizardCardTitle}><span>👤</span> Client Details</h2>
+            <h2 className={historyStyles.wizardCardTitle}><User size={22} /> Client Details</h2>
             <div className={historyStyles.wizardCardHint}>Who is this quotation for?</div>
             <QuotationDetailsForm details={details} onChange={(patch) => setDetails((d) => ({ ...d, ...patch }))} />
           </div>
@@ -645,7 +646,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
 
         {wizardStep === 2 && (
           <div className={historyStyles.wizardCard}>
-            <h2 className={historyStyles.wizardCardTitle}><span>📤</span> Review &amp; Send</h2>
+            <h2 className={historyStyles.wizardCardTitle}><Send size={22} /> Review &amp; Send</h2>
             <div className={historyStyles.wizardCardHint}>Check the total below, then save and download the client-ready PDF.</div>
 
             <div ref={summaryRef}>

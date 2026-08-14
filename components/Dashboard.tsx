@@ -13,7 +13,7 @@ import { BRAND } from '@/lib/branding';
 import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
-import { iconForSection } from '@/lib/sectionIcons';
+import { sectionIconFor, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON } from '@/lib/icons';
 import styles from './dashboard.module.css';
 
 interface DashboardProps {
@@ -46,7 +46,6 @@ interface QuotationStatsSummary {
 
 interface AttentionItem {
   key: string;
-  icon: string;
   label: string;
   count: number;
   href: string;
@@ -229,30 +228,29 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const attentionItems = useMemo<AttentionItem[]>(() => {
     const items: AttentionItem[] = [];
     if (isPrivileged && followUpCount) {
-      items.push({ key: 'followup', icon: '⏰', label: `Quotation${followUpCount === 1 ? '' : 's'} needing a follow-up`, count: followUpCount, href: '/quotation-history', tone: 'urgent' });
+      items.push({ key: 'followup', label: `Quotation${followUpCount === 1 ? '' : 's'} needing a follow-up`, count: followUpCount, href: '/quotation-history', tone: 'urgent' });
     }
     if ((currentUser.role === 'technical' || isManagerTier) && kpis?.pendingApprovals) {
-      items.push({ key: 'demo-approvals', icon: '🖥️', label: `Demo request${kpis.pendingApprovals === 1 ? '' : 's'} awaiting approval`, count: kpis.pendingApprovals, href: '/demo-schedule', tone: 'urgent' });
+      items.push({ key: 'demo-approvals', label: `Demo request${kpis.pendingApprovals === 1 ? '' : 's'} awaiting approval`, count: kpis.pendingApprovals, href: '/demo-schedule', tone: 'urgent' });
     }
     if (isBackOffice && backOfficeKpis?.pendingDc) {
-      items.push({ key: 'dc', icon: '📦', label: `Demo${backOfficeKpis.pendingDc === 1 ? '' : 's'} awaiting a Delivery Challan`, count: backOfficeKpis.pendingDc, href: '/backoffice', tone: 'urgent' });
+      items.push({ key: 'dc', label: `Demo${backOfficeKpis.pendingDc === 1 ? '' : 's'} awaiting a Delivery Challan`, count: backOfficeKpis.pendingDc, href: '/backoffice', tone: 'urgent' });
     }
     if (isBackOffice && backOfficeKpis?.pendingVerification) {
-      items.push({ key: 'dc-verify', icon: '✅', label: `DC${backOfficeKpis.pendingVerification === 1 ? '' : 's'} awaiting material return verification`, count: backOfficeKpis.pendingVerification, href: '/backoffice', tone: 'urgent' });
+      items.push({ key: 'dc-verify', label: `DC${backOfficeKpis.pendingVerification === 1 ? '' : 's'} awaiting material return verification`, count: backOfficeKpis.pendingVerification, href: '/backoffice', tone: 'urgent' });
     }
     if (unattendedLeads) {
-      items.push({ key: 'leads', icon: '📇', label: 'Unattended leads', count: unattendedLeads, href: '/leads?filter=unattended', tone: 'urgent' });
+      items.push({ key: 'leads', label: 'Unattended leads', count: unattendedLeads, href: '/leads?filter=unattended', tone: 'urgent' });
     }
     if (marketingStats?.isReviewer && marketingStats.awaitingReview) {
-      items.push({ key: 'marketing', icon: '📣', label: 'Marketing tickets awaiting review', count: marketingStats.awaitingReview, href: '/marketing-requests?filter=submitted', tone: 'info' });
+      items.push({ key: 'marketing', label: 'Marketing tickets awaiting review', count: marketingStats.awaitingReview, href: '/marketing-requests?filter=submitted', tone: 'info' });
     }
     if (reminderCount) {
-      items.push({ key: 'sitevisit', icon: '📍', label: `Site visit reminder${reminderCount === 1 ? '' : 's'} due`, count: reminderCount, href: '/site-visits?focus=open', tone: 'info' });
+      items.push({ key: 'sitevisit', label: `Site visit reminder${reminderCount === 1 ? '' : 's'} due`, count: reminderCount, href: '/site-visits?focus=open', tone: 'info' });
     }
     if (demosAwaitingMyConfirmation.length) {
       items.push({
         key: 'my-demo-confirm',
-        icon: '🙋',
         label: `Demo${demosAwaitingMyConfirmation.length === 1 ? '' : 's'} awaiting your confirmation`,
         count: demosAwaitingMyConfirmation.length,
         href: '/demo-schedule',
@@ -262,7 +260,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (demosAwaitingMyApproval.length) {
       items.push({
         key: 'my-demo-approve',
-        icon: '🖋️',
         label: `Demo${demosAwaitingMyApproval.length === 1 ? '' : 's'} awaiting your approval`,
         count: demosAwaitingMyApproval.length,
         href: '/demo-schedule',
@@ -307,17 +304,28 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         <div className={styles.attentionHead}>Needs Your Attention</div>
         {attentionItems.length > 0 ? (
           <div className={styles.attentionList}>
-            {attentionItems.map((item) => (
-              <Link key={item.key} href={item.href} className={`${styles.attentionRow} ${item.tone === 'urgent' ? styles.attentionUrgent : ''}`}>
-                <span className={styles.attentionIcon}>{item.icon}</span>
-                <span className={styles.attentionLabel}>{item.label}</span>
-                <span className={styles.attentionCount}>{item.count}</span>
-                <span className={styles.attentionArrow}>→</span>
-              </Link>
-            ))}
+            {attentionItems.map((item) => {
+              const ItemIcon = ATTENTION_ICON[item.key];
+              return (
+                <Link key={item.key} href={item.href} className={`${styles.attentionRow} ${item.tone === 'urgent' ? styles.attentionUrgent : ''}`}>
+                  <span className={styles.attentionIcon}>{ItemIcon && <ItemIcon size={15} />}</span>
+                  <span className={styles.attentionLabel}>{item.label}</span>
+                  <span className={styles.attentionCount}>{item.count}</span>
+                  <span className={styles.attentionArrow}>→</span>
+                </Link>
+              );
+            })}
           </div>
         ) : (
-          <div className={styles.attentionEmpty}>{attentionLoading ? 'Checking…' : "🎉 You're all caught up."}</div>
+          <div className={styles.attentionEmpty}>
+            {attentionLoading ? (
+              'Checking…'
+            ) : (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <ALL_CAUGHT_UP_ICON size={16} /> You&apos;re all caught up.
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -431,31 +439,34 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
       <div className={styles.kpiGrid}>
         <Link href="/analytics" className={styles.kpiCard}>
-          <div className={styles.kpiValue}>📈</div>
+          <div className={styles.kpiValue}><ANALYTICS_ICON size={22} /></div>
           <div className={styles.kpiLabel}>View Full Analytics &rarr;</div>
         </Link>
       </div>
 
-      {orderedSections.map((section) => (
-        <div key={section.label}>
-          <button type="button" className={styles.sectionToggle} aria-expanded={isExpanded(section.label)} onClick={() => toggle(section.label)}>
-            <span className={styles.sectionToggleIcon}>{iconForSection(section.label)}</span>
-            <span className={styles.sectionToggleLabel}>{section.label}</span>
-            <span className={styles.sectionToggleCount}>{section.tiles.length}</span>
-            <span className={styles.sectionChevron}>›</span>
-          </button>
-          {isExpanded(section.label) && (
-            <div className={styles.grid}>
-              {section.tiles.map((tile) => (
-                <Link key={tile.id} href={tile.href} className={styles.tile}>
-                  <span className={styles.tileTitle}>{tile.label}</span>
-                  <span className={styles.tileDesc}>{tile.desc}</span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+      {orderedSections.map((section) => {
+        const SectionToggleIcon = sectionIconFor(section.label);
+        return (
+          <div key={section.label}>
+            <button type="button" className={styles.sectionToggle} aria-expanded={isExpanded(section.label)} onClick={() => toggle(section.label)}>
+              <span className={styles.sectionToggleIcon}><SectionToggleIcon size={14} /></span>
+              <span className={styles.sectionToggleLabel}>{section.label}</span>
+              <span className={styles.sectionToggleCount}>{section.tiles.length}</span>
+              <span className={styles.sectionChevron}>›</span>
+            </button>
+            {isExpanded(section.label) && (
+              <div className={styles.grid}>
+                {section.tiles.map((tile) => (
+                  <Link key={tile.id} href={tile.href} className={styles.tile}>
+                    <span className={styles.tileTitle}>{tile.label}</span>
+                    <span className={styles.tileDesc}>{tile.desc}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </AppShell>
   );
 }

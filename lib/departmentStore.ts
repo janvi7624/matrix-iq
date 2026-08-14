@@ -1,6 +1,15 @@
 import { Model, fn, col, where as sqlWhere } from 'sequelize';
 import { DepartmentRecord } from './types';
 import { db, isUuid } from './db';
+import { cached, invalidateCache } from './memoCache';
+
+// Departments change only via admin edits (rare) but are read on demo-
+// schedule queue visibility checks, dashboard manager-routing, and approval
+// notifications — several of those firing per request. Same pattern as
+// roleStore.ts/moduleConfigStore.ts: cache the one underlying query, have
+// every other reader search the cached list in memory, invalidate on writes.
+const DEPARTMENTS_CACHE_KEY = 'departments:all';
+const DEPARTMENTS_CACHE_TTL_MS = 30_000;
 
 function isoOrEmpty(value: unknown): string {
   if (!value) return '';
@@ -54,10 +63,12 @@ async function resolveManagerNames(rows: Model[]): Promise<Map<string, string>> 
 }
 
 export async function listDepartments(): Promise<DepartmentRecord[]> {
-  await ensureSeeded();
-  const rows = await db.Department.findAll({ include: [creatorInclude, updaterInclude], order: [['order', 'ASC']] });
-  const managerNamesById = await resolveManagerNames(rows);
-  return rows.map((row) => toRecord(row, managerNamesById));
+  return cached(DEPARTMENTS_CACHE_KEY, DEPARTMENTS_CACHE_TTL_MS, async () => {
+    await ensureSeeded();
+    const rows = await db.Department.findAll({ include: [creatorInclude, updaterInclude], order: [['order', 'ASC']] });
+    const managerNamesById = await resolveManagerNames(rows);
+    return rows.map((row) => toRecord(row, managerNamesById));
+  });
 }
 
 export async function listActiveDepartments(): Promise<DepartmentRecord[]> {
@@ -67,10 +78,7 @@ export async function listActiveDepartments(): Promise<DepartmentRecord[]> {
 
 export async function findDepartmentById(id: string): Promise<DepartmentRecord | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.Department.findByPk(id, { include: [creatorInclude, updaterInclude] });
-  if (!row) return undefined;
-  const managerNamesById = await resolveManagerNames([row]);
-  return toRecord(row, managerNamesById);
+  return (await listDepartments()).find((d) => d.id === id);
 }
 
 export interface DepartmentInput {
@@ -102,6 +110,7 @@ export async function createDepartment(input: DepartmentInput, createdBy: string
       status: 'active',
       updatedBy: creator ? creator.get('id') : null
     } as never);
+    invalidateCache(DEPARTMENTS_CACHE_KEY);
     return (await findDepartmentById(deletedMatch.get('id') as string)) as DepartmentRecord;
   }
 
@@ -114,6 +123,7 @@ export async function createDepartment(input: DepartmentInput, createdBy: string
     createdBy: creator ? creator.get('id') : null,
     updatedBy: creator ? creator.get('id') : null
   } as never);
+  invalidateCache(DEPARTMENTS_CACHE_KEY);
   return (await findDepartmentById(row.get('id') as string)) as DepartmentRecord;
 }
 
@@ -132,6 +142,7 @@ export async function updateDepartment(id: string, patch: DepartmentUpdateInput,
   const attrs: Record<string, unknown> = { name: patch.name, description: patch.description, status: patch.status, updatedBy: updater ? updater.get('id') : null };
   if (patch.managerIds) attrs.managerIds = patch.managerIds;
   await row.update(attrs as never);
+  invalidateCache(DEPARTMENTS_CACHE_KEY);
   return (await findDepartmentById(id)) ?? null;
 }
 
@@ -140,56 +151,44 @@ export async function updateDepartment(id: string, patch: DepartmentUpdateInput,
 // login role — a manager relationship on a department is sufficient on its
 // own, not gated behind being 'manager'/'technical'/'backoffice' role.
 export async function isUserADepartmentManager(username: string): Promise<boolean> {
-  const user = await db.User.findOne({ where: { username } as never });
+  const user = await db.User.findOne({ where: { username } as never, attributes: ['id'] });
   if (!user) return false;
   const userId = user.get('id') as string;
-  const rows = await db.Department.findAll({ where: { status: 'active' } as never, attributes: ['managerIds'] });
-  return rows.some((row) => {
-    const managerIds = row.get('managerIds') as string[] | null;
-    return Array.isArray(managerIds) && managerIds.includes(userId);
-  });
+  const departments = await listActiveDepartments();
+  return departments.some((d) => d.managerIds.includes(userId));
 }
 
 // All active departments this user manages, resolved to {id, name} — used
 // to match a demo's assigned-person department against the viewer's own
 // managed department(s) for Dashboard "awaiting your approval" visibility.
 export async function departmentsManagedBy(username: string): Promise<{ id: string; name: string }[]> {
-  const user = await db.User.findOne({ where: { username } as never });
+  const user = await db.User.findOne({ where: { username } as never, attributes: ['id'] });
   if (!user) return [];
   const userId = user.get('id') as string;
-  const rows = await db.Department.findAll({ where: { status: 'active' } as never, attributes: ['id', 'name', 'managerIds'] });
-  return rows
-    .filter((row) => {
-      const managerIds = row.get('managerIds') as string[] | null;
-      return Array.isArray(managerIds) && managerIds.includes(userId);
-    })
-    .map((row) => ({ id: row.get('id') as string, name: row.get('name') as string }));
+  const departments = await listActiveDepartments();
+  return departments.filter((d) => d.managerIds.includes(userId)).map((d) => ({ id: d.id, name: d.name }));
 }
 
 // {departmentName -> [{id, username, name}]} for every active department
 // with at least one manager — feeds domain-manager routing hints and the
 // Dashboard's "awaiting your approval" matching, both client-side.
 export async function listDepartmentManagers(): Promise<Record<string, { id: string; username: string; name: string }[]>> {
-  const rows = await db.Department.findAll({ where: { status: 'active' } as never, attributes: ['name', 'managerIds'] });
+  const departments = await listActiveDepartments();
   const allIds = new Set<string>();
-  const byDept: { name: string; managerIds: string[] }[] = rows.map((row) => {
-    const plain = row.get({ plain: true }) as Record<string, unknown>;
-    const managerIds = Array.isArray(plain.managerIds) ? (plain.managerIds as string[]) : [];
-    managerIds.forEach((id) => allIds.add(id));
-    return { name: plain.name as string, managerIds };
-  });
+  departments.forEach((d) => d.managerIds.forEach((id) => allIds.add(id)));
   const users = allIds.size ? await db.User.findAll({ where: { id: [...allIds] } as never, attributes: ['id', 'username', 'name'] }) : [];
   const userById = new Map(users.map((u) => [u.get('id') as string, { id: u.get('id') as string, username: u.get('username') as string, name: u.get('name') as string }]));
   const result: Record<string, { id: string; username: string; name: string }[]> = {};
-  byDept.forEach(({ name, managerIds }) => {
-    const managers = managerIds.map((id) => userById.get(id)).filter((m): m is { id: string; username: string; name: string } => !!m);
-    if (managers.length) result[name] = managers;
+  departments.forEach((d) => {
+    const managers = d.managerIds.map((id) => userById.get(id)).filter((m): m is { id: string; username: string; name: string } => !!m);
+    if (managers.length) result[d.name] = managers;
   });
   return result;
 }
 
 export async function reorderDepartments(orderedIds: string[]): Promise<void> {
   await Promise.all(orderedIds.map((id, i) => db.Department.update({ order: i + 1 } as never, { where: { id } as never })));
+  invalidateCache(DEPARTMENTS_CACHE_KEY);
 }
 
 // A department in use by at least one user can't be deleted (would leave
@@ -209,5 +208,6 @@ export async function deleteDepartment(id: string): Promise<{ ok: boolean; reaso
     return { ok: false, reason: 'Department is assigned to one or more users — deactivate it instead' };
   }
   await row.destroy();
+  invalidateCache(DEPARTMENTS_CACHE_KEY);
   return { ok: true };
 }

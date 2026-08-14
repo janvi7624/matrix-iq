@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { FolderKanban } from 'lucide-react';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
 import { FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { exportListToPdf } from '@/lib/exportPdf';
@@ -295,7 +296,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 <tr>
                   <td colSpan={9}>
                     <EmptyState
-                      icon="📁"
+                      icon={FolderKanban}
                       title={projects.length === 0 ? 'No projects yet' : 'No projects match your filters'}
                       message={projects.length === 0 ? 'Create your first project to start tracking it through the pipeline.' : 'Try clearing a filter or search term.'}
                       action={projects.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>+ New Project</button> : undefined}

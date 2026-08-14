@@ -2,6 +2,7 @@
 
 import { KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Search, Clock, FolderKanban, FileText, Contact, MapPin } from 'lucide-react';
 import styles from './ui/search.module.css';
 
 interface SearchResult {
@@ -18,11 +19,11 @@ const CATEGORY_LABEL: Record<SearchResult['type'], string> = {
   lead: 'Lead',
   'site-visit': 'Site Visit'
 };
-const CATEGORY_ICON: Record<SearchResult['type'], string> = {
-  project: '📁',
-  quotation: '🧾',
-  lead: '📇',
-  'site-visit': '📍'
+const CATEGORY_ICON = {
+  project: FolderKanban,
+  quotation: FileText,
+  lead: Contact,
+  'site-visit': MapPin
 };
 
 const RECENT_KEY = 'mx-recent-searches';
@@ -144,7 +145,7 @@ export default function GlobalSearch() {
   return (
     <>
       <button type="button" className={styles.trigger} onClick={() => setOpen(true)} aria-label="Search everything (Ctrl K)">
-        <span>🔍</span>
+        <Search size={14} />
         <span className={styles.triggerLabel}>Search…</span>
         <span className={styles.triggerKbd}>Ctrl K</span>
       </button>
@@ -152,7 +153,7 @@ export default function GlobalSearch() {
         <div className={styles.overlay} onClick={() => setOpen(false)}>
           <div className={styles.palette} onClick={(e) => e.stopPropagation()}>
             <div className={styles.inputRow}>
-              <span className={styles.inputIcon}>🔍</span>
+              <span className={styles.inputIcon}><Search size={15} /></span>
               <input
                 ref={inputRef}
                 className={styles.input}
@@ -174,7 +175,7 @@ export default function GlobalSearch() {
                     <div className={styles.groupLabel}>Recent</div>
                     {recent.map((term) => (
                       <button key={term} type="button" className={styles.resultRow} onClick={() => setQuery(term)}>
-                        <span className={styles.resultIcon}>🕒</span>
+                        <span className={styles.resultIcon}><Clock size={14} /></span>
                         <span className={styles.resultTitle}>{term}</span>
                       </button>
                     ))}
@@ -183,22 +184,25 @@ export default function GlobalSearch() {
                   <div className={styles.hint}>Type at least 2 characters to search projects, quotations, leads, and site visits.</div>
                 )
               )}
-              {!loading && results.map((r, i) => (
-                <button
-                  key={`${r.type}-${r.id}`}
-                  type="button"
-                  className={`${styles.resultRow} ${i === activeIndex ? styles.resultRowActive : ''}`}
-                  onMouseEnter={() => setActiveIndex(i)}
-                  onClick={() => go(r)}
-                >
-                  <span className={styles.resultIcon}>{CATEGORY_ICON[r.type]}</span>
-                  <span className={styles.resultMain}>
-                    <span className={styles.resultTitle}>{r.title}</span>
-                    <span className={styles.resultSubtitle}>{r.subtitle}</span>
-                  </span>
-                  <span className={styles.resultType}>{CATEGORY_LABEL[r.type]}</span>
-                </button>
-              ))}
+              {!loading && results.map((r, i) => {
+                const ResultIcon = CATEGORY_ICON[r.type];
+                return (
+                  <button
+                    key={`${r.type}-${r.id}`}
+                    type="button"
+                    className={`${styles.resultRow} ${i === activeIndex ? styles.resultRowActive : ''}`}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onClick={() => go(r)}
+                  >
+                    <span className={styles.resultIcon}><ResultIcon size={15} /></span>
+                    <span className={styles.resultMain}>
+                      <span className={styles.resultTitle}>{r.title}</span>
+                      <span className={styles.resultSubtitle}>{r.subtitle}</span>
+                    </span>
+                    <span className={styles.resultType}>{CATEGORY_LABEL[r.type]}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

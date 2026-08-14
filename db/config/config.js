@@ -40,6 +40,24 @@ const base = {
   },
   define: {
     schema
+  },
+  // No pool config previously — Sequelize's own default (max: 5) then
+  // applied, which is tight for a single Node process serving pages that
+  // fire many concurrent API calls each needing a connection (e.g. the
+  // Dashboard's parallel fetches). DATABASE_URL points at Supabase's PgBouncer
+  // pooler (port 6543, transaction mode — see .env.local), not a direct
+  // Postgres connection, so it's already designed to hold far more concurrent
+  // client connections than a direct connection's own cap would allow;
+  // raising Sequelize's own pool modestly here just lets more of the app's
+  // own concurrent requests get a connection immediately instead of queuing
+  // behind a pool of 5. Kept moderate rather than large since the actual
+  // Supabase plan's connection ceiling isn't known from this codebase alone —
+  // this is a safe, justified increase, not an arbitrary one.
+  pool: {
+    max: 10,
+    min: 0,
+    idle: 10000,
+    acquire: 30000
   }
 };
 

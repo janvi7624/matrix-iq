@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const [projects, siteVisits, demos] = await Promise.all([
-      projectStore.list(viewer.username, viewer.isPrivileged),
+      projectStore.listLight(viewer.username, viewer.isPrivileged),
       siteVisitStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, viewer.isPrivileged)
     ]);

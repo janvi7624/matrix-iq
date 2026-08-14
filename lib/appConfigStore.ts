@@ -1,6 +1,14 @@
 import { Model } from 'sequelize';
 import { AppConfig, PublicAppConfig } from './types';
 import { db } from './db';
+import { cached, invalidateCache } from './memoCache';
+
+// One singleton row, read on nearly every quotation/DC/PDF/pricing
+// calculation (tax rate, company details) but written only from the rare
+// /admin/settings edit — same cache-with-explicit-invalidation pattern as
+// roleStore.ts/departmentStore.ts/moduleConfigStore.ts.
+const APP_CONFIG_CACHE_KEY = 'appConfig';
+const APP_CONFIG_CACHE_TTL_MS = 30_000;
 
 // Seeded from the values that were previously hardcoded in lib/pdf.ts /
 // lib/deliveryChallanStore.ts, so nothing changes on the first read — an
@@ -110,8 +118,10 @@ async function getOrCreateRow() {
 }
 
 export async function getAppConfig(): Promise<AppConfig> {
-  const row = await getOrCreateRow();
-  return toRecord(row);
+  return cached(APP_CONFIG_CACHE_KEY, APP_CONFIG_CACHE_TTL_MS, async () => {
+    const row = await getOrCreateRow();
+    return toRecord(row);
+  });
 }
 
 export async function getPublicAppConfig(): Promise<PublicAppConfig> {
@@ -145,5 +155,6 @@ export async function updateAppConfig(patch: Partial<AppConfig>, updatedBy: stri
     (attrs as Record<string, unknown>).marketingOwnerId = attrs.marketingOwnerId || null;
   }
   await row.update({ ...attrs, updatedBy: updater ? updater.get('id') : null } as never);
+  invalidateCache(APP_CONFIG_CACHE_KEY);
   return getAppConfig();
 }

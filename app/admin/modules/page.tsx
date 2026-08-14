@@ -5,8 +5,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ModuleConfigRecord, RoleRecord, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
+import { MODULE_ICON_OPTIONS, resolveModuleIcon } from '@/lib/icons';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+
+function iconOptionLabel(key: string): string {
+  return key.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+}
 
 // Short column header for a role — first word, capped so the table stays readable.
 function shortLabel(label: string): string {
@@ -133,7 +138,27 @@ export default function ModuleManagerPage() {
                         </div>
                       </td>
                       <td>
-                        <input className={calcStyles.formControl} style={{ width: 56 }} value={m.icon} onChange={(e) => setModules((prev) => prev.map((x) => (x.id === m.id ? { ...x, icon: e.target.value } : x)))} onBlur={(e) => patch(m.id, { icon: e.target.value })} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {(() => {
+                            const Icon = resolveModuleIcon(m.icon);
+                            return Icon ? <Icon size={16} /> : <span title="Legacy custom icon">{m.icon}</span>;
+                          })()}
+                          <select
+                            className={calcStyles.formControl}
+                            style={{ width: 130 }}
+                            value={resolveModuleIcon(m.icon) ? m.icon : ''}
+                            onChange={(e) => {
+                              const icon = e.target.value;
+                              setModules((prev) => prev.map((x) => (x.id === m.id ? { ...x, icon } : x)));
+                              patch(m.id, { icon });
+                            }}
+                          >
+                            {!resolveModuleIcon(m.icon) && <option value="">(legacy)</option>}
+                            {MODULE_ICON_OPTIONS.map((key) => (
+                              <option key={key} value={key}>{iconOptionLabel(key)}</option>
+                            ))}
+                          </select>
+                        </div>
                       </td>
                       <td>
                         <input className={calcStyles.formControl} value={m.label} onChange={(e) => setModules((prev) => prev.map((x) => (x.id === m.id ? { ...x, label: e.target.value } : x)))} onBlur={(e) => patch(m.id, { label: e.target.value })} />

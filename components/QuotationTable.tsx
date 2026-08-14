@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { FileText } from 'lucide-react';
 import { LineItem, ProductGroup, QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { daysSince, needsFollowUp, parseFollowUpNotes } from '@/lib/followUp';
@@ -305,7 +306,7 @@ export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSale
         {rows.length === 0 ? (
           <tr>
             <td colSpan={showSalesPerson ? 13 : 12}>
-              <EmptyState icon="🧾" title="No quotations yet" message="Create a quotation to see it listed here, with status, versions, and follow-ups." />
+              <EmptyState icon={FileText} title="No quotations yet" message="Create a quotation to see it listed here, with status, versions, and follow-ups." />
             </td>
           </tr>
         ) : (

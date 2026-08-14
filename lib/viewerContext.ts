@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { getSessionFromRequest } from './auth';
 import { UserRole } from './types';
 import { resolveIsPrivileged } from './permissions';
-import { findUserById } from './userStore';
+import { findUserStatusById } from './userStore';
 
 export interface ViewerContext {
   username: string;
@@ -29,8 +29,10 @@ export async function getViewerContext(request: NextRequest): Promise<ViewerCont
   // of its (up to 8-hour) lifetime. Deliberately NOT done in proxy.ts/lib/
   // auth.ts — see the comment in proxy.ts on why that file must stay free of
   // any Sequelize-touching import.
-  const currentUser = await findUserById(session.sub);
+  // Independent lookups (one hits users, the other the cached roles list) —
+  // run them concurrently instead of one-after-another. Neither depends on
+  // the other's result.
+  const [currentUser, isPrivileged] = await Promise.all([findUserStatusById(session.sub), resolveIsPrivileged(session.role)]);
   if (!currentUser || currentUser.status === 'inactive') return null;
-  const isPrivileged = await resolveIsPrivileged(session.role);
   return { username: session.username, role: session.role, isPrivileged };
 }

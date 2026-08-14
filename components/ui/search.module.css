@@ -57,7 +57,7 @@
     border-bottom: 1px solid var(--mx-border);
     flex-shrink: 0;
 }
-.inputIcon { font-size: 15px; opacity: 0.6; }
+.inputIcon { display: flex; align-items: center; opacity: 0.6; }
 .input {
     flex: 1;
     border: none;

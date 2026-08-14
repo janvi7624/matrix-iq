@@ -89,6 +89,18 @@ export async function findUserById(id: string): Promise<UserRecord | undefined> 
   return row ? toUserRecord(row) : undefined;
 }
 
+// The per-request "does this account still exist and is it still active"
+// check (lib/viewerContext.ts) only ever reads `.status` — findUserById's
+// role+department joins are wasted work on what is the single most-called
+// user lookup in the app (runs on ~every authenticated request). No joins,
+// one column.
+export async function findUserStatusById(id: string): Promise<{ id: string; status: string } | undefined> {
+  if (!isUuid(id)) return undefined;
+  const row = await db.User.findByPk(id, { attributes: ['id', 'status'] });
+  if (!row) return undefined;
+  return { id: row.get('id') as string, status: row.get('status') as string };
+}
+
 export async function findUserByUsername(username: string): Promise<UserRecord | undefined> {
   await ensureSeedAdmin();
   const row = await db.User.findOne({

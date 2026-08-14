@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Bell } from 'lucide-react';
 import { NotificationRecord } from '@/lib/types';
 import styles from './quotationHistory.module.css';
 
@@ -71,9 +72,9 @@ export default function NotificationBell() {
         className={styles.button}
         onClick={() => setOpen((v) => !v)}
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
-        style={{ position: 'relative' }}
+        style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
       >
-        🔔
+        <Bell size={18} />
         {unreadCount > 0 && (
           <span
             style={{

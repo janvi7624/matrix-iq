@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   try {
     const input: CustomModuleInput = {
       name: body.name.trim(),
-      icon: typeof body.icon === 'string' ? body.icon.trim() : '🧩',
+      icon: typeof body.icon === 'string' ? body.icon.trim() : 'wrench',
       section: typeof body.section === 'string' ? body.section.trim() : 'Custom Modules',
       fields: parseFields(body.fields),
       requiresApproval: Boolean(body.requiresApproval),

@@ -5,27 +5,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(180deg, #f7f7f7 0%, #e5e7eb 100%);
+    background: var(--mx-page-bg);
     color: #111827;
     padding: 24px 0;
-}
-.converter {
-    position: relative;
-    width: min(860px, 100%);
-    padding: 34px;
-    border-radius: var(--mx-radius-xl);
-    background: var(--mx-surface);
-    box-shadow: var(--mx-shadow-lg);
-    border: 1px solid var(--mx-border);
-}
-.converter::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: 28px;
-    background: radial-gradient(circle at top left, rgba(220, 38, 38, 0.12), transparent 30%),
-                radial-gradient(circle at bottom right, rgba(17, 24, 39, 0.06), transparent 40%);
 }
 .h1 {
     margin: 0 0 8px;

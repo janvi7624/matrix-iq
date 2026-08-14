@@ -1,6 +1,17 @@
 import { Model } from 'sequelize';
 import { ModuleConfigRecord, UserRole } from './types';
 import { db, isUuid } from './db';
+import { cached, invalidateCache } from './memoCache';
+
+// listModuleConfigs() (and its seed/reconcile pass) used to run in full on
+// every module-gated request — proxy.ts's own comment already flagged this
+// as "a redundant round trip paid constantly." Caching the resolved list
+// (with a short TTL as a backstop, and an explicit invalidate on every write
+// path below) turns that into one seed/reconcile pass per TTL window instead
+// of one per request, everywhere from Sidebar/Dashboard down to every single
+// module's own access-control check (isModuleAccessAllowed).
+const MODULES_CACHE_KEY = 'modules:all';
+const MODULES_CACHE_TTL_MS = 30_000;
 
 const ALL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
 const PRIVILEGED_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
@@ -12,27 +23,57 @@ const PRIVILEGED_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 // added later without a matching seed) simply won't appear until an admin
 // adds it via Module Manager.
 const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
-  { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: '📁', href: '/projects', section: 'Sales', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'quotation', label: 'New Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', icon: '🧾', href: '/quotation', section: 'Sales', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'my-quotations', label: 'Existing Quotations', desc: "Every quotation you've created, with status, versions, and follow-ups.", icon: '📋', href: '/my-quotations', section: 'Sales', order: 3, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: '📍', href: '/site-visits', section: 'Sales', order: 4, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'leads', label: 'Lead Capture', desc: 'Scan a business card at an event and qualify the lead on the spot.', icon: '📇', href: '/leads', section: 'Sales', order: 6, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: '🖥️', href: '/demo-schedule', section: 'Sales', order: 7, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: '🚗', href: '/travel-schedule', section: 'Sales', order: 8, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'backoffice', label: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', icon: '📦', href: '/backoffice', section: 'Operations', order: 1, enabled: true, isCustom: false, visibleToRoles: ['backoffice', 'admin', 'superadmin', 'manager'] },
-  { key: 'marketing-requests', label: 'Marketing Requests', desc: 'Request marketing support — brochures, banners, social posts, and more — and track delivery timelines.', icon: '📣', href: '/marketing-requests', section: 'Marketing', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: '👤', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'role-management', label: 'Role Management', desc: 'What each role can see and do across the platform.', icon: '🛡️', href: '/admin/roles', section: 'Administration', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'department-master', label: 'Department Master', desc: 'Departments used across user profiles.', icon: '🏢', href: '/admin/departments', section: 'Administration', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'performance-review', label: 'Performance Review', desc: 'A full performance dashboard for one employee at a time — CRM, sales, projects, and activity history.', icon: '📊', href: '/admin/performance-review', section: 'Reports', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'analytics', label: 'Analytics', desc: 'Quotation, project, and pipeline performance at a glance.', icon: '📈', href: '/analytics', section: 'Reports', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'audit-log', label: 'Audit Log', desc: 'Every status-changing action across the Back Office workflow.', icon: '🕒', href: '/admin/audit-log', section: 'Administration', order: 4, enabled: true, isCustom: false, visibleToRoles: ['superadmin'] },
-  { key: 'product-master', label: 'Product Master', desc: 'Manage the product catalog used across quotations.', icon: '🏷️', href: '/admin/products', section: 'Administration', order: 5, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'product-catalog-overrides', label: 'Product Catalog', desc: 'Rename or reprice any AV, Robotics, AI Analytics & VisitIQ product used in quotations.', icon: '💲', href: '/admin/product-catalog', section: 'Administration', order: 6, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'app-settings', label: 'Application Settings', desc: 'Company details, tax, terms, and numbering.', icon: '⚙️', href: '/admin/settings', section: 'Administration', order: 7, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'module-manager', label: 'Module Manager', desc: 'Enable, disable, rename, and reorder every module.', icon: '🧩', href: '/admin/modules', section: 'Administration', order: 8, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'custom-modules', label: 'Custom Module Builder', desc: 'Create new business modules without writing code.', icon: '🛠️', href: '/admin/custom-modules', section: 'Administration', order: 9, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES }
+  { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: 'folder-kanban', href: '/projects', section: 'Sales', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'quotation', label: 'New Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', icon: 'file-text', href: '/quotation', section: 'Sales', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'my-quotations', label: 'Existing Quotations', desc: "Every quotation you've created, with status, versions, and follow-ups.", icon: 'clipboard-list', href: '/my-quotations', section: 'Sales', order: 3, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: 'map-pin', href: '/site-visits', section: 'Sales', order: 4, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'leads', label: 'Lead Capture', desc: 'Scan a business card at an event and qualify the lead on the spot.', icon: 'contact', href: '/leads', section: 'Sales', order: 6, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: 'monitor', href: '/demo-schedule', section: 'Sales', order: 7, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'Sales', order: 8, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'backoffice', label: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', icon: 'package', href: '/backoffice', section: 'Operations', order: 1, enabled: true, isCustom: false, visibleToRoles: ['backoffice', 'admin', 'superadmin', 'manager'] },
+  { key: 'marketing-requests', label: 'Marketing Requests', desc: 'Request marketing support — brochures, banners, social posts, and more — and track delivery timelines.', icon: 'megaphone', href: '/marketing-requests', section: 'Marketing', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: 'user', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'role-management', label: 'Role Management', desc: 'What each role can see and do across the platform.', icon: 'shield', href: '/admin/roles', section: 'Administration', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'department-master', label: 'Department Master', desc: 'Departments used across user profiles.', icon: 'building', href: '/admin/departments', section: 'Administration', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'performance-review', label: 'Performance Review', desc: 'A full performance dashboard for one employee at a time — CRM, sales, projects, and activity history.', icon: 'bar-chart', href: '/admin/performance-review', section: 'Reports', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'analytics', label: 'Analytics', desc: 'Quotation, project, and pipeline performance at a glance.', icon: 'trending-up', href: '/analytics', section: 'Reports', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'audit-log', label: 'Audit Log', desc: 'Every status-changing action across the Back Office workflow.', icon: 'clock', href: '/admin/audit-log', section: 'Administration', order: 4, enabled: true, isCustom: false, visibleToRoles: ['superadmin'] },
+  { key: 'product-master', label: 'Product Master', desc: 'Manage the product catalog used across quotations.', icon: 'tag', href: '/admin/products', section: 'Administration', order: 5, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'product-catalog-overrides', label: 'Product Catalog', desc: 'Rename or reprice any AV, Robotics, AI Analytics & VisitIQ product used in quotations.', icon: 'dollar-sign', href: '/admin/product-catalog', section: 'Administration', order: 6, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'app-settings', label: 'Application Settings', desc: 'Company details, tax, terms, and numbering.', icon: 'settings', href: '/admin/settings', section: 'Administration', order: 7, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'module-manager', label: 'Module Manager', desc: 'Enable, disable, rename, and reorder every module.', icon: 'puzzle', href: '/admin/modules', section: 'Administration', order: 8, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'custom-modules', label: 'Custom Module Builder', desc: 'Create new business modules without writing code.', icon: 'wrench', href: '/admin/custom-modules', section: 'Administration', order: 9, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES }
 ];
+
+// Icon values above changed from free-typed emoji to curated icon keys
+// (lib/icons.tsx's MODULE_ICON_REGISTRY) as part of the enterprise UI
+// refinement — forced onto any already-seeded row whose icon still matches
+// the OLD emoji default, same don't-clobber-an-admin-edit guard as
+// FORCED_RELABELS (an admin who already picked their own icon keeps it).
+const OLD_DEFAULT_ICONS: Record<string, string> = {
+  projects: '📁',
+  quotation: '🧾',
+  'my-quotations': '📋',
+  'site-visits': '📍',
+  leads: '📇',
+  'demo-schedule': '🖥️',
+  'travel-schedule': '🚗',
+  backoffice: '📦',
+  'marketing-requests': '📣',
+  'user-management': '👤',
+  'role-management': '🛡️',
+  'department-master': '🏢',
+  'performance-review': '📊',
+  analytics: '📈',
+  'audit-log': '🕒',
+  'product-master': '🏷️',
+  'product-catalog-overrides': '💲',
+  'app-settings': '⚙️',
+  'module-manager': '🧩',
+  'custom-modules': '🛠️'
+};
+const FORCED_ICON_KEYS = new Set(Object.keys(OLD_DEFAULT_ICONS));
+const NEW_DEFAULT_ICONS = new Map(SEED_MODULES.map((m) => [m.key, m.icon]));
 
 // One-time forced relabels for built-in modules renamed in a later release
 // (section 23: Quotation -> New Quotation, My Quotations -> Existing
@@ -120,6 +161,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (RESECTIONED_KEYS.has(key) && plain.section === OLD_SECTION) attrs.section = NEW_SECTION;
     if (RESECTIONED_KEYS_V2.has(key) && plain.section === OLD_SECTION_V2) attrs.section = NEW_SECTION_V2;
     if (FORCED_VISIBILITY_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_VISIBILITY)) attrs.visibleToRoles = NEW_VISIBILITY;
+    if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }
 
@@ -131,10 +173,12 @@ async function ensureSeededAndReconciled(): Promise<void> {
 }
 
 export async function listModuleConfigs(): Promise<ModuleConfigRecord[]> {
-  await ensureSeededAndReconciled();
-  const rows = await db.ModuleConfig.findAll();
-  const records = rows.map(toRecord);
-  return records.sort((a, b) => (a.section === b.section ? a.order - b.order : a.section.localeCompare(b.section)));
+  return cached(MODULES_CACHE_KEY, MODULES_CACHE_TTL_MS, async () => {
+    await ensureSeededAndReconciled();
+    const rows = await db.ModuleConfig.findAll();
+    const records = rows.map(toRecord);
+    return records.sort((a, b) => (a.section === b.section ? a.order - b.order : a.section.localeCompare(b.section)));
+  });
 }
 
 // What Dashboard actually renders — enabled modules visible to this role.
@@ -165,11 +209,13 @@ export async function updateModuleConfig(id: string, patch: Partial<Omit<ModuleC
   const row = await db.ModuleConfig.findByPk(id);
   if (!row) return null;
   await row.update(patch as never);
+  invalidateCache(MODULES_CACHE_KEY);
   return toRecord(row);
 }
 
 export async function reorderModules(orderedIds: string[]): Promise<void> {
   await Promise.all(orderedIds.map((id, i) => db.ModuleConfig.update({ order: i + 1 } as never, { where: { id } as never })));
+  invalidateCache(MODULES_CACHE_KEY);
 }
 
 // Called when a Custom Module is created/updated/deleted (see
@@ -182,7 +228,8 @@ export async function upsertCustomModuleTile(input: { key: string; label: string
   const existing = await db.ModuleConfig.findOne({ where: { key: fullKey } as never });
 
   if (existing) {
-    await existing.update({ label: input.label, icon: input.icon || '🧩', section: input.section || 'Custom Modules', enabled: input.enabled } as never);
+    await existing.update({ label: input.label, icon: input.icon || 'wrench', section: input.section || 'Custom Modules', enabled: input.enabled } as never);
+    invalidateCache(MODULES_CACHE_KEY);
     return;
   }
 
@@ -194,7 +241,7 @@ export async function upsertCustomModuleTile(input: { key: string; label: string
     key: fullKey,
     label: input.label,
     desc: 'Custom module',
-    icon: input.icon || '🧩',
+    icon: input.icon || 'wrench',
     href: `/modules/${input.key}`,
     section,
     order: maxOrder + 1,
@@ -202,8 +249,10 @@ export async function upsertCustomModuleTile(input: { key: string; label: string
     isCustom: true,
     visibleToRoles: ['superadmin', 'admin', 'manager']
   } as never);
+  invalidateCache(MODULES_CACHE_KEY);
 }
 
 export async function removeCustomModuleTile(key: string): Promise<void> {
   await db.ModuleConfig.destroy({ where: { key: `custom:${key}` } as never });
+  invalidateCache(MODULES_CACHE_KEY);
 }

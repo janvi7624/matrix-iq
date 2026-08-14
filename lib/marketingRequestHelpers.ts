@@ -15,11 +15,14 @@ export const MARKETING_REQUEST_TYPE_LABEL: Record<MarketingRequestType, string> 
   other: 'Other'
 };
 
-export const MARKETING_PRIORITY_META: Record<MarketingRequestPriority, { icon: string; label: string; hint: string }> = {
-  urgent: { icon: '🔴', label: 'Urgent', hint: 'Needed within a day or two' },
-  high: { icon: '🟠', label: 'High', hint: 'Needed this week' },
-  medium: { icon: '🟡', label: 'Medium', hint: 'Needed in the next couple of weeks' },
-  low: { icon: '🟢', label: 'Low', hint: 'No rush — whenever it fits the queue' }
+// tone/color comes entirely from PriorityBadge's semantic CSS (danger/
+// warning/info/success tokens) — no icon field, so the badge isn't
+// double-encoding priority with both a color and a redundant colored-dot glyph.
+export const MARKETING_PRIORITY_META: Record<MarketingRequestPriority, { label: string; hint: string }> = {
+  urgent: { label: 'Urgent', hint: 'Needed within a day or two' },
+  high: { label: 'High', hint: 'Needed this week' },
+  medium: { label: 'Medium', hint: 'Needed in the next couple of weeks' },
+  low: { label: 'Low', hint: 'No rush — whenever it fits the queue' }
 };
 
 export const MARKETING_STATUS_LABEL: Record<MarketingRequestStatus, string> = {

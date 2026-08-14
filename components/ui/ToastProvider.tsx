@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
 import styles from './notify.module.css';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -10,7 +11,7 @@ interface ToastItem {
   message: string;
 }
 
-const ICONS: Record<ToastType, string> = { success: '✅', error: '⚠️', info: 'ℹ️' };
+const ICONS = { success: CheckCircle2, error: AlertTriangle, info: Info };
 const VARIANT_CLASS: Record<ToastType, string> = { success: styles.toastSuccess, error: styles.toastError, info: styles.toastInfo };
 // Errors stay on screen longer — a sales rep needs time to actually read what went wrong, not just see a flash.
 const DURATIONS: Record<ToastType, number> = { success: 4000, error: 6500, info: 4500 };
@@ -35,13 +36,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={showToast}>
       {children}
       <div className={styles.toastStack} role="status" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className={`${styles.toast} ${VARIANT_CLASS[t.type]}`}>
-            <span className={styles.toastIcon}>{ICONS[t.type]}</span>
-            <span className={styles.toastMessage}>{t.message}</span>
-            <button type="button" className={styles.toastClose} onClick={() => dismiss(t.id)} aria-label="Dismiss">✕</button>
-          </div>
-        ))}
+        {toasts.map((t) => {
+          const Icon = ICONS[t.type];
+          return (
+            <div key={t.id} className={`${styles.toast} ${VARIANT_CLASS[t.type]}`}>
+              <span className={styles.toastIcon}><Icon size={16} /></span>
+              <span className={styles.toastMessage}>{t.message}</span>
+              <button type="button" className={styles.toastClose} onClick={() => dismiss(t.id)} aria-label="Dismiss"><X size={14} /></button>
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );

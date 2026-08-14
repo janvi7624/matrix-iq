@@ -101,7 +101,7 @@ export async function createCustomModule(input: CustomModuleInput, createdBy: st
 
   const id = await sequelize.transaction(async (t) => {
     const row = await db.CustomModule.create(
-      { key, name: input.name, icon: input.icon || '🧩', section: input.section || 'Custom Modules', createdBy: creator ? creator.get('id') : null, requiresApproval: input.requiresApproval, approverRole: input.approverRole, enabled: input.enabled } as never,
+      { key, name: input.name, icon: input.icon || 'wrench', section: input.section || 'Custom Modules', createdBy: creator ? creator.get('id') : null, requiresApproval: input.requiresApproval, approverRole: input.approverRole, enabled: input.enabled } as never,
       { transaction: t }
     );
     if (input.fields.length) {
