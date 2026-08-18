@@ -2,12 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { DemoScheduleRecord, ModuleConfigRecord, ProjectRecord, QuotationRecord, SiteVisitRecord, UserRole } from '@/lib/types';
+import { DemoScheduleRecord, ModuleConfigRecord, ProjectRecord, QuotationRecord, UserRole } from '@/lib/types';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import { formatMoney } from '@/lib/format';
-import { needsFollowUp } from '@/lib/followUp';
-import { isReminderDue } from '@/lib/siteVisitReminder';
 import AppShell from './AppShell';
 import { BRAND } from '@/lib/branding';
 import { useModuleSections } from '@/lib/useModuleSections';
@@ -93,94 +91,48 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   }, [sections, primarySection]);
   const { isExpanded, toggle } = useCollapsibleSections(primarySection);
 
+  // One round trip instead of what used to be up to 13 separate fetches
+  // (modules, projects/kpis, backoffice/kpis, admin/quotations, site-visits,
+  // leads/stats, marketing-requests/stats, projects, demo-schedule,
+  // departments/managers, technical-roster, quotations/mine, quotations/
+  // stats) — see app/api/dashboard/route.ts, which resolves the viewer once
+  // and fans out server-side instead of once per client request. Role-gated
+  // fields (followUpCount, backOfficeKpis, quotationStats) still come back
+  // null for a viewer they don't apply to, same as before.
   useEffect(() => {
-    fetch('/api/modules')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: ModuleConfigRecord[]) => setModules(data))
-      .catch(() => setModules([]));
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/projects/kpis')
+    fetch('/api/dashboard')
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: Kpis | null) => setKpis(data))
-      .catch(() => setKpis(null));
-  }, []);
-
-  useEffect(() => {
-    if (!isBackOffice) return;
-    fetch('/api/backoffice/kpis')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: BackOfficeKpis | null) => setBackOfficeKpis(data))
-      .catch(() => setBackOfficeKpis(null));
-  }, [isBackOffice]);
-
-  useEffect(() => {
-    if (!isPrivileged) return;
-    fetch('/api/admin/quotations')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: QuotationRecord[]) => setFollowUpCount(rows.filter((r) => needsFollowUp(r)).length))
-      .catch(() => setFollowUpCount(null));
-  }, [isPrivileged]);
-
-  useEffect(() => {
-    fetch('/api/site-visits')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: SiteVisitRecord[]) => setReminderCount(rows.filter((r) => isReminderDue(r)).length))
-      .catch(() => setReminderCount(null));
-  }, []);
-
-  // Sales sees only their own unattended leads, Manager/Admin/Superadmin see
-  // the org-wide count — same own-vs-privileged scoping every other module
-  // uses, enforced server-side in computeLeadStats.
-  useEffect(() => {
-    fetch('/api/leads/stats')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { unattended: number } | null) => setUnattendedLeads(data ? data.unattended : null))
-      .catch(() => setUnattendedLeads(null));
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/marketing-requests/stats')
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setMarketingStats)
-      .catch(() => setMarketingStats(null));
-  }, []);
-
-  // Launchpad: "where do I need to go next" — most recently touched
-  // projects/quotations, reusing the same endpoints Projects/My Quotations
-  // already fetch (own-vs-org-wide scoping already handled server-side).
-  useEffect(() => {
-    fetch('/api/projects')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: ProjectRecord[]) => setAllProjects(rows))
-      .catch(() => setAllProjects([]));
-  }, []);
-
-  // Demo Schedule's list API already grants queue visibility to
-  // technical/backoffice/privileged roles and, as of the real technical
-  // roster, to anyone who manages at least one department — a plain Sales
-  // user just gets their own created demos back, which is fine (they're
-  // never the assignee, so it contributes nothing to the sections below).
-  useEffect(() => {
-    fetch('/api/demo-schedule')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: DemoScheduleRecord[]) => setDemos(rows))
-      .catch(() => setDemos([]));
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/departments/managers')
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((data: ManagersByDepartment) => setManagersByDepartment(data))
-      .catch(() => setManagersByDepartment({}));
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/technical-roster')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: TechnicalRosterEntry[]) => setTechnicalRoster(rows))
-      .catch(() => setTechnicalRoster([]));
+      .then((data) => {
+        if (!data) return;
+        setModules(data.modules ?? []);
+        setKpis(data.kpis ?? null);
+        setBackOfficeKpis(data.backOfficeKpis ?? null);
+        setFollowUpCount(data.followUpCount ?? null);
+        setReminderCount(data.reminderCount ?? null);
+        setUnattendedLeads(data.unattendedLeads ?? null);
+        setMarketingStats(data.marketingStats ?? null);
+        setAllProjects(data.allProjects ?? []);
+        setDemos(data.demos ?? []);
+        setManagersByDepartment(data.managersByDepartment ?? {});
+        setTechnicalRoster(data.technicalRoster ?? []);
+        setRecentQuotations(data.recentQuotations ?? []);
+        setQuotationStats(data.quotationStats ?? null);
+      })
+      .catch(() => {
+        setModules([]);
+        setKpis(null);
+        setBackOfficeKpis(null);
+        setFollowUpCount(null);
+        setReminderCount(null);
+        setUnattendedLeads(null);
+        setMarketingStats(null);
+        setAllProjects([]);
+        setDemos([]);
+        setManagersByDepartment({});
+        setTechnicalRoster([]);
+        setRecentQuotations([]);
+        setQuotationStats(null);
+      });
   }, []);
 
   const recentProjects = useMemo(() => (allProjects ? [...allProjects].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 5) : null), [allProjects]);
@@ -205,21 +157,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       return !!assigneeDepartment && managedDepartments.includes(assigneeDepartment);
     });
   }, [demos, managedDepartments, rosterById]);
-
-  useEffect(() => {
-    fetch('/api/quotations/mine')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: QuotationRecord[]) => setRecentQuotations([...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 5)))
-      .catch(() => setRecentQuotations([]));
-  }, []);
-
-  useEffect(() => {
-    if (!isManagerTier) return;
-    fetch('/api/quotations/stats')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: QuotationStatsSummary | null) => setQuotationStats(data))
-      .catch(() => setQuotationStats(null));
-  }, [isManagerTier]);
 
   // One unified "what needs me right now" list instead of a stack of
   // identically-styled banners — built from exactly the same data the old

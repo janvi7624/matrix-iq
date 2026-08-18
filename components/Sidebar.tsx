@@ -38,50 +38,27 @@ export default function Sidebar() {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
+  // One round trip instead of what used to be /api/auth/me followed
+  // (sequentially, only once that resolved) by up to 4 more badge-count
+  // fetches, plus a separate /api/modules call — see app/api/sidebar/
+  // route.ts, which resolves the viewer once and fans everything out in
+  // parallel server-side. Runs on every page (Sidebar is in AppShell), so
+  // this compounds across every navigation, not just first load.
   useEffect(() => {
-    fetch('/api/modules')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: ModuleConfigRecord[]) => setModules(data))
-      .catch(() => setModules([]));
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/auth/me')
+    fetch('/api/sidebar')
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: Viewer | null) => setViewer(data))
-      .catch(() => setViewer(null));
+      .then((data) => {
+        if (!data) return;
+        setModules(data.modules ?? []);
+        setViewer(data.viewer ?? null);
+        setBadges(data.badges ?? {});
+      })
+      .catch(() => {
+        setModules([]);
+        setViewer(null);
+        setBadges({});
+      });
   }, []);
-
-  // One badge count per module key, each sourced from the same stats
-  // endpoints the Dashboard KPI banners already use — purely presentational,
-  // no new business logic, just surfacing existing numbers in the nav.
-  useEffect(() => {
-    if (!viewer) return;
-    const isPrivileged = viewer.role === 'admin' || viewer.role === 'superadmin' || viewer.role === 'manager';
-    const isBackOffice = viewer.role === 'backoffice' || isPrivileged;
-    const isManagerTier = viewer.role === 'manager' || viewer.role === 'admin' || viewer.role === 'superadmin';
-
-    fetch('/api/leads/stats').then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (d?.unattended) setBadges((b) => ({ ...b, leads: d.unattended }));
-    }).catch(() => null);
-
-    fetch('/api/marketing-requests/stats').then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (d?.isReviewer && d.awaitingReview) setBadges((b) => ({ ...b, 'marketing-requests': d.awaitingReview }));
-    }).catch(() => null);
-
-    if (viewer.role === 'technical' || isManagerTier) {
-      fetch('/api/projects/kpis').then((r) => (r.ok ? r.json() : null)).then((d) => {
-        if (d?.pendingApprovals) setBadges((b) => ({ ...b, 'demo-schedule': d.pendingApprovals }));
-      }).catch(() => null);
-    }
-
-    if (isBackOffice) {
-      fetch('/api/backoffice/kpis').then((r) => (r.ok ? r.json() : null)).then((d) => {
-        const count = (d?.pendingDc || 0) + (d?.pendingVerification || 0);
-        if (count) setBadges((b) => ({ ...b, backoffice: count }));
-      }).catch(() => null);
-    }
-  }, [viewer]);
 
   // Explicit user choice wins; otherwise default to a compact rail on
   // tablet-width screens and fully expanded everywhere else.

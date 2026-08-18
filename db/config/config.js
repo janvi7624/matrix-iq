@@ -41,6 +41,13 @@ const base = {
   define: {
     schema
   },
+  // Sequelize's own default is `logging: console.log` when this is left
+  // unset — every single query, on every request, in every environment
+  // including production, was being formatted to a string and written to
+  // stdout. Real, avoidable per-query overhead with no one reading it in
+  // production; kept on in development, where it's actually useful for
+  // debugging.
+  logging: process.env.NODE_ENV === 'production' ? false : console.log,
   // No pool config previously — Sequelize's own default (max: 5) then
   // applied, which is tight for a single Node process serving pages that
   // fire many concurrent API calls each needing a connection (e.g. the
