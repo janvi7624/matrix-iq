@@ -630,7 +630,6 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
                 onAddFromCatalog={(product) => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: product.name, qty: product.defaultQty || 1, price: product.sellingPrice }])}
                 onChangeItem={(id, patch) => setCustomProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))}
                 onRemove={(id) => setCustomProducts((prev) => prev.filter((p) => p.id !== id))}
-                canEditPrice={canEditPricing}
               />
             </div>
           </div>
