@@ -20,15 +20,16 @@ const PERMISSION_ACTIONS: { key: ModulePermissionAction; label: string }[] = [
   { key: 'assign', label: 'Assign' }
 ];
 
-const GLOBAL_CAPABILITIES: { key: keyof Pick<RolePermissions, 'manageSettings' | 'manageUsers' | 'manageRoles' | 'manageDepartments'>; label: string }[] = [
+const GLOBAL_CAPABILITIES: { key: keyof Pick<RolePermissions, 'manageSettings' | 'manageUsers' | 'manageRoles' | 'manageDepartments' | 'viewAllDepartments'>; label: string; hint?: string }[] = [
   { key: 'manageUsers', label: 'Manage Users' },
   { key: 'manageRoles', label: 'Manage Roles' },
   { key: 'manageDepartments', label: 'Manage Departments' },
-  { key: 'manageSettings', label: 'Manage Settings' }
+  { key: 'manageSettings', label: 'Manage Settings' },
+  { key: 'viewAllDepartments', label: 'View All Departments’ Data', hint: 'Sees every department’s Projects, Quotations, Site Visits, Leads, Delivery Challans, and Marketing Requests — not just their own department’s. Off by default for Manager; on for Admin/Super Admin.' }
 ];
 
 function blankPermissions(): RolePermissions {
-  return { modules: {}, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false };
+  return { modules: {}, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false };
 }
 
 export default function RoleManagementPage() {
@@ -352,7 +353,7 @@ export default function RoleManagementPage() {
               <div className={historyStyles.navGroupLabel} style={{ marginTop: 0 }}>Global capabilities</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {GLOBAL_CAPABILITIES.map((cap) => (
-                  <label key={cap.key} className={historyStyles.permRowSelectLabel} style={{ padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: 10 }}>
+                  <label key={cap.key} className={historyStyles.permRowSelectLabel} style={{ padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: 10 }} title={cap.hint}>
                     <input type="checkbox" checked={selectedRole.permissions[cap.key]} onChange={() => toggleGlobalCapability(selectedRole, cap.key)} />
                     <span style={{ fontSize: 13.5, fontWeight: 600 }}>{cap.label}</span>
                   </label>

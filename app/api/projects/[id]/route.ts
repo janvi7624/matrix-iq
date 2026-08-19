@@ -14,6 +14,10 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { resolveVisibilityScope } from '@/lib/departmentScope';
+import { db } from '@/lib/db';
+import { logAudit } from '@/lib/auditLogStore';
+import { getClientIp } from '@/lib/requestIp';
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -23,6 +27,21 @@ function toStringArray(value: unknown): string[] {
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
 const VALID_STATUS: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost'];
 
+// Single-project access — mirrors projectStore's own list-visibility rule
+// (created it, assigned to it, or it belongs to a department this viewer
+// manages) rather than the old creator-or-privileged-only check, so a
+// department manager can open a team member's project directly by id, but
+// nobody can reach another department's project just by knowing its id.
+async function canAccessProject(viewerUsername: string, project: { created_by: string; assigned_technical_person_id: string }): Promise<boolean> {
+  const scope = await resolveVisibilityScope(viewerUsername);
+  if (scope.seesOrgWide) return true;
+  const ids = scope.scopedUserIds ?? [];
+  if (project.assigned_technical_person_id && ids.includes(project.assigned_technical_person_id)) return true;
+  if (!project.created_by) return false;
+  const creator = await db.User.findOne({ where: { username: project.created_by } as never, attributes: ['id'] });
+  return creator ? ids.includes(creator.get('id') as string) : false;
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -31,7 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const project = await findProjectById(id);
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    if (!viewer.isPrivileged && project.created_by !== viewer.username) {
+    if (!(await canAccessProject(viewer.username, project))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -75,7 +94,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const existing = await findProjectById(id);
     if (!existing) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    if (!viewer.isPrivileged && existing.created_by !== viewer.username) {
+    if (!(await canAccessProject(viewer.username, existing))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -137,7 +156,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (newlyAssignedPerson) {
-      await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label: `Assigned technical person: ${newlyAssignedPerson.name}` });
+      const previousName = existing.assigned_technical_person_name || 'Unassigned';
+      const label = `Assigned technical person: ${previousName} → ${newlyAssignedPerson.name}`;
+      await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label });
+      await logAudit({
+        by: viewer.username,
+        role: viewer.role,
+        entityType: 'project',
+        entityId: id,
+        action: 'Project reassigned',
+        previousStatus: previousName,
+        newStatus: newlyAssignedPerson.name,
+        remarks: existing.client_name || existing.company || '',
+        ip: getClientIp(request)
+      });
       await notifyUsers([newlyAssignedPerson.username], {
         title: 'A project was assigned to you',
         body: `${existing.client_name || existing.company || 'Project'} — assigned as the technical lead`,

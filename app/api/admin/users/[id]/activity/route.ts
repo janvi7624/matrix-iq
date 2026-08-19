@@ -17,8 +17,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
     const [projects, siteVisits, quotations, demos, loginHistory] = await Promise.all([
-      projectStore.list(user.username, false),
-      siteVisitStore.list(user.username, false),
+      projectStore.listOwnedBy(user.username),
+      siteVisitStore.listOwnedBy(user.username),
       searchQuotationsFiltered({ ownerUsername: user.username }),
       demoScheduleStore.list(user.username, false),
       listLoginHistory(user.username, 10)

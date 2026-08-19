@@ -5,6 +5,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DomainKey, LeadPriority, LeadRecord } from '@/lib/types';
+import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITIES: LeadPriority[] = ['hot', 'warm', 'cool', ''];
@@ -21,7 +22,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const records = await leadStore.list(viewer.username, true);
     const existing = records.find((r) => r.id === id);
     if (!existing) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-    if (!viewer.isPrivileged && existing.created_by !== viewer.username) {
+    if (!(await canAccessOwnedRecord(viewer.username, existing.created_by))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

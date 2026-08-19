@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { findQuotationById, logQuotationFollowUp } from '@/lib/quotationStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
 // Owner-or-privileged version of /api/admin/quotations/[id]/follow-up — lets
 // a sales user log a follow-up on their own quotation from My Quotations,
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const existing = await findQuotationById(id);
     if (!existing) return NextResponse.json({ error: 'Quotation not found' }, { status: 404 });
-    if (!viewer.isPrivileged && existing.created_by !== viewer.username) {
+    if (!(await canAccessOwnedRecord(viewer.username, existing.created_by))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

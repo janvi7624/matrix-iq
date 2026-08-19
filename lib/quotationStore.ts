@@ -3,6 +3,9 @@ import { QuotationEffectiveStatus, QuotationRecord, QuotationStatus } from './ty
 import { computeQuotationPrefix, formatQuotationNumber } from './quotationNumber';
 import { DomainKey } from './types';
 import { db, isUuid } from './db';
+import { resolveVisibilityScope } from './departmentScope';
+
+const UNKNOWN_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 function isoOrEmpty(value: unknown): string {
   if (!value) return '';
@@ -263,7 +266,17 @@ export function computeEffectiveStatus(record: QuotationRecord): QuotationEffect
 
 export interface QuotationFilters {
   query?: string;
-  ownerUsername?: string; // scope to only this user's quotations
+  // Narrows to exactly this one user's quotations — for an admin-facing
+  // per-user lookup (Activity, Performance Review, the salesPerson filter
+  // on the admin Quotations console), not for "what can the CURRENT viewer
+  // see". Combines with viewerUsername below when both are given: the
+  // result is still clamped to the viewer's own scope, so this can't be
+  // used to reach into another department's quotations by owner id.
+  ownerUsername?: string;
+  // The CURRENT viewer — when set, department-scopes the result to what
+  // they're allowed to see (org-wide, or own + managed department's team).
+  // See lib/departmentScope.ts.
+  viewerUsername?: string;
   status?: QuotationEffectiveStatus;
   projectId?: string;
   dateFrom?: string;
@@ -272,9 +285,19 @@ export interface QuotationFilters {
 
 export async function searchQuotationsFiltered(filters: QuotationFilters): Promise<QuotationRecord[]> {
   const where: Record<string, unknown> = {};
+
+  let allowedIds: string[] | null = null; // null = unrestricted
+  if (filters.viewerUsername) {
+    const scope = await resolveVisibilityScope(filters.viewerUsername);
+    allowedIds = scope.scopedUserIds;
+  }
+
   if (filters.ownerUsername) {
     const user = await db.User.findOne({ where: { username: filters.ownerUsername } as never });
-    where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
+    const ownerId = user ? (user.get('id') as string) : UNKNOWN_USER_ID;
+    where.created_by = allowedIds && !allowedIds.includes(ownerId) ? UNKNOWN_USER_ID : ownerId;
+  } else if (allowedIds) {
+    where.created_by = { [Op.in]: allowedIds };
   }
   if (filters.projectId) where.project_id = filters.projectId;
 

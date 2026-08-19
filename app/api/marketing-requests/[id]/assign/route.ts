@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
-import { isModuleActionAllowed } from '@/lib/permissions';
+import { isMarketingManager } from '@/lib/permissions';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -9,13 +9,15 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { db } from '@/lib/db';
 
 // Assignment is independent of status — a ticket can be in_progress AND
-// (re)assigned. Never touches `timeline`.
+// (re)assigned. Never touches `timeline`. Still blocked entirely while a
+// request is `submitted`: a Marketing User must not receive an official
+// assignment before the Marketing Manager approves it (see [id]/approve).
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const allowed = viewer.isPrivileged || (await isModuleActionAllowed(viewer, 'marketing-requests', 'assign'));
-  if (!allowed) return NextResponse.json({ error: 'Forbidden — only a marketing reviewer can assign this request' }, { status: 403 });
+  const allowed = await isMarketingManager(viewer);
+  if (!allowed) return NextResponse.json({ error: 'Forbidden — only the Marketing manager can assign this request' }, { status: 403 });
 
   const { id } = await params;
   const body = await request.json().catch(() => null);
@@ -25,6 +27,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const records = await marketingRequestStore.list(viewer.username, true);
     const existing = records.find((r) => r.id === id);
     if (!existing) return NextResponse.json({ error: 'Marketing request not found' }, { status: 404 });
+    if (existing.status === 'submitted') {
+      return NextResponse.json({ error: 'This request must be approved by the Marketing manager before it can be assigned' }, { status: 400 });
+    }
 
     let assigneeUsername = '';
     if (assigneeId) {

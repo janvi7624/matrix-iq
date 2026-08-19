@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { BackOfficeRemarkTag, DcLineItem, DeliveryChallanRecord, DemoRequestStatus, MaterialReturnChecklist } from '@/lib/types';
+import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
 const VALID_REMARK_TAGS: BackOfficeRemarkTag[] = [
   'good_condition',
@@ -38,7 +39,7 @@ function toItems(value: unknown): DcLineItem[] {
 async function requireDc(viewer: { username: string; isPrivileged: boolean }, id: string) {
   const dc = await findDeliveryChallanById(id);
   if (!dc) return { error: NextResponse.json({ error: 'Delivery Challan not found' }, { status: 404 }) } as const;
-  if (!viewer.isPrivileged && dc.created_by !== viewer.username) {
+  if (!(await canAccessOwnedRecord(viewer.username, dc.created_by))) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) } as const;
   }
   return { dc } as const;

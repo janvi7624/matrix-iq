@@ -307,7 +307,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
       {isManagerTier && (
         <>
-          <div className={styles.sectionHeading}>Team Overview</div>
+          {/* KPIs below (kpis/quotationStats) already come department-scoped
+              from the server for a non-org-wide manager — see
+              lib/departmentScope.ts — so this panel doubles as the
+              department-scoped "Sales Manager Dashboard"-style view without
+              a separate endpoint; the heading names the department(s) when
+              there's a clear one to name. */}
+          <div className={styles.sectionHeading}>
+            {managedDepartments.length === 1 ? `${managedDepartments[0]} Team Overview` : 'Team Overview'}
+          </div>
           <div className={styles.kpiGrid}>
             <div className={styles.kpiCard}>
               <div className={styles.kpiValue}>{kpis ? kpis.totalProjects : '—'}</div>

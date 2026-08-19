@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { siteVisitStore } from '@/lib/siteVisitStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DomainKey, SiteVisitRecord, SiteVisitUpdateEntry, VisitStage } from '@/lib/types';
+import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
 const VALID_CATEGORIES: (DomainKey | '')[] = ['', 'av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_STAGES: (VisitStage | '')[] = ['', 'hot', 'warm', 'cold'];
@@ -24,7 +25,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const records = await siteVisitStore.list(viewer.username, true);
     const existing = records.find((r) => r.id === id);
     if (!existing) return NextResponse.json({ error: 'Site visit not found' }, { status: 404 });
-    if (!viewer.isPrivileged && existing.created_by !== viewer.username) {
+    if (!(await canAccessOwnedRecord(viewer.username, existing.created_by))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { findQuotationById, updateQuotationStatus } from '@/lib/quotationStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { QuotationStatus } from '@/lib/types';
+import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
 const VALID_STATUSES: QuotationStatus[] = ['draft', 'sent', 'approved', 'rejected'];
 
@@ -19,7 +20,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const existing = await findQuotationById(id);
     if (!existing) return NextResponse.json({ error: 'Quotation not found' }, { status: 404 });
-    if (!viewer.isPrivileged && existing.created_by !== viewer.username) {
+    if (!(await canAccessOwnedRecord(viewer.username, existing.created_by))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

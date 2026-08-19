@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
-import { isModuleActionAllowed } from '@/lib/permissions';
+import { isMarketingManager } from '@/lib/permissions';
+import { listDepartmentManagers } from '@/lib/departmentStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
-import { getAppConfig } from '@/lib/appConfigStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { MarketingRequestPriority, MarketingRequestRecord, MarketingRequestType } from '@/lib/types';
 
@@ -20,22 +20,12 @@ function toStringArray(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
 }
 
-// A reviewer (Manager+ by default, or any role explicitly granted "approve"
-// on this module in Role Management) needs to see every ticket, not just
-// their own — unlike the plain own-vs-privileged split most other modules
-// use, this also checks the module's "approve" capability directly so a
-// narrower non-privileged "Marketing" role still sees the full queue.
-async function canSeeAllRequests(viewer: { role: string; isPrivileged: boolean }): Promise<boolean> {
-  if (viewer.isPrivileged) return true;
-  return isModuleActionAllowed(viewer, 'marketing-requests', 'approve');
-}
-
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const seesAll = await canSeeAllRequests(viewer);
+    const seesAll = await isMarketingManager(viewer);
     const records = await marketingRequestStore.list(viewer.username, seesAll);
     return NextResponse.json(records);
   } catch (error) {
@@ -56,15 +46,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Title and description are required' }, { status: 400 });
   }
 
-  // New tickets default-route to the configured Marketing Owner — see
-  // Administration > Application Settings > Marketing Settings.
-  const appConfig = await getAppConfig();
-
+  // New tickets start unassigned — a Marketing User must not receive an
+  // official assignment before the Marketing Manager reviews and approves
+  // the request (see the new /approve route). The Marketing department's
+  // manager(s) are notified below instead of a single configured owner.
   const record: MarketingRequestRecord = {
     id: `${Date.now()}`,
     created_at: new Date().toISOString(),
     created_by: viewer.username,
-    assigned_to: appConfig.marketingOwnerUsername,
+    assigned_to: '',
     updated_at: new Date().toISOString(),
     project_id: typeof body.projectId === 'string' ? body.projectId.trim() : '',
     title,
@@ -94,9 +84,11 @@ export async function POST(request: NextRequest) {
       remarks: title,
       ip: getClientIp(request)
     });
-    if (created.assigned_to && created.assigned_to !== viewer.username) {
-      await notifyUsers([created.assigned_to], {
-        title: 'New marketing request',
+    const marketingManagers = (await listDepartmentManagers())['Marketing'] || [];
+    const notifyTargets = marketingManagers.map((m) => m.username).filter((u) => u && u !== viewer.username);
+    if (notifyTargets.length) {
+      await notifyUsers(notifyTargets, {
+        title: 'New marketing request awaiting approval',
         body: `${viewer.username} submitted "${title}"`,
         type: 'marketing_request_created',
         entityType: 'marketing_request',

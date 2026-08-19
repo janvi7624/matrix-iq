@@ -17,8 +17,9 @@ export default function DepartmentMasterPage() {
   const [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editState, setEditState] = useState<{ name: string; description: string } | null>(null);
+  const [editState, setEditState] = useState<{ name: string; description: string; managerIds: string[] } | null>(null);
   const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
 
   async function load() {
     setStatus('Loading...');
@@ -35,6 +36,10 @@ export default function DepartmentMasterPage() {
 
   useEffect(() => {
     load();
+    fetch('/api/users/lite')
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setUsers)
+      .catch(() => setUsers([]));
   }, []);
 
   const visible = useMemo(() => {
@@ -86,16 +91,24 @@ export default function DepartmentMasterPage() {
 
   function startEdit(d: DepartmentRecord) {
     setEditingId(d.id);
-    setEditState({ name: d.name, description: d.description });
+    setEditState({ name: d.name, description: d.description, managerIds: d.managerIds });
   }
 
   async function saveEdit(id: string) {
     if (!editState) return;
-    const ok = await patch(id, { name: editState.name, description: editState.description });
+    const ok = await patch(id, { name: editState.name, description: editState.description, managerIds: editState.managerIds });
     if (ok) {
       setEditingId(null);
       setEditState(null);
     }
+  }
+
+  function toggleEditManager(userId: string) {
+    setEditState((prev) => {
+      if (!prev) return prev;
+      const has = prev.managerIds.includes(userId);
+      return { ...prev, managerIds: has ? prev.managerIds.filter((id) => id !== userId) : [...prev.managerIds, userId] };
+    });
   }
 
   async function toggleStatus(d: DepartmentRecord) {
@@ -176,6 +189,7 @@ export default function DepartmentMasterPage() {
                 <th>Order</th>
                 <th>Name</th>
                 <th>Description</th>
+                <th>Manager</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -199,6 +213,17 @@ export default function DepartmentMasterPage() {
                         <td>
                           <input className={calcStyles.formControl} value={editState.description} onChange={(e) => setEditState({ ...editState, description: e.target.value })} />
                         </td>
+                        <td>
+                          <div style={{ maxHeight: 120, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, padding: 6, minWidth: 180 }}>
+                            {users.length === 0 && <div className={calcStyles.small}>No users available.</div>}
+                            {users.map((u) => (
+                              <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, padding: '2px 0' }}>
+                                <input type="checkbox" checked={editState.managerIds.includes(u.id)} onChange={() => toggleEditManager(u.id)} />
+                                {u.name || u.username}
+                              </label>
+                            ))}
+                          </div>
+                        </td>
                         <td>{d.status === 'active' ? 'Active' : 'Inactive'}</td>
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
@@ -211,6 +236,7 @@ export default function DepartmentMasterPage() {
                       <>
                         <td>{d.name}</td>
                         <td>{d.description || '-'}</td>
+                        <td>{d.managerNames.length ? d.managerNames.join(', ') : <span style={{ opacity: 0.55 }}>No manager set</span>}</td>
                         <td>
                           <span className={`${historyStyles.statusPill} ${d.status === 'active' ? historyStyles.statusPillActive : historyStyles.statusPillInactive}`}>
                             {d.status === 'active' ? 'Active' : 'Inactive'}
@@ -232,7 +258,7 @@ export default function DepartmentMasterPage() {
                 );
               })}
               {visible.length === 0 && (
-                <tr><td colSpan={5} className={historyStyles.empty}>No departments match.</td></tr>
+                <tr><td colSpan={6} className={historyStyles.empty}>No departments match.</td></tr>
               )}
             </tbody>
           </table>

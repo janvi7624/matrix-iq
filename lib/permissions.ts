@@ -1,4 +1,5 @@
 import { findRoleByKey } from './roleStore';
+import { listDepartmentManagers } from './departmentStore';
 import { GlobalCapability, ModulePermissionAction } from './types';
 
 // Legacy fallback if a role key isn't found in the store at all (shouldn't
@@ -36,4 +37,19 @@ export async function isModuleActionAllowed(viewer: { role: string; isPrivileged
   const entry = record?.status === 'active' ? record.permissions.modules[moduleKey] : undefined;
   if (entry && typeof entry[action] === 'boolean') return entry[action] as boolean;
   return viewer.isPrivileged;
+}
+
+// Who is authorized to review/approve/assign Marketing Requests — resolved
+// from the real org structure (Department = "Marketing", Role = Manager,
+// via Department.managerIds) rather than a single hardcoded user id or a
+// flat role permission, same precedent as demo-schedule's manager-approval
+// route. Falls back to the old flat isModuleActionAllowed('approve') check
+// when no department literally named "Marketing" exists yet or it has no
+// manager mapped, so nothing gets stuck on an unmapped org.
+export async function isMarketingManager(viewer: { username: string; role: string; isPrivileged: boolean }): Promise<boolean> {
+  if (await hasCapability(viewer.role, 'viewAllDepartments')) return true;
+  const managers = (await listDepartmentManagers())['Marketing'];
+  if (managers && managers.length) return managers.some((m) => m.username === viewer.username);
+  if (viewer.isPrivileged) return true;
+  return isModuleActionAllowed(viewer, 'marketing-requests', 'approve');
 }

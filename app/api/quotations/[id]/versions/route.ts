@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { findQuotationById, listQuotationVersions } from '@/lib/quotationStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
 // Admins/managers see every revision; a Sales user only sees version
 // history for quotations they created themselves (checked against the ROOT
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!anyVersion) return NextResponse.json({ error: 'Quotation not found' }, { status: 404 });
     const rootId = anyVersion.original_quotation_id || anyVersion.id;
     const root = await findQuotationById(rootId);
-    if (!viewer.isPrivileged && root && root.created_by !== viewer.username) {
+    if (root && !(await canAccessOwnedRecord(viewer.username, root.created_by))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { deleteDepartment, findDepartmentById, updateDepartment } from '@/lib/departmentStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { logAudit } from '@/lib/auditLogStore';
+import { getClientIp } from '@/lib/requestIp';
 
 // Base auth + admin-area gating happens in proxy.ts (matcher: /api/admin/:path*),
 // including a blanket "DELETE under /api/admin requires superadmin" rule.
@@ -24,6 +26,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (Array.isArray(body.managerIds) && body.managerIds.every((x: unknown) => typeof x === 'string')) patch.managerIds = body.managerIds;
 
     const updated = await updateDepartment(id, patch, session.username);
+
+    if (patch.managerIds && updated) {
+      const before = new Set(existing.managerNames);
+      const after = new Set(updated.managerNames);
+      const changed = before.size !== after.size || [...before].some((n) => !after.has(n));
+      if (changed) {
+        await logAudit({
+          by: session.username,
+          role: session.role,
+          entityType: 'department',
+          entityId: id,
+          action: existing.managerIds.length ? 'Department manager changed' : 'Department manager assigned',
+          previousStatus: existing.managerNames.join(', ') || 'None',
+          newStatus: updated.managerNames.join(', ') || 'None',
+          remarks: existing.name,
+          ip: getClientIp(request)
+        });
+      }
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     return apiErrorResponse(error);

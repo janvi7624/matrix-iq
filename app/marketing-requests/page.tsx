@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 import { findUserById } from '@/lib/userStore';
-import { resolveIsPrivileged, isModuleActionAllowed } from '@/lib/permissions';
+import { resolveIsPrivileged, isMarketingManager } from '@/lib/permissions';
 import MarketingRequestsView from '@/components/MarketingRequestsView';
 
 export default async function MarketingRequestsPage() {
@@ -14,7 +14,7 @@ export default async function MarketingRequestsPage() {
   if (!user) redirect('/login');
 
   const isPrivileged = await resolveIsPrivileged(user.role);
-  const isReviewer = isPrivileged || (await isModuleActionAllowed({ role: user.role, isPrivileged }, 'marketing-requests', 'approve'));
+  const isReviewer = await isMarketingManager({ username: user.username, role: user.role, isPrivileged });
 
   return <MarketingRequestsView currentUser={{ username: user.username, role: user.role }} isReviewer={isReviewer} />;
 }

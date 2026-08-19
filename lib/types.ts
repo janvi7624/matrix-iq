@@ -354,6 +354,7 @@ export type MarketingRequestPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export type MarketingRequestStatus =
   | 'submitted'
+  | 'approved'
   | 'timeline_set'
   | 'in_progress'
   | 'waiting_info'
@@ -516,7 +517,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'project' | 'department';
   entity_id: string;
   action: string;
   previous_status: string;
@@ -835,7 +836,7 @@ export interface DepartmentRecord {
 export type ModulePermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'export' | 'print' | 'approve' | 'reject' | 'assign';
 export type ModulePermissionSet = Partial<Record<ModulePermissionAction, boolean>>;
 
-export type GlobalCapability = 'manageSettings' | 'manageUsers' | 'manageRoles' | 'manageDepartments';
+export type GlobalCapability = 'manageSettings' | 'manageUsers' | 'manageRoles' | 'manageDepartments' | 'viewAllDepartments';
 
 export interface RolePermissions {
   modules: Record<string, ModulePermissionSet>;
@@ -843,6 +844,14 @@ export interface RolePermissions {
   manageUsers: boolean;
   manageRoles: boolean;
   manageDepartments: boolean;
+  // Decoupled from `isPrivileged` (which still gates admin-panel access,
+  // pricing-edit rights, and deletes): this is the ONLY thing that decides
+  // org-wide vs department-scoped DATA VISIBILITY across Projects,
+  // Quotations, Site Visits, Leads, Delivery Challans, and Marketing
+  // Requests (see lib/departmentScope.ts). A role without this sees only
+  // its own records, plus its managed department(s)' records if any
+  // (Department.managerIds) — never every department's data by default.
+  viewAllDepartments: boolean;
 }
 
 export type RoleStatus = 'active' | 'inactive';

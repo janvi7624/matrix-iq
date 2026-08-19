@@ -24,7 +24,8 @@ function parsePermissions(body: unknown): RolePermissions | undefined {
     manageSettings: !!b.manageSettings,
     manageUsers: !!b.manageUsers,
     manageRoles: !!b.manageRoles,
-    manageDepartments: !!b.manageDepartments
+    manageDepartments: !!b.manageDepartments,
+    viewAllDepartments: !!b.viewAllDepartments
   };
 }
 

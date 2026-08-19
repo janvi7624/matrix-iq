@@ -4,7 +4,7 @@ import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { computeLeadStats } from '@/lib/leadStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
-import { isModuleActionAllowed } from '@/lib/permissions';
+import { isMarketingManager } from '@/lib/permissions';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { listVisibleModules } from '@/lib/moduleConfigStore';
@@ -26,11 +26,11 @@ export async function GET(request: NextRequest) {
     const isBackOffice = viewer.role === 'backoffice' || isPrivileged;
     const isManagerTier = viewer.role === 'manager' || viewer.role === 'admin' || viewer.role === 'superadmin';
 
-    const [modules, user, leadStats, marketingReviewerAllowed, demosForBadge, backOfficeCounts] = await Promise.all([
+    const [modules, user, leadStats, isMarketingReviewer, demosForBadge, backOfficeCounts] = await Promise.all([
       listVisibleModules(viewer.role),
       findUserNameAndDeptByUsername(viewer.username),
       computeLeadStats(viewer.username, viewer.isPrivileged),
-      isModuleActionAllowed(viewer, 'marketing-requests', 'approve'),
+      isMarketingManager(viewer),
       viewer.role === 'technical' || isManagerTier ? demoScheduleStore.list(viewer.username, viewer.isPrivileged) : Promise.resolve(null),
       isBackOffice
         ? Promise.all([deliveryChallanStore.list(viewer.username, true), demoScheduleStore.list(viewer.username, true)])
@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
     const badges: Record<string, number> = {};
     if (leadStats.unattended) badges.leads = leadStats.unattended;
 
-    const isMarketingReviewer = viewer.isPrivileged || marketingReviewerAllowed;
     const marketingRecords = await marketingRequestStore.list(viewer.username, isMarketingReviewer);
     if (isMarketingReviewer) {
       const awaitingReview = marketingRecords.filter((r) => r.status === 'submitted').length;

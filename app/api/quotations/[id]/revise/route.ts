@@ -4,6 +4,7 @@ import { createQuotationRevision, findQuotationById } from '@/lib/quotationStore
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
+import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
 // Creates a new, independent quotation version (QT-00123 -> QT-00123.01) —
 // the source quotation is never modified. Same body shape the calculator
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!source) return NextResponse.json({ error: 'Quotation not found' }, { status: 404 });
     const rootId = source.original_quotation_id || source.id;
     const root = await findQuotationById(rootId);
-    if (!viewer.isPrivileged && root && root.created_by !== viewer.username) {
+    if (root && !(await canAccessOwnedRecord(viewer.username, root.created_by))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

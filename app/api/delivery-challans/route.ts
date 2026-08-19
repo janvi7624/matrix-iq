@@ -30,9 +30,10 @@ export async function GET(request: NextRequest) {
   try {
     // Same reasoning as demo-schedule's GET — a DC is created by whichever
     // Back Office user generated it, but the whole team needs to see the
-    // shared dispatch/return queue, not just DCs they personally made.
-    const canSeeQueue = viewer.isPrivileged || viewer.role === 'backoffice';
-    const records = await deliveryChallanStore.list(viewer.username, canSeeQueue);
+    // shared dispatch/return queue, not just DCs they personally made (or
+    // their own department's — Back Office team membership is what grants
+    // this, independent of department-manager scoping).
+    const records = await deliveryChallanStore.list(viewer.username, viewer.isPrivileged, viewer.role === 'backoffice');
     return NextResponse.json(records);
   } catch (error) {
     return apiErrorResponse(error);

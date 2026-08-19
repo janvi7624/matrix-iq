@@ -9,7 +9,7 @@ import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { countQuotationsForProjects, computeEffectiveStatus, searchQuotationsFiltered } from '@/lib/quotationStore';
 import { computeLeadStats } from '@/lib/leadStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
-import { isModuleActionAllowed } from '@/lib/permissions';
+import { isMarketingManager } from '@/lib/permissions';
 import { listDepartmentManagers, isUserADepartmentManager } from '@/lib/departmentStore';
 import { listTechnicalRoster } from '@/lib/technicalRoster';
 import { needsFollowUp } from '@/lib/followUp';
@@ -71,11 +71,11 @@ export async function GET(request: NextRequest) {
       computeLeadStats(viewer.username, viewer.isPrivileged),
       listTechnicalRoster(),
       listDepartmentManagers(),
-      searchQuotationsFiltered({ ownerUsername: viewer.username }),
-      viewer.isPrivileged ? searchQuotationsFiltered({}) : Promise.resolve(null),
+      searchQuotationsFiltered({ viewerUsername: viewer.username }),
+      viewer.isPrivileged ? searchQuotationsFiltered({ viewerUsername: viewer.username }) : Promise.resolve(null),
       isBackOffice ? deliveryChallanStore.list(viewer.username, true) : Promise.resolve(null),
       (async () => {
-        const isReviewer = viewer.isPrivileged || (await isModuleActionAllowed(viewer, 'marketing-requests', 'approve'));
+        const isReviewer = await isMarketingManager(viewer);
         return { isReviewer, records: await marketingRequestStore.list(viewer.username, isReviewer) };
       })()
     ]);
@@ -133,14 +133,13 @@ export async function GET(request: NextRequest) {
 
     let quotationStats: { total: number; draft: number; sent: number; approved: number; rejected: number; expired: number } | null = null;
     if (isManagerTier) {
-      // Matches the original /api/quotations/stats scoping exactly (org-wide
-      // only when isPrivileged, own-scoped otherwise — isManagerTier does
-      // not strictly imply isPrivileged if a role's flag was customized via
-      // Role Management). Reuses followUpQuotations when it's already the
-      // same org-wide query instead of paying for it twice.
+      // Matches /api/quotations/stats scoping exactly (department-scoped via
+      // viewerUsername either way now — see lib/departmentScope.ts).
+      // Reuses followUpQuotations when it's already the same query instead
+      // of paying for it twice.
       const rows = viewer.isPrivileged
-        ? followUpQuotations ?? (await searchQuotationsFiltered({}))
-        : await searchQuotationsFiltered({ ownerUsername: viewer.username });
+        ? followUpQuotations ?? (await searchQuotationsFiltered({ viewerUsername: viewer.username }))
+        : await searchQuotationsFiltered({ viewerUsername: viewer.username });
       const counts = { total: rows.length, draft: 0, sent: 0, approved: 0, rejected: 0, expired: 0 };
       for (const r of rows) {
         const status = computeEffectiveStatus(r);

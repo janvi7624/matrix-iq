@@ -1,7 +1,8 @@
-import { Model } from 'sequelize';
+import { Model, Op } from 'sequelize';
 import { DcLineItem, DeliveryChallanRecord } from './types';
 import { db, isUuid, sequelize } from './db';
 import { getAppConfig } from './appConfigStore';
+import { resolveVisibilityScope } from './departmentScope';
 
 const FIELDS = [
   { name: 'dc_number' },
@@ -71,12 +72,34 @@ async function readAll(): Promise<DeliveryChallanRecord[]> {
   return rows.map(toRecord);
 }
 
-async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promise<DeliveryChallanRecord[]> {
-  const where: Record<string, unknown> = {};
-  if (!viewerIsPrivileged) {
-    const user = await db.User.findOne({ where: { username: viewerUsername } as never });
-    where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
+// viewerIsPrivileged is kept for call-site compatibility but no longer used
+// directly — visibility is resolved from the viewer's department scope
+// instead (see resolveVisibilityScope). includeBackofficeTeam is a genuinely
+// separate, additive widening (any backoffice-role user shares the whole
+// dispatch/return queue, independent of department) — the route passes it
+// when viewer.role === 'backoffice', preserving that existing behavior on
+// top of, not instead of, department scoping.
+async function list(viewerUsername: string, _viewerIsPrivileged?: boolean, includeBackofficeTeam?: boolean): Promise<DeliveryChallanRecord[]> {
+  const scope = await resolveVisibilityScope(viewerUsername);
+  let allowedIds = scope.scopedUserIds;
+  if (allowedIds && includeBackofficeTeam) {
+    const backofficeUsers = await db.User.findAll({
+      include: [{ model: db.Role, as: 'role', where: { key: 'backoffice' } as never, attributes: [] }],
+      attributes: ['id']
+    });
+    allowedIds = Array.from(new Set([...allowedIds, ...backofficeUsers.map((u) => u.get('id') as string)]));
   }
+  const where: Record<string, unknown> = allowedIds ? { created_by: { [Op.in]: allowedIds } } : {};
+  const rows = await db.DeliveryChallan.findAll({ where: where as never, include: [creatorInclude, itemsInclude], order: [['created_at', 'DESC']] });
+  return rows.map(toRecord);
+}
+
+// Strictly "DCs this one user personally issued" — used by admin
+// per-employee reports; see projectStore.listOwnedBy for why this can't
+// reuse the (now department-scoped) list() above.
+async function listOwnedBy(username: string): Promise<DeliveryChallanRecord[]> {
+  const user = await db.User.findOne({ where: { username } as never, attributes: ['id'] });
+  const where = { created_by: user ? user.get('id') : '00000000-0000-0000-0000-000000000000' };
   const rows = await db.DeliveryChallan.findAll({ where: where as never, include: [creatorInclude, itemsInclude], order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
@@ -130,7 +153,7 @@ async function remove(id: string, viewerUsername: string, viewerIsPrivileged: bo
   return true;
 }
 
-export const deliveryChallanStore = { list, create, update, remove };
+export const deliveryChallanStore = { list, listOwnedBy, create, update, remove };
 
 export async function findDeliveryChallanById(id: string): Promise<DeliveryChallanRecord | undefined> {
   if (!isUuid(id)) return undefined;

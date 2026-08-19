@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
-import { isModuleActionAllowed } from '@/lib/permissions';
+import { isMarketingManager } from '@/lib/permissions';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -30,9 +30,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const allowed = viewer.isPrivileged || (await isModuleActionAllowed(viewer, 'marketing-requests', 'approve'));
-  if (!allowed) return NextResponse.json({ error: 'Forbidden — only a marketing reviewer can update this request’s status' }, { status: 403 });
-
   const { id } = await params;
   const body = await request.json().catch(() => null);
   const action = body?.action as Action | undefined;
@@ -50,6 +47,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const records = await marketingRequestStore.list(viewer.username, true);
     const existing = records.find((r) => r.id === id);
     if (!existing) return NextResponse.json({ error: 'Marketing request not found' }, { status: 404 });
+
+    // The Marketing Manager can progress anyone's ticket; the assignee can
+    // progress their own — a Marketing User works their assigned request
+    // without needing manager-level permissions for that alone.
+    const isAssignee = !!existing.assigned_to && existing.assigned_to === viewer.username;
+    const allowed = isAssignee || (await isMarketingManager(viewer));
+    if (!allowed) return NextResponse.json({ error: 'Forbidden — only the Marketing manager or the assignee can update this request’s status' }, { status: 403 });
+
     if (!transition.from.includes(existing.status)) {
       return NextResponse.json({ error: `This request's current status doesn't allow that action` }, { status: 400 });
     }

@@ -1,6 +1,7 @@
-import { Model } from 'sequelize';
+import { Model, Op } from 'sequelize';
 import { ProjectNote, ProjectRecord, ProjectStage, ProjectTimelineEvent } from './types';
 import { db, isUuid, sequelize } from './db';
+import { resolveVisibilityScope } from './departmentScope';
 
 const FIELDS = [
   { name: 'client_name' },
@@ -95,23 +96,38 @@ async function readAll(): Promise<ProjectRecord[]> {
   return rows.map(toRecord);
 }
 
-async function resolveOwnerWhere(viewerUsername: string, viewerIsPrivileged: boolean): Promise<Record<string, unknown>> {
-  const where: Record<string, unknown> = {};
-  if (!viewerIsPrivileged) {
-    const user = await db.User.findOne({ where: { username: viewerUsername } as never, attributes: ['id'] });
-    where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
-  }
-  return where;
+// Visibility (not capability — remove()/delete rights below still key off
+// viewerIsPrivileged as before) is resolved from the viewer's department
+// scope, not the raw isPrivileged flag: an org-wide viewer gets {} (no
+// filter), everyone else sees projects they created OR are the assigned
+// technical person on, widened to their whole managed department's team
+// when they manage one. See lib/departmentScope.ts.
+async function resolveOwnerWhere(viewerUsername: string): Promise<Record<string, unknown>> {
+  const scope = await resolveVisibilityScope(viewerUsername);
+  if (!scope.scopedUserIds) return {};
+  return { [Op.or]: [{ created_by: { [Op.in]: scope.scopedUserIds } }, { assigned_technical_person_id: { [Op.in]: scope.scopedUserIds } }] };
 }
 
-async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promise<ProjectRecord[]> {
-  const where = await resolveOwnerWhere(viewerUsername, viewerIsPrivileged);
+async function list(viewerUsername: string): Promise<ProjectRecord[]> {
+  const where = await resolveOwnerWhere(viewerUsername);
   const rows = await db.Project.findAll({ where: where as never, include: allIncludes, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
-async function listLight(viewerUsername: string, viewerIsPrivileged: boolean): Promise<ProjectRecord[]> {
-  const where = await resolveOwnerWhere(viewerUsername, viewerIsPrivileged);
+async function listLight(viewerUsername: string): Promise<ProjectRecord[]> {
+  const where = await resolveOwnerWhere(viewerUsername);
+  const rows = await db.Project.findAll({ where: where as never, include: lightIncludes, order: [['created_at', 'DESC']] });
+  return rows.map(toRecord);
+}
+
+// Strictly "projects this one user personally created" — used by admin
+// per-employee reports (Activity, Performance Review), which must not
+// silently widen to a target's whole managed team just because they happen
+// to be a department manager (unlike list()/listLight() above, which
+// resolve the VIEWER's own visibility scope for dashboards/list pages).
+async function listOwnedBy(username: string): Promise<ProjectRecord[]> {
+  const user = await db.User.findOne({ where: { username } as never, attributes: ['id'] });
+  const where = { created_by: user ? user.get('id') : '00000000-0000-0000-0000-000000000000' };
   const rows = await db.Project.findAll({ where: where as never, include: lightIncludes, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
@@ -207,12 +223,16 @@ function normalizeProject(project: ProjectRecord): ProjectRecord {
   };
 }
 
-// Ownership for list/remove is keyed off `created_by`, same as every other
-// record store — Project.created_by is always set to the sales person, so a
-// plain "user"/"technical" account only sees their own projects.
+// list/listLight keep accepting viewerIsPrivileged for call-site
+// compatibility (every route still has it handy from getViewerContext) but
+// no longer use it directly — visibility is resolved from the viewer's
+// department scope instead (see resolveOwnerWhere/resolveVisibilityScope).
+// remove() below still keys deletion rights off viewerIsPrivileged, which is
+// a capability check, not a visibility one, and stays exactly as it was.
 export const projectStore = {
-  list: async (viewerUsername: string, viewerIsPrivileged: boolean) => (await list(viewerUsername, viewerIsPrivileged)).map(normalizeProject),
-  listLight: async (viewerUsername: string, viewerIsPrivileged: boolean) => (await listLight(viewerUsername, viewerIsPrivileged)).map(normalizeProject),
+  list: async (viewerUsername: string, _viewerIsPrivileged: boolean) => (await list(viewerUsername)).map(normalizeProject),
+  listLight: async (viewerUsername: string, _viewerIsPrivileged: boolean) => (await listLight(viewerUsername)).map(normalizeProject),
+  listOwnedBy: async (username: string) => (await listOwnedBy(username)).map(normalizeProject),
   create,
   update,
   remove

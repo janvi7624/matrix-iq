@@ -1,5 +1,7 @@
 import type { Model, ModelStatic } from 'sequelize';
+import { Op } from 'sequelize';
 import { db, isUuid } from './db';
+import { resolveVisibilityScope } from './departmentScope';
 
 // Shared CRUD helper for the simple "one table, list/create/update/delete,
 // scoped by created_by" modules (customer responses, negotiations, purchase
@@ -57,7 +59,8 @@ const creatorInclude = () => ({ model: db.User, as: 'creator', attributes: ['id'
 
 export function createRecordStore<T extends { id: string; created_at: string; created_by: string }>(
   model: ModelStatic<Model>,
-  fields: FieldSpec[]
+  fields: FieldSpec[],
+  options: { departmentScoped?: boolean } = {}
 ) {
   function toRecord(row: Model): T {
     const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -77,12 +80,34 @@ export function createRecordStore<T extends { id: string; created_at: string; cr
     return rows.map(toRecord);
   }
 
+  // options.departmentScoped opts into resolving the viewer's real
+  // department-visibility scope (org-wide, or own + managed department's
+  // team) instead of a raw isPrivileged check — used by leadStore only, so
+  // the other five modules sharing this factory (customer responses,
+  // negotiations, POs, installations, travel schedules) keep their exact
+  // current own-created-only behavior, unaffected.
   async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promise<T[]> {
     const where: Record<string, unknown> = {};
-    if (!viewerIsPrivileged) {
+    if (options.departmentScoped) {
+      const scope = await resolveVisibilityScope(viewerUsername);
+      if (scope.scopedUserIds) where.created_by = { [Op.in]: scope.scopedUserIds };
+    } else if (!viewerIsPrivileged) {
       const user = await db.User.findOne({ where: { username: viewerUsername } as never });
       where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
     }
+    const rows = await model.findAll({ where: where as never, include: [creatorInclude()], order: [['created_at', 'DESC']] });
+    return rows.map(toRecord);
+  }
+
+  // Strictly "records this one user personally created" — ignores
+  // department-manager widening even when departmentScoped is set. Used by
+  // admin per-employee reports (Activity, Performance Review), where "how
+  // much did THIS person do" must never silently balloon to include their
+  // whole managed team's records just because they happen to manage a
+  // department.
+  async function listOwnedBy(username: string): Promise<T[]> {
+    const user = await db.User.findOne({ where: { username } as never, attributes: ['id'] });
+    const where = { created_by: user ? user.get('id') : '00000000-0000-0000-0000-000000000000' };
     const rows = await model.findAll({ where: where as never, include: [creatorInclude()], order: [['created_at', 'DESC']] });
     return rows.map(toRecord);
   }
@@ -123,5 +148,5 @@ export function createRecordStore<T extends { id: string; created_at: string; cr
     return true;
   }
 
-  return { list, create, update, remove, readAll, toRecord };
+  return { list, listOwnedBy, create, update, remove, readAll, toRecord };
 }

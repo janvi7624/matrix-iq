@@ -19,7 +19,7 @@ function isoOrEmpty(value: unknown): string {
 }
 
 function blankPermissions(overrides: Partial<RolePermissions> = {}): RolePermissions {
-  return { modules: {}, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, ...overrides };
+  return { modules: {}, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false, ...overrides };
 }
 
 // The 6 roles this app already had before Role Management became dynamic —
@@ -27,9 +27,9 @@ function blankPermissions(overrides: Partial<RolePermissions> = {}): RolePermiss
 // the admin routes already granted them, so seeding this store changes
 // nothing about how an existing account behaves.
 const SEED_ROLES: { key: string; label: string; description: string; isSystem: boolean; isPrivileged: boolean; status: 'active'; order: number; permissions: RolePermissions }[] = [
-  { key: 'superadmin', label: 'Super Admin', description: 'Full rights — manage users, roles, departments, settings; only role that can delete records.', isSystem: true, isPrivileged: true, status: 'active', order: 1, permissions: blankPermissions({ manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: true }) },
-  { key: 'admin', label: 'Admin', description: 'Creates/edits users and manages configuration; cannot delete users or quotations.', isSystem: true, isPrivileged: true, status: 'active', order: 2, permissions: blankPermissions({ manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: true }) },
-  { key: 'manager', label: 'Manager', description: 'Same broad pipeline visibility as Admin across projects, demos, and approvals.', isSystem: true, isPrivileged: true, status: 'active', order: 3, permissions: blankPermissions({ manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: true }) },
+  { key: 'superadmin', label: 'Super Admin', description: 'Full rights — manage users, roles, departments, settings; only role that can delete records; sees every department\'s data.', isSystem: true, isPrivileged: true, status: 'active', order: 1, permissions: blankPermissions({ manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: true, viewAllDepartments: true }) },
+  { key: 'admin', label: 'Admin', description: 'Creates/edits users and manages configuration; cannot delete users or quotations; sees every department\'s data.', isSystem: true, isPrivileged: true, status: 'active', order: 2, permissions: blankPermissions({ manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: true, viewAllDepartments: true }) },
+  { key: 'manager', label: 'Manager', description: 'Admin-panel access and pricing/markup rights, same as Admin; data visibility is scoped to whichever department(s) they manage in Department Master (or just their own records if none).', isSystem: true, isPrivileged: true, status: 'active', order: 3, permissions: blankPermissions({ manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: true }) },
   { key: 'technical', label: 'Technical Team', description: 'Own-scoped visibility; approves technical availability for demo requests.', isSystem: true, isPrivileged: false, status: 'active', order: 4, permissions: blankPermissions() },
   { key: 'backoffice', label: 'Back Office', description: 'Prepares, dispatches, and closes Delivery Challans.', isSystem: true, isPrivileged: false, status: 'active', order: 5, permissions: blankPermissions() },
   { key: 'user', label: 'User', description: 'Creates quotations, site visits, and demo requests; own-scoped visibility only.', isSystem: true, isPrivileged: false, status: 'active', order: 6, permissions: blankPermissions() }

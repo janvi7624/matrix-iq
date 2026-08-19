@@ -1,4 +1,4 @@
-import { Model } from 'sequelize';
+import { Model, Op } from 'sequelize';
 import { MarketingRequestComment, MarketingRequestRecord } from './types';
 import { db, isUuid, sequelize } from './db';
 
@@ -79,11 +79,18 @@ async function readAll(): Promise<MarketingRequestRecord[]> {
   return rows.map(toRecord);
 }
 
-async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promise<MarketingRequestRecord[]> {
+// The 2nd param is the caller's already-computed "sees every request" bit
+// (isMarketingManager(viewer) || org-wide, resolved by the route — see
+// app/api/marketing-requests/route.ts's canSeeAllRequests), not a raw
+// isPrivileged check. For anyone else, visibility is created_by OR
+// assigned_to_id = own — a Marketing User assigned a ticket they didn't
+// create must be able to see it in their own list, not just reviewers.
+async function list(viewerUsername: string, seesAllRequests: boolean): Promise<MarketingRequestRecord[]> {
   const where: Record<string, unknown> = {};
-  if (!viewerIsPrivileged) {
+  if (!seesAllRequests) {
     const user = await db.User.findOne({ where: { username: viewerUsername } as never });
-    where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
+    const ownId = user ? (user.get('id') as string) : '00000000-0000-0000-0000-000000000000';
+    where[Op.or as never] = [{ created_by: ownId }, { assigned_to_id: ownId }];
   }
   const rows = await db.MarketingRequest.findAll({ where: where as never, include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);

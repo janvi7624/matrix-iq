@@ -80,6 +80,7 @@ interface EditState {
   department: string;
   designation: string;
   password: string;
+  isDepartmentManager: boolean;
 }
 
 interface ActivityItem { id: string; label: string; status: string; at: string; }
@@ -131,6 +132,13 @@ export default function ManageUsersPage() {
     }
   }
 
+  async function loadDepartments() {
+    await fetch('/api/departments')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: DepartmentRecord[]) => setDepartments(data))
+      .catch(() => setDepartments([]));
+  }
+
   useEffect(() => {
     loadUsers();
     fetch('/api/auth/me')
@@ -141,10 +149,7 @@ export default function ManageUsersPage() {
       .then((r) => (r.ok ? r.json() : []))
       .then((data: RoleRecord[]) => setRoles(data.filter((r) => r.status === 'active')))
       .catch(() => setRoles([]));
-    fetch('/api/departments')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: DepartmentRecord[]) => setDepartments(data))
-      .catch(() => setDepartments([]));
+    loadDepartments();
   }, []);
 
   const isSuperadmin = currentRole === 'superadmin';
@@ -201,6 +206,7 @@ export default function ManageUsersPage() {
 
   function startEdit(user: PublicUser) {
     setEditingId(user.id);
+    const dept = departments.find((d) => d.name === user.department);
     setEditState({
       name: user.name,
       phone: user.phone,
@@ -209,7 +215,8 @@ export default function ManageUsersPage() {
       employeeId: user.employeeId || '',
       department: user.department || '',
       designation: user.designation || '',
-      password: ''
+      password: '',
+      isDepartmentManager: dept ? dept.managerIds.includes(user.id) : false
     });
     setRowError((prev) => ({ ...prev, [user.id]: '' }));
   }
@@ -235,7 +242,36 @@ export default function ManageUsersPage() {
     }
   }
 
-  async function saveEdit(id: string) {
+  // Department.managerIds stays the single source of truth (see
+  // /admin/departments) — this just keeps it in sync when the checkbox is
+  // toggled from the user's own edit row, including handling a department
+  // change: dropping the manager relationship from the old department (if
+  // any) and adding it to the new one when the checkbox is checked.
+  async function syncDepartmentManager(userId: string, previousDepartmentName: string) {
+    if (!editState) return;
+    const oldDept = departments.find((d) => d.name === previousDepartmentName);
+    const newDept = departments.find((d) => d.name === editState.department);
+
+    if (oldDept && oldDept.id !== newDept?.id && oldDept.managerIds.includes(userId)) {
+      await fetch(`/api/admin/departments/${oldDept.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ managerIds: oldDept.managerIds.filter((mid) => mid !== userId) })
+      }).catch(() => null);
+    }
+
+    if (!newDept) return;
+    const isManagerNow = newDept.managerIds.includes(userId);
+    if (editState.isDepartmentManager === isManagerNow) return;
+    const nextManagerIds = editState.isDepartmentManager ? [...newDept.managerIds, userId] : newDept.managerIds.filter((mid) => mid !== userId);
+    await fetch(`/api/admin/departments/${newDept.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerIds: nextManagerIds })
+    }).catch(() => null);
+  }
+
+  async function saveEdit(id: string, previousDepartmentName: string) {
     if (!editState) return;
     const payload: Record<string, unknown> = {
       name: editState.name,
@@ -249,6 +285,8 @@ export default function ManageUsersPage() {
     if (editState.password) payload.password = editState.password;
     const ok = await patchUser(id, payload);
     if (ok) {
+      await syncDepartmentManager(id, previousDepartmentName);
+      await loadDepartments();
       setEditingId(null);
       setEditState(null);
     }
@@ -467,6 +505,16 @@ export default function ManageUsersPage() {
                               <option value="">Select department...</option>
                               {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
                             </select>
+                            {editState.department && (
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, marginTop: 4 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={editState.isDepartmentManager}
+                                  onChange={(e) => setEditState({ ...editState, isDepartmentManager: e.target.checked })}
+                                />
+                                Manager of {editState.department}
+                              </label>
+                            )}
                           </td>
                           <td>
                             <input className={calcStyles.formControl} value={editState.designation} onChange={(e) => setEditState({ ...editState, designation: e.target.value })} />
@@ -481,7 +529,7 @@ export default function ManageUsersPage() {
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: 6 }}>
-                              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveEdit(user.id)}>Save</button>
+                              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveEdit(user.id, user.department || '')}>Save</button>
                               <button type="button" className={historyStyles.button} onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</button>
                             </div>
                             {rowError[user.id] && <div className={historyStyles.loginError}>{rowError[user.id]}</div>}
@@ -493,7 +541,12 @@ export default function ManageUsersPage() {
                           <td>{user.employeeId || '-'}</td>
                           <td>{user.email || '-'}</td>
                           <td>{user.phone || '-'}</td>
-                          <td>{user.department || '-'}</td>
+                          <td>
+                            {user.department || '-'}
+                            {departments.find((d) => d.name === user.department)?.managerIds.includes(user.id) && (
+                              <span style={{ marginLeft: 6, fontSize: 10.5, opacity: 0.7 }}>(Manager)</span>
+                            )}
+                          </td>
                           <td>{user.designation || '-'}</td>
                           <td><RolePill role={user.role} roles={roles} /></td>
                           <td><StatusPill status={user.status} /></td>

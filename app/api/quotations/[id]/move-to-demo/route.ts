@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { findQuotationById } from '@/lib/quotationStore';
 import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
 // Not under /api/admin — the sales person who created the quotation should
 // be able to move their own project to the Demo stage right after saving a
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const project = await findProjectById(quotation.project_id);
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    if (!viewer.isPrivileged && project.created_by !== viewer.username) {
+    if (!(await canAccessOwnedRecord(viewer.username, project.created_by))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -27,6 +27,7 @@ interface MarketingRequestsViewProps {
 
 const STATUS_TONE: Record<MarketingRequestStatus, StatusTone> = {
   submitted: 'pending',
+  approved: 'pending',
   timeline_set: 'done',
   in_progress: 'confirmed',
   waiting_info: 'pending',
@@ -104,6 +105,7 @@ interface RowProps {
   currentUser: { username: string; role: UserRole };
   isReviewer: boolean;
   users: { id: string; username: string; name: string }[];
+  onApprove: (id: string) => Promise<void>;
   onSetTimeline: (id: string, expectedDeliveryDate: string, remarks: string) => Promise<void>;
   onReject: (id: string, reason: string) => Promise<void>;
   onCancel: (id: string) => Promise<void>;
@@ -114,7 +116,7 @@ interface RowProps {
   onDelete: (record: MarketingRequestRecord) => Promise<void>;
 }
 
-function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetTimeline, onReject, onCancel, onStatusAction, onAssign, onPriorityChange, onComment, onDelete }: RowProps) {
+function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onApprove, onSetTimeline, onReject, onCancel, onStatusAction, onAssign, onPriorityChange, onComment, onDelete }: RowProps) {
   const [expanded, setExpanded] = useState(false);
   const [timelineDate, setTimelineDate] = useState('');
   const [timelineRemarks, setTimelineRemarks] = useState('');
@@ -128,6 +130,8 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
   const [busy, setBusy] = useState(false);
 
   const isOwner = r.created_by === currentUser.username;
+  const isAssignee = !!r.assigned_to && r.assigned_to === currentUser.username;
+  const canWork = isReviewer || isAssignee;
   const overdue = isMarketingRequestOverdue(r);
   const canDelete = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
 
@@ -182,6 +186,20 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                 </div>
               )}
 
+              {/* A brand-new request must be approved by the Marketing manager
+                  before anything else (assignment, timeline) can happen. */}
+              {isReviewer && r.status === 'submitted' && !showReject && (
+                <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
+                  <div className={calcStyles.label} style={{ marginBottom: 8 }}>Awaiting your approval</div>
+                  <div className={historyStyles.actionGroupButtons}>
+                    <Button variant="primary" icon={<CheckCircle2 size={14} />} loading={busy} loadingLabel="Approving…" onClick={() => run(() => onApprove(r.id))}>
+                      Approve Request
+                    </Button>
+                    <Button variant="ghost" onClick={() => setShowReject(true)}>Decline Request</Button>
+                  </div>
+                </div>
+              )}
+
               {/* Timeline — locked forever once set, for every viewer including the reviewer who set it. */}
               {r.timeline ? (
                 <div className={historyStyles.historyCard} style={{ marginTop: 12, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
@@ -193,7 +211,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                   </div>
                 </div>
               ) : (
-                isReviewer && r.status === 'submitted' && !showReject && (
+                isReviewer && r.status === 'approved' && (
                   <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
                     <div className={calcStyles.label} style={{ marginBottom: 8 }}>Commit a delivery timeline</div>
                     <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -211,13 +229,12 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                       <Button variant="primary" icon={<Lock size={14} />} loading={busy} loadingLabel="Saving…" disabled={!timelineDate} onClick={() => run(() => onSetTimeline(r.id, timelineDate, timelineRemarks))}>
                         Commit Timeline
                       </Button>
-                      <Button variant="ghost" onClick={() => setShowReject(true)}>Decline Request</Button>
                     </div>
                   </div>
                 )
               )}
 
-              {isReviewer && (
+              {isReviewer && r.status !== 'submitted' && (
                 <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 12 }}>
                   <div className={calcStyles.field}>
                     <label className={calcStyles.label}>Assigned to</label>
@@ -264,7 +281,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                 </div>
               )}
 
-              {isReviewer && r.status === 'timeline_set' && (
+              {canWork && r.status === 'timeline_set' && (
                 <div style={{ marginTop: 12 }}>
                   <Button variant="primary" icon={<Play size={14} />} loading={busy} loadingLabel="Updating…" onClick={() => run(() => onStatusAction(r.id, 'start'))}>
                     Mark In Progress
@@ -272,7 +289,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                 </div>
               )}
 
-              {isReviewer && (r.status === 'in_progress' || r.status === 'ready_for_review') && !showComplete && (
+              {canWork && (r.status === 'in_progress' || r.status === 'ready_for_review') && !showComplete && (
                 <div className={historyStyles.actionGroupButtons} style={{ marginTop: 12 }}>
                   <Button variant="success" icon={<CheckCircle2 size={14} />} onClick={() => setShowComplete(true)}>Mark Completed</Button>
                   {r.status === 'in_progress' && !showWait && (
@@ -290,7 +307,7 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                   )}
                 </div>
               )}
-              {isReviewer && r.status === 'in_progress' && showWait && (
+              {canWork && r.status === 'in_progress' && showWait && (
                 <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
                   <div className={calcStyles.field}>
                     <label className={calcStyles.label}>What information are you waiting on?</label>
@@ -310,14 +327,14 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onSetT
                   </div>
                 </div>
               )}
-              {isReviewer && r.status === 'waiting_info' && (
+              {canWork && r.status === 'waiting_info' && (
                 <div style={{ marginTop: 12 }}>
                   <Button variant="primary" icon={<Play size={14} />} loading={busy} loadingLabel="Updating…" onClick={() => run(() => onStatusAction(r.id, 'resume'))}>
                     Resume Work
                   </Button>
                 </div>
               )}
-              {isReviewer && (r.status === 'in_progress' || r.status === 'ready_for_review') && showComplete && (
+              {canWork && (r.status === 'in_progress' || r.status === 'ready_for_review') && showComplete && (
                 <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
                   <div className={calcStyles.field}>
                     <label className={calcStyles.label}>Completion notes (optional)</label>
@@ -502,6 +519,10 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
     if (successMessage) toast.success(successMessage);
   }
 
+  async function handleApprove(id: string) {
+    await postAction(`/api/marketing-requests/${id}/approve`, {}, 'Request approved.');
+  }
+
   async function handleSetTimeline(id: string, expectedDeliveryDate: string, remarks: string) {
     if (!(await confirm({ title: 'Commit this delivery date?', message: 'Once saved, this date cannot be changed by anyone — including you. Make sure it’s right.', confirmLabel: 'Yes, commit it' }))) return;
     await postAction(`/api/marketing-requests/${id}/set-timeline`, { expectedDeliveryDate, remarks }, 'Delivery timeline committed.');
@@ -652,6 +673,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                       currentUser={currentUser}
                       isReviewer={isReviewer}
                       users={users}
+                      onApprove={handleApprove}
                       onSetTimeline={handleSetTimeline}
                       onReject={handleReject}
                       onCancel={handleCancel}

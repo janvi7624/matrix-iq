@@ -21,10 +21,11 @@ const LEAD_FIELDS = [
   { name: 'project_id', kind: 'nullable' as const }
 ];
 
-const base = createRecordStore<LeadRecord>(db.Lead, LEAD_FIELDS);
+const base = createRecordStore<LeadRecord>(db.Lead, LEAD_FIELDS, { departmentScoped: true });
 
 export const leadStore = {
   list: base.list,
+  listOwnedBy: base.listOwnedBy,
   create: base.create,
   update: base.update,
   remove: base.remove
