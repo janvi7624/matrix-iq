@@ -156,10 +156,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (viewer.role !== 'superadmin') {
+    return NextResponse.json({ error: 'Forbidden — superadmin only' }, { status: 403 });
+  }
 
   const { id } = await params;
   try {
-    const result = await projectStore.remove(id, viewer.username, viewer.isPrivileged);
+    const result = await projectStore.remove(id, viewer.username, true);
     if (!result.ok) {
       const status = result.reason === 'Project not found' ? 404 : 400;
       return NextResponse.json({ error: result.reason }, { status });

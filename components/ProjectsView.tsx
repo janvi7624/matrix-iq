@@ -59,6 +59,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  const isSuperAdmin = currentUser.role === 'superadmin';
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -329,7 +330,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                       <Link className={historyStyles.button} href={`/projects/${p.id}`}>
                         View
                       </Link>
-                      {isPrivileged && (
+                      {isSuperAdmin && (
                         <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(p.id)}>
                           Delete
                         </button>
