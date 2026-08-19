@@ -93,8 +93,10 @@ function ImageUploader({ imageUrls, onChange }: { imageUrls: string[]; onChange:
   return (
     <div className={calcStyles.field}>
       <label className={calcStyles.label}>Photos (optional)</label>
-      <input type="file" accept="image/*" multiple disabled={uploading} onChange={(e) => handleFiles(e.target.files)} />
-      {uploading && <div className={calcStyles.small}>Uploading…</div>}
+      <label className={calcStyles.fileUpload}>
+        <input type="file" accept="image/*" multiple disabled={uploading} onChange={(e) => handleFiles(e.target.files)} style={{ display: 'none' }} />
+        {uploading ? 'Uploading…' : '+ Add Photos'}
+      </label>
       {imageUrls.length > 0 && (
         <div className={historyStyles.imageStrip}>
           {imageUrls.map((url) => (
