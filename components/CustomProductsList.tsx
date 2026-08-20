@@ -11,13 +11,15 @@ interface CustomProductsListProps {
   onAddFromCatalog?: (product: ProductRecord) => void;
   onChangeItem: (id: number, patch: Partial<CustomProduct>) => void;
   onRemove: (id: number) => void;
-  // Free-typed prices are locked to Manager/Admin/Super Admin — picking from
-  // the Product Master catalog (which fills in the correct price) still
-  // works for everyone.
-  canEditPrice: boolean;
 }
 
-export default function CustomProductsList({ products, onAdd, onAddFromCatalog, onChangeItem, onRemove, canEditPrice }: CustomProductsListProps) {
+// Unlike standard product pricing/markup/discount/margin (locked to
+// Manager/Admin/Super Admin — see QuotationCalculator's canEditPricing), the
+// price of a newly created Custom Product line item is always editable by
+// whoever is building the quote: there's no catalog price to fall back to,
+// so a Sales user who can't type a number here can't use Custom Product at
+// all.
+export default function CustomProductsList({ products, onAdd, onAddFromCatalog, onChangeItem, onRemove }: CustomProductsListProps) {
   const [catalog, setCatalog] = useState<ProductRecord[]>([]);
   const [pickedId, setPickedId] = useState('');
 
@@ -78,16 +80,13 @@ export default function CustomProductsList({ products, onAdd, onAddFromCatalog, 
               />
               <input
                 type="number"
-                className={canEditPrice ? `${styles.formControl} ${styles.lineItemInput}` : `${styles.formControl} ${styles.lineItemInput} ${styles.formControlLocked}`}
+                className={`${styles.formControl} ${styles.lineItemInput}`}
                 min={0}
                 step="any"
-                placeholder={canEditPrice ? 'Enter Product Price' : 'Ask a manager to set the price'}
-                title={canEditPrice ? undefined : 'Only a manager can type a custom price. Pick from the catalog above instead, or ask a manager to fill this in.'}
+                placeholder="Enter Product Price"
                 value={item.price === 0 ? '' : item.price}
-                readOnly={!canEditPrice}
-                tabIndex={canEditPrice ? undefined : -1}
-                onFocus={canEditPrice ? selectAllOnFocus : undefined}
-                onChange={canEditPrice ? (e) => onChangeItem(item.id, { price: parseFloat(e.target.value) || 0 }) : undefined}
+                onFocus={selectAllOnFocus}
+                onChange={(e) => onChangeItem(item.id, { price: parseFloat(e.target.value) || 0 })}
               />
               <button type="button" className={styles.removeItemBtn} title="Remove product" onClick={() => onRemove(item.id)}>
                 ×
