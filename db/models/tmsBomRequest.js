@@ -1,0 +1,44 @@
+module.exports = (sequelize, DataTypes) => {
+  const TmsBomRequest = sequelize.define('TmsBomRequest', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
+    bom_request_code: { type: DataTypes.STRING, unique: true },
+    project_id: { type: DataTypes.UUID, allowNull: false },
+    requested_by_id: { type: DataTypes.UUID },
+    department_id: { type: DataTypes.UUID },
+    request_date: { type: DataTypes.DATEONLY },
+    required_date: { type: DataTypes.DATEONLY },
+    item_name: { type: DataTypes.STRING },
+    item_description: { type: DataTypes.TEXT },
+    part_number: { type: DataTypes.STRING },
+    quantity: { type: DataTypes.INTEGER },
+    specification: { type: DataTypes.TEXT },
+    preferred_brand: { type: DataTypes.STRING },
+    estimated_cost: { type: DataTypes.DECIMAL(14, 2) },
+    remarks: { type: DataTypes.TEXT },
+    attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    status: {
+      type: DataTypes.ENUM('draft', 'submitted', 'under_review', 'approved', 'rejected', 'sent_for_procurement', 'completed'),
+      allowNull: false,
+      defaultValue: 'draft'
+    },
+    rejection_reason: { type: DataTypes.TEXT },
+    reviewed_by_id: { type: DataTypes.UUID },
+    reviewed_at: { type: DataTypes.DATE },
+    created_by: { type: DataTypes.UUID }
+  }, {
+    tableName: 'tms_bom_requests',
+    underscored: true,
+    paranoid: true
+  });
+
+  TmsBomRequest.associate = (models) => {
+    TmsBomRequest.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
+    TmsBomRequest.belongsTo(models.User, { foreignKey: 'requested_by_id', as: 'requestedBy' });
+    TmsBomRequest.belongsTo(models.User, { foreignKey: 'reviewed_by_id', as: 'reviewedBy' });
+    TmsBomRequest.belongsTo(models.Department, { foreignKey: 'department_id', as: 'department' });
+    TmsBomRequest.belongsTo(models.TmsProject, { foreignKey: 'project_id', as: 'project' });
+    TmsBomRequest.hasMany(models.TmsProcurement, { foreignKey: 'bom_request_id', as: 'procurements' });
+  };
+
+  return TmsBomRequest;
+};

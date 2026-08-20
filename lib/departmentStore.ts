@@ -21,10 +21,28 @@ function isoOrEmpty(value: unknown): string {
 // the app; the User form's Department field reads from this list.
 const SEED_NAMES = ['Sales', 'Technical', 'Back Office', 'Accounts', 'HR', 'Purchase', 'Inventory', 'Marketing', 'Management', 'Administration'];
 
+// TMS (Technical Management System) departments — reconciled additively onto
+// already-provisioned installs, same "missing names get bulkCreate'd"
+// pattern as moduleConfigStore.ts's ensureSeededAndReconciled(). Marketing
+// already exists in SEED_NAMES above and is intentionally NOT re-added here.
+const TMS_DEPARTMENT_NAMES = ['Robotics', 'AI', 'AV'];
+
 async function ensureSeeded(): Promise<void> {
   const count = await db.Department.count();
-  if (count > 0) return;
-  await db.Department.bulkCreate(SEED_NAMES.map((name, i) => ({ name, description: '', order: i + 1, status: 'active' })) as never);
+  if (count === 0) {
+    await db.Department.bulkCreate([...SEED_NAMES, ...TMS_DEPARTMENT_NAMES].map((name, i) => ({ name, description: '', order: i + 1, status: 'active' })) as never);
+    return;
+  }
+  // paranoid: false — same reasoning as createDepartment's deletedMatch
+  // handling below: the unique index on `name` isn't partial, so a
+  // soft-deleted row with a matching name would still collide on bulkCreate.
+  const existing = await db.Department.findAll({ attributes: ['name'], paranoid: false });
+  const existingNames = new Set(existing.map((d) => (d.get('name') as string).toLowerCase()));
+  const missing = TMS_DEPARTMENT_NAMES.filter((n) => !existingNames.has(n.toLowerCase()));
+  if (missing.length) {
+    const maxOrder = ((await db.Department.max('order')) as number) || 0;
+    await db.Department.bulkCreate(missing.map((name, i) => ({ name, description: '', order: maxOrder + i + 1, status: 'active' })) as never);
+  }
 }
 
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };

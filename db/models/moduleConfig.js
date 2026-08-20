@@ -11,7 +11,11 @@ module.exports = (sequelize, DataTypes) => {
     order: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
     isCustom: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
-    visibleToRoles: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
+    visibleToRoles: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // Optional department gate layered on top of visibleToRoles — empty/absent
+    // means unrestricted (every pre-existing module), see lib/moduleConfigStore.ts's
+    // departmentAllowsModule(). Introduced for TMS (Robotics/AI/AV/Marketing-only).
+    visibleToDepartments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
   }, {
     tableName: 'module_config',
     underscored: false,

@@ -46,6 +46,7 @@ function toManualItems(value: unknown): DcLineItem[] {
     .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
     .map((v) => ({
       product: typeof v.product === 'string' ? v.product.trim() : '',
+      hsnCode: typeof v.hsnCode === 'string' ? v.hsnCode.trim() : '',
       serialNumber: typeof v.serialNumber === 'string' ? v.serialNumber.trim() : '',
       quantity: Math.max(1, Number(v.quantity) || 1),
       price: Math.max(0, Number(v.price) || 0)
@@ -84,13 +85,14 @@ export async function POST(request: NextRequest) {
       }
 
       const project = demo.project_id ? await findProjectById(demo.project_id) : undefined;
-      const items: DcLineItem[] = demo.products_required.map((p) => ({ product: p.product, serialNumber: '', quantity: p.quantity, price: 0 }));
+      const items: DcLineItem[] = demo.products_required.map((p) => ({ product: p.product, hsnCode: '', serialNumber: '', quantity: p.quantity, price: 0 }));
       const record: DeliveryChallanRecord = {
         id: `${Date.now()}`,
         dc_number: dcNumber,
         created_at: now,
         created_by: viewer.username,
         project_id: demo.project_id,
+        custom_project_name: '',
         demo_id: demo.id,
         client_name: demo.client_name,
         client_address: project?.address || '',
@@ -149,6 +151,10 @@ export async function POST(request: NextRequest) {
     const projectId = typeof body.projectId === 'string' ? body.projectId.trim() : '';
     const project = projectId ? await findProjectById(projectId) : undefined;
     if (projectId && !project) return NextResponse.json({ error: 'Project not found' }, { status: 400 });
+    // Manually-typed project label — Back Office only reaches this route at
+    // all (the role check above), and it's only used when no real project
+    // was linked; a real project link always wins over the free-text name.
+    const customProjectName = !projectId && typeof body.customProjectName === 'string' ? body.customProjectName.trim() : '';
 
     const record: DeliveryChallanRecord = {
       id: `${Date.now()}`,
@@ -156,6 +162,7 @@ export async function POST(request: NextRequest) {
       created_at: now,
       created_by: viewer.username,
       project_id: projectId,
+      custom_project_name: customProjectName,
       demo_id: '',
       client_name: clientName,
       client_address: typeof body.clientAddress === 'string' ? body.clientAddress.trim() : '',

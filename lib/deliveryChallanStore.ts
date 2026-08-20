@@ -7,6 +7,7 @@ import { resolveVisibilityScope } from './departmentScope';
 const FIELDS = [
   { name: 'dc_number' },
   { name: 'project_id', kind: 'nullable' as const },
+  { name: 'custom_project_name', kind: 'nullable' as const },
   { name: 'demo_id', kind: 'nullable' as const },
   { name: 'client_name' },
   { name: 'client_address', kind: 'nullable' as const },
@@ -31,7 +32,14 @@ function toAttr(value: unknown, kind: string): unknown {
 }
 
 function itemToRow(item: DcLineItem, deliveryChallanId: string) {
-  return { delivery_challan_id: deliveryChallanId, product: item.product, serial_number: item.serialNumber, quantity: item.quantity, price: item.price || 0 };
+  return {
+    delivery_challan_id: deliveryChallanId,
+    product: item.product,
+    hsn_code: item.hsnCode || '',
+    serial_number: item.serialNumber,
+    quantity: item.quantity,
+    price: item.price || 0
+  };
 }
 
 // Takes an already-plain object, not a Model — these come from a parent
@@ -40,6 +48,7 @@ function itemToRow(item: DcLineItem, deliveryChallanId: string) {
 function rowToItem(plain: Record<string, unknown>): DcLineItem {
   return {
     product: (plain.product as string) ?? '',
+    hsnCode: (plain.hsn_code as string) ?? '',
     serialNumber: (plain.serial_number as string) ?? '',
     quantity: (plain.quantity as number) ?? 0,
     price: Number(plain.price) || 0

@@ -21,6 +21,7 @@ export interface DeliveryChallanPdfCompanyOverride {
   legalName?: string;
   addressLines: string[];
   contactPhone?: string;
+  gstNumber?: string;
 }
 
 function formatDate(iso: string): string {
@@ -68,6 +69,7 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
     ? opts.companyOverride.addressLines
     : ['205, F Block, Shivalik Sharda Harmony,', 'Panjarapole Cross Rd, Ambawadi,', 'Ahmedabad, Gujarat - 380015'];
   const companyContactPhone = opts?.companyOverride?.contactPhone || '';
+  const gstNumber = opts?.companyOverride?.gstNumber || '';
 
   let logoDataUrl: string | null = null;
   try {
@@ -92,6 +94,12 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   doc.setFontSize(7.5);
   doc.setTextColor(90, 90, 90);
   companyAddressLines.forEach((line, i) => doc.text(line, brandX, 19.5 + i * 3.4));
+  // GST number — directly below the company name/address block.
+  if (gstNumber) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(60, 60, 60);
+    doc.text(`GSTIN: ${gstNumber}`, brandX, 19.5 + companyAddressLines.length * 3.4);
+  }
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
@@ -103,49 +111,52 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   doc.text(`Challan No: ${dc.dc_number}`, rightX, 20, { align: 'right' });
   doc.text(`Date: ${formatDate(dc.issued_date)}   |   Status: ${dc.status.charAt(0).toUpperCase() + dc.status.slice(1)}`, rightX, 24.5, { align: 'right' });
 
-  let y = 30;
+  const headerContentLines = companyAddressLines.length + (gstNumber ? 1 : 0);
+  let y = Math.max(30, 19.5 + headerContentLines * 3.4 + 3);
   doc.setDrawColor(220, 38, 38);
   doc.setLineWidth(0.6);
   doc.line(marginX, y, rightX, y);
   y += 5;
 
-  // From / To — bordered boxes, same visual treatment as the quotation
-  // PDF's "Quotation From" / "Quotation For" boxes.
-  const boxWidth = (pageWidth - marginX * 2 - 6) / 2;
+  if (dc.custom_project_name) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(17, 24, 39);
+    doc.text(`Project: ${dc.custom_project_name}`, marginX, y);
+    y += 6;
+  }
+
+  // Delivery Challan To — a single bordered box (the company's own details
+  // are already in the letterhead above, so there's no separate "From" box).
+  const boxWidth = pageWidth - marginX * 2;
   const boxY = y;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   const clientAddressWrapped = dc.client_address ? doc.splitTextToSize(dc.client_address, boxWidth - 8) : [];
 
-  const fromLines = [dc.issued_by || '-', ...companyAddressLines, dc.issued_by_phone || companyContactPhone ? `Contact: ${dc.issued_by_phone || companyContactPhone}` : ''].filter(Boolean);
   const toLines = [dc.client_name || 'N/A', ...clientAddressWrapped, dc.client_phone ? `Contact: ${dc.client_phone}` : ''].filter(Boolean);
 
   const boxLineHeight = 4.4;
   const boxTopPadding = 12;
   const boxBottomPadding = 6;
-  const maxLines = Math.max(fromLines.length, toLines.length);
-  const boxHeight = Math.max(28, boxTopPadding + maxLines * boxLineHeight + boxBottomPadding);
+  const boxHeight = Math.max(24, boxTopPadding + toLines.length * boxLineHeight + boxBottomPadding);
 
   doc.setDrawColor(210, 200, 200);
   doc.setFillColor(249, 245, 245);
   doc.roundedRect(marginX, boxY, boxWidth, boxHeight, 2, 2, 'FD');
-  doc.roundedRect(marginX + boxWidth + 6, boxY, boxWidth, boxHeight, 2, 2, 'FD');
 
   doc.setTextColor(17, 24, 39);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
-  doc.text('Delivery Challan From', marginX + 4, boxY + 6);
-  doc.text('Delivery Challan To', marginX + boxWidth + 10, boxY + 6);
+  doc.text('Delivery Challan To', marginX + 4, boxY + 6);
 
   doc.setFontSize(9);
-  doc.text(fromLines[0], marginX + 4, boxY + boxTopPadding);
-  doc.text(toLines[0], marginX + boxWidth + 10, boxY + boxTopPadding);
+  doc.text(toLines[0], marginX + 4, boxY + boxTopPadding);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.2);
-  fromLines.slice(1).forEach((line, i) => doc.text(line, marginX + 4, boxY + boxTopPadding + (i + 1) * boxLineHeight));
-  toLines.slice(1).forEach((line, i) => doc.text(line, marginX + boxWidth + 10, boxY + boxTopPadding + (i + 1) * boxLineHeight));
+  toLines.slice(1).forEach((line, i) => doc.text(line, marginX + 4, boxY + boxTopPadding + (i + 1) * boxLineHeight));
 
   y = boxY + boxHeight + 8;
   doc.setFont('helvetica', 'normal');
@@ -153,14 +164,17 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   doc.setTextColor(60, 60, 60);
   doc.text(`Requested By: ${dc.assigned_engineer || '-'}`, marginX, y);
   doc.text(`Expected Return Date: ${formatDate(dc.expected_return_date)}`, rightX, y, { align: 'right' });
+  y += 5;
+  doc.text(`Created By: ${dc.issued_by || '-'}`, marginX, y);
 
-  y += 6;
+  y += 7;
 
   // Line items — Price is Back-Office-entered only (enforced in the
   // updateItems route), shown here whenever it's set.
   const rows = dc.items.map((item, i) => [
     String(i + 1),
     item.product,
+    item.hsnCode || '-',
     item.serialNumber || '-',
     String(item.quantity),
     formatNumberPdf(item.price || 0)
@@ -168,17 +182,18 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (doc as any).autoTable({
     startY: y,
-    head: [['Sr.No', 'Description', 'Serial Number', 'Qty', 'Price']],
+    head: [['Sr.No', 'Description', 'HSN Code', 'Serial Number', 'Qty', 'Price']],
     body: rows,
     theme: 'grid',
     styles: { font: 'helvetica', fontSize: 9.5, cellPadding: 3, textColor: [17, 24, 39], valign: 'middle', lineColor: [0, 0, 0], lineWidth: 0.2 },
     headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center', lineColor: [0, 0, 0], lineWidth: 0.2 },
     columnStyles: {
-      0: { cellWidth: 14, halign: 'center' },
+      0: { cellWidth: 12, halign: 'center' },
       1: { cellWidth: 'auto', halign: 'left' },
-      2: { cellWidth: 34, halign: 'center' },
-      3: { cellWidth: 16, halign: 'center' },
-      4: { cellWidth: 28, halign: 'right', font: 'courier', fontSize: 9 }
+      2: { cellWidth: 22, halign: 'center' },
+      3: { cellWidth: 28, halign: 'center' },
+      4: { cellWidth: 14, halign: 'center' },
+      5: { cellWidth: 26, halign: 'right', font: 'courier', fontSize: 9 }
     },
     margin: { left: marginX, right: marginX }
   });

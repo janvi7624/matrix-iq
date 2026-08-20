@@ -82,12 +82,13 @@ function GenerateDcPanel({ demo, onGenerated }: { demo: DemoScheduleRecord; onGe
   );
 }
 
-const EMPTY_MANUAL_ITEM = { product: '', serialNumber: '', quantity: 1, price: 0 };
+const EMPTY_MANUAL_ITEM = { product: '', hsnCode: '', serialNumber: '', quantity: 1, price: 0 };
 
 // No demo, no approval chain — a walk-in / custom dispatch. Client details
 // are free text unless a Project is optionally picked to prefill from.
 function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectRecord[]; onGenerated: (dc: DeliveryChallanRecord) => void; onCancel: () => void }) {
   const [projectId, setProjectId] = useState('');
+  const [customProjectName, setCustomProjectName] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -99,6 +100,7 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
 
   function pickProject(id: string) {
     setProjectId(id);
+    if (id) setCustomProjectName('');
     const project = projects.find((p) => p.id === id);
     if (project) {
       setClientName(project.client_name || project.company || clientName);
@@ -128,6 +130,7 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectId: projectId || undefined,
+          customProjectName: !projectId ? customProjectName : undefined,
           clientName,
           clientAddress,
           clientPhone,
@@ -163,6 +166,12 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
           ))}
         </select>
       </div>
+      {!projectId && (
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Or type a project name manually (if it isn&apos;t listed above)</label>
+          <input className={calcStyles.formControl} value={customProjectName} onChange={(e) => setCustomProjectName(e.target.value)} placeholder="e.g. a project not yet in the system" />
+        </div>
+      )}
       <div className={`${calcStyles.row} ${calcStyles.columns}`}>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Client name *</label>
@@ -194,6 +203,7 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
         <thead>
           <tr>
             <th>Product</th>
+            <th>HSN Code (optional)</th>
             <th>Serial Number</th>
             <th>Quantity</th>
             <th>Price</th>
@@ -204,6 +214,7 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
           {items.map((item, idx) => (
             <tr key={idx}>
               <td><input className={calcStyles.formControl} value={item.product} onChange={(e) => updateItem(idx, { product: e.target.value })} /></td>
+              <td><input className={calcStyles.formControl} value={item.hsnCode} onChange={(e) => updateItem(idx, { hsnCode: e.target.value })} /></td>
               <td><input className={calcStyles.formControl} value={item.serialNumber} onChange={(e) => updateItem(idx, { serialNumber: e.target.value })} /></td>
               <td><input type="number" min={1} className={calcStyles.formControl} value={item.quantity} onChange={(e) => updateItem(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })} /></td>
               <td><input type="number" min={0} step="0.01" className={calcStyles.formControl} value={item.price || ''} placeholder="0" onChange={(e) => updateItem(idx, { price: Number(e.target.value) || 0 })} /></td>
@@ -287,7 +298,12 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
   function handleExportPdf() {
     generateDeliveryChallanPdf(dc, {
       companyOverride: publicConfig
-        ? { legalName: publicConfig.companyLegalName, addressLines: [publicConfig.addressLine1, publicConfig.addressLine2, publicConfig.addressLine3].filter(Boolean), contactPhone: publicConfig.contactPhone }
+        ? {
+            legalName: publicConfig.companyLegalName,
+            addressLines: [publicConfig.addressLine1, publicConfig.addressLine2, publicConfig.addressLine3].filter(Boolean),
+            contactPhone: publicConfig.contactPhone,
+            gstNumber: publicConfig.gstNumber
+          }
         : undefined
     });
   }
@@ -318,11 +334,13 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
           <h2 className={calcStyles.h2} style={{ margin: 0 }}>{dc.dc_number}</h2>
           <div className={calcStyles.small}>
             {dc.client_name} · Issued by {dc.issued_by} on {formatDate(dc.issued_date)}
-            {dc.project_id && (
+            {dc.project_id ? (
               <>
                 {' · '}
                 <Link href={`/projects/${dc.project_id}`}>Project {dc.project_id}</Link>
               </>
+            ) : (
+              dc.custom_project_name && <>{' · '}Project: {dc.custom_project_name}</>
             )}
           </div>
         </div>
@@ -353,6 +371,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
         <thead>
           <tr>
             <th>Product</th>
+            <th>HSN Code</th>
             <th>Serial Number</th>
             <th>Quantity</th>
             <th>Price</th>
@@ -362,6 +381,17 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
           {items.map((item, idx) => (
             <tr key={idx}>
               <td>{item.product}</td>
+              <td>
+                {canManage && dc.status === 'prepared' ? (
+                  <input
+                    className={calcStyles.formControl}
+                    value={item.hsnCode}
+                    onChange={(e) => setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, hsnCode: e.target.value } : it)))}
+                  />
+                ) : (
+                  item.hsnCode || '-'
+                )}
+              </td>
               <td>
                 {canManage && dc.status === 'prepared' ? (
                   <input

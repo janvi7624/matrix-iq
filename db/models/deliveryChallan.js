@@ -4,6 +4,9 @@ module.exports = (sequelize, DataTypes) => {
     dc_number: { type: DataTypes.STRING, unique: true },
     created_by: { type: DataTypes.UUID },
     project_id: { type: DataTypes.UUID },
+    // Free-text project label for a manual DC with no real linked Project
+    // (project_id stays empty) — Back Office only, set at creation time.
+    custom_project_name: { type: DataTypes.STRING },
     // Nullable — a manual DC (Back Office creating one directly, with no
     // Sales Request/approval chain behind it) has no demo to link to.
     demo_id: { type: DataTypes.UUID, allowNull: true },

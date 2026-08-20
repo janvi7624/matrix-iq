@@ -4,6 +4,7 @@ import { countSuperAdmins, deleteUser, findUserById, updateUser } from '@/lib/us
 import { listActiveRoles } from '@/lib/roleStore';
 import { UserRole, UserStatus } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
+import { resolveVisibilityScope } from '@/lib/departmentScope';
 
 // Base auth + admin/superadmin gating happens in proxy.ts (matcher: /api/admin/:path*),
 // including a blanket "DELETE under /api/admin requires superadmin" rule.
@@ -18,6 +19,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const existing = await findUserById(id);
     if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+    const scope = await resolveVisibilityScope(session.username);
+    if (!scope.seesOrgWide && !scope.scopedUserIds!.includes(id)) {
+      return NextResponse.json({ error: 'Forbidden — outside your department' }, { status: 403 });
+    }
 
     const activeRoles = await listActiveRoles();
     const role: UserRole | undefined = activeRoles.some((r) => r.key === body.role) ? body.role : undefined;

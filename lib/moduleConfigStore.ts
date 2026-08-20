@@ -16,6 +16,14 @@ const MODULES_CACHE_TTL_MS = 30_000;
 const ALL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
 const PRIVILEGED_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 
+// TMS (Technical Management System) — Robotics/AI/AV/Marketing-only, see
+// lib/tmsAccess.ts. Privileged roles are included so an admin/superadmin can
+// always see and manage TMS for oversight (they bypass visibleToDepartments
+// entirely too, see departmentAllowsModule below).
+const TMS_ALL_ROLES: UserRole[] = [...PRIVILEGED_ROLES, 'technical-manager', 'team-lead', 'engineer', 'technician'];
+const TMS_MANAGER_ONLY_ROLES: UserRole[] = [...PRIVILEGED_ROLES, 'technical-manager'];
+const TMS_DEPARTMENTS = ['Robotics', 'AI', 'AV', 'Marketing'];
+
 // Seeded from the tiles that used to be hardcoded in components/Dashboard.tsx
 // — first read produces the exact same dashboard as before Module Manager
 // existed. From here on, Admin edits this instead of a developer editing
@@ -42,7 +50,19 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'product-catalog-overrides', label: 'Product Catalog', desc: 'Rename or reprice any AV, Robotics, AI Analytics & VisitIQ product used in quotations.', icon: 'dollar-sign', href: '/admin/product-catalog', section: 'Administration', order: 6, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'app-settings', label: 'Application Settings', desc: 'Company details, tax, terms, and numbering.', icon: 'settings', href: '/admin/settings', section: 'Administration', order: 7, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'module-manager', label: 'Module Manager', desc: 'Enable, disable, rename, and reorder every module.', icon: 'puzzle', href: '/admin/modules', section: 'Administration', order: 8, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'custom-modules', label: 'Custom Module Builder', desc: 'Create new business modules without writing code.', icon: 'wrench', href: '/admin/custom-modules', section: 'Administration', order: 9, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES }
+  { key: 'custom-modules', label: 'Custom Module Builder', desc: 'Create new business modules without writing code.', icon: 'wrench', href: '/admin/custom-modules', section: 'Administration', order: 9, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+
+  // TMS (Technical Management System) — Robotics/AI/AV/Marketing-only, see
+  // lib/tmsAccess.ts. visibleToRoles covers the 4 TMS roles + privileged
+  // roles (who bypass the department gate below); visibleToDepartments is
+  // the department gate itself, checked by departmentAllowsModule().
+  { key: 'tms-dashboard', label: 'TMS Dashboard', desc: 'Project, task, BOM, and procurement overview for the Technical Team.', icon: 'layout-dashboard', href: '/tms', section: 'TMS', order: 1, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENTS },
+  { key: 'tms-projects', label: 'Projects', desc: 'Technical execution projects — team, budget, status, and progress.', icon: 'layers', href: '/tms/projects', section: 'TMS', order: 2, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENTS },
+  { key: 'tms-tasks', label: 'Tasks', desc: 'Day-by-day task tracking with a Daily Task View.', icon: 'clipboard-list', href: '/tms/tasks', section: 'TMS', order: 3, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENTS },
+  { key: 'tms-bom-requests', label: 'BOM Request', desc: 'Bill of materials requests, review, and approval.', icon: 'list', href: '/tms/bom-requests', section: 'TMS', order: 4, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENTS },
+  { key: 'tms-procurement', label: 'Procurement', desc: 'Purchase and delivery tracking from approved BOM requests.', icon: 'shopping-cart', href: '/tms/procurement', section: 'TMS', order: 5, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES.filter((r) => r !== 'technician'), visibleToDepartments: TMS_DEPARTMENTS },
+  { key: 'tms-users', label: 'Users', desc: 'Manage technical team accounts, department, role, and project access.', icon: 'user', href: '/tms/users', section: 'TMS', order: 6, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENTS },
+  { key: 'tms-tab-access', label: 'Tab Access', desc: 'Configure which TMS roles can view, create, edit, delete, approve, or manage each TMS tab.', icon: 'shield', href: '/tms/tab-access', section: 'TMS', order: 7, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENTS }
 ];
 
 // Icon values above changed from free-typed emoji to curated icon keys
@@ -136,8 +156,20 @@ function toRecord(row: Model): ModuleConfigRecord {
     order: plain.order as number,
     enabled: plain.enabled as boolean,
     isCustom: plain.isCustom as boolean,
-    visibleToRoles: (plain.visibleToRoles as UserRole[]) ?? []
+    visibleToRoles: (plain.visibleToRoles as UserRole[]) ?? [],
+    visibleToDepartments: (plain.visibleToDepartments as string[]) ?? []
   };
+}
+
+// Department gate layered on top of visibleToRoles — used by both
+// isModuleAccessAllowed (below) and lib/tmsPageGuard.ts's page-level guard,
+// so "can't see it in the sidebar" and "can't reach its page/API" can never
+// drift apart. A privileged viewer bypasses this entirely, mirroring the
+// existing isModuleAccessAllowed precedent for isPrivileged.
+export function departmentAllowsModule(config: ModuleConfigRecord, department: string | undefined | null, isPrivileged: boolean): boolean {
+  if (isPrivileged) return true;
+  if (!config.visibleToDepartments?.length) return true;
+  return !!department && config.visibleToDepartments.includes(department);
 }
 
 async function ensureSeededAndReconciled(): Promise<void> {
@@ -181,10 +213,15 @@ export async function listModuleConfigs(): Promise<ModuleConfigRecord[]> {
   });
 }
 
-// What Dashboard actually renders — enabled modules visible to this role.
-export async function listVisibleModules(role: UserRole): Promise<ModuleConfigRecord[]> {
+// What Dashboard actually renders — enabled modules visible to this role AND
+// (for the handful of department-gated modules, e.g. TMS) this department.
+// `department` is optional so every pre-Section-TMS call site keeps
+// compiling — it only matters for modules that actually set
+// visibleToDepartments (departmentAllowsModule short-circuits true for every
+// other module regardless).
+export async function listVisibleModules(viewer: { role: UserRole; isPrivileged: boolean; department?: string | null }): Promise<ModuleConfigRecord[]> {
   const all = await listModuleConfigs();
-  return all.filter((m) => m.enabled && m.visibleToRoles.includes(role));
+  return all.filter((m) => m.enabled && m.visibleToRoles.includes(viewer.role) && departmentAllowsModule(m, viewer.department, viewer.isPrivileged));
 }
 
 // Real access control for a module's record/page API — the single source of
@@ -196,10 +233,11 @@ export async function listVisibleModules(role: UserRole): Promise<ModuleConfigRe
 // enabled module restricted to certain roles only blocks non-privileged
 // viewers — so a role that isn't supposed to see a module can't reach its
 // data by hitting the API directly even if they know the URL.
-export async function isModuleAccessAllowed(key: string, viewer: { role: UserRole; isPrivileged: boolean }): Promise<boolean> {
+export async function isModuleAccessAllowed(key: string, viewer: { role: UserRole; isPrivileged: boolean; department?: string | null }): Promise<boolean> {
   const all = await listModuleConfigs();
   const config = all.find((m) => m.key === key);
   if (!config || !config.enabled) return false;
+  if (!departmentAllowsModule(config, viewer.department, viewer.isPrivileged)) return false;
   if (viewer.isPrivileged) return true;
   return config.visibleToRoles.includes(viewer.role);
 }

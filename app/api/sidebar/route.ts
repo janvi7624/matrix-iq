@@ -26,9 +26,10 @@ export async function GET(request: NextRequest) {
     const isBackOffice = viewer.role === 'backoffice' || isPrivileged;
     const isManagerTier = viewer.role === 'manager' || viewer.role === 'admin' || viewer.role === 'superadmin';
 
-    const [modules, user, leadStats, isMarketingReviewer, demosForBadge, backOfficeCounts] = await Promise.all([
-      listVisibleModules(viewer.role),
-      findUserNameAndDeptByUsername(viewer.username),
+    const user = await findUserNameAndDeptByUsername(viewer.username);
+
+    const [modules, leadStats, isMarketingReviewer, demosForBadge, backOfficeCounts] = await Promise.all([
+      listVisibleModules({ role: viewer.role, isPrivileged: viewer.isPrivileged, department: user?.department }),
       computeLeadStats(viewer.username, viewer.isPrivileged),
       isMarketingManager(viewer),
       viewer.role === 'technical' || isManagerTier ? demoScheduleStore.list(viewer.username, viewer.isPrivileged) : Promise.resolve(null),

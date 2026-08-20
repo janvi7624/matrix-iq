@@ -45,6 +45,7 @@ import {
   Globe,
   Database,
   Bell,
+  ShoppingCart,
   type LucideIcon
 } from 'lucide-react';
 
@@ -130,7 +131,9 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   briefcase: Briefcase,
   globe: Globe,
   database: Database,
-  bell: Bell
+  bell: Bell,
+  'layout-dashboard': LayoutDashboard,
+  'shopping-cart': ShoppingCart
 };
 
 export const MODULE_ICON_OPTIONS = Object.keys(MODULE_ICON_REGISTRY);

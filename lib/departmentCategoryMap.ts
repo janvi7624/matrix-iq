@@ -14,7 +14,14 @@ export const DEPARTMENT_TO_SECTION: Record<string, string> = {
   Purchase: 'Administration',
   Inventory: 'Administration',
   Management: 'Administration',
-  Administration: 'Administration'
+  Administration: 'Administration',
+  // TMS (Technical Management System) departments — Marketing is deliberately
+  // left pointing at 'Marketing' above (not repointed here), so existing
+  // Marketing-department users keep their Marketing Requests category
+  // pre-expanded by default; they can still manually expand TMS.
+  Robotics: 'TMS',
+  AI: 'TMS',
+  AV: 'TMS'
 };
 
 export function primarySectionForDepartment(department: string | undefined | null): string | null {

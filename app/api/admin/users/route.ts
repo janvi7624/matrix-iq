@@ -4,12 +4,24 @@ import { createUser, findUserByUsername, listUsers } from '@/lib/userStore';
 import { listActiveRoles } from '@/lib/roleStore';
 import { UserRole } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
+import { resolveVisibilityScope } from '@/lib/departmentScope';
 
-// Base auth + admin/superadmin gating happens in proxy.ts (matcher: /api/admin/:path*).
-export async function GET() {
+// Base auth + admin/superadmin gating happens in proxy.ts (matcher:
+// /api/admin/:path*) — that only checks isPrivileged (a capability), not
+// department scope. A department manager (viewAllDepartments: false) can
+// still reach this admin page, but the list itself is clamped to their own
+// managed department's people, same as every other admin per-user report —
+// see lib/departmentScope.ts.
+export async function GET(request: NextRequest) {
+  const session = await getSessionFromRequest(request);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const users = await listUsers();
-    return NextResponse.json(users);
+    const scope = await resolveVisibilityScope(session.username);
+    if (scope.seesOrgWide) return NextResponse.json(users);
+    const allowed = new Set(scope.scopedUserIds);
+    return NextResponse.json(users.filter((u) => allowed.has(u.id)));
   } catch (error) {
     return apiErrorResponse(error);
   }

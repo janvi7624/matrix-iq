@@ -3,6 +3,53 @@ import { RoleRecord, RolePermissions } from './types';
 import { db, isUuid } from './db';
 import { cached, invalidateCache } from './memoCache';
 
+// TMS module keys — kept local to this file (not imported from
+// lib/tmsAccess.ts) to avoid a circular import, since tmsAccess.ts itself
+// reads roles through this store.
+const TMS_MODULE_KEYS = ['tms-dashboard', 'tms-projects', 'tms-tasks', 'tms-bom-requests', 'tms-procurement', 'tms-users', 'tms-tab-access'] as const;
+const ALL_TMS_ACTIONS_TRUE: RolePermissions['modules'][string] = { view: true, create: true, edit: true, delete: true, export: true, print: true, approve: true, reject: true, assign: true, manage: true };
+
+function tmsModules(perModule: () => RolePermissions['modules'][string]): RolePermissions['modules'] {
+  return Object.fromEntries(TMS_MODULE_KEYS.map((k) => [k, perModule()]));
+}
+
+const TECHNICAL_MANAGER_MODULES = tmsModules(() => ({ ...ALL_TMS_ACTIONS_TRUE }));
+// Team Lead: full Task management (incl. `manage`, so they see every task,
+// not just their own — see lib/tmsAccess.ts's canManageAllTmsTasks), view+edit
+// on Projects, create+view on BOM, view on Procurement. tms-users/tms-tab-access
+// are intentionally absent -> falls back to isPrivileged (false) -> denied.
+const TEAM_LEAD_MODULES: RolePermissions['modules'] = {
+  'tms-dashboard': { view: true },
+  'tms-projects': { view: true, edit: true },
+  'tms-tasks': { view: true, create: true, edit: true, delete: true, assign: true, manage: true },
+  'tms-bom-requests': { view: true, create: true },
+  'tms-procurement': { view: true }
+};
+// Engineer: view-only Projects, own-tasks-only (no `manage`), create+view BOM,
+// view Procurement.
+const ENGINEER_MODULES: RolePermissions['modules'] = {
+  'tms-dashboard': { view: true },
+  'tms-projects': { view: true },
+  'tms-tasks': { view: true, edit: true },
+  'tms-bom-requests': { view: true, create: true },
+  'tms-procurement': { view: true }
+};
+// Technician: same as Engineer, minus Procurement (no tms-procurement entry
+// at all -> falls back to isPrivileged (false) -> denied).
+const TECHNICIAN_MODULES: RolePermissions['modules'] = {
+  'tms-dashboard': { view: true },
+  'tms-projects': { view: true },
+  'tms-tasks': { view: true, edit: true },
+  'tms-bom-requests': { view: true, create: true }
+};
+
+const TMS_SEED_ROLES: { key: string; label: string; description: string; isSystem: boolean; isPrivileged: boolean; status: 'active'; order: number; permissions: RolePermissions }[] = [
+  { key: 'technical-manager', label: 'Technical Manager', description: 'Full TMS rights — manages Projects, Tasks, BOM approvals, Procurement, technical Users, and Tab Access for Robotics/AI/AV/Marketing.', isSystem: true, isPrivileged: false, status: 'active', order: 7, permissions: { modules: TECHNICAL_MANAGER_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } },
+  { key: 'team-lead', label: 'Team Lead', description: 'Full Task management, BOM creation, view-only on Projects/Procurement, within TMS.', isSystem: true, isPrivileged: false, status: 'active', order: 8, permissions: { modules: TEAM_LEAD_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } },
+  { key: 'engineer', label: 'Engineer', description: 'Own-tasks visibility, BOM creation, view-only on Projects/Procurement, within TMS.', isSystem: true, isPrivileged: false, status: 'active', order: 9, permissions: { modules: ENGINEER_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } },
+  { key: 'technician', label: 'Technician', description: 'Same as Engineer, without Procurement access, within TMS.', isSystem: true, isPrivileged: false, status: 'active', order: 10, permissions: { modules: TECHNICIAN_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } }
+];
+
 // Roles are edited only via Role Management (rare) but read on nearly every
 // authenticated request (resolveIsPrivileged/hasCapability/isModuleActionAllowed
 // all funnel through findRoleByKey). Caching the one underlying query and
@@ -36,16 +83,18 @@ const SEED_ROLES: { key: string; label: string; description: string; isSystem: b
 ];
 
 async function ensureSeeded(): Promise<void> {
+  const all = [...SEED_ROLES, ...TMS_SEED_ROLES];
   const count = await db.Role.count();
   if (count === 0) {
-    await db.Role.bulkCreate(SEED_ROLES.map((r) => ({ ...r })) as never);
+    await db.Role.bulkCreate(all.map((r) => ({ ...r })) as never);
     return;
   }
   // A built-in role missing from an already-persisted table (e.g. this store
-  // didn't exist yet when the table was first seeded) — reconcile it in
-  // without touching anything an admin already customized.
+  // didn't exist yet when the table was first seeded, or TMS was added
+  // later) — reconcile it in without touching anything an admin already
+  // customized.
   const existingKeys = new Set((await db.Role.findAll({ attributes: ['key'] })).map((r) => r.get('key') as string));
-  const missing = SEED_ROLES.filter((r) => !existingKeys.has(r.key));
+  const missing = all.filter((r) => !existingKeys.has(r.key));
   if (missing.length) await db.Role.bulkCreate(missing.map((r) => ({ ...r })) as never);
 }
 

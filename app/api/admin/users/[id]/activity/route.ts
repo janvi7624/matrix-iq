@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionFromRequest } from '@/lib/auth';
 import { findUserById } from '@/lib/userStore';
 import { projectStore } from '@/lib/projectStore';
 import { siteVisitStore } from '@/lib/siteVisitStore';
@@ -6,15 +7,27 @@ import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { searchQuotationsFiltered } from '@/lib/quotationStore';
 import { listLoginHistory } from '@/lib/loginHistoryStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { resolveVisibilityScope } from '@/lib/departmentScope';
 
 const RECENT_LIMIT = 5;
 
-// Base auth + admin/superadmin gating happens in proxy.ts (matcher: /api/admin/:path*).
+// Base auth + admin/superadmin gating happens in proxy.ts (matcher:
+// /api/admin/:path*) — that's a capability check only, so a department
+// manager reaching this admin page is additionally clamped to their own
+// department's people here, same as the list at /api/admin/users.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionFromRequest(request);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const { id } = await params;
     const user = await findUserById(id);
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+    const scope = await resolveVisibilityScope(session.username);
+    if (!scope.seesOrgWide && !scope.scopedUserIds!.includes(id)) {
+      return NextResponse.json({ error: 'Forbidden — outside your department' }, { status: 403 });
+    }
 
     const [projects, siteVisits, quotations, demos, loginHistory] = await Promise.all([
       projectStore.listOwnedBy(user.username),

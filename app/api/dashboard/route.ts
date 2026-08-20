@@ -14,6 +14,7 @@ import { listDepartmentManagers, isUserADepartmentManager } from '@/lib/departme
 import { listTechnicalRoster } from '@/lib/technicalRoster';
 import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
+import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 
 // Single round trip for everything Dashboard.tsx needs on first paint —
 // replaces what used to be up to 13 separate client-side fetches (modules,
@@ -42,6 +43,8 @@ export async function GET(request: NextRequest) {
     const isBackOffice = viewer.role === 'backoffice' || viewer.isPrivileged;
     const isManagerTier = viewer.role === 'manager' || viewer.role === 'admin' || viewer.role === 'superadmin';
 
+    const user = await findUserNameAndDeptByUsername(viewer.username);
+
     // canSeeQueue also gates backOfficeKpis below — isBackOffice (backoffice
     // role or privileged) always implies canSeeQueue, so demosForQueue is
     // already the right superset to reuse there without a second demo fetch.
@@ -59,7 +62,7 @@ export async function GET(request: NextRequest) {
       backOfficeDcs,
       marketingRecords
     ] = await Promise.all([
-      listVisibleModules(viewer.role),
+      listVisibleModules({ role: viewer.role, isPrivileged: viewer.isPrivileged, department: user?.department }),
       projectStore.listLight(viewer.username, viewer.isPrivileged),
       siteVisitStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, viewer.isPrivileged),

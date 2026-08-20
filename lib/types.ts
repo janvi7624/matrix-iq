@@ -517,7 +517,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'project' | 'department';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement';
   entity_id: string;
   action: string;
   previous_status: string;
@@ -563,6 +563,8 @@ export type DcStatus = 'prepared' | 'dispatched' | 'returned' | 'closed';
 
 export interface DcLineItem {
   product: string;
+  // Optional/skippable — no validation requires this to be filled in.
+  hsnCode: string;
   serialNumber: string;
   quantity: number;
   // Set only by Back Office — shown on the generated PDF.
@@ -603,6 +605,9 @@ export interface DeliveryChallanRecord {
   created_at: string;
   created_by: string;
   project_id: string;
+  // Set only when project_id is empty — a free-text project label Back
+  // Office typed in for a manual DC with no real linked Project.
+  custom_project_name: string;
   // Empty for a manual DC — Back Office creating one directly with no
   // Sales Request/approval chain behind it.
   demo_id: string;
@@ -713,6 +718,10 @@ export interface ModuleConfigRecord {
   enabled: boolean;
   isCustom: boolean;
   visibleToRoles: UserRole[];
+  // Optional department gate layered on top of visibleToRoles — absent/empty
+  // means unrestricted (every module except the 7 TMS tiles). See
+  // lib/moduleConfigStore.ts's departmentAllowsModule().
+  visibleToDepartments?: string[];
 }
 
 export type CustomFieldType =
@@ -833,7 +842,10 @@ export interface DepartmentRecord {
 
 // One row of a role's permission matrix, keyed by module (ModuleConfigRecord.key,
 // e.g. 'crm', 'product-master', 'custom:site-inspection').
-export type ModulePermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'export' | 'print' | 'approve' | 'reject' | 'assign';
+// 'manage' is the TMS Tab Access "full administrative control of this
+// module" bit — also doubles as the exact mechanism for Engineer/Technician
+// seeing only their own tasks (see lib/tmsAccess.ts's canManageAllTmsTasks).
+export type ModulePermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'export' | 'print' | 'approve' | 'reject' | 'assign' | 'manage';
 export type ModulePermissionSet = Partial<Record<ModulePermissionAction, boolean>>;
 
 export type GlobalCapability = 'manageSettings' | 'manageUsers' | 'manageRoles' | 'manageDepartments' | 'viewAllDepartments';
@@ -870,4 +882,132 @@ export interface RoleRecord {
   created_by: string;
   updated_at: string;
   updated_by: string;
+}
+
+// ---------------------------------------------------------------------------
+// TMS (Technical Management System) — a self-contained module for the
+// Robotics/AI/AV/Marketing departments (see lib/tmsAccess.ts for the
+// department + role gate, lib/tmsProjectStore.ts etc. for the stores). A
+// TmsProjectRecord is a TECHNICAL EXECUTION project (team, budget, status
+// Planning/Not Started/In Progress/On Hold/Completed/Cancelled) — a
+// deliberately separate concept from ProjectRecord above (the sales
+// pipeline), not a variant of it. No time-tracking/hours/billable field
+// exists anywhere in this module by explicit product requirement — do not
+// add one.
+// ---------------------------------------------------------------------------
+
+export type TmsProjectStatus = 'planning' | 'not_started' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
+export type TmsPriority = 'low' | 'medium' | 'high';
+
+export interface TmsProjectRecord {
+  id: string;
+  project_code: string;
+  created_at: string;
+  created_by: string;
+  name: string;
+  client_name: string;
+  client_contact: string;
+  description: string;
+  department_id: string;
+  department_name: string;
+  project_manager_id: string;
+  project_manager_name: string;
+  team_member_ids: string[];
+  team_member_names: string[];
+  start_date: string;
+  estimated_close_date: string;
+  actual_close_date: string;
+  budget: number;
+  status: TmsProjectStatus;
+  priority: TmsPriority;
+  progress_percent: number;
+  remarks: string;
+  attachments: string[];
+  updated_at: string;
+}
+
+export type TmsTaskStatus = 'to_do' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
+
+export interface TmsTaskRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  project_id: string;
+  project_name: string;
+  name: string;
+  assignee_id: string;
+  assignee_name: string;
+  department_id: string;
+  department_name: string;
+  description: string;
+  priority: TmsPriority;
+  status: TmsTaskStatus;
+  start_date: string;
+  due_date: string;
+  completion_date: string;
+  remarks: string;
+  attachments: string[];
+  updated_at: string;
+}
+
+export type TmsBomRequestStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'sent_for_procurement' | 'completed';
+
+export interface TmsBomRequestRecord {
+  id: string;
+  bom_request_code: string;
+  created_at: string;
+  created_by: string;
+  project_id: string;
+  project_name: string;
+  requested_by_id: string;
+  requested_by_name: string;
+  department_id: string;
+  department_name: string;
+  request_date: string;
+  required_date: string;
+  item_name: string;
+  item_description: string;
+  part_number: string;
+  quantity: number;
+  specification: string;
+  preferred_brand: string;
+  estimated_cost: number;
+  remarks: string;
+  attachments: string[];
+  status: TmsBomRequestStatus;
+  rejection_reason: string;
+  reviewed_by_id: string;
+  reviewed_by_name: string;
+  reviewed_at: string;
+  updated_at: string;
+}
+
+export type TmsPurchaseStatus = 'requested' | 'quotation_required' | 'quotation_received' | 'approval_pending' | 'approved' | 'po_created' | 'ordered' | 'cancelled';
+export type TmsDeliveryStatus = 'pending' | 'partially_received' | 'received' | 'cancelled';
+
+export interface TmsProcurementRecord {
+  id: string;
+  procurement_code: string;
+  created_at: string;
+  created_by: string;
+  project_id: string;
+  project_name: string;
+  bom_request_id: string;
+  bom_request_code: string;
+  item_name: string;
+  part_number: string;
+  quantity: number;
+  vendor: string;
+  estimated_cost: number;
+  quoted_cost: number;
+  final_cost: number;
+  request_date: string;
+  required_date: string;
+  expected_delivery_date: string;
+  actual_delivery_date: string;
+  purchase_status: TmsPurchaseStatus;
+  delivery_status: TmsDeliveryStatus;
+  remarks: string;
+  documents: string[];
+  updated_at: string;
 }

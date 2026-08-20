@@ -26,6 +26,7 @@ function toItems(value: unknown): DcLineItem[] {
     .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
     .map((v) => ({
       product: typeof v.product === 'string' ? v.product.trim() : '',
+      hsnCode: typeof v.hsnCode === 'string' ? v.hsnCode.trim() : '',
       serialNumber: typeof v.serialNumber === 'string' ? v.serialNumber.trim() : '',
       quantity: Math.max(1, Number(v.quantity) || 1),
       // Price is Back Office-only — this whole route is already gated to
