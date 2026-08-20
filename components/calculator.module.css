@@ -156,6 +156,28 @@
     border-color: var(--mx-brand);
     box-shadow: 0 0 0 3px var(--mx-brand-subtle);
 }
+.phoneInputRow {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+.phoneInputRow > input {
+    flex: 1;
+    min-width: 0;
+}
+.phoneDialSelect {
+    flex-shrink: 0;
+    width: auto;
+    min-width: 130px;
+    max-width: 170px;
+    padding-right: 8px;
+}
+.phoneError {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.78rem;
+    color: #dc2626;
+}
 .formControlLocked {
     background: var(--mx-surface-sunken);
     color: var(--mx-ink-muted);

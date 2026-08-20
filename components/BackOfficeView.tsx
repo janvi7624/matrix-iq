@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { BackOfficeRemarkTag, DcLineItem, DcStatus, DeliveryChallanRecord, DemoScheduleRecord, ProjectRecord, PublicAppConfig, UserRole } from '@/lib/types';
 import { CheckCircle2, Download, Lock, Package, Plus, Printer, Save, Trash2, Truck } from 'lucide-react';
+import PhoneInput from '@/components/ui/PhoneInput';
 import { BACK_OFFICE_REMARK_LABEL, BACK_OFFICE_REMARK_TAGS } from '@/lib/backOfficeRemarks';
 import { generateDeliveryChallanPdf } from '@/lib/deliveryChallanPdf';
 import AppShell from './AppShell';
@@ -170,7 +171,7 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
         </div>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Client phone</label>
-          <input className={calcStyles.formControl} value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} />
+          <PhoneInput value={clientPhone} onChange={setClientPhone} />
         </div>
       </div>
       <div className={calcStyles.field}>
