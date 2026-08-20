@@ -477,7 +477,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
                   <select id="projectSelect" className={styles.formControl} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
                     <option value="">-- No project (one will be created) --</option>
                     {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.id} — {p.company || p.client_name} ({PROJECT_STAGE_LABEL[p.stage]})</option>
+                      <option key={p.id} value={p.id}>{p.company || p.client_name} ({PROJECT_STAGE_LABEL[p.stage]})</option>
                     ))}
                   </select>
                   {selectedProject && <div className={styles.small}>Stage: {PROJECT_STAGE_LABEL[selectedProject.stage]}</div>}
