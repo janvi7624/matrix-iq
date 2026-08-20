@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DemoOutcome, DemoPriority, DemoProductLine, DemoRequestStatus, DemoScheduleRecord, DomainKey, ProjectRecord, QuotationRecord, UserRole } from '@/lib/types';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
+import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { useDomainLeadLabels } from '@/lib/domainLeads';
 import { getDomainProducts } from '@/lib/domainProducts';
@@ -256,15 +257,18 @@ function DemoRow({
   const isOwner = record.created_by === currentUser.username;
 
   // Strict routing: once a real person is assigned, only they (or an
-  // admin/superadmin override) can act on the technical step; only their
-  // domain manager (or the override) can act on the manager step. A demo
-  // with no resolvable assignee/domain manager falls back to the old broad
-  // rule so nothing gets stuck.
+  // admin/superadmin override) can act on the technical step — nobody else,
+  // not even a manager or another technical-role account. An unassigned
+  // demo requires the admin/superadmin override too (matches
+  // app/api/demo-schedule/[id]/technical-approval/route.ts exactly, so this
+  // button never shows when the action would actually be rejected
+  // server-side). The manager step keeps its own domain-manager-or-override
+  // rule, unaffected.
   const isAdminOverride = currentUser.role === 'admin' || currentUser.role === 'superadmin';
   const assignedRosterEntry = technicalRoster.find((p) => p.id === record.assigned_technical_person_id);
   const canActTechnical = record.assigned_technical_person_id
     ? assignedRosterEntry?.username === currentUser.username || isAdminOverride
-    : isTechnical;
+    : isAdminOverride;
   const domainManagers = assignedRosterEntry?.department ? managersByDepartment[assignedRosterEntry.department] || [] : [];
   const canActManager = domainManagers.length ? domainManagers.some((m) => m.username === currentUser.username) || isAdminOverride : isPrivileged;
   const [expanded, setExpanded] = useState(false);
@@ -480,6 +484,10 @@ function DemoRow({
 }
 
 function DemoScheduleContent({ currentUser }: { currentUser: { username: string; role: UserRole } }) {
+  // TMS accounts (technical-manager/team-lead/engineer/technician) can see
+  // this queue but not submit new requests — matches the server-side gate
+  // in app/api/demo-schedule/route.ts's POST.
+  const canCreate = !(TMS_ROLE_KEYS as readonly string[]).includes(currentUser.role);
   const searchParams = useSearchParams();
   const [records, setRecords] = useState<DemoScheduleRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -623,6 +631,8 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
 
   return (
     <AppShell title="Demo Schedule" subtitle="Request a demo — technical availability, then manager approval, then Back Office handles materials.">
+        {canCreate && (
+        <>
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Request a demo</h2>
         <form className={calcStyles.sectionPanel} onSubmit={(e) => handleCreate(e, true)}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -783,6 +793,8 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             </button>
           </div>
         </form>
+        </>
+      )}
 
         <div className={historyStyles.toolbar} style={{ marginTop: 24 }}>
           <button type="button" className={historyStyles.button} onClick={load}>

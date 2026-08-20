@@ -63,7 +63,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (viewer.role !== 'backoffice' && !viewer.isPrivileged) {
+  // Strictly Back Office (or Admin/Super Admin as the org's ultimate
+  // override) — Manager is deliberately excluded here.
+  if (viewer.role !== 'backoffice' && viewer.role !== 'admin' && viewer.role !== 'superadmin') {
     return NextResponse.json({ error: 'Forbidden — Back Office only' }, { status: 403 });
   }
 
@@ -154,7 +156,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!viewer.isPrivileged) return NextResponse.json({ error: 'Forbidden — admin/manager only' }, { status: 403 });
+  // Strictly Back Office (or Admin/Super Admin) — Manager excluded, matching
+  // POST/PATCH above.
+  const canDelete = viewer.role === 'backoffice' || viewer.role === 'admin' || viewer.role === 'superadmin';
+  if (!canDelete) return NextResponse.json({ error: 'Forbidden — Back Office only' }, { status: 403 });
 
   const { id } = await params;
   try {
@@ -163,7 +168,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (dc.status !== 'prepared') {
       return NextResponse.json({ error: 'Only a not-yet-dispatched DC can be deleted' }, { status: 400 });
     }
-    const deleted = await deliveryChallanStore.remove(id, viewer.username, viewer.isPrivileged);
+    const deleted = await deliveryChallanStore.remove(id, viewer.username, canDelete);
     if (!deleted) return NextResponse.json({ error: 'Delivery Challan not found' }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (error) {

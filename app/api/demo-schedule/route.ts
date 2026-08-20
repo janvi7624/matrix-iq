@@ -9,6 +9,7 @@ import { DemoPriority, DemoProductLine, DemoScheduleRecord, DomainKey } from '@/
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { isUserADepartmentManager } from '@/lib/departmentStore';
+import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITY: DemoPriority[] = ['low', 'medium', 'high'];
@@ -43,7 +44,12 @@ export async function GET(request: NextRequest) {
     // manager-approval / DC action routes are already role-gated (not
     // ownership-gated), so widening visibility here doesn't grant any new
     // write capability, only lets them see what they could already act on.
-    const canSeeQueue = viewer.isPrivileged || viewer.role === 'technical' || viewer.role === 'backoffice' || (await isUserADepartmentManager(viewer.username));
+    const canSeeQueue =
+      viewer.isPrivileged ||
+      viewer.role === 'technical' ||
+      viewer.role === 'backoffice' ||
+      (TMS_ROLE_KEYS as readonly string[]).includes(viewer.role) ||
+      (await isUserADepartmentManager(viewer.username));
     const records = await demoScheduleStore.list(viewer.username, canSeeQueue);
     return NextResponse.json(records);
   } catch (error) {
@@ -54,6 +60,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // TMS accounts (technical-manager/team-lead/engineer/technician) can see
+  // the demo queue (canSeeQueue above) but not submit new requests — that
+  // stays a Sales-side action, same as before TMS gained visibility here.
+  if ((TMS_ROLE_KEYS as readonly string[]).includes(viewer.role)) {
+    return NextResponse.json({ error: 'Forbidden — view only for the Technical team' }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });

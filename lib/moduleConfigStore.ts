@@ -2,6 +2,7 @@ import { Model } from 'sequelize';
 import { ModuleConfigRecord, UserRole } from './types';
 import { db, isUuid } from './db';
 import { cached, invalidateCache } from './memoCache';
+import { TMS_ROLE_KEYS } from './tmsConstants';
 
 // listModuleConfigs() (and its seed/reconcile pass) used to run in full on
 // every module-gated request — proxy.ts's own comment already flagged this
@@ -24,6 +25,15 @@ const TMS_ALL_ROLES: UserRole[] = [...PRIVILEGED_ROLES, 'technical-manager', 'te
 const TMS_MANAGER_ONLY_ROLES: UserRole[] = [...PRIVILEGED_ROLES, 'technical-manager'];
 const TMS_DEPARTMENTS = ['Robotics', 'AI', 'AV', 'Marketing'];
 
+// TMS accounts also need a handful of Sales-section modules (their project
+// dashboard is tied to Project.assigned_technical_person_id, and they work
+// alongside Sales day to day) — added on top of the standard 6 roles, not
+// instead of them. Demo Schedule is included here for VISIBILITY only; TMS
+// roles are additionally blocked from actually creating a request (see
+// app/api/demo-schedule/route.ts POST and components/DemoScheduleView.tsx)
+// — they can see the queue, not submit new requests.
+const SALES_ROLES_WITH_TMS: UserRole[] = [...ALL_ROLES, ...TMS_ROLE_KEYS];
+
 // Seeded from the tiles that used to be hardcoded in components/Dashboard.tsx
 // — first read produces the exact same dashboard as before Module Manager
 // existed. From here on, Admin edits this instead of a developer editing
@@ -31,15 +41,15 @@ const TMS_DEPARTMENTS = ['Robotics', 'AI', 'AV', 'Marketing'];
 // added later without a matching seed) simply won't appear until an admin
 // adds it via Module Manager.
 const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
-  { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: 'folder-kanban', href: '/projects', section: 'Sales', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'quotation', label: 'New Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', icon: 'file-text', href: '/quotation', section: 'Sales', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: 'folder-kanban', href: '/projects', section: 'Sales', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  { key: 'quotation', label: 'New Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', icon: 'file-text', href: '/quotation', section: 'Sales', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'my-quotations', label: 'Existing Quotations', desc: "Every quotation you've created, with status, versions, and follow-ups.", icon: 'clipboard-list', href: '/my-quotations', section: 'Sales', order: 3, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: 'map-pin', href: '/site-visits', section: 'Sales', order: 4, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'leads', label: 'Lead Capture', desc: 'Scan a business card at an event and qualify the lead on the spot.', icon: 'contact', href: '/leads', section: 'Sales', order: 6, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: 'monitor', href: '/demo-schedule', section: 'Sales', order: 7, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: 'map-pin', href: '/site-visits', section: 'Sales', order: 4, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  { key: 'leads', label: 'Lead Capture', desc: 'Scan a business card at an event and qualify the lead on the spot.', icon: 'contact', href: '/leads', section: 'Sales', order: 6, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: 'monitor', href: '/demo-schedule', section: 'Sales', order: 7, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'Sales', order: 8, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'backoffice', label: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', icon: 'package', href: '/backoffice', section: 'Operations', order: 1, enabled: true, isCustom: false, visibleToRoles: ['backoffice', 'admin', 'superadmin', 'manager'] },
-  { key: 'marketing-requests', label: 'Marketing Requests', desc: 'Request marketing support — brochures, banners, social posts, and more — and track delivery timelines.', icon: 'megaphone', href: '/marketing-requests', section: 'Marketing', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'marketing-requests', label: 'Marketing Requests', desc: 'Request marketing support — brochures, banners, social posts, and more — and track delivery timelines.', icon: 'megaphone', href: '/marketing-requests', section: 'Marketing', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: 'user', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'role-management', label: 'Role Management', desc: 'What each role can see and do across the platform.', icon: 'shield', href: '/admin/roles', section: 'Administration', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'department-master', label: 'Department Master', desc: 'Departments used across user profiles.', icon: 'building', href: '/admin/departments', section: 'Administration', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -136,6 +146,13 @@ const FORCED_VISIBILITY_KEYS = new Set(['audit-log']);
 const OLD_VISIBILITY: UserRole[] = PRIVILEGED_ROLES;
 const NEW_VISIBILITY: UserRole[] = ['superadmin'];
 
+// TMS roles gained access to these 6 Sales-section modules (see
+// SALES_ROLES_WITH_TMS above) — same don't-clobber-an-admin-edit guard: only
+// overwrites a row still holding the exact old (pre-TMS-access) default.
+const TMS_SALES_ACCESS_KEYS = new Set(['projects', 'quotation', 'site-visits', 'leads', 'demo-schedule', 'marketing-requests']);
+const OLD_VISIBILITY_SALES: UserRole[] = ALL_ROLES;
+const NEW_VISIBILITY_SALES: UserRole[] = SALES_ROLES_WITH_TMS;
+
 function sameRoles(a: UserRole[], b: UserRole[]): boolean {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
@@ -193,6 +210,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (RESECTIONED_KEYS.has(key) && plain.section === OLD_SECTION) attrs.section = NEW_SECTION;
     if (RESECTIONED_KEYS_V2.has(key) && plain.section === OLD_SECTION_V2) attrs.section = NEW_SECTION_V2;
     if (FORCED_VISIBILITY_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_VISIBILITY)) attrs.visibleToRoles = NEW_VISIBILITY;
+    if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_VISIBILITY_SALES)) attrs.visibleToRoles = NEW_VISIBILITY_SALES;
     if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }

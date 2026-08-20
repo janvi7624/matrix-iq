@@ -555,8 +555,11 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
 function BackOfficeContent({ currentUser }: { currentUser: { username: string; role: UserRole } }) {
   const searchParams = useSearchParams();
   const demoIdParam = searchParams.get('demoId') || '';
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
-  const canManage = currentUser.role === 'backoffice' || isPrivileged;
+  // DC management is strictly Back Office (or Admin/Super Admin as the org's
+  // ultimate override) — Manager is deliberately excluded, unlike the app's
+  // usual isPrivileged convention. Matches the server-side gates in
+  // app/api/delivery-challans/route.ts and [id]/route.ts.
+  const canManage = currentUser.role === 'backoffice' || currentUser.role === 'admin' || currentUser.role === 'superadmin';
 
   const [dcs, setDcs] = useState<DeliveryChallanRecord[]>([]);
   const [demos, setDemos] = useState<DemoScheduleRecord[]>([]);

@@ -126,10 +126,12 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
     y += 6;
   }
 
-  // Delivery Challan To — a single bordered box (the company's own details
-  // are already in the letterhead above, so there's no separate "From" box).
-  const boxWidth = pageWidth - marginX * 2;
+  // Left: Requested By / Created By, plain text, no box. Right: Delivery
+  // Challan To — bordered, no fill (a flat white box reads cleaner than the
+  // tinted background, and matches the plain letterhead above).
+  const boxWidth = (pageWidth - marginX * 2 - 6) / 2;
   const boxY = y;
+  const toBoxX = marginX + boxWidth + 6;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -140,32 +142,46 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   const boxLineHeight = 4.4;
   const boxTopPadding = 12;
   const boxBottomPadding = 6;
-  const boxHeight = Math.max(24, boxTopPadding + toLines.length * boxLineHeight + boxBottomPadding);
-
-  doc.setDrawColor(210, 200, 200);
-  doc.setFillColor(249, 245, 245);
-  doc.roundedRect(marginX, boxY, boxWidth, boxHeight, 2, 2, 'FD');
+  // Left column needs room for two label+value pairs (Requested By, Created
+  // By) — roughly 4 line-heights — so the box height covers whichever side
+  // is taller.
+  const boxHeight = Math.max(24, boxTopPadding + Math.max(toLines.length, 4) * boxLineHeight + boxBottomPadding);
 
   doc.setTextColor(17, 24, 39);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
-  doc.text('Delivery Challan To', marginX + 4, boxY + 6);
+  doc.text('Requested By', marginX, boxY + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(dc.assigned_engineer || '-', marginX, boxY + boxTopPadding);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text('Created By', marginX, boxY + boxTopPadding + boxLineHeight * 2);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(dc.issued_by || '-', marginX, boxY + boxTopPadding + boxLineHeight * 3);
+
+  doc.setDrawColor(210, 200, 200);
+  doc.roundedRect(toBoxX, boxY, boxWidth, boxHeight, 2, 2, 'D');
+
+  doc.setTextColor(17, 24, 39);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text('Delivery Challan To', toBoxX + 4, boxY + 6);
 
   doc.setFontSize(9);
-  doc.text(toLines[0], marginX + 4, boxY + boxTopPadding);
+  doc.text(toLines[0], toBoxX + 4, boxY + boxTopPadding);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.2);
-  toLines.slice(1).forEach((line, i) => doc.text(line, marginX + 4, boxY + boxTopPadding + (i + 1) * boxLineHeight));
+  toLines.slice(1).forEach((line, i) => doc.text(line, toBoxX + 4, boxY + boxTopPadding + (i + 1) * boxLineHeight));
 
   y = boxY + boxHeight + 8;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(60, 60, 60);
-  doc.text(`Requested By: ${dc.assigned_engineer || '-'}`, marginX, y);
   doc.text(`Expected Return Date: ${formatDate(dc.expected_return_date)}`, rightX, y, { align: 'right' });
-  y += 5;
-  doc.text(`Created By: ${dc.issued_by || '-'}`, marginX, y);
 
   y += 7;
 

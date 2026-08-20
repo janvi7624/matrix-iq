@@ -10,11 +10,14 @@ import { findUserById } from '@/lib/userStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
 import { notifyUsers } from '@/lib/notificationStore';
 
-// Strict routing (confirmed decision): once a real person is selected as
-// assigned_technical_person_id, only THAT account can respond to this step
-// — admin/superadmin keep a full override. A demo with no resolvable
-// assignee (legacy record predating the real roster) falls back to the old
-// broad "any technical/privileged account" rule so nothing gets stuck.
+// Strict routing (confirmed decision, tightened further on request): once a
+// real person is selected as assigned_technical_person_id, only THAT
+// account can respond to this step — admin/superadmin keep a full override,
+// nobody else does (not Manager, not "any technical-role account"). A demo
+// with no resolvable assignee (legacy record, or one nobody's assigned yet)
+// requires an admin/superadmin override too, rather than falling back to a
+// broad "any technical/privileged account" rule — an unassigned demo simply
+// can't be accepted by anyone else until it's assigned or an admin steps in.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -39,8 +42,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (assignedPerson.username !== viewer.username && !isOverride) {
         return NextResponse.json({ error: `Forbidden — only ${assignedPerson.name} can respond to this request` }, { status: 403 });
       }
-    } else if (viewer.role !== 'technical' && !viewer.isPrivileged) {
-      return NextResponse.json({ error: 'Forbidden — technical team only' }, { status: 403 });
+    } else if (!isOverride) {
+      return NextResponse.json({ error: 'Forbidden — this request has no assigned technical person yet; ask an admin to assign one' }, { status: 403 });
     }
 
     const technicalApproval: DemoTechnicalApproval = {

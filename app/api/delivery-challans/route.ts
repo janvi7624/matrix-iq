@@ -62,7 +62,10 @@ function toManualItems(value: unknown): DcLineItem[] {
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (viewer.role !== 'backoffice' && !viewer.isPrivileged) {
+  // Strictly Back Office (or Admin/Super Admin as the org's ultimate
+  // override, same as every other module) — Manager is deliberately
+  // excluded here, unlike the rest of the app's usual isPrivileged check.
+  if (viewer.role !== 'backoffice' && viewer.role !== 'admin' && viewer.role !== 'superadmin') {
     return NextResponse.json({ error: 'Forbidden — Back Office only' }, { status: 403 });
   }
 
