@@ -126,47 +126,51 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
     y += 6;
   }
 
-  // Plain stacked text, no box/border — Delivery Challan To first, then
-  // Requested By / Created By below it.
+  // Plain text, no box/border, side by side — Delivery Challan To on the
+  // left, Requested By / Created By on the right.
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  const clientAddressWrapped = dc.client_address ? doc.splitTextToSize(dc.client_address, pageWidth - marginX * 2 - 8) : [];
+  const leftColWidth = (pageWidth - marginX * 2) / 2 - 6;
+  const rightColX = marginX + (pageWidth - marginX * 2) / 2 + 6;
+  const clientAddressWrapped = dc.client_address ? doc.splitTextToSize(dc.client_address, leftColWidth) : [];
   const toLines = [dc.client_name || 'N/A', ...clientAddressWrapped, dc.client_phone ? `Contact: ${dc.client_phone}` : ''].filter(Boolean);
   const lineHeight = 4.4;
+  const rowY = y;
 
   doc.setTextColor(17, 24, 39);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
-  doc.text('Delivery Challan To', marginX, y);
-  y += 6;
+  doc.text('Delivery Challan To', marginX, rowY);
   doc.setFontSize(9);
-  doc.text(toLines[0], marginX, y);
+  doc.text(toLines[0], marginX, rowY + 6);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.2);
-  toLines.slice(1).forEach((line, i) => doc.text(line, marginX, y + (i + 1) * lineHeight));
-  y += (toLines.length > 1 ? (toLines.length - 1) * lineHeight : 0) + 8;
+  toLines.slice(1).forEach((line, i) => doc.text(line, marginX, rowY + 6 + (i + 1) * lineHeight));
 
   doc.setTextColor(17, 24, 39);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
-  doc.text('Requested By', marginX, y);
+  doc.text('Requested By', rightColX, rowY);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text(dc.assigned_engineer || '-', marginX, y + 5);
+  doc.text(dc.assigned_engineer || '-', rightColX, rowY + 6);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
-  doc.text('Created By', marginX, y + 12);
+  doc.text('Created By', rightColX, rowY + 13);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text(dc.issued_by || '-', marginX, y + 17);
+  doc.text(dc.issued_by || '-', rightColX, rowY + 19);
+
+  const leftColLines = 6 + (toLines.length > 1 ? (toLines.length - 1) * lineHeight : 0);
+  y = rowY + Math.max(leftColLines, 19) + 8;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(60, 60, 60);
   doc.text(`Expected Return Date: ${formatDate(dc.expected_return_date)}`, rightX, y, { align: 'right' });
 
-  y += 24;
+  y += 7;
 
   // Line items — Price is Back-Office-entered only (enforced in the
   // updateItems route), shown here whenever it's set.
