@@ -16,6 +16,15 @@ const DUMMY_DATABASE_URL = 'postgres://user:pass@localhost:5432/placeholder';
 const url = process.env.DATABASE_URL || DUMMY_DATABASE_URL;
 const schema = process.env.DATABASE_SCHEMA || 'public';
 
+// Supabase's pooler requires SSL; a plain local/self-hosted Postgres (e.g.
+// 127.0.0.1 or a Docker container on the same machine) generally has no SSL
+// listener at all, so forcing `ssl: { require: true }` against one fails the
+// connection outright ("the server does not support SSL connections").
+// Decided from the URL's own hostname rather than an extra env var, so
+// switching DATABASE_URL between a local and a hosted database "just works"
+// without also having to remember to flip a separate SSL toggle.
+const isLocalDatabaseHost = /^(127\.0\.0\.1|localhost|::1)$/i.test(new URL(url).hostname);
+
 // Sequelize's own ConnectionManager._loadDialectModule() does a computed
 // require(dialectModule) internally (node_modules/sequelize/lib/dialects/
 // abstract/connection-manager.js) — no bundler's static tracer (Turbopack,
@@ -35,9 +44,7 @@ const base = {
   url,
   dialect: 'postgres',
   dialectModule: pg,
-  dialectOptions: {
-    ssl: { require: true, rejectUnauthorized: false }
-  },
+  dialectOptions: isLocalDatabaseHost ? {} : { ssl: { require: true, rejectUnauthorized: false } },
   define: {
     schema
   },
