@@ -198,7 +198,7 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
                 <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))}>
                   <option value="">-- Not linked to a project --</option>
                   {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.id} — {p.company || p.client_name} ({PROJECT_STAGE_LABEL[p.stage]})</option>
+                    <option key={p.id} value={p.id}> {p.company || p.client_name} ({PROJECT_STAGE_LABEL[p.stage]})</option>
                   ))}
                 </select>
               </div>
