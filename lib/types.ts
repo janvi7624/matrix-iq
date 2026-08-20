@@ -670,13 +670,18 @@ export interface AppConfig {
   // string when unset (id) / unresolved (username).
   marketingOwnerId: string;
   marketingOwnerUsername: string;
+  // Who approves the Finance stage of a TMS BOM Request — set in
+  // Application Settings > TMS Settings. Empty when unset (id) / unresolved
+  // (username).
+  bomFinanceApproverId: string;
+  bomFinanceApproverUsername: string;
   updated_at: string;
   updated_by: string;
 }
 
 // Fields shared with the browser (quotation PDF generation) — excludes bank
 // details, which have no reason to leave the server.
-export type PublicAppConfig = Omit<AppConfig, 'bankAccountName' | 'bankAccountNumber' | 'bankIfsc' | 'bankName' | 'bankBranch' | 'notificationTemplates' | 'marketingOwnerId' | 'marketingOwnerUsername' | 'updated_at' | 'updated_by'>;
+export type PublicAppConfig = Omit<AppConfig, 'bankAccountName' | 'bankAccountNumber' | 'bankIfsc' | 'bankName' | 'bankBranch' | 'notificationTemplates' | 'marketingOwnerId' | 'marketingOwnerUsername' | 'bomFinanceApproverId' | 'bomFinanceApproverUsername' | 'updated_at' | 'updated_by'>;
 
 export type ProductStatus = 'active' | 'inactive';
 
@@ -950,7 +955,25 @@ export interface TmsTaskRecord {
   updated_at: string;
 }
 
-export type TmsBomRequestStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'sent_for_procurement' | 'completed';
+// Full chain: draft -> submitted -> approved (Technical Manager) ->
+// finance_approved (the configured Finance Approver) -> payment_done
+// (Accounts, with a payment-proof attachment) -> received (the original
+// requester confirms material in hand). rejected is reachable from
+// 'submitted'/'under_review' (Technical Manager) or 'approved' (Finance
+// Approver) — terminal either way. sent_for_procurement/completed remain
+// the separate, pre-existing Procurement-handoff path off 'approved',
+// unrelated to (and not required before) the finance/payment chain.
+export type TmsBomRequestStatus =
+  | 'draft'
+  | 'submitted'
+  | 'under_review'
+  | 'approved'
+  | 'finance_approved'
+  | 'payment_done'
+  | 'received'
+  | 'rejected'
+  | 'sent_for_procurement'
+  | 'completed';
 
 export interface TmsBomRequestRecord {
   id: string;
@@ -979,6 +1002,16 @@ export interface TmsBomRequestRecord {
   reviewed_by_id: string;
   reviewed_by_name: string;
   reviewed_at: string;
+  finance_reviewed_by_id: string;
+  finance_reviewed_by_name: string;
+  finance_reviewed_at: string;
+  payment_marked_by_id: string;
+  payment_marked_by_name: string;
+  payment_marked_at: string;
+  payment_proof_attachments: string[];
+  received_by_id: string;
+  received_by_name: string;
+  received_at: string;
   updated_at: string;
 }
 

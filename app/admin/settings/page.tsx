@@ -225,6 +225,22 @@ export default function ApplicationSettingsPage() {
               </div>
             </div>
 
+            <h2 className={calcStyles.h2}>TMS Settings</h2>
+            <div className={calcStyles.sectionPanel}>
+              <div className={calcStyles.field} style={{ maxWidth: 320 }}>
+                <label className={calcStyles.label}>BOM Finance Approver</label>
+                <select className={calcStyles.formControl} value={config.bomFinanceApproverId} onChange={(e) => set('bomFinanceApproverId', e.target.value)}>
+                  <option value="">— None selected —</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name || u.username} ({u.username})</option>
+                  ))}
+                </select>
+              </div>
+              <div className={styles.status}>
+                After a TMS BOM Request is approved by its Technical Manager, it needs approval from this person before it can move to Accounts for payment. Changing this doesn&apos;t require a code change — the previous approver just stops being asked.
+              </div>
+            </div>
+
             <h2 className={calcStyles.h2}>Notification Templates</h2>
             <div className={calcStyles.sectionPanel}>
               <div className={styles.status}>

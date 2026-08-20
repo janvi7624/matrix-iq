@@ -70,6 +70,16 @@ export async function POST(request: NextRequest) {
     reviewed_by_id: '',
     reviewed_by_name: '',
     reviewed_at: '',
+    finance_reviewed_by_id: '',
+    finance_reviewed_by_name: '',
+    finance_reviewed_at: '',
+    payment_marked_by_id: '',
+    payment_marked_by_name: '',
+    payment_marked_at: '',
+    payment_proof_attachments: [],
+    received_by_id: '',
+    received_by_name: '',
+    received_at: '',
     updated_at: now
   };
 

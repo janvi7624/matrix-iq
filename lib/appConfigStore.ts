@@ -52,6 +52,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   dcNumberPrefix: 'NT-DC-',
   marketingOwnerId: '',
   marketingOwnerUsername: '',
+  bomFinanceApproverId: '',
+  bomFinanceApproverUsername: '',
   notificationTemplates: [
     { key: 'demo_approval_pending', label: 'Demo Approval Pending', subject: 'Demo request awaiting your approval', body: 'Hi {{name}}, a demo request for {{client}} is awaiting your approval.' },
     { key: 'dc_generated', label: 'Delivery Challan Generated', subject: 'DC {{dcNumber}} generated', body: 'Delivery Challan {{dcNumber}} has been generated for {{client}}.' },
@@ -68,6 +70,7 @@ function isoOrEmpty(value: unknown): string {
 
 const updaterInclude = { model: db.User, as: 'updater', attributes: ['id', 'username'] };
 const marketingOwnerInclude = { model: db.User, as: 'marketingOwner', attributes: ['id', 'username'] };
+const bomFinanceApproverInclude = { model: db.User, as: 'bomFinanceApprover', attributes: ['id', 'username'] };
 
 function toRecord(row: Model): AppConfig {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -96,6 +99,8 @@ function toRecord(row: Model): AppConfig {
     notificationTemplates: (plain.notificationTemplates as AppConfig['notificationTemplates']) ?? [],
     marketingOwnerId: (plain.marketingOwnerId as string) ?? '',
     marketingOwnerUsername: (plain.marketingOwner as { username?: string } | null)?.username ?? '',
+    bomFinanceApproverId: (plain.bomFinanceApproverId as string) ?? '',
+    bomFinanceApproverUsername: (plain.bomFinanceApprover as { username?: string } | null)?.username ?? '',
     updated_at: isoOrEmpty(plain.updatedAt),
     updated_by: (plain.updater as { username?: string } | null)?.username ?? ''
   };
@@ -104,17 +109,29 @@ function toRecord(row: Model): AppConfig {
 // Singleton — always exactly one row. Created lazily from DEFAULT_APP_CONFIG
 // on first read/write since a fresh DB starts with none.
 async function getOrCreateRow() {
-  const existing = await db.AppConfig.findOne({ include: [updaterInclude, marketingOwnerInclude] });
+  const includes = [updaterInclude, marketingOwnerInclude, bomFinanceApproverInclude];
+  const existing = await db.AppConfig.findOne({ include: includes });
   if (existing) return existing;
-  const { updated_at: _updatedAt, updated_by: _updatedBy, marketingOwnerUsername: _marketingOwnerUsername, marketingOwnerId: _marketingOwnerId, ...defaults } = DEFAULT_APP_CONFIG;
+  const {
+    updated_at: _updatedAt,
+    updated_by: _updatedBy,
+    marketingOwnerUsername: _marketingOwnerUsername,
+    marketingOwnerId: _marketingOwnerId,
+    bomFinanceApproverUsername: _bomFinanceApproverUsername,
+    bomFinanceApproverId: _bomFinanceApproverId,
+    ...defaults
+  } = DEFAULT_APP_CONFIG;
   void _updatedAt;
   void _updatedBy;
   void _marketingOwnerUsername;
   void _marketingOwnerId;
-  // marketingOwnerId is a UUID column — must be null, not '', or Postgres
-  // rejects the insert (same reason updated_by/updated_at are excluded here).
-  const row = await db.AppConfig.create({ ...defaults, marketingOwnerId: null } as never);
-  return (await db.AppConfig.findByPk(row.get('id') as string, { include: [updaterInclude, marketingOwnerInclude] })) as NonNullable<typeof row>;
+  void _bomFinanceApproverUsername;
+  void _bomFinanceApproverId;
+  // marketingOwnerId/bomFinanceApproverId are UUID columns — must be null,
+  // not '', or Postgres rejects the insert (same reason updated_by/
+  // updated_at are excluded here).
+  const row = await db.AppConfig.create({ ...defaults, marketingOwnerId: null, bomFinanceApproverId: null } as never);
+  return (await db.AppConfig.findByPk(row.get('id') as string, { include: includes })) as NonNullable<typeof row>;
 }
 
 export async function getAppConfig(): Promise<AppConfig> {
@@ -141,18 +158,29 @@ export async function getPublicAppConfig(): Promise<PublicAppConfig> {
 export async function updateAppConfig(patch: Partial<AppConfig>, updatedBy: string): Promise<AppConfig> {
   const row = await getOrCreateRow();
   const updater = await db.User.findOne({ where: { username: updatedBy } as never });
-  const { updated_at: _updatedAt, updated_by: _updatedBy, marketingOwnerUsername: _marketingOwnerUsername, ...attrs } = patch;
+  const {
+    updated_at: _updatedAt,
+    updated_by: _updatedBy,
+    marketingOwnerUsername: _marketingOwnerUsername,
+    bomFinanceApproverUsername: _bomFinanceApproverUsername,
+    ...attrs
+  } = patch;
   void _updatedAt;
   void _updatedBy;
   void _marketingOwnerUsername;
+  void _bomFinanceApproverUsername;
   // defaultTaxPercent is the one numeric column here — coerced the same way
   // every other numeric field in the app is, so a non-numeric value (or a
   // string from a form field) can't reach Postgres raw and crash with a 500.
   if (attrs.defaultTaxPercent !== undefined) attrs.defaultTaxPercent = Number(attrs.defaultTaxPercent) || 0;
-  // marketingOwnerId is a UUID column — '' (the "no owner selected" state
-  // from the settings dropdown) must become null, not an empty string.
+  // marketingOwnerId/bomFinanceApproverId are UUID columns — '' (the "no
+  // owner selected" state from the settings dropdown) must become null, not
+  // an empty string.
   if (attrs.marketingOwnerId !== undefined) {
     (attrs as Record<string, unknown>).marketingOwnerId = attrs.marketingOwnerId || null;
+  }
+  if (attrs.bomFinanceApproverId !== undefined) {
+    (attrs as Record<string, unknown>).bomFinanceApproverId = attrs.bomFinanceApproverId || null;
   }
   await row.update({ ...attrs, updatedBy: updater ? updater.get('id') : null } as never);
   invalidateCache(APP_CONFIG_CACHE_KEY);

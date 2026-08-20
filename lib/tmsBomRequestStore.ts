@@ -22,7 +22,14 @@ const FIELDS = [
   { name: 'status' },
   { name: 'rejection_reason' },
   { name: 'reviewed_by_id', kind: 'nullable' as const },
-  { name: 'reviewed_at', kind: 'date' as const }
+  { name: 'reviewed_at', kind: 'date' as const },
+  { name: 'finance_reviewed_by_id', kind: 'nullable' as const },
+  { name: 'finance_reviewed_at', kind: 'date' as const },
+  { name: 'payment_marked_by_id', kind: 'nullable' as const },
+  { name: 'payment_marked_at', kind: 'date' as const },
+  { name: 'payment_proof_attachments', kind: 'json' as const },
+  { name: 'received_by_id', kind: 'nullable' as const },
+  { name: 'received_at', kind: 'date' as const }
 ];
 
 function isoOrEmpty(value: unknown): string {
@@ -39,9 +46,21 @@ function toAttr(value: unknown, kind: string): unknown {
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
 const requestedByInclude = { model: db.User, as: 'requestedBy', attributes: ['id', 'name'] };
 const reviewedByInclude = { model: db.User, as: 'reviewedBy', attributes: ['id', 'name'] };
+const financeReviewedByInclude = { model: db.User, as: 'financeReviewedBy', attributes: ['id', 'name'] };
+const paymentMarkedByInclude = { model: db.User, as: 'paymentMarkedBy', attributes: ['id', 'name'] };
+const receivedByInclude = { model: db.User, as: 'receivedBy', attributes: ['id', 'name'] };
 const deptInclude = { model: db.Department, as: 'department', attributes: ['id', 'name'] };
 const projectInclude = { model: db.TmsProject, as: 'project', attributes: ['id', 'name'] };
-const ALL_INCLUDES = [creatorInclude, requestedByInclude, reviewedByInclude, deptInclude, projectInclude];
+const ALL_INCLUDES = [
+  creatorInclude,
+  requestedByInclude,
+  reviewedByInclude,
+  financeReviewedByInclude,
+  paymentMarkedByInclude,
+  receivedByInclude,
+  deptInclude,
+  projectInclude
+];
 
 function toRecord(row: Model): TmsBomRequestRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -53,6 +72,9 @@ function toRecord(row: Model): TmsBomRequestRecord {
     requested_by_name: (plain.requestedBy as { name?: string } | null)?.name ?? '',
     department_name: (plain.department as { name?: string } | null)?.name ?? '',
     reviewed_by_name: (plain.reviewedBy as { name?: string } | null)?.name ?? '',
+    finance_reviewed_by_name: (plain.financeReviewedBy as { name?: string } | null)?.name ?? '',
+    payment_marked_by_name: (plain.paymentMarkedBy as { name?: string } | null)?.name ?? '',
+    received_by_name: (plain.receivedBy as { name?: string } | null)?.name ?? '',
     updated_at: isoOrEmpty(plain.updatedAt)
   };
   for (const { name, kind = 'string' } of FIELDS) {
@@ -133,6 +155,62 @@ async function decide(id: string, decision: 'approved' | 'rejected', reviewerUse
   return toRecord(withAssoc as Model);
 }
 
+// approved -> finance_approved | rejected. Mirrors decide() but stamps the
+// finance_reviewed_* columns instead of reviewed_* — kept separate so the
+// Technical Manager's original decision (reviewed_by/at) is never
+// overwritten by the later Finance stage.
+async function financeDecide(id: string, decision: 'finance_approved' | 'rejected', reviewerUsername: string, rejectionReason?: string): Promise<TmsBomRequestRecord | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.TmsBomRequest.findByPk(id);
+  if (!row) return null;
+  const reviewer = await db.User.findOne({ where: { username: reviewerUsername } as never });
+  await row.update(
+    {
+      status: decision,
+      finance_reviewed_by_id: reviewer ? reviewer.get('id') : null,
+      finance_reviewed_at: new Date(),
+      rejection_reason: decision === 'rejected' ? rejectionReason || '' : ''
+    } as never
+  );
+  const withAssoc = await db.TmsBomRequest.findByPk(id, { include: ALL_INCLUDES });
+  return toRecord(withAssoc as Model);
+}
+
+// finance_approved -> payment_done. proofUrls are appended onto
+// payment_proof_attachments (kept separate from the general `attachments`
+// array so "Accounts' payment proof" doesn't get mixed in with the
+// engineer's spec sheets/quotes).
+async function markPaymentDone(id: string, actorUsername: string, proofUrls: string[]): Promise<TmsBomRequestRecord | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.TmsBomRequest.findByPk(id);
+  if (!row) return null;
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  const actor = await db.User.findOne({ where: { username: actorUsername } as never });
+  const existingProof = Array.isArray(plain.payment_proof_attachments) ? (plain.payment_proof_attachments as string[]) : [];
+  await row.update(
+    {
+      status: 'payment_done',
+      payment_marked_by_id: actor ? actor.get('id') : null,
+      payment_marked_at: new Date(),
+      payment_proof_attachments: [...existingProof, ...proofUrls]
+    } as never
+  );
+  const withAssoc = await db.TmsBomRequest.findByPk(id, { include: ALL_INCLUDES });
+  return toRecord(withAssoc as Model);
+}
+
+// payment_done -> received — the original requester confirming the
+// material is physically in hand, closing out the chain.
+async function markReceived(id: string, actorUsername: string): Promise<TmsBomRequestRecord | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.TmsBomRequest.findByPk(id);
+  if (!row) return null;
+  const actor = await db.User.findOne({ where: { username: actorUsername } as never });
+  await row.update({ status: 'received', received_by_id: actor ? actor.get('id') : null, received_at: new Date() } as never);
+  const withAssoc = await db.TmsBomRequest.findByPk(id, { include: ALL_INCLUDES });
+  return toRecord(withAssoc as Model);
+}
+
 // approved -> sent_for_procurement, and — inside the same transaction —
 // creates a linked TmsProcurement row pre-filled from the BOM's item/part/
 // qty/estimated cost, maintaining the Project -> BOM Request -> Procurement
@@ -178,7 +256,7 @@ async function remove(id: string, viewerIsPrivilegedOrManages: boolean): Promise
   return true;
 }
 
-export const tmsBomRequestStore = { list, findById, create, update, submit, decide, sendToProcurement, remove };
+export const tmsBomRequestStore = { list, findById, create, update, submit, decide, financeDecide, markPaymentDone, markReceived, sendToProcurement, remove };
 
 // BOM-<seq> — same "read everything, find the max sequence, +1" approach as
 // lib/deliveryChallanStore.ts's nextDcNumber().

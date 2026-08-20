@@ -45,7 +45,10 @@ export const TMS_BOM_STATUS_LABEL: Record<TmsBomRequestStatus, string> = {
   draft: 'Draft',
   submitted: 'Submitted',
   under_review: 'Under Review',
-  approved: 'Approved',
+  approved: 'Approved by Technical Manager',
+  finance_approved: 'Approved by Finance',
+  payment_done: 'Payment Done',
+  received: 'Material Received',
   rejected: 'Rejected',
   sent_for_procurement: 'Sent for Procurement',
   completed: 'Completed'
@@ -55,10 +58,42 @@ export const TMS_BOM_STATUS_TONE: Record<TmsBomRequestStatus, StatusTone> = {
   submitted: 'pending',
   under_review: 'pending',
   approved: 'confirmed',
+  finance_approved: 'confirmed',
+  payment_done: 'confirmed',
+  received: 'done',
   rejected: 'rejected',
   sent_for_procurement: 'confirmed',
   completed: 'done'
 };
+
+// "Which approval is still pending" — one line summarizing the next step in
+// the Engineer -> Technical Manager -> Finance -> Accounts -> Requester
+// chain, so anyone looking at a request can tell at a glance where it's
+// stuck without having to know the full status enum.
+export function tmsBomPendingApprovalLabel(status: TmsBomRequestStatus): string {
+  switch (status) {
+    case 'draft':
+      return 'Not yet submitted';
+    case 'submitted':
+    case 'under_review':
+      return 'Pending: Technical Manager approval';
+    case 'approved':
+      return 'Pending: Finance approval';
+    case 'finance_approved':
+      return 'Pending: Accounts payment';
+    case 'payment_done':
+      return 'Pending: material received confirmation';
+    case 'received':
+    case 'completed':
+      return 'Complete — no approval pending';
+    case 'rejected':
+      return 'Rejected';
+    case 'sent_for_procurement':
+      return 'With Procurement';
+    default:
+      return '';
+  }
+}
 
 export const TMS_PURCHASE_STATUS_LABEL: Record<TmsPurchaseStatus, string> = {
   requested: 'Requested',

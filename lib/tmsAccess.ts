@@ -6,6 +6,8 @@ import { isModuleActionAllowed } from './permissions';
 import { ModulePermissionAction } from './types';
 import { db } from './db';
 import { TmsModuleKey } from './tmsConstants';
+import { getAppConfig } from './appConfigStore';
+import { listDepartmentManagers } from './departmentStore';
 
 // TMS (Technical Management System) — a self-contained module gated on BOTH
 // department (Robotics/AI/AV/Marketing) and role/action permission. See the
@@ -71,4 +73,28 @@ export async function findTechnicalManagers(): Promise<{ id: string; username: s
     attributes: ['id', 'username', 'name']
   });
   return rows.map((r) => ({ id: r.get('id') as string, username: r.get('username') as string, name: r.get('name') as string }));
+}
+
+// The BOM Request Finance stage — a single configurable person
+// (AppConfig.bomFinanceApproverId, set in Application Settings), not a
+// hardcoded account, so who holds this step survives them changing.
+// Privileged (admin/superadmin) always overrides, same as every other
+// approval gate in this app.
+export async function isBomFinanceApprover(viewer: TmsViewer): Promise<boolean> {
+  if (viewer.isPrivileged) return true;
+  const config = await getAppConfig();
+  return !!config.bomFinanceApproverUsername && config.bomFinanceApproverUsername === viewer.username;
+}
+
+// The BOM Request Accounts (payment) stage — resolved from whoever manages
+// the real "Accounts" department (Department.managerIds), same mechanism
+// demo-schedule's manager-approval and marketing-requests already use. No
+// manager configured for Accounts yet -> falls back to any privileged
+// viewer, same safety net as those two precedents, so a request can't get
+// permanently stuck on an unmapped department.
+export async function isAccountsManager(viewer: TmsViewer): Promise<boolean> {
+  if (viewer.isPrivileged) return true;
+  const accountsManagers = (await listDepartmentManagers())['Accounts'] || [];
+  if (!accountsManagers.length) return false;
+  return accountsManagers.some((m) => m.username === viewer.username);
 }

@@ -28,6 +28,12 @@ module.exports = (sequelize, DataTypes) => {
     // the role-level "approve" capability (lib/permissions.ts), which
     // governs who CAN review a ticket, not who it lands on by default.
     marketingOwnerId: { type: DataTypes.UUID },
+    // Who approves the Finance stage of a TMS BOM Request, after Technical
+    // Manager approval and before the Accounts payment stage — a single
+    // configurable person, same reasoning as marketingOwnerId (settable in
+    // Application Settings rather than hardcoded, so it survives the person
+    // changing).
+    bomFinanceApproverId: { type: DataTypes.UUID },
     updatedBy: { type: DataTypes.UUID }
   }, {
     tableName: 'app_config',
@@ -38,6 +44,7 @@ module.exports = (sequelize, DataTypes) => {
   AppConfig.associate = (models) => {
     AppConfig.belongsTo(models.User, { foreignKey: 'updatedBy', as: 'updater' });
     AppConfig.belongsTo(models.User, { foreignKey: 'marketingOwnerId', as: 'marketingOwner' });
+    AppConfig.belongsTo(models.User, { foreignKey: 'bomFinanceApproverId', as: 'bomFinanceApprover' });
   };
 
   return AppConfig;
