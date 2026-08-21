@@ -1,11 +1,33 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Lock, AlertTriangle, Megaphone, CheckCircle2, Pause, Upload, Undo2, Play, Trash2 } from 'lucide-react';
-import { MarketingRequestPriority, MarketingRequestRecord, MarketingRequestStatus, MarketingRequestType, ProjectRecord, UserRole } from '@/lib/types';
-import { MARKETING_PRIORITY_META, MARKETING_REQUEST_TYPE_LABEL, MARKETING_STATUS_LABEL, isMarketingRequestOverdue } from '@/lib/marketingRequestHelpers';
+import {
+  Megaphone, CheckCircle2, AlertTriangle, Send, UserCheck, ShieldAlert,
+  Clock, FileText, Paperclip, ChevronDown, ChevronUp, Trash2,
+  Lock, ArrowRight, MessageSquare, Wrench, Sparkles, Check, X,
+  ExternalLink, Layers, RefreshCw
+} from 'lucide-react';
+import {
+  MARKETING_PRODUCT_CATEGORIES,
+  MarketingProductCategory,
+  MarketingRequestPriority,
+  MarketingRequestRecord,
+  MarketingRequestStatus,
+  MarketingRequestType,
+  ProjectRecord,
+  UserRole
+} from '@/lib/types';
+import {
+  MARKETING_PRIORITY_META,
+  MARKETING_REQUEST_TYPE_LABEL,
+  MARKETING_STATUS_LABEL,
+  getProductCategoryStyle,
+  isMarketingRequestOverdue
+} from '@/lib/marketingRequestHelpers';
+import { TechnicalRosterEntry } from '@/lib/technicalRoster';
+import { MarketingRosterEntry } from '@/lib/marketingRoster';
 import AppShell from './AppShell';
 import MarketingRequestWizard, { MarketingRequestForm } from './MarketingRequestWizard';
 import { useToast } from './ui/ToastProvider';
@@ -18,27 +40,28 @@ import calcStyles from './calculator.module.css';
 import Button from './ui/Button';
 import SharedStatusBadge, { StatusTone } from './ui/StatusBadge';
 import SharedPriorityBadge, { PriorityTone } from './ui/PriorityBadge';
-import { todayDateInputValue } from '@/lib/dateHelpers';
 
 interface MarketingRequestsViewProps {
-  currentUser: { username: string; role: UserRole };
+  currentUser: { id?: string; username: string; role: UserRole };
   isReviewer: boolean;
 }
 
 const STATUS_TONE: Record<MarketingRequestStatus, StatusTone> = {
   submitted: 'pending',
-  approved: 'pending',
+  marketing_in_progress: 'done',
+  pending_technical_review: 'pending',
+  technical_approved: 'confirmed',
+  tech_changes_requested: 'rejected',
+  marketing_final_review: 'done',
+  completed: 'confirmed',
   timeline_set: 'done',
-  in_progress: 'confirmed',
+  in_progress: 'done',
   waiting_info: 'pending',
   ready_for_review: 'done',
-  completed: 'confirmed',
   rejected: 'rejected',
   cancelled: 'cancelled'
 };
 
-// low -> urgent escalates cool (safe) -> info -> warm -> hot, reusing the
-// same 4 tokens PriorityBadge already exposes rather than inventing colors.
 const PRIORITY_TONE: Record<MarketingRequestPriority, PriorityTone> = {
   low: 'cool',
   medium: 'info',
@@ -46,35 +69,10 @@ const PRIORITY_TONE: Record<MarketingRequestPriority, PriorityTone> = {
   urgent: 'hot'
 };
 
-type QuickFilter = 'urgent' | 'high' | 'overdue' | 'dueToday' | 'dueSoon' | null;
-
-function isOpenTicket(r: MarketingRequestRecord): boolean {
-  return r.status !== 'completed' && r.status !== 'rejected' && r.status !== 'cancelled';
-}
-
-function daysUntilDue(r: MarketingRequestRecord): number | null {
-  if (!r.timeline) return null;
-  const due = new Date(r.timeline.expectedDeliveryDate).getTime();
-  if (Number.isNaN(due)) return null;
-  return Math.ceil((due - Date.now()) / (1000 * 60 * 60 * 24));
-}
-
-function isDueToday(r: MarketingRequestRecord): boolean {
-  if (!isOpenTicket(r)) return false;
-  const days = daysUntilDue(r);
-  return days !== null && days === 0;
-}
-
-function isDueSoon(r: MarketingRequestRecord): boolean {
-  if (!isOpenTicket(r)) return false;
-  const days = daysUntilDue(r);
-  return days !== null && days > 0 && days <= 3;
-}
-
 function formatDate(iso: string): string {
   if (!iso) return '-';
   try {
-    return new Date(iso).toLocaleDateString('en-IN');
+    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   } catch {
     return iso;
   }
@@ -83,55 +81,252 @@ function formatDate(iso: string): string {
 function formatDateTime(iso: string): string {
   if (!iso) return '-';
   try {
-    return new Date(iso).toLocaleString('en-IN');
+    return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch {
     return iso;
   }
 }
 
 function PriorityBadge({ priority }: { priority: MarketingRequestPriority }) {
-  const meta = MARKETING_PRIORITY_META[priority];
-  return <SharedPriorityBadge tone={PRIORITY_TONE[priority]} label={meta.label} />;
+  const meta = MARKETING_PRIORITY_META[priority] || { label: priority };
+  return <SharedPriorityBadge tone={PRIORITY_TONE[priority] || 'info'} label={meta.label} />;
 }
-
-const PRIORITY_ORDER: MarketingRequestPriority[] = ['low', 'medium', 'high', 'urgent'];
 
 function StatusBadge({ status }: { status: MarketingRequestStatus }) {
-  return <SharedStatusBadge tone={STATUS_TONE[status]} label={MARKETING_STATUS_LABEL[status]} />;
+  return <SharedStatusBadge tone={STATUS_TONE[status] || 'pending'} label={MARKETING_STATUS_LABEL[status] || status} />;
 }
+
+function ProductCategoryBadge({ category }: { category: MarketingProductCategory }) {
+  const style = getProductCategoryStyle(category);
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 9px',
+        borderRadius: 6,
+        fontSize: 11.5,
+        fontWeight: 700,
+        letterSpacing: '0.02em',
+        background: style.bg,
+        color: style.text,
+        border: `1px solid ${style.border}`,
+        whiteSpace: 'nowrap'
+      }}
+    >
+      <Layers size={11} /> {category || 'Other'}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Visual Workflow Stepper
+// ---------------------------------------------------------------------------
+
+function WorkflowStepper({ record: r }: { record: MarketingRequestRecord }) {
+  const isSubmittedDone = r.status !== 'submitted';
+  const isMarketingDone = ['pending_technical_review', 'technical_approved', 'tech_changes_requested', 'marketing_final_review', 'completed'].includes(r.status);
+  const isTechnicalDone = ['technical_approved', 'tech_changes_requested', 'marketing_final_review', 'completed'].includes(r.status);
+  const isChangesRequested = r.status === 'tech_changes_requested';
+  const isCompleted = r.status === 'completed';
+
+  const steps = [
+    {
+      label: 'Requester Submitted',
+      sub: r.created_by,
+      active: r.status === 'submitted',
+      done: isSubmittedDone
+    },
+    {
+      label: 'Marketing Prep',
+      sub: r.assigned_to || 'Marketing Team',
+      active: r.status === 'marketing_in_progress' || r.status === 'submitted',
+      done: isMarketingDone
+    },
+    {
+      label: 'Technical Review',
+      sub: r.technical_member_name || r.technical_member_username || 'Tech Member',
+      active: r.status === 'pending_technical_review',
+      done: isTechnicalDone,
+      warning: isChangesRequested
+    },
+    {
+      label: isChangesRequested ? 'Changes Required' : 'Technical Approved',
+      sub: isChangesRequested ? 'Needs Marketing Edits' : 'Validated',
+      active: r.status === 'tech_changes_requested' || r.status === 'technical_approved',
+      done: isTechnicalDone && !isChangesRequested,
+      warning: isChangesRequested
+    },
+    {
+      label: 'Final Delivery to Requester',
+      sub: `Deliver to ${r.created_by}`,
+      active: r.status === 'marketing_final_review' || (r.status === 'technical_approved' && !isCompleted),
+      done: isCompleted
+    },
+    {
+      label: 'Completed',
+      sub: isCompleted ? 'Delivered' : 'Pending Delivery',
+      active: isCompleted,
+      done: isCompleted
+    }
+  ];
+
+  return (
+    <div style={{ margin: '14px 0 20px', background: '#f8fafc', padding: '14px 16px', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', marginBottom: 10 }}>
+        Workflow Progression (Requester ➔ Marketing ➔ Technical ➔ Marketing ➔ Requester)
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {steps.map((s, idx) => {
+          let bg = '#f1f5f9';
+          let fg = '#64748b';
+          let border = '1px solid #e2e8f0';
+
+          if (s.done) {
+            bg = '#ecfdf5';
+            fg = '#059669';
+            border = '1px solid #a7f3d0';
+          } else if (s.warning) {
+            bg = '#fffbeb';
+            fg = '#b45309';
+            border = '1px solid #fde68a';
+          } else if (s.active) {
+            bg = '#eff6ff';
+            fg = '#2563eb';
+            border = '1.5px solid #93c5fd';
+          }
+
+          return (
+            <div key={s.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '5px 10px',
+                  borderRadius: 8,
+                  background: bg,
+                  color: fg,
+                  border,
+                  fontSize: 12,
+                  fontWeight: s.active ? 700 : 600
+                }}
+              >
+                {s.done ? <Check size={13} /> : s.warning ? <AlertTriangle size={13} /> : s.active ? <Clock size={13} /> : <span style={{ opacity: 0.5 }}>{idx + 1}</span>}
+                <div>
+                  <div>{s.label}</div>
+                  <div style={{ fontSize: 10.5, opacity: 0.8, fontWeight: 500 }}>{s.sub}</div>
+                </div>
+              </div>
+              {idx < steps.length - 1 && <ArrowRight size={13} style={{ color: '#cbd5e1' }} />}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Row Component & Workspace
+// ---------------------------------------------------------------------------
 
 interface RowProps {
   record: MarketingRequestRecord;
-  currentUser: { username: string; role: UserRole };
+  currentUser: { id?: string; username: string; role: UserRole };
   isReviewer: boolean;
+  technicalRoster: TechnicalRosterEntry[];
+  marketingRoster: MarketingRosterEntry[];
   users: { id: string; username: string; name: string }[];
-  onApprove: (id: string) => Promise<void>;
-  onSetTimeline: (id: string, expectedDeliveryDate: string, remarks: string) => Promise<void>;
-  onReject: (id: string, reason: string) => Promise<void>;
-  onCancel: (id: string) => Promise<void>;
-  onStatusAction: (id: string, action: 'start' | 'wait_for_info' | 'resume' | 'ready_for_review' | 'reopen' | 'complete', extra?: Record<string, unknown>) => Promise<void>;
-  onAssign: (id: string, assigneeId: string) => Promise<void>;
-  onPriorityChange: (id: string, priority: MarketingRequestPriority) => Promise<void>;
+  onSendToTechnical: (id: string, payload: { technicalMemberId: string; marketingPreparedContent: string; marketingAttachments: string[]; marketingRemarks: string; technicalInstructions: string }) => Promise<void>;
+  onTechnicalReview: (id: string, action: 'approve' | 'request_changes', remarks: string) => Promise<void>;
+  onFinalSubmission: (id: string, payload: { finalSubmissionNotes: string; finalSubmissionFiles: string[]; marketingPreparedContent: string }) => Promise<void>;
+  onStatusAction: (id: string, action: string, extra?: Record<string, unknown>) => Promise<void>;
+  onAssign: (id: string, patch: { assigneeId?: string; technicalMemberId?: string }) => Promise<void>;
   onComment: (id: string, text: string) => Promise<void>;
   onDelete: (record: MarketingRequestRecord) => Promise<void>;
 }
 
-function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onApprove, onSetTimeline, onReject, onCancel, onStatusAction, onAssign, onPriorityChange, onComment, onDelete }: RowProps) {
+function MarketingRequestRow({
+  record: r,
+  currentUser,
+  isReviewer,
+  technicalRoster,
+  marketingRoster,
+  users,
+  onSendToTechnical,
+  onTechnicalReview,
+  onFinalSubmission,
+  onStatusAction,
+  onAssign,
+  onComment,
+  onDelete
+}: RowProps) {
   const [expanded, setExpanded] = useState(false);
-  const [timelineDate, setTimelineDate] = useState('');
-  const [timelineRemarks, setTimelineRemarks] = useState('');
-  const [showReject, setShowReject] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [showComplete, setShowComplete] = useState(false);
-  const [completionNotes, setCompletionNotes] = useState('');
-  const [commentText, setCommentText] = useState('');
-  const [waitRemarks, setWaitRemarks] = useState('');
-  const [showWait, setShowWait] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [commentText, setCommentText] = useState('');
 
-  const isOwner = r.created_by === currentUser.username;
-  const isAssignee = !!r.assigned_to && r.assigned_to === currentUser.username;
-  const canWork = isReviewer || isAssignee;
+  // Marketing Workspace form state
+  const [marketingContent, setMarketingContent] = useState(r.marketing_prepared_content || '');
+  const [marketingRemarks, setMarketingRemarks] = useState(r.marketing_remarks || '');
+  const [technicalInstructions, setTechnicalInstructions] = useState(r.technical_instructions || '');
+  const [marketingFiles, setMarketingFiles] = useState<string[]>(r.marketing_attachments || []);
+  const [selectedTechMemberId, setSelectedTechMemberId] = useState(r.technical_member_id || '');
+  const [uploadingMarketingFiles, setUploadingMarketingFiles] = useState(false);
+  const mktFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Technical Review form state
+  const [showTechChangesDialog, setShowTechChangesDialog] = useState(false);
+  const [techRemarksInput, setTechRemarksInput] = useState('');
+
+  // Final Submission form state
+  const [finalNotes, setFinalNotes] = useState(r.final_submission_notes || '');
+  const [finalFiles, setFinalFiles] = useState<string[]>(r.final_submission_files || []);
+  const [uploadingFinalFiles, setUploadingFinalFiles] = useState(false);
+  const finalFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Category-specific and workload-balanced technical roster
+  const [categoryTechRoster, setCategoryTechRoster] = useState<TechnicalRosterEntry[]>([]);
+  const [loadingCategoryTech, setLoadingCategoryTech] = useState(false);
+
+  useEffect(() => {
+    if (!expanded) return;
+    let active = true;
+    setLoadingCategoryTech(true);
+    const query = r.product_category ? `?category=${encodeURIComponent(r.product_category)}` : '';
+    fetch(`/api/technical-roster${query}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: TechnicalRosterEntry[]) => {
+        if (active) setCategoryTechRoster(data);
+      })
+      .catch(() => {
+        if (active) setCategoryTechRoster(technicalRoster);
+      })
+      .finally(() => {
+        if (active) setLoadingCategoryTech(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [expanded, r.product_category, technicalRoster]);
+
+  const effectiveTechList = categoryTechRoster.length > 0 ? categoryTechRoster : technicalRoster;
+  const categoryMatchedList = effectiveTechList.filter((t) => t.categoryMatched);
+  const otherTechList = effectiveTechList.filter((t) => !t.categoryMatched);
+
+  const isOwner = Boolean(currentUser.username) && r.created_by.toLowerCase() === currentUser.username.toLowerCase();
+  const isAssignedMarketing = Boolean(
+    (r.assigned_to && currentUser.username && r.assigned_to.toLowerCase() === currentUser.username.toLowerCase()) ||
+    (r.assigned_to_id && currentUser.id && r.assigned_to_id === currentUser.id)
+  );
+  const isUnassignedMarketing = !r.assigned_to && !r.assigned_to_id;
+  const isSuperadmin = currentUser.role === 'superadmin' || currentUser.role === 'admin';
+  const canAccessMarketingWorkspace = isAssignedMarketing || (isUnassignedMarketing && isReviewer) || isSuperadmin;
+  const isMarketingAssignedToOther = !isAssignedMarketing && !isUnassignedMarketing && !isSuperadmin;
+
+  const isAssignedTechnical = r.technical_member_username === currentUser.username || (currentUser.role === 'technical' && r.status === 'pending_technical_review');
   const overdue = isMarketingRequestOverdue(r);
   const canDelete = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
 
@@ -144,12 +339,103 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onAppr
     }
   }
 
+  async function handleMarketingFileUpload(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    setUploadingMarketingFiles(true);
+    try {
+      const body = new FormData();
+      body.append('folder', 'marketing-requests/prepared');
+      Array.from(fileList).forEach((f) => body.append('files', f));
+      const response = await fetch('/api/uploads', { method: 'POST', body });
+      if (!response.ok) throw new Error(String(response.status));
+      const data: { urls: string[] } = await response.json();
+      setMarketingFiles((prev) => [...prev, ...data.urls]);
+    } catch {
+      alert('Could not upload one or more files.');
+    } finally {
+      setUploadingMarketingFiles(false);
+    }
+  }
+
+  async function handleFinalFileUpload(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    setUploadingFinalFiles(true);
+    try {
+      const body = new FormData();
+      body.append('folder', 'marketing-requests/final');
+      Array.from(fileList).forEach((f) => body.append('files', f));
+      const response = await fetch('/api/uploads', { method: 'POST', body });
+      if (!response.ok) throw new Error(String(response.status));
+      const data: { urls: string[] } = await response.json();
+      setFinalFiles((prev) => [...prev, ...data.urls]);
+    } catch {
+      alert('Could not upload one or more files.');
+    } finally {
+      setUploadingFinalFiles(false);
+    }
+  }
+
+  function handleSendToTechnical() {
+    const techId = r.technical_member_id || (r.technical_member_username ? technicalRoster.find((t) => t.username === r.technical_member_username)?.id : '');
+    if (!techId) {
+      alert('Technical Team member has not been assigned yet by the Marketing Manager.');
+      return;
+    }
+    run(() =>
+      onSendToTechnical(r.id, {
+        technicalMemberId: techId,
+        marketingPreparedContent: marketingContent,
+        marketingAttachments: marketingFiles,
+        marketingRemarks: marketingRemarks,
+        technicalInstructions: technicalInstructions
+      })
+    );
+  }
+
+  function handleApproveTechnical() {
+    run(() => onTechnicalReview(r.id, 'approve', techRemarksInput));
+  }
+
+  function handleRequestChangesTechnical() {
+    if (!techRemarksInput.trim()) {
+      alert('Please provide technical remarks detailing the changes needed.');
+      return;
+    }
+    run(async () => {
+      await onTechnicalReview(r.id, 'request_changes', techRemarksInput);
+      setShowTechChangesDialog(false);
+    });
+  }
+
+  function handleDeliverToRequester() {
+    run(() =>
+      onFinalSubmission(r.id, {
+        finalSubmissionNotes: finalNotes,
+        finalSubmissionFiles: finalFiles,
+        marketingPreparedContent: marketingContent
+      })
+    );
+  }
+
   return (
     <>
       <tr onClick={() => setExpanded((v) => !v)} style={{ cursor: 'pointer' }}>
-        <td>{r.title}</td>
-        <td>{MARKETING_REQUEST_TYPE_LABEL[r.request_type]}</td>
-        <td><PriorityBadge priority={r.priority} /></td>
+        <td style={{ fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>{r.title}</span>
+          </div>
+          {r.description && (
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280 }}>
+              {r.description}
+            </div>
+          )}
+        </td>
+        <td>
+          <ProductCategoryBadge category={r.product_category} />
+        </td>
+        <td>
+          <PriorityBadge priority={r.priority} />
+        </td>
         <td>
           <StatusBadge status={r.status} />
           {overdue && (
@@ -158,241 +444,608 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onAppr
             </span>
           )}
         </td>
-        <td>{r.created_by}</td>
-        <td>{r.assigned_to || <span style={{ opacity: 0.55 }}>Unassigned</span>}</td>
-        <td>{r.timeline ? <span title={`Set by ${r.timeline.setBy} on ${formatDateTime(r.timeline.setAt)}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lock size={12} /> {formatDate(r.timeline.expectedDeliveryDate)}</span> : '-'}</td>
-        <td>{formatDate(r.created_at)}</td>
-        <td><button type="button" className={historyStyles.toggleBtn} onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>{expanded ? 'Hide' : 'View'}</button></td>
+        <td>
+          <span style={{ fontWeight: 600, color: '#0f172a' }}>{r.creator_name || r.created_by}</span>
+        </td>
+        <td>
+          {r.assigned_to ? (
+            <span style={{ color: '#2563eb', fontWeight: 500 }}>{r.assigned_to_name || r.assigned_to}</span>
+          ) : (
+            <span style={{ opacity: 0.5 }}>Unassigned</span>
+          )}
+        </td>
+        <td>
+          {r.technical_member_name || r.technical_member_username ? (
+            <span style={{ color: '#0f766e', fontWeight: 500 }}>{r.technical_member_name || r.technical_member_username}</span>
+          ) : (
+            <span style={{ opacity: 0.4 }}>—</span>
+          )}
+        </td>
+        <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{formatDate(r.needed_by_date || r.created_at)}</td>
+        <td>
+          <button type="button" className={historyStyles.toggleBtn} onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>
+            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        </td>
       </tr>
+
       {expanded && (
         <tr className={historyStyles.detailsRow}>
           <td colSpan={9}>
-            <div className={historyStyles.wideCellPin} style={{ padding: '4px 2px' }}>
-              <div className={calcStyles.small} style={{ marginBottom: 10, whiteSpace: 'pre-wrap' }}>{r.description}</div>
+            <div className={historyStyles.wideCellPin} style={{ padding: '8px 4px', width: '100%' }}>
+              {/* Visual Workflow Stepper */}
+              <WorkflowStepper record={r} />
 
-              {r.project_id && (
-                <div className={calcStyles.small} style={{ marginBottom: 10 }}>
-                  Project: <Link href={`/projects/${r.project_id}`}>{r.project_id}</Link>
+              {/* 3-Way Context Summary Bar */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 14 }}>
+                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Original Requester</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>{r.creator_name || r.created_by}</div>
+                  <div style={{ fontSize: 11.5, color: '#64748b' }}>Created on {formatDate(r.created_at)}</div>
                 </div>
-              )}
-              {r.needed_by_date && <div className={calcStyles.small} style={{ marginBottom: 10 }}>Requester hoped for: {formatDate(r.needed_by_date)}</div>}
 
-              {r.attachments.length > 0 && (
-                <div className={historyStyles.imageStrip}>
-                  {r.attachments.map((url) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt="Attachment" /></a>
-                  ))}
+                <div style={{ background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>Marketing Member</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#14532d', marginTop: 2 }}>{r.assigned_to_name || r.assigned_to || 'Unassigned'}</div>
+                  <div style={{ fontSize: 11.5, color: '#166534' }}>{r.status === 'submitted' ? 'Awaiting assignment/action' : 'Managing Request'}</div>
                 </div>
-              )}
 
-              {/* A brand-new request must be approved by the Marketing manager
-                  before anything else (assignment, timeline) can happen. */}
-              {isReviewer && r.status === 'submitted' && !showReject && (
-                <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
-                  <div className={calcStyles.label} style={{ marginBottom: 8 }}>Awaiting your approval</div>
-                  <div className={historyStyles.actionGroupButtons}>
-                    <Button variant="primary" icon={<CheckCircle2 size={14} />} loading={busy} loadingLabel="Approving…" onClick={() => run(() => onApprove(r.id))}>
-                      Approve Request
-                    </Button>
-                    <Button variant="ghost" onClick={() => setShowReject(true)}>Decline Request</Button>
+                <div style={{ background: '#f0fdfa', padding: '10px 14px', borderRadius: 8, border: '1px solid #99f6e4' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#0f766e', textTransform: 'uppercase' }}>Technical Reviewer</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#134e4a', marginTop: 2 }}>{r.technical_member_name || r.technical_member_username || 'Not assigned yet'}</div>
+                  <div style={{ fontSize: 11.5, color: '#0f766e' }}>{r.technical_review_decision ? `Decision: ${r.technical_review_decision}` : 'Technical validation'}</div>
+                </div>
+              </div>
+
+              {/* SECTION 1: Original Request Details */}
+              <div className={calcStyles.sectionPanel} style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Megaphone size={16} style={{ color: '#2563eb' }} />
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>Original Requirement</span>
+                  </div>
+                  <ProductCategoryBadge category={r.product_category} />
+                </div>
+
+                <div style={{ fontSize: 13.5, color: '#1e293b', whiteSpace: 'pre-wrap', lineHeight: 1.5, marginBottom: 10 }}>
+                  {r.description}
+                </div>
+
+                {r.additional_info && (
+                  <div style={{ fontSize: 12.5, color: '#475569', background: '#f1f5f9', padding: '8px 12px', borderRadius: 6, marginBottom: 10 }}>
+                    <strong>Additional Information:</strong> {r.additional_info}
+                  </div>
+                )}
+
+                {r.project_id && (
+                  <div style={{ fontSize: 12.5, marginBottom: 8 }}>
+                    <strong>Linked Sales Project:</strong> <Link href={`/projects/${r.project_id}`}>{r.project_id}</Link>
+                  </div>
+                )}
+
+                {r.attachments && r.attachments.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Requester Attachments:</div>
+                    <div className={historyStyles.imageStrip}>
+                      {r.attachments.map((url) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <a key={url} href={url} target="_blank" rel="noreferrer" title="Click to open file">
+                          <img src={url} alt="Requester Attachment" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 2: Technical Review Banner / Feedback (if changes requested or approved) */}
+              {r.status === 'tech_changes_requested' && (
+                <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#b45309', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+                    <AlertTriangle size={18} /> Technical Feedback: Changes Requested
+                  </div>
+                  <div style={{ fontSize: 13, color: '#78350f', background: 'rgba(255,255,255,0.7)', padding: '10px 12px', borderRadius: 6, border: '1px solid #fef3c7', whiteSpace: 'pre-wrap' }}>
+                    {r.technical_remarks || 'Please review and update the content per technical requirements.'}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#92400e', marginTop: 6 }}>
+                    Feedback provided by <strong>{r.technical_reviewed_by || r.technical_member_username}</strong> on {formatDateTime(r.technical_reviewed_at)}. Marketing member will apply changes and deliver the final result.
                   </div>
                 </div>
               )}
 
-              {/* Timeline — locked forever once set, for every viewer including the reviewer who set it. */}
-              {r.timeline ? (
-                <div className={historyStyles.historyCard} style={{ marginTop: 12, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                  <Lock size={14} style={{ marginTop: 3, flexShrink: 0 }} />
-                  <div>
-                    Committed delivery: <strong>{formatDate(r.timeline.expectedDeliveryDate)}</strong> — set by {r.timeline.setBy} on {formatDateTime(r.timeline.setAt)}
-                    {r.timeline.remarks && <div style={{ marginTop: 4 }}>{r.timeline.remarks}</div>}
-                    <div style={{ fontSize: 11.5, opacity: 0.75, marginTop: 4 }}>This date can&apos;t be changed by anyone once committed.</div>
+              {r.status === 'technical_approved' && (
+                <div style={{ background: '#ecfdf5', border: '1.5px solid #a7f3d0', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#047857', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                    <CheckCircle2 size={18} /> Technical Review Approved!
+                  </div>
+                  <div style={{ fontSize: 13, color: '#065f46' }}>
+                    {r.technical_remarks ? `Technical notes: "${r.technical_remarks}"` : 'The technical specification and materials have been approved.'}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#047857', marginTop: 4 }}>
+                    Approved by <strong>{r.technical_reviewed_by || r.technical_member_username}</strong> on {formatDateTime(r.technical_reviewed_at)}. Marketing member can now complete final delivery to {r.created_by}.
                   </div>
                 </div>
-              ) : (
-                isReviewer && r.status === 'approved' && (
-                  <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
-                    <div className={calcStyles.label} style={{ marginBottom: 8 }}>Commit a delivery timeline</div>
-                    <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-                      <div className={calcStyles.field}>
-                        <label className={calcStyles.label}>Expected delivery date</label>
-                        <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={timelineDate} onChange={(e) => setTimelineDate(e.target.value)} />
+              )}
+
+              {/* SECTION 3: Marketing Workspace (Step 2 & 3: Prepare content, remarks, & send to Technical) */}
+              {(r.status === 'submitted' || r.status === 'marketing_in_progress' || r.status === 'tech_changes_requested') && (
+                <>
+                  {canAccessMarketingWorkspace && (
+                    <div className={calcStyles.sectionPanel} style={{ marginBottom: 14, borderLeft: '4px solid #2563eb' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Wrench size={16} style={{ color: '#2563eb' }} />
+                          <span style={{ fontWeight: 700, fontSize: 14 }}>Marketing Workspace — Prepare &amp; Coordinate</span>
+                        </div>
+                        {r.status === 'submitted' && isUnassignedMarketing && (
+                          <Button
+                            variant="secondary"
+                            compact
+                            loading={busy}
+                            onClick={() => run(() => onStatusAction(r.id, 'claim'))}
+                          >
+                            Claim &amp; Start Working
+                          </Button>
+                        )}
                       </div>
+
                       <div className={calcStyles.field}>
-                        <label className={calcStyles.label}>Remarks (optional)</label>
-                        <input className={calcStyles.formControl} value={timelineRemarks} onChange={(e) => setTimelineRemarks(e.target.value)} placeholder="e.g. Expedited for the event date" />
+                        <label className={calcStyles.label}>Prepared Marketing Content / Draft</label>
+                        <textarea
+                          className={calcStyles.formControl}
+                          rows={4}
+                          placeholder="Write or paste the prepared copy, brochure draft text, headlines, product specs, or creative summary here..."
+                          value={marketingContent}
+                          onChange={(e) => setMarketingContent(e.target.value)}
+                        />
+                      </div>
+
+                      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+                        <div className={calcStyles.field}>
+                          <label className={calcStyles.label}>Marketing Remarks</label>
+                          <input
+                            className={calcStyles.formControl}
+                            placeholder="e.g. Focused on retail clients; customized highlights"
+                            value={marketingRemarks}
+                            onChange={(e) => setMarketingRemarks(e.target.value)}
+                          />
+                        </div>
+                        <div className={calcStyles.field}>
+                          <label className={calcStyles.label}>Technical Instructions for Reviewer</label>
+                          <input
+                            className={calcStyles.formControl}
+                            placeholder="e.g. Please verify AI camera specs and PoE requirements"
+                            value={technicalInstructions}
+                            onChange={(e) => setTechnicalInstructions(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Marketing Attachments */}
+                      <div style={{ marginTop: 10, marginBottom: 14 }}>
+                        <label className={calcStyles.label}>Marketing Prepared Attachments / Collateral</label>
+                        <input
+                          ref={mktFileInputRef}
+                          type="file"
+                          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                          multiple
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleMarketingFileUpload(e.target.files)}
+                        />
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            className={calcStyles.secondaryButton}
+                            disabled={uploadingMarketingFiles}
+                            onClick={() => mktFileInputRef.current?.click()}
+                          >
+                            {uploadingMarketingFiles ? 'Uploading…' : '+ Attach Prepared File / Design'}
+                          </button>
+                        </div>
+
+                        {marketingFiles.length > 0 && (
+                          <div className={historyStyles.imageStrip} style={{ marginTop: 8 }}>
+                            {marketingFiles.map((url) => (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <div key={url} style={{ position: 'relative', display: 'inline-block' }}>
+                                <img
+                                  src={url}
+                                  alt="Marketing Attachment"
+                                  title="Click to remove"
+                                  onClick={() => setMarketingFiles((prev) => prev.filter((u) => u !== url))}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Marketing Workspace Action Bar */}
+                      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                        <div>
+                          {r.technical_member_name || r.technical_member_username ? (
+                            <div style={{ fontSize: 13, color: '#0f766e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <CheckCircle2 size={16} /> Technical Verifier: <strong>{r.technical_member_name || r.technical_member_username}</strong>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 12.5, color: '#b45309', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Clock size={15} /> Awaiting Manager to assign Technical Verifier below
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          variant="primary"
+                          icon={<Send size={14} />}
+                          loading={busy}
+                          loadingLabel="Sending…"
+                          disabled={!r.technical_member_id && !r.technical_member_username}
+                          onClick={handleSendToTechnical}
+                        >
+                          Send for Technical Verification
+                        </Button>
                       </div>
                     </div>
-                    <span className={calcStyles.small} style={{ display: 'block', margin: '4px 0 10px' }}>Once you save this, it becomes permanent — it can&apos;t be edited afterward, so double-check the date.</span>
+                  )}
+
+                  {isMarketingAssignedToOther && (
+                    <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#334155', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>
+                        <Lock size={16} style={{ color: '#64748b' }} /> Assigned to Marketing Member: {r.assigned_to_name || r.assigned_to}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: '#64748b' }}>
+                        This workspace is currently being handled by <strong>{r.assigned_to_name || r.assigned_to}</strong>, who will coordinate directly with the Technical Team.
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Display Marketing Prepared Content (Read Only when in later stages) */}
+              {r.status !== 'submitted' && r.status !== 'marketing_in_progress' && r.marketing_prepared_content && (
+                <div className={calcStyles.sectionPanel} style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                    Prepared Content by Marketing ({r.assigned_to_name || r.assigned_to || 'Marketing'})
+                  </div>
+                  <div style={{ fontSize: 13, color: '#1e293b', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                    {r.marketing_prepared_content}
+                  </div>
+                  {r.marketing_remarks && (
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+                      <strong>Marketing Remarks:</strong> {r.marketing_remarks}
+                    </div>
+                  )}
+                  {r.technical_instructions && (
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                      <strong>Instructions for Technical:</strong> {r.technical_instructions}
+                    </div>
+                  )}
+                  {r.marketing_attachments && r.marketing_attachments.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Marketing Collateral / Attachments:</div>
+                      <div className={historyStyles.imageStrip}>
+                        {r.marketing_attachments.map((url) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <a key={url} href={url} target="_blank" rel="noreferrer">
+                            <img src={url} alt="Marketing Material" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SECTION 4: Technical Team Member Action Box (Step 4 & 5) */}
+              {r.status === 'pending_technical_review' && (
+                <div style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#0f766e', fontWeight: 700, fontSize: 14 }}>
+                      <UserCheck size={18} /> Step 4 — Technical Team Review
+                    </div>
+                    <div style={{ fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
+                      Assigned To: {r.technical_member_name || r.technical_member_username}
+                    </div>
+                  </div>
+
+                  <p style={{ fontSize: 13, color: '#134e4a', margin: '4px 0 12px' }}>
+                    Review the product specification and marketing draft. You can either approve the request or send remarks back if changes are needed.
+                  </p>
+
+                  {(isAssignedTechnical || currentUser.role === 'technical' || isReviewer) && !showTechChangesDialog && (
                     <div className={historyStyles.actionGroupButtons}>
-                      <Button variant="primary" icon={<Lock size={14} />} loading={busy} loadingLabel="Saving…" disabled={!timelineDate} onClick={() => run(() => onSetTimeline(r.id, timelineDate, timelineRemarks))}>
-                        Commit Timeline
+                      <Button
+                        variant="success"
+                        icon={<Check size={14} />}
+                        loading={busy}
+                        loadingLabel="Approving…"
+                        onClick={handleApproveTechnical}
+                      >
+                        Approve Request
+                      </Button>
+                      <Button
+                        variant="danger"
+                        icon={<AlertTriangle size={14} />}
+                        onClick={() => setShowTechChangesDialog(true)}
+                      >
+                        Request Changes
                       </Button>
                     </div>
-                  </div>
-                )
-              )}
+                  )}
 
-              {isReviewer && r.status !== 'submitted' && (
-                <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 12 }}>
-                  <div className={calcStyles.field}>
-                    <label className={calcStyles.label}>Assigned to</label>
-                    <select
-                      className={calcStyles.formControl}
-                      disabled={busy}
-                      value={users.find((u) => u.username === r.assigned_to)?.id ?? ''}
-                      onChange={(e) => run(() => onAssign(r.id, e.target.value))}
-                    >
-                      <option value="">— Unassigned —</option>
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>{u.name || u.username} ({u.username})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className={calcStyles.field}>
-                    <label className={calcStyles.label}>Priority</label>
-                    <select
-                      className={calcStyles.formControl}
-                      disabled={busy}
-                      value={r.priority}
-                      onChange={(e) => run(() => onPriorityChange(r.id, e.target.value as MarketingRequestPriority))}
-                    >
-                      {PRIORITY_ORDER.map((p) => (
-                        <option key={p} value={p}>{MARKETING_PRIORITY_META[p].label}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {showTechChangesDialog && (
+                    <div style={{ background: '#fff', padding: '12px', borderRadius: 8, border: '1px solid #fecdd3', marginTop: 10 }}>
+                      <label className={calcStyles.label} style={{ color: '#be123c' }}>
+                        Technical Remarks / Changes Needed *
+                      </label>
+                      <textarea
+                        className={calcStyles.formControl}
+                        rows={3}
+                        placeholder="e.g. Please correct the product specification in the second paragraph and update the attached product data sheet."
+                        value={techRemarksInput}
+                        onChange={(e) => setTechRemarksInput(e.target.value)}
+                        autoFocus
+                      />
+                      <div className={historyStyles.actionGroupButtons} style={{ marginTop: 10 }}>
+                        <Button
+                          variant="danger"
+                          icon={<Send size={14} />}
+                          loading={busy}
+                          loadingLabel="Sending feedback…"
+                          disabled={!techRemarksInput.trim()}
+                          onClick={handleRequestChangesTechnical}
+                        >
+                          Submit Change Request to Marketing
+                        </Button>
+                        <Button variant="ghost" onClick={() => setShowTechChangesDialog(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {isReviewer && r.status === 'submitted' && showReject && (
-                <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
-                  <div className={calcStyles.field}>
-                    <label className={calcStyles.label}>Reason for declining</label>
-                    <input className={calcStyles.formControl} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} autoFocus />
-                  </div>
-                  <div className={historyStyles.actionGroupButtons}>
-                    <Button variant="danger" icon="✕" loading={busy} loadingLabel="Declining…" disabled={!rejectReason.trim()} onClick={() => run(() => onReject(r.id, rejectReason))}>
-                      Confirm Decline
-                    </Button>
-                    <Button variant="ghost" onClick={() => setShowReject(false)}>Cancel</Button>
-                  </div>
-                </div>
-              )}
+              {/* SECTION 5: Final Submission to Original Requester (Step 6 & 7) */}
+              {(r.status === 'technical_approved' || r.status === 'marketing_final_review' || r.status === 'tech_changes_requested') && (
+                <>
+                  {canAccessMarketingWorkspace && (
+                    <div style={{ background: '#faf5ff', border: '1.5px solid #e9d5ff', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#7e22ce', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+                        <Sparkles size={18} /> Step 7 — Final Submission to Original Requester ({r.creator_name || r.created_by})
+                      </div>
+                      <p style={{ fontSize: 12.5, color: '#6b21a8', margin: '0 0 10px' }}>
+                        Deliver the finalized marketing collateral directly to <strong>{r.creator_name || r.created_by}</strong> to complete this request.
+                      </p>
 
-              {canWork && r.status === 'timeline_set' && (
-                <div style={{ marginTop: 12 }}>
-                  <Button variant="primary" icon={<Play size={14} />} loading={busy} loadingLabel="Updating…" onClick={() => run(() => onStatusAction(r.id, 'start'))}>
-                    Mark In Progress
-                  </Button>
-                </div>
-              )}
+                      <div className={calcStyles.field}>
+                        <label className={calcStyles.label}>Final Delivery Notes / Message to Requester</label>
+                        <textarea
+                          className={calcStyles.formControl}
+                          rows={2}
+                          placeholder="e.g. Here is your final approved brochure and high-resolution print files. Let us know if you need further adjustments."
+                          value={finalNotes}
+                          onChange={(e) => setFinalNotes(e.target.value)}
+                        />
+                      </div>
 
-              {canWork && (r.status === 'in_progress' || r.status === 'ready_for_review') && !showComplete && (
-                <div className={historyStyles.actionGroupButtons} style={{ marginTop: 12 }}>
-                  <Button variant="success" icon={<CheckCircle2 size={14} />} onClick={() => setShowComplete(true)}>Mark Completed</Button>
-                  {r.status === 'in_progress' && !showWait && (
-                    <>
-                      <Button variant="secondary" icon={<Pause size={14} />} onClick={() => setShowWait(true)}>Waiting for Info</Button>
-                      <Button variant="secondary" icon={<Upload size={14} />} loading={busy} onClick={() => run(() => onStatusAction(r.id, 'ready_for_review'))}>
-                        Ready for Review
+                      <div style={{ marginBottom: 12 }}>
+                        <label className={calcStyles.label}>Final Deliverable Files / Assets</label>
+                        <input
+                          ref={finalFileInputRef}
+                          type="file"
+                          accept="image/*,.pdf,.zip,.doc,.docx"
+                          multiple
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleFinalFileUpload(e.target.files)}
+                        />
+                        <button
+                          type="button"
+                          className={calcStyles.secondaryButton}
+                          disabled={uploadingFinalFiles}
+                          onClick={() => finalFileInputRef.current?.click()}
+                        >
+                          {uploadingFinalFiles ? 'Uploading…' : '+ Add Final Deliverable File(s)'}
+                        </button>
+
+                        {finalFiles.length > 0 && (
+                          <div className={historyStyles.imageStrip} style={{ marginTop: 8 }}>
+                            {finalFiles.map((url) => (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <div key={url} style={{ position: 'relative', display: 'inline-block' }}>
+                                <img
+                                  src={url}
+                                  alt="Final File"
+                                  title="Click to remove"
+                                  onClick={() => setFinalFiles((prev) => prev.filter((u) => u !== url))}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <Button
+                        variant="success"
+                        icon={<CheckCircle2 size={15} />}
+                        loading={busy}
+                        loadingLabel="Delivering…"
+                        onClick={handleDeliverToRequester}
+                      >
+                        Complete &amp; Deliver to {r.creator_name || r.created_by}
                       </Button>
-                    </>
+                    </div>
                   )}
-                  {r.status === 'ready_for_review' && (
-                    <Button variant="secondary" icon={<Undo2 size={14} />} loading={busy} onClick={() => run(() => onStatusAction(r.id, 'reopen'))}>
-                      Reopen for Rework
-                    </Button>
+
+                  {isMarketingAssignedToOther && (
+                    <div style={{ background: '#faf5ff', border: '1.5px solid #e9d5ff', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#7e22ce', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Sparkles size={16} /> Awaiting Final Delivery by {r.assigned_to_name || r.assigned_to}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: '#6b21a8', marginTop: 4 }}>
+                        Assigned marketing member <strong>{r.assigned_to_name || r.assigned_to}</strong> will deliver the final collateral directly to {r.creator_name || r.created_by}.
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* SECTION 6: Completed Deliverables Display (For Requester & all) */}
+              {r.status === 'completed' && (
+                <div style={{ background: '#ecfdf5', border: '1.5px solid #a7f3d0', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#047857', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                    <CheckCircle2 size={18} /> Request Completed &amp; Delivered to {r.creator_name || r.created_by}
+                  </div>
+                  {r.final_submission_notes && (
+                    <div style={{ fontSize: 13, color: '#065f46', marginTop: 4 }}>
+                      <strong>Delivery Message:</strong> {r.final_submission_notes}
+                    </div>
+                  )}
+                  {r.final_submission_files && r.final_submission_files.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#047857', marginBottom: 4 }}>Final Deliverables:</div>
+                      <div className={historyStyles.imageStrip}>
+                        {r.final_submission_files.map((url) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <a key={url} href={url} target="_blank" rel="noreferrer" title="Open deliverable">
+                            <img src={url} alt="Deliverable" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
-              {canWork && r.status === 'in_progress' && showWait && (
-                <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
-                  <div className={calcStyles.field}>
-                    <label className={calcStyles.label}>What information are you waiting on?</label>
-                    <input className={calcStyles.formControl} value={waitRemarks} onChange={(e) => setWaitRemarks(e.target.value)} autoFocus />
+
+              {/* Assignment Controls for Marketing Manager / Reviewer */}
+              {isReviewer && (
+                <div className={calcStyles.sectionPanel} style={{ marginTop: 14, marginBottom: 14, background: '#f8fafc', border: '1.5px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <UserCheck size={16} style={{ color: '#2563eb' }} /> Manager Team Assignments
                   </div>
-                  <div className={historyStyles.actionGroupButtons}>
-                    <Button
-                      variant="primary"
-                      loading={busy}
-                      loadingLabel="Saving…"
-                      disabled={!waitRemarks.trim()}
-                      onClick={() => run(() => onStatusAction(r.id, 'wait_for_info', { remarks: waitRemarks }).then(() => setShowWait(false)))}
-                    >
-                      Confirm
-                    </Button>
-                    <Button variant="ghost" onClick={() => setShowWait(false)}>Cancel</Button>
-                  </div>
-                </div>
-              )}
-              {canWork && r.status === 'waiting_info' && (
-                <div style={{ marginTop: 12 }}>
-                  <Button variant="primary" icon={<Play size={14} />} loading={busy} loadingLabel="Updating…" onClick={() => run(() => onStatusAction(r.id, 'resume'))}>
-                    Resume Work
-                  </Button>
-                </div>
-              )}
-              {canWork && (r.status === 'in_progress' || r.status === 'ready_for_review') && showComplete && (
-                <div className={calcStyles.sectionPanel} style={{ marginTop: 12 }}>
-                  <div className={calcStyles.field}>
-                    <label className={calcStyles.label}>Completion notes (optional)</label>
-                    <textarea className={calcStyles.formControl} rows={3} value={completionNotes} onChange={(e) => setCompletionNotes(e.target.value)} />
-                  </div>
-                  <div className={historyStyles.actionGroupButtons}>
-                    <Button variant="success" loading={busy} loadingLabel="Saving…" onClick={() => run(() => onStatusAction(r.id, 'complete', { completionNotes }))}>
-                      Confirm Completed
-                    </Button>
-                    <Button variant="ghost" onClick={() => setShowComplete(false)}>Cancel</Button>
+                  <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 0 }}>
+                    <div className={calcStyles.field}>
+                      <label className={calcStyles.label}>Marketing Assignee</label>
+                      <select
+                        className={calcStyles.formControl}
+                        disabled={busy}
+                        value={r.assigned_to_id || marketingRoster.find((u) => u.username === r.assigned_to)?.id || users.find((u) => u.username === r.assigned_to)?.id || ''}
+                        onChange={(e) => run(() => onAssign(r.id, { assigneeId: e.target.value }))}
+                      >
+                        <option value="">— Unassigned in Marketing —</option>
+                        {marketingRoster.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name || u.username} ({u.username})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className={calcStyles.field}>
+                      <label className={calcStyles.label}>
+                        Technical Member for Verification ({r.product_category ? `${r.product_category} Specialist` : 'Technical'})
+                      </label>
+                      <select
+                        className={calcStyles.formControl}
+                        disabled={busy}
+                        value={r.technical_member_id || technicalRoster.find((t) => t.username === r.technical_member_username)?.id || ''}
+                        onChange={(e) => run(() => onAssign(r.id, { technicalMemberId: e.target.value }))}
+                      >
+                        <option value="">— Select Technical Verifier —</option>
+                        {categoryMatchedList.length > 0 && (
+                          <optgroup label={`🌟 ${r.product_category} Specialists (Recommended)`}>
+                            {categoryMatchedList.map((t) => {
+                              const tasks = t.pendingTasksCount ?? 0;
+                              const taskLabel = tasks === 0 ? '0 pending tasks' : `${tasks} pending task${tasks === 1 ? '' : 's'}`;
+                              const recLabel = t.isRecommended ? ' ★ Lowest Workload' : '';
+                              return (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} ({t.department || 'Technical'}) • {taskLabel}{recLabel}
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                        )}
+                        {otherTechList.length > 0 && (
+                          <optgroup label={categoryMatchedList.length > 0 ? 'Other Technical Team Members' : 'All Technical Members'}>
+                            {otherTechList.map((t) => {
+                              const tasks = t.pendingTasksCount ?? 0;
+                              const taskLabel = tasks === 0 ? '0 pending tasks' : `${tasks} pending task${tasks === 1 ? '' : 's'}`;
+                              return (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} ({t.department || 'Technical'}) • {taskLabel}
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                        )}
+                        {categoryMatchedList.length === 0 && otherTechList.length === 0 && (
+                          technicalRoster.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} ({t.department || 'Technical'})
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {r.status === 'waiting_info' && (
-                <div className={historyStyles.autofillNotice} style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Pause size={14} /> Waiting for information from you — check the comments below.
-                </div>
-              )}
-
-              {r.status === 'completed' && r.completion_notes && (
-                <div className={historyStyles.autofillNotice} style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CheckCircle2 size={14} /> {r.completion_notes}
-                </div>
-              )}
-              {r.status === 'rejected' && (
-                <div className={historyStyles.loginError} style={{ marginTop: 12 }}>Declined: {r.rejection_reason}</div>
-              )}
-
-              {isOwner && r.status === 'submitted' && (
-                <div style={{ marginTop: 12 }}>
-                  <Button variant="ghost" loading={busy} onClick={() => run(() => onCancel(r.id))}>Cancel My Request</Button>
-                </div>
-              )}
-
-              {/* Comments — visible to anyone who can see this row (own ticket, or a reviewer). */}
+              {/* SECTION 7: Comments & Collaboration Timeline */}
               <div style={{ marginTop: 16 }}>
-                <div className={calcStyles.label} style={{ marginBottom: 8 }}>Comments</div>
-                {r.comments.length === 0 && <div className={calcStyles.small}>No comments yet.</div>}
-                <div className={historyStyles.timeline}>
-                  {r.comments.map((c) => (
-                    <div key={c.id} className={historyStyles.timelineEntry}>
-                      <div className={historyStyles.timelineMeta}>{c.by} · {formatDateTime(c.at)}</div>
-                      {c.text}
-                    </div>
-                  ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13.5, color: '#334155', marginBottom: 8 }}>
+                  <MessageSquare size={15} /> Discussion &amp; Remarks Timeline ({r.comments?.length || 0})
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                  <input className={calcStyles.formControl} style={{ flex: '1 1 200px' }} placeholder="Add a comment…" value={commentText} onChange={(e) => setCommentText(e.target.value)} />
-                  <Button variant="secondary" compact disabled={!commentText.trim()} onClick={() => { onComment(r.id, commentText); setCommentText(''); }}>
-                    Post
+                {(!r.comments || r.comments.length === 0) && (
+                  <div className={calcStyles.small} style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                    No comments yet. Anyone involved can leave a message.
+                  </div>
+                )}
+                {r.comments && r.comments.length > 0 && (
+                  <div className={historyStyles.timeline}>
+                    {r.comments.map((c) => (
+                      <div key={c.id} className={historyStyles.timelineEntry}>
+                        <div className={historyStyles.timelineMeta}>
+                          <strong>{c.by}</strong> · {formatDateTime(c.at)}
+                        </div>
+                        <div style={{ marginTop: 2, fontSize: 13 }}>{c.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  <input
+                    className={calcStyles.formControl}
+                    style={{ flex: '1 1 240px' }}
+                    placeholder="Add a remark or question…"
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && commentText.trim()) {
+                        onComment(r.id, commentText);
+                        setCommentText('');
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="secondary"
+                    compact
+                    disabled={!commentText.trim()}
+                    onClick={() => {
+                      onComment(r.id, commentText);
+                      setCommentText('');
+                    }}
+                  >
+                    Post Comment
                   </Button>
                 </div>
               </div>
 
               {canDelete && (
-                <div style={{ marginTop: 16 }}>
-                  <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => onDelete(r)}>Delete Request</Button>
+                <div style={{ marginTop: 18, borderTop: '1px solid #f1f5f9', paddingTop: 10 }}>
+                  <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => onDelete(r)}>
+                    Delete Request
+                  </Button>
                 </div>
               )}
             </div>
@@ -403,27 +1056,33 @@ function MarketingRequestRow({ record: r, currentUser, isReviewer, users, onAppr
   );
 }
 
+// ---------------------------------------------------------------------------
+// Main Marketing Requests View Component
+// ---------------------------------------------------------------------------
+
+type FilterTab = 'all' | 'marketing_queue' | 'technical_review' | 'ready_delivery' | 'completed' | 'my_requests';
+
 function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequestsViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const searchParams = useSearchParams();
-  const startAwaitingReview = searchParams.get('filter') === 'submitted';
-  const [mode, setMode] = useState<'new' | 'list'>(startAwaitingReview ? 'list' : 'new');
+  const startFilter = searchParams.get('filter');
+
+  const [mode, setMode] = useState<'new' | 'list'>('list');
+  const [tab, setTab] = useState<FilterTab>(startFilter === 'submitted' ? 'marketing_queue' : 'all');
   const [requests, setRequests] = useState<MarketingRequestRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
-  const [status, setStatus] = useState('Loading...');
+  const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
+  const [marketingRoster, setMarketingRoster] = useState<MarketingRosterEntry[]>([]);
+  const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState('');
-  const [statusFilter, setStatusFilter] = useState<MarketingRequestStatus | ''>(startAwaitingReview ? 'submitted' : '');
-  const [typeFilter, setTypeFilter] = useState<MarketingRequestType | ''>('');
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>(null);
-  const [assignedToMeOnly, setAssignedToMeOnly] = useState(false);
-  const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [priorityFilter, setPriorityFilter] = useState<string>('');
 
   async function loadRequests() {
-    setStatus('Loading...');
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -431,9 +1090,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
       if (!response.ok) throw new Error(String(response.status));
       const data: MarketingRequestRecord[] = await response.json();
       setRequests(data);
-      setStatus(data.length ? `${data.length} request${data.length === 1 ? '' : 's'}.` : 'No marketing requests yet.');
     } catch {
-      setStatus('Could not load marketing requests. Refresh to try again.');
       setLoadFailed(true);
     } finally {
       setLoading(false);
@@ -443,36 +1100,61 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
   useEffect(() => {
     loadRequests();
     fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
+    fetch('/api/technical-roster').then((r) => (r.ok ? r.json() : [])).then(setTechnicalRoster).catch(() => setTechnicalRoster([]));
+    fetch('/api/marketing-roster').then((r) => (r.ok ? r.json() : [])).then(setMarketingRoster).catch(() => setMarketingRoster([]));
     fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
   }, []);
 
-  const triageCounts = useMemo(() => {
-    const open = requests.filter(isOpenTicket);
+  const counts = useMemo(() => {
     return {
-      urgent: open.filter((r) => r.priority === 'urgent').length,
-      high: open.filter((r) => r.priority === 'high').length,
-      overdue: requests.filter(isMarketingRequestOverdue).length,
-      dueToday: open.filter(isDueToday).length,
-      dueSoon: open.filter(isDueSoon).length
+      all: requests.length,
+      marketingQueue: requests.filter((r) => r.status === 'submitted' || r.status === 'marketing_in_progress' || r.status === 'tech_changes_requested').length,
+      technicalReview: requests.filter((r) => r.status === 'pending_technical_review').length,
+      readyDelivery: requests.filter((r) => r.status === 'technical_approved' || r.status === 'marketing_final_review').length,
+      completed: requests.filter((r) => r.status === 'completed').length,
+      myRequests: requests.filter((r) => r.created_by === currentUser.username).length
     };
-  }, [requests]);
+  }, [requests, currentUser.username]);
 
   const visible = useMemo(() => {
     let rows = requests;
+
+    // Tab filter
+    if (tab === 'marketing_queue') {
+      rows = rows.filter((r) => r.status === 'submitted' || r.status === 'marketing_in_progress' || r.status === 'tech_changes_requested');
+    } else if (tab === 'technical_review') {
+      rows = rows.filter((r) => r.status === 'pending_technical_review');
+    } else if (tab === 'ready_delivery') {
+      rows = rows.filter((r) => r.status === 'technical_approved' || r.status === 'marketing_final_review');
+    } else if (tab === 'completed') {
+      rows = rows.filter((r) => r.status === 'completed');
+    } else if (tab === 'my_requests') {
+      rows = rows.filter((r) => r.created_by === currentUser.username);
+    }
+
+    // Category filter
+    if (categoryFilter) {
+      rows = rows.filter((r) => r.product_category === categoryFilter);
+    }
+
+    // Priority filter
+    if (priorityFilter) {
+      rows = rows.filter((r) => r.priority === priorityFilter);
+    }
+
+    // Search query
     if (q.trim()) {
       const needle = q.trim().toLowerCase();
-      rows = rows.filter((r) => `${r.title} ${r.description} ${r.created_by}`.toLowerCase().includes(needle));
+      rows = rows.filter(
+        (r) =>
+          `${r.title} ${r.description} ${r.created_by} ${r.creator_name || ''} ${r.assigned_to || ''} ${r.technical_member_name || ''} ${r.product_category || ''}`
+            .toLowerCase()
+            .includes(needle)
+      );
     }
-    if (statusFilter) rows = rows.filter((r) => r.status === statusFilter);
-    if (typeFilter) rows = rows.filter((r) => r.request_type === typeFilter);
-    if (assignedToMeOnly) rows = rows.filter((r) => r.assigned_to === currentUser.username);
-    if (quickFilter === 'urgent') rows = rows.filter((r) => isOpenTicket(r) && r.priority === 'urgent');
-    else if (quickFilter === 'high') rows = rows.filter((r) => isOpenTicket(r) && r.priority === 'high');
-    else if (quickFilter === 'overdue') rows = rows.filter(isMarketingRequestOverdue);
-    else if (quickFilter === 'dueToday') rows = rows.filter(isDueToday);
-    else if (quickFilter === 'dueSoon') rows = rows.filter(isDueSoon);
+
     return [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-  }, [requests, q, statusFilter, typeFilter, assignedToMeOnly, quickFilter, currentUser.username]);
+  }, [requests, tab, categoryFilter, priorityFilter, q, currentUser.username]);
 
   function replaceRecord(updated: MarketingRequestRecord) {
     setRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -488,11 +1170,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        toast.error(body?.error || 'Could not send this request. Please try again.');
+        toast.error(body?.error || 'Could not submit request.');
         return null;
       }
       const created: MarketingRequestRecord = await response.json();
       setRequests((prev) => [created, ...prev]);
+      toast.success('Marketing request submitted!');
       return created;
     } catch {
       toast.error('Could not reach the server.');
@@ -502,13 +1185,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
     }
   }
 
-  function showAllRequests() {
-    setMode('list');
-    loadRequests();
-  }
-
   async function postAction(url: string, body: unknown, successMessage?: string) {
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
     if (!response.ok) {
       const errBody = await response.json().catch(() => null);
       toast.error(errBody?.error || 'That action could not be completed.');
@@ -519,43 +1201,34 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
     if (successMessage) toast.success(successMessage);
   }
 
-  async function handleApprove(id: string) {
-    await postAction(`/api/marketing-requests/${id}/approve`, {}, 'Request approved.');
+  async function handleSendToTechnical(
+    id: string,
+    payload: { technicalMemberId: string; marketingPreparedContent: string; marketingAttachments: string[]; marketingRemarks: string; technicalInstructions: string }
+  ) {
+    await postAction(`/api/marketing-requests/${id}/send-to-technical`, payload, 'Request sent to Technical Team member.');
   }
 
-  async function handleSetTimeline(id: string, expectedDeliveryDate: string, remarks: string) {
-    if (!(await confirm({ title: 'Commit this delivery date?', message: 'Once saved, this date cannot be changed by anyone — including you. Make sure it’s right.', confirmLabel: 'Yes, commit it' }))) return;
-    await postAction(`/api/marketing-requests/${id}/set-timeline`, { expectedDeliveryDate, remarks }, 'Delivery timeline committed.');
+  async function handleTechnicalReview(id: string, action: 'approve' | 'request_changes', remarks: string) {
+    await postAction(
+      `/api/marketing-requests/${id}/technical-review`,
+      { action, remarks },
+      action === 'approve' ? 'Technical review approved!' : 'Changes requested and sent to Marketing.'
+    );
   }
 
-  async function handleReject(id: string, reason: string) {
-    await postAction(`/api/marketing-requests/${id}/reject`, { reason }, 'Request declined.');
+  async function handleFinalSubmission(
+    id: string,
+    payload: { finalSubmissionNotes: string; finalSubmissionFiles: string[]; marketingPreparedContent: string }
+  ) {
+    await postAction(`/api/marketing-requests/${id}/final-submission`, payload, 'Delivered to requester and marked completed!');
   }
 
-  async function handleCancel(id: string) {
-    if (!(await confirm({ message: 'Cancel this request? This cannot be undone.', danger: true }))) return;
-    await postAction(`/api/marketing-requests/${id}/cancel`, {}, 'Request cancelled.');
+  async function handleStatusAction(id: string, action: string, extra?: Record<string, unknown>) {
+    await postAction(`/api/marketing-requests/${id}/status`, { action, ...extra }, 'Status updated.');
   }
 
-  const STATUS_ACTION_MESSAGE: Record<string, string> = {
-    start: 'Marked in progress.',
-    wait_for_info: 'Marked waiting for information.',
-    resume: 'Resumed.',
-    ready_for_review: 'Marked ready for review.',
-    reopen: 'Reopened for rework.',
-    complete: 'Marked completed.'
-  };
-
-  async function handleStatusAction(id: string, action: 'start' | 'wait_for_info' | 'resume' | 'ready_for_review' | 'reopen' | 'complete', extra?: Record<string, unknown>) {
-    await postAction(`/api/marketing-requests/${id}/status`, { action, ...extra }, STATUS_ACTION_MESSAGE[action]);
-  }
-
-  async function handleAssign(id: string, assigneeId: string) {
-    await postAction(`/api/marketing-requests/${id}/assign`, { assigneeId }, assigneeId ? 'Assigned.' : 'Unassigned.');
-  }
-
-  async function handlePriorityChange(id: string, priority: MarketingRequestPriority) {
-    await postAction(`/api/marketing-requests/${id}/priority`, { priority }, 'Priority updated.');
+  async function handleAssign(id: string, patch: { assigneeId?: string; technicalMemberId?: string }) {
+    await postAction(`/api/marketing-requests/${id}/assign`, patch, 'Assignments updated.');
   }
 
   async function handleComment(id: string, text: string) {
@@ -566,102 +1239,218 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
     if (!(await confirm({ message: `Delete "${record.title}"? This cannot be undone.`, danger: true }))) return;
     const response = await fetch(`/api/marketing-requests/${record.id}`, { method: 'DELETE' });
     if (!response.ok) {
-      toast.error('Could not delete this request.');
+      toast.error('Could not delete request.');
       return;
     }
     setRequests((prev) => prev.filter((r) => r.id !== record.id));
+    toast.success('Request deleted.');
   }
 
   return (
-    <AppShell title="Marketing Requests" subtitle="Ask Marketing for what you need, and track the delivery timeline they commit to.">
-        <div className={historyStyles.modeToggle}>
-          <button type="button" className={`${historyStyles.modeToggleBtn} ${mode === 'new' ? historyStyles.modeToggleBtnActive : ''}`} onClick={() => setMode('new')}>
-            New Request
-          </button>
-          <button type="button" className={`${historyStyles.modeToggleBtn} ${mode === 'list' ? historyStyles.modeToggleBtnActive : ''}`} onClick={showAllRequests}>
-            {isReviewer ? 'All Requests' : 'My Requests'}
-          </button>
-        </div>
+    <AppShell
+      title="Marketing Request Workflow"
+      subtitle="Collaborative marketing collateral pipeline: Requester ➔ Marketing ➔ Technical Review ➔ Final Delivery."
+    >
+      {/* Top Header Mode Toggle */}
+      <div className={historyStyles.modeToggle}>
+        <button
+          type="button"
+          className={`${historyStyles.modeToggleBtn} ${mode === 'new' ? historyStyles.modeToggleBtnActive : ''}`}
+          onClick={() => setMode('new')}
+        >
+          + New Marketing Request
+        </button>
+        <button
+          type="button"
+          className={`${historyStyles.modeToggleBtn} ${mode === 'list' ? historyStyles.modeToggleBtnActive : ''}`}
+          onClick={() => { setMode('list'); loadRequests(); }}
+        >
+          Workflow Board ({requests.length})
+        </button>
+      </div>
 
-        {mode === 'new' && (
-          <MarketingRequestWizard creating={creating} projects={projects} onSubmit={handleSubmitRequest} onViewAllRequests={showAllRequests} />
-        )}
+      {mode === 'new' && (
+        <MarketingRequestWizard
+          creating={creating}
+          projects={projects}
+          onSubmit={handleSubmitRequest}
+          onViewAllRequests={() => setMode('list')}
+        />
+      )}
 
-        {mode === 'list' && (
-          <>
-            {isReviewer && !loading && !loadFailed && (
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-                {([
-                  ['urgent', 'Urgent', triageCounts.urgent],
-                  ['high', 'High Priority', triageCounts.high],
-                  ['overdue', 'Overdue', triageCounts.overdue],
-                  ['dueToday', 'Due Today', triageCounts.dueToday],
-                  ['dueSoon', 'Due Soon', triageCounts.dueSoon]
-                ] as [QuickFilter, string, number][]).map(([key, label, count]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setQuickFilter((prev) => (prev === key ? null : key))}
-                    className={calcStyles.sectionPanel}
-                    style={{
-                      minWidth: 120,
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      border: quickFilter === key ? '2px solid #dc2626' : '1px solid #e5e7eb',
-                      background: quickFilter === key ? 'rgba(220,38,38,0.06)' : undefined
-                    }}
-                  >
-                    <div style={{ fontSize: 12, opacity: 0.75 }}>{label}</div>
-                    <div style={{ fontSize: 22, fontWeight: 700 }}>{count}</div>
-                  </button>
-                ))}
-              </div>
+      {mode === 'list' && (
+        <>
+          {/* Triage & Stage Quick Metric Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
+            <button
+              type="button"
+              onClick={() => setTab('all')}
+              className={calcStyles.sectionPanel}
+              style={{
+                textAlign: 'left',
+                cursor: 'pointer',
+                border: tab === 'all' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                background: tab === 'all' ? '#eff6ff' : '#ffffff'
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: '#64748b', fontWeight: 600 }}>All Requests</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#0f172a' }}>{counts.all}</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab('marketing_queue')}
+              className={calcStyles.sectionPanel}
+              style={{
+                textAlign: 'left',
+                cursor: 'pointer',
+                border: tab === 'marketing_queue' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                background: tab === 'marketing_queue' ? '#eff6ff' : '#ffffff'
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: '#2563eb', fontWeight: 700 }}>Awaiting Marketing</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#1d4ed8' }}>{counts.marketingQueue}</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab('technical_review')}
+              className={calcStyles.sectionPanel}
+              style={{
+                textAlign: 'left',
+                cursor: 'pointer',
+                border: tab === 'technical_review' ? '2px solid #0f766e' : '1px solid #e2e8f0',
+                background: tab === 'technical_review' ? '#f0fdfa' : '#ffffff'
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: '#0f766e', fontWeight: 700 }}>Pending Technical</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#0f766e' }}>{counts.technicalReview}</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab('ready_delivery')}
+              className={calcStyles.sectionPanel}
+              style={{
+                textAlign: 'left',
+                cursor: 'pointer',
+                border: tab === 'ready_delivery' ? '2px solid #7c3aed' : '1px solid #e2e8f0',
+                background: tab === 'ready_delivery' ? '#faf5ff' : '#ffffff'
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: '#7c3aed', fontWeight: 700 }}>Ready for Delivery</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#6d28d9' }}>{counts.readyDelivery}</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab('completed')}
+              className={calcStyles.sectionPanel}
+              style={{
+                textAlign: 'left',
+                cursor: 'pointer',
+                border: tab === 'completed' ? '2px solid #16a34a' : '1px solid #e2e8f0',
+                background: tab === 'completed' ? '#f0fdf4' : '#ffffff'
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: '#16a34a', fontWeight: 700 }}>Completed</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#15803d' }}>{counts.completed}</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTab('my_requests')}
+              className={calcStyles.sectionPanel}
+              style={{
+                textAlign: 'left',
+                cursor: 'pointer',
+                border: tab === 'my_requests' ? '2px solid #ea580c' : '1px solid #e2e8f0',
+                background: tab === 'my_requests' ? '#fff7ed' : '#ffffff'
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: '#ea580c', fontWeight: 700 }}>My Requests</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#c2410c' }}>{counts.myRequests}</div>
+            </button>
+          </div>
+
+          {/* Search & Filter Toolbar */}
+          <div className={historyStyles.toolbar}>
+            <input
+              type="text"
+              placeholder="Search title, category, requester, marketing, technical..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+
+            <select
+              className={calcStyles.formControl}
+              style={{ width: 'auto' }}
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option value="">All Product Categories</option>
+              {MARKETING_PRODUCT_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className={calcStyles.formControl}
+              style={{ width: 'auto' }}
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+            >
+              <option value="">All Priorities</option>
+              <option value="urgent">Urgent</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+
+            {(categoryFilter || priorityFilter || q) && (
+              <button
+                type="button"
+                className={historyStyles.button}
+                onClick={() => {
+                  setCategoryFilter('');
+                  setPriorityFilter('');
+                  setQ('');
+                }}
+              >
+                Clear Filters
+              </button>
             )}
 
-            <div className={historyStyles.toolbar}>
-              <input type="text" placeholder="Search title, description, requester..." value={q} onChange={(e) => setQ(e.target.value)} />
-              <select className={calcStyles.formControl} style={{ width: 'auto' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as MarketingRequestStatus | '')}>
-                <option value="">All statuses</option>
-                {(Object.keys(MARKETING_STATUS_LABEL) as MarketingRequestStatus[]).map((s) => (
-                  <option key={s} value={s}>{MARKETING_STATUS_LABEL[s]}</option>
-                ))}
-              </select>
-              <select className={calcStyles.formControl} style={{ width: 'auto' }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as MarketingRequestType | '')}>
-                <option value="">All types</option>
-                {(Object.keys(MARKETING_REQUEST_TYPE_LABEL) as MarketingRequestType[]).map((t) => (
-                  <option key={t} value={t}>{MARKETING_REQUEST_TYPE_LABEL[t]}</option>
-                ))}
-              </select>
-              {isReviewer && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                  <input type="checkbox" checked={assignedToMeOnly} onChange={(e) => setAssignedToMeOnly(e.target.checked)} />
-                  My Marketing Tickets
-                </label>
-              )}
-              {quickFilter && (
-                <button type="button" className={`${historyStyles.button}`} onClick={() => setQuickFilter(null)}>Clear triage filter</button>
-              )}
-              <button type="button" className={historyStyles.button} onClick={loadRequests}>Refresh</button>
-            </div>
-            {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
+            <button type="button" className={historyStyles.button} onClick={loadRequests}>
+              <RefreshCw size={14} style={{ marginRight: 4 }} /> Refresh
+            </button>
+          </div>
 
-            {loading ? (
-              <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={9} /></div>
-            ) : loadFailed ? (
-              <ErrorState message="Could not load marketing requests — check your connection and try again." onRetry={loadRequests} />
-            ) : (
+          {/* Table Wrap */}
+          {loading ? (
+            <div className={historyStyles.tableWrap}>
+              <SkeletonRows rows={8} columns={9} />
+            </div>
+          ) : loadFailed ? (
+            <ErrorState
+              message="Could not load marketing requests. Please check your connection."
+              onRetry={loadRequests}
+            />
+          ) : (
             <div className={historyStyles.tableWrap}>
               <table className={historyStyles.table}>
                 <thead>
                   <tr>
-                    <th>Title</th>
-                    <th>Type</th>
+                    <th>Request Title &amp; Details</th>
+                    <th>Product Category</th>
                     <th>Priority</th>
-                    <th>Status</th>
-                    <th>Requested By</th>
-                    <th>Assigned To</th>
-                    <th>Timeline</th>
-                    <th>Created</th>
+                    <th>Workflow Status</th>
+                    <th>Requester</th>
+                    <th>Marketing Member</th>
+                    <th>Technical Reviewer</th>
+                    <th>Deadline</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -672,41 +1461,59 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                       record={r}
                       currentUser={currentUser}
                       isReviewer={isReviewer}
+                      technicalRoster={technicalRoster}
+                      marketingRoster={marketingRoster}
                       users={users}
-                      onApprove={handleApprove}
-                      onSetTimeline={handleSetTimeline}
-                      onReject={handleReject}
-                      onCancel={handleCancel}
+                      onSendToTechnical={handleSendToTechnical}
+                      onTechnicalReview={handleTechnicalReview}
+                      onFinalSubmission={handleFinalSubmission}
                       onStatusAction={handleStatusAction}
                       onAssign={handleAssign}
-                      onPriorityChange={handlePriorityChange}
                       onComment={handleComment}
                       onDelete={handleDelete}
                     />
                   ))}
                   {visible.length === 0 && (
-                    <tr><td colSpan={9}>
-                      <EmptyState
-                        icon={Megaphone}
-                        title={requests.length === 0 ? 'No marketing requests yet' : 'No requests match your filters'}
-                        message={requests.length === 0 ? 'Send a request to Marketing to get started.' : 'Try clearing a filter or search term.'}
-                        action={requests.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('new')}>New Request</button> : undefined}
-                      />
-                    </td></tr>
+                    <tr>
+                      <td colSpan={9}>
+                        <EmptyState
+                          icon={Megaphone}
+                          title={requests.length === 0 ? 'No marketing requests yet' : 'No requests match your current filter'}
+                          message={
+                            requests.length === 0
+                              ? 'Submit a marketing collateral request to get started.'
+                              : 'Try changing your search term or tab filter.'
+                          }
+                          action={
+                            requests.length === 0 ? (
+                              <button type="button" className={calcStyles.btn} onClick={() => setMode('new')}>
+                                + New Marketing Request
+                              </button>
+                            ) : undefined
+                          }
+                        />
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
-            )}
-          </>
-        )}
+          )}
+        </>
+      )}
     </AppShell>
   );
 }
 
 export default function MarketingRequestsView(props: MarketingRequestsViewProps) {
   return (
-    <Suspense fallback={<AppShell title="Marketing Requests" subtitle="Ask Marketing for what you need, and track the delivery timeline they commit to.">{null}</AppShell>}>
+    <Suspense
+      fallback={
+        <AppShell title="Marketing Requests" subtitle="Loading marketing workflow...">
+          {null}
+        </AppShell>
+      }
+    >
       <MarketingRequestsViewContent {...props} />
     </Suspense>
   );

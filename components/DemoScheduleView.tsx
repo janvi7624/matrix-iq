@@ -321,7 +321,6 @@ function DemoRow({
         </td>
         <td>{formatDateTime(record.scheduled_at)}</td>
         <td>{record.client_name}{record.company ? ` (${record.company})` : ''}</td>
-        <td>{record.project_id ? <Link href={`/projects/${record.project_id}`}>{record.project_id}</Link> : '-'}</td>
         <td>
           {record.product_domains.length ? record.product_domains.map((d) => DOMAIN_DISPLAY_NAME[d]).join(', ') : '-'}
           {record.products_required.length > 0 && (
@@ -359,7 +358,7 @@ function DemoRow({
 
       {record.status === 'pending_technical' && canActTechnical && (
         <tr>
-          <td colSpan={10}>
+          <td colSpan={9}>
             <div className={historyStyles.wideCellPin}>
               <TechnicalApprovalForm demoId={record.id} onDone={onApprovalDone} />
             </div>
@@ -368,7 +367,7 @@ function DemoRow({
       )}
       {record.status === 'pending_manager' && canActManager && (
         <tr>
-          <td colSpan={10}>
+          <td colSpan={9}>
             <div className={historyStyles.wideCellPin}>
               <ManagerApprovalForm demoId={record.id} technicalRoster={technicalRoster} onDone={onApprovalDone} />
             </div>
@@ -378,7 +377,7 @@ function DemoRow({
 
       {expanded && (
         <tr className={historyStyles.detailsRow}>
-          <td colSpan={10}>
+          <td colSpan={9}>
            <div className={historyStyles.wideCellPin}>
             {record.demo_objective && (
               <div className={calcStyles.field} style={{ marginBottom: 8 }}>
@@ -641,7 +640,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
               <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value, quotationId: '' }))} required>
                 <option value="">-- Select project --</option>
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.id} — {p.company || p.client_name}</option>
+                  <option key={p.id} value={p.id}>{p.company || p.client_name}</option>
                 ))}
               </select>
             </div>
@@ -810,7 +809,6 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
                 <th></th>
                 <th>Scheduled</th>
                 <th>Client</th>
-                <th>Project</th>
                 <th>Domain(s) / Products</th>
                 <th>Priority</th>
                 <th>Assigned Technical</th>
@@ -822,7 +820,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             <tbody>
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className={historyStyles.empty}>
+                  <td colSpan={9} className={historyStyles.empty}>
                     No demo requests yet.
                   </td>
                 </tr>

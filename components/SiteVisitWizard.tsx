@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Building2, MapPin, Package, Users, FileText, ClipboardList, CheckCircle2, Search, Clock, Monitor } from 'lucide-react';
 import { DomainKey, ProjectRecord, QuotationRecord, DemoScheduleRecord, SiteVisitRecord, VisitStage } from '@/lib/types';
 import { TECHNICAL_TEAM, SALES_TEAM } from '@/lib/teamMembers';
+import PhoneInput from '@/components/ui/PhoneInput';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { getDomainProducts } from '@/lib/domainProducts';
 import { STAGE_LABEL, STAGE_HINT } from '@/lib/siteVisitReminder';
@@ -93,8 +94,10 @@ function ImageUploader({ imageUrls, onChange }: { imageUrls: string[]; onChange:
   return (
     <div className={calcStyles.field}>
       <label className={calcStyles.label}>Photos (optional)</label>
-      <input type="file" accept="image/*" multiple disabled={uploading} onChange={(e) => handleFiles(e.target.files)} />
-      {uploading && <div className={calcStyles.small}>Uploading…</div>}
+      <label className={calcStyles.fileUpload}>
+        <input type="file" accept="image/*" multiple disabled={uploading} onChange={(e) => handleFiles(e.target.files)} style={{ display: 'none' }} />
+        {uploading ? 'Uploading…' : '+ Add Photos'}
+      </label>
       {imageUrls.length > 0 && (
         <div className={historyStyles.imageStrip}>
           {imageUrls.map((url) => (
@@ -314,7 +317,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Client contact number</label>
-              <input className={calcStyles.formControl} value={form.clientPhone} onChange={(e) => setForm((f) => ({ ...f, clientPhone: e.target.value }))} />
+              <PhoneInput value={form.clientPhone} onChange={(v) => setForm((f) => ({ ...f, clientPhone: v }))} />
             </div>
           </>
         )}

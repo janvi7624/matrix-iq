@@ -5,7 +5,9 @@ import { resolveIsPrivileged } from './permissions';
 import { findUserStatusById } from './userStore';
 
 export interface ViewerContext {
+  userId: string;
   username: string;
+  name: string;
   role: UserRole;
   isPrivileged: boolean; // this role's isPrivileged flag (Role Management) — sees every record, not just their own
 }
@@ -34,5 +36,5 @@ export async function getViewerContext(request: NextRequest): Promise<ViewerCont
   // the other's result.
   const [currentUser, isPrivileged] = await Promise.all([findUserStatusById(session.sub), resolveIsPrivileged(session.role)]);
   if (!currentUser || currentUser.status === 'inactive') return null;
-  return { username: session.username, role: session.role, isPrivileged };
+  return { userId: currentUser.id, username: session.username, name: currentUser.name || session.username, role: session.role, isPrivileged };
 }

@@ -404,7 +404,6 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
               <tr>
                 <th>Visit Date</th>
                 <th>Company</th>
-                <th>Project</th>
                 <th>Category</th>
                 <th>Stage</th>
                 <th>Status</th>
@@ -433,7 +432,6 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
                       {v.company_name}
                       {v.contact_person ? ` (${v.contact_person})` : ''}
                     </td>
-                    <td>{v.project_id ? <Link href={`/projects/${v.project_id}`}>{v.project_id}</Link> : '-'}</td>
                     <td>{v.category ? DOMAIN_DISPLAY_NAME[v.category] : '-'}</td>
                     <td>{v.stage ? <span className={historyStyles.stageBadge}>{STAGE_LABEL[v.stage]}</span> : '-'}</td>
                     <td>{v.status === 'open' ? 'Open' : 'Closed'}</td>

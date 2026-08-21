@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { DemoScheduleRecord, ModuleConfigRecord, ProjectRecord, QuotationRecord, UserRole } from '@/lib/types';
+import { DemoScheduleRecord, ModuleConfigRecord, ProjectHandoverRecord, ProjectRecord, QuotationRecord, UserRole } from '@/lib/types';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import { formatMoney } from '@/lib/format';
@@ -71,6 +71,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [demos, setDemos] = useState<DemoScheduleRecord[] | null>(null);
   const [managersByDepartment, setManagersByDepartment] = useState<ManagersByDepartment>({});
   const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
+  const [pendingHandovers, setPendingHandovers] = useState<ProjectHandoverRecord[]>([]);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
@@ -117,6 +118,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setTechnicalRoster(data.technicalRoster ?? []);
         setRecentQuotations(data.recentQuotations ?? []);
         setQuotationStats(data.quotationStats ?? null);
+        setPendingHandovers(data.pendingHandovers ?? []);
       })
       .catch(() => {
         setModules([]);
@@ -203,6 +205,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         tone: 'urgent'
       });
     }
+    if (pendingHandovers.length) {
+      items.push({
+        key: 'handover',
+        label: `Project handover request${pendingHandovers.length === 1 ? '' : 's'} awaiting your response`,
+        count: pendingHandovers.length,
+        href: `/projects/${pendingHandovers[0].project_id}`,
+        tone: 'urgent'
+      });
+    }
     return items;
   }, [
     isPrivileged,
@@ -216,7 +227,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     marketingStats,
     reminderCount,
     demosAwaitingMyConfirmation,
-    demosAwaitingMyApproval
+    demosAwaitingMyApproval,
+    pendingHandovers
   ]);
 
   // Only declare "you're all caught up" once every signal this role

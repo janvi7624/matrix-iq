@@ -16,5 +16,5 @@ export default async function MarketingRequestsPage() {
   const isPrivileged = await resolveIsPrivileged(user.role);
   const isReviewer = await isMarketingManager({ username: user.username, role: user.role, isPrivileged });
 
-  return <MarketingRequestsView currentUser={{ username: user.username, role: user.role }} isReviewer={isReviewer} />;
+  return <MarketingRequestsView currentUser={{ id: user.id, username: user.username, role: user.role }} isReviewer={isReviewer} />;
 }

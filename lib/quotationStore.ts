@@ -284,20 +284,28 @@ export interface QuotationFilters {
 }
 
 export async function searchQuotationsFiltered(filters: QuotationFilters): Promise<QuotationRecord[]> {
-  const where: Record<string, unknown> = {};
-
-  let allowedIds: string[] | null = null; // null = unrestricted
-  if (filters.viewerUsername) {
-    const scope = await resolveVisibilityScope(filters.viewerUsername);
-    allowedIds = scope.scopedUserIds;
-  }
-
+  const where: Record<string | symbol, unknown> = {};
   if (filters.ownerUsername) {
-    const user = await db.User.findOne({ where: { username: filters.ownerUsername } as never });
-    const ownerId = user ? (user.get('id') as string) : UNKNOWN_USER_ID;
-    where.created_by = allowedIds && !allowedIds.includes(ownerId) ? UNKNOWN_USER_ID : ownerId;
-  } else if (allowedIds) {
-    where.created_by = { [Op.in]: allowedIds };
+    const user = await db.User.findOne({
+      where: {
+        [Op.or]: [
+          { username: filters.ownerUsername },
+          { name: filters.ownerUsername }
+        ]
+      } as never
+    });
+    if (user) {
+      where[Op.or] = [
+        { created_by: user.get('id') },
+        { prepared_by: filters.ownerUsername },
+        { prepared_by: user.get('name') }
+      ];
+    } else {
+      where[Op.or] = [
+        { prepared_by: filters.ownerUsername },
+        { created_by: '00000000-0000-0000-0000-000000000000' }
+      ];
+    }
   }
   if (filters.projectId) where.project_id = filters.projectId;
 

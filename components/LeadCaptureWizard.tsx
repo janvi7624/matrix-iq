@@ -5,6 +5,7 @@ import { DomainKey, LeadPriority, LeadRecord } from '@/lib/types';
 import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { preprocessCardImage, scanBusinessCard } from '@/lib/cardOcr';
 import { Camera, User, Target, Flame, StickyNote, CheckCircle2, RefreshCw, Images, PenLine } from 'lucide-react';
+import PhoneInput from '@/components/ui/PhoneInput';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -294,7 +295,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Mobile</label>
-                <input className={calcStyles.formControl} type="tel" value={form.mobile} onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))} />
+                <PhoneInput value={form.mobile} onChange={(v) => setForm((f) => ({ ...f, mobile: v }))} />
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Email</label>
