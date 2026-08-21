@@ -14,7 +14,7 @@ import { listDepartmentManagers, isUserADepartmentManager } from '@/lib/departme
 import { listTechnicalRoster } from '@/lib/technicalRoster';
 import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
-import { findUserNameAndDeptByUsername } from '@/lib/userStore';
+import { projectHandoverStore } from '@/lib/projectHandoverStore';
 
 // Single round trip for everything Dashboard.tsx needs on first paint —
 // replaces what used to be up to 13 separate client-side fetches (modules,
@@ -57,8 +57,7 @@ export async function GET(request: NextRequest) {
       leadStats,
       technicalRoster,
       managersByDepartment,
-      recentQuotations,
-      followUpQuotations,
+      quotationsForViewer,
       backOfficeDcs,
       marketingRecords
     ] = await Promise.all([
@@ -74,8 +73,7 @@ export async function GET(request: NextRequest) {
       computeLeadStats(viewer.username, viewer.isPrivileged),
       listTechnicalRoster(),
       listDepartmentManagers(),
-      searchQuotationsFiltered({ viewerUsername: viewer.username }),
-      viewer.isPrivileged ? searchQuotationsFiltered({ viewerUsername: viewer.username }) : Promise.resolve(null),
+      viewer.isPrivileged ? searchQuotationsFiltered({}) : searchQuotationsFiltered({ ownerUsername: viewer.username }),
       isBackOffice ? deliveryChallanStore.list(viewer.username, true) : Promise.resolve(null),
       (async () => {
         const isReviewer = await isMarketingManager(viewer);
@@ -127,8 +125,9 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const followUpCount = followUpQuotations ? followUpQuotations.filter((r) => needsFollowUp(r)).length : null;
+    const followUpCount = viewer.isPrivileged ? quotationsForViewer.filter((r) => needsFollowUp(r)).length : null;
     const reminderCount = siteVisits.filter((v) => isReminderDue(v)).length;
+    const pendingHandovers = await projectHandoverStore.listPendingForUser(viewer.userId);
 
     const marketingStats = marketingRecords.isReviewer
       ? { isReviewer: true, awaitingReview: marketingRecords.records.filter((r) => r.status === 'submitted').length }
@@ -136,13 +135,7 @@ export async function GET(request: NextRequest) {
 
     let quotationStats: { total: number; draft: number; sent: number; approved: number; rejected: number; expired: number } | null = null;
     if (isManagerTier) {
-      // Matches /api/quotations/stats scoping exactly (department-scoped via
-      // viewerUsername either way now — see lib/departmentScope.ts).
-      // Reuses followUpQuotations when it's already the same query instead
-      // of paying for it twice.
-      const rows = viewer.isPrivileged
-        ? followUpQuotations ?? (await searchQuotationsFiltered({ viewerUsername: viewer.username }))
-        : await searchQuotationsFiltered({ viewerUsername: viewer.username });
+      const rows = quotationsForViewer;
       const counts = { total: rows.length, draft: 0, sent: 0, approved: 0, rejected: 0, expired: 0 };
       for (const r of rows) {
         const status = computeEffectiveStatus(r);
@@ -155,10 +148,8 @@ export async function GET(request: NextRequest) {
       quotationStats = counts;
     }
 
-    // Only ever rendered as the "Recent Quotations" 5-item card — unlike
-    // allProjects/demos (also used for full-set filters below), safe to
-    // trim before sending.
-    const recentQuotationsTrimmed = [...recentQuotations].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 5);
+    // Rendered as the "Recent Quotations" 5-item card
+    const recentQuotationsTrimmed = [...quotationsForViewer].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 5);
 
     return NextResponse.json({
       modules,
@@ -173,7 +164,8 @@ export async function GET(request: NextRequest) {
       managersByDepartment,
       technicalRoster,
       recentQuotations: recentQuotationsTrimmed,
-      quotationStats
+      quotationStats,
+      pendingHandovers
     });
   } catch (error) {
     return apiErrorResponse(error);

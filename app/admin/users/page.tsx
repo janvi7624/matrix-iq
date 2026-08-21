@@ -7,6 +7,7 @@ import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types'
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { BRAND } from '@/lib/branding';
+import PhoneInput from '@/components/ui/PhoneInput';
 
 const PAGE_SIZE = 20;
 
@@ -395,7 +396,7 @@ export default function ManageUsersPage() {
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newPhone">Phone</label>
-              <input id="newPhone" className={calcStyles.formControl} type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+              <PhoneInput id="newPhone" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newEmail">Email</label>
@@ -498,7 +499,7 @@ export default function ManageUsersPage() {
                             <input className={calcStyles.formControl} value={editState.email} onChange={(e) => setEditState({ ...editState, email: e.target.value })} />
                           </td>
                           <td>
-                            <input className={calcStyles.formControl} value={editState.phone} onChange={(e) => setEditState({ ...editState, phone: e.target.value })} />
+                            <PhoneInput value={editState.phone} onChange={(v) => setEditState({ ...editState, phone: v })} />
                           </td>
                           <td>
                             <select className={calcStyles.formControl} value={editState.department} onChange={(e) => setEditState({ ...editState, department: e.target.value })}>

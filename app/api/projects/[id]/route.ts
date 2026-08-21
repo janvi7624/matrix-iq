@@ -14,10 +14,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
-import { resolveVisibilityScope } from '@/lib/departmentScope';
-import { db } from '@/lib/db';
-import { logAudit } from '@/lib/auditLogStore';
-import { getClientIp } from '@/lib/requestIp';
+import { projectHandoverStore } from '@/lib/projectHandoverStore';
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -50,8 +47,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const project = await findProjectById(id);
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    if (!(await canAccessProject(viewer.username, project))) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!viewer.isPrivileged && project.created_by !== viewer.username) {
+      // Allow access if user has a pending handover request for this project
+      const pendingHandover = await projectHandoverStore.findPendingForProject(id);
+      if (!pendingHandover || pendingHandover.to_user_id !== viewer.userId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests] = await Promise.all([
@@ -188,10 +189,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (viewer.role !== 'superadmin') {
+    return NextResponse.json({ error: 'Forbidden — superadmin only' }, { status: 403 });
+  }
 
   const { id } = await params;
   try {
-    const result = await projectStore.remove(id, viewer.username, viewer.isPrivileged);
+    const result = await projectStore.remove(id, viewer.username, true);
     if (!result.ok) {
       const status = result.reason === 'Project not found' ? 404 : 400;
       return NextResponse.json({ error: result.reason }, { status });

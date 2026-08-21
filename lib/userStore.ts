@@ -94,11 +94,11 @@ export async function findUserById(id: string): Promise<UserRecord | undefined> 
 // role+department joins are wasted work on what is the single most-called
 // user lookup in the app (runs on ~every authenticated request). No joins,
 // one column.
-export async function findUserStatusById(id: string): Promise<{ id: string; status: string } | undefined> {
+export async function findUserStatusById(id: string): Promise<{ id: string; status: string; name: string } | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.User.findByPk(id, { attributes: ['id', 'status'] });
+  const row = await db.User.findByPk(id, { attributes: ['id', 'status', 'name'] });
   if (!row) return undefined;
-  return { id: row.get('id') as string, status: row.get('status') as string };
+  return { id: row.get('id') as string, status: row.get('status') as string, name: (row.get('name') as string) || '' };
 }
 
 export async function findUserByUsername(username: string): Promise<UserRecord | undefined> {

@@ -339,6 +339,15 @@ export interface TravelScheduleRecord {
 // `timeline` anywhere in the app once it's set — see set-timeline route.
 // ---------------------------------------------------------------------------
 
+export const MARKETING_PRODUCT_CATEGORIES = [
+  'AV',
+  'Robotics',
+  'AI Video Analytics (Video Management System)',
+  'System Integration',
+  'VisitIQ VMS (Visitor Management System)'
+] as const;
+export type MarketingProductCategory = (typeof MARKETING_PRODUCT_CATEGORIES)[number] | string;
+
 export type MarketingRequestType =
   | 'brochure_flyer'
   | 'social_media'
@@ -354,12 +363,16 @@ export type MarketingRequestPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export type MarketingRequestStatus =
   | 'submitted'
-  | 'approved'
+  | 'marketing_in_progress'
+  | 'pending_technical_review'
+  | 'technical_approved'
+  | 'tech_changes_requested'
+  | 'marketing_final_review'
+  | 'completed'
   | 'timeline_set'
   | 'in_progress'
   | 'waiting_info'
   | 'ready_for_review'
-  | 'completed'
   | 'rejected'
   | 'cancelled';
 
@@ -381,19 +394,40 @@ export interface MarketingRequestRecord {
   id: string;
   created_at: string;
   created_by: string;
+  creator_name?: string;
   updated_at: string;
   project_id: string;
-  // Who is actively working the ticket — independent of status. Empty
-  // string when unassigned.
+  // Marketing member working on this ticket
   assigned_to: string;
+  assigned_to_id?: string;
+  assigned_to_name?: string;
+  // Selected technical team reviewer
+  technical_member_id: string;
+  technical_member_username: string;
+  technical_member_name: string;
   title: string;
+  product_category: MarketingProductCategory;
   request_type: MarketingRequestType;
   description: string;
+  additional_info: string;
   priority: MarketingRequestPriority;
   needed_by_date: string;
   attachments: string[];
   status: MarketingRequestStatus;
-  // null until a reviewer commits it — once non-null, permanently locked.
+  // Marketing workspace & technical handoff
+  marketing_prepared_content: string;
+  marketing_attachments: string[];
+  marketing_remarks: string;
+  technical_instructions: string;
+  // Technical review feedback
+  technical_review_decision: 'approved' | 'changes_requested' | '';
+  technical_remarks: string;
+  technical_reviewed_at: string;
+  technical_reviewed_by: string;
+  // Final submission to original requester
+  final_submission_notes: string;
+  final_submission_files: string[];
+  // Legacy / metadata fields
   timeline: MarketingRequestTimeline | null;
   rejection_reason: string;
   completion_notes: string;
@@ -467,6 +501,28 @@ export interface ProjectRecord {
   updated_at: string;
   assigned_technical_person_id: string;
   assigned_technical_person_name: string;
+}
+
+// ---------------------------------------------------------------------------
+// Project handover requests
+// ---------------------------------------------------------------------------
+export type ProjectHandoverStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface ProjectHandoverRecord {
+  id: string;
+  project_id: string;
+  from_user_id: string;
+  from_username: string;
+  from_name: string;
+  to_user_id: string;
+  to_username: string;
+  to_name: string;
+  status: ProjectHandoverStatus;
+  remarks: string;
+  response_remarks: string;
+  project_title: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export type CustomerResponseType = 'interested' | 'not_interested' | 'need_revision' | 'need_new_quotation' | 'budget_issue' | 'competitor';

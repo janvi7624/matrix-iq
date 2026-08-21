@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
+  ArrowRightLeft,
   FileText,
   Handshake,
   Lock,
@@ -33,7 +34,8 @@ import {
   ProjectStatus,
   QuotationRecord,
   SiteVisitRecord,
-  UserRole
+  UserRole,
+  ProjectHandoverRecord
 } from '@/lib/types';
 import { FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
@@ -133,6 +135,17 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [savingNote, setSavingNote] = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
+  const [showHandover, setShowHandover] = useState(false);
+  const [handoverToUserId, setHandoverToUserId] = useState('');
+  const [handoverRemarks, setHandoverRemarks] = useState('');
+  const [submittingHandover, setSubmittingHandover] = useState(false);
+  const [allUsers, setAllUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+  const [pendingHandover, setPendingHandover] = useState<ProjectHandoverRecord | null>(null);
+  const [handoverLogs, setHandoverLogs] = useState<ProjectHandoverRecord[]>([]);
+  const [respondingHandover, setRespondingHandover] = useState(false);
+  const [showDeclineForm, setShowDeclineForm] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
+  const [showHandoverHistory, setShowHandoverHistory] = useState(false);
 
   useEffect(() => {
     fetch('/api/technical-roster')
@@ -140,6 +153,77 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       .then((rows: TechnicalRosterEntry[]) => setTechnicalRoster(rows))
       .catch(() => setTechnicalRoster([]));
   }, []);
+
+  // Fetch all users for the handover dropdown
+  useEffect(() => {
+    fetch('/api/users/list')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((users: { id: string; username: string; name: string }[]) => setAllUsers(users))
+      .catch(() => setAllUsers([]));
+  }, []);
+
+  // Check for pending handover requests on this project
+  function loadHandoverStatus() {
+    fetch(`/api/projects/${projectId}/handover`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((requests: ProjectHandoverRecord[]) => {
+        const pending = requests.find((r) => r.status === 'pending');
+        setPendingHandover(pending || null);
+        setHandoverLogs(requests);
+      })
+      .catch(() => { setPendingHandover(null); setHandoverLogs([]); });
+  }
+  useEffect(() => { loadHandoverStatus(); }, [projectId]);
+
+  async function submitHandover() {
+    if (!handoverToUserId) { toast.error('Please select a person'); return; }
+    setSubmittingHandover(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/handover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toUserId: handoverToUserId, remarks: handoverRemarks.trim() })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Request failed' }));
+        toast.error(err.error || 'Failed to send handover request');
+        return;
+      }
+      toast.success('Handover request sent! Waiting for approval.');
+      setShowHandover(false);
+      setHandoverToUserId('');
+      setHandoverRemarks('');
+      loadHandoverStatus();
+    } catch {
+      toast.error('Network error');
+    } finally {
+      setSubmittingHandover(false);
+    }
+  }
+
+  async function respondToHandover(approved: boolean, responseRemarks: string) {
+    if (!pendingHandover) return;
+    setRespondingHandover(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/handover/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handoverRequestId: pendingHandover.id, approved, responseRemarks })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Request failed' }));
+        toast.error(err.error || 'Failed to respond');
+        return;
+      }
+      toast.success(approved ? 'Handover accepted! Project transferred to you.' : 'Handover declined.');
+      loadHandoverStatus();
+      if (approved) load();
+    } catch {
+      toast.error('Network error');
+    } finally {
+      setRespondingHandover(false);
+    }
+  }
 
   async function load() {
     setStatus('Loading...');
@@ -534,6 +618,11 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <span className={historyStyles.quickActionIcon}><Users size={20} /></span> Assign Team
               </button>
             )}
+            {canEdit && !isClosed && !pendingHandover && (
+              <button type="button" className={historyStyles.quickActionBtn} onClick={() => setShowHandover(true)}>
+                <span className={historyStyles.quickActionIcon}><ArrowRightLeft size={20} /></span> Handover Project
+              </button>
+            )}
             {canEdit && !isClosed && (
               <button type="button" className={`${historyStyles.quickActionBtn} ${historyStyles.quickActionDanger}`} onClick={handleCloseProject}>
                 <span className={historyStyles.quickActionIcon}><Lock size={20} /></span> Close Project
@@ -544,6 +633,186 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <span className={historyStyles.quickActionIcon}><MoreVertical size={20} /></span> {showMoreActions ? 'Fewer actions' : 'More actions'}
           </button>
         </div>
+
+        {/* Pending handover banner — shown to the recipient */}
+        {pendingHandover && pendingHandover.to_username === currentUser.username && (
+          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid #f59e0b', background: '#fffbeb', padding: 16, borderRadius: 8 }}>
+            <div style={{ fontWeight: 600, marginBottom: 8, color: '#92400e' }}>
+              Handover Request
+            </div>
+            <div style={{ fontSize: 14, marginBottom: 12, color: '#78350f' }}>
+              <strong>{pendingHandover.from_name || pendingHandover.from_username}</strong> wants to hand over this project to you.
+              {pendingHandover.remarks && <div style={{ marginTop: 6, padding: '8px 12px', background: '#fef3c7', borderRadius: 6, fontSize: 13 }}>Remarks: {pendingHandover.remarks}</div>}
+            </div>
+
+            {!showDeclineForm ? (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                  disabled={respondingHandover}
+                  onClick={() => respondToHandover(true, '')}
+                >
+                  Accept
+                </button>
+                <button
+                  style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                  disabled={respondingHandover}
+                  onClick={() => setShowDeclineForm(true)}
+                >
+                  Decline
+                </button>
+              </div>
+            ) : (
+              <div style={{ background: '#fff', border: '1px solid #fbbf24', borderRadius: 8, padding: 14 }}>
+                <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 14, color: '#92400e' }}>Reason for declining</div>
+                <textarea
+                  className={calcStyles.formControl}
+                  rows={3}
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  placeholder="Please provide a reason for declining this handover..."
+                  style={{ marginBottom: 10 }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                    disabled={respondingHandover || !declineReason.trim()}
+                    onClick={() => {
+                      respondToHandover(false, declineReason.trim());
+                      setShowDeclineForm(false);
+                      setDeclineReason('');
+                    }}
+                  >
+                    {respondingHandover ? 'Submitting...' : 'Submit Decline'}
+                  </button>
+                  <button
+                    style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}
+                    onClick={() => { setShowDeclineForm(false); setDeclineReason(''); }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Pending handover info — shown to the sender */}
+        {pendingHandover && pendingHandover.from_username === currentUser.username && (
+          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid #3b82f6', background: '#eff6ff', padding: 16, borderRadius: 8 }}>
+            <div style={{ fontSize: 14, color: '#1e40af', marginBottom: 10 }}>
+              Handover request sent to <strong>{pendingHandover.to_name || pendingHandover.to_username}</strong> — waiting for their response.
+            </div>
+            <button
+              style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
+              disabled={respondingHandover}
+              onClick={async () => {
+                const ok = await confirm({ message: 'Cancel this handover request?', danger: true });
+                if (!ok) return;
+                setRespondingHandover(true);
+                try {
+                  const res = await fetch(`/api/projects/${projectId}/handover/cancel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ handoverRequestId: pendingHandover.id })
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: 'Failed' }));
+                    toast.error(err.error || 'Failed to cancel');
+                    return;
+                  }
+                  toast.success('Handover request cancelled.');
+                  loadHandoverStatus();
+                } catch { toast.error('Network error'); } finally { setRespondingHandover(false); }
+              }}
+            >
+              Cancel Request
+            </button>
+          </div>
+        )}
+
+        {/* Handover modal */}
+        {showHandover && (
+          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid #6366f1', padding: 16, borderRadius: 8 }}>
+            <div style={{ fontWeight: 600, marginBottom: 12 }}>Handover Project</div>
+            <div className={calcStyles.field} style={{ marginBottom: 12 }}>
+              <label className={calcStyles.label}>Hand over to</label>
+              <select className={calcStyles.formControl} value={handoverToUserId} onChange={(e) => setHandoverToUserId(e.target.value)}>
+                <option value="">-- Select person --</option>
+                {allUsers
+                  .filter((u) => u.username !== currentUser.username)
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                  ))}
+              </select>
+            </div>
+            <div className={calcStyles.field} style={{ marginBottom: 12 }}>
+              <label className={calcStyles.label}>Remarks (optional)</label>
+              <textarea className={calcStyles.formControl} rows={3} value={handoverRemarks} onChange={(e) => setHandoverRemarks(e.target.value)} placeholder="Reason for handover..." />
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: handoverLogs.length > 0 ? 14 : 0 }}>
+              <button
+                style={{ background: '#6366f1', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                disabled={submittingHandover || !handoverToUserId}
+                onClick={submitHandover}
+              >
+                {submittingHandover ? 'Sending...' : 'Send Request'}
+              </button>
+              <button
+                style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}
+                onClick={() => { setShowHandover(false); setHandoverToUserId(''); setHandoverRemarks(''); setShowHandoverHistory(false); }}
+              >
+                Cancel
+              </button>
+            </div>
+
+            {/* Handover history toggle inside the box */}
+            {handoverLogs.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowHandoverHistory((v) => !v)}
+                  style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', fontSize: 13, fontWeight: 500, padding: 0, textDecoration: 'underline' }}
+                >
+                  {showHandoverHistory ? 'Hide History' : `View History (${handoverLogs.length})`}
+                </button>
+                {showHandoverHistory && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                    {handoverLogs.map((log) => {
+                      const statusColor = log.status === 'approved' ? '#16a34a' : log.status === 'rejected' ? '#dc2626' : log.status === 'cancelled' ? '#6b7280' : '#f59e0b';
+                      const statusLabel = log.status === 'approved' ? 'Accepted' : log.status === 'rejected' ? 'Declined' : log.status === 'cancelled' ? 'Cancelled' : 'Pending';
+                      return (
+                        <div key={log.id} style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span>
+                              <strong>{log.from_name || log.from_username}</strong>
+                              {' \u2192 '}
+                              <strong>{log.to_name || log.to_username}</strong>
+                            </span>
+                            <span style={{ color: statusColor, fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 4, background: `${statusColor}15` }}>
+                              {statusLabel}
+                            </span>
+                          </div>
+                          <div style={{ color: '#64748b', fontSize: 12 }}>
+                            {new Date(log.created_at).toLocaleString('en-IN')}
+                          </div>
+                          {log.remarks && (
+                            <div style={{ marginTop: 4, color: '#475569', fontSize: 12 }}>Request remarks: {log.remarks}</div>
+                          )}
+                          {log.response_remarks && (
+                            <div style={{ marginTop: 4, color: log.status === 'rejected' ? '#dc2626' : '#475569', fontSize: 12, fontWeight: 500 }}>
+                              {log.status === 'rejected' ? 'Decline reason' : 'Response'}: {log.response_remarks}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {/* Tabs */}
         <div className={historyStyles.tabBar}>

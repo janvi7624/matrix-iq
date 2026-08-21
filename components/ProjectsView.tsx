@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FolderKanban } from 'lucide-react';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
 import { FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
+import PhoneInput from '@/components/ui/PhoneInput';
 import { exportListToPdf } from '@/lib/exportPdf';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
@@ -59,6 +60,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  const isSuperAdmin = currentUser.role === 'superadmin';
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -153,8 +155,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   function handleExportPdf() {
     exportListToPdf(
       'Project Dashboard',
-      ['Project ID', 'Client', 'Company', 'Sales Person', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up'],
-      filtered.map((p) => [p.id, p.client_name, p.company, p.sales_person, STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date)]),
+      ['Client', 'Company', 'Sales Person', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up'],
+      filtered.map((p) => [p.client_name, p.company, p.sales_person, STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date)]),
       `projects-${new Date().toISOString().slice(0, 10)}.pdf`
     );
   }
@@ -195,7 +197,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Phone</label>
-                <input className={calcStyles.formControl} value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+                <PhoneInput value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Email</label>
@@ -280,7 +282,6 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           <table className={historyStyles.table}>
             <thead>
               <tr>
-                <th>Project ID</th>
                 <th>Client</th>
                 <th>Sales Person</th>
                 <th>Stage</th>
@@ -294,7 +295,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={8}>
                     <EmptyState
                       icon={FolderKanban}
                       title={projects.length === 0 ? 'No projects yet' : 'No projects match your filters'}
@@ -306,7 +307,6 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               ) : (
                 filtered.map((p) => (
                   <tr key={p.id}>
-                    <td className={historyStyles.num}>{p.id}</td>
                     <td>
                       {p.client_name || p.company || '-'}
                       {p.company && p.client_name ? ` (${p.company})` : ''}
@@ -329,7 +329,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                       <Link className={historyStyles.button} href={`/projects/${p.id}`}>
                         View
                       </Link>
-                      {isPrivileged && (
+                      {isSuperAdmin && (
                         <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(p.id)}>
                           Delete
                         </button>

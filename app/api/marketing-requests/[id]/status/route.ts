@@ -13,17 +13,64 @@ function toStringArray(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
 }
 
-type Action = 'start' | 'wait_for_info' | 'resume' | 'ready_for_review' | 'reopen' | 'complete';
+type Action =
+  | 'start'
+  | 'claim'
+  | 'work_on_changes'
+  | 'marketing_final_review'
+  | 'wait_for_info'
+  | 'resume'
+  | 'ready_for_review'
+  | 'reopen'
+  | 'complete';
 
-// Every legal transition once a timeline is committed. `timeline` itself is
-// never touched here — only set-timeline/route.ts can ever write it.
 const TRANSITIONS: Record<Action, { from: MarketingRequestStatus[]; to: MarketingRequestStatus; label: string; requiresRemark?: boolean }> = {
-  start: { from: ['timeline_set'], to: 'in_progress', label: 'Marketing request marked in progress' },
-  wait_for_info: { from: ['in_progress'], to: 'waiting_info', label: 'Marketing request waiting for information', requiresRemark: true },
-  resume: { from: ['waiting_info'], to: 'in_progress', label: 'Marketing request resumed' },
-  ready_for_review: { from: ['in_progress'], to: 'ready_for_review', label: 'Marketing request ready for review' },
-  reopen: { from: ['ready_for_review'], to: 'in_progress', label: 'Marketing request reopened for rework' },
-  complete: { from: ['in_progress', 'ready_for_review'], to: 'completed', label: 'Marketing request marked completed' }
+  start: {
+    from: ['submitted', 'timeline_set'],
+    to: 'marketing_in_progress',
+    label: 'Marketing member started working on request'
+  },
+  claim: {
+    from: ['submitted', 'timeline_set'],
+    to: 'marketing_in_progress',
+    label: 'Marketing member took ownership of request'
+  },
+  work_on_changes: {
+    from: ['tech_changes_requested'],
+    to: 'marketing_in_progress',
+    label: 'Marketing member working on technical feedback'
+  },
+  marketing_final_review: {
+    from: ['technical_approved', 'tech_changes_requested', 'marketing_in_progress'],
+    to: 'marketing_final_review',
+    label: 'Marketing preparing final submission for requester'
+  },
+  wait_for_info: {
+    from: ['in_progress', 'marketing_in_progress'],
+    to: 'waiting_info',
+    label: 'Marketing request waiting for information',
+    requiresRemark: true
+  },
+  resume: {
+    from: ['waiting_info'],
+    to: 'marketing_in_progress',
+    label: 'Marketing request resumed'
+  },
+  ready_for_review: {
+    from: ['in_progress', 'marketing_in_progress'],
+    to: 'ready_for_review',
+    label: 'Marketing request ready for review'
+  },
+  reopen: {
+    from: ['ready_for_review'],
+    to: 'marketing_in_progress',
+    label: 'Marketing request reopened for rework'
+  },
+  complete: {
+    from: ['marketing_final_review', 'technical_approved', 'marketing_in_progress', 'tech_changes_requested', 'in_progress', 'ready_for_review'],
+    to: 'completed',
+    label: 'Marketing request marked completed'
+  }
 };
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -48,21 +95,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const existing = records.find((r) => r.id === id);
     if (!existing) return NextResponse.json({ error: 'Marketing request not found' }, { status: 404 });
 
-    // The Marketing Manager can progress anyone's ticket; the assignee can
-    // progress their own — a Marketing User works their assigned request
-    // without needing manager-level permissions for that alone.
-    const isAssignee = !!existing.assigned_to && existing.assigned_to === viewer.username;
-    const allowed = isAssignee || (await isMarketingManager(viewer));
-    if (!allowed) return NextResponse.json({ error: 'Forbidden — only the Marketing manager or the assignee can update this request’s status' }, { status: 403 });
-
-    if (!transition.from.includes(existing.status)) {
-      return NextResponse.json({ error: `This request's current status doesn't allow that action` }, { status: 400 });
+    const isAssigned = existing.assigned_to === viewer.username;
+    const isPrivilegedOrReviewer = viewer.isPrivileged || (await isModuleActionAllowed(viewer, 'marketing-requests', 'approve'));
+    if (!isPrivilegedOrReviewer && !isAssigned) {
+      return NextResponse.json({ error: 'Forbidden — only a marketing reviewer or the assigned member can update this request’s status' }, { status: 403 });
     }
 
-    const patch: Partial<MarketingRequestRecord> = { status: transition.to, updated_at: new Date().toISOString() };
+    if (!transition.from.includes(existing.status)) {
+      return NextResponse.json({ error: `This request's current status (${existing.status}) doesn't allow action: ${action}` }, { status: 400 });
+    }
+
+    const patch: Partial<MarketingRequestRecord> = {
+      status: transition.to,
+      updated_at: new Date().toISOString()
+    };
+
+    if (action === 'claim' || (action === 'start' && !existing.assigned_to)) {
+      patch.assigned_to = viewer.username;
+    }
+
     if (action === 'complete') {
-      patch.completion_notes = typeof body?.completionNotes === 'string' ? body.completionNotes.trim() : '';
-      patch.delivered_files = toStringArray(body?.deliveredFiles);
+      patch.completion_notes = typeof body?.completionNotes === 'string' ? body.completionNotes.trim() : existing.completion_notes;
+      patch.final_submission_notes = patch.completion_notes;
+      if (Array.isArray(body?.deliveredFiles)) {
+        patch.delivered_files = toStringArray(body.deliveredFiles);
+        patch.final_submission_files = patch.delivered_files;
+      }
     }
 
     const updated = await marketingRequestStore.update(id, patch);
@@ -84,8 +142,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (notifyTargets.length) {
         await notifyUsers(notifyTargets, {
           title: action === 'complete' ? 'Marketing request completed' : 'Marketing request needs your input',
-          body: action === 'complete' ? `"${existing.title}" has been completed.` : `"${existing.title}" is waiting on information from you: ${remarks}`,
-          type: action === 'complete' ? 'marketing_request_completed' : 'marketing_request_waiting_info',
+          body:
+            action === 'complete'
+              ? `Your request "${existing.title}" is ready and delivered.`
+              : `Marketing is waiting for more information on "${existing.title}": ${remarks}`,
+          type: action === 'complete' ? 'marketing_request_completed' : 'marketing_request_info_needed',
           entityType: 'marketing_request',
           entityId: id
         });

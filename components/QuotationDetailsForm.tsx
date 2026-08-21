@@ -3,6 +3,7 @@
 import { QuotationDetails } from '@/lib/types';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
+import PhoneInput from '@/components/ui/PhoneInput';
 
 interface QuotationDetailsFormProps {
   details: QuotationDetails;
@@ -62,7 +63,7 @@ export default function QuotationDetailsForm({ details, onChange }: QuotationDet
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="clientPhone">Client Phone</label>
-            <input id="clientPhone" className={styles.formControl} type="tel" value={details.clientPhone} onChange={(e) => onChange({ clientPhone: e.target.value })} />
+            <PhoneInput id="clientPhone" value={details.clientPhone} onChange={(v) => onChange({ clientPhone: v })} />
           </div>
         </div>
         <div className={`${styles.row} ${styles.columns}`}>

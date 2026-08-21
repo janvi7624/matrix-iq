@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
       phone: user.phone,
       email: user.email,
       role: user.role,
+      isPrivileged: session.isPrivileged ?? (user.role === 'manager' || user.role === 'admin' || user.role === 'superadmin'),
       department: user.department,
       designation: user.designation
     });
