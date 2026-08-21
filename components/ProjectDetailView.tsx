@@ -865,6 +865,16 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   </select>
                 ) : <div className={calcStyles.small}>{STAGE_LABEL[project.stage]}</div>}
               </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Cold call responded</label>
+                {canEdit ? (
+                  <select className={calcStyles.formControl} value={project.cold_call_responded} onChange={(e) => patchProject({ coldCallResponded: e.target.value })}>
+                    <option value="">Not yet called</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                ) : <div className={calcStyles.small}>{project.cold_call_responded === 'yes' ? 'Yes' : project.cold_call_responded === 'no' ? 'No' : 'Not yet called'}</div>}
+              </div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>

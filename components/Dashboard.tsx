@@ -7,6 +7,7 @@ import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import { formatMoney } from '@/lib/format';
 import AppShell from './AppShell';
+import HealthGauge from './ui/HealthGauge';
 import { BRAND } from '@/lib/branding';
 import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
@@ -35,11 +36,16 @@ interface BackOfficeKpis {
   pendingVerification: number;
 }
 
-interface QuotationStatsSummary {
-  total: number;
-  sent: number;
-  approved: number;
-  rejected: number;
+interface HealthGaugeData {
+  department: string;
+  score: number;
+  band: 'red' | 'yellow' | 'green' | 'na';
+  breakdown: { label: string; value: string }[];
+}
+
+interface HealthResponse {
+  scope: 'org' | 'department' | 'self';
+  gauges: HealthGaugeData[];
 }
 
 interface AttentionItem {
@@ -67,11 +73,11 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [marketingStats, setMarketingStats] = useState<{ isReviewer: boolean; awaitingReview?: number; myOpenCount?: number } | null>(null);
   const [allProjects, setAllProjects] = useState<ProjectRecord[] | null>(null);
   const [recentQuotations, setRecentQuotations] = useState<QuotationRecord[] | null>(null);
-  const [quotationStats, setQuotationStats] = useState<QuotationStatsSummary | null>(null);
   const [demos, setDemos] = useState<DemoScheduleRecord[] | null>(null);
   const [managersByDepartment, setManagersByDepartment] = useState<ManagersByDepartment>({});
   const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
   const [pendingHandovers, setPendingHandovers] = useState<ProjectHandoverRecord[]>([]);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
@@ -98,8 +104,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   // departments/managers, technical-roster, quotations/mine, quotations/
   // stats) — see app/api/dashboard/route.ts, which resolves the viewer once
   // and fans out server-side instead of once per client request. Role-gated
-  // fields (followUpCount, backOfficeKpis, quotationStats) still come back
-  // null for a viewer they don't apply to, same as before.
+  // fields (followUpCount, backOfficeKpis) still come back null for a
+  // viewer they don't apply to, same as before.
   useEffect(() => {
     fetch('/api/dashboard')
       .then((r) => (r.ok ? r.json() : null))
@@ -117,7 +123,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setManagersByDepartment(data.managersByDepartment ?? {});
         setTechnicalRoster(data.technicalRoster ?? []);
         setRecentQuotations(data.recentQuotations ?? []);
-        setQuotationStats(data.quotationStats ?? null);
         setPendingHandovers(data.pendingHandovers ?? []);
       })
       .catch(() => {
@@ -133,8 +138,18 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setManagersByDepartment({});
         setTechnicalRoster([]);
         setRecentQuotations([]);
-        setQuotationStats(null);
       });
+  }, []);
+
+  // Kept as its own fetch (not folded into /api/dashboard above) so the
+  // traffic-light gauges load/refresh independently of the rest of the
+  // page's data — see app/api/dashboard/health/route.ts and
+  // lib/departmentScoring.ts for how each gauge's score is computed.
+  useEffect(() => {
+    fetch('/api/dashboard/health')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setHealth(data))
+      .catch(() => setHealth(null));
   }, []);
 
   const recentProjects = useMemo(() => (allProjects ? [...allProjects].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 5) : null), [allProjects]);
@@ -317,38 +332,27 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         </div>
       )}
 
-      {isManagerTier && (
+      {health && health.gauges.length > 0 && (
         <>
-          {/* KPIs below (kpis/quotationStats) already come department-scoped
-              from the server for a non-org-wide manager — see
-              lib/departmentScope.ts — so this panel doubles as the
-              department-scoped "Sales Manager Dashboard"-style view without
-              a separate endpoint; the heading names the department(s) when
-              there's a clear one to name. */}
+          {/* One traffic-light gauge per department the viewer is allowed to
+              see — org-wide gets every department, a department manager
+              gets just their own, everyone else gets one personal gauge.
+              See app/api/dashboard/health/route.ts + lib/departmentScoring.ts
+              for how scope/scoring is resolved. Click a gauge for the
+              numbers behind its score. */}
           <div className={styles.sectionHeading}>
-            {managedDepartments.length === 1 ? `${managedDepartments[0]} Team Overview` : 'Team Overview'}
+            {health.scope === 'org'
+              ? 'Department Health'
+              : health.scope === 'department'
+                ? health.gauges.length === 1
+                  ? `${health.gauges[0].department} Team Health`
+                  : 'Team Health'
+                : 'Your Performance'}
           </div>
           <div className={styles.kpiGrid}>
-            <div className={styles.kpiCard}>
-              <div className={styles.kpiValue}>{kpis ? kpis.totalProjects : '—'}</div>
-              <div className={styles.kpiLabel}>Total Projects</div>
-            </div>
-            <div className={styles.kpiCard}>
-              <div className={styles.kpiValue}>{kpis ? kpis.activeProjects : '—'}</div>
-              <div className={styles.kpiLabel}>Active Projects</div>
-            </div>
-            <div className={styles.kpiCard}>
-              <div className={styles.kpiValue}>{quotationStats ? quotationStats.sent : '—'}</div>
-              <div className={styles.kpiLabel}>Quotations Sent</div>
-            </div>
-            <div className={styles.kpiCard}>
-              <div className={styles.kpiValue}>{kpis ? kpis.pendingApprovals : '—'}</div>
-              <div className={styles.kpiLabel}>Pending Approvals</div>
-            </div>
-            <div className={styles.kpiCard}>
-              <div className={styles.kpiValue}>{kpis ? `${kpis.conversionRate}%` : '—'}</div>
-              <div className={styles.kpiLabel}>Conversion Rate</div>
-            </div>
+            {health.gauges.map((g) => (
+              <HealthGauge key={g.department} label={g.department} score={g.score} band={g.band} breakdown={g.breakdown} />
+            ))}
           </div>
         </>
       )}

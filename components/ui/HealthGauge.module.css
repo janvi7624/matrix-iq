@@ -1,0 +1,70 @@
+.tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 16px 16px;
+    border-radius: var(--mx-radius-lg);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
+    cursor: pointer;
+    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+}
+.tile:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--mx-shadow-md);
+}
+.tile:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+
+.svg {
+    width: 100%;
+    max-width: 140px;
+    height: auto;
+}
+.progressArc {
+    transition: stroke-dashoffset var(--mx-duration-base) var(--mx-ease);
+}
+
+.scoreLine {
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    margin-top: -6px;
+}
+.label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--mx-ink);
+    margin-top: 2px;
+    text-align: center;
+}
+.bandText {
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.breakdown {
+    width: 100%;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--mx-border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: default;
+}
+.breakdownRow {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.78rem;
+    color: var(--mx-ink-muted);
+}
+.breakdownRow strong {
+    color: var(--mx-ink);
+    font-variant-numeric: tabular-nums;
+}

@@ -84,7 +84,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const crm = {
       totalLeads: projects.length,
-      qualifiedLeads: projects.filter((p) => p.stage !== 'site_visit').length,
+      qualifiedLeads: projects.filter((p) => p.stage !== 'cold_call' && p.stage !== 'catalogue_offered' && p.stage !== 'site_visit').length,
       lostLeads: projects.filter((p) => p.status === 'lost').length,
       wonLeads: projects.filter((p) => p.status === 'won').length,
       unattendedLeads: leads.filter(isLeadUnattended).length

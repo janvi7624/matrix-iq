@@ -146,7 +146,7 @@ export async function listTechnicalRoster(options?: { category?: string }): Prom
         attributes: ['assigned_technical_person_id'],
         where: {
           assigned_technical_person_id: { [Op.in]: userIds },
-          stage: { [Op.in]: ['site_visit', 'quotation', 'demo', 'customer_response', 'negotiation', 'po_received', 'installation'] }
+          stage: { [Op.in]: ['cold_call', 'catalogue_offered', 'site_visit', 'quotation', 'demo', 'customer_response', 'negotiation', 'po_received', 'installation'] }
         } as never,
         raw: true
       });

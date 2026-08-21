@@ -22,6 +22,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Technical accounts only work projects they're assigned to — they don't
+  // originate Sales projects. See projectStore's resolveOwnerWhere for the
+  // matching visibility-side restriction.
+  if (viewer.role === 'technical') {
+    return NextResponse.json({ error: 'Forbidden — technical accounts can only view projects assigned to them' }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
@@ -55,7 +61,8 @@ export async function POST(request: NextRequest) {
     sales_person: salesPerson,
     source: typeof body.source === 'string' ? body.source.trim() : '',
     status: 'active',
-    stage: 'site_visit',
+    stage: 'cold_call',
+    cold_call_responded: '',
     priority: VALID_PRIORITY.includes(body.priority) ? body.priority : 'medium',
     expected_closing_date: typeof body.expectedClosingDate === 'string' ? body.expectedClosingDate : '',
     next_follow_up_date: typeof body.nextFollowUpDate === 'string' ? body.nextFollowUpDate : '',

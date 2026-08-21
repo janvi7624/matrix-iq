@@ -138,6 +138,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (VALID_STATUS.includes(body.status)) patch.status = body.status;
     if (typeof body.expectedClosingDate === 'string') patch.expected_closing_date = body.expectedClosingDate;
     if (typeof body.nextFollowUpDate === 'string') patch.next_follow_up_date = body.nextFollowUpDate;
+    if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
 
     let newlyAssignedPerson: { id: string; username: string; name: string } | undefined;

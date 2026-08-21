@@ -18,11 +18,18 @@ const ALL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'b
 const PRIVILEGED_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 
 // TMS (Technical Management System) — Robotics/AI/AV/Marketing-only, see
-// lib/tmsAccess.ts. Privileged roles are included so an admin/superadmin can
-// always see and manage TMS for oversight (they bypass visibleToDepartments
-// entirely too, see departmentAllowsModule below).
-const TMS_ALL_ROLES: UserRole[] = [...PRIVILEGED_ROLES, 'technical-manager', 'team-lead', 'engineer', 'technician'];
-const TMS_MANAGER_ONLY_ROLES: UserRole[] = [...PRIVILEGED_ROLES, 'technical-manager'];
+// lib/tmsAccess.ts. Only Admin/Super Admin get automatic oversight here —
+// deliberately NOT the generic 'manager' role (PRIVILEGED_ROLES), which
+// would otherwise let a Sales/HR/Accounts/... manager see TMS too, since
+// isPrivileged is true for every manager account. TMS's own roster
+// (technical-manager/team-lead/engineer/technician) is what a real TMS
+// department head should actually be given, not the main app's 'manager'
+// role — see isModuleAccessAllowed's TMS special-case below, which is what
+// actually enforces this (this list alone isn't enough: the generic
+// isPrivileged bypass there would still let a manager through).
+const TMS_OVERSIGHT_ROLES: UserRole[] = ['superadmin', 'admin'];
+const TMS_ALL_ROLES: UserRole[] = [...TMS_OVERSIGHT_ROLES, 'technical-manager', 'team-lead', 'engineer', 'technician'];
+const TMS_MANAGER_ONLY_ROLES: UserRole[] = [...TMS_OVERSIGHT_ROLES, 'technical-manager'];
 const TMS_DEPARTMENTS = ['Robotics', 'AI', 'AV', 'Marketing'];
 
 // TMS accounts also need a handful of Sales-section modules (their project
@@ -153,6 +160,15 @@ const TMS_SALES_ACCESS_KEYS = new Set(['projects', 'quotation', 'site-visits', '
 const OLD_VISIBILITY_SALES: UserRole[] = ALL_ROLES;
 const NEW_VISIBILITY_SALES: UserRole[] = SALES_ROLES_WITH_TMS;
 
+// TMS tightened from "any privileged role" (including the generic 'manager'
+// — Sales, HR, Accounts, ...) to Admin/Super Admin only, see
+// TMS_OVERSIGHT_ROLES above. Same don't-clobber-an-admin-edit guard.
+const OLD_TMS_ALL_ROLES: UserRole[] = [...PRIVILEGED_ROLES, 'technical-manager', 'team-lead', 'engineer', 'technician'];
+const OLD_TMS_MANAGER_ONLY_ROLES: UserRole[] = [...PRIVILEGED_ROLES, 'technical-manager'];
+const OLD_TMS_PROCUREMENT_ROLES: UserRole[] = OLD_TMS_ALL_ROLES.filter((r) => r !== 'technician');
+const TMS_ALL_ROLES_KEYS = new Set(['tms-dashboard', 'tms-projects', 'tms-tasks', 'tms-bom-requests']);
+const TMS_MANAGER_ONLY_KEYS = new Set(['tms-users', 'tms-tab-access']);
+
 function sameRoles(a: UserRole[], b: UserRole[]): boolean {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
@@ -211,6 +227,9 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (RESECTIONED_KEYS_V2.has(key) && plain.section === OLD_SECTION_V2) attrs.section = NEW_SECTION_V2;
     if (FORCED_VISIBILITY_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_VISIBILITY)) attrs.visibleToRoles = NEW_VISIBILITY;
     if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_VISIBILITY_SALES)) attrs.visibleToRoles = NEW_VISIBILITY_SALES;
+    if (TMS_ALL_ROLES_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_TMS_ALL_ROLES)) attrs.visibleToRoles = TMS_ALL_ROLES;
+    if (key === 'tms-procurement' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_TMS_PROCUREMENT_ROLES)) attrs.visibleToRoles = TMS_ALL_ROLES.filter((r) => r !== 'technician');
+    if (TMS_MANAGER_ONLY_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_TMS_MANAGER_ONLY_ROLES)) attrs.visibleToRoles = TMS_MANAGER_ONLY_ROLES;
     if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }
@@ -255,8 +274,14 @@ export async function isModuleAccessAllowed(key: string, viewer: { role: UserRol
   const all = await listModuleConfigs();
   const config = all.find((m) => m.key === key);
   if (!config || !config.enabled) return false;
-  if (!departmentAllowsModule(config, viewer.department, viewer.isPrivileged)) return false;
-  if (viewer.isPrivileged) return true;
+
+  // TMS keys don't get the generic isPrivileged bypass — that flag is true
+  // for every 'manager' account (Sales, HR, Accounts, ...), and TMS is meant
+  // to stay Technical Team + Admin/Super Admin only. See TMS_OVERSIGHT_ROLES.
+  const isPrivilegedHere = key.startsWith('tms') ? TMS_OVERSIGHT_ROLES.includes(viewer.role) : viewer.isPrivileged;
+
+  if (!departmentAllowsModule(config, viewer.department, isPrivilegedHere)) return false;
+  if (isPrivilegedHere) return true;
   return config.visibleToRoles.includes(viewer.role);
 }
 

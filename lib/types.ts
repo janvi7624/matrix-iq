@@ -454,6 +454,8 @@ export interface MarketingRequestRecord {
 // ---------------------------------------------------------------------------
 
 export const PROJECT_STAGES = [
+  'cold_call',
+  'catalogue_offered',
   'site_visit',
   'quotation',
   'demo',
@@ -502,6 +504,9 @@ export interface ProjectRecord {
   source: string;
   status: ProjectStatus;
   stage: ProjectStage;
+  // Cold Call stage's own sub-detail — whether the initial cold call was
+  // responded to. '' until the call has actually been logged.
+  cold_call_responded: 'yes' | 'no' | '';
   priority: ProjectPriority;
   expected_closing_date: string;
   next_follow_up_date: string;

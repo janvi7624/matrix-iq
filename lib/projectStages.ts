@@ -2,6 +2,8 @@
 import { ProjectStage } from './types';
 
 export const FORWARD_STAGES: ProjectStage[] = [
+  'cold_call',
+  'catalogue_offered',
   'site_visit',
   'quotation',
   'demo',
@@ -13,6 +15,8 @@ export const FORWARD_STAGES: ProjectStage[] = [
 ];
 
 export const STAGE_LABEL: Record<ProjectStage, string> = {
+  cold_call: 'Cold Call',
+  catalogue_offered: 'Catalogue Offered',
   site_visit: 'Site Visit',
   quotation: 'Quotation',
   demo: 'Demo',

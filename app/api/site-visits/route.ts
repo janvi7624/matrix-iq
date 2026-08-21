@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
         source: '',
         status: 'active',
         stage: 'site_visit',
+        cold_call_responded: '',
         priority: 'medium',
         expected_closing_date: '',
         next_follow_up_date: '',

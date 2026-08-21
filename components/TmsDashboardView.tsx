@@ -183,11 +183,11 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={dashboardStyles.kpiValue}>{projectStats.completed}</div>
           <div className={dashboardStyles.kpiLabel}>Completed Projects</div>
         </div>
-        <div className={dashboardStyles.kpiCardAlert}>
+        <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
           <div className={dashboardStyles.kpiValue}>{projectStats.nearDeadline}</div>
           <div className={dashboardStyles.kpiLabel}>Near Deadline</div>
         </div>
-        <div className={dashboardStyles.kpiCardAlert}>
+        <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
           <div className={dashboardStyles.kpiValue}>{projectStats.delayed}</div>
           <div className={dashboardStyles.kpiLabel}>Delayed Projects</div>
         </div>
@@ -207,7 +207,7 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={dashboardStyles.kpiValue}>{taskStats.completedToday}</div>
           <div className={dashboardStyles.kpiLabel}>Completed Today</div>
         </div>
-        <div className={dashboardStyles.kpiCardAlert}>
+        <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
           <div className={dashboardStyles.kpiValue}>{taskStats.overdue}</div>
           <div className={dashboardStyles.kpiLabel}>Overdue Tasks</div>
         </div>
@@ -236,7 +236,7 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={dashboardStyles.kpiValue}>{bomStats.approved}</div>
           <div className={dashboardStyles.kpiLabel}>Approved BOM Requests</div>
         </div>
-        <div className={dashboardStyles.kpiCardAlert}>
+        <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
           <div className={dashboardStyles.kpiValue}>{bomStats.awaitingReview}</div>
           <div className={dashboardStyles.kpiLabel}>Awaiting Review</div>
         </div>
@@ -248,7 +248,7 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={dashboardStyles.kpiValue}>{procurementStats.pending}</div>
           <div className={dashboardStyles.kpiLabel}>Pending Procurement</div>
         </Link>
-        <div className={dashboardStyles.kpiCardAlert}>
+        <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
           <div className={dashboardStyles.kpiValue}>{procurementStats.approvalPending}</div>
           <div className={dashboardStyles.kpiLabel}>Approval Pending</div>
         </div>

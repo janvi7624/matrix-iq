@@ -61,6 +61,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const confirm = useConfirm();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isSuperAdmin = currentUser.role === 'superadmin';
+  const isTechnical = currentUser.role === 'technical';
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -164,9 +165,11 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   return (
     <AppShell title="Project Dashboard" subtitle="Every sales project, site visit to close, in one pipeline.">
         <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : '+ New Project'}
-          </button>
+          {!isTechnical && (
+            <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
+              {showForm ? 'Cancel' : '+ New Project'}
+            </button>
+          )}
           <button type="button" className={historyStyles.button} onClick={handleExportPdf}>
             Export PDF
           </button>
@@ -298,9 +301,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                   <td colSpan={8}>
                     <EmptyState
                       icon={FolderKanban}
-                      title={projects.length === 0 ? 'No projects yet' : 'No projects match your filters'}
-                      message={projects.length === 0 ? 'Create your first project to start tracking it through the pipeline.' : 'Try clearing a filter or search term.'}
-                      action={projects.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>+ New Project</button> : undefined}
+                      title={projects.length === 0 ? (isTechnical ? 'No projects assigned to you yet' : 'No projects yet') : 'No projects match your filters'}
+                      message={projects.length === 0 ? (isTechnical ? "You'll see a project here once someone assigns you as its technical lead." : 'Create your first project to start tracking it through the pipeline.') : 'Try clearing a filter or search term.'}
+                      action={projects.length === 0 && !isTechnical ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>+ New Project</button> : undefined}
                     />
                   </td>
                 </tr>

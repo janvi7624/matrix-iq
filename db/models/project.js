@@ -13,12 +13,14 @@ module.exports = (sequelize, DataTypes) => {
     status: { type: DataTypes.ENUM('active', 'on_hold', 'won', 'lost'), allowNull: false, defaultValue: 'active' },
     stage: {
       type: DataTypes.ENUM(
-        'site_visit', 'quotation', 'demo', 'customer_response', 'negotiation',
+        'cold_call', 'catalogue_offered', 'site_visit', 'quotation', 'demo', 'customer_response', 'negotiation',
         'po_received', 'installation', 'completed', 'closed_lost'
       ),
       allowNull: false,
-      defaultValue: 'site_visit'
+      defaultValue: 'cold_call'
     },
+    // Cold Call stage's own sub-detail — see lib/types.ts's ProjectRecord comment.
+    cold_call_responded: { type: DataTypes.STRING, allowNull: false, defaultValue: '' },
     priority: { type: DataTypes.ENUM('low', 'medium', 'high'), allowNull: false, defaultValue: 'medium' },
     expected_closing_date: { type: DataTypes.DATEONLY },
     next_follow_up_date: { type: DataTypes.DATEONLY },

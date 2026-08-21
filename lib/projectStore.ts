@@ -14,6 +14,7 @@ const FIELDS = [
   { name: 'source' },
   { name: 'status' },
   { name: 'stage' },
+  { name: 'cold_call_responded' },
   { name: 'priority' },
   { name: 'expected_closing_date', kind: 'nullable' as const },
   { name: 'next_follow_up_date', kind: 'nullable' as const },
@@ -102,9 +103,25 @@ async function readAll(): Promise<ProjectRecord[]> {
 // filter), everyone else sees projects they created OR are the assigned
 // technical person on, widened to their whole managed department's team
 // when they manage one. See lib/departmentScope.ts.
+//
+// The 'technical' role is the one exception to "created OR assigned": they
+// can't create Sales projects at all (see app/api/projects/route.ts's POST
+// guard), so the created_by branch would only ever resurface stale/legacy
+// rows, not anything they're meant to be working from — they only ever see
+// what they're actually assigned to.
 async function resolveOwnerWhere(viewerUsername: string): Promise<Record<string, unknown>> {
   const scope = await resolveVisibilityScope(viewerUsername);
   if (!scope.scopedUserIds) return {};
+
+  const viewer = await db.User.findOne({
+    where: { username: viewerUsername } as never,
+    include: [{ model: db.Role, as: 'role', attributes: ['key'] }]
+  });
+  const roleKey = (viewer?.get({ plain: true }) as { role?: { key?: string } } | undefined)?.role?.key;
+  if (roleKey === 'technical') {
+    return { assigned_technical_person_id: { [Op.in]: scope.scopedUserIds } };
+  }
+
   return { [Op.or]: [{ created_by: { [Op.in]: scope.scopedUserIds } }, { assigned_technical_person_id: { [Op.in]: scope.scopedUserIds } }] };
 }
 
@@ -233,6 +250,10 @@ export const projectStore = {
   list: async (viewerUsername: string, _viewerIsPrivileged: boolean) => (await list(viewerUsername)).map(normalizeProject),
   listLight: async (viewerUsername: string, _viewerIsPrivileged: boolean) => (await listLight(viewerUsername)).map(normalizeProject),
   listOwnedBy: async (username: string) => (await listOwnedBy(username)).map(normalizeProject),
+  // Unscoped — every project, no visibility filtering. For aggregate/admin
+  // computations only (e.g. department health scoring), never for a
+  // viewer-facing list; callers must apply their own authorization first.
+  readAll: async () => (await readAll()).map(normalizeProject),
   create,
   update,
   remove
