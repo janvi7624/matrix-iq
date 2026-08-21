@@ -48,6 +48,7 @@ interface MarketingRequestsViewProps {
 
 const STATUS_TONE: Record<MarketingRequestStatus, StatusTone> = {
   submitted: 'pending',
+  approved: 'confirmed',
   marketing_in_progress: 'done',
   pending_technical_review: 'pending',
   technical_approved: 'confirmed',

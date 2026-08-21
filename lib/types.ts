@@ -363,6 +363,7 @@ export type MarketingRequestPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export type MarketingRequestStatus =
   | 'submitted'
+  | 'approved'
   | 'marketing_in_progress'
   | 'pending_technical_review'
   | 'technical_approved'

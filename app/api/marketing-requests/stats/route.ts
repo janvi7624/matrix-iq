@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
-import { isMarketingManager } from '@/lib/permissions';
+import { isMarketingManager, isModuleActionAllowed } from '@/lib/permissions';
 import { apiErrorResponse } from '@/lib/apiError';
 
 const NON_FINAL_STATUSES = new Set([

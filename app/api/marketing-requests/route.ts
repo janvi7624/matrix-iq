@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
-import { isMarketingManager } from '@/lib/permissions';
+import { isMarketingManager, isModuleActionAllowed } from '@/lib/permissions';
 import { listDepartmentManagers } from '@/lib/departmentStore';
+import { getAppConfig } from '@/lib/appConfigStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';

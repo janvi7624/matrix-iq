@@ -30,6 +30,7 @@ export const MARKETING_PRIORITY_META: Record<MarketingRequestPriority, { label: 
 
 export const MARKETING_STATUS_LABEL: Record<MarketingRequestStatus, string> = {
   submitted: 'Submitted / Awaiting Marketing',
+  approved: 'Approved',
   marketing_in_progress: 'Marketing In Progress',
   pending_technical_review: 'Pending Technical Review',
   technical_approved: 'Technical Approved',

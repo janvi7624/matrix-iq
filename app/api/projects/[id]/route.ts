@@ -15,6 +15,10 @@ import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatu
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
+import { resolveVisibilityScope } from '@/lib/departmentScope';
+import { db } from '@/lib/db';
+import { logAudit } from '@/lib/auditLogStore';
+import { getClientIp } from '@/lib/requestIp';
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
