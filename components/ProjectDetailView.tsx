@@ -154,9 +154,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       .catch(() => setTechnicalRoster([]));
   }, []);
 
-  // Fetch all users for the handover dropdown
+  // Fetch users for the handover dropdown (server filters by department rules)
   useEffect(() => {
-    fetch('/api/users/list')
+    fetch('/api/users/list?scope=handover')
       .then((r) => (r.ok ? r.json() : []))
       .then((users: { id: string; username: string; name: string }[]) => setAllUsers(users))
       .catch(() => setAllUsers([]));
@@ -741,9 +741,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <option value="">-- Select person --</option>
                 {allUsers
                   .filter((u) => u.username !== currentUser.username)
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>{u.name || u.username}</option>
-                  ))}
+                  .map((u) => {
+                    const dept = (u as any).department;
+                    return <option key={u.id} value={u.id}>{u.name || u.username}{dept ? ` (${dept})` : ''}</option>;
+                  })}
               </select>
             </div>
             <div className={calcStyles.field} style={{ marginBottom: 12 }}>

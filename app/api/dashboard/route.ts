@@ -15,6 +15,7 @@ import { listTechnicalRoster } from '@/lib/technicalRoster';
 import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
+import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 
 // Single round trip for everything Dashboard.tsx needs on first paint —
 // replaces what used to be up to 13 separate client-side fetches (modules,
