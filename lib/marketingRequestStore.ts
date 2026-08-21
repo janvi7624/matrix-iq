@@ -1,20 +1,33 @@
-import { Model } from 'sequelize';
+import { Model, Op } from 'sequelize';
 import { MarketingRequestComment, MarketingRequestRecord } from './types';
 import { db, isUuid, sequelize } from './db';
 
 const FIELDS = [
   { name: 'project_id', kind: 'nullable' as const },
   { name: 'title' },
+  { name: 'product_category', kind: 'nullable' as const },
   { name: 'request_type', kind: 'nullable' as const },
   { name: 'description' },
+  { name: 'additional_info' },
   { name: 'priority' },
   { name: 'needed_by_date', kind: 'nullable' as const },
   { name: 'attachments', kind: 'json' as const },
   { name: 'status' },
+  { name: 'marketing_prepared_content' },
+  { name: 'marketing_attachments', kind: 'json' as const },
+  { name: 'marketing_remarks' },
+  { name: 'technical_instructions' },
+  { name: 'technical_review_decision' },
+  { name: 'technical_remarks' },
+  { name: 'technical_reviewed_at', kind: 'nullable' as const },
+  { name: 'technical_reviewed_by' },
+  { name: 'final_submission_notes' },
+  { name: 'final_submission_files', kind: 'json' as const },
   { name: 'timeline', kind: 'json' as const },
   { name: 'rejection_reason' },
   { name: 'completion_notes' },
-  { name: 'delivered_files', kind: 'json' as const }
+  { name: 'delivered_files', kind: 'json' as const },
+  { name: 'technical_assigned_to' }
 ];
 
 function isoOrEmpty(value: unknown): string {
@@ -36,9 +49,6 @@ function commentToRow(comment: MarketingRequestComment, marketingRequestId: stri
   };
 }
 
-// Takes an already-plain object, not a Model — these come from a parent
-// row's `.get({ plain: true })`, which recursively flattens included
-// associations into plain objects too (never Model instances here).
 function rowToComment(plain: Record<string, unknown>): MarketingRequestComment {
   return {
     id: plain.id as string,
@@ -48,29 +58,47 @@ function rowToComment(plain: Record<string, unknown>): MarketingRequestComment {
   };
 }
 
-const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
-const assigneeInclude = { model: db.User, as: 'assignee', attributes: ['id', 'username'] };
+const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username', 'name'] };
+const assigneeInclude = { model: db.User, as: 'assignee', attributes: ['id', 'username', 'name'] };
+const technicalMemberInclude = { model: db.User, as: 'technicalMember', attributes: ['id', 'username', 'name'] };
 const commentsInclude = { model: db.MarketingRequestComment, as: 'comments' };
-const ALL_INCLUDES = [creatorInclude, assigneeInclude, commentsInclude];
+const ALL_INCLUDES = [creatorInclude, assigneeInclude, technicalMemberInclude, commentsInclude];
 
 function toRecord(row: Model): MarketingRequestRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
+  const creatorObj = plain.creator as { id?: string; username?: string; name?: string } | null;
+  const assigneeObj = plain.assignee as { id?: string; username?: string; name?: string } | null;
+  const technicalObj = plain.technicalMember as { id?: string; username?: string; name?: string } | null;
+
   const record: Record<string, unknown> = {
     id: plain.id,
     created_at: isoOrEmpty(plain.createdAt),
-    created_by: (plain.creator as { username?: string } | null)?.username ?? '',
-    assigned_to: (plain.assignee as { username?: string } | null)?.username ?? '',
+    created_by: creatorObj?.username || '',
+    creator_name: creatorObj?.name || creatorObj?.username || '',
+    assigned_to: assigneeObj?.username || '',
+    assigned_to_id: (plain.assigned_to_id as string) || assigneeObj?.id || '',
+    assigned_to_name: assigneeObj?.name || assigneeObj?.username || '',
+    technical_member_id: (plain.technical_assigned_to_id as string) || technicalObj?.id || '',
+    technical_member_username: technicalObj?.username || (plain.technical_assigned_to as string) || '',
+    technical_member_name: technicalObj?.name || technicalObj?.username || (plain.technical_assigned_to as string) || '',
     updated_at: isoOrEmpty(plain.updatedAt),
-    comments: ((plain.comments as Record<string, unknown>[]) ?? [])
+    comments: (Array.isArray(plain.comments) ? (plain.comments as Record<string, unknown>[]) : [])
       .map(rowToComment)
       .sort((a, b) => (a.at < b.at ? -1 : 1))
   };
+
   for (const { name, kind = 'string' } of FIELDS) {
     const raw = plain[name];
     if (kind === 'nullable') record[name] = raw ?? '';
     else if (kind === 'json') record[name] = name === 'timeline' ? (raw ?? null) : (raw ?? []);
     else record[name] = raw ?? '';
   }
+
+  // Backwards compatibility for product category if string was stored in product_categories array
+  if (!record.product_category && Array.isArray(plain.product_categories) && plain.product_categories.length > 0) {
+    record.product_category = plain.product_categories[0];
+  }
+
   return record as unknown as MarketingRequestRecord;
 }
 
@@ -79,27 +107,53 @@ async function readAll(): Promise<MarketingRequestRecord[]> {
   return rows.map(toRecord);
 }
 
-async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promise<MarketingRequestRecord[]> {
-  const where: Record<string, unknown> = {};
-  if (!viewerIsPrivileged) {
-    const user = await db.User.findOne({ where: { username: viewerUsername } as never });
-    where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
+async function list(viewerUsername: string, viewerIsPrivilegedOrReviewer: boolean): Promise<MarketingRequestRecord[]> {
+  if (viewerIsPrivilegedOrReviewer) {
+    const rows = await db.MarketingRequest.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
+    return rows.map(toRecord);
   }
-  const rows = await db.MarketingRequest.findAll({ where: where as never, include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
+
+  const user = await db.User.findOne({ where: { username: viewerUsername } as never });
+  const userId = user ? (user.get('id') as string) : '00000000-0000-0000-0000-000000000000';
+
+  const rows = await db.MarketingRequest.findAll({
+    where: {
+      [Op.or]: [
+        { created_by: userId },
+        { assigned_to_id: userId },
+        { technical_assigned_to_id: userId }
+      ]
+    } as never,
+    include: ALL_INCLUDES,
+    order: [['created_at', 'DESC']]
+  });
   return rows.map(toRecord);
 }
 
 async function create(record: MarketingRequestRecord): Promise<MarketingRequestRecord> {
   const attrs: Record<string, unknown> = {};
   for (const { name, kind = 'string' } of FIELDS) attrs[name] = toAttr((record as unknown as Record<string, unknown>)[name], kind);
+
   const creator = await db.User.findOne({ where: { username: record.created_by } as never });
   const assignee = record.assigned_to ? await db.User.findOne({ where: { username: record.assigned_to } as never }) : null;
+  const technicalMember = record.technical_member_id
+    ? await db.User.findByPk(record.technical_member_id)
+    : record.technical_member_username
+      ? await db.User.findOne({ where: { username: record.technical_member_username } as never })
+      : null;
 
   return sequelize.transaction(async (t) => {
     const row = await db.MarketingRequest.create(
-      { ...attrs, created_by: creator ? creator.get('id') : null, assigned_to_id: assignee ? assignee.get('id') : null } as never,
+      {
+        ...attrs,
+        created_by: creator ? creator.get('id') : null,
+        assigned_to_id: assignee ? assignee.get('id') : (record.assigned_to_id || null),
+        technical_assigned_to_id: technicalMember ? technicalMember.get('id') : (record.technical_member_id || null),
+        technical_assigned_to: technicalMember ? technicalMember.get('name') || technicalMember.get('username') : record.technical_member_name || ''
+      } as never,
       { transaction: t }
     );
+
     if (record.comments?.length) {
       await db.MarketingRequestComment.bulkCreate(record.comments.map((c) => commentToRow(c, row.get('id') as string)) as never, { transaction: t });
     }
@@ -108,16 +162,13 @@ async function create(record: MarketingRequestRecord): Promise<MarketingRequestR
   });
 }
 
-// Dedicated write path for assignment — mirrors why `timeline` has its own
-// route instead of going through the generic update()/FIELDS patch: the
-// record shape exposes a resolved username (`assigned_to`), but the column
-// is a raw FK (`assigned_to_id`), so the assign route passes the id directly
-// rather than round-tripping through a username lookup.
 async function assign(id: string, assigneeId: string | null): Promise<MarketingRequestRecord | null> {
   if (!isUuid(id)) return null;
   const row = await db.MarketingRequest.findByPk(id);
   if (!row) return null;
-  await row.update({ assigned_to_id: assigneeId } as never);
+  const currentStatus = row.get('status') as string;
+  const newStatus = assigneeId && currentStatus === 'submitted' ? 'marketing_in_progress' : currentStatus;
+  await row.update({ assigned_to_id: assigneeId, status: newStatus } as never);
   const withAssoc = await db.MarketingRequest.findByPk(id, { include: ALL_INCLUDES });
   return toRecord(withAssoc as Model);
 }
@@ -133,6 +184,17 @@ async function update(id: string, patch: Partial<MarketingRequestRecord>): Promi
     for (const { name, kind = 'string' } of FIELDS) {
       if (name in patchObj) attrs[name] = toAttr(patchObj[name], kind);
     }
+
+    if (patch.assigned_to_id !== undefined) {
+      attrs.assigned_to_id = patch.assigned_to_id || null;
+    }
+    if (patch.technical_member_id !== undefined) {
+      attrs.technical_assigned_to_id = patch.technical_member_id || null;
+      if (patch.technical_member_name) {
+        attrs.technical_assigned_to = patch.technical_member_name;
+      }
+    }
+
     await row.update(attrs as never, { transaction: t });
 
     if (patch.comments) {

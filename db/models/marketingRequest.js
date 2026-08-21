@@ -3,29 +3,42 @@ module.exports = (sequelize, DataTypes) => {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
     created_by: { type: DataTypes.UUID },
     project_id: { type: DataTypes.UUID },
-    // Who is actively working the ticket — independent of status (a ticket
-    // can be in_progress AND assigned). Defaults to the configured Marketing
-    // Owner (app_config.marketingOwnerId) at creation time; see
-    // lib/marketingRequestStore.ts.
+    // Who is actively working the ticket in marketing
     assigned_to_id: { type: DataTypes.UUID },
+    // Who is selected as the technical reviewer
+    technical_assigned_to_id: { type: DataTypes.UUID },
+    technical_assigned_to: { type: DataTypes.TEXT, defaultValue: '' },
     title: { type: DataTypes.STRING },
+    product_category: { type: DataTypes.STRING },
+    product_categories: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     request_type: {
-      type: DataTypes.ENUM(
-        'brochure_flyer', 'social_media', 'banner_standee', 'video_reel', 'email_campaign',
-        'website_update', 'product_photography', 'event_collateral', 'other'
-      )
+      type: DataTypes.STRING,
+      defaultValue: 'other'
     },
     description: { type: DataTypes.TEXT },
-    priority: { type: DataTypes.ENUM('low', 'medium', 'high', 'urgent'), allowNull: false, defaultValue: 'medium' },
+    additional_info: { type: DataTypes.TEXT },
+    priority: { type: DataTypes.STRING, allowNull: false, defaultValue: 'medium' },
     needed_by_date: { type: DataTypes.DATEONLY },
     attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     status: {
-      type: DataTypes.ENUM('submitted', 'timeline_set', 'in_progress', 'waiting_info', 'ready_for_review', 'completed', 'rejected', 'cancelled'),
+      type: DataTypes.STRING,
       allowNull: false,
       defaultValue: 'submitted'
     },
-    // null until a reviewer commits it — once non-null, permanently locked
-    // (enforced in lib/marketingRequestStore.ts, not at the DB layer).
+    // Marketing workspace content and instructions for Technical
+    marketing_prepared_content: { type: DataTypes.TEXT, defaultValue: '' },
+    marketing_attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    marketing_remarks: { type: DataTypes.TEXT, defaultValue: '' },
+    technical_instructions: { type: DataTypes.TEXT, defaultValue: '' },
+    // Technical review feedback and decision
+    technical_review_decision: { type: DataTypes.STRING, defaultValue: '' },
+    technical_remarks: { type: DataTypes.TEXT, defaultValue: '' },
+    technical_reviewed_at: { type: DataTypes.DATE },
+    technical_reviewed_by: { type: DataTypes.STRING, defaultValue: '' },
+    // Final deliverables to the original requester
+    final_submission_notes: { type: DataTypes.TEXT, defaultValue: '' },
+    final_submission_files: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // Legacy fields kept for compatibility
     timeline: { type: DataTypes.JSONB },
     rejection_reason: { type: DataTypes.TEXT },
     completion_notes: { type: DataTypes.TEXT },
@@ -39,6 +52,7 @@ module.exports = (sequelize, DataTypes) => {
   MarketingRequest.associate = (models) => {
     MarketingRequest.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
     MarketingRequest.belongsTo(models.User, { foreignKey: 'assigned_to_id', as: 'assignee' });
+    MarketingRequest.belongsTo(models.User, { foreignKey: 'technical_assigned_to_id', as: 'technicalMember' });
     MarketingRequest.belongsTo(models.Project, { foreignKey: 'project_id', as: 'project' });
     MarketingRequest.hasMany(models.MarketingRequestComment, { foreignKey: 'marketing_request_id', as: 'comments' });
   };
