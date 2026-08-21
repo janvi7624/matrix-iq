@@ -22,6 +22,7 @@ import {
   UserCheck,
   PenLine,
   Contact,
+  ArrowRightLeft,
   Menu,
   X,
   ChevronLeft,
@@ -88,7 +89,8 @@ export const ATTENTION_ICON: Record<string, LucideIcon> = {
   marketing: Megaphone,
   sitevisit: MapPin,
   'my-demo-confirm': UserCheck,
-  'my-demo-approve': PenLine
+  'my-demo-approve': PenLine,
+  handover: ArrowRightLeft
 };
 
 export const ALL_CAUGHT_UP_ICON: LucideIcon = CheckCircle2;

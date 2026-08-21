@@ -14,6 +14,7 @@ import { listDepartmentManagers, isUserADepartmentManager } from '@/lib/departme
 import { listTechnicalRoster } from '@/lib/technicalRoster';
 import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
+import { projectHandoverStore } from '@/lib/projectHandoverStore';
 
 // Single round trip for everything Dashboard.tsx needs on first paint —
 // replaces what used to be up to 13 separate client-side fetches (modules,
@@ -124,6 +125,7 @@ export async function GET(request: NextRequest) {
 
     const followUpCount = viewer.isPrivileged ? quotationsForViewer.filter((r) => needsFollowUp(r)).length : null;
     const reminderCount = siteVisits.filter((v) => isReminderDue(v)).length;
+    const pendingHandovers = await projectHandoverStore.listPendingForUser(viewer.userId);
 
     const marketingStats = marketingRecords.isReviewer
       ? { isReviewer: true, awaitingReview: marketingRecords.records.filter((r) => r.status === 'submitted').length }
@@ -160,7 +162,8 @@ export async function GET(request: NextRequest) {
       managersByDepartment,
       technicalRoster,
       recentQuotations: recentQuotationsTrimmed,
-      quotationStats
+      quotationStats,
+      pendingHandovers
     });
   } catch (error) {
     return apiErrorResponse(error);

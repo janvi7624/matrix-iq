@@ -503,6 +503,28 @@ export interface ProjectRecord {
   assigned_technical_person_name: string;
 }
 
+// ---------------------------------------------------------------------------
+// Project handover requests
+// ---------------------------------------------------------------------------
+export type ProjectHandoverStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface ProjectHandoverRecord {
+  id: string;
+  project_id: string;
+  from_user_id: string;
+  from_username: string;
+  from_name: string;
+  to_user_id: string;
+  to_username: string;
+  to_name: string;
+  status: ProjectHandoverStatus;
+  remarks: string;
+  response_remarks: string;
+  project_title: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type CustomerResponseType = 'interested' | 'not_interested' | 'need_revision' | 'need_new_quotation' | 'budget_issue' | 'competitor';
 
 export interface CustomerResponseRecord {

@@ -14,6 +14,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { projectHandoverStore } from '@/lib/projectHandoverStore';
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -32,7 +33,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const project = await findProjectById(id);
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     if (!viewer.isPrivileged && project.created_by !== viewer.username) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      // Allow access if user has a pending handover request for this project
+      const pendingHandover = await projectHandoverStore.findPendingForProject(id);
+      if (!pendingHandover || pendingHandover.to_user_id !== viewer.userId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests] = await Promise.all([

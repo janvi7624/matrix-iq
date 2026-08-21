@@ -46,7 +46,8 @@ const modelDefiners = [
   require('./customModuleRecord.js'),
   require('./appConfig.js'),
   require('./attachment.js'),
-  require('./notification.js')
+  require('./notification.js'),
+  require('./projectHandoverRequest.js')
 ];
 
 const db = {};
