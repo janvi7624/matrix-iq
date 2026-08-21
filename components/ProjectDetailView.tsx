@@ -488,7 +488,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div>
               <div style={{ fontSize: 18, fontWeight: 800 }}>{project.client_name || project.company || 'Unnamed client'}</div>
               <div className={historyStyles.projectHeaderMeta}>
-                <span>ID: <strong>{project.id}</strong></span>
+                {/* <span>ID: <strong>{project.id}</strong></span> */}
                 <span>Client: <strong>{project.client_name || '-'}</strong></span>
                 <span>Sales Person: <strong>{project.sales_person}</strong></span>
                 <span>Stage: <strong>{STAGE_LABEL[project.stage]}</strong></span>
