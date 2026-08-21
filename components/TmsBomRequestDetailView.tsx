@@ -115,6 +115,17 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
     if (await callAction('/send-to-procurement')) toast.success('Sent to Procurement.');
   }
 
+  async function handleAdminApprove() {
+    if (!(await confirm({ message: 'Approve this BOM request (Administration)?' }))) return;
+    if (await callAction('/admin-approve')) toast.success('Approved by Administration.');
+  }
+
+  async function handleAdminReject() {
+    const reason = window.prompt('Reason for declining this request:');
+    if (!reason || !reason.trim()) return;
+    if (await callAction('/admin-reject', { reason: reason.trim() })) toast.success('Request declined.');
+  }
+
   async function handleFinanceApprove() {
     if (!(await confirm({ message: 'Approve this BOM request for payment?' }))) return;
     if (await callAction('/finance-approve')) toast.success('Approved by Finance.');
@@ -198,15 +209,29 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
         )}
         {(record.status === 'submitted' || record.status === 'under_review') && (
           <>
-            <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleApprove}>Approve</button>
-            <button type="button" className={historyStyles.deleteBtn} disabled={busy} onClick={handleReject}>Reject</button>
+            {record.viewer_can_approve && (
+              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleApprove}>Approve</button>
+            )}
+            {record.viewer_can_reject && (
+              <button type="button" className={historyStyles.dangerButton} disabled={busy} onClick={handleReject}>Reject</button>
+            )}
           </>
         )}
         {record.status === 'approved' && (
           <>
-            <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleFinanceApprove}>Approve (Finance)</button>
-            <button type="button" className={historyStyles.deleteBtn} disabled={busy} onClick={handleFinanceReject}>Reject</button>
+            {record.viewer_can_admin_approve && (
+              <>
+                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleAdminApprove}>Approve (Administration)</button>
+                <button type="button" className={historyStyles.dangerButton} disabled={busy} onClick={handleAdminReject}>Reject</button>
+              </>
+            )}
             <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleSendToProcurement}>Send to Procurement</button>
+          </>
+        )}
+        {record.status === 'admin_approved' && record.viewer_can_finance_approve && (
+          <>
+            <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleFinanceApprove}>Approve (Finance)</button>
+            <button type="button" className={historyStyles.dangerButton} disabled={busy} onClick={handleFinanceReject}>Reject</button>
           </>
         )}
         {record.status === 'payment_done' && (isRequester || currentUser.isPrivileged) && (
@@ -244,6 +269,9 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
         )}
         {record.reviewed_by_name && (
           <div style={{ marginTop: 12 }}><strong>Reviewed by (Technical Manager):</strong> {record.reviewed_by_name} on {formatDate(record.reviewed_at)}</div>
+        )}
+        {record.admin_reviewed_by_name && (
+          <div style={{ marginTop: 12 }}><strong>Approved by (Administration):</strong> {record.admin_reviewed_by_name} on {formatDate(record.admin_reviewed_at)}</div>
         )}
         {record.finance_reviewed_by_name && (
           <div style={{ marginTop: 12 }}><strong>Approved by (Finance):</strong> {record.finance_reviewed_by_name} on {formatDate(record.finance_reviewed_at)}</div>

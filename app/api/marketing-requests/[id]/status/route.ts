@@ -101,6 +101,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden — only a marketing reviewer or the assigned member can update this request’s status' }, { status: 403 });
     }
 
+    // The assigned member can't act until they've confirmed availability —
+    // see assign/route.ts (sets assignment_status) and
+    // accept-assignment/decline-assignment. Never blocks a manager/reviewer,
+    // and never blocks claim/start on an unassigned ticket (assignment_status
+    // is only ever 'pending' after a manager assignment).
+    if (isAssigned && !isPrivilegedOrReviewer && existing.assignment_status === 'pending') {
+      return NextResponse.json({ error: 'You must accept this assignment before you can act on it' }, { status: 403 });
+    }
+
     if (!transition.from.includes(existing.status)) {
       return NextResponse.json({ error: `This request's current status (${existing.status}) doesn't allow action: ${action}` }, { status: 400 });
     }

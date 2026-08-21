@@ -23,6 +23,8 @@ const FIELDS = [
   { name: 'rejection_reason' },
   { name: 'reviewed_by_id', kind: 'nullable' as const },
   { name: 'reviewed_at', kind: 'date' as const },
+  { name: 'admin_reviewed_by_id', kind: 'nullable' as const },
+  { name: 'admin_reviewed_at', kind: 'date' as const },
   { name: 'finance_reviewed_by_id', kind: 'nullable' as const },
   { name: 'finance_reviewed_at', kind: 'date' as const },
   { name: 'payment_marked_by_id', kind: 'nullable' as const },
@@ -46,6 +48,7 @@ function toAttr(value: unknown, kind: string): unknown {
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
 const requestedByInclude = { model: db.User, as: 'requestedBy', attributes: ['id', 'name'] };
 const reviewedByInclude = { model: db.User, as: 'reviewedBy', attributes: ['id', 'name'] };
+const adminReviewedByInclude = { model: db.User, as: 'adminReviewedBy', attributes: ['id', 'name'] };
 const financeReviewedByInclude = { model: db.User, as: 'financeReviewedBy', attributes: ['id', 'name'] };
 const paymentMarkedByInclude = { model: db.User, as: 'paymentMarkedBy', attributes: ['id', 'name'] };
 const receivedByInclude = { model: db.User, as: 'receivedBy', attributes: ['id', 'name'] };
@@ -55,6 +58,7 @@ const ALL_INCLUDES = [
   creatorInclude,
   requestedByInclude,
   reviewedByInclude,
+  adminReviewedByInclude,
   financeReviewedByInclude,
   paymentMarkedByInclude,
   receivedByInclude,
@@ -72,6 +76,7 @@ function toRecord(row: Model): TmsBomRequestRecord {
     requested_by_name: (plain.requestedBy as { name?: string } | null)?.name ?? '',
     department_name: (plain.department as { name?: string } | null)?.name ?? '',
     reviewed_by_name: (plain.reviewedBy as { name?: string } | null)?.name ?? '',
+    admin_reviewed_by_name: (plain.adminReviewedBy as { name?: string } | null)?.name ?? '',
     finance_reviewed_by_name: (plain.financeReviewedBy as { name?: string } | null)?.name ?? '',
     payment_marked_by_name: (plain.paymentMarkedBy as { name?: string } | null)?.name ?? '',
     received_by_name: (plain.receivedBy as { name?: string } | null)?.name ?? '',
@@ -155,7 +160,28 @@ async function decide(id: string, decision: 'approved' | 'rejected', reviewerUse
   return toRecord(withAssoc as Model);
 }
 
-// approved -> finance_approved | rejected. Mirrors decide() but stamps the
+// approved -> admin_approved | rejected. Mirrors decide() but stamps the
+// admin_reviewed_* columns instead of reviewed_* — kept separate so the
+// Technical Manager's original decision (reviewed_by/at) is never
+// overwritten by the later Administration stage.
+async function adminDecide(id: string, decision: 'admin_approved' | 'rejected', reviewerUsername: string, rejectionReason?: string): Promise<TmsBomRequestRecord | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.TmsBomRequest.findByPk(id);
+  if (!row) return null;
+  const reviewer = await db.User.findOne({ where: { username: reviewerUsername } as never });
+  await row.update(
+    {
+      status: decision,
+      admin_reviewed_by_id: reviewer ? reviewer.get('id') : null,
+      admin_reviewed_at: new Date(),
+      rejection_reason: decision === 'rejected' ? rejectionReason || '' : ''
+    } as never
+  );
+  const withAssoc = await db.TmsBomRequest.findByPk(id, { include: ALL_INCLUDES });
+  return toRecord(withAssoc as Model);
+}
+
+// admin_approved -> finance_approved | rejected. Mirrors decide() but stamps the
 // finance_reviewed_* columns instead of reviewed_* — kept separate so the
 // Technical Manager's original decision (reviewed_by/at) is never
 // overwritten by the later Finance stage.
@@ -256,7 +282,7 @@ async function remove(id: string, viewerIsPrivilegedOrManages: boolean): Promise
   return true;
 }
 
-export const tmsBomRequestStore = { list, findById, create, update, submit, decide, financeDecide, markPaymentDone, markReceived, sendToProcurement, remove };
+export const tmsBomRequestStore = { list, findById, create, update, submit, decide, adminDecide, financeDecide, markPaymentDone, markReceived, sendToProcurement, remove };
 
 // BOM-<seq> — same "read everything, find the max sequence, +1" approach as
 // lib/deliveryChallanStore.ts's nextDcNumber().

@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTmsViewer, isBomFinanceApprover } from '@/lib/tmsAccess';
+import { getTmsViewer, isAdministrationManager } from '@/lib/tmsAccess';
 import { tmsBomRequestStore } from '@/lib/tmsBomRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { notifyUsers } from '@/lib/notificationStore';
 
-// admin_approved -> rejected. Gated to the configured Finance Approver, same
-// as finance-approve.
+// approved -> rejected. Gated to whoever manages the "Administration"
+// department, same as admin-approve.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getTmsViewer(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await isBomFinanceApprover(viewer))) {
-    return NextResponse.json({ error: 'Forbidden — only the configured Finance Approver can decline this request' }, { status: 403 });
+  if (!(await isAdministrationManager(viewer))) {
+    return NextResponse.json({ error: 'Forbidden — only Administration can decline this request' }, { status: 403 });
   }
 
   const { id } = await params;
@@ -23,19 +23,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const existing = await tmsBomRequestStore.findById(id);
     if (!existing) return NextResponse.json({ error: 'BOM request not found' }, { status: 404 });
-    if (existing.status !== 'admin_approved') {
-      return NextResponse.json({ error: 'This request is not awaiting Finance approval' }, { status: 400 });
+    if (existing.status !== 'approved') {
+      return NextResponse.json({ error: 'This request is not awaiting Administration approval' }, { status: 400 });
     }
 
-    const updated = await tmsBomRequestStore.financeDecide(id, 'rejected', viewer.username, reason);
+    const updated = await tmsBomRequestStore.adminDecide(id, 'rejected', viewer.username, reason);
 
     await logAudit({
       by: viewer.username,
       role: viewer.role,
       entityType: 'tms_bom_request',
       entityId: id,
-      action: 'BOM request declined by Finance',
-      previousStatus: 'admin_approved',
+      action: 'BOM request declined by Administration',
+      previousStatus: 'approved',
       newStatus: 'rejected',
       remarks: reason,
       ip: getClientIp(request)
@@ -43,9 +43,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (existing.created_by && existing.created_by !== viewer.username) {
       await notifyUsers([existing.created_by], {
-        title: 'BOM request declined by Finance',
+        title: 'BOM request declined by Administration',
         body: `"${existing.item_name}" for ${existing.project_name} was declined: ${reason}`,
-        type: 'tms_bom_request_finance_rejected',
+        type: 'tms_bom_request_admin_rejected',
         entityType: 'tms_bom_request',
         entityId: id
       });

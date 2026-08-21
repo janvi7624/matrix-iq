@@ -5,6 +5,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { notifyUsers } from '@/lib/notificationStore';
+import { listDepartmentManagers } from '@/lib/departmentStore';
 
 // submitted/under_review -> approved. Gated on the 'approve' action, which
 // only Technical Manager (and privileged roles) carry per the seeded
@@ -43,6 +44,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         title: 'BOM request approved',
         body: `"${existing.item_name}" for ${existing.project_name} was approved by ${viewer.username}`,
         type: 'tms_bom_request_approved',
+        entityType: 'tms_bom_request',
+        entityId: id
+      });
+    }
+
+    const adminManagers = (await listDepartmentManagers())['Administration'] || [];
+    const notifyTargets = adminManagers.map((m) => m.username).filter((u) => u && u !== viewer.username);
+    if (notifyTargets.length) {
+      await notifyUsers(notifyTargets, {
+        title: 'BOM request awaiting Administration approval',
+        body: `"${existing.item_name}" for ${existing.project_name} was approved by Technical Manager ${viewer.username}`,
+        type: 'tms_bom_request_pending_admin',
         entityType: 'tms_bom_request',
         entityId: id
       });

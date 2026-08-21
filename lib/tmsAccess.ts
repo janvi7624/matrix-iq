@@ -75,6 +75,19 @@ export async function findTechnicalManagers(): Promise<{ id: string; username: s
   return rows.map((r) => ({ id: r.get('id') as string, username: r.get('username') as string, name: r.get('name') as string }));
 }
 
+// The BOM Request Administration stage (approved -> admin_approved) —
+// resolved from whoever manages the real "Administration" department
+// (Department.managerIds), same mechanism as isAccountsManager below. No
+// manager configured for Administration yet -> falls back to any privileged
+// viewer, same safety net, so a request can't get permanently stuck on an
+// unmapped department.
+export async function isAdministrationManager(viewer: TmsViewer): Promise<boolean> {
+  if (viewer.isPrivileged) return true;
+  const adminManagers = (await listDepartmentManagers())['Administration'] || [];
+  if (!adminManagers.length) return false;
+  return adminManagers.some((m) => m.username === viewer.username);
+}
+
 // The BOM Request Finance stage — a single configurable person
 // (AppConfig.bomFinanceApproverId, set in Application Settings), not a
 // hardcoded account, so who holds this step survives them changing.

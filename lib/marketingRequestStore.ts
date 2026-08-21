@@ -27,7 +27,9 @@ const FIELDS = [
   { name: 'rejection_reason' },
   { name: 'completion_notes' },
   { name: 'delivered_files', kind: 'json' as const },
-  { name: 'technical_assigned_to' }
+  { name: 'technical_assigned_to' },
+  { name: 'assignment_status' },
+  { name: 'assignment_decline_reason' }
 ];
 
 function isoOrEmpty(value: unknown): string {

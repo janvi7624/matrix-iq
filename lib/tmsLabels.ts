@@ -46,6 +46,7 @@ export const TMS_BOM_STATUS_LABEL: Record<TmsBomRequestStatus, string> = {
   submitted: 'Submitted',
   under_review: 'Under Review',
   approved: 'Approved by Technical Manager',
+  admin_approved: 'Approved by Administration',
   finance_approved: 'Approved by Finance',
   payment_done: 'Payment Done',
   received: 'Material Received',
@@ -58,6 +59,7 @@ export const TMS_BOM_STATUS_TONE: Record<TmsBomRequestStatus, StatusTone> = {
   submitted: 'pending',
   under_review: 'pending',
   approved: 'confirmed',
+  admin_approved: 'confirmed',
   finance_approved: 'confirmed',
   payment_done: 'confirmed',
   received: 'done',
@@ -67,9 +69,9 @@ export const TMS_BOM_STATUS_TONE: Record<TmsBomRequestStatus, StatusTone> = {
 };
 
 // "Which approval is still pending" — one line summarizing the next step in
-// the Engineer -> Technical Manager -> Finance -> Accounts -> Requester
-// chain, so anyone looking at a request can tell at a glance where it's
-// stuck without having to know the full status enum.
+// the Engineer -> Technical Manager -> Administration -> Finance -> Accounts
+// -> Requester chain, so anyone looking at a request can tell at a glance
+// where it's stuck without having to know the full status enum.
 export function tmsBomPendingApprovalLabel(status: TmsBomRequestStatus): string {
   switch (status) {
     case 'draft':
@@ -78,6 +80,8 @@ export function tmsBomPendingApprovalLabel(status: TmsBomRequestStatus): string 
     case 'under_review':
       return 'Pending: Technical Manager approval';
     case 'approved':
+      return 'Pending: Administration approval';
+    case 'admin_approved':
       return 'Pending: Finance approval';
     case 'finance_approved':
       return 'Pending: Accounts payment';

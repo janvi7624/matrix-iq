@@ -97,6 +97,8 @@ export async function POST(request: NextRequest) {
     rejection_reason: '',
     completion_notes: '',
     delivered_files: [],
+    assignment_status: appConfig.marketingOwnerUsername ? 'pending' : '',
+    assignment_decline_reason: '',
     comments: []
   };
 

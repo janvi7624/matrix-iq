@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTmsViewer, requireTmsAction } from '@/lib/tmsAccess';
+import { getTmsViewer, requireTmsAction, isAdministrationManager, isBomFinanceApprover } from '@/lib/tmsAccess';
 import { tmsBomRequestStore } from '@/lib/tmsBomRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { TmsBomRequestRecord } from '@/lib/types';
@@ -18,7 +18,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const record = await tmsBomRequestStore.findById(id);
     if (!record) return NextResponse.json({ error: 'BOM request not found' }, { status: 404 });
-    return NextResponse.json(record);
+
+    const [viewerCanApprove, viewerCanReject, viewerCanAdminApprove, viewerCanFinanceApprove] = await Promise.all([
+      requireTmsAction(viewer, 'tms-bom-requests', 'approve'),
+      requireTmsAction(viewer, 'tms-bom-requests', 'reject'),
+      isAdministrationManager(viewer),
+      isBomFinanceApprover(viewer)
+    ]);
+
+    return NextResponse.json({
+      ...record,
+      viewer_can_approve: viewerCanApprove,
+      viewer_can_reject: viewerCanReject,
+      viewer_can_admin_approve: viewerCanAdminApprove,
+      viewer_can_finance_approve: viewerCanFinanceApprove
+    });
   } catch (error) {
     return apiErrorResponse(error);
   }

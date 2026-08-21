@@ -43,10 +43,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         if (existing.status === 'submitted') {
           patch.status = 'marketing_in_progress';
         }
+        // A newly-assigned (or reassigned-to-someone-else) member must
+        // accept before they can act on the request — see route.ts's
+        // status/send-to-technical/final-submission gates. Assigning the
+        // SAME person again is a no-op on this, so an already-accepted
+        // assignment doesn't get reset by an unrelated field edit.
+        if (assigneeId !== existing.assigned_to_id) {
+          patch.assignment_status = 'pending';
+          patch.assignment_decline_reason = '';
+        }
       } else {
         patch.assigned_to_id = '';
         patch.assigned_to = '';
         patch.assigned_to_name = '';
+        patch.assignment_status = '';
       }
     }
 
@@ -90,7 +100,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (assigneeUsername && assigneeUsername !== viewer.username) {
         await notifyUsers([assigneeUsername], {
           title: 'Marketing request assigned to you',
-          body: `"${existing.title}" was assigned to you by ${viewer.username}.`,
+          body: `"${existing.title}" was assigned to you by ${viewer.username}. Please confirm your availability.`,
           type: 'marketing_request_assigned',
           entityType: 'marketing_request',
           entityId: id

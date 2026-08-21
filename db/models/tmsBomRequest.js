@@ -19,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
     status: {
       type: DataTypes.ENUM(
         'draft', 'submitted', 'under_review', 'approved', 'rejected', 'sent_for_procurement', 'completed',
-        'finance_approved', 'payment_done', 'received'
+        'admin_approved', 'finance_approved', 'payment_done', 'received'
       ),
       allowNull: false,
       defaultValue: 'draft'
@@ -27,7 +27,12 @@ module.exports = (sequelize, DataTypes) => {
     rejection_reason: { type: DataTypes.TEXT },
     reviewed_by_id: { type: DataTypes.UUID },
     reviewed_at: { type: DataTypes.DATE },
-    // Finance Approver stage (approved -> finance_approved) — the approver
+    // Administration stage (approved -> admin_approved) — the actor is
+    // resolved from Department.managerIds for the "Administration"
+    // department, same mechanism as the Accounts stage below.
+    admin_reviewed_by_id: { type: DataTypes.UUID },
+    admin_reviewed_at: { type: DataTypes.DATE },
+    // Finance Approver stage (admin_approved -> finance_approved) — the approver
     // is whoever is configured as AppConfig.bomFinanceApproverId, not a
     // hardcoded account.
     finance_reviewed_by_id: { type: DataTypes.UUID },
@@ -53,6 +58,7 @@ module.exports = (sequelize, DataTypes) => {
     TmsBomRequest.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
     TmsBomRequest.belongsTo(models.User, { foreignKey: 'requested_by_id', as: 'requestedBy' });
     TmsBomRequest.belongsTo(models.User, { foreignKey: 'reviewed_by_id', as: 'reviewedBy' });
+    TmsBomRequest.belongsTo(models.User, { foreignKey: 'admin_reviewed_by_id', as: 'adminReviewedBy' });
     TmsBomRequest.belongsTo(models.User, { foreignKey: 'finance_reviewed_by_id', as: 'financeReviewedBy' });
     TmsBomRequest.belongsTo(models.User, { foreignKey: 'payment_marked_by_id', as: 'paymentMarkedBy' });
     TmsBomRequest.belongsTo(models.User, { foreignKey: 'received_by_id', as: 'receivedBy' });

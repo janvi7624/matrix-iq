@@ -245,6 +245,8 @@ interface RowProps {
   onFinalSubmission: (id: string, payload: { finalSubmissionNotes: string; finalSubmissionFiles: string[]; marketingPreparedContent: string }) => Promise<void>;
   onStatusAction: (id: string, action: string, extra?: Record<string, unknown>) => Promise<void>;
   onAssign: (id: string, patch: { assigneeId?: string; technicalMemberId?: string }) => Promise<void>;
+  onAcceptAssignment: (id: string) => Promise<void>;
+  onDeclineAssignment: (id: string, reason: string) => Promise<void>;
   onComment: (id: string, text: string) => Promise<void>;
   onDelete: (record: MarketingRequestRecord) => Promise<void>;
 }
@@ -261,6 +263,8 @@ function MarketingRequestRow({
   onFinalSubmission,
   onStatusAction,
   onAssign,
+  onAcceptAssignment,
+  onDeclineAssignment,
   onComment,
   onDelete
 }: RowProps) {
@@ -393,6 +397,16 @@ function MarketingRequestRow({
     );
   }
 
+  function handleAcceptAssignment() {
+    run(() => onAcceptAssignment(r.id));
+  }
+
+  function handleDeclineAssignment() {
+    const reason = window.prompt('Reason for declining this assignment:');
+    if (!reason || !reason.trim()) return;
+    run(() => onDeclineAssignment(r.id, reason.trim()));
+  }
+
   function handleApproveTechnical() {
     run(() => onTechnicalReview(r.id, 'approve', techRemarksInput));
   }
@@ -476,6 +490,23 @@ function MarketingRequestRow({
             <div className={historyStyles.wideCellPin} style={{ padding: '8px 4px', width: '100%' }}>
               {/* Visual Workflow Stepper */}
               <WorkflowStepper record={r} />
+
+              {/* Assignment acceptance gate — the assigned member must confirm
+                  availability before they can do any work on this request. */}
+              {r.assignment_status === 'pending' && r.assigned_to === currentUser.username && (
+                <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 10, padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1d4ed8', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                      <AlertTriangle size={18} /> This request was assigned to you
+                    </div>
+                    <div style={{ fontSize: 13, color: '#1e3a8a' }}>Confirm your availability before you start working on it.</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Button variant="primary" compact loading={busy} onClick={handleAcceptAssignment}>Accept</Button>
+                    <Button variant="danger" compact loading={busy} onClick={handleDeclineAssignment}>Decline</Button>
+                  </div>
+                </div>
+              )}
 
               {/* 3-Way Context Summary Bar */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 14 }}>
@@ -1232,6 +1263,14 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
     await postAction(`/api/marketing-requests/${id}/assign`, patch, 'Assignments updated.');
   }
 
+  async function handleAcceptAssignment(id: string) {
+    await postAction(`/api/marketing-requests/${id}/accept-assignment`, {}, 'Assignment accepted.');
+  }
+
+  async function handleDeclineAssignment(id: string, reason: string) {
+    await postAction(`/api/marketing-requests/${id}/decline-assignment`, { reason }, 'Assignment declined.');
+  }
+
   async function handleComment(id: string, text: string) {
     await postAction(`/api/marketing-requests/${id}/comments`, { text });
   }
@@ -1470,6 +1509,8 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                       onFinalSubmission={handleFinalSubmission}
                       onStatusAction={handleStatusAction}
                       onAssign={handleAssign}
+                      onAcceptAssignment={handleAcceptAssignment}
+                      onDeclineAssignment={handleDeclineAssignment}
                       onComment={handleComment}
                       onDelete={handleDelete}
                     />

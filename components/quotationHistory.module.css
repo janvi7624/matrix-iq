@@ -93,6 +93,11 @@
 .button:active { transform: translateY(1px); }
 .primary { background: var(--mx-brand); border-color: var(--mx-brand); color: #fff; }
 .primary:hover { background: var(--mx-brand-hover); border-color: var(--mx-brand-hover); }
+/* Same box model as .button/.primary so a Reject sitting next to an Approve
+   in an action bar matches its height/padding — .deleteBtn is deliberately
+   smaller for inline table-row actions and shouldn't be reused here. */
+.dangerButton { composes: button; background: var(--mx-surface); border-color: var(--mx-danger); color: var(--mx-danger); }
+.dangerButton:hover { background: var(--mx-danger-subtle); border-color: var(--mx-danger); }
 .status { font-size: 13px; color: var(--mx-ink-muted); margin-bottom: 10px; }
 .table { width: 100%; border-collapse: collapse; background: var(--mx-surface); border-radius: var(--mx-radius-sm); overflow: hidden; box-shadow: var(--mx-shadow-xs); }
 .table th, .table td { text-align: left; padding: 10px 12px; font-size: 13.5px; border-bottom: 1px solid #eef0f2; vertical-align: top; }

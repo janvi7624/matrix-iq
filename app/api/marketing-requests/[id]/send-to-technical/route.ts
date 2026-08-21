@@ -46,6 +46,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
+    // Must accept the assignment before doing any work on it — see
+    // assign/route.ts and accept-assignment/decline-assignment.
+    if (isAssigned && !isPrivilegedOrReviewer && existing.assignment_status === 'pending') {
+      return NextResponse.json({ error: 'You must accept this assignment before you can act on it' }, { status: 403 });
+    }
+
     const technicalMemberId =
       typeof body.technicalMemberId === 'string' && body.technicalMemberId.trim()
         ? body.technicalMemberId.trim()

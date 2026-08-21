@@ -170,6 +170,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
     const deleted = await deliveryChallanStore.remove(id, viewer.username, canDelete);
     if (!deleted) return NextResponse.json({ error: 'Delivery Challan not found' }, { status: 404 });
+
+    // Deleting a demo-linked DC must hand the demo back to the "awaiting a
+    // Delivery Challan" queue (pending_backoffice) — otherwise it's stuck at
+    // dc_generated forever with no DC and no way to generate a new one.
+    if (dc.demo_id) {
+      await demoScheduleStore.update(dc.demo_id, { status: 'pending_backoffice' });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiErrorResponse(error);

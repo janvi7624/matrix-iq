@@ -602,6 +602,13 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
 
   const linkedDc = useMemo(() => (demoIdParam ? dcs.find((d) => d.demo_id === demoIdParam) : null), [demoIdParam, dcs]);
 
+  // The "Demo(s) awaiting a Delivery Challan" attention item on the
+  // Dashboard just links to plain /backoffice with no demoId — landing here
+  // showed nothing actionable. This lists every such demo so that link (and
+  // this page on its own) is actually useful, not just a dead end; the
+  // per-demo "Generate DC ->" link on Demo Schedule stays the direct path.
+  const demosAwaitingDc = useMemo(() => demos.filter((d) => d.status === 'pending_backoffice'), [demos]);
+
   async function handleDelete(id: string) {
     if (!(await confirm({ message: 'Delete this Delivery Challan? This cannot be undone.', danger: true }))) return;
     try {
@@ -619,6 +626,19 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
 
   return (
     <AppShell title="Back Office Operations" subtitle="Delivery Challans — materials out, dispatched, returned, and closed.">
+        {!demoForGenerate && !linkedDc && demosAwaitingDc.length > 0 && (
+          <div className={calcStyles.sectionPanel} style={{ marginBottom: 24 }}>
+            <div className={calcStyles.h2}>Demo{demosAwaitingDc.length === 1 ? '' : 's'} awaiting a Delivery Challan</div>
+            <ul style={{ marginTop: 12, listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {demosAwaitingDc.map((demo) => (
+                <li key={demo.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                  <span>{demo.client_name}</span>
+                  <Link className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary} ${historyStyles.actionBtnCompact}`} href={`/backoffice?demoId=${demo.id}`}>Generate DC →</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {demoForGenerate && <GenerateDcPanel demo={demoForGenerate} onGenerated={(dc) => { setDcs((prev) => [dc, ...prev]); }} />}
         {linkedDc && (
           <DcDetail dc={linkedDc} canManage={canManage} onUpdated={handleUpdated} onDelete={handleDelete} />

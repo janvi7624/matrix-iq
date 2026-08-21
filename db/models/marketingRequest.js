@@ -35,6 +35,10 @@ module.exports = (sequelize, DataTypes) => {
     technical_remarks: { type: DataTypes.TEXT, defaultValue: '' },
     technical_reviewed_at: { type: DataTypes.DATE },
     technical_reviewed_by: { type: DataTypes.STRING, defaultValue: '' },
+    // Assignment acceptance gate — see lib/types.ts's MarketingRequestRecord
+    // comment for the full rule.
+    assignment_status: { type: DataTypes.STRING, defaultValue: '' },
+    assignment_decline_reason: { type: DataTypes.TEXT, defaultValue: '' },
     // Final deliverables to the original requester
     final_submission_notes: { type: DataTypes.TEXT, defaultValue: '' },
     final_submission_files: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },

@@ -425,6 +425,16 @@ export interface MarketingRequestRecord {
   technical_remarks: string;
   technical_reviewed_at: string;
   technical_reviewed_by: string;
+  // Assignment acceptance — set to 'pending' whenever the Marketing Manager
+  // assigns/reassigns this to a marketing member; that member must accept
+  // before they can act on it (send-to-technical, final-submission, or
+  // self-progress the status). Declining bounces it back to 'submitted' and
+  // clears the assignment so the manager can pick someone else. A member
+  // claiming an unassigned ticket themselves (status route's 'claim'/'start'
+  // actions) never goes through this gate — choosing to claim it already is
+  // their availability confirmation.
+  assignment_status: 'pending' | 'accepted' | 'declined' | '';
+  assignment_decline_reason: string;
   // Final submission to original requester
   final_submission_notes: string;
   final_submission_files: string[];
@@ -1025,6 +1035,7 @@ export type TmsBomRequestStatus =
   | 'submitted'
   | 'under_review'
   | 'approved'
+  | 'admin_approved'
   | 'finance_approved'
   | 'payment_done'
   | 'received'
@@ -1059,6 +1070,9 @@ export interface TmsBomRequestRecord {
   reviewed_by_id: string;
   reviewed_by_name: string;
   reviewed_at: string;
+  admin_reviewed_by_id: string;
+  admin_reviewed_by_name: string;
+  admin_reviewed_at: string;
   finance_reviewed_by_id: string;
   finance_reviewed_by_name: string;
   finance_reviewed_at: string;
@@ -1070,6 +1084,14 @@ export interface TmsBomRequestRecord {
   received_by_name: string;
   received_at: string;
   updated_at: string;
+  // Viewer-specific, not persisted — computed fresh per request by the
+  // GET /api/tms/bom-requests/[id] route so the detail page can gate its
+  // Approve/Reject/Approve (Finance) actions to who the server would
+  // actually accept them from, instead of showing them to every viewer.
+  viewer_can_approve?: boolean;
+  viewer_can_reject?: boolean;
+  viewer_can_admin_approve?: boolean;
+  viewer_can_finance_approve?: boolean;
 }
 
 export type TmsPurchaseStatus = 'requested' | 'quotation_required' | 'quotation_received' | 'approval_pending' | 'approved' | 'po_created' | 'ordered' | 'cancelled';
