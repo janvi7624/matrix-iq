@@ -185,7 +185,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (isPrivileged && followUpCount) {
       items.push({ key: 'followup', label: `Quotation${followUpCount === 1 ? '' : 's'} needing a follow-up`, count: followUpCount, href: '/quotation-history', tone: 'urgent' });
     }
-    if ((currentUser.role === 'technical' || isManagerTier) && kpis?.pendingApprovals) {
+    if ((currentUser.role === 'engineer' || isManagerTier) && kpis?.pendingApprovals) {
       items.push({ key: 'demo-approvals', label: `Demo request${kpis.pendingApprovals === 1 ? '' : 's'} awaiting approval`, count: kpis.pendingApprovals, href: '/demo-schedule', tone: 'urgent' });
     }
     if (isBackOffice && backOfficeKpis?.pendingDc) {

@@ -56,6 +56,10 @@
   --mx-role-technical-subtle: rgba(13, 148, 136, 0.14);
   --mx-role-backoffice: #a16207;
   --mx-role-backoffice-subtle: rgba(202, 138, 4, 0.14);
+  --mx-role-accounts: #0e7490;
+  --mx-role-accounts-subtle: rgba(14, 116, 144, 0.14);
+  --mx-role-hr: #be185d;
+  --mx-role-hr-subtle: rgba(190, 24, 93, 0.12);
 
   /* Radius scale */
   --mx-radius-xs: 6px;

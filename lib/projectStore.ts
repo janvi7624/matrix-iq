@@ -104,7 +104,7 @@ async function readAll(): Promise<ProjectRecord[]> {
 // technical person on, widened to their whole managed department's team
 // when they manage one. See lib/departmentScope.ts.
 //
-// The 'technical' role is the one exception to "created OR assigned": they
+// The 'engineer' role is the one exception to "created OR assigned": they
 // can't create Sales projects at all (see app/api/projects/route.ts's POST
 // guard), so the created_by branch would only ever resurface stale/legacy
 // rows, not anything they're meant to be working from — they only ever see
@@ -118,7 +118,7 @@ async function resolveOwnerWhere(viewerUsername: string): Promise<Record<string,
     include: [{ model: db.Role, as: 'role', attributes: ['key'] }]
   });
   const roleKey = (viewer?.get({ plain: true }) as { role?: { key?: string } } | undefined)?.role?.key;
-  if (roleKey === 'technical') {
+  if (roleKey === 'engineer') {
     return { assigned_technical_person_id: { [Op.in]: scope.scopedUserIds } };
   }
 

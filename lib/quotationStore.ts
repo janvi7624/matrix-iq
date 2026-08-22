@@ -284,7 +284,8 @@ export interface QuotationFilters {
 }
 
 export async function searchQuotationsFiltered(filters: QuotationFilters): Promise<QuotationRecord[]> {
-  const where: Record<string | symbol, unknown> = {};
+  const andConditions: Record<string | symbol, unknown>[] = [];
+
   if (filters.ownerUsername) {
     const user = await db.User.findOne({
       where: {
@@ -295,19 +296,38 @@ export async function searchQuotationsFiltered(filters: QuotationFilters): Promi
       } as never
     });
     if (user) {
-      where[Op.or] = [
-        { created_by: user.get('id') },
-        { prepared_by: filters.ownerUsername },
-        { prepared_by: user.get('name') }
-      ];
+      andConditions.push({
+        [Op.or]: [
+          { created_by: user.get('id') },
+          { prepared_by: filters.ownerUsername },
+          { prepared_by: user.get('name') }
+        ]
+      });
     } else {
-      where[Op.or] = [
-        { prepared_by: filters.ownerUsername },
-        { created_by: '00000000-0000-0000-0000-000000000000' }
-      ];
+      andConditions.push({
+        [Op.or]: [
+          { prepared_by: filters.ownerUsername },
+          { created_by: '00000000-0000-0000-0000-000000000000' }
+        ]
+      });
     }
   }
-  if (filters.projectId) where.project_id = filters.projectId;
+
+  // Clamps to the viewer's own department scope — org-wide for
+  // Admin/Super Admin (or any role with viewAllDepartments), otherwise the
+  // viewer's own quotations plus their managed department's team, otherwise
+  // own-only. AND'd with ownerUsername above (never OR'd), so the
+  // salesPerson filter can only narrow within this scope, not widen past it.
+  if (filters.viewerUsername) {
+    const scope = await resolveVisibilityScope(filters.viewerUsername);
+    if (!scope.seesOrgWide) {
+      andConditions.push({ created_by: { [Op.in]: scope.scopedUserIds ?? [] } });
+    }
+  }
+
+  if (filters.projectId) andConditions.push({ project_id: filters.projectId });
+
+  const where: Record<string | symbol, unknown> = andConditions.length ? { [Op.and]: andConditions } : {};
 
   const rows = await db.Quotation.findAll({ where: where as never, include: QUOTATION_INCLUDE as never, order: [['created_at', 'DESC']] });
   let records = rows.map(toRecord);

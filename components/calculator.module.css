@@ -48,6 +48,9 @@
 .rolePillTechnical { background: var(--mx-role-technical-subtle); color: var(--mx-role-technical); }
 .rolePillBackoffice { background: var(--mx-role-backoffice-subtle); color: var(--mx-role-backoffice); }
 .rolePillUser { background: var(--mx-info-subtle); color: var(--mx-info); }
+.rolePillMarketing { background: var(--mx-success-subtle); color: var(--mx-success); }
+.rolePillAccounts { background: var(--mx-role-accounts-subtle); color: var(--mx-role-accounts); }
+.rolePillHr { background: var(--mx-role-hr-subtle); color: var(--mx-role-hr); }
 .brandHeader {
     display: flex;
     align-items: center;

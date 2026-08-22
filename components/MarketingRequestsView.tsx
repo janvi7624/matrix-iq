@@ -331,7 +331,7 @@ function MarketingRequestRow({
   const canAccessMarketingWorkspace = isAssignedMarketing || (isUnassignedMarketing && isReviewer) || isSuperadmin;
   const isMarketingAssignedToOther = !isAssignedMarketing && !isUnassignedMarketing && !isSuperadmin;
 
-  const isAssignedTechnical = r.technical_member_username === currentUser.username || (currentUser.role === 'technical' && r.status === 'pending_technical_review');
+  const isAssignedTechnical = r.technical_member_username === currentUser.username || (currentUser.role === 'engineer' && r.status === 'pending_technical_review');
   const overdue = isMarketingRequestOverdue(r);
   const canDelete = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
 
@@ -783,7 +783,7 @@ function MarketingRequestRow({
                     Review the product specification and marketing draft. You can either approve the request or send remarks back if changes are needed.
                   </p>
 
-                  {(isAssignedTechnical || currentUser.role === 'technical' || isReviewer) && !showTechChangesDialog && (
+                  {(isAssignedTechnical || currentUser.role === 'engineer' || isReviewer) && !showTechChangesDialog && (
                     <div className={historyStyles.actionGroupButtons}>
                       <Button
                         variant="success"

@@ -22,11 +22,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  // Technical accounts only work projects they're assigned to — they don't
+  // Engineer accounts only work projects they're assigned to — they don't
   // originate Sales projects. See projectStore's resolveOwnerWhere for the
   // matching visibility-side restriction.
-  if (viewer.role === 'technical') {
-    return NextResponse.json({ error: 'Forbidden — technical accounts can only view projects assigned to them' }, { status: 403 });
+  if (viewer.role === 'engineer') {
+    return NextResponse.json({ error: 'Forbidden — engineer accounts can only view projects assigned to them' }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);

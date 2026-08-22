@@ -44,15 +44,17 @@ const WIZARD_STEPS = [
   { icon: <Send size={18} />, label: 'Review & Send' }
 ];
 
-const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical Team', backoffice: 'Back Office', user: 'Sales', marketing: 'Marketing' };
+const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', engineer: 'Engineer', backoffice: 'Back Office', user: 'Sales', marketing: 'Marketing', accounts: 'Accounts', hr: 'HR' };
 const ROLE_PILL_CLASS: Record<UserRole, string> = {
   superadmin: styles.rolePillSuperadmin,
   admin: styles.rolePillAdmin,
   manager: styles.rolePillManager,
-  technical: styles.rolePillTechnical,
+  engineer: styles.rolePillTechnical,
   backoffice: styles.rolePillBackoffice,
   user: styles.rolePillUser,
-  marketing: styles.rolePillMarketing
+  marketing: styles.rolePillMarketing,
+  accounts: styles.rolePillAccounts,
+  hr: styles.rolePillHr
 };
 
 export interface CurrentUser {
@@ -421,7 +423,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
         </Link>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role] || styles.rolePillUser}`}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
-          {currentUser.role !== 'user' && currentUser.role !== 'technical' && currentUser.role !== 'backoffice' && currentUser.role !== 'marketing' && (
+          {currentUser.role !== 'user' && currentUser.role !== 'engineer' && currentUser.role !== 'backoffice' && currentUser.role !== 'marketing' && currentUser.role !== 'accounts' && currentUser.role !== 'hr' && (
             <Link className={historyStyles.button} href="/quotation-history" target="_blank" rel="noreferrer">
               Quotation History
             </Link>

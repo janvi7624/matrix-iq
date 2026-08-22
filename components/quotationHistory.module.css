@@ -119,6 +119,8 @@
 .rolePillBackoffice { background: var(--mx-role-backoffice-subtle); color: var(--mx-role-backoffice); }
 .rolePillUser { background: var(--mx-info-subtle); color: var(--mx-info); }
 .rolePillMarketing { background: var(--mx-success-subtle); color: var(--mx-success); }
+.rolePillAccounts { background: var(--mx-role-accounts-subtle); color: var(--mx-role-accounts); }
+.rolePillHr { background: var(--mx-role-hr-subtle); color: var(--mx-role-hr); }
 .statusPill { display: inline-block; padding: 3px 10px; border-radius: var(--mx-radius-full); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
 .statusPillActive { background: var(--mx-success-subtle); color: var(--mx-success); }
 .statusPillInactive { background: rgba(107, 114, 128, 0.14); color: var(--mx-ink-muted); }

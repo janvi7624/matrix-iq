@@ -26,11 +26,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const records = await demoScheduleStore.list(viewer.username, true);
     const existing = records.find((r) => r.id === id);
     if (!existing) return NextResponse.json({ error: 'Demo not found' }, { status: 404 });
-    // The creator/admin/manager can edit anything here; technical/backoffice
+    // The creator/admin/manager can edit anything here; engineer/backoffice
     // are legitimate operators later in the pipeline (marking a demo
     // complete, filling in the report) even though they didn't create the
     // request, so they're allowed through too.
-    const isPipelineOperator = viewer.role === 'technical' || viewer.role === 'backoffice';
+    const isPipelineOperator = viewer.role === 'engineer' || viewer.role === 'backoffice';
     if (!viewer.isPrivileged && !isPipelineOperator && existing.created_by !== viewer.username) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

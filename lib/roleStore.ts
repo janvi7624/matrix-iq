@@ -46,7 +46,16 @@ const TECHNICIAN_MODULES: RolePermissions['modules'] = {
 const TMS_SEED_ROLES: { key: string; label: string; description: string; isSystem: boolean; isPrivileged: boolean; status: 'active'; order: number; permissions: RolePermissions }[] = [
   { key: 'technical-manager', label: 'Technical Manager', description: 'Full TMS rights — manages Projects, Tasks, BOM approvals, Procurement, technical Users, and Tab Access for Robotics/AI/AV/Marketing.', isSystem: true, isPrivileged: false, status: 'active', order: 7, permissions: { modules: TECHNICAL_MANAGER_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } },
   { key: 'team-lead', label: 'Team Lead', description: 'Full Task management, BOM creation, view-only on Projects/Procurement, within TMS.', isSystem: true, isPrivileged: false, status: 'active', order: 8, permissions: { modules: TEAM_LEAD_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } },
-  { key: 'engineer', label: 'Engineer', description: 'Own-tasks visibility, BOM creation, view-only on Projects/Procurement, within TMS.', isSystem: true, isPrivileged: false, status: 'active', order: 9, permissions: { modules: ENGINEER_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } },
+  // Merged with the old standalone 'technical' role (Sept 2026) — one role
+  // for technical staff instead of two: TMS rights below (own-tasks
+  // visibility, BOM creation, view-only Projects/Procurement) PLUS the old
+  // 'technical' role's CRM-side duties (demo-request technical approval,
+  // Sales project assignment eligibility, marketing technical review). The
+  // CRM-side behavior is hardcoded role-key checks, not permissions —
+  // see every `role === 'engineer'` check across app/api/demo-schedule,
+  // app/api/marketing-requests, app/api/projects, lib/projectStore.ts, and
+  // lib/technicalRoster.ts.
+  { key: 'engineer', label: 'Engineer', description: 'Technical Team — TMS own-tasks visibility and BOM creation, plus demo-request technical approval, Sales project assignment, and marketing technical review.', isSystem: true, isPrivileged: false, status: 'active', order: 9, permissions: { modules: ENGINEER_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } },
   { key: 'technician', label: 'Technician', description: 'Same as Engineer, without Procurement access, within TMS.', isSystem: true, isPrivileged: false, status: 'active', order: 10, permissions: { modules: TECHNICIAN_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } }
 ];
 
@@ -77,7 +86,6 @@ const SEED_ROLES: { key: string; label: string; description: string; isSystem: b
   { key: 'superadmin', label: 'Super Admin', description: 'Full rights — manage users, roles, departments, settings; only role that can delete records; sees every department\'s data.', isSystem: true, isPrivileged: true, status: 'active', order: 1, permissions: blankPermissions({ manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: true, viewAllDepartments: true }) },
   { key: 'admin', label: 'Admin', description: 'Creates/edits users and manages configuration; cannot delete users or quotations; sees every department\'s data.', isSystem: true, isPrivileged: true, status: 'active', order: 2, permissions: blankPermissions({ manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: true, viewAllDepartments: true }) },
   { key: 'manager', label: 'Manager', description: 'Admin-panel access and pricing/markup rights, same as Admin; data visibility is scoped to whichever department(s) they manage in Department Master (or just their own records if none).', isSystem: true, isPrivileged: true, status: 'active', order: 3, permissions: blankPermissions({ manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: true }) },
-  { key: 'technical', label: 'Technical Team', description: 'Own-scoped visibility; approves technical availability for demo requests.', isSystem: true, isPrivileged: false, status: 'active', order: 4, permissions: blankPermissions() },
   { key: 'backoffice', label: 'Back Office', description: 'Prepares, dispatches, and closes Delivery Challans.', isSystem: true, isPrivileged: false, status: 'active', order: 5, permissions: blankPermissions() },
   // Renamed from "User" to "Sales" — same role (key stays 'user', every
   // permission/visibility check keyed off that string is unaffected), just
@@ -86,7 +94,18 @@ const SEED_ROLES: { key: string; label: string; description: string; isSystem: b
   // New — was previously just lumped in under the generic "Sales"/"User"
   // role with no distinct identity, making it hard to tell who's actually
   // on the Marketing team from Role/User Management alone.
-  { key: 'marketing', label: 'Marketing', description: 'Creates and manages marketing requests, quotations, site visits, and demo requests; own-scoped visibility only.', isSystem: true, isPrivileged: false, status: 'active', order: 11, permissions: blankPermissions() }
+  { key: 'marketing', label: 'Marketing', description: 'Creates and manages marketing requests, quotations, site visits, and demo requests; own-scoped visibility only.', isSystem: true, isPrivileged: false, status: 'active', order: 11, permissions: blankPermissions() },
+  // New — same reasoning as Marketing above: Accounts department staff were
+  // previously just assigned the generic "Sales"/"User" role, with no
+  // distinct identity in Role/User Management. Note this is unrelated to
+  // isAccountsManager (lib/tmsAccess.ts), which grants BOM payment-marking
+  // rights by DEPARTMENT (Department.managerIds), not by this role — an
+  // Accounts department Manager still needs the 'manager' role for that, not
+  // this one. This role is for their non-manager team members.
+  { key: 'accounts', label: 'Accounts', description: 'Accounts department staff — same own-scoped visibility as Sales; BOM payment rights are granted separately to the Accounts department manager.', isSystem: true, isPrivileged: false, status: 'active', order: 12, permissions: blankPermissions() },
+  // New — same reasoning as Marketing/Accounts above: HR & Admin department
+  // staff were previously just assigned the generic "Sales"/"User" role.
+  { key: 'hr', label: 'HR', description: 'HR & Admin department staff — same own-scoped visibility as Sales.', isSystem: true, isPrivileged: false, status: 'active', order: 13, permissions: blankPermissions() }
 ];
 
 // One-time relabel for a database that already seeded the old "User" label
@@ -95,6 +114,23 @@ const SEED_ROLES: { key: string; label: string; description: string; isSystem: b
 // the exact old default, never an admin's own custom label.
 const OLD_USER_LABEL = 'User';
 const NEW_USER_LABEL = 'Sales';
+
+// 'technical' ("Technical Team") was merged into 'engineer' — one role for
+// technical staff instead of two, see the comment on the 'engineer' seed
+// entry above. Retiring it here (status -> 'inactive') rather than deleting
+// the row: deleteRole() already refuses to delete isSystem roles, and an
+// inactive row still shows in Role Management (just not in the assignable
+// dropdowns — see listActiveRoles()) so it stays visible that it existed and
+// where it went. Only flips a row still holding its exact original
+// description, same don't-clobber-an-admin-edit guard as the label rename
+// below — an admin who already repurposed this role keeps their edit.
+const OLD_TECHNICAL_DESCRIPTION = 'Own-scoped visibility; approves technical availability for demo requests.';
+const RETIRED_TECHNICAL_DESCRIPTION = 'Merged into Engineer — do not assign to new accounts.';
+
+// Companion update for the 'engineer' row itself — same merge, same guard.
+const OLD_ENGINEER_DESCRIPTION = 'Own-tasks visibility, BOM creation, view-only on Projects/Procurement, within TMS.';
+const MERGED_ENGINEER_DESCRIPTION =
+  'Technical Team — TMS own-tasks visibility and BOM creation, plus demo-request technical approval, Sales project assignment, and marketing technical review.';
 
 async function ensureSeeded(): Promise<void> {
   const all = [...SEED_ROLES, ...TMS_SEED_ROLES];
@@ -107,7 +143,7 @@ async function ensureSeeded(): Promise<void> {
   // didn't exist yet when the table was first seeded, or TMS was added
   // later) — reconcile it in without touching anything an admin already
   // customized.
-  const existingRows = await db.Role.findAll({ attributes: ['id', 'key', 'label'] });
+  const existingRows = await db.Role.findAll({ attributes: ['id', 'key', 'label', 'status', 'description'] });
   const existingKeys = new Set(existingRows.map((r) => r.get('key') as string));
   const missing = all.filter((r) => !existingKeys.has(r.key));
   if (missing.length) await db.Role.bulkCreate(missing.map((r) => ({ ...r })) as never);
@@ -115,6 +151,16 @@ async function ensureSeeded(): Promise<void> {
   const userRow = existingRows.find((r) => r.get('key') === 'user');
   if (userRow && userRow.get('label') === OLD_USER_LABEL) {
     await userRow.update({ label: NEW_USER_LABEL } as never);
+  }
+
+  const technicalRow = existingRows.find((r) => r.get('key') === 'technical');
+  if (technicalRow && technicalRow.get('status') === 'active' && technicalRow.get('description') === OLD_TECHNICAL_DESCRIPTION) {
+    await technicalRow.update({ status: 'inactive', description: RETIRED_TECHNICAL_DESCRIPTION } as never);
+  }
+
+  const engineerRow = existingRows.find((r) => r.get('key') === 'engineer');
+  if (engineerRow && engineerRow.get('description') === OLD_ENGINEER_DESCRIPTION) {
+    await engineerRow.update({ description: MERGED_ENGINEER_DESCRIPTION } as never);
   }
 }
 

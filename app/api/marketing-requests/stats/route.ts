@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const isReviewer = viewer.isPrivileged || (await isModuleActionAllowed(viewer, 'marketing-requests', 'approve'));
-    const isTechnical = viewer.role === 'technical' || viewer.isPrivileged;
+    const isTechnical = viewer.role === 'engineer' || viewer.isPrivileged;
     const records = await marketingRequestStore.list(viewer.username, isReviewer || isTechnical);
 
     const awaitingMarketing = records.filter(

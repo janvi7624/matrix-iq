@@ -61,7 +61,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const confirm = useConfirm();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isSuperAdmin = currentUser.role === 'superadmin';
-  const isTechnical = currentUser.role === 'technical';
+  const isTechnical = currentUser.role === 'engineer';
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');

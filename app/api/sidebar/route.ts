@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       listVisibleModules({ role: viewer.role, isPrivileged: viewer.isPrivileged, department: user?.department }),
       computeLeadStats(viewer.username, viewer.isPrivileged),
       isMarketingManager(viewer),
-      viewer.role === 'technical' || isManagerTier ? demoScheduleStore.list(viewer.username, viewer.isPrivileged) : Promise.resolve(null),
+      viewer.role === 'engineer' || isManagerTier ? demoScheduleStore.list(viewer.username, viewer.isPrivileged) : Promise.resolve(null),
       isBackOffice
         ? Promise.all([deliveryChallanStore.list(viewer.username, true), demoScheduleStore.list(viewer.username, true)])
         : Promise.resolve(null)
