@@ -78,6 +78,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [managersByDepartment, setManagersByDepartment] = useState<ManagersByDepartment>({});
   const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
   const [pendingHandovers, setPendingHandovers] = useState<ProjectHandoverRecord[]>([]);
+  const [travelPendingCount, setTravelPendingCount] = useState<number>(0);
   const [health, setHealth] = useState<HealthResponse | null>(null);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
@@ -125,6 +126,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setTechnicalRoster(data.technicalRoster ?? []);
         setRecentQuotations(data.recentQuotations ?? []);
         setPendingHandovers(data.pendingHandovers ?? []);
+        setTravelPendingCount(data.travelPendingCount ?? 0);
       })
       .catch(() => {
         setModules([]);
@@ -233,6 +235,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         tone: 'urgent'
       });
     }
+    if (travelPendingCount) {
+      items.push({
+        key: 'travel',
+        label: `Travel request${travelPendingCount === 1 ? '' : 's'} needing your action`,
+        count: travelPendingCount,
+        href: '/travel-schedule',
+        tone: 'urgent'
+      });
+    }
     return items;
   }, [
     isPrivileged,
@@ -247,7 +258,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     reminderCount,
     demosAwaitingMyConfirmation,
     demosAwaitingMyApproval,
-    pendingHandovers
+    pendingHandovers,
+    travelPendingCount
   ]);
 
   // Only declare "you're all caught up" once every signal this role
