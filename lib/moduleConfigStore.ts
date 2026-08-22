@@ -14,7 +14,7 @@ import { TMS_ROLE_KEYS } from './tmsConstants';
 const MODULES_CACHE_KEY = 'modules:all';
 const MODULES_CACHE_TTL_MS = 30_000;
 
-const ALL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
+const ALL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user', 'marketing'];
 const PRIVILEGED_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 
 // TMS (Technical Management System) — Robotics/AI/AV/Marketing-only, see
@@ -169,6 +169,16 @@ const OLD_TMS_PROCUREMENT_ROLES: UserRole[] = OLD_TMS_ALL_ROLES.filter((r) => r 
 const TMS_ALL_ROLES_KEYS = new Set(['tms-dashboard', 'tms-projects', 'tms-tasks', 'tms-bom-requests']);
 const TMS_MANAGER_ONLY_KEYS = new Set(['tms-users', 'tms-tab-access']);
 
+// Marketing role added (lib/roleStore.ts) — every module already visible to
+// the plain ALL_ROLES set, or its TMS-extended SALES_ROLES_WITH_TMS
+// derivative, should show to Marketing too, same as it already does to
+// 'user'/Sales. Literal arrays here (not `= ALL_ROLES`) so this "old"
+// snapshot can't silently drift if ALL_ROLES changes again later. Same
+// don't-clobber-an-admin-edit guard as every reconciliation above.
+const OLD_ALL_ROLES_NO_MARKETING: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user'];
+const MARKETING_ALL_ROLES_KEYS = new Set(['my-quotations', 'travel-schedule', 'analytics']);
+const OLD_SALES_ROLES_NO_MARKETING: UserRole[] = [...OLD_ALL_ROLES_NO_MARKETING, ...TMS_ROLE_KEYS];
+
 function sameRoles(a: UserRole[], b: UserRole[]): boolean {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
@@ -230,6 +240,8 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (TMS_ALL_ROLES_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_TMS_ALL_ROLES)) attrs.visibleToRoles = TMS_ALL_ROLES;
     if (key === 'tms-procurement' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_TMS_PROCUREMENT_ROLES)) attrs.visibleToRoles = TMS_ALL_ROLES.filter((r) => r !== 'technician');
     if (TMS_MANAGER_ONLY_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_TMS_MANAGER_ONLY_ROLES)) attrs.visibleToRoles = TMS_MANAGER_ONLY_ROLES;
+    if (MARKETING_ALL_ROLES_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_NO_MARKETING)) attrs.visibleToRoles = ALL_ROLES;
+    if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_SALES_ROLES_NO_MARKETING)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }

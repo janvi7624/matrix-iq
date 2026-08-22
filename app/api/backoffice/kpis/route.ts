@@ -33,8 +33,14 @@ export async function GET(request: NextRequest) {
     const damagedMaterials = dcs.filter((d) => d.material_return.damaged).length;
     const pendingVerification = dcs.filter((d) => d.status === 'dispatched' && dispatchedDemoIds.has(d.demo_id)).length;
     const todaysDispatch = dcs.filter((d) => d.status !== 'prepared' && d.updated_at.slice(0, 10) === today).length;
+    // A DC that's been prepared (manually, or from a demo) but not yet
+    // dispatched — distinct from pendingDc above, which is "a demo needs a
+    // DC created for it," not "a DC exists and needs to go out." Neither the
+    // Dashboard's attention panel nor this route surfaced this before, so a
+    // DC could sit at 'prepared' indefinitely with no visible reminder.
+    const pendingDispatch = dcs.filter((d) => d.status === 'prepared').length;
 
-    return NextResponse.json({ pendingDc, materialsOut, materialsReturned, damagedMaterials, pendingVerification, todaysDispatch });
+    return NextResponse.json({ pendingDc, materialsOut, materialsReturned, damagedMaterials, pendingVerification, todaysDispatch, pendingDispatch });
   } catch (error) {
     return apiErrorResponse(error);
   }

@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
       const dispatchedDemoIds = new Set(backOfficeDemos.filter((d) => d.status === 'demo_completed').map((d) => d.id));
       const pendingDc = backOfficeDemos.filter((d) => d.status === 'pending_backoffice').length;
       const pendingVerification = dcs.filter((d) => d.status === 'dispatched' && dispatchedDemoIds.has(d.demo_id)).length;
-      const count = pendingDc + pendingVerification;
+      const pendingDispatch = dcs.filter((d) => d.status === 'prepared').length;
+      const count = pendingDc + pendingVerification + pendingDispatch;
       if (count) badges.backoffice = count;
     }
 

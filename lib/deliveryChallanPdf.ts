@@ -54,7 +54,10 @@ function loadImageAsDataURL(url: string): Promise<string> {
   });
 }
 
-export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts?: { companyOverride?: DeliveryChallanPdfCompanyOverride }): Promise<void> {
+export async function generateDeliveryChallanPdf(
+  dc: DeliveryChallanRecord,
+  opts?: { companyOverride?: DeliveryChallanPdfCompanyOverride; mode?: 'download' | 'print' }
+): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const { applyPlugin } = await import('jspdf-autotable');
   applyPlugin(jsPDF);
@@ -244,6 +247,17 @@ export async function generateDeliveryChallanPdf(dc: DeliveryChallanRecord, opts
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.text('(Authorised Signatory)', rightX - 2, y, { align: 'right' });
+
+  if (opts?.mode === 'print') {
+    // Opens the actual generated PDF in a new tab and asks the browser's
+    // built-in PDF viewer to print it — this is what makes "Print" print the
+    // Delivery Challan document itself, instead of window.print() printing
+    // whatever's currently on screen (the app's own page chrome, buttons,
+    // etc., not the DC).
+    doc.autoPrint();
+    window.open(doc.output('bloburl'), '_blank');
+    return;
+  }
 
   doc.save(`${dc.dc_number}.pdf`);
 }

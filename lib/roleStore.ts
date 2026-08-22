@@ -79,8 +79,22 @@ const SEED_ROLES: { key: string; label: string; description: string; isSystem: b
   { key: 'manager', label: 'Manager', description: 'Admin-panel access and pricing/markup rights, same as Admin; data visibility is scoped to whichever department(s) they manage in Department Master (or just their own records if none).', isSystem: true, isPrivileged: true, status: 'active', order: 3, permissions: blankPermissions({ manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: true }) },
   { key: 'technical', label: 'Technical Team', description: 'Own-scoped visibility; approves technical availability for demo requests.', isSystem: true, isPrivileged: false, status: 'active', order: 4, permissions: blankPermissions() },
   { key: 'backoffice', label: 'Back Office', description: 'Prepares, dispatches, and closes Delivery Challans.', isSystem: true, isPrivileged: false, status: 'active', order: 5, permissions: blankPermissions() },
-  { key: 'user', label: 'User', description: 'Creates quotations, site visits, and demo requests; own-scoped visibility only.', isSystem: true, isPrivileged: false, status: 'active', order: 6, permissions: blankPermissions() }
+  // Renamed from "User" to "Sales" — same role (key stays 'user', every
+  // permission/visibility check keyed off that string is unaffected), just
+  // a clearer label so it's obvious who this role is for when assigning it.
+  { key: 'user', label: 'Sales', description: 'Creates quotations, site visits, and demo requests; own-scoped visibility only.', isSystem: true, isPrivileged: false, status: 'active', order: 6, permissions: blankPermissions() },
+  // New — was previously just lumped in under the generic "Sales"/"User"
+  // role with no distinct identity, making it hard to tell who's actually
+  // on the Marketing team from Role/User Management alone.
+  { key: 'marketing', label: 'Marketing', description: 'Creates and manages marketing requests, quotations, site visits, and demo requests; own-scoped visibility only.', isSystem: true, isPrivileged: false, status: 'active', order: 11, permissions: blankPermissions() }
 ];
+
+// One-time relabel for a database that already seeded the old "User" label
+// before this rename — same don't-clobber-an-admin-edit guard used
+// throughout lib/moduleConfigStore.ts: only overwrites a row still holding
+// the exact old default, never an admin's own custom label.
+const OLD_USER_LABEL = 'User';
+const NEW_USER_LABEL = 'Sales';
 
 async function ensureSeeded(): Promise<void> {
   const all = [...SEED_ROLES, ...TMS_SEED_ROLES];
@@ -93,9 +107,15 @@ async function ensureSeeded(): Promise<void> {
   // didn't exist yet when the table was first seeded, or TMS was added
   // later) — reconcile it in without touching anything an admin already
   // customized.
-  const existingKeys = new Set((await db.Role.findAll({ attributes: ['key'] })).map((r) => r.get('key') as string));
+  const existingRows = await db.Role.findAll({ attributes: ['id', 'key', 'label'] });
+  const existingKeys = new Set(existingRows.map((r) => r.get('key') as string));
   const missing = all.filter((r) => !existingKeys.has(r.key));
   if (missing.length) await db.Role.bulkCreate(missing.map((r) => ({ ...r })) as never);
+
+  const userRow = existingRows.find((r) => r.get('key') === 'user');
+  if (userRow && userRow.get('label') === OLD_USER_LABEL) {
+    await userRow.update({ label: NEW_USER_LABEL } as never);
+  }
 }
 
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };

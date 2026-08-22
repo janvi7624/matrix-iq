@@ -296,17 +296,23 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
     setRemarkTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }
 
+  function dcCompanyOverride() {
+    return publicConfig
+      ? {
+          legalName: publicConfig.companyLegalName,
+          addressLines: [publicConfig.addressLine1, publicConfig.addressLine2, publicConfig.addressLine3].filter(Boolean),
+          contactPhone: publicConfig.contactPhone,
+          gstNumber: publicConfig.gstNumber
+        }
+      : undefined;
+  }
+
   function handleExportPdf() {
-    generateDeliveryChallanPdf(dc, {
-      companyOverride: publicConfig
-        ? {
-            legalName: publicConfig.companyLegalName,
-            addressLines: [publicConfig.addressLine1, publicConfig.addressLine2, publicConfig.addressLine3].filter(Boolean),
-            contactPhone: publicConfig.contactPhone,
-            gstNumber: publicConfig.gstNumber
-          }
-        : undefined
-    });
+    generateDeliveryChallanPdf(dc, { companyOverride: dcCompanyOverride() });
+  }
+
+  function handlePrintPdf() {
+    generateDeliveryChallanPdf(dc, { companyOverride: dcCompanyOverride(), mode: 'print' });
   }
 
   async function handleDeleteClick() {
@@ -353,7 +359,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
           <div className={historyStyles.actionGroupLabel}>Secondary Actions</div>
           <div className={historyStyles.actionGroupButtons}>
             <Button variant="secondary" icon={<Download size={16} />} onClick={handleExportPdf}>Download PDF</Button>
-            <Button variant="secondary" icon={<Printer size={16} />} onClick={() => window.print()}>Print DC</Button>
+            <Button variant="secondary" icon={<Printer size={16} />} onClick={handlePrintPdf}>Print DC</Button>
           </div>
         </div>
         {canManage && dc.status === 'prepared' && (

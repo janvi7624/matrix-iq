@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
       activeProjects
     };
 
-    let backOfficeKpis: { pendingDc: number; pendingVerification: number } | null = null;
+    let backOfficeKpis: { pendingDc: number; pendingVerification: number; pendingDispatch: number } | null = null;
     if (backOfficeDcs) {
       // demosForQueue is already the canSeeQueue=true superset for any
       // isBackOffice viewer (see note above) — reused instead of a second
@@ -122,7 +122,11 @@ export async function GET(request: NextRequest) {
       const dispatchedDemoIds = new Set(demosForQueue.filter((d) => d.status === 'demo_completed').map((d) => d.id));
       backOfficeKpis = {
         pendingDc: demosForQueue.filter((d) => d.status === 'pending_backoffice').length,
-        pendingVerification: backOfficeDcs.filter((d) => d.status === 'dispatched' && dispatchedDemoIds.has(d.demo_id)).length
+        pendingVerification: backOfficeDcs.filter((d) => d.status === 'dispatched' && dispatchedDemoIds.has(d.demo_id)).length,
+        // A DC already created (manual or demo-linked) still sitting at
+        // 'prepared', not yet dispatched — see app/api/backoffice/kpis's
+        // same field for why this is distinct from pendingDc above.
+        pendingDispatch: backOfficeDcs.filter((d) => d.status === 'prepared').length
       };
     }
 

@@ -34,6 +34,7 @@ interface Kpis {
 interface BackOfficeKpis {
   pendingDc: number;
   pendingVerification: number;
+  pendingDispatch: number;
 }
 
 interface HealthGaugeData {
@@ -189,6 +190,9 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     }
     if (isBackOffice && backOfficeKpis?.pendingDc) {
       items.push({ key: 'dc', label: `Demo${backOfficeKpis.pendingDc === 1 ? '' : 's'} awaiting a Delivery Challan`, count: backOfficeKpis.pendingDc, href: '/backoffice', tone: 'urgent' });
+    }
+    if (isBackOffice && backOfficeKpis?.pendingDispatch) {
+      items.push({ key: 'dc-dispatch', label: `DC${backOfficeKpis.pendingDispatch === 1 ? '' : 's'} prepared and awaiting dispatch`, count: backOfficeKpis.pendingDispatch, href: '/backoffice', tone: 'urgent' });
     }
     if (isBackOffice && backOfficeKpis?.pendingVerification) {
       items.push({ key: 'dc-verify', label: `DC${backOfficeKpis.pendingVerification === 1 ? '' : 's'} awaiting material return verification`, count: backOfficeKpis.pendingVerification, href: '/backoffice', tone: 'urgent' });
