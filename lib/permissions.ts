@@ -21,6 +21,17 @@ export async function resolveIsPrivileged(role: string): Promise<boolean> {
   return legacyIsPrivileged(role);
 }
 
+// Superadmin accounts are invisible to every other role, including "admin"
+// (the second-highest tier) — a deliberate restriction, not a department/
+// visibility-scope concern: an org's ultimate account holders shouldn't be
+// enumerable from an ordinary admin session at all (Employee Directory,
+// "View Profile", assignment/handover dropdowns, etc.), not just protected
+// from editing (which app/api/admin/users/[id]'s PATCH already enforced).
+// Only a superadmin viewer can see other superadmin accounts.
+export function canViewRole(viewerRole: string, targetRole: string): boolean {
+  return targetRole !== 'superadmin' || viewerRole === 'superadmin';
+}
+
 export async function hasCapability(role: string, capability: GlobalCapability): Promise<boolean> {
   const record = await findRoleByKey(role);
   if (!record || record.status !== 'active') return false;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { listUsers } from '@/lib/userStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { canViewRole } from '@/lib/permissions';
 
 // Any authenticated user — a lightweight {username, name} list for "User
 // Selector" fields in custom modules. lib/userStore's full listing lives
@@ -13,7 +14,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const users = await listUsers();
-    return NextResponse.json(users.filter((u) => u.status === 'active').map((u) => ({ id: u.id, username: u.username, name: u.name })));
+    return NextResponse.json(
+      users
+        .filter((u) => u.status === 'active' && canViewRole(viewer.role, u.role))
+        .map((u) => ({ id: u.id, username: u.username, name: u.name }))
+    );
   } catch (error) {
     return apiErrorResponse(error);
   }

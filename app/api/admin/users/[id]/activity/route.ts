@@ -8,6 +8,7 @@ import { searchQuotationsFiltered } from '@/lib/quotationStore';
 import { listLoginHistory } from '@/lib/loginHistoryStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { resolveVisibilityScope } from '@/lib/departmentScope';
+import { canViewRole } from '@/lib/permissions';
 
 const RECENT_LIMIT = 5;
 
@@ -23,6 +24,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const user = await findUserById(id);
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (!canViewRole(session.role, user.role)) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
     const scope = await resolveVisibilityScope(session.username);
     if (!scope.seesOrgWide && !scope.scopedUserIds!.includes(id)) {

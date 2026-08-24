@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { db } from '@/lib/db';
-import { Op } from 'sequelize';
+import { Model, Op } from 'sequelize';
+import { canViewRole } from '@/lib/permissions';
 
 // Lightweight user list for dropdowns (handover, assignment, etc.)
 // ?scope=handover  → returns only users the viewer is allowed to hand projects to:
@@ -58,17 +59,24 @@ export async function GET(request: NextRequest) {
   const rows = await db.User.findAll({
     where: where as never,
     attributes: ['id', 'username', 'name', 'department'],
-    include: [{ model: db.Department, as: 'departmentRef', attributes: ['id', 'name'] }],
+    include: [
+      { model: db.Department, as: 'departmentRef', attributes: ['id', 'name'] },
+      { model: db.Role, as: 'role', attributes: ['key'] }
+    ],
     order: [['name', 'ASC']]
   });
 
-  return NextResponse.json(rows.map((r: any) => {
-    const plain = r.get({ plain: true });
-    return {
-      id: plain.id,
-      username: plain.username,
-      name: plain.name || plain.username,
-      department: plain.departmentRef?.name || plain.department || ''
-    };
-  }));
+  const plainRows = rows.map((r: Model) => r.get({ plain: true }) as Record<string, unknown>);
+  return NextResponse.json(
+    plainRows
+      // Superadmin accounts never appear in an assignment/handover dropdown
+      // for anyone but another superadmin — see lib/permissions.ts's canViewRole.
+      .filter((plain) => canViewRole(viewer.role, (plain.role as { key?: string } | null)?.key ?? ''))
+      .map((plain) => ({
+        id: plain.id,
+        username: plain.username,
+        name: plain.name || plain.username,
+        department: (plain.departmentRef as { name?: string } | null)?.name || plain.department || ''
+      }))
+  );
 }

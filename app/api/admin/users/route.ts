@@ -5,6 +5,7 @@ import { listActiveRoles } from '@/lib/roleStore';
 import { UserRole } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
 import { resolveVisibilityScope } from '@/lib/departmentScope';
+import { canViewRole } from '@/lib/permissions';
 
 // Base auth + admin/superadmin gating happens in proxy.ts (matcher:
 // /api/admin/:path*) — that only checks isPrivileged (a capability), not
@@ -19,9 +20,8 @@ export async function GET(request: NextRequest) {
   try {
     const users = await listUsers();
     const scope = await resolveVisibilityScope(session.username);
-    if (scope.seesOrgWide) return NextResponse.json(users);
-    const allowed = new Set(scope.scopedUserIds);
-    return NextResponse.json(users.filter((u) => allowed.has(u.id)));
+    const visible = scope.seesOrgWide ? users : users.filter((u) => scope.scopedUserIds!.includes(u.id));
+    return NextResponse.json(visible.filter((u) => canViewRole(session.role, u.role)));
   } catch (error) {
     return apiErrorResponse(error);
   }

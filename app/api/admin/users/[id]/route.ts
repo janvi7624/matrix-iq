@@ -5,6 +5,7 @@ import { listActiveRoles } from '@/lib/roleStore';
 import { UserRole, UserStatus } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
 import { resolveVisibilityScope } from '@/lib/departmentScope';
+import { canViewRole } from '@/lib/permissions';
 
 // Base auth + admin/superadmin gating happens in proxy.ts (matcher: /api/admin/:path*),
 // including a blanket "DELETE under /api/admin requires superadmin" rule.
@@ -19,6 +20,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const existing = await findUserById(id);
     if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    // Superadmin accounts are invisible to every other role — a generic
+    // "not found" here, not a 403, so a non-superadmin can't even confirm
+    // this id belongs to a superadmin account (see lib/permissions.ts's
+    // canViewRole).
+    if (!canViewRole(session.role, existing.role)) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
     const scope = await resolveVisibilityScope(session.username);
     if (!scope.seesOrgWide && !scope.scopedUserIds!.includes(id)) {
@@ -30,15 +38,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const VALID_STATUSES: UserStatus[] = ['active', 'inactive'];
     const status: UserStatus | undefined = VALID_STATUSES.includes(body.status) ? body.status : undefined;
 
-    // An "admin" (non-superadmin) may create/edit ordinary accounts but must not
-    // be able to touch superadmin accounts or grant superadmin to anyone.
-    if (session.role !== 'superadmin') {
-      if (existing.role === 'superadmin') {
-        return NextResponse.json({ error: 'Only a superadmin can edit a superadmin account' }, { status: 403 });
-      }
-      if (role === 'superadmin') {
-        return NextResponse.json({ error: 'Only a superadmin can grant the superadmin role' }, { status: 403 });
-      }
+    // An "admin" (non-superadmin) must not be able to grant superadmin to
+    // anyone — existing.role === 'superadmin' is already handled above.
+    if (session.role !== 'superadmin' && role === 'superadmin') {
+      return NextResponse.json({ error: 'Only a superadmin can grant the superadmin role' }, { status: 403 });
     }
 
     if (existing.role === 'superadmin' && role && role !== 'superadmin' && (await countSuperAdmins()) <= 1) {

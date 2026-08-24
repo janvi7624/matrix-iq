@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTmsViewer, requireTmsAction, TMS_DEPARTMENTS, TMS_ROLE_KEYS } from '@/lib/tmsAccess';
 import { createUser, listUsers } from '@/lib/userStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { canViewRole } from '@/lib/permissions';
 
 // A scoped view of the real User/Role/Department system (lib/userStore.ts),
 // not a parallel store — /admin/users itself is isPrivileged-only and
@@ -14,7 +15,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const users = await listUsers();
-    const scoped = users.filter((u) => TMS_DEPARTMENTS.includes(u.department as (typeof TMS_DEPARTMENTS)[number]));
+    const scoped = users.filter(
+      (u) => TMS_DEPARTMENTS.includes(u.department as (typeof TMS_DEPARTMENTS)[number]) && canViewRole(viewer.role, u.role)
+    );
     return NextResponse.json(scoped);
   } catch (error) {
     return apiErrorResponse(error);
