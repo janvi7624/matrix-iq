@@ -43,6 +43,7 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
   const command = new SendEmailCommand({
     Source: process.env.AWS_SES_FROM_EMAIL,
     Destination: { ToAddresses: toAddresses },
+    ConfigurationSetName: process.env.SES_CONFIG_SET || undefined,
     Message: {
       Subject: { Data: input.subject, Charset: 'UTF-8' },
       Body: {
