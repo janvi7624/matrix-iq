@@ -1,13 +1,12 @@
 'use client';
 
 import { FormEvent, Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import styles from '@/components/quotationHistory.module.css';
 import { BRAND } from '@/lib/branding';
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -29,9 +28,14 @@ function LoginForm() {
         setError(body?.error || 'Invalid username or password.');
         return;
       }
+      // Hard navigation, not router.push()+refresh() — a client-side push
+      // here is an RSC fetch, and if proxy.ts's mustChangePassword gate
+      // redirects it (temp-password accounts get sent to /change-password
+      // instead of `next`), the redirected request still carries RSC
+      // headers, so the server returns raw flight-payload text instead of
+      // rendered HTML. A full navigation always gets real HTML back.
       const next = searchParams.get('next') || '/';
-      router.push(next);
-      router.refresh();
+      window.location.href = next;
     } catch {
       setError('Could not reach the login API.');
     } finally {
