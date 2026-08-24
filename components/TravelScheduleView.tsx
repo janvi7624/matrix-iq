@@ -1,22 +1,37 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { TravelScheduleRecord, UserRole } from '@/lib/types';
+import { TRAVEL_STATUS_LABEL, TRAVEL_STATUS_TONE, travelPendingLabel } from '@/lib/travelLabels';
 import AppShell from './AppShell';
+import StatusBadge from './ui/StatusBadge';
 import { useToast } from './ui/ToastProvider';
-import { useConfirm } from './ui/ConfirmDialog';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
-const EMPTY_FORM = { origin: '', destination: '', startDate: '', endDate: '', purpose: '', linkedClient: '', expenseNote: '' };
+interface ProjectOption {
+  id: string;
+  client_name?: string;
+  company?: string;
+}
+
+interface UserOption {
+  id: string;
+  username: string;
+  name: string;
+}
+
+const EMPTY_FORM = {
+  origin: '', destination: '', startDate: '', endDate: '',
+  requiredArrivalTime: '', expectedDepartureTime: '',
+  purpose: '', linkedClient: '', expenseNote: '', projectId: '',
+  companionIds: [] as string[]
+};
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
-  try {
-    return new Date(iso).toLocaleDateString('en-IN');
-  } catch {
-    return iso;
-  }
+  try { return new Date(iso).toLocaleDateString('en-IN'); } catch { return iso; }
 }
 
 interface TravelScheduleViewProps {
@@ -26,12 +41,14 @@ interface TravelScheduleViewProps {
 export default function TravelScheduleView({ currentUser }: TravelScheduleViewProps) {
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const toast = useToast();
-  const confirm = useConfirm();
   const [records, setRecords] = useState<TravelScheduleRecord[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   async function load() {
     setStatus('Loading...');
@@ -40,7 +57,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
       if (!response.ok) throw new Error(String(response.status));
       const data: TravelScheduleRecord[] = await response.json();
       setRecords(data);
-      setStatus(data.length ? `${data.length} trip${data.length === 1 ? '' : 's'} found.` : '');
+      setStatus(data.length ? `${data.length} request${data.length === 1 ? '' : 's'} found.` : '');
       setLoaded(true);
     } catch {
       setStatus('Could not reach the travel schedule API. Try refreshing.');
@@ -49,6 +66,8 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
 
   useEffect(() => {
     load();
+    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
+    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
   }, []);
 
   async function handleCreate(e: FormEvent) {
@@ -66,117 +85,191 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
       });
       if (!response.ok) throw new Error(String(response.status));
       setForm(EMPTY_FORM);
+      setShowForm(false);
       await load();
+      toast.success('Travel request created.');
     } catch {
-      toast.error('Could not save this travel entry. Please try again.');
+      toast.error('Could not save this travel request. Please try again.');
     } finally {
       setCreating(false);
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!(await confirm({ message: 'Delete this travel entry? This cannot be undone.', danger: true }))) return;
-    try {
-      const response = await fetch(`/api/travel-schedule/${id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error(String(response.status));
-      setRecords((prev) => prev.filter((r) => r.id !== id));
-    } catch {
-      toast.error('Could not delete this travel entry.');
-    }
-  }
-
   return (
-    <AppShell title="Travel Schedule" subtitle="Log rep travel for client visits.">
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Add travel entry</h2>
-        <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Origin</label>
-              <input className={calcStyles.formControl} value={form.origin} onChange={(e) => setForm((f) => ({ ...f, origin: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Destination *</label>
-              <input className={calcStyles.formControl} value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Start date *</label>
-              <input type="date" className={calcStyles.formControl} value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>End date</label>
-              <input type="date" className={calcStyles.formControl} value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
-            </div>
-          </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Purpose</label>
-              <input className={calcStyles.formControl} value={form.purpose} onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Linked client</label>
-              <input className={calcStyles.formControl} value={form.linkedClient} onChange={(e) => setForm((f) => ({ ...f, linkedClient: e.target.value }))} />
-            </div>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Expense note</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.expenseNote} onChange={(e) => setForm((f) => ({ ...f, expenseNote: e.target.value }))} />
-          </div>
-          <button type="submit" className={calcStyles.btn} disabled={creating}>
-            {creating ? 'Saving…' : 'Add travel entry'}
-          </button>
-        </form>
+    <AppShell title="Travel Schedule" subtitle="Manage employee travel requests and approvals.">
+      <div className={historyStyles.toolbar}>
+        <button type="button" className={historyStyles.button} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? 'Cancel' : '+ New Travel Request'}
+        </button>
+        <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
+      </div>
 
-        <div className={historyStyles.toolbar} style={{ marginTop: 24 }}>
-          <button type="button" className={historyStyles.button} onClick={load}>
-            Refresh
-          </button>
-        </div>
-        <div className={historyStyles.status}>{status}</div>
-        {loaded && (
-          <table className={historyStyles.table}>
-            <thead>
+      {showForm && (
+        <>
+          <h2 className={calcStyles.h2} style={{ marginTop: 16 }}>New Travel Request</h2>
+          <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Origin *</label>
+                <input className={calcStyles.formControl} value={form.origin} onChange={(e) => setForm((f) => ({ ...f, origin: e.target.value }))} required />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Destination *</label>
+                <input className={calcStyles.formControl} value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} required />
+              </div>
+            </div>
+            <h3 className={calcStyles.label} style={{ marginTop: 12, marginBottom: 4, fontSize: '0.85rem', opacity: 0.7 }}>When do you need to reach the destination?</h3>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Arrival Date *</label>
+                <input type="date" className={calcStyles.formControl} value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} required />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Arrival Time</label>
+                <input type="time" className={calcStyles.formControl} value={form.requiredArrivalTime} onChange={(e) => setForm((f) => ({ ...f, requiredArrivalTime: e.target.value }))} />
+              </div>
+            </div>
+            <h3 className={calcStyles.label} style={{ marginTop: 12, marginBottom: 4, fontSize: '0.85rem', opacity: 0.7 }}>When do you want to leave the destination?</h3>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Departure Date</label>
+                <input type="date" className={calcStyles.formControl} value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Departure Time</label>
+                <input type="time" className={calcStyles.formControl} value={form.expectedDepartureTime} onChange={(e) => setForm((f) => ({ ...f, expectedDepartureTime: e.target.value }))} />
+              </div>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Project</label>
+                  <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))}>
+                    <option value="">— Select project —</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.client_name || ''}{p.company ? ` — ${p.company}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Linked Client</label>
+                <input className={calcStyles.formControl} value={form.linkedClient} onChange={(e) => setForm((f) => ({ ...f, linkedClient: e.target.value }))} />
+              </div>
+            </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Purpose of Travel</label>
+              <textarea className={calcStyles.formControl} rows={2} value={form.purpose} onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))} />
+            </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Expense Note</label>
+              <textarea className={calcStyles.formControl} rows={2} value={form.expenseNote} onChange={(e) => setForm((f) => ({ ...f, expenseNote: e.target.value }))} />
+            </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Travel Companions</label>
+              <select
+                className={calcStyles.formControl}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (id && !form.companionIds.includes(id)) {
+                    setForm((f) => ({ ...f, companionIds: [...f.companionIds, id] }));
+                  }
+                  e.target.value = '';
+                }}
+              >
+                <option value="">— Add companion —</option>
+                {users.filter((u) => u.username !== currentUser.username && !form.companionIds.includes(u.id)).map((u) => (
+                  <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                ))}
+              </select>
+              {form.companionIds.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                  {form.companionIds.map((id) => {
+                    const user = users.find((u) => u.id === id);
+                    return (
+                      <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 12, background: 'var(--mx-surface-alt, #e5e7eb)', fontSize: '0.85rem' }}>
+                        {user?.name || user?.username || id}
+                        <button type="button" onClick={() => setForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, opacity: 0.6 }}>&times;</button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <button type="submit" className={calcStyles.btn} disabled={creating}>
+              {creating ? 'Saving...' : 'Create Travel Request'}
+            </button>
+          </form>
+        </>
+      )}
+
+      <div className={historyStyles.status}>{status}</div>
+      {loaded && (
+        <table className={historyStyles.table}>
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Dates</th>
+              <th>Origin</th>
+              <th>Destination</th>
+              <th>Purpose</th>
+              <th>Status</th>
+              <th>Requested By</th>
+              <th>Companions</th>
+              <th>Tickets</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.length === 0 ? (
               <tr>
-                <th>Dates</th>
-                <th>Origin</th>
-                <th>Destination</th>
-                <th>Purpose</th>
-                <th>Linked Client</th>
-                <th>Logged By</th>
-                <th></th>
+                <td colSpan={10} className={historyStyles.empty}>No travel requests yet.</td>
               </tr>
-            </thead>
-            <tbody>
-              {records.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className={historyStyles.empty}>
-                    No travel entries recorded yet.
+            ) : (
+              records.map((r) => (
+                <tr key={r.id}>
+                  <td><Link href={`/travel-schedule/${r.id}`} style={{ color: 'var(--mx-brand)', textDecoration: 'none' }}>{r.request_code || '-'}</Link></td>
+                  <td>
+                    {formatDate(r.start_date)}
+                    {r.end_date && r.end_date !== r.start_date ? ` - ${formatDate(r.end_date)}` : ''}
+                  </td>
+                  <td>{r.origin || '-'}</td>
+                  <td>{r.destination}</td>
+                  <td>{r.purpose || '-'}</td>
+                  <td>
+                    <StatusBadge
+                      tone={TRAVEL_STATUS_TONE[r.status] || 'pending'}
+                      label={travelPendingLabel(r.status)}
+                    />
+                  </td>
+                  <td>{r.created_by}</td>
+                  <td>{r.companion_names && r.companion_names.length > 0 ? r.companion_names.join(', ') : <span style={{ opacity: 0.4 }}>-</span>}</td>
+                  <td>
+                    {r.ticket_documents && r.ticket_documents.length > 0 ? (
+                      r.ticket_documents.map((url, i) => {
+                        const ext = url.split('.').pop() || '';
+                        const project = (r.project_name || '').replace(/[^a-zA-Z0-9]/g, '');
+                        const person = (r.created_by || '').replace(/[^a-zA-Z0-9.]/g, '');
+                        const from = (r.origin || '').replace(/[^a-zA-Z0-9]/g, '');
+                        const to = (r.destination || '').replace(/[^a-zA-Z0-9]/g, '');
+                        const fileName = `${project || 'NoProject'}_${person}_${from}_${to}_Ticket${r.ticket_documents.length > 1 ? i + 1 : ''}.${ext}`;
+                        return (
+                          <a key={url} href={url} target="_blank" rel="noreferrer" download={fileName} style={{ color: 'var(--mx-brand)', textDecoration: 'none', marginRight: 6 }}>
+                            {r.ticket_documents.length === 1 ? 'Download' : `Ticket ${i + 1}`}
+                          </a>
+                        );
+                      })
+                    ) : (
+                      <span style={{ opacity: 0.4 }}>-</span>
+                    )}
+                  </td>
+                  <td>
+                    <Link href={`/travel-schedule/${r.id}`} className={historyStyles.button}>View</Link>
                   </td>
                 </tr>
-              ) : (
-                records.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      {formatDate(r.start_date)}
-                      {r.end_date && r.end_date !== r.start_date ? ` – ${formatDate(r.end_date)}` : ''}
-                    </td>
-                    <td>{r.origin || '-'}</td>
-                    <td>{r.destination}</td>
-                    <td>{r.purpose || '-'}</td>
-                    <td>{r.linked_client || '-'}</td>
-                    <td>{r.created_by}</td>
-                    <td>
-                      {isPrivileged && (
-                        <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>
-                          Delete
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
+      )}
     </AppShell>
   );
 }

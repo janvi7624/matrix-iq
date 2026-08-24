@@ -16,6 +16,7 @@ import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
+import { travelScheduleStore } from '@/lib/travelScheduleStore';
 
 // Single round trip for everything Dashboard.tsx needs on first paint —
 // replaces what used to be up to 13 separate client-side fetches (modules,
@@ -82,7 +83,16 @@ export async function GET(request: NextRequest) {
       })()
     ]);
 
-    const quotationsCount = await countQuotationsForProjects(projectsLight.map((p) => p.id));
+    // None of these three depend on each other — quotationsCount needs
+    // projectsLight (already resolved above), pendingHandovers/travelRecords
+    // need only the viewer — so they run together instead of as three more
+    // sequential round trips (travelScheduleStore.list in particular is a
+    // multi-join query, not cheap to pay for twice removed from parallel).
+    const [quotationsCount, pendingHandovers, travelRecords] = await Promise.all([
+      countQuotationsForProjects(projectsLight.map((p) => p.id)),
+      projectHandoverStore.listPendingForUser(viewer.userId),
+      travelScheduleStore.list(viewer.username, viewer.isPrivileged)
+    ]);
 
     const today = new Date().toISOString().slice(0, 10);
     const now = Date.now();
@@ -132,7 +142,21 @@ export async function GET(request: NextRequest) {
 
     const followUpCount = viewer.isPrivileged ? quotationsForViewer.filter((r) => needsFollowUp(r)).length : null;
     const reminderCount = siteVisits.filter((v) => isReminderDue(v)).length;
-    const pendingHandovers = await projectHandoverStore.listPendingForUser(viewer.userId);
+
+    // Travel schedule attention counts (pendingHandovers/travelRecords fetched above)
+    const isHrManager = (managersByDepartment['HR'] || []).some((m) => m.id === viewer.userId);
+    const isAdminDeptManager = (managersByDepartment['Admin'] || managersByDepartment['Administration'] || []).some((m) => m.id === viewer.userId);
+    const isAccountsDeptManager = (managersByDepartment['Accounts'] || []).some((m) => m.id === viewer.userId);
+
+    let travelPendingCount = 0;
+    for (const tr of travelRecords) {
+      if (tr.status === 'submitted' && (isManagerTier || viewer.isPrivileged)) travelPendingCount++;
+      else if (tr.status === 'manager_approved' && (isHrManager || viewer.isPrivileged)) travelPendingCount++;
+      else if (tr.status === 'hr_reviewed' && (isAdminDeptManager || viewer.isPrivileged)) travelPendingCount++;
+      else if (tr.status === 'admin_approved' && (isAccountsDeptManager || viewer.isPrivileged)) travelPendingCount++;
+      else if (tr.status === 'ticket_booking' && (isHrManager || viewer.isPrivileged)) travelPendingCount++;
+      else if (tr.status === 'changes_requested' && tr.created_by === viewer.username) travelPendingCount++;
+    }
 
     const marketingStats = marketingRecords.isReviewer
       ? { isReviewer: true, awaitingReview: marketingRecords.records.filter((r) => r.status === 'submitted').length }
@@ -170,7 +194,8 @@ export async function GET(request: NextRequest) {
       technicalRoster,
       recentQuotations: recentQuotationsTrimmed,
       quotationStats,
-      pendingHandovers
+      pendingHandovers,
+      travelPendingCount
     });
   } catch (error) {
     return apiErrorResponse(error);

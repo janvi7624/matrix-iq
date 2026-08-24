@@ -8,6 +8,8 @@ import { isMarketingManager } from '@/lib/permissions';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { listVisibleModules } from '@/lib/moduleConfigStore';
+import { travelScheduleStore } from '@/lib/travelScheduleStore';
+import { listDepartmentManagers } from '@/lib/departmentStore';
 
 // Sidebar renders on every authenticated page and used to pay for its own
 // /api/auth/me call, then — only once that resolved — up to 4 more
@@ -41,7 +43,15 @@ export async function GET(request: NextRequest) {
     const badges: Record<string, number> = {};
     if (leadStats.unattended) badges.leads = leadStats.unattended;
 
-    const marketingRecords = await marketingRequestStore.list(viewer.username, isMarketingReviewer);
+    // marketingRecords needs isMarketingReviewer (resolved above); travelRecords
+    // and deptManagers don't depend on anything from the first batch — all
+    // three are independent of each other, so they run together instead of as
+    // three more sequential round trips on an endpoint that fires on every page.
+    const [marketingRecords, travelRecords, deptManagers] = await Promise.all([
+      marketingRequestStore.list(viewer.username, isMarketingReviewer),
+      travelScheduleStore.list(viewer.username, isPrivileged),
+      listDepartmentManagers()
+    ]);
     if (isMarketingReviewer) {
       const awaitingReview = marketingRecords.filter((r) => r.status === 'submitted').length;
       if (awaitingReview) badges['marketing-requests'] = awaitingReview;
@@ -61,6 +71,21 @@ export async function GET(request: NextRequest) {
       const count = pendingDc + pendingVerification + pendingDispatch;
       if (count) badges.backoffice = count;
     }
+
+    // Travel schedule badge (travelRecords/deptManagers fetched above)
+    const isHrMgr = (deptManagers['HR'] || []).some((m) => m.username === viewer.username);
+    const isAdminMgr = (deptManagers['Admin'] || deptManagers['Administration'] || []).some((m) => m.username === viewer.username);
+    const isAccountsMgr = (deptManagers['Accounts'] || []).some((m) => m.username === viewer.username);
+    let travelBadge = 0;
+    for (const tr of travelRecords) {
+      if (tr.status === 'submitted' && (isManagerTier || isPrivileged)) travelBadge++;
+      else if (tr.status === 'manager_approved' && (isHrMgr || isPrivileged)) travelBadge++;
+      else if (tr.status === 'hr_reviewed' && (isAdminMgr || isPrivileged)) travelBadge++;
+      else if (tr.status === 'admin_approved' && (isAccountsMgr || isPrivileged)) travelBadge++;
+      else if (tr.status === 'ticket_booking' && (isHrMgr || isPrivileged)) travelBadge++;
+      else if (tr.status === 'changes_requested' && tr.created_by === viewer.username) travelBadge++;
+    }
+    if (travelBadge) badges['travel-schedule'] = travelBadge;
 
     return NextResponse.json({
       modules,

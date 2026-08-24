@@ -1,13 +1,104 @@
 'use client';
 
-import { Fragment, FormEvent, useEffect, useMemo, useState } from 'react';
+import { Fragment, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import Image from 'next/image';
+import { MoreVertical } from 'lucide-react';
 import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { BRAND } from '@/lib/branding';
 import PhoneInput from '@/components/ui/PhoneInput';
+
+interface RowMenuAction {
+  label: string;
+  href?: string;
+  onClick?: () => void;
+  danger?: boolean;
+}
+
+// Renders the "⋮" trigger inline, but the panel itself through a portal to
+// document.body, fixed-positioned from the trigger's own bounding rect.
+// Necessary because the table sits inside a horizontally-scrolling wrapper
+// (historyStyles.tableWrap, overflow-x:auto) — per the CSS spec, setting
+// overflow-x alone silently turns overflow-y into auto too, so a plain
+// position:absolute panel would get clipped for any row near the bottom of
+// the visible table area.
+function RowActionsMenu({ actions }: { actions: RowMenuAction[] }) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const PANEL_WIDTH = 200;
+
+  useEffect(() => {
+    if (!open) return;
+    function close(e: Event) {
+      if (e.type === 'scroll') {
+        setOpen(false);
+        return;
+      }
+      const target = (e as MouseEvent).target as Node;
+      if (panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    document.addEventListener('mousedown', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [open]);
+
+  function toggle() {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords({ top: rect.bottom + 4, left: Math.max(8, rect.right - PANEL_WIDTH) });
+    }
+    setOpen((v) => !v);
+  }
+
+  return (
+    <>
+      <button type="button" ref={triggerRef} className={historyStyles.rowMenuTrigger} onClick={toggle} aria-label="Row actions" aria-haspopup="menu" aria-expanded={open}>
+        <MoreVertical size={18} />
+      </button>
+      {open &&
+        coords &&
+        createPortal(
+          <div
+            ref={panelRef}
+            className={`${historyStyles.notifPanel} ${historyStyles.rowMenuPanel}`}
+            style={{ position: 'fixed', top: coords.top, left: coords.left, width: PANEL_WIDTH, zIndex: 1000 }}
+            role="menu"
+          >
+            {actions.map((action, i) =>
+              action.href ? (
+                <Link key={i} href={action.href} className={historyStyles.rowMenuItem} onClick={() => setOpen(false)} role="menuitem">
+                  {action.label}
+                </Link>
+              ) : (
+                <button
+                  key={i}
+                  type="button"
+                  className={`${historyStyles.rowMenuItem} ${action.danger ? historyStyles.rowMenuItemDanger : ''}`}
+                  onClick={() => {
+                    setOpen(false);
+                    action.onClick?.();
+                  }}
+                  role="menuitem"
+                >
+                  {action.label}
+                </button>
+              )
+            )}
+          </div>,
+          document.body
+        )}
+    </>
+  );
+}
 
 const PAGE_SIZE = 20;
 
@@ -490,14 +581,12 @@ export default function ManageUsersPage() {
                 <th>Designation</th>
                 <th>Role</th>
                 <th>Status</th>
-                <th>Last Login</th>
-                <th>Created</th>
-                <th></th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {pageRows.length === 0 && (
-                <tr><td colSpan={12} style={{ textAlign: 'center', padding: 24, color: '#9ca3af' }}>
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 24, color: '#9ca3af' }}>
                   {users.length === 0 ? 'No users yet.' : 'No employees match your filters.'}
                 </td></tr>
               )}
@@ -548,7 +637,7 @@ export default function ManageUsersPage() {
                               <RoleOptions roles={roles} includeSuperadmin={isSuperadmin} />
                             </select>
                           </td>
-                          <td colSpan={3}>
+                          <td>
                             <input className={calcStyles.formControl} type="password" placeholder="New password (optional)" value={editState.password} onChange={(e) => setEditState({ ...editState, password: e.target.value })} />
                           </td>
                           <td>
@@ -574,30 +663,22 @@ export default function ManageUsersPage() {
                           <td>{user.designation || '-'}</td>
                           <td><RolePill role={user.role} roles={roles} /></td>
                           <td><StatusPill status={user.status} /></td>
-                          <td>{formatDateTime(user.lastLoginAt)}</td>
-                          <td>{formatDateTime(user.createdAt)}</td>
                           <td>
-                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              <Link href={`/admin/users/${user.id}`} className={historyStyles.toggleBtn}>
-                                View Profile
-                              </Link>
-                              <button type="button" className={historyStyles.toggleBtn} onClick={() => toggleActivity(user)}>
-                                {isActivityOpen ? 'Hide activity' : 'View activity'}
-                              </button>
-                              {canManage && (
-                                <>
-                                  <button type="button" className={historyStyles.button} onClick={() => startEdit(user)}>Edit</button>
-                                  <button type="button" className={historyStyles.button} onClick={() => resetPassword(user)}>Reset Password</button>
-                                  <button type="button" className={historyStyles.button} onClick={() => resendWelcomeEmail(user)}>Resend Welcome Email</button>
-                                  <button type="button" className={historyStyles.button} onClick={() => toggleStatus(user)}>
-                                    {user.status === 'active' ? 'Deactivate' : 'Activate'}
-                                  </button>
-                                </>
-                              )}
-                              {isSuperadmin && (
-                                <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(user)}>Delete</button>
-                              )}
-                            </div>
+                            <RowActionsMenu
+                              actions={[
+                                { label: 'View Profile', href: `/admin/users/${user.id}` },
+                                { label: isActivityOpen ? 'Hide activity' : 'View activity', onClick: () => toggleActivity(user) },
+                                ...(canManage
+                                  ? [
+                                      { label: 'Edit', onClick: () => startEdit(user) },
+                                      { label: 'Reset Password', onClick: () => resetPassword(user) },
+                                      { label: 'Resend Welcome Email', onClick: () => resendWelcomeEmail(user) },
+                                      { label: user.status === 'active' ? 'Deactivate' : 'Activate', onClick: () => toggleStatus(user) }
+                                    ]
+                                  : []),
+                                ...(isSuperadmin ? [{ label: 'Delete', onClick: () => handleDelete(user), danger: true }] : [])
+                              ]}
+                            />
                             {rowError[user.id] && <div className={historyStyles.loginError}>{rowError[user.id]}</div>}
                           </td>
                         </>
@@ -605,7 +686,7 @@ export default function ManageUsersPage() {
                     </tr>
                     {isActivityOpen && (
                       <tr className={historyStyles.detailsRow}>
-                        <td colSpan={12}>
+                        <td colSpan={10}>
                           {activityLoading && !userActivity ? (
                             'Loading activity...'
                           ) : userActivity ? (
