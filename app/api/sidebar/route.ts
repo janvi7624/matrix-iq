@@ -43,7 +43,15 @@ export async function GET(request: NextRequest) {
     const badges: Record<string, number> = {};
     if (leadStats.unattended) badges.leads = leadStats.unattended;
 
-    const marketingRecords = await marketingRequestStore.list(viewer.username, isMarketingReviewer);
+    // marketingRecords needs isMarketingReviewer (resolved above); travelRecords
+    // and deptManagers don't depend on anything from the first batch — all
+    // three are independent of each other, so they run together instead of as
+    // three more sequential round trips on an endpoint that fires on every page.
+    const [marketingRecords, travelRecords, deptManagers] = await Promise.all([
+      marketingRequestStore.list(viewer.username, isMarketingReviewer),
+      travelScheduleStore.list(viewer.username, isPrivileged),
+      listDepartmentManagers()
+    ]);
     if (isMarketingReviewer) {
       const awaitingReview = marketingRecords.filter((r) => r.status === 'submitted').length;
       if (awaitingReview) badges['marketing-requests'] = awaitingReview;
@@ -64,9 +72,7 @@ export async function GET(request: NextRequest) {
       if (count) badges.backoffice = count;
     }
 
-    // Travel schedule badge
-    const travelRecords = await travelScheduleStore.list(viewer.username, isPrivileged);
-    const deptManagers = await listDepartmentManagers();
+    // Travel schedule badge (travelRecords/deptManagers fetched above)
     const isHrMgr = (deptManagers['HR'] || []).some((m) => m.username === viewer.username);
     const isAdminMgr = (deptManagers['Admin'] || deptManagers['Administration'] || []).some((m) => m.username === viewer.username);
     const isAccountsMgr = (deptManagers['Accounts'] || []).some((m) => m.username === viewer.username);

@@ -1,13 +1,11 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import styles from '@/components/quotationHistory.module.css';
 import { BRAND } from '@/lib/branding';
 
 export default function ChangePasswordPage() {
-  const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -37,8 +35,14 @@ export default function ChangePasswordPage() {
         setError(body?.error || 'Could not change password.');
         return;
       }
-      router.push('/');
-      router.refresh();
+      // A hard navigation, not router.push()+refresh() — the new session
+      // cookie (mustChangePassword now cleared) is already set by the
+      // response above, but immediately following push() with refresh()
+      // races the App Router's in-flight navigation and can leave this
+      // page mounted instead of completing the transition to "/". A full
+      // reload sidesteps that entirely and guarantees the next request is
+      // gated by proxy.ts using the fresh cookie.
+      window.location.href = '/';
     } catch {
       setError('Could not reach the server.');
     } finally {
