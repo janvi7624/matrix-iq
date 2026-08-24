@@ -18,7 +18,7 @@ interface Viewer {
   department?: string;
 }
 
-const ROLE_LABEL: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', technical: 'Technical', backoffice: 'Back Office', user: 'Sales', marketing: 'Marketing' };
+const ROLE_LABEL: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', engineer: 'Engineer', backoffice: 'Back Office', user: 'Sales', marketing: 'Marketing', accounts: 'Accounts', hr: 'HR' };
 
 // Curated shortcuts for the Quick Actions panel — a subset of the full nav,
 // matched by module key so it stays role-authorized "for free" (only shows

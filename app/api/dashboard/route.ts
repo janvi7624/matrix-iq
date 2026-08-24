@@ -69,13 +69,13 @@ export async function GET(request: NextRequest) {
       demoScheduleStore.list(viewer.username, viewer.isPrivileged),
       (async () => {
         const canSeeQueue =
-          viewer.isPrivileged || viewer.role === 'technical' || viewer.role === 'backoffice' || (await isUserADepartmentManager(viewer.username));
+          viewer.isPrivileged || viewer.role === 'engineer' || viewer.role === 'backoffice' || (await isUserADepartmentManager(viewer.username));
         return demoScheduleStore.list(viewer.username, canSeeQueue);
       })(),
       computeLeadStats(viewer.username, viewer.isPrivileged),
       listTechnicalRoster(),
       listDepartmentManagers(),
-      viewer.isPrivileged ? searchQuotationsFiltered({}) : searchQuotationsFiltered({ ownerUsername: viewer.username }),
+      searchQuotationsFiltered({ viewerUsername: viewer.username }),
       isBackOffice ? deliveryChallanStore.list(viewer.username, true) : Promise.resolve(null),
       (async () => {
         const isReviewer = await isMarketingManager(viewer);

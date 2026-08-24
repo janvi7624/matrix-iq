@@ -76,12 +76,11 @@ export async function listTechnicalRoster(options?: { category?: string }): Prom
     };
   });
 
-  // Filter for users who are in technical role OR technical/engineering/product departments
+  // Filter for users who are in the engineer role OR technical/engineering/product departments
   const technicalUsers = allUsers.filter((u) => {
     const role = (u.role || '').toLowerCase();
     const dept = (u.department || '').toLowerCase();
     return (
-      role === 'technical' ||
       role === 'engineer' ||
       role === 'superadmin' ||
       TECHNICAL_DOMAIN_DEPARTMENTS.some((d) => dept.includes(d.toLowerCase()))

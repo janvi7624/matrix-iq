@@ -37,6 +37,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   const [searchValue, setSearchValue] = useState('');
   const [canDelete, setCanDelete] = useState(false);
   const [followUpOnly, setFollowUpOnly] = useState(false);
+  const [orgWide, setOrgWide] = useState(true);
 
   const [fSalesPerson, setFSalesPerson] = useState('');
   const [fStatus, setFStatus] = useState<QuotationEffectiveStatus | ''>('');
@@ -47,7 +48,10 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
-      .then((me) => setCanDelete(me?.role === 'superadmin'))
+      .then((me) => {
+        setCanDelete(me?.role === 'superadmin');
+        setOrgWide(me?.role === 'superadmin' || me?.role === 'admin');
+      })
       .catch(() => setCanDelete(false));
   }, []);
 
@@ -138,7 +142,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
           <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
           <div>
             <h1>{title}</h1>
-            <div className={styles.sub}>{subtitle}</div>
+            <div className={styles.sub}>{orgWide ? subtitle : 'Every quotation in your department, with a guaranteed-unique quotation number.'}</div>
           </div>
         </Link>
         <div style={{ display: 'flex', gap: 10 }}>

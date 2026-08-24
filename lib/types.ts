@@ -101,9 +101,11 @@ export interface CostInputs {
 // admin: can create/edit users and view quotation history, but cannot delete users or quotations.
 // manager: same broad visibility as admin across the sales-project pipeline (projects, demos,
 //   approvals, etc.) — added for the Sales/Technical/Manager permission split, not a user-management role.
-// technical: technical-team login; same own-scoped visibility as "user" today (see note in
-//   lib/viewerContext.ts — assignment-based visibility isn't possible while team rosters are
-//   free-text names, not real accounts).
+// technical: retired (Sept 2026) — merged into TMS's "engineer" role, which now also covers
+//   the old technical-team CRM duties (demo-request technical approval, Sales project
+//   assignment eligibility, marketing technical review). See lib/roleStore.ts's 'engineer'
+//   seed entry and every `role === 'engineer'` check across app/api/demo-schedule,
+//   app/api/marketing-requests, app/api/projects, lib/projectStore.ts, lib/technicalRoster.ts.
 // backoffice: prepares/dispatches/closes Delivery Challans once a demo request clears manager
 //   approval; same own-scoped general visibility as "user"/"technical", but with Back Office
 //   module access.

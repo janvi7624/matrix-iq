@@ -25,6 +25,8 @@ interface CurrentViewer {
   isPrivileged: boolean;
 }
 
+const ORG_WIDE_ROLES = new Set(['superadmin', 'admin']);
+
 export default function MyQuotationsView() {
   const [viewer, setViewer] = useState<CurrentViewer | null>(null);
   const [rows, setRows] = useState<QuotationRecord[]>([]);
@@ -147,9 +149,11 @@ export default function MyQuotationsView() {
     }
   }
 
-  const subtitle = isPrivileged
+  const subtitle = ORG_WIDE_ROLES.has(viewer?.role ?? '')
     ? 'All quotations across the organization — with versions, status, and follow-ups.'
-    : "Quotations you've created — with versions, status, and follow-ups.";
+    : isPrivileged
+      ? 'Quotations across your department — with versions, status, and follow-ups.'
+      : "Quotations you've created — with versions, status, and follow-ups.";
 
   return (
     <AppShell title="Existing Quotations" subtitle={subtitle}>

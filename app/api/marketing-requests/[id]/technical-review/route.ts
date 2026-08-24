@@ -33,9 +33,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const existing = records.find((r) => r.id === id);
     if (!existing) return NextResponse.json({ error: 'Marketing request not found' }, { status: 404 });
 
-    // Allow the assigned technical member, or any user with role 'technical' or privileged accounts
+    // Allow the assigned technical member, or any user with role 'engineer' or privileged accounts
     const isAssignedTechnical = existing.technical_member_username === viewer.username;
-    const isTechnicalRoleOrPrivileged = viewer.role === 'technical' || viewer.isPrivileged;
+    const isTechnicalRoleOrPrivileged = viewer.role === 'engineer' || viewer.isPrivileged;
 
     if (!isAssignedTechnical && !isTechnicalRoleOrPrivileged) {
       return NextResponse.json(

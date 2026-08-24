@@ -14,7 +14,9 @@ import { TMS_ROLE_KEYS } from './tmsConstants';
 const MODULES_CACHE_KEY = 'modules:all';
 const MODULES_CACHE_TTL_MS = 30_000;
 
-const ALL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user', 'marketing'];
+// 'technical' role retired (Sept 2026), merged into TMS's 'engineer' role —
+// see lib/roleStore.ts. 'engineer' takes over its spot here.
+const ALL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'engineer', 'backoffice', 'user', 'marketing', 'accounts', 'hr'];
 const PRIVILEGED_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 
 // TMS (Technical Management System) — Robotics/AI/AV/Marketing-only, see
@@ -179,6 +181,37 @@ const OLD_ALL_ROLES_NO_MARKETING: UserRole[] = ['superadmin', 'admin', 'manager'
 const MARKETING_ALL_ROLES_KEYS = new Set(['my-quotations', 'travel-schedule', 'analytics']);
 const OLD_SALES_ROLES_NO_MARKETING: UserRole[] = [...OLD_ALL_ROLES_NO_MARKETING, ...TMS_ROLE_KEYS];
 
+// 'technical' role retired, merged into 'engineer' — every module already
+// visible to 'technical' should now show to 'engineer' instead. Literal
+// snapshot of the pre-merge ALL_ROLES (not `= ALL_ROLES`) so this can't
+// drift if ALL_ROLES changes again later. Same don't-clobber-an-admin-edit
+// guard as every reconciliation above. Covers both the plain-ALL_ROLES keys
+// (TECHNICAL_MERGE_KEYS) and the TMS-extended SALES_ROLES_WITH_TMS keys
+// (TMS_SALES_ACCESS_KEYS below) — the latter still functionally worked for
+// 'engineer' even before this reconciliation (it's already in TMS_ROLE_KEYS,
+// separately spread into that array), but the stored row itself needs the
+// swap too, or a later ALL_ROLES-only role addition (e.g. Accounts) can
+// never reach it through the ALL_ROLES portion of that array.
+const OLD_ALL_ROLES_WITH_TECHNICAL: UserRole[] = ['superadmin', 'admin', 'manager', 'technical', 'backoffice', 'user', 'marketing'];
+const TECHNICAL_MERGE_KEYS = new Set(['my-quotations', 'travel-schedule', 'analytics']);
+const OLD_SALES_ROLES_WITH_TECHNICAL: UserRole[] = [...OLD_ALL_ROLES_WITH_TECHNICAL, ...TMS_ROLE_KEYS];
+
+// Accounts role added (lib/roleStore.ts) — same reasoning as Marketing
+// above: every module already visible to the plain ALL_ROLES set, or its
+// TMS-extended SALES_ROLES_WITH_TMS derivative, should show to Accounts too.
+// Literal snapshot of the pre-Accounts ALL_ROLES (not `= ALL_ROLES`), same
+// don't-clobber-an-admin-edit guard as every reconciliation above.
+const OLD_ALL_ROLES_NO_ACCOUNTS: UserRole[] = ['superadmin', 'admin', 'manager', 'engineer', 'backoffice', 'user', 'marketing'];
+const ACCOUNTS_ALL_ROLES_KEYS = new Set(['my-quotations', 'travel-schedule', 'analytics']);
+const OLD_SALES_ROLES_NO_ACCOUNTS: UserRole[] = [...OLD_ALL_ROLES_NO_ACCOUNTS, ...TMS_ROLE_KEYS];
+
+// HR role added (lib/roleStore.ts) — same reasoning as Marketing/Accounts
+// above. Literal snapshot of the pre-HR ALL_ROLES (not `= ALL_ROLES`), same
+// don't-clobber-an-admin-edit guard as every reconciliation above.
+const OLD_ALL_ROLES_NO_HR: UserRole[] = ['superadmin', 'admin', 'manager', 'engineer', 'backoffice', 'user', 'marketing', 'accounts'];
+const HR_ALL_ROLES_KEYS = new Set(['my-quotations', 'travel-schedule', 'analytics']);
+const OLD_SALES_ROLES_NO_HR: UserRole[] = [...OLD_ALL_ROLES_NO_HR, ...TMS_ROLE_KEYS];
+
 function sameRoles(a: UserRole[], b: UserRole[]): boolean {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
@@ -242,6 +275,12 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (TMS_MANAGER_ONLY_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_TMS_MANAGER_ONLY_ROLES)) attrs.visibleToRoles = TMS_MANAGER_ONLY_ROLES;
     if (MARKETING_ALL_ROLES_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_NO_MARKETING)) attrs.visibleToRoles = ALL_ROLES;
     if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_SALES_ROLES_NO_MARKETING)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
+    if (TECHNICAL_MERGE_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_WITH_TECHNICAL)) attrs.visibleToRoles = ALL_ROLES;
+    if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_SALES_ROLES_WITH_TECHNICAL)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
+    if (ACCOUNTS_ALL_ROLES_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_NO_ACCOUNTS)) attrs.visibleToRoles = ALL_ROLES;
+    if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_SALES_ROLES_NO_ACCOUNTS)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
+    if (HR_ALL_ROLES_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_NO_HR)) attrs.visibleToRoles = ALL_ROLES;
+    if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_SALES_ROLES_NO_HR)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }

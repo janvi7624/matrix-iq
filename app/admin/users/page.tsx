@@ -108,10 +108,12 @@ const KNOWN_ROLE_PILL_CLASS: Record<string, string> = {
   superadmin: historyStyles.rolePillSuperadmin,
   admin: historyStyles.rolePillAdmin,
   manager: historyStyles.rolePillManager,
-  technical: historyStyles.rolePillTechnical,
+  engineer: historyStyles.rolePillTechnical,
   backoffice: historyStyles.rolePillBackoffice,
   user: historyStyles.rolePillUser,
-  marketing: historyStyles.rolePillMarketing
+  marketing: historyStyles.rolePillMarketing,
+  accounts: historyStyles.rolePillAccounts,
+  hr: historyStyles.rolePillHr
 };
 
 function RolePill({ role, roles }: { role: UserRole; roles: RoleRecord[] }) {

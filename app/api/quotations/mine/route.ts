@@ -7,9 +7,11 @@ import { QuotationEffectiveStatus } from '@/lib/types';
 const VALID_STATUSES: QuotationEffectiveStatus[] = ['draft', 'sent', 'approved', 'rejected', 'expired'];
 
 // Every logged-in role can hit this.
-// Privileged viewers (manager, admin, superadmin) see all quotations across the organization
-// by default, or can filter by a specific sales person.
-// Non-privileged users (sales reps / user) strictly see only their own quotations.
+// Privileged viewers (manager, admin, superadmin) see every quotation within
+// their department scope by default (org-wide only for Admin/Super Admin —
+// see lib/departmentScope.ts), or can filter further by a specific sales
+// person. Non-privileged users (sales reps / user) strictly see only their
+// own quotations.
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -18,13 +20,12 @@ export async function GET(request: NextRequest) {
   const status = params.get('status');
   const salesPersonParam = params.get('salesPerson')?.trim();
 
-  const ownerUsername = viewer.isPrivileged
-    ? (salesPersonParam || undefined)
-    : viewer.username;
+  const ownerUsername = viewer.isPrivileged ? (salesPersonParam || undefined) : viewer.username;
 
   try {
     const rows = await searchQuotationsFiltered({
       ownerUsername,
+      viewerUsername: viewer.username,
       query: params.get('q') || undefined,
       projectId: params.get('projectId') || undefined,
       status: status && VALID_STATUSES.includes(status as QuotationEffectiveStatus) ? (status as QuotationEffectiveStatus) : undefined,

@@ -253,7 +253,7 @@ function DemoRow({
   onApprovalDone: (updated: DemoScheduleRecord) => void;
 }) {
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
-  const isTechnical = currentUser.role === 'technical' || isPrivileged;
+  const isTechnical = currentUser.role === 'engineer' || isPrivileged;
   const isOwner = record.created_by === currentUser.username;
 
   // Strict routing: once a real person is assigned, only they (or an
