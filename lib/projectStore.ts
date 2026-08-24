@@ -97,6 +97,11 @@ async function readAll(): Promise<ProjectRecord[]> {
   return rows.map(toRecord);
 }
 
+async function readAllLight(): Promise<ProjectRecord[]> {
+  const rows = await db.Project.findAll({ include: lightIncludes, order: [['created_at', 'DESC']] });
+  return rows.map(toRecord);
+}
+
 // Visibility (not capability — remove()/delete rights below still key off
 // viewerIsPrivileged as before) is resolved from the viewer's department
 // scope, not the raw isPrivileged flag: an org-wide viewer gets {} (no
@@ -254,6 +259,10 @@ export const projectStore = {
   // computations only (e.g. department health scoring), never for a
   // viewer-facing list; callers must apply their own authorization first.
   readAll: async () => (await readAll()).map(normalizeProject),
+  // Same as readAll() but without the notes/timeline joins — for aggregate
+  // computations (department health scoring) that only ever read plain
+  // fields, same rationale as listLight() above.
+  readAllLight: async () => (await readAllLight()).map(normalizeProject),
   create,
   update,
   remove

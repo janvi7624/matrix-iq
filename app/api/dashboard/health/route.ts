@@ -3,7 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { resolveVisibilityScope } from '@/lib/departmentScope';
 import { listActiveDepartments, departmentsManagedBy } from '@/lib/departmentStore';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
-import { computeDepartmentScore, TeamMember } from '@/lib/departmentScoring';
+import { computeDepartmentScore, ScoringDataCache, TeamMember } from '@/lib/departmentScoring';
 import { apiErrorResponse } from '@/lib/apiError';
 import { db } from '@/lib/db';
 
@@ -29,10 +29,16 @@ export async function GET(request: NextRequest) {
 
     if (scope.seesOrgWide) {
       const departments = await listActiveDepartments();
+      // One cache shared across every department in this request — several
+      // department names map to the same underlying dataset (e.g. Sales +
+      // GEM - Sales, or AV + Robotics + AI), so without a shared cache each
+      // of these concurrent Promise.all branches re-runs the same full-table
+      // query. See lib/departmentScoring.ts's ScoringDataCache.
+      const cache: ScoringDataCache = {};
       const gauges = await Promise.all(
         departments.map(async (d) => ({
           department: d.name,
-          ...(await computeDepartmentScore(d.name, await teamFor(d.id)))
+          ...(await computeDepartmentScore(d.name, await teamFor(d.id), cache))
         }))
       );
       return NextResponse.json({ scope: 'org', gauges });
@@ -40,10 +46,11 @@ export async function GET(request: NextRequest) {
 
     const managed = await departmentsManagedBy(viewer.username);
     if (managed.length) {
+      const cache: ScoringDataCache = {};
       const gauges = await Promise.all(
         managed.map(async (d) => ({
           department: d.name,
-          ...(await computeDepartmentScore(d.name, await teamFor(d.id)))
+          ...(await computeDepartmentScore(d.name, await teamFor(d.id), cache))
         }))
       );
       return NextResponse.json({ scope: 'department', gauges });

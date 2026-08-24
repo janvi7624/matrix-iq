@@ -201,6 +201,7 @@ export default function ManageUsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
   const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [resendingIds, setResendingIds] = useState<Record<string, boolean>>({});
   const [activityOpenId, setActivityOpenId] = useState<string | null>(null);
   const [activity, setActivity] = useState<Record<string, UserActivity>>({});
   const [activityLoading, setActivityLoading] = useState(false);
@@ -409,8 +410,14 @@ export default function ManageUsersPage() {
       alert('This user has no email address on file — add one first.');
       return;
     }
+    // The endpoint now awaits the actual send (can take a few seconds), so
+    // without this guard a second click while the first request is still in
+    // flight would silently issue and email a second temp password,
+    // orphaning the first one.
+    if (resendingIds[user.id]) return;
     if (!window.confirm(`Generate a new temporary password for "${user.username}" and email it to ${user.email}?`)) return;
     setRowError((prev) => ({ ...prev, [user.id]: '' }));
+    setResendingIds((prev) => ({ ...prev, [user.id]: true }));
     try {
       const response = await fetch(`/api/admin/users/${user.id}/resend-welcome-email`, { method: 'POST' });
       if (!response.ok) {
@@ -421,6 +428,12 @@ export default function ManageUsersPage() {
       alert(`New login details emailed to ${user.email}.`);
     } catch {
       setRowError((prev) => ({ ...prev, [user.id]: 'Could not reach the server.' }));
+    } finally {
+      setResendingIds((prev) => {
+        const next = { ...prev };
+        delete next[user.id];
+        return next;
+      });
     }
   }
 
@@ -679,6 +692,7 @@ export default function ManageUsersPage() {
                                 ...(isSuperadmin ? [{ label: 'Delete', onClick: () => handleDelete(user), danger: true }] : [])
                               ]}
                             />
+                            {resendingIds[user.id] && <div style={{ fontSize: 11.5, opacity: 0.7, marginTop: 4 }}>Sending welcome email…</div>}
                             {rowError[user.id] && <div className={historyStyles.loginError}>{rowError[user.id]}</div>}
                           </td>
                         </>

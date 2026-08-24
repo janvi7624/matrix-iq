@@ -11,6 +11,43 @@ import { marketingRequestStore } from './marketingRequestStore';
 import { tmsBomRequestStore } from './tmsBomRequestStore';
 import { deliveryChallanStore } from './deliveryChallanStore';
 import { needsFollowUp } from './followUp';
+import { ProjectRecord, QuotationRecord, MarketingRequestRecord, TmsBomRequestRecord } from './types';
+
+// Several department scorers below need the same org-wide dataset (e.g.
+// every department mapped to scoreSalesTeam/scoreTechTeam runs once per
+// department — Sales + GEM - Sales, or AV + Robotics + AI — via
+// Promise.all in the dashboard/health route). Without this, each of those
+// concurrent calls independently re-ran the same full-table query. A cache
+// object created once per request and threaded through every
+// computeDepartmentScore() call de-dupes them: the check-then-set below is
+// synchronous (no await between them), so concurrent callers racing for the
+// same key all await the one in-flight promise instead of starting their own.
+export interface ScoringDataCache {
+  projects?: Promise<ProjectRecord[]>;
+  quotations?: Promise<QuotationRecord[]>;
+  marketingRequests?: Promise<MarketingRequestRecord[]>;
+  tmsBomRequests?: Promise<TmsBomRequestRecord[]>;
+}
+
+function getProjects(cache: ScoringDataCache): Promise<ProjectRecord[]> {
+  if (!cache.projects) cache.projects = projectStore.readAllLight();
+  return cache.projects;
+}
+
+function getQuotations(cache: ScoringDataCache): Promise<QuotationRecord[]> {
+  if (!cache.quotations) cache.quotations = searchQuotationsFiltered({});
+  return cache.quotations;
+}
+
+function getMarketingRequests(cache: ScoringDataCache): Promise<MarketingRequestRecord[]> {
+  if (!cache.marketingRequests) cache.marketingRequests = marketingRequestStore.readAll();
+  return cache.marketingRequests;
+}
+
+function getTmsBomRequests(cache: ScoringDataCache): Promise<TmsBomRequestRecord[]> {
+  if (!cache.tmsBomRequests) cache.tmsBomRequests = tmsBomRequestStore.list();
+  return cache.tmsBomRequests;
+}
 
 export type ScoreBand = 'red' | 'yellow' | 'green' | 'na';
 
@@ -58,10 +95,10 @@ function finalize(memberPcts: (number | null)[], breakdown: BreakdownRow[]): Sco
 // Sales (Sales, GEM - Sales) — won rate, quotation conversion, follow-up
 // health, averaged per rep.
 // ---------------------------------------------------------------------------
-async function scoreSalesTeam(team: TeamMember[]): Promise<ScoreResult> {
+async function scoreSalesTeam(team: TeamMember[], cache: ScoringDataCache): Promise<ScoreResult> {
   if (!team.length) return NA_RESULT;
 
-  const [allQuotations, allProjects] = await Promise.all([searchQuotationsFiltered({}), projectStore.readAll()]);
+  const [allQuotations, allProjects] = await Promise.all([getQuotations(cache), getProjects(cache)]);
 
   let totalWon = 0, totalLost = 0, totalQuotations = 0, totalConverted = 0, totalOverdue = 0, totalTracked = 0;
 
@@ -101,9 +138,9 @@ async function scoreSalesTeam(team: TeamMember[]): Promise<ScoreResult> {
 // Tech (AV, Robotics, AI) — % of a member's active-assigned projects that
 // aren't past their expected closing date.
 // ---------------------------------------------------------------------------
-async function scoreTechTeam(team: TeamMember[]): Promise<ScoreResult> {
+async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promise<ScoreResult> {
   if (!team.length) return NA_RESULT;
-  const allProjects = await projectStore.readAll();
+  const allProjects = await getProjects(cache);
   const today = new Date().toISOString().slice(0, 10);
 
   let totalActive = 0, totalDelayed = 0;
@@ -123,10 +160,10 @@ async function scoreTechTeam(team: TeamMember[]): Promise<ScoreResult> {
 // Marketing — % of a member's requests delivered on or before their
 // needed-by date.
 // ---------------------------------------------------------------------------
-async function scoreMarketingTeam(team: TeamMember[]): Promise<ScoreResult> {
+async function scoreMarketingTeam(team: TeamMember[], cache: ScoringDataCache): Promise<ScoreResult> {
   if (!team.length) return NA_RESULT;
   const usernameById = new Map(team.map((m) => [m.id, m.username]));
-  const all = await marketingRequestStore.readAll();
+  const all = await getMarketingRequests(cache);
   const today = new Date().toISOString().slice(0, 10);
 
   let totalOnTime = 0, totalLate = 0, totalOverdueOpen = 0;
@@ -159,7 +196,7 @@ async function scoreMarketingTeam(team: TeamMember[]): Promise<ScoreResult> {
 // Back Office — % of a member's Delivery Challans that have moved past
 // "prepared" (dispatched, returned, or closed).
 // ---------------------------------------------------------------------------
-async function scoreBackOfficeTeam(team: TeamMember[]): Promise<ScoreResult> {
+async function scoreBackOfficeTeam(team: TeamMember[], _cache: ScoringDataCache): Promise<ScoreResult> {
   if (!team.length) return NA_RESULT;
   let totalMoved = 0, totalDcs = 0;
 
@@ -187,9 +224,9 @@ function daysBetween(fromIso: string, toIso: string): number {
   return (new Date(toIso).getTime() - new Date(fromIso).getTime()) / 86_400_000;
 }
 
-async function scoreAccountsTeam(team: TeamMember[]): Promise<ScoreResult> {
+async function scoreAccountsTeam(team: TeamMember[], cache: ScoringDataCache): Promise<ScoreResult> {
   if (!team.length) return NA_RESULT;
-  const all = await tmsBomRequestStore.list();
+  const all = await getTmsBomRequests(cache);
   let totalOnTime = 0, totalHandled = 0;
 
   const memberPcts = team.map((m) => {
@@ -207,9 +244,9 @@ async function scoreAccountsTeam(team: TeamMember[]): Promise<ScoreResult> {
 // Administration — % of technical-manager-approved BOM requests this member
 // admin-approved within 2 days.
 // ---------------------------------------------------------------------------
-async function scoreAdministrationTeam(team: TeamMember[]): Promise<ScoreResult> {
+async function scoreAdministrationTeam(team: TeamMember[], cache: ScoringDataCache): Promise<ScoreResult> {
   if (!team.length) return NA_RESULT;
-  const all = await tmsBomRequestStore.list();
+  const all = await getTmsBomRequests(cache);
   let totalOnTime = 0, totalHandled = 0;
 
   const memberPcts = team.map((m) => {
@@ -227,7 +264,7 @@ async function scoreAdministrationTeam(team: TeamMember[]): Promise<ScoreResult>
 // Registry — add one more entry here when a department gets a real metric;
 // anything not listed renders the neutral "not enough data" gauge state.
 // ---------------------------------------------------------------------------
-const DEPARTMENT_SCORERS: Record<string, (team: TeamMember[]) => Promise<ScoreResult>> = {
+const DEPARTMENT_SCORERS: Record<string, (team: TeamMember[], cache: ScoringDataCache) => Promise<ScoreResult>> = {
   Sales: scoreSalesTeam,
   'GEM - Sales': scoreSalesTeam,
   AV: scoreTechTeam,
@@ -239,8 +276,13 @@ const DEPARTMENT_SCORERS: Record<string, (team: TeamMember[]) => Promise<ScoreRe
   Administration: scoreAdministrationTeam
 };
 
-export async function computeDepartmentScore(departmentName: string, team: TeamMember[]): Promise<ScoreResult> {
+// `cache` is optional so a single self-only lookup (dashboard/health's
+// non-org-wide branch) doesn't need to bother creating one — but callers
+// scoring multiple departments in the same request (Promise.all over every
+// active department) MUST create one ScoringDataCache and pass the SAME
+// object into every call, or the whole point of caching is lost.
+export async function computeDepartmentScore(departmentName: string, team: TeamMember[], cache: ScoringDataCache = {}): Promise<ScoreResult> {
   const scorer = DEPARTMENT_SCORERS[departmentName];
   if (!scorer) return NA_RESULT;
-  return scorer(team);
+  return scorer(team, cache);
 }
