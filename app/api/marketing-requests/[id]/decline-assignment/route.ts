@@ -5,6 +5,8 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
+import { findUsersByUsernames } from '@/lib/userStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
 
 // The assigned marketing member declines — bounces the request back to
@@ -54,14 +56,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     const marketingManagers = (await listDepartmentManagers())['Marketing'] || [];
-    const notifyTargets = marketingManagers.map((m) => m.username).filter((u) => u && u !== viewer.username);
+    const notifyTargets = marketingManagers.filter((m) => m.username && m.username !== viewer.username);
     if (notifyTargets.length) {
-      await notifyUsers(notifyTargets, {
+      await notifyUsers(notifyTargets.map((m) => m.username), {
         title: 'Assignment declined',
         body: `${viewer.username} declined "${existing.title}": ${reason}`,
         type: 'marketing_request_assignment_declined',
         entityType: 'marketing_request',
         entityId: id
+      });
+      const managerUsers = await findUsersByUsernames(notifyTargets.map((m) => m.username));
+      managerUsers.forEach((managerUser) => {
+        if (managerUser.email) {
+          void sendMarketingRequestLifecycleEmail({
+            name: managerUser.name,
+            email: managerUser.email,
+            event: 'assignment_declined',
+            title: existing.title,
+            detail: `Declined by ${viewer.username} — Reason: ${reason}`
+          });
+        }
       });
     }
 

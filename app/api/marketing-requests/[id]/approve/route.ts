@@ -6,6 +6,8 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 
 // The manager-approval gate itself — a request must pass through here
 // (submitted -> approved) before it can be assigned to a Marketing person
@@ -52,6 +54,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         entityType: 'marketing_request',
         entityId: id
       });
+      const requester = await findUserByUsername(existing.created_by);
+      if (requester?.email) {
+        void sendMarketingRequestLifecycleEmail({
+          name: requester.name,
+          email: requester.email,
+          event: 'approved',
+          title: existing.title
+        });
+      }
     }
 
     return NextResponse.json(updated);

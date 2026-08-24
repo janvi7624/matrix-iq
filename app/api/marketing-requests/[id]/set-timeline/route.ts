@@ -5,6 +5,8 @@ import { isMarketingManager } from '@/lib/permissions';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 import { MarketingRequestRecord, MarketingRequestTimeline } from '@/lib/types';
 
 // The one and only place `timeline` is ever written. Once a request already
@@ -58,6 +60,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       remarks: timeline.remarks,
       ip: getClientIp(request)
     });
+
+    if (existing.created_by && existing.created_by !== viewer.username) {
+      const requester = await findUserByUsername(existing.created_by);
+      if (requester?.email) {
+        void sendMarketingRequestLifecycleEmail({
+          name: requester.name,
+          email: requester.email,
+          event: 'timeline_set',
+          title: existing.title,
+          detail: `Expected delivery: ${expectedDeliveryDate}`
+        });
+      }
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

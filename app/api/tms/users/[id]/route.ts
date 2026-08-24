@@ -38,6 +38,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       designation: typeof body.designation === 'string' ? body.designation.trim() : undefined,
       location: typeof body.location === 'string' ? body.location.trim() : undefined,
       password: typeof body.password === 'string' && body.password ? body.password : undefined,
+      passwordChangeInitiatedBy: 'admin',
       status: body.status === 'active' || body.status === 'inactive' ? body.status : undefined
     });
     if (!updated) return NextResponse.json({ error: 'User not found' }, { status: 404 });

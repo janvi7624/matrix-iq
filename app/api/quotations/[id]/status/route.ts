@@ -24,7 +24,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const updated = await updateQuotationStatus(id, body.status);
+    const updated = await updateQuotationStatus(id, body.status, viewer.username);
     return NextResponse.json(updated);
   } catch (error) {
     return apiErrorResponse(error);

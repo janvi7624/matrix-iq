@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const ok = await verifyPassword(currentPassword, user.passwordHash);
     if (!ok) return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 });
 
-    await updateUser(user.id, { password: newPassword, mustChangePassword: false });
+    await updateUser(user.id, { password: newPassword, mustChangePassword: false, passwordChangeInitiatedBy: 'self' });
 
     const isPrivileged = await resolveIsPrivileged(user.role);
     const token = await createSessionToken({ id: user.id, username: user.username, role: user.role, mustChangePassword: false, isPrivileged });

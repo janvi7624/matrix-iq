@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { siteVisitStore } from '@/lib/siteVisitStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { sendFieldOpsLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 import { DomainKey, SiteVisitRecord, SiteVisitUpdateEntry, VisitStage } from '@/lib/types';
 import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
@@ -68,6 +70,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const updated = await siteVisitStore.update(id, patch);
+
+    if (patch.status === 'closed' && existing.status !== 'closed' && existing.created_by && existing.created_by !== viewer.username) {
+      const creator = await findUserByUsername(existing.created_by);
+      if (creator?.email) {
+        void sendFieldOpsLifecycleEmail({
+          name: creator.name,
+          email: creator.email,
+          urlPath: '/site-visits',
+          event: 'site_visit_closed',
+          subjectLabel: existing.company_name
+        });
+      }
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     return apiErrorResponse(error);

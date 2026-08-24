@@ -60,7 +60,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       designation: typeof body.designation === 'string' ? body.designation.trim() : undefined,
       role,
       status,
-      password: typeof body.password === 'string' && body.password ? body.password : undefined
+      password: typeof body.password === 'string' && body.password ? body.password : undefined,
+      passwordChangeInitiatedBy: 'admin'
     });
 
     return NextResponse.json(updated);

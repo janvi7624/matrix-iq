@@ -14,6 +14,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { resolveVisibilityScope } from '@/lib/departmentScope';
 import { db } from '@/lib/db';
@@ -141,7 +142,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
 
-    let newlyAssignedPerson: { id: string; username: string; name: string } | undefined;
+    let newlyAssignedPerson: { id: string; username: string; name: string; email: string } | undefined;
     if (typeof body.assignedTechnicalPersonId === 'string') {
       const nextId = body.assignedTechnicalPersonId.trim();
       if (nextId !== existing.assigned_technical_person_id) {
@@ -183,6 +184,38 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         entityType: 'project',
         entityId: id
       });
+      void sendProjectLifecycleEmail({
+        name: newlyAssignedPerson.name,
+        email: newlyAssignedPerson.email,
+        projectId: id,
+        projectKind: 'sales',
+        event: 'assigned',
+        projectLabel: existing.client_name || existing.company || 'Project'
+      });
+    }
+
+    // Notify whoever is currently the technical lead when the sales outcome
+    // changes — not the actor themselves, who already knows since they just
+    // made the change. Uses the POST-patch assignee: if this same request
+    // also reassigned the lead (patch.assigned_technical_person_id above),
+    // that new person is who should hear about the status, not the one just
+    // replaced — reuse newlyAssignedPerson when it's the same id instead of
+    // re-fetching.
+    const currentTechnicalPersonId = patch.assigned_technical_person_id !== undefined ? patch.assigned_technical_person_id : existing.assigned_technical_person_id;
+    if (patch.status && patch.status !== existing.status && currentTechnicalPersonId) {
+      const technicalLead =
+        newlyAssignedPerson && newlyAssignedPerson.id === currentTechnicalPersonId ? newlyAssignedPerson : await findUserById(currentTechnicalPersonId);
+      if (technicalLead?.email && technicalLead.username !== viewer.username) {
+        void sendProjectLifecycleEmail({
+          name: technicalLead.name,
+          email: technicalLead.email,
+          projectId: id,
+          projectKind: 'sales',
+          event: 'status_changed',
+          projectLabel: existing.client_name || existing.company || 'Project',
+          detail: `Status: ${patch.status.replace(/_/g, ' ')}`
+        });
+      }
     }
 
     return NextResponse.json(updated);

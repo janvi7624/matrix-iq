@@ -3,6 +3,8 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 import { db } from '@/lib/db';
 
 // POST — respond to a handover request (approve/reject)
@@ -63,6 +65,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       entityType: 'project',
       entityId: projectId
     });
+    const fromUser = await findUserByUsername(handover.from_username);
+    if (fromUser?.email) {
+      void sendProjectLifecycleEmail({
+        name: fromUser.name,
+        email: fromUser.email,
+        projectId,
+        projectKind: 'sales',
+        event: 'handover_approved',
+        projectLabel: handover.project_title,
+        detail: `Accepted by ${handover.to_name || handover.to_username}`
+      });
+    }
   } else {
     // Notify the original owner that handover was rejected
     await notifyUsers([handover.from_username], {
@@ -72,6 +86,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       entityType: 'project',
       entityId: projectId
     });
+    const fromUser = await findUserByUsername(handover.from_username);
+    if (fromUser?.email) {
+      void sendProjectLifecycleEmail({
+        name: fromUser.name,
+        email: fromUser.email,
+        projectId,
+        projectKind: 'sales',
+        event: 'handover_rejected',
+        projectLabel: handover.project_title,
+        detail: `Declined by ${handover.to_name || handover.to_username}${remarks ? ` — Reason: ${remarks}` : ''}`
+      });
+    }
   }
 
   return NextResponse.json(updated);

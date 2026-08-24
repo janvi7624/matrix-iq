@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { installationStore } from '@/lib/installationStore';
-import { appendProjectTimeline } from '@/lib/projectStore';
+import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { sendFieldOpsLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 import { InstallationRecord } from '@/lib/types';
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -35,6 +37,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         { by: viewer.username, stage: 'completed', label: 'Installation completed — project closed as won', remarks: patch.completion_report || '' },
         'completed'
       );
+
+      const project = existing.project_id ? await findProjectById(existing.project_id) : undefined;
+      if (project?.created_by && project.created_by !== viewer.username) {
+        const owner = await findUserByUsername(project.created_by);
+        if (owner?.email) {
+          void sendFieldOpsLifecycleEmail({
+            name: owner.name,
+            email: owner.email,
+            urlPath: '/installation',
+            event: 'installation_completed',
+            subjectLabel: project.client_name || project.company || 'Project'
+          });
+        }
+      }
     }
 
     return NextResponse.json(updated);

@@ -5,9 +5,10 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
 import { tmsProjectStore } from '@/lib/tmsProjectStore';
 import { tmsBomRequestStore } from '@/lib/tmsBomRequestStore';
-import { findUserById } from '@/lib/userStore';
+import { findUserById, findUsersByUsernames } from '@/lib/userStore';
 import { TmsDeliveryStatus, TmsProcurementRecord, TmsPurchaseStatus } from '@/lib/types';
 
 const VALID_PURCHASE_STATUS: TmsPurchaseStatus[] = ['requested', 'quotation_required', 'quotation_received', 'approval_pending', 'approved', 'po_created', 'ordered', 'cancelled'];
@@ -92,20 +93,64 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
     }
 
-    if (deliveryStatusChanged && body.deliveryStatus === 'received') {
+    const isDelivered = deliveryStatusChanged && body.deliveryStatus === 'received';
+    // Not every purchase_status transition is notify-worthy (there are 8,
+    // several are internal quotation bookkeeping) — only the ones that
+    // change what a stakeholder is waiting on: an order was placed, or the
+    // whole line item was called off.
+    const isPurchaseNotifyWorthy = purchaseStatusChanged && ['po_created', 'ordered', 'cancelled'].includes(body.purchaseStatus);
+
+    if (isDelivered || isPurchaseNotifyWorthy) {
       const [project, bomRequest] = await Promise.all([
         tmsProjectStore.findById(existing.project_id),
         existing.bom_request_id ? tmsBomRequestStore.findById(existing.bom_request_id) : Promise.resolve(undefined)
       ]);
       const projectManager = project?.project_manager_id ? await findUserById(project.project_manager_id) : undefined;
-      const usernames = Array.from(new Set([projectManager?.username, bomRequest?.created_by].filter((u): u is string => !!u)));
-      if (usernames.length) {
+      const usernames = Array.from(new Set([projectManager?.username, bomRequest?.created_by].filter((u): u is string => !!u && u !== viewer.username)));
+      const recipients = usernames.length ? await findUsersByUsernames(usernames) : [];
+
+      if (isDelivered && usernames.length) {
         await notifyUsers(usernames, {
           title: 'Procurement delivered',
           body: `"${existing.item_name}" for ${existing.project_name} has been received`,
           type: 'tms_procurement_received',
           entityType: 'tms_procurement',
           entityId: id
+        });
+        recipients.forEach((recipient) => {
+          if (recipient.email) {
+            void sendProcurementLifecycleEmail({
+              name: recipient.name,
+              email: recipient.email,
+              urlPath: `/tms/procurement/${id}`,
+              event: 'procurement_received',
+              itemLabel: existing.item_name,
+              projectName: existing.project_name
+            });
+          }
+        });
+      }
+
+      if (isPurchaseNotifyWorthy && usernames.length) {
+        await notifyUsers(usernames, {
+          title: 'Procurement status updated',
+          body: `"${existing.item_name}" for ${existing.project_name} — purchase status: ${String(body.purchaseStatus).replace(/_/g, ' ')}`,
+          type: 'tms_procurement_status_changed',
+          entityType: 'tms_procurement',
+          entityId: id
+        });
+        recipients.forEach((recipient) => {
+          if (recipient.email) {
+            void sendProcurementLifecycleEmail({
+              name: recipient.name,
+              email: recipient.email,
+              urlPath: `/tms/procurement/${id}`,
+              event: 'procurement_status_changed',
+              itemLabel: existing.item_name,
+              projectName: existing.project_name,
+              detail: `Purchase status: ${String(body.purchaseStatus).replace(/_/g, ' ')}`
+            });
+          }
         });
       }
     }

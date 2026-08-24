@@ -5,6 +5,8 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
+import { findUsersByUsernames } from '@/lib/userStore';
 
 // draft -> submitted, and notifies every Technical Manager.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -35,14 +37,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     const managers = await findTechnicalManagers();
-    const targets = managers.map((m) => m.username).filter((u) => u && u !== viewer.username);
+    const targets = managers.filter((m) => m.username && m.username !== viewer.username);
     if (targets.length) {
-      await notifyUsers(targets, {
+      await notifyUsers(targets.map((m) => m.username), {
         title: 'New BOM request awaiting review',
         body: `${viewer.username} submitted "${existing.item_name}" for ${existing.project_name}`,
         type: 'tms_bom_request_submitted',
         entityType: 'tms_bom_request',
         entityId: id
+      });
+      const managerUsers = await findUsersByUsernames(targets.map((m) => m.username));
+      managerUsers.forEach((managerUser) => {
+        if (managerUser.email) {
+          void sendProcurementLifecycleEmail({
+            name: managerUser.name,
+            email: managerUser.email,
+            urlPath: `/tms/bom-requests/${id}`,
+            event: 'bom_submitted',
+            itemLabel: existing.item_name,
+            projectName: existing.project_name,
+            detail: `Submitted by ${viewer.username}`
+          });
+        }
       });
     }
 

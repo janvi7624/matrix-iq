@@ -3,7 +3,8 @@ import { canManageAllTmsTasks, getTmsViewer, requireTmsAction } from '@/lib/tmsA
 import { tmsTaskStore } from '@/lib/tmsTaskStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
-import { findUserById } from '@/lib/userStore';
+import { sendTaskLifecycleEmail } from '@/lib/email/notifications';
+import { findUserById, findUserByUsername } from '@/lib/userStore';
 import { TmsPriority, TmsTaskRecord, TmsTaskStatus } from '@/lib/types';
 
 const VALID_STATUS: TmsTaskStatus[] = ['to_do', 'in_progress', 'on_hold', 'completed', 'cancelled'];
@@ -82,6 +83,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           type: 'tms_task_assigned',
           entityType: 'tms_task',
           entityId: id
+        });
+        if (assignee.email) {
+          void sendTaskLifecycleEmail({
+            name: assignee.name,
+            email: assignee.email,
+            event: 'assigned',
+            taskName: existing.name,
+            projectName: existing.project_name
+          });
+        }
+      }
+    }
+
+    // No notification exists for a plain status change today — email the
+    // creator so they learn of progress/completion without having to check
+    // the board, unless they're the one who just made the change themselves.
+    if (patch.status && patch.status !== existing.status && existing.created_by && existing.created_by !== viewer.username) {
+      const creator = await findUserByUsername(existing.created_by);
+      if (creator?.email) {
+        void sendTaskLifecycleEmail({
+          name: creator.name,
+          email: creator.email,
+          event: 'status_changed',
+          taskName: existing.name,
+          projectName: existing.project_name,
+          detail: `Status: ${patch.status.replace(/_/g, ' ')}`
         });
       }
     }

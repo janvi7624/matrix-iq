@@ -1,9 +1,9 @@
-import { randomBytes } from 'crypto';
 import { createUser } from './userStore';
 import { listUsers } from './userStore';
 import { listDepartments, createDepartment } from './departmentStore';
 import { findRoleByKey } from './roleStore';
 import { logAudit } from './auditLogStore';
+import { generateTempPassword } from './passwords';
 import { PublicUser } from './types';
 
 // Maps a normalized header (lowercased, periods/hyphens stripped) to the
@@ -90,6 +90,9 @@ export interface ImportResultRow {
   // Only populated by commit (never by preview), and only ever returned in
   // this one API response — never persisted, never re-fetchable.
   tempPassword?: string;
+  // The created user's id — lets the import results table target a
+  // "resend welcome email" action at this specific row's account.
+  userId?: string;
   matchedExistingUsername?: string;
 }
 
@@ -152,14 +155,6 @@ function baseUsername(name: string): string {
   return cleaned.join('.') || 'employee';
 }
 
-const AMBIGUOUS_CHARS = /[0O1lI]/g;
-function generateTempPassword(): string {
-  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  const bytes = randomBytes(10);
-  let out = '';
-  for (let i = 0; i < 10; i++) out += alphabet[bytes[i] % alphabet.length];
-  return out.replace(AMBIGUOUS_CHARS, () => alphabet[randomBytes(1)[0] % alphabet.length]);
-}
 
 export interface ProcessImportOptions {
   dryRun: boolean;
@@ -313,7 +308,7 @@ export async function processEmployeeImport(rawRows: RawEmployeeRow[], opts: Pro
       });
       results.push({
         rowNumber: n.rowNumber, name: n.name, employeeId: n.employeeId, department: n.department, designation: n.designation, location: n.location, email: n.email, phone: n.phone,
-        status, reason: reviewFlags.join('; '), username: created.username, role: role.key, tempPassword
+        status, reason: reviewFlags.join('; '), username: created.username, role: role.key, tempPassword, userId: created.id
       });
     } catch (error) {
       results.push({

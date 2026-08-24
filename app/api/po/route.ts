@@ -4,6 +4,8 @@ import { poStore } from '@/lib/poStore';
 import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { PoRecord } from '@/lib/types';
+import { findUserById } from '@/lib/userStore';
+import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
 
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
@@ -56,6 +58,21 @@ export async function POST(request: NextRequest) {
       { by: viewer.username, stage: 'po_received', label: `PO received: ${poNumber}`, remarks: `Amount ${record.amount}` },
       'po_received'
     );
+
+    if (project.assigned_technical_person_id) {
+      const technicalLead = await findUserById(project.assigned_technical_person_id);
+      if (technicalLead?.email && technicalLead.username !== viewer.username) {
+        void sendProcurementLifecycleEmail({
+          name: technicalLead.name,
+          email: technicalLead.email,
+          urlPath: `/projects/${projectId}`,
+          event: 'po_created',
+          itemLabel: poNumber,
+          projectName: project.client_name || project.company || 'Project'
+        });
+      }
+    }
+
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

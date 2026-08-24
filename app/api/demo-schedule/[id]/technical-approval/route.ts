@@ -6,9 +6,10 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DemoScheduleRecord, DemoTechnicalApproval } from '@/lib/types';
-import { findUserById } from '@/lib/userStore';
+import { findUserById, findUsersByIds } from '@/lib/userStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendDemoLifecycleEmail } from '@/lib/email/notifications';
 
 // Strict routing (confirmed decision, tightened further on request): once a
 // real person is selected as assigned_technical_person_id, only THAT
@@ -75,6 +76,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             type: 'demo_manager_approval',
             entityType: 'demo',
             entityId: id
+          });
+          const managerUsers = await findUsersByIds(managers.map((m) => m.id));
+          managerUsers.forEach((managerUser) => {
+            if (managerUser.email) {
+              void sendDemoLifecycleEmail({
+                name: managerUser.name,
+                email: managerUser.email,
+                event: 'manager_approval',
+                clientName: existing.client_name,
+                company: existing.company,
+                scheduledAt: existing.scheduled_at,
+                detail: `Confirmed by ${assignedPerson.name}`
+              });
+            }
           });
         }
       }
