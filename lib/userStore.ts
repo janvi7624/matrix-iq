@@ -236,6 +236,12 @@ export interface UpdateUserInput {
   // failure mode is "reset user doesn't get emailed the new password"
   // rather than "a user's freshly self-chosen password gets emailed back to them".
   passwordChangeInitiatedBy?: 'self' | 'admin';
+  // Notification emails normally fire-and-forget (void) so the HTTP response
+  // isn't held up by an SES round trip. A caller that needs real delivery
+  // confirmation before it can safely consider the operation done — e.g. a
+  // one-off bulk resend script whose own process lifetime is the only thing
+  // guaranteeing the send completes — can set this to await it instead.
+  awaitNotifications?: boolean;
 }
 
 export async function updateUser(id: string, patch: UpdateUserInput): Promise<PublicUser | null> {
@@ -288,7 +294,7 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Pu
 
   const statusChanged = patch.status !== undefined && patch.status !== before.status;
   if (newRoleLabel || departmentChanged || statusChanged) {
-    void sendAccountChangedEmail({
+    const send = sendAccountChangedEmail({
       name: updated.name,
       username: updated.username,
       email: updated.email,
@@ -296,16 +302,20 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Pu
       newDepartment: departmentChanged ? updated.department : undefined,
       newStatus: statusChanged ? updated.status : undefined
     });
+    if (patch.awaitNotifications) await send;
+    else void send;
   }
   if (shouldEmailPasswordChange) {
     const initiatedBy = patch.passwordChangeInitiatedBy ?? 'self';
-    void sendPasswordChangedEmail({
+    const send = sendPasswordChangedEmail({
       name: updated.name,
       username: updated.username,
       email: updated.email,
       initiatedBy,
       newPassword: initiatedBy === 'admin' ? patch.password : undefined
     });
+    if (patch.awaitNotifications) await send;
+    else void send;
   }
 
   return updated;

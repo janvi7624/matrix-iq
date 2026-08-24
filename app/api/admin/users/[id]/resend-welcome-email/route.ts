@@ -26,7 +26,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const tempPassword = generateTempPassword();
-    const updated = await updateUser(id, { password: tempPassword, passwordChangeInitiatedBy: 'admin', mustChangePassword: true });
+    // Awaited (not fire-and-forget) — this is an explicit single-shot admin
+    // action, so a 200 here should mean the send actually completed, not
+    // just that the DB write did.
+    const updated = await updateUser(id, { password: tempPassword, passwordChangeInitiatedBy: 'admin', mustChangePassword: true, awaitNotifications: true });
     if (!updated) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
     // Returned so a caller that's already showing this user's credentials on
