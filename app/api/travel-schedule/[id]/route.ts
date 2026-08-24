@@ -48,6 +48,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (typeof body.linkedClient === 'string') patch.linked_client = body.linkedClient.trim();
     if (typeof body.expenseNote === 'string') patch.expense_note = body.expenseNote.trim();
     if (typeof body.projectId === 'string') patch.project_id = body.projectId;
+    if (Array.isArray(body.companionIds)) patch.companion_ids = body.companionIds.filter((v: unknown) => typeof v === 'string');
 
     const updated = await travelScheduleStore.update(id, patch as never);
     return NextResponse.json(updated);

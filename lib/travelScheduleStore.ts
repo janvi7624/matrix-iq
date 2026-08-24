@@ -34,6 +34,7 @@ const FIELDS = [
   { name: 'hr_final_verifier_id', kind: 'nullable' as const },
   { name: 'hr_final_verified_at', kind: 'date' as const },
   { name: 'hr_final_remarks' },
+  { name: 'companion_ids', kind: 'json' as const },
   { name: 'change_request_remarks' },
   { name: 'change_requested_by' }
 ];
@@ -74,7 +75,8 @@ function toRecord(row: Model): TravelScheduleRecord {
     hr_reviewer_name: (plain.hrReviewer as { name?: string } | null)?.name ?? '',
     admin_reviewer_name: (plain.adminReviewer as { name?: string } | null)?.name ?? '',
     accounts_handler_name: (plain.accountsHandler as { name?: string } | null)?.name ?? '',
-    hr_final_verifier_name: (plain.hrFinalVerifier as { name?: string } | null)?.name ?? ''
+    hr_final_verifier_name: (plain.hrFinalVerifier as { name?: string } | null)?.name ?? '',
+    companion_names: []
   };
   for (const { name, kind = 'string' } of FIELDS) {
     const raw = plain[name];
@@ -87,21 +89,52 @@ function toRecord(row: Model): TravelScheduleRecord {
   return record as unknown as TravelScheduleRecord;
 }
 
+async function resolveCompanionNames(records: TravelScheduleRecord[]): Promise<void> {
+  const allIds = new Set<string>();
+  for (const r of records) {
+    if (Array.isArray(r.companion_ids)) r.companion_ids.forEach((id) => allIds.add(id));
+  }
+  if (allIds.size === 0) return;
+  const { Op } = await import('sequelize');
+  const users = await db.User.findAll({ where: { id: { [Op.in]: [...allIds] } } as never, attributes: ['id', 'name', 'username'] });
+  const nameMap = new Map<string, string>();
+  for (const u of users) {
+    const plain = u.get({ plain: true }) as { id: string; name?: string; username?: string };
+    nameMap.set(plain.id, plain.name || plain.username || plain.id);
+  }
+  for (const r of records) {
+    if (Array.isArray(r.companion_ids)) {
+      (r as unknown as Record<string, unknown>).companion_names = r.companion_ids.map((id) => nameMap.get(id) || id);
+    }
+  }
+}
+
 async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promise<TravelScheduleRecord[]> {
-  const where: Record<string, unknown> = {};
+  let where: Record<string | symbol, unknown> = {};
   if (!viewerIsPrivileged) {
+    const { Op, literal } = await import('sequelize');
     const user = await db.User.findOne({ where: { username: viewerUsername } as never });
-    where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
+    const userId = user ? (user.get('id') as string) : '00000000-0000-0000-0000-000000000000';
+    where = {
+      [Op.or]: [
+        { created_by: userId },
+        literal(`companion_ids @> '"${userId}"'`)
+      ]
+    };
   }
   const rows = await db.TravelSchedule.findAll({ where: where as never, include: allIncludes(), order: [['created_at', 'DESC']] });
-  return rows.map(toRecord);
+  const records = rows.map(toRecord);
+  await resolveCompanionNames(records);
+  return records;
 }
 
 async function findById(id: string): Promise<TravelScheduleRecord | undefined> {
   if (!isUuid(id)) return undefined;
   const row = await db.TravelSchedule.findByPk(id, { include: allIncludes() });
   if (!row) return undefined;
-  return toRecord(row);
+  const record = toRecord(row);
+  await resolveCompanionNames([record]);
+  return record;
 }
 
 async function create(record: TravelScheduleRecord): Promise<TravelScheduleRecord> {

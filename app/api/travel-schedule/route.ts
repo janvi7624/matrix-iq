@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
     accounts_handler_id: '', accounts_handler_name: '', accounts_completed_at: '',
     booking_details: '', ticket_documents: [], actual_cost: 0,
     hr_final_verifier_id: '', hr_final_verifier_name: '', hr_final_verified_at: '', hr_final_remarks: '',
+    companion_ids: Array.isArray(body.companionIds) ? body.companionIds.filter((v: unknown) => typeof v === 'string') : [],
+    companion_names: [],
     change_request_remarks: '', change_requested_by: ''
   };
 

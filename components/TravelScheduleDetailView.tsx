@@ -122,7 +122,8 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
   const [uploading, setUploading] = useState(false);
   const [departmentManagers, setDepartmentManagers] = useState<Record<string, { username: string }[]>>({});
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ origin: '', destination: '', startDate: '', endDate: '', requiredArrivalTime: '', expectedDepartureTime: '', purpose: '', linkedClient: '', expenseNote: '', projectId: '' });
+  const [editForm, setEditForm] = useState({ origin: '', destination: '', startDate: '', endDate: '', requiredArrivalTime: '', expectedDepartureTime: '', purpose: '', linkedClient: '', expenseNote: '', projectId: '', companionIds: [] as string[] });
+  const [allUsers, setAllUsers] = useState<{ id: string; username: string; name: string }[]>([]);
   const [projects, setProjects] = useState<{ id: string; client_name?: string; company?: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [activePanel, setActivePanel] = useState<ActionPanel>(null);
@@ -149,6 +150,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
       .then(setDepartmentManagers)
       .catch(() => setDepartmentManagers({}));
     fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
+    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setAllUsers).catch(() => setAllUsers([]));
   }, []);
 
   async function load() {
@@ -289,7 +291,8 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
       startDate: record.start_date, endDate: record.end_date,
       requiredArrivalTime: record.required_arrival_time, expectedDepartureTime: record.expected_departure_time,
       purpose: record.purpose, linkedClient: record.linked_client, expenseNote: record.expense_note,
-      projectId: record.project_id
+      projectId: record.project_id,
+      companionIds: Array.isArray(record.companion_ids) ? [...record.companion_ids] : []
     });
     setEditing(true);
   }
@@ -571,6 +574,37 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                 <label className={calcStyles.label}>Expense Note</label>
                 <textarea className={calcStyles.formControl} rows={2} value={editForm.expenseNote} onChange={(e) => setEditForm((f) => ({ ...f, expenseNote: e.target.value }))} />
               </div>
+              <div className={calcStyles.field} style={{ marginTop: 8 }}>
+                <label className={calcStyles.label}>Travel Companions</label>
+                <select
+                  className={calcStyles.formControl}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    if (id && !editForm.companionIds.includes(id)) {
+                      setEditForm((f) => ({ ...f, companionIds: [...f.companionIds, id] }));
+                    }
+                    e.target.value = '';
+                  }}
+                >
+                  <option value="">— Add companion —</option>
+                  {allUsers.filter((u) => u.username !== currentUser.username && !editForm.companionIds.includes(u.id)).map((u) => (
+                    <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                  ))}
+                </select>
+                {editForm.companionIds.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                    {editForm.companionIds.map((id) => {
+                      const user = allUsers.find((u) => u.id === id);
+                      return (
+                        <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 12, background: 'var(--mx-surface-alt, #e5e7eb)', fontSize: '0.85rem' }}>
+                          {user?.name || user?.username || id}
+                          <button type="button" onClick={() => setEditForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, opacity: 0.6 }}>&times;</button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button type="button" className={calcStyles.btn} disabled={saving} onClick={handleSaveEdit}>{saving ? 'Saving...' : 'Save Changes'}</button>
                 <button type="button" className={historyStyles.button} onClick={() => setEditing(false)}>Cancel</button>
@@ -605,6 +639,16 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                 <div style={{ marginTop: 8 }}><strong>Purpose:</strong> {record.purpose || '-'}</div>
                 <div style={{ marginTop: 8 }}><strong>Expense Note:</strong> {record.expense_note || '-'}</div>
                 <div style={{ marginTop: 8 }}><strong>Requested By:</strong> {record.created_by} on {formatDate(record.created_at)}</div>
+                {record.companion_names && record.companion_names.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <strong>Travel Companions:</strong>{' '}
+                    <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6, verticalAlign: 'middle' }}>
+                      {record.companion_names.map((name, i) => (
+                        <span key={i} style={{ padding: '2px 8px', borderRadius: 12, background: 'var(--mx-surface-alt, #e5e7eb)', fontSize: '0.85rem' }}>{name}</span>
+                      ))}
+                    </span>
+                  </div>
+                )}
               </div>
             </>
           )}

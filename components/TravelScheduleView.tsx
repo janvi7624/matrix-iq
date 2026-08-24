@@ -16,10 +16,17 @@ interface ProjectOption {
   company?: string;
 }
 
+interface UserOption {
+  id: string;
+  username: string;
+  name: string;
+}
+
 const EMPTY_FORM = {
   origin: '', destination: '', startDate: '', endDate: '',
   requiredArrivalTime: '', expectedDepartureTime: '',
-  purpose: '', linkedClient: '', expenseNote: '', projectId: ''
+  purpose: '', linkedClient: '', expenseNote: '', projectId: '',
+  companionIds: [] as string[]
 };
 
 function formatDate(iso: string): string {
@@ -36,6 +43,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
   const toast = useToast();
   const [records, setRecords] = useState<TravelScheduleRecord[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState(EMPTY_FORM);
@@ -59,6 +67,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
   useEffect(() => {
     load();
     fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
+    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
   }, []);
 
   async function handleCreate(e: FormEvent) {
@@ -154,6 +163,37 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
               <label className={calcStyles.label}>Expense Note</label>
               <textarea className={calcStyles.formControl} rows={2} value={form.expenseNote} onChange={(e) => setForm((f) => ({ ...f, expenseNote: e.target.value }))} />
             </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Travel Companions</label>
+              <select
+                className={calcStyles.formControl}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (id && !form.companionIds.includes(id)) {
+                    setForm((f) => ({ ...f, companionIds: [...f.companionIds, id] }));
+                  }
+                  e.target.value = '';
+                }}
+              >
+                <option value="">— Add companion —</option>
+                {users.filter((u) => u.username !== currentUser.username && !form.companionIds.includes(u.id)).map((u) => (
+                  <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                ))}
+              </select>
+              {form.companionIds.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                  {form.companionIds.map((id) => {
+                    const user = users.find((u) => u.id === id);
+                    return (
+                      <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 12, background: 'var(--mx-surface-alt, #e5e7eb)', fontSize: '0.85rem' }}>
+                        {user?.name || user?.username || id}
+                        <button type="button" onClick={() => setForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, opacity: 0.6 }}>&times;</button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             <button type="submit" className={calcStyles.btn} disabled={creating}>
               {creating ? 'Saving...' : 'Create Travel Request'}
             </button>
@@ -173,6 +213,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
               <th>Purpose</th>
               <th>Status</th>
               <th>Requested By</th>
+              <th>Companions</th>
               <th>Tickets</th>
               <th></th>
             </tr>
@@ -180,7 +221,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
           <tbody>
             {records.length === 0 ? (
               <tr>
-                <td colSpan={9} className={historyStyles.empty}>No travel requests yet.</td>
+                <td colSpan={10} className={historyStyles.empty}>No travel requests yet.</td>
               </tr>
             ) : (
               records.map((r) => (
@@ -200,6 +241,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
                     />
                   </td>
                   <td>{r.created_by}</td>
+                  <td>{r.companion_names && r.companion_names.length > 0 ? r.companion_names.join(', ') : <span style={{ opacity: 0.4 }}>-</span>}</td>
                   <td>
                     {r.ticket_documents && r.ticket_documents.length > 0 ? (
                       r.ticket_documents.map((url, i) => {

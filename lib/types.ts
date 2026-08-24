@@ -374,6 +374,9 @@ export interface TravelScheduleRecord {
   hr_final_verifier_name: string;
   hr_final_verified_at: string;
   hr_final_remarks: string;
+  // Companions
+  companion_ids: string[];
+  companion_names: string[];
   // Change request
   change_request_remarks: string;
   change_requested_by: string;
