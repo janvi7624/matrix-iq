@@ -4,6 +4,7 @@ import { tmsTaskStore } from '@/lib/tmsTaskStore';
 import { tmsProjectStore } from '@/lib/tmsProjectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendTaskLifecycleEmail } from '@/lib/email/notifications';
 import { findUserById } from '@/lib/userStore';
 import { TmsPriority, TmsTaskRecord } from '@/lib/types';
 
@@ -74,6 +75,16 @@ export async function POST(request: NextRequest) {
           entityType: 'tms_task',
           entityId: created.id
         });
+        if (assignee.email) {
+          void sendTaskLifecycleEmail({
+            name: assignee.name,
+            email: assignee.email,
+            event: 'assigned',
+            taskName: name,
+            projectName: project.name,
+            detail: created.due_date ? `Due: ${created.due_date}` : undefined
+          });
+        }
       }
     }
 

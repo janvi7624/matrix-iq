@@ -3,6 +3,8 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { siteVisitStore } from '@/lib/siteVisitStore';
 import { appendProjectTimeline, findProjectById, projectStore } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { sendFieldOpsLifecycleEmail } from '@/lib/email/notifications';
+import { findUsersByUsernames } from '@/lib/userStore';
 import { DomainKey, ProjectRecord, SiteVisitRecord, VisitStage } from '@/lib/types';
 
 const VALID_CATEGORIES: (DomainKey | '')[] = ['', 'av', 'robotics', 'ai', 'si', 'visitiq'];
@@ -116,6 +118,22 @@ export async function POST(request: NextRequest) {
 
     const created = await siteVisitStore.create(record);
     await appendProjectTimeline(projectId, { by: viewer.username, stage: 'site_visit', label: `Site visit logged${location ? ` at ${location}` : ''}`, remarks: record.purpose });
+
+    const teamUsernames = Array.from(new Set([...record.team_technical, ...record.team_sales].filter((u) => u && u !== viewer.username)));
+    const teamMembers = await findUsersByUsernames(teamUsernames);
+    teamMembers.forEach((member) => {
+      if (member.email) {
+        void sendFieldOpsLifecycleEmail({
+          name: member.name,
+          email: member.email,
+          urlPath: '/site-visits',
+          event: 'site_visit_created',
+          subjectLabel: companyName,
+          detail: `Logged by ${viewer.username}${location ? ` at ${location}` : ''}`
+        });
+      }
+    });
+
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

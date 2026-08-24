@@ -6,6 +6,8 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
+import { findUsersByUsernames } from '@/lib/userStore';
 import { MarketingRequestComment } from '@/lib/types';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -53,6 +55,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         type: 'marketing_request_comment',
         entityType: 'marketing_request',
         entityId: id
+      });
+      const recipients = await findUsersByUsernames(targets);
+      recipients.forEach((recipient) => {
+        if (recipient.email) {
+          void sendMarketingRequestLifecycleEmail({
+            name: recipient.name,
+            email: recipient.email,
+            event: 'comment',
+            title: existing.title,
+            detail: `${viewer.username}: ${text}`
+          });
+        }
       });
     }
 

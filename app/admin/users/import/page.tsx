@@ -22,6 +22,7 @@ interface ImportResultRow {
   username: string;
   role: string;
   tempPassword?: string;
+  userId?: string;
   matchedExistingUsername?: string;
 }
 
@@ -100,6 +101,8 @@ export default function ImportEmployeesPage() {
   const [preview, setPreview] = useState<ImportRunResult | null>(null);
   const [committed, setCommitted] = useState<ImportRunResult | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [resending, setResending] = useState<Record<number, boolean>>({});
+  const [resent, setResent] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -200,6 +203,33 @@ export default function ImportEmployeesPage() {
       URL.revokeObjectURL(url);
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function resendRow(row: ImportResultRow) {
+    if (!row.userId) return;
+    setResending((prev) => ({ ...prev, [row.rowNumber]: true }));
+    try {
+      const response = await fetch(`/api/admin/users/${row.userId}/resend-welcome-email`, { method: 'POST' });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast.error(body?.error || 'Could not resend the welcome email.');
+        return;
+      }
+      // Keep the on-screen credential in sync with what was actually just
+      // emailed — resending issues a fresh temporary password, so the old
+      // one shown before this click no longer works.
+      setCommitted((prev) =>
+        prev
+          ? { ...prev, rows: prev.rows.map((r) => (r.rowNumber === row.rowNumber ? { ...r, tempPassword: body.tempPassword } : r)) }
+          : prev
+      );
+      setResent((prev) => ({ ...prev, [row.rowNumber]: true }));
+      toast.success(`New login details emailed to ${body.email}.`);
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setResending((prev) => ({ ...prev, [row.rowNumber]: false }));
     }
   }
 
@@ -313,6 +343,7 @@ export default function ImportEmployeesPage() {
                             <th>Temporary Password</th>
                             <th>Role</th>
                             <th>Status</th>
+                            <th></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -324,6 +355,19 @@ export default function ImportEmployeesPage() {
                               <td className={historyStyles.num}>{row.tempPassword}</td>
                               <td>{row.role}</td>
                               <td><span className={`${historyStyles.statusPill} ${historyStyles.statusPillActive}`}>Active</span></td>
+                              <td>
+                                {row.userId && (
+                                  <button
+                                    type="button"
+                                    className={historyStyles.toggleBtn}
+                                    disabled={!row.email || resending[row.rowNumber]}
+                                    title={row.email ? undefined : 'No email address on file for this row'}
+                                    onClick={() => resendRow(row)}
+                                  >
+                                    {resending[row.rowNumber] ? 'Sending...' : resent[row.rowNumber] ? 'Resent ✓' : 'Resend Email'}
+                                  </button>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>

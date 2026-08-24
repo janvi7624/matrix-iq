@@ -5,6 +5,8 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 
 // submitted/under_review -> rejected. Gated on the 'reject' action — falls
 // back to isPrivileged when unconfigured for a role (see
@@ -49,6 +51,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         entityType: 'tms_bom_request',
         entityId: id
       });
+      const requester = await findUserByUsername(existing.created_by);
+      if (requester?.email) {
+        void sendProcurementLifecycleEmail({
+          name: requester.name,
+          email: requester.email,
+          urlPath: `/tms/bom-requests/${id}`,
+          event: 'bom_rejected',
+          itemLabel: existing.item_name,
+          projectName: existing.project_name,
+          detail: `Reason: ${reason}`
+        });
+      }
     }
 
     return NextResponse.json(updated);

@@ -6,6 +6,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
 import { findUserById } from '@/lib/userStore';
 import { MarketingRequestRecord } from '@/lib/types';
 
@@ -110,6 +111,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         entityType: 'marketing_request',
         entityId: id
       });
+      if (technicalUser.email) {
+        void sendMarketingRequestLifecycleEmail({
+          name: technicalUser.name,
+          email: technicalUser.email,
+          event: 'technical_review_assigned',
+          title: existing.title,
+          detail: `Submitted by ${viewer.username}`
+        });
+      }
     }
 
     return NextResponse.json(updated);

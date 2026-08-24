@@ -6,6 +6,8 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DemoOutcome, DemoScheduleRecord } from '@/lib/types';
+import { findUserByUsername } from '@/lib/userStore';
+import { sendDemoLifecycleEmail } from '@/lib/email/notifications';
 
 const VALID_OUTCOMES: (DemoOutcome | '')[] = ['', 'successful', 'need_followup', 'pending_decision', 'cancelled'];
 
@@ -82,6 +84,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (patch.status && patch.status !== previousStatus) {
       if (existing.project_id) {
         await appendProjectTimeline(existing.project_id, { by: viewer.username, stage: 'demo', label: `Demo status: ${patch.status.replace(/_/g, ' ')}` });
+      }
+      if ((patch.status === 'cancelled' || patch.status === 'demo_completed') && existing.created_by && existing.created_by !== viewer.username) {
+        const creator = await findUserByUsername(existing.created_by);
+        if (creator?.email) {
+          void sendDemoLifecycleEmail({
+            name: creator.name,
+            email: creator.email,
+            event: patch.status === 'cancelled' ? 'cancelled' : 'completed',
+            clientName: existing.client_name,
+            company: existing.company,
+            scheduledAt: existing.scheduled_at
+          });
+        }
       }
       await logAudit({
         by: viewer.username,

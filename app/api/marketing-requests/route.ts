@@ -8,6 +8,8 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 import { MARKETING_PRODUCT_CATEGORIES, MarketingProductCategory, MarketingRequestPriority, MarketingRequestRecord, MarketingRequestType } from '@/lib/types';
 
 const VALID_TYPES: MarketingRequestType[] = [
@@ -124,6 +126,16 @@ export async function POST(request: NextRequest) {
         entityType: 'marketing_request',
         entityId: created.id
       });
+      const owner = await findUserByUsername(created.assigned_to);
+      if (owner?.email) {
+        void sendMarketingRequestLifecycleEmail({
+          name: owner.name,
+          email: owner.email,
+          event: 'created',
+          title,
+          detail: `Submitted by ${viewer.username} (${productCategory})`
+        });
+      }
     }
 
     return NextResponse.json(created, { status: 201 });

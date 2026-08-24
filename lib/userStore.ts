@@ -3,6 +3,7 @@ import { PublicUser, UserRecord, UserRole } from './types';
 import { hashPassword, verifyPassword } from './passwords';
 import { db, isUuid } from './db';
 import { listRoles, findRoleByKey } from './roleStore';
+import { sendUserCreatedEmail, sendAccountChangedEmail, sendPasswordChangedEmail } from './email/notifications';
 
 function isoOrEmpty(value: unknown): string {
   if (!value) return '';
@@ -110,6 +111,26 @@ export async function findUserByUsername(username: string): Promise<UserRecord |
   return row ? toUserRecord(row) : undefined;
 }
 
+// Batched counterparts of findUserByUsername/findUserById — for a multi-
+// recipient notification (e.g. "email every department manager"), one query
+// beats awaiting a lookup per recipient in a loop. Usernames/ids here come
+// from records already read out of the DB (not raw user input), so an exact
+// (case-sensitive) IN-match is correct — no need for the lower() comparison
+// findUserByUsername uses to tolerate a user-typed login.
+export async function findUsersByUsernames(usernames: string[]): Promise<UserRecord[]> {
+  const unique = Array.from(new Set(usernames.filter(Boolean)));
+  if (!unique.length) return [];
+  const rows = await db.User.findAll({ where: { username: unique } as never, include: [roleInclude, deptInclude] });
+  return rows.map((r) => toUserRecord(r));
+}
+
+export async function findUsersByIds(ids: string[]): Promise<UserRecord[]> {
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  if (!unique.length) return [];
+  const rows = await db.User.findAll({ where: { id: unique } as never, include: [roleInclude, deptInclude] });
+  return rows.map((r) => toUserRecord(r));
+}
+
 // Sidebar's profile card (runs on every page) only ever needs name + department
 // — it already has `role` from the signed session, so the role join
 // findUserByUsername pays for is pure waste here.
@@ -183,7 +204,17 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
   } as never);
 
   const created = await db.User.findByPk(row.get('id') as string, { include: [roleInclude, deptInclude] });
-  return toPublicUser(toUserRecord(created as Model));
+  const publicUser = toPublicUser(toUserRecord(created as Model));
+
+  // Not awaited: this runs on a long-lived Node server (not a serverless
+  // function that freezes on response), so firing the email without
+  // blocking the caller keeps single admin-created users fast and, more
+  // importantly, keeps the Excel bulk-import loop (which calls createUser
+  // once per row, sequentially) from paying SES latency on every row. The
+  // function itself never throws — see lib/email/notifications.ts.
+  void sendUserCreatedEmail({ name: publicUser.name, username: publicUser.username, email: publicUser.email, password: input.password });
+
+  return publicUser;
 }
 
 export interface UpdateUserInput {
@@ -198,12 +229,23 @@ export interface UpdateUserInput {
   location?: string;
   status?: UserRecord['status'];
   mustChangePassword?: boolean;
+  // Who supplied `password`, if set — decides the password-changed email's
+  // content: 'self' (default) never repeats the password back since the
+  // user just typed it themselves; 'admin' must, since a reset user has no
+  // other way to learn it. Defaulting to 'self' is the safe direction — the
+  // failure mode is "reset user doesn't get emailed the new password"
+  // rather than "a user's freshly self-chosen password gets emailed back to them".
+  passwordChangeInitiatedBy?: 'self' | 'admin';
 }
 
 export async function updateUser(id: string, patch: UpdateUserInput): Promise<PublicUser | null> {
   if (!isUuid(id)) return null;
-  const row = await db.User.findByPk(id);
+  // Fetched with the same includes as the post-update read below so role/
+  // department can be diffed against the patch — the label (not just the
+  // key) is what the account-changed email shows.
+  const row = await db.User.findByPk(id, { include: [roleInclude, deptInclude] });
   if (!row) return null;
+  const before = toUserRecord(row);
 
   const attrs: Record<string, unknown> = {
     name: patch.name,
@@ -214,21 +256,59 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Pu
     location: patch.location,
     status: patch.status
   };
+  let newRoleLabel: string | undefined;
   if (patch.role !== undefined) {
     const role = await db.Role.findOne({ where: { key: patch.role } as never });
     if (!role) throw new Error('Unknown role');
     attrs.roleId = role.get('id');
+    if (patch.role !== before.role) newRoleLabel = (role.get('label') as string) || patch.role;
   }
+  const departmentChanged = patch.department !== undefined && patch.department.trim() !== before.department;
   if (patch.department !== undefined) {
     attrs.department = patch.department;
     attrs.departmentId = await resolveDepartmentId(patch.department);
   }
-  if (patch.password) attrs.passwordHash = await hashPassword(patch.password);
+  let shouldEmailPasswordChange = false;
+  if (patch.password) {
+    const samePassword = await verifyPassword(patch.password, before.passwordHash);
+    attrs.passwordHash = await hashPassword(patch.password);
+    // Admin-initiated resets must always relay the credential — the admin
+    // doesn't know the user's current password, so even a same-value
+    // coincidence still needs to reach the user's inbox (that's the whole
+    // point of this email). Self-service changes only notify when the
+    // password actually changed, so resubmitting the same value silently
+    // no-ops instead of sending a pointless "your password was changed" email.
+    shouldEmailPasswordChange = patch.passwordChangeInitiatedBy === 'admin' || !samePassword;
+  }
   if (patch.mustChangePassword !== undefined) attrs.mustChangePassword = patch.mustChangePassword;
 
   await row.update(attrs as never);
-  const updated = await db.User.findByPk(id, { include: [roleInclude, deptInclude] });
-  return toPublicUser(toUserRecord(updated as Model));
+  const updatedRow = await db.User.findByPk(id, { include: [roleInclude, deptInclude] });
+  const updated = toPublicUser(toUserRecord(updatedRow as Model));
+
+  const statusChanged = patch.status !== undefined && patch.status !== before.status;
+  if (newRoleLabel || departmentChanged || statusChanged) {
+    void sendAccountChangedEmail({
+      name: updated.name,
+      username: updated.username,
+      email: updated.email,
+      newRole: newRoleLabel,
+      newDepartment: departmentChanged ? updated.department : undefined,
+      newStatus: statusChanged ? updated.status : undefined
+    });
+  }
+  if (shouldEmailPasswordChange) {
+    const initiatedBy = patch.passwordChangeInitiatedBy ?? 'self';
+    void sendPasswordChangedEmail({
+      name: updated.name,
+      username: updated.username,
+      email: updated.email,
+      initiatedBy,
+      newPassword: initiatedBy === 'admin' ? patch.password : undefined
+    });
+  }
+
+  return updated;
 }
 
 export async function deleteUser(id: string): Promise<boolean> {

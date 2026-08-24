@@ -13,6 +13,7 @@
     "db:seed:all": "sequelize-cli db:seed:all"
   },
   "dependencies": {
+    "@aws-sdk/client-ses": "^3.1116.0",
     "@supabase/supabase-js": "^2.112.1",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",

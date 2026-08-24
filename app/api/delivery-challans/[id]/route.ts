@@ -6,6 +6,8 @@ import { appendProjectTimeline } from '@/lib/projectStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
+import { sendFieldOpsLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 import { BackOfficeRemarkTag, DcLineItem, DeliveryChallanRecord, DemoRequestStatus, MaterialReturnChecklist } from '@/lib/types';
 import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
@@ -146,6 +148,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       remarks: patch.material_return ? patch.material_return.remarks : '',
       ip: getClientIp(request)
     });
+
+    // assigned_engineer is free text on a manually-created DC, but a real
+    // username for demo-linked ones (see app/api/delivery-challans/route.ts) —
+    // findUserByUsername no-ops harmlessly either way.
+    if ((body.action === 'dispatch' || body.action === 'close') && dc.assigned_engineer && dc.assigned_engineer !== viewer.username) {
+      const recipient = await findUserByUsername(dc.assigned_engineer);
+      if (recipient?.email) {
+        void sendFieldOpsLifecycleEmail({
+          name: recipient.name,
+          email: recipient.email,
+          urlPath: '/backoffice',
+          event: body.action === 'dispatch' ? 'dc_dispatched' : 'dc_closed',
+          subjectLabel: dc.dc_number
+        });
+      }
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

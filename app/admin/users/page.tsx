@@ -311,6 +311,26 @@ export default function ManageUsersPage() {
     if (ok) alert(`Password reset for "${user.username}".`);
   }
 
+  async function resendWelcomeEmail(user: PublicUser) {
+    if (!user.email) {
+      alert('This user has no email address on file — add one first.');
+      return;
+    }
+    if (!window.confirm(`Generate a new temporary password for "${user.username}" and email it to ${user.email}?`)) return;
+    setRowError((prev) => ({ ...prev, [user.id]: '' }));
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/resend-welcome-email`, { method: 'POST' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setRowError((prev) => ({ ...prev, [user.id]: body?.error || 'Could not resend the welcome email.' }));
+        return;
+      }
+      alert(`New login details emailed to ${user.email}.`);
+    } catch {
+      setRowError((prev) => ({ ...prev, [user.id]: 'Could not reach the server.' }));
+    }
+  }
+
   async function handleDelete(user: PublicUser) {
     if (!window.confirm(`Remove user "${user.username}"? This cannot be undone.`)) return;
     const response = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
@@ -566,6 +586,7 @@ export default function ManageUsersPage() {
                                 <>
                                   <button type="button" className={historyStyles.button} onClick={() => startEdit(user)}>Edit</button>
                                   <button type="button" className={historyStyles.button} onClick={() => resetPassword(user)}>Reset Password</button>
+                                  <button type="button" className={historyStyles.button} onClick={() => resendWelcomeEmail(user)}>Resend Welcome Email</button>
                                   <button type="button" className={historyStyles.button} onClick={() => toggleStatus(user)}>
                                     {user.status === 'active' ? 'Deactivate' : 'Activate'}
                                   </button>

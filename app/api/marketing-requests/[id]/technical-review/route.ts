@@ -5,6 +5,8 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 import { getAppConfig } from '@/lib/appConfigStore';
 import { MarketingRequestRecord } from '@/lib/types';
 
@@ -82,6 +84,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         entityType: 'marketing_request',
         entityId: id
       });
+      const marketingUser = await findUserByUsername(marketingTarget);
+      if (marketingUser?.email) {
+        void sendMarketingRequestLifecycleEmail({
+          name: marketingUser.name,
+          email: marketingUser.email,
+          event: action === 'approve' ? 'technical_approved' : 'technical_changes_requested',
+          title: existing.title,
+          detail: action === 'approve' ? `Approved by ${viewer.username}` : `${viewer.username}: ${remarks}`
+        });
+      }
     }
 
     return NextResponse.json(updated);

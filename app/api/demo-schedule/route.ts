@@ -8,6 +8,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { DemoPriority, DemoProductLine, DemoScheduleRecord, DomainKey } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendDemoLifecycleEmail } from '@/lib/email/notifications';
 import { isUserADepartmentManager } from '@/lib/departmentStore';
 import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 
@@ -141,6 +142,14 @@ export async function POST(request: NextRequest) {
         type: 'demo_technical_confirmation',
         entityType: 'demo',
         entityId: created.id
+      });
+      void sendDemoLifecycleEmail({
+        name: assignedPerson.name,
+        email: assignedPerson.email,
+        event: 'technical_confirmation',
+        clientName,
+        company: record.company,
+        scheduledAt
       });
     }
 

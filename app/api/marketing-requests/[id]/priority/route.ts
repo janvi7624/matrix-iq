@@ -6,6 +6,8 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
+import { findUsersByUsernames } from '@/lib/userStore';
 import { getAppConfig } from '@/lib/appConfigStore';
 import { MarketingRequestPriority } from '@/lib/types';
 
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (priority === 'high' || priority === 'urgent') {
       const appConfig = await getAppConfig();
-      const targets = [existing.assigned_to, appConfig.marketingOwnerUsername].filter((u) => u && u !== viewer.username);
+      const targets = Array.from(new Set([existing.assigned_to, appConfig.marketingOwnerUsername].filter((u) => u && u !== viewer.username)));
       if (targets.length) {
         await notifyUsers(targets, {
           title: `Marketing request priority: ${priority.toUpperCase()}`,
@@ -57,6 +59,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           type: 'marketing_request_priority_changed',
           entityType: 'marketing_request',
           entityId: id
+        });
+        const recipients = await findUsersByUsernames(targets);
+        recipients.forEach((recipient) => {
+          if (recipient.email) {
+            void sendMarketingRequestLifecycleEmail({
+              name: recipient.name,
+              email: recipient.email,
+              event: 'priority_changed',
+              title: existing.title,
+              detail: `Priority: ${priority.toUpperCase()} — raised by ${viewer.username}`
+            });
+          }
         });
       }
     }

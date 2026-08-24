@@ -5,6 +5,8 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
+import { findUsersByUsernames } from '@/lib/userStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
 
 // The assigned marketing member confirms their availability. Only they can
@@ -41,14 +43,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     const marketingManagers = (await listDepartmentManagers())['Marketing'] || [];
-    const notifyTargets = marketingManagers.map((m) => m.username).filter((u) => u && u !== viewer.username);
+    const notifyTargets = marketingManagers.filter((m) => m.username && m.username !== viewer.username);
     if (notifyTargets.length) {
-      await notifyUsers(notifyTargets, {
+      await notifyUsers(notifyTargets.map((m) => m.username), {
         title: 'Assignment accepted',
         body: `${viewer.username} confirmed availability for "${existing.title}"`,
         type: 'marketing_request_assignment_accepted',
         entityType: 'marketing_request',
         entityId: id
+      });
+      const managerUsers = await findUsersByUsernames(notifyTargets.map((m) => m.username));
+      managerUsers.forEach((managerUser) => {
+        if (managerUser.email) {
+          void sendMarketingRequestLifecycleEmail({
+            name: managerUser.name,
+            email: managerUser.email,
+            event: 'assignment_accepted',
+            title: existing.title,
+            detail: `Confirmed by ${viewer.username}`
+          });
+        }
       });
     }
 

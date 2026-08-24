@@ -4,6 +4,7 @@ import { findProjectById } from '@/lib/projectStore';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 import { db } from '@/lib/db';
 
 // GET — list handover requests for a project
@@ -100,6 +101,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     entityType: 'project',
     entityId: id
   });
+  if (toUser.email) {
+    void sendProjectLifecycleEmail({
+      name: toUser.name,
+      email: toUser.email,
+      projectId: id,
+      projectKind: 'sales',
+      event: 'handover_requested',
+      projectLabel,
+      detail: `Requested by ${viewer.name || viewer.username}${remarks ? ` — Remarks: ${remarks}` : ''}`
+    });
+  }
 
   return NextResponse.json(record, { status: 201 });
 }

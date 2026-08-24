@@ -5,6 +5,8 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 import { getAppConfig } from '@/lib/appConfigStore';
 
 // approved -> admin_approved. Gated to whoever manages the "Administration"
@@ -51,6 +53,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         entityType: 'tms_bom_request',
         entityId: id
       });
+      const financeApprover = await findUserByUsername(notifyTargets[0]);
+      if (financeApprover?.email) {
+        void sendProcurementLifecycleEmail({
+          name: financeApprover.name,
+          email: financeApprover.email,
+          urlPath: `/tms/bom-requests/${id}`,
+          event: 'bom_admin_approved',
+          itemLabel: existing.item_name,
+          projectName: existing.project_name,
+          detail: `Approved by Administration (${viewer.username})`
+        });
+      }
     }
 
     return NextResponse.json(updated);

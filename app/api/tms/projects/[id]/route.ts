@@ -7,6 +7,8 @@ import { tmsProcurementStore } from '@/lib/tmsProcurementStore';
 import { findDepartmentById } from '@/lib/departmentStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { TmsPriority, TmsProjectRecord, TmsProjectStatus } from '@/lib/types';
+import { findUserById } from '@/lib/userStore';
+import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 
 const VALID_STATUS: TmsProjectStatus[] = ['planning', 'not_started', 'in_progress', 'on_hold', 'completed', 'cancelled'];
 const VALID_PRIORITY: TmsPriority[] = ['low', 'medium', 'high'];
@@ -89,6 +91,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const updated = await tmsProjectStore.update(id, patch);
+
+    // Use the POST-patch manager: if this same request also reassigned
+    // project_manager_id (above), the newly assigned manager is who should
+    // hear about completion/cancellation, not the one just replaced.
+    const currentManagerId = patch.project_manager_id !== undefined ? patch.project_manager_id : existing.project_manager_id;
+    if (patch.status && (patch.status === 'completed' || patch.status === 'cancelled') && patch.status !== existing.status && currentManagerId) {
+      const manager = await findUserById(currentManagerId);
+      if (manager?.email && manager.username !== viewer.username) {
+        void sendProjectLifecycleEmail({
+          name: manager.name,
+          email: manager.email,
+          projectId: id,
+          projectKind: 'tms',
+          event: 'tms_status_changed',
+          projectLabel: existing.name || existing.client_name || 'Project',
+          detail: `Status: ${patch.status.replace(/_/g, ' ')}`
+        });
+      }
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     return apiErrorResponse(error);

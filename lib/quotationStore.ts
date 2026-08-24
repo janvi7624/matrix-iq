@@ -4,6 +4,8 @@ import { computeQuotationPrefix, formatQuotationNumber } from './quotationNumber
 import { DomainKey } from './types';
 import { db, isUuid } from './db';
 import { resolveVisibilityScope } from './departmentScope';
+import { findUserByUsername } from './userStore';
+import { sendQuotationStatusEmail } from './email/notifications';
 
 const UNKNOWN_USER_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -242,12 +244,34 @@ export async function deleteQuotation(id: string): Promise<boolean> {
   return true;
 }
 
-export async function updateQuotationStatus(id: string, status: QuotationStatus): Promise<QuotationRecord | null> {
+export async function updateQuotationStatus(id: string, status: QuotationStatus, actorUsername?: string): Promise<QuotationRecord | null> {
   if (!isUuid(id)) return null;
   const row = await db.Quotation.findByPk(id);
   if (!row) return null;
+  const previousStatus = row.get('status') as QuotationStatus;
   await row.update({ status } as never);
-  return (await findQuotationById(id)) ?? null;
+  const updated = await findQuotationById(id);
+  if (!updated) return null;
+
+  // 'draft' isn't a notify-worthy transition (an edit back to draft, not a
+  // client-facing event) — only sent/approved/rejected are. A quotation's
+  // own creator can change its status themselves (e.g. draft -> sent), so
+  // skip the email when the actor and the creator are the same person.
+  if (status !== previousStatus && (status === 'sent' || status === 'approved' || status === 'rejected') && updated.created_by && updated.created_by !== actorUsername) {
+    const creator = await findUserByUsername(updated.created_by);
+    if (creator?.email) {
+      void sendQuotationStatusEmail({
+        name: creator.name,
+        email: creator.email,
+        quotationNumber: updated.quotation_number,
+        clientName: updated.client_name || updated.client_company,
+        status,
+        total: updated.total
+      });
+    }
+  }
+
+  return updated;
 }
 
 // 'sent' quotations past their validity window read as 'expired' everywhere

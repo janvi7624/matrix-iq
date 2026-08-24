@@ -3,6 +3,8 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { installationStore } from '@/lib/installationStore';
 import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { sendFieldOpsLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 import { InstallationRecord } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
@@ -55,6 +57,21 @@ export async function POST(request: NextRequest) {
       { by: viewer.username, stage: 'installation', label: 'Installation scheduled', remarks: `Engineer: ${record.assigned_engineer || '-'}` },
       'installation'
     );
+
+    if (project.created_by && project.created_by !== viewer.username) {
+      const owner = await findUserByUsername(project.created_by);
+      if (owner?.email) {
+        void sendFieldOpsLifecycleEmail({
+          name: owner.name,
+          email: owner.email,
+          urlPath: '/installation',
+          event: 'installation_scheduled',
+          subjectLabel: project.client_name || project.company || 'Project',
+          detail: `Installation date: ${installationDate}${record.assigned_engineer ? ` — Engineer: ${record.assigned_engineer}` : ''}`
+        });
+      }
+    }
+
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

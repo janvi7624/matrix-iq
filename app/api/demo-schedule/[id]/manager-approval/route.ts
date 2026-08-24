@@ -9,6 +9,7 @@ import { DemoManagerApproval, DemoScheduleRecord } from '@/lib/types';
 import { findUserById, listUsers } from '@/lib/userStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendDemoLifecycleEmail } from '@/lib/email/notifications';
 
 // Strict routing (confirmed decision): only the domain manager(s) of the
 // assigned technical person's department (Department.managerIds) can
@@ -72,16 +73,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (body.decision === 'approved') {
       const users = await listUsers();
-      const backofficeUsernames = users
-        .filter((u) => u.status === 'active' && (u.role === 'backoffice' || u.department === 'Back Office'))
-        .map((u) => u.username);
-      if (backofficeUsernames.length) {
-        await notifyUsers(backofficeUsernames, {
-          title: 'Demo request ready for Back Office',
-          body: `${existing.client_name}${existing.company ? ` (${existing.company})` : ''} — approved by ${viewer.username}`,
-          type: 'demo_backoffice_ready',
-          entityType: 'demo',
-          entityId: id
+      const backofficeUsers = users.filter((u) => u.status === 'active' && (u.role === 'backoffice' || u.department === 'Back Office'));
+      if (backofficeUsers.length) {
+        await notifyUsers(
+          backofficeUsers.map((u) => u.username),
+          {
+            title: 'Demo request ready for Back Office',
+            body: `${existing.client_name}${existing.company ? ` (${existing.company})` : ''} — approved by ${viewer.username}`,
+            type: 'demo_backoffice_ready',
+            entityType: 'demo',
+            entityId: id
+          }
+        );
+        backofficeUsers.forEach((u) => {
+          if (u.email) {
+            void sendDemoLifecycleEmail({
+              name: u.name,
+              email: u.email,
+              event: 'backoffice_ready',
+              clientName: existing.client_name,
+              company: existing.company,
+              scheduledAt: existing.scheduled_at,
+              detail: `Approved by ${viewer.username}`
+            });
+          }
         });
       }
     }

@@ -6,6 +6,8 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 import { MarketingRequestRecord, MarketingRequestStatus } from '@/lib/types';
 
 function toStringArray(value: unknown): string[] {
@@ -159,6 +161,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           entityType: 'marketing_request',
           entityId: id
         });
+        const requester = await findUserByUsername(existing.created_by);
+        if (requester?.email) {
+          void sendMarketingRequestLifecycleEmail({
+            name: requester.name,
+            email: requester.email,
+            event: action === 'complete' ? 'completed' : 'info_needed',
+            title: existing.title,
+            detail: action === 'wait_for_info' ? remarks : undefined
+          });
+        }
       }
     }
 

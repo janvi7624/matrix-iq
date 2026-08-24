@@ -6,6 +6,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
 import { db } from '@/lib/db';
 import { MarketingRequestRecord } from '@/lib/types';
 
@@ -31,12 +32,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     };
 
     let assigneeUsername = '';
+    let assigneeEmail = '';
     if (body.assigneeId !== undefined) {
       const assigneeId = typeof body.assigneeId === 'string' ? body.assigneeId.trim() : '';
       if (assigneeId) {
         const assignee = await db.User.findByPk(assigneeId);
         if (!assignee) return NextResponse.json({ error: 'Marketing assignee not found' }, { status: 400 });
         assigneeUsername = assignee.get('username') as string;
+        assigneeEmail = (assignee.get('email') as string) || '';
         patch.assigned_to_id = assigneeId;
         patch.assigned_to = assigneeUsername;
         patch.assigned_to_name = (assignee.get('name') as string) || assigneeUsername;
@@ -105,6 +108,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           entityType: 'marketing_request',
           entityId: id
         });
+        if (assigneeEmail) {
+          void sendMarketingRequestLifecycleEmail({
+            name: patch.assigned_to_name || assigneeUsername,
+            email: assigneeEmail,
+            event: 'assigned',
+            title: existing.title,
+            detail: `Assigned by ${viewer.username}`
+          });
+        }
       }
     }
 

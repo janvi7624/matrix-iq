@@ -5,6 +5,8 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
+import { findUsersByUsernames } from '@/lib/userStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
 
 // admin_approved -> finance_approved. Gated to the configured Finance
@@ -40,14 +42,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     const accountsManagers = (await listDepartmentManagers())['Accounts'] || [];
-    const notifyTargets = accountsManagers.map((m) => m.username).filter((u) => u && u !== viewer.username);
+    const notifyTargets = accountsManagers.filter((m) => m.username && m.username !== viewer.username);
     if (notifyTargets.length) {
-      await notifyUsers(notifyTargets, {
+      await notifyUsers(notifyTargets.map((m) => m.username), {
         title: 'BOM request awaiting payment',
         body: `"${existing.item_name}" for ${existing.project_name} was finance-approved by ${viewer.username}`,
         type: 'tms_bom_request_finance_approved',
         entityType: 'tms_bom_request',
         entityId: id
+      });
+      const managerUsers = await findUsersByUsernames(notifyTargets.map((m) => m.username));
+      managerUsers.forEach((managerUser) => {
+        if (managerUser.email) {
+          void sendProcurementLifecycleEmail({
+            name: managerUser.name,
+            email: managerUser.email,
+            urlPath: `/tms/bom-requests/${id}`,
+            event: 'bom_finance_approved',
+            itemLabel: existing.item_name,
+            projectName: existing.project_name,
+            detail: `Finance-approved by ${viewer.username}`
+          });
+        }
       });
     }
 

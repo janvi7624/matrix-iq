@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
+import { findUserByUsername } from '@/lib/userStore';
 
 // POST — sender cancels a pending handover request
 export async function POST(request: NextRequest) {
@@ -39,6 +41,18 @@ export async function POST(request: NextRequest) {
     entityType: 'project',
     entityId: handover.project_id
   });
+  const toUser = await findUserByUsername(handover.to_username);
+  if (toUser?.email) {
+    void sendProjectLifecycleEmail({
+      name: toUser.name,
+      email: toUser.email,
+      projectId: handover.project_id,
+      projectKind: 'sales',
+      event: 'handover_cancelled',
+      projectLabel: handover.project_title,
+      detail: `Cancelled by ${viewer.name || viewer.username}`
+    });
+  }
 
   return NextResponse.json(updated);
 }
