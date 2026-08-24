@@ -8,6 +8,8 @@ import { isMarketingManager } from '@/lib/permissions';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { listVisibleModules } from '@/lib/moduleConfigStore';
+import { travelScheduleStore } from '@/lib/travelScheduleStore';
+import { listDepartmentManagers } from '@/lib/departmentStore';
 
 // Sidebar renders on every authenticated page and used to pay for its own
 // /api/auth/me call, then — only once that resolved — up to 4 more
@@ -61,6 +63,23 @@ export async function GET(request: NextRequest) {
       const count = pendingDc + pendingVerification + pendingDispatch;
       if (count) badges.backoffice = count;
     }
+
+    // Travel schedule badge
+    const travelRecords = await travelScheduleStore.list(viewer.username, isPrivileged);
+    const deptManagers = await listDepartmentManagers();
+    const isHrMgr = (deptManagers['HR'] || []).some((m) => m.username === viewer.username);
+    const isAdminMgr = (deptManagers['Admin'] || deptManagers['Administration'] || []).some((m) => m.username === viewer.username);
+    const isAccountsMgr = (deptManagers['Accounts'] || []).some((m) => m.username === viewer.username);
+    let travelBadge = 0;
+    for (const tr of travelRecords) {
+      if (tr.status === 'submitted' && (isManagerTier || isPrivileged)) travelBadge++;
+      else if (tr.status === 'manager_approved' && (isHrMgr || isPrivileged)) travelBadge++;
+      else if (tr.status === 'hr_reviewed' && (isAdminMgr || isPrivileged)) travelBadge++;
+      else if (tr.status === 'admin_approved' && (isAccountsMgr || isPrivileged)) travelBadge++;
+      else if (tr.status === 'ticket_booking' && (isHrMgr || isPrivileged)) travelBadge++;
+      else if (tr.status === 'changes_requested' && tr.created_by === viewer.username) travelBadge++;
+    }
+    if (travelBadge) badges['travel-schedule'] = travelBadge;
 
     return NextResponse.json({
       modules,

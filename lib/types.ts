@@ -317,17 +317,69 @@ export interface DemoScheduleRecord {
   attachments: string[];
 }
 
+export type TravelScheduleStatus =
+  | 'draft'
+  | 'submitted'
+  | 'manager_approved'
+  | 'hr_reviewed'
+  | 'admin_approved'
+  | 'ticket_booking'
+  | 'hr_final_verification'
+  | 'completed'
+  | 'changes_requested';
+
 export interface TravelScheduleRecord {
   id: string;
   created_at: string;
   created_by: string;
+  request_code: string;
+  status: TravelScheduleStatus;
   origin: string;
   destination: string;
   start_date: string;
   end_date: string;
+  required_arrival_time: string;
+  expected_departure_time: string;
   purpose: string;
   linked_client: string;
   expense_note: string;
+  project_id: string;
+  project_name: string;
+  // Stage 2: Department Manager
+  manager_id: string;
+  manager_name: string;
+  manager_action_at: string;
+  manager_remarks: string;
+  // Stage 3: HR Review
+  hr_reviewer_id: string;
+  hr_reviewer_name: string;
+  hr_reviewed_at: string;
+  hr_remarks: string;
+  hr_documents: string[];
+  estimated_cost: number;
+  // Stage 4: Admin Review
+  admin_reviewer_id: string;
+  admin_reviewer_name: string;
+  admin_reviewed_at: string;
+  admin_remarks: string;
+  // Stage 5: Accounts (Ticket Booking)
+  accounts_handler_id: string;
+  accounts_handler_name: string;
+  accounts_completed_at: string;
+  booking_details: string;
+  ticket_documents: string[];
+  actual_cost: number;
+  // Stage 6: HR Final Verification
+  hr_final_verifier_id: string;
+  hr_final_verifier_name: string;
+  hr_final_verified_at: string;
+  hr_final_remarks: string;
+  // Companions
+  companion_ids: string[];
+  companion_names: string[];
+  // Change request
+  change_request_remarks: string;
+  change_requested_by: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -589,7 +641,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule';
   entity_id: string;
   action: string;
   previous_status: string;

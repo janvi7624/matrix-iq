@@ -16,6 +16,7 @@ import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
+import { travelScheduleStore } from '@/lib/travelScheduleStore';
 
 // Single round trip for everything Dashboard.tsx needs on first paint —
 // replaces what used to be up to 13 separate client-side fetches (modules,
@@ -134,6 +135,22 @@ export async function GET(request: NextRequest) {
     const reminderCount = siteVisits.filter((v) => isReminderDue(v)).length;
     const pendingHandovers = await projectHandoverStore.listPendingForUser(viewer.userId);
 
+    // Travel schedule attention counts
+    const travelRecords = await travelScheduleStore.list(viewer.username, viewer.isPrivileged);
+    const isHrManager = (managersByDepartment['HR'] || []).some((m) => m.id === viewer.userId);
+    const isAdminDeptManager = (managersByDepartment['Admin'] || managersByDepartment['Administration'] || []).some((m) => m.id === viewer.userId);
+    const isAccountsDeptManager = (managersByDepartment['Accounts'] || []).some((m) => m.id === viewer.userId);
+
+    let travelPendingCount = 0;
+    for (const tr of travelRecords) {
+      if (tr.status === 'submitted' && (isManagerTier || viewer.isPrivileged)) travelPendingCount++;
+      else if (tr.status === 'manager_approved' && (isHrManager || viewer.isPrivileged)) travelPendingCount++;
+      else if (tr.status === 'hr_reviewed' && (isAdminDeptManager || viewer.isPrivileged)) travelPendingCount++;
+      else if (tr.status === 'admin_approved' && (isAccountsDeptManager || viewer.isPrivileged)) travelPendingCount++;
+      else if (tr.status === 'ticket_booking' && (isHrManager || viewer.isPrivileged)) travelPendingCount++;
+      else if (tr.status === 'changes_requested' && tr.created_by === viewer.username) travelPendingCount++;
+    }
+
     const marketingStats = marketingRecords.isReviewer
       ? { isReviewer: true, awaitingReview: marketingRecords.records.filter((r) => r.status === 'submitted').length }
       : { isReviewer: false, myOpenCount: marketingRecords.records.filter((r) => ['submitted', 'timeline_set', 'in_progress'].includes(r.status)).length };
@@ -170,7 +187,8 @@ export async function GET(request: NextRequest) {
       technicalRoster,
       recentQuotations: recentQuotationsTrimmed,
       quotationStats,
-      pendingHandovers
+      pendingHandovers,
+      travelPendingCount
     });
   } catch (error) {
     return apiErrorResponse(error);
