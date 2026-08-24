@@ -10,6 +10,7 @@ import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { usePrompt } from './ui/PromptDialog';
 import EmptyState from './ui/EmptyState';
 import { Paperclip } from 'lucide-react';
 
@@ -34,6 +35,7 @@ interface TmsBomRequestDetailViewProps {
 export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsBomRequestDetailViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
+  const promptText = usePrompt();
   const [record, setRecord] = useState<TmsBomRequestRecord | null>(null);
   const [status, setStatus] = useState('Loading...');
   const [busy, setBusy] = useState(false);
@@ -105,9 +107,9 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
   }
 
   async function handleReject() {
-    const reason = window.prompt('Reason for declining this request:');
-    if (!reason || !reason.trim()) return;
-    if (await callAction('/reject', { reason: reason.trim() })) toast.success('Request declined.');
+    const reason = await promptText({ title: 'Reason for declining this request:', validate: (v) => (v ? null : 'A reason is required.') });
+    if (!reason) return;
+    if (await callAction('/reject', { reason })) toast.success('Request declined.');
   }
 
   async function handleSendToProcurement() {
@@ -121,9 +123,9 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
   }
 
   async function handleAdminReject() {
-    const reason = window.prompt('Reason for declining this request:');
-    if (!reason || !reason.trim()) return;
-    if (await callAction('/admin-reject', { reason: reason.trim() })) toast.success('Request declined.');
+    const reason = await promptText({ title: 'Reason for declining this request:', validate: (v) => (v ? null : 'A reason is required.') });
+    if (!reason) return;
+    if (await callAction('/admin-reject', { reason })) toast.success('Request declined.');
   }
 
   async function handleFinanceApprove() {
@@ -132,9 +134,9 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
   }
 
   async function handleFinanceReject() {
-    const reason = window.prompt('Reason for declining this request:');
-    if (!reason || !reason.trim()) return;
-    if (await callAction('/finance-reject', { reason: reason.trim() })) toast.success('Request declined.');
+    const reason = await promptText({ title: 'Reason for declining this request:', validate: (v) => (v ? null : 'A reason is required.') });
+    if (!reason) return;
+    if (await callAction('/finance-reject', { reason })) toast.success('Request declined.');
   }
 
   async function handleMarkPayment(files: FileList | null) {

@@ -7,6 +7,8 @@ import { DepartmentRecord } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 export default function DepartmentMasterPage() {
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
@@ -20,6 +22,8 @@ export default function DepartmentMasterPage() {
   const [editState, setEditState] = useState<{ name: string; description: string; managerIds: string[] } | null>(null);
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   async function load() {
     setStatus('Loading...');
@@ -128,18 +132,18 @@ export default function DepartmentMasterPage() {
       body: JSON.stringify({ orderedIds: list.map((d) => d.id) })
     });
     if (!response.ok) {
-      alert('Could not reorder.');
+      toast.error('Could not reorder.');
       return;
     }
     await load();
   }
 
   async function handleDelete(d: DepartmentRecord) {
-    if (!window.confirm(`Delete department "${d.name}"? This cannot be undone.`)) return;
+    if (!(await confirm({ message: `Delete department "${d.name}"? This cannot be undone.`, danger: true }))) return;
     const response = await fetch(`/api/admin/departments/${d.id}`, { method: 'DELETE' });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      alert(body?.error || 'Could not delete department.');
+      toast.error(body?.error || 'Could not delete department.');
       return;
     }
     await load();

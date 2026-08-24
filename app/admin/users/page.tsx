@@ -10,6 +10,9 @@ import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { BRAND } from '@/lib/branding';
 import PhoneInput from '@/components/ui/PhoneInput';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
+import { usePrompt } from '@/components/ui/PromptDialog';
 
 interface RowMenuAction {
   label: string;
@@ -190,6 +193,9 @@ interface UserActivity {
 }
 
 export default function ManageUsersPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const promptText = usePrompt();
   const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
   const [users, setUsers] = useState<PublicUser[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
@@ -390,24 +396,27 @@ export default function ManageUsersPage() {
 
   async function toggleStatus(user: PublicUser) {
     const next = user.status === 'active' ? 'inactive' : 'active';
-    if (next === 'inactive' && !window.confirm(`Deactivate "${user.username}"? They will no longer be able to log in.`)) return;
+    if (next === 'inactive') {
+      const ok = await confirm({ message: `Deactivate "${user.username}"? They will no longer be able to log in.`, danger: true });
+      if (!ok) return;
+    }
     await patchUser(user.id, { status: next });
   }
 
   async function resetPassword(user: PublicUser) {
-    const next = window.prompt(`New password for "${user.username}" (min 6 characters):`);
+    const next = await promptText({
+      title: `New password for "${user.username}" (min 6 characters):`,
+      type: 'password',
+      validate: (v) => (v.length < 6 ? 'Password must be at least 6 characters.' : null)
+    });
     if (!next) return;
-    if (next.length < 6) {
-      alert('Password must be at least 6 characters.');
-      return;
-    }
     const ok = await patchUser(user.id, { password: next });
-    if (ok) alert(`Password reset for "${user.username}".`);
+    if (ok) toast.success(`Password reset for "${user.username}".`);
   }
 
   async function resendWelcomeEmail(user: PublicUser) {
     if (!user.email) {
-      alert('This user has no email address on file — add one first.');
+      toast.error('This user has no email address on file — add one first.');
       return;
     }
     // The endpoint now awaits the actual send (can take a few seconds), so
@@ -415,7 +424,8 @@ export default function ManageUsersPage() {
     // flight would silently issue and email a second temp password,
     // orphaning the first one.
     if (resendingIds[user.id]) return;
-    if (!window.confirm(`Generate a new temporary password for "${user.username}" and email it to ${user.email}?`)) return;
+    const ok = await confirm({ message: `Generate a new temporary password for "${user.username}" and email it to ${user.email}?` });
+    if (!ok) return;
     setRowError((prev) => ({ ...prev, [user.id]: '' }));
     setResendingIds((prev) => ({ ...prev, [user.id]: true }));
     try {
@@ -425,7 +435,7 @@ export default function ManageUsersPage() {
         setRowError((prev) => ({ ...prev, [user.id]: body?.error || 'Could not resend the welcome email.' }));
         return;
       }
-      alert(`New login details emailed to ${user.email}.`);
+      toast.success(`New login details emailed to ${user.email}.`);
     } catch {
       setRowError((prev) => ({ ...prev, [user.id]: 'Could not reach the server.' }));
     } finally {
@@ -438,11 +448,12 @@ export default function ManageUsersPage() {
   }
 
   async function handleDelete(user: PublicUser) {
-    if (!window.confirm(`Remove user "${user.username}"? This cannot be undone.`)) return;
+    const ok = await confirm({ message: `Remove user "${user.username}"? This cannot be undone.`, danger: true });
+    if (!ok) return;
     const response = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      alert(body?.error || 'Could not delete user.');
+      toast.error(body?.error || 'Could not delete user.');
       return;
     }
     await loadUsers();

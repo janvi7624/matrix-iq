@@ -9,6 +9,7 @@ import { AI_SLAB_LABELS } from '@/lib/data/aiAnalytics';
 import { CatalogOverrideRow } from '@/lib/catalogOverrides';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+import { useToast } from '@/components/ui/ToastProvider';
 
 // Rendered tabs, in registry order, minus conference-accessory — that one
 // nests under "AV — Conferencing" as a sub-table instead of its own tab
@@ -320,6 +321,7 @@ function NewProductForm({ catalog, existingKeys, conferenceKeys, onCreate, onDon
 }
 
 export default function ProductCatalogPage() {
+  const toast = useToast();
   const [activeId, setActiveId] = useState(TAB_CATALOGS[0].id);
   const [overrides, setOverrides] = useState<OverrideRecord[]>([]);
   const [status, setStatus] = useState('Loading…');
@@ -356,7 +358,7 @@ export default function ProductCatalogPage() {
       body: JSON.stringify({ catalog: catalogId, productKey, name, fields })
     });
     if (!response.ok) {
-      alert('Could not save this change.');
+      toast.error('Could not save this change.');
       return;
     }
     await load();
@@ -365,7 +367,7 @@ export default function ProductCatalogPage() {
   async function handleReset(overrideId: string) {
     const response = await fetch(`/api/admin/product-overrides/${overrideId}`, { method: 'DELETE' });
     if (!response.ok) {
-      alert('Could not reset this product.');
+      toast.error('Could not reset this product.');
       return;
     }
     await load();

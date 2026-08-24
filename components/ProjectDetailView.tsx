@@ -50,6 +50,7 @@ import calcStyles from './calculator.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { usePrompt } from './ui/PromptDialog';
 
 interface DetailResponse {
   project: ProjectRecord;
@@ -118,6 +119,7 @@ interface ProjectDetailViewProps {
 export default function ProjectDetailView({ projectId, currentUser }: ProjectDetailViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
+  const promptText = usePrompt();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const [data, setData] = useState<DetailResponse | null>(null);
   const [status, setStatus] = useState('Loading...');
@@ -430,20 +432,15 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
   async function handleAssignTeam() {
     if (!data) return;
-    const next = window.prompt('Sales person for this project:', data.project.sales_person);
+    const next = await promptText({ title: 'Sales person for this project:', defaultValue: data.project.sales_person });
     if (next === null || !next.trim()) return;
     await patchProject({ salesPerson: next.trim() });
   }
 
   async function handleCloseProject() {
     if (!data) return;
-    const outcome = window.prompt('Close this project as "won" or "lost"? Type won or lost:', 'won');
-    if (!outcome) return;
-    const normalized = outcome.trim().toLowerCase();
-    if (normalized !== 'won' && normalized !== 'lost') {
-      toast.error('Please type exactly "won" or "lost".');
-      return;
-    }
+    const won = await confirm({ title: 'Close project', message: 'Close this project as won or lost?', confirmLabel: 'Won', cancelLabel: 'Lost' });
+    const normalized = won ? 'won' : 'lost';
     if (!(await confirm({ message: `Close this project as ${normalized === 'won' ? 'Won' : 'Closed Lost'}? This updates the final stage.`, danger: true }))) return;
     await patchProject({ stage: normalized === 'won' ? 'completed' : 'closed_lost' });
   }

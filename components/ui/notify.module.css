@@ -65,6 +65,18 @@
 }
 .confirmTitle { font-size: 1.15rem; font-weight: 800; color: #111827; margin-bottom: 8px; }
 .confirmMessage { font-size: 14.5px; color: #4b5563; line-height: 1.55; margin-bottom: 22px; }
+.promptInput {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 2px solid #d1d5db;
+    font-size: 14.5px;
+    color: #111827;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+}
+.promptInput:focus { outline: none; border-color: #2563eb; }
+.promptError { font-size: 13px; color: #dc2626; margin-bottom: 14px; }
 .confirmActions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 .confirmCancel {
     padding: 13px 22px;

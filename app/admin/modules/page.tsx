@@ -8,6 +8,7 @@ import { BRAND } from '@/lib/branding';
 import { MODULE_ICON_OPTIONS, resolveModuleIcon } from '@/lib/icons';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+import { useToast } from '@/components/ui/ToastProvider';
 
 function iconOptionLabel(key: string): string {
   return key.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
@@ -23,6 +24,7 @@ export default function ModuleManagerPage() {
   const [modules, setModules] = useState<ModuleConfigRecord[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
+  const toast = useToast();
 
   async function load() {
     setStatus('Loading...');
@@ -61,7 +63,7 @@ export default function ModuleManagerPage() {
       body: JSON.stringify(body)
     });
     if (!response.ok) {
-      alert('Could not save this change.');
+      toast.error('Could not save this change.');
       return;
     }
     await load();
@@ -80,7 +82,7 @@ export default function ModuleManagerPage() {
       body: JSON.stringify({ orderedIds })
     });
     if (!response.ok) {
-      alert('Could not reorder.');
+      toast.error('Could not reorder.');
       return;
     }
     await load();

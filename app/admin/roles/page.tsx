@@ -7,6 +7,9 @@ import { ModuleConfigRecord, ModulePermissionAction, RolePermissions, RoleRecord
 import { BRAND } from '@/lib/branding';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
+import { usePrompt } from '@/components/ui/PromptDialog';
 
 const PERMISSION_ACTIONS: { key: ModulePermissionAction; label: string }[] = [
   { key: 'view', label: 'View' },
@@ -33,6 +36,9 @@ function blankPermissions(): RolePermissions {
 }
 
 export default function RoleManagementPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const promptText = usePrompt();
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [modules, setModules] = useState<ModuleConfigRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
@@ -114,7 +120,7 @@ export default function RoleManagementPage() {
     });
     if (!response.ok) {
       const errBody = await response.json().catch(() => null);
-      alert(errBody?.error || 'Could not save changes.');
+      toast.error(errBody?.error || 'Could not save changes.');
       return false;
     }
     await load();
@@ -144,7 +150,7 @@ export default function RoleManagementPage() {
   }
 
   async function handleClone(r: RoleRecord) {
-    const newLabel = window.prompt(`New role name (cloned from "${r.label}"):`, `${r.label} (Copy)`);
+    const newLabel = await promptText({ title: `New role name (cloned from "${r.label}"):`, defaultValue: `${r.label} (Copy)` });
     if (!newLabel) return;
     const response = await fetch(`/api/admin/roles/${r.id}/clone`, {
       method: 'POST',
@@ -153,18 +159,19 @@ export default function RoleManagementPage() {
     });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      alert(body?.error || 'Could not clone role.');
+      toast.error(body?.error || 'Could not clone role.');
       return;
     }
     await load();
   }
 
   async function handleDelete(r: RoleRecord) {
-    if (!window.confirm(`Delete role "${r.label}"? This cannot be undone.`)) return;
+    const ok = await confirm({ message: `Delete role "${r.label}"? This cannot be undone.`, danger: true });
+    if (!ok) return;
     const response = await fetch(`/api/admin/roles/${r.id}`, { method: 'DELETE' });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      alert(body?.error || 'Could not delete role.');
+      toast.error(body?.error || 'Could not delete role.');
       return;
     }
     if (selectedId === r.id) setSelectedId(null);

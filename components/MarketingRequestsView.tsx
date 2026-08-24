@@ -32,6 +32,7 @@ import AppShell from './AppShell';
 import MarketingRequestWizard, { MarketingRequestForm } from './MarketingRequestWizard';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { usePrompt } from './ui/PromptDialog';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
@@ -268,6 +269,8 @@ function MarketingRequestRow({
   onComment,
   onDelete
 }: RowProps) {
+  const toast = useToast();
+  const promptText = usePrompt();
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -356,7 +359,7 @@ function MarketingRequestRow({
       const data: { urls: string[] } = await response.json();
       setMarketingFiles((prev) => [...prev, ...data.urls]);
     } catch {
-      alert('Could not upload one or more files.');
+      toast.error('Could not upload one or more files.');
     } finally {
       setUploadingMarketingFiles(false);
     }
@@ -374,7 +377,7 @@ function MarketingRequestRow({
       const data: { urls: string[] } = await response.json();
       setFinalFiles((prev) => [...prev, ...data.urls]);
     } catch {
-      alert('Could not upload one or more files.');
+      toast.error('Could not upload one or more files.');
     } finally {
       setUploadingFinalFiles(false);
     }
@@ -383,7 +386,7 @@ function MarketingRequestRow({
   function handleSendToTechnical() {
     const techId = r.technical_member_id || (r.technical_member_username ? technicalRoster.find((t) => t.username === r.technical_member_username)?.id : '');
     if (!techId) {
-      alert('Technical Team member has not been assigned yet by the Marketing Manager.');
+      toast.error('Technical Team member has not been assigned yet by the Marketing Manager.');
       return;
     }
     run(() =>
@@ -401,8 +404,8 @@ function MarketingRequestRow({
     run(() => onAcceptAssignment(r.id));
   }
 
-  function handleDeclineAssignment() {
-    const reason = window.prompt('Reason for declining this assignment:');
+  async function handleDeclineAssignment() {
+    const reason = await promptText({ title: 'Reason for declining this assignment:' });
     if (!reason || !reason.trim()) return;
     run(() => onDeclineAssignment(r.id, reason.trim()));
   }
@@ -413,7 +416,7 @@ function MarketingRequestRow({
 
   function handleRequestChangesTechnical() {
     if (!techRemarksInput.trim()) {
-      alert('Please provide technical remarks detailing the changes needed.');
+      toast.error('Please provide technical remarks detailing the changes needed.');
       return;
     }
     run(async () => {

@@ -8,6 +8,8 @@ import { BRAND } from '@/lib/branding';
 import { MODULE_ICON_OPTIONS, resolveModuleIcon } from '@/lib/icons';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 function iconOptionLabel(key: string): string {
   return key.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
@@ -62,6 +64,8 @@ export default function CustomModuleBuilderPage() {
   const [form, setForm] = useState<ModuleFormState>(blankModuleForm());
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const toast = useToast();
+  const confirm = useConfirm();
 
   async function load() {
     setStatus('Loading...');
@@ -162,10 +166,10 @@ export default function CustomModuleBuilderPage() {
   }
 
   async function handleDelete(m: CustomModuleDef) {
-    if (!window.confirm(`Delete module "${m.name}"? Its records stay in storage but the module (and its menu entry) is removed.`)) return;
+    if (!(await confirm({ message: `Delete module "${m.name}"? Its records stay in storage but the module (and its menu entry) is removed.`, danger: true }))) return;
     const response = await fetch(`/api/admin/custom-modules/${m.id}`, { method: 'DELETE' });
     if (!response.ok) {
-      alert('Could not delete this module.');
+      toast.error('Could not delete this module.');
       return;
     }
     await load();

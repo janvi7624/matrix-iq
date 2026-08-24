@@ -8,6 +8,8 @@ import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import { BRAND } from '@/lib/branding';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 interface ProductForm {
   name: string;
@@ -31,6 +33,8 @@ const BLANK_FORM: ProductForm = {
 };
 
 export default function ProductMasterPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState<ProductForm>(BLANK_FORM);
@@ -114,7 +118,7 @@ export default function ProductMasterPage() {
       body: JSON.stringify(editState)
     });
     if (!response.ok) {
-      alert('Could not save changes.');
+      toast.error('Could not save changes.');
       return;
     }
     setEditingId(null);
@@ -131,17 +135,17 @@ export default function ProductMasterPage() {
   async function handleDuplicate(p: ProductRecord) {
     const response = await fetch(`/api/admin/products/${p.id}/duplicate`, { method: 'POST' });
     if (!response.ok) {
-      alert('Could not duplicate product.');
+      toast.error('Could not duplicate product.');
       return;
     }
     await load();
   }
 
   async function handleDelete(p: ProductRecord) {
-    if (!window.confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
+    if (!(await confirm({ message: `Delete "${p.name}"? This cannot be undone.`, danger: true }))) return;
     const response = await fetch(`/api/admin/products/${p.id}`, { method: 'DELETE' });
     if (!response.ok) {
-      alert('Could not delete product.');
+      toast.error('Could not delete product.');
       return;
     }
     await load();
@@ -164,13 +168,13 @@ export default function ProductMasterPage() {
       body: JSON.stringify({ ids: Array.from(selected), field: bulkField, mode: bulkMode, value: bulkValue })
     });
     if (!response.ok) {
-      alert('Could not apply bulk price update.');
+      toast.error('Could not apply bulk price update.');
       return;
     }
     const body = await response.json();
     setSelected(new Set());
     await load();
-    alert(`Updated ${body.updated} product(s).`);
+    toast.success(`Updated ${body.updated} product(s).`);
   }
 
   async function handleImport(event: React.ChangeEvent<HTMLInputElement>) {
