@@ -13,6 +13,7 @@ import { renderTaskLifecycleEmail, TaskLifecycleEmailData } from './templates/ta
 import { renderProcurementLifecycleEmail, ProcurementLifecycleEmailData } from './templates/procurementLifecycle';
 import { renderMarketingRequestLifecycleEmail, MarketingRequestLifecycleEmailData } from './templates/marketingRequestLifecycle';
 import { renderFieldOpsLifecycleEmail, FieldOpsLifecycleEmailData } from './templates/fieldOpsLifecycle';
+import { renderReimbursementLifecycleEmail, ReimbursementLifecycleEmailData } from './templates/reimbursementLifecycle';
 
 function resolveAppUrl(): string {
   return process.env.APP_URL?.replace(/\/+$/, '') || '';
@@ -174,5 +175,20 @@ export async function sendFieldOpsLifecycleEmail(data: { email: string; urlPath:
     await sendEmail({ to: data.email, subject, html, text });
   } catch (error) {
     console.error(`[email] Field ops lifecycle event "${data.event}" processed successfully but the notification email could not be sent:`, error instanceof Error ? error.message : error);
+  }
+}
+
+export async function sendReimbursementLifecycleEmail(
+  data: { email: string } & Omit<ReimbursementLifecycleEmailData, 'reimbursementUrl'>
+): Promise<void> {
+  if (!data.email) return;
+
+  try {
+    const appUrl = resolveAppUrl();
+    const reimbursementUrl = appUrl ? `${appUrl}/reimbursement` : '/reimbursement';
+    const { subject, html, text } = renderReimbursementLifecycleEmail({ ...data, reimbursementUrl });
+    await sendEmail({ to: data.email, subject, html, text });
+  } catch (error) {
+    console.error(`[email] Reimbursement lifecycle event "${data.event}" processed successfully but the notification email could not be sent:`, error instanceof Error ? error.message : error);
   }
 }

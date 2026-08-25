@@ -1,0 +1,77 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getViewerContext } from '@/lib/viewerContext';
+import { reimbursementSheetStore } from '@/lib/reimbursementSheetStore';
+import { logAudit } from '@/lib/auditLogStore';
+import { notifyUsers } from '@/lib/notificationStore';
+import { getClientIp } from '@/lib/requestIp';
+import { apiErrorResponse } from '@/lib/apiError';
+import { listDepartmentManagers } from '@/lib/departmentStore';
+import { findUserByUsername, findUsersByUsernames } from '@/lib/userStore';
+import { sendReimbursementLifecycleEmail } from '@/lib/email/notifications';
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const viewer = await getViewerContext(request);
+  if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id } = await params;
+  try {
+    const existing = await reimbursementSheetStore.findById(id);
+    if (!existing) return NextResponse.json({ error: 'Sheet not found' }, { status: 404 });
+
+    const allowed = ['draft', 'manager_change_requested', 'hr_change_requested'];
+    if (!allowed.includes(existing.status)) {
+      return NextResponse.json({ error: 'Sheet cannot be submitted in its current status' }, { status: 400 });
+    }
+    if (existing.created_by !== viewer.username && !viewer.isPrivileged) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+    if (existing.entry_count === 0) {
+      return NextResponse.json({ error: 'Cannot submit an empty sheet — add at least one entry' }, { status: 400 });
+    }
+
+    const today = new Date();
+    const dayOfMonth = today.getDate();
+    if (dayOfMonth > 5) {
+      return NextResponse.json({ error: 'Reimbursement sheets can only be submitted between the 1st and 5th of the month' }, { status: 400 });
+    }
+
+    const updated = await reimbursementSheetStore.submit(id);
+
+    await logAudit({
+      by: viewer.username, role: viewer.role, entityType: 'reimbursement_sheet', entityId: id,
+      action: 'submit', previousStatus: existing.status, newStatus: 'submitted',
+      ip: getClientIp(request),
+    });
+
+    const user = await findUserByUsername(viewer.username);
+    const creatorDept = user?.department || '';
+    const allManagers = await listDepartmentManagers();
+    const managers = creatorDept ? (allManagers[creatorDept] || []) : [];
+    const monthName = reimbursementSheetStore.MONTH_NAMES[existing.month] || '';
+    const totalStr = `₹${existing.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+    if (managers.length) {
+      await notifyUsers(managers.map((m) => m.username), {
+        title: 'Reimbursement sheet needs your approval',
+        body: `${viewer.name} submitted reimbursement sheet for ${monthName} ${existing.year} (${existing.sheet_code}) — ${totalStr}`,
+        type: 'reimbursement_manager_approval',
+        entityType: 'reimbursement_sheet',
+        entityId: id,
+      });
+
+      const managerUsers = await findUsersByUsernames(managers.map((m) => m.username));
+      for (const mu of managerUsers) {
+        sendReimbursementLifecycleEmail({
+          email: mu.email, name: mu.name || mu.username, event: 'submitted',
+          employeeName: existing.creator_name, employeeId: existing.creator_employee_id,
+          department: existing.creator_department, sheetCode: existing.sheet_code,
+          month: monthName, year: existing.year, totalAmount: totalStr,
+        });
+      }
+    }
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}

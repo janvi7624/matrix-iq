@@ -385,6 +385,67 @@ export interface TravelScheduleRecord {
 }
 
 // ---------------------------------------------------------------------------
+// Reimbursement — monthly expense reimbursement entries
+// ---------------------------------------------------------------------------
+export interface ReimbursementRecord {
+  id: string;
+  created_at: string;
+  created_by: string;
+  creator_name: string;
+  date: string;
+  description: string;
+  employee_ids: string[];
+  employee_names: string[];
+  from_location: string;
+  to_location: string;
+  kilometers: number;
+  amount: number;
+  mode_of_payment: string;
+  amount_in_words: string;
+  attachment_urls: string[];
+}
+
+export type ReimbursementSheetStatus =
+  | 'draft'
+  | 'submitted'
+  | 'manager_approved'
+  | 'manager_change_requested'
+  | 'hr_approved'
+  | 'hr_change_requested'
+  | 'payment_done';
+
+export interface ReimbursementSheetRecord {
+  id: string;
+  created_by: string;
+  creator_name: string;
+  creator_employee_id: string;
+  creator_department: string;
+  sheet_code: string;
+  month: number;
+  year: number;
+  status: ReimbursementSheetStatus;
+  manager_id: string | null;
+  manager_name: string | null;
+  manager_action_at: string | null;
+  manager_remarks: string | null;
+  hr_reviewer_id: string | null;
+  hr_reviewer_name: string | null;
+  hr_reviewed_at: string | null;
+  hr_remarks: string | null;
+  accounts_handler_id: string | null;
+  accounts_handler_name: string | null;
+  accounts_completed_at: string | null;
+  accounts_remarks: string | null;
+  payment_reference: string | null;
+  change_request_remarks: string | null;
+  change_requested_by: string | null;
+  created_at: string;
+  total_amount: number;
+  total_in_words: string;
+  entry_count: number;
+}
+
+// ---------------------------------------------------------------------------
 // Marketing Requests — any employee asks the Marketing team for something
 // (brochure, banner, social post, video, etc.); a reviewer (Manager+, or a
 // role explicitly granted the "approve" capability on this module — see
@@ -643,7 +704,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet';
   entity_id: string;
   action: string;
   previous_status: string;

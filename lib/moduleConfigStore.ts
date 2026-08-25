@@ -56,7 +56,8 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: 'map-pin', href: '/site-visits', section: 'Sales', order: 4, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'leads', label: 'Lead Capture', desc: 'Scan a business card at an event and qualify the lead on the spot.', icon: 'contact', href: '/leads', section: 'Sales', order: 6, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: 'monitor', href: '/demo-schedule', section: 'Sales', order: 7, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
-  { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'Sales', order: 8, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'reimbursement', label: 'Reimbursement', desc: 'Submit and track expense reimbursement bills.', icon: 'receipt-indian-rupee', href: '/reimbursement', section: 'HR', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'backoffice', label: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', icon: 'package', href: '/backoffice', section: 'Operations', order: 1, enabled: true, isCustom: false, visibleToRoles: ['backoffice', 'admin', 'superadmin', 'manager'] },
   { key: 'marketing-requests', label: 'Marketing Requests', desc: 'Request marketing support — brochures, banners, social posts, and more — and track delivery timelines.', icon: 'megaphone', href: '/marketing-requests', section: 'Marketing', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: 'user', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -212,6 +213,13 @@ const OLD_ALL_ROLES_NO_HR: UserRole[] = ['superadmin', 'admin', 'manager', 'engi
 const HR_ALL_ROLES_KEYS = new Set(['my-quotations', 'travel-schedule', 'analytics']);
 const OLD_SALES_ROLES_NO_HR: UserRole[] = [...OLD_ALL_ROLES_NO_HR, ...TMS_ROLE_KEYS];
 
+// Travel Schedule moved from Sales to the new HR section — same
+// don't-clobber-an-admin-edit guard: only rewrites a row that still holds
+// the old default 'Sales' section value.
+const RESECTIONED_TO_HR_KEYS = new Set(['travel-schedule']);
+const OLD_SECTION_FOR_HR = 'Sales';
+const NEW_SECTION_FOR_HR = 'HR';
+
 function sameRoles(a: UserRole[], b: UserRole[]): boolean {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
@@ -281,6 +289,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_SALES_ROLES_NO_ACCOUNTS)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (HR_ALL_ROLES_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_NO_HR)) attrs.visibleToRoles = ALL_ROLES;
     if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_SALES_ROLES_NO_HR)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
+    if (RESECTIONED_TO_HR_KEYS.has(key) && plain.section === OLD_SECTION_FOR_HR) { attrs.section = NEW_SECTION_FOR_HR; attrs.order = 1; }
     if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }
