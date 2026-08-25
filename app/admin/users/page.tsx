@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -33,7 +33,26 @@ function RowActionsMenu({ actions }: { actions: RowMenuAction[] }) {
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRectRef = useRef<{ top: number; bottom: number } | null>(null);
   const PANEL_WIDTH = 200;
+
+  // Flip the panel above the trigger instead of below it when there isn't
+  // enough room beneath — otherwise a row near the bottom of a long table
+  // (e.g. the last employee) opens a menu that's partly or fully below the
+  // viewport, and since scrolling the page closes the menu (see the close
+  // handler below), there'd be no way to actually reach it. Runs after the
+  // panel is in the DOM (so its real height is measurable) but before paint,
+  // so the user never sees the below-viewport position flash first.
+  useLayoutEffect(() => {
+    if (!open || !panelRef.current || !triggerRectRef.current) return;
+    const panelHeight = panelRef.current.getBoundingClientRect().height;
+    const trigger = triggerRectRef.current;
+    const fitsBelow = trigger.bottom + 4 + panelHeight <= window.innerHeight - 8;
+    if (!fitsBelow) {
+      const flippedTop = Math.max(8, trigger.top - panelHeight - 4);
+      setCoords((prev) => (prev ? { ...prev, top: flippedTop } : prev));
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -57,6 +76,7 @@ function RowActionsMenu({ actions }: { actions: RowMenuAction[] }) {
   function toggle() {
     if (!open && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
+      triggerRectRef.current = { top: rect.top, bottom: rect.bottom };
       setCoords({ top: rect.bottom + 4, left: Math.max(8, rect.right - PANEL_WIDTH) });
     }
     setOpen((v) => !v);

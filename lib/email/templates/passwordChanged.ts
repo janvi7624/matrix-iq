@@ -16,15 +16,23 @@ export interface PasswordChangedEmailData {
 export function renderPasswordChangedEmail(data: PasswordChangedEmailData): RenderedEmail {
   const appName = BRAND.appName;
   const isAdminReset = data.initiatedBy === 'admin';
-  const subject = isAdminReset ? `Your ${appName} Password Has Been Reset` : `Your ${appName} Password Was Changed`;
+  // Wording here is deliberately low-key (no "reset"/"changed" alarm words,
+  // no urgency) for the admin-provisioned case — it's routine, expected
+  // account provisioning, not a security event, and this content sits right
+  // next to a plaintext password + login button, which mail-security content
+  // filters already treat as a credential-phishing signal on its own. Piling
+  // on urgent/alarming language made that worse in practice (see the "some
+  // recipients never received it despite clean SPF/DKIM/DMARC" investigation
+  // — a plain test send delivered fine, this template didn't).
+  const subject = isAdminReset ? `Your ${appName} Login Details` : `Your ${appName} Password Was Changed`;
 
   const intro = isAdminReset
-    ? `An administrator has reset your password on ${appName}. Use the temporary password below to log in.`
+    ? `An administrator has set up your login for ${appName}. Your credentials are below.`
     : `Your password on ${appName} was just changed. If you made this change, no further action is needed.`;
 
   const securityNote = isAdminReset
-    ? 'For security reasons, please change this temporary password immediately after logging in.'
-    : "If you did not make this change, please contact your administrator immediately — your account's security may be at risk.";
+    ? 'We recommend updating this password the next time you log in.'
+    : "If you did not make this change, please contact your administrator — your account's security may be at risk.";
 
   const text = [
     `Hello ${data.name},`,
@@ -50,10 +58,10 @@ export function renderPasswordChangedEmail(data: PasswordChangedEmailData): Rend
                       <p style="margin:0 0 16px; font-size:15px; color:#111827; font-weight:bold;">${escapeHtml(data.username)}</p>
                       <p style="margin:0 0 8px; font-size:14px; color:#6b7280;">Temporary Password</p>
                       <p style="margin:0; font-size:15px; color:#111827; font-weight:bold; font-family:'Courier New', monospace;">${escapeHtml(data.newPassword ?? '')}</p>`)}
-                ${renderButton(data.loginUrl, `Log in to ${appName}`, BRAND.accentColor)}`
-                    : ''
-                }
-                ${renderWarningBox(escapeHtml(securityNote), BRAND.accentColor)}`;
+                ${renderButton(data.loginUrl, `Log in to ${appName}`, BRAND.accentColor)}
+                <p style="margin:16px 0 0; font-size:13px; color:#6b7280; line-height:1.5;">${escapeHtml(securityNote)}</p>`
+                    : renderWarningBox(escapeHtml(securityNote), BRAND.accentColor)
+                }`;
 
   return { subject, html: renderEmailShell(subject, bodyHtml), text };
 }

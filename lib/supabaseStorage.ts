@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Server-only client using the service-role key — same "private bucket,
-// authenticated proxy" shape the app previously got from Vercel Blob's
-// `access: 'private'`. Never import this from client components.
+// Server-only client using the service-role key — files are stored in a
+// private bucket and only ever served through an authenticated server route,
+// never a public bucket URL. Never import this from client components.
 const supabase = createClient(process.env.SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY || '', {
   auth: { persistSession: false }
 });
