@@ -49,6 +49,7 @@ import {
   Bell,
   ShoppingCart,
   ReceiptIndianRupee,
+  Cake,
   type LucideIcon
 } from 'lucide-react';
 
@@ -140,6 +141,7 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   'layout-dashboard': LayoutDashboard,
   'shopping-cart': ShoppingCart,
   'receipt-indian-rupee': ReceiptIndianRupee,
+  cake: Cake,
   users: Users
 };
 

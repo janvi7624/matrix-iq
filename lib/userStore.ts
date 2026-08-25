@@ -27,6 +27,8 @@ function toUserRecord(row: Model): UserRecord {
     department: (plain.departmentRef as { name?: string } | null)?.name ?? (plain.department as string) ?? '',
     designation: (plain.designation as string) ?? '',
     location: (plain.location as string) ?? '',
+    birthday: (plain.birthday as string) ?? '',
+    dateOfJoining: (plain.dateOfJoining as string) ?? '',
     status: (plain.status as UserRecord['status']) ?? 'active',
     createdAt: isoOrEmpty(plain.createdAt),
     lastLoginAt: isoOrEmpty(plain.lastLoginAt),
@@ -173,6 +175,8 @@ export interface CreateUserInput {
   department?: string;
   designation?: string;
   location?: string;
+  birthday?: string;
+  dateOfJoining?: string;
   mustChangePassword?: boolean;
 }
 
@@ -199,6 +203,8 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
     departmentId,
     designation: input.designation || '',
     location: input.location || '',
+    birthday: input.birthday || null,
+    dateOfJoining: input.dateOfJoining || null,
     status: 'active',
     mustChangePassword: input.mustChangePassword ?? false
   } as never);
@@ -227,6 +233,8 @@ export interface UpdateUserInput {
   department?: string;
   designation?: string;
   location?: string;
+  birthday?: string;
+  dateOfJoining?: string;
   status?: UserRecord['status'];
   mustChangePassword?: boolean;
   // Who supplied `password`, if set — decides the password-changed email's
@@ -260,6 +268,8 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Pu
     employeeId: patch.employeeId,
     designation: patch.designation,
     location: patch.location,
+    birthday: patch.birthday,
+    dateOfJoining: patch.dateOfJoining,
     status: patch.status
   };
   let newRoleLabel: string | undefined;

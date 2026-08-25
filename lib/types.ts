@@ -131,6 +131,8 @@ export interface UserRecord {
   department: string;
   designation: string;
   location: string;
+  birthday: string;
+  dateOfJoining: string;
   status: UserStatus;
   createdAt: string;
   lastLoginAt: string;
