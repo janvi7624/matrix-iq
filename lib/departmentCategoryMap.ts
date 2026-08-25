@@ -10,7 +10,7 @@ export const DEPARTMENT_TO_SECTION: Record<string, string> = {
   Technical: 'Operations',
   'Back Office': 'Operations',
   Accounts: 'Administration',
-  HR: 'Administration',
+  HR: 'HR',
   Purchase: 'Administration',
   Inventory: 'Administration',
   Management: 'Administration',

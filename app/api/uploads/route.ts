@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
       if (file.size > MAX_FILE_BYTES) {
         return NextResponse.json({ error: `${file.name} is larger than 10MB` }, { status: 400 });
       }
-      const pathname = `uploads/${folder}/${viewer.username}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${file.name}`;
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const pathname = `uploads/${folder}/${viewer.username}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeName}`;
       const { pathname: stored } = await putFile(pathname, file);
       urls.push(`/api/uploads/file/${stored.split('/').map(encodeURIComponent).join('/')}`);
     }

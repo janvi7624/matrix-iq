@@ -51,7 +51,9 @@ const modelDefiners = [
   require('./appConfig.js'),
   require('./attachment.js'),
   require('./notification.js'),
-  require('./projectHandoverRequest.js')
+  require('./projectHandoverRequest.js'),
+  require('./reimbursement.js'),
+  require('./reimbursementSheet.js')
 ];
 
 const db = {};

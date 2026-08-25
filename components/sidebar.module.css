@@ -407,12 +407,27 @@
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px;
+    gap: 0;
+    padding: 0;
     margin: 8px;
     border-radius: 13px;
     background: #f8fafc;
     border: 1px solid rgba(229, 231, 235, 0.9);
+}
+.profileLink {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    flex: 1;
+    min-width: 0;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 13px;
+    transition: background 0.15s ease;
+}
+.profileLink:hover {
+    background: rgba(0, 0, 0, 0.04);
 }
 .avatar {
     flex-shrink: 0;
@@ -450,6 +465,7 @@
     flex-shrink: 0;
     width: 30px;
     height: 30px;
+    margin-right: 10px;
     border-radius: 9px;
     border: none;
     background: transparent;
@@ -472,6 +488,10 @@
 .sidebarCollapsed .profileInfo,
 .sidebarCollapsed .logoutBtn {
     display: none;
+}
+.sidebarCollapsed .profileLink {
+    padding: 8px;
+    justify-content: center;
 }
 
 /* ---------- Mobile ---------- */

@@ -185,11 +185,13 @@ export default function Sidebar() {
         )}
 
         <div className={styles.profile}>
-          <div className={styles.avatar}>{initials}</div>
-          <div className={styles.profileInfo}>
-            <div className={styles.profileName}>{viewer?.name || '…'}</div>
-            <div className={styles.profileMeta}>{viewer ? ROLE_LABEL[viewer.role] : ''}{viewer?.department ? ` · ${viewer.department}` : ''}</div>
-          </div>
+          <Link href="/profile" className={styles.profileLink} title="My Profile">
+            <div className={styles.avatar}>{initials}</div>
+            <div className={styles.profileInfo}>
+              <div className={styles.profileName}>{viewer?.name || '…'}</div>
+              <div className={styles.profileMeta}>{viewer ? ROLE_LABEL[viewer.role] : ''}{viewer?.department ? ` · ${viewer.department}` : ''}</div>
+            </div>
+          </Link>
           <button type="button" className={styles.logoutBtn} onClick={handleLogout} title="Log out" aria-label="Log out"><CHROME_ICON.logout size={15} /></button>
         </div>
       </aside>

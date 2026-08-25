@@ -15,6 +15,8 @@ module.exports = (sequelize, DataTypes) => {
     departmentId: { type: DataTypes.UUID },
     designation: { type: DataTypes.STRING },
     location: { type: DataTypes.STRING },
+    birthday: { type: DataTypes.DATEONLY },
+    dateOfJoining: { type: DataTypes.DATEONLY },
     status: { type: DataTypes.ENUM('active', 'inactive'), allowNull: false, defaultValue: 'active' },
     lastLoginAt: { type: DataTypes.DATE },
     // Set true only by the bulk employee import (lib/userImportStore.ts) —

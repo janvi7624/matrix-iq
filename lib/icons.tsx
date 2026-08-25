@@ -30,6 +30,7 @@ import {
   ClipboardList,
   Car,
   User,
+  Users,
   Shield,
   TrendingUp,
   Tag,
@@ -47,6 +48,8 @@ import {
   Database,
   Bell,
   ShoppingCart,
+  ReceiptIndianRupee,
+  Cake,
   type LucideIcon
 } from 'lucide-react';
 
@@ -55,7 +58,8 @@ export const SECTION_ICON: Record<string, LucideIcon> = {
   Marketing: Megaphone,
   Operations: Package,
   Reports: BarChart3,
-  Administration: Building2
+  Administration: Building2,
+  HR: Users
 };
 
 export const DEFAULT_SECTION_ICON: LucideIcon = FolderKanban;
@@ -135,7 +139,10 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   database: Database,
   bell: Bell,
   'layout-dashboard': LayoutDashboard,
-  'shopping-cart': ShoppingCart
+  'shopping-cart': ShoppingCart,
+  'receipt-indian-rupee': ReceiptIndianRupee,
+  cake: Cake,
+  users: Users
 };
 
 export const MODULE_ICON_OPTIONS = Object.keys(MODULE_ICON_REGISTRY);
