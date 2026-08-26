@@ -18,12 +18,17 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 const DESCRIPTION_OPTIONS = ['Lunch', 'Dinner', 'Snacks', 'Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Hotel', 'Other'];
 
+const TRAVEL_DESCRIPTIONS = new Set(['Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket']);
+
+const VEHICLE_RATE: Record<string, number> = { '2 Wheeler': 4, '4 Wheeler': 8, 'Cab': 0 };
+
 const MODE_OPTIONS = ['Cash', 'UPI', 'Bank Transfer', 'Credit Card', 'Debit Card', 'Cheque', 'Other'];
 
 const EMPTY_FORM = {
   date: '', description: '', descriptionType: '' as string, employeeIds: [] as string[],
   fromLocation: '', toLocation: '', kilometers: '',
-  amount: '', modeOfPayment: '', attachmentUrls: [] as string[]
+  amount: '', modeOfPayment: '', attachmentUrls: [] as string[],
+  vehicleType: '' as string,
 };
 
 const STATUS_CONFIG: Record<ReimbursementSheetStatus, { label: string; color: string; bg: string; step: number }> = {
@@ -129,6 +134,7 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [approvedDetailLoading, setApprovedDetailLoading] = useState(false);
 
   const isPrivileged = ['superadmin', 'admin', 'manager'].includes(currentUser.role);
+  const myUserId = useMemo(() => users.find((u) => u.username === currentUser.username)?.id || '', [users, currentUser.username]);
 
   const sheetStatus = sheet?.status || 'draft';
   const canEdit = ['draft', 'manager_change_requested', 'hr_change_requested'].includes(sheetStatus);
@@ -266,12 +272,18 @@ export default function ReimbursementView({ currentUser }: Props) {
     e.preventDefault();
     if (!form.date || !form.descriptionType || !form.amount) { toast.error('Date, description and amount are required.'); return; }
     if (form.descriptionType === 'Other' && !form.description.trim()) { toast.error('Please enter the description for "Other".'); return; }
+    if (form.descriptionType === 'Conveyance' && !form.vehicleType) { toast.error('Please select vehicle type (2 Wheeler or 4 Wheeler).'); return; }
+    if (form.descriptionType === 'Conveyance' && (!form.fromLocation.trim() || !form.toLocation.trim())) { toast.error('From and To are required for Conveyance.'); return; }
+    if (form.descriptionType === 'Conveyance' && form.vehicleType !== 'Cab' && !form.kilometers) { toast.error('Kilometers is required for 2 Wheeler / 4 Wheeler.'); return; }
     if (!form.employeeIds.length) { toast.error('Please select at least one employee.'); return; }
-    if (!form.attachmentUrls.length) { toast.error('Please attach at least one bill proof.'); return; }
+    const attachmentOptional = form.descriptionType === 'Conveyance' && (form.vehicleType === '2 Wheeler' || form.vehicleType === '4 Wheeler');
+    if (!attachmentOptional && !form.attachmentUrls.length) { toast.error('Please attach at least one bill proof.'); return; }
 
-    const fullDescription = form.descriptionType === 'Other'
-      ? form.description.trim()
-      : form.descriptionType;
+    const fullDescription = form.descriptionType === 'Conveyance' && form.vehicleType
+      ? `Conveyance (${form.vehicleType})`
+      : form.descriptionType === 'Other'
+        ? form.description.trim()
+        : form.descriptionType;
 
     setSaving(true);
     try {
@@ -305,18 +317,23 @@ export default function ReimbursementView({ currentUser }: Props) {
 
   function startEdit(rec: ReimbursementRecord) {
     if (!canEdit) { toast.error('Cannot edit — sheet has been submitted for approval.'); return; }
-    const knownType = DESCRIPTION_OPTIONS.find((o) => o !== 'Other' && rec.description === o);
+    const vehicleMatch = rec.description.match(/^Conveyance \((2 Wheeler|4 Wheeler)\)$/);
+    let descType: string;
+    let vehicle = '';
+    if (vehicleMatch) { descType = 'Conveyance'; vehicle = vehicleMatch[1]; }
+    else { const knownType = DESCRIPTION_OPTIONS.find((o) => o !== 'Other' && rec.description === o); descType = knownType || (rec.description ? 'Other' : ''); }
     setForm({
       date: rec.date,
-      descriptionType: knownType || (rec.description ? 'Other' : ''),
-      description: knownType ? '' : rec.description,
+      descriptionType: descType,
+      description: descType && descType !== 'Other' ? '' : rec.description,
       employeeIds: rec.employee_ids,
       fromLocation: rec.from_location,
       toLocation: rec.to_location,
       kilometers: rec.kilometers ? String(rec.kilometers) : '',
       amount: String(rec.amount),
       modeOfPayment: rec.mode_of_payment,
-      attachmentUrls: rec.attachment_urls
+      attachmentUrls: rec.attachment_urls,
+      vehicleType: vehicle,
     });
     setEditId(rec.id);
     setShowForm(true);
@@ -430,7 +447,7 @@ export default function ReimbursementView({ currentUser }: Props) {
           {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
         {canEdit && (
-          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => { setShowForm((v) => !v); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM }); } }}>
+          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => { setShowForm((v) => !v); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM, employeeIds: myUserId ? [myUserId] : [] }); } }}>
             {showForm ? 'Cancel' : '+ Add Entry'}
           </button>
         )}
@@ -638,18 +655,62 @@ export default function ReimbursementView({ currentUser }: Props) {
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Description *</label>
-                <select className={calcStyles.formControl} required value={form.descriptionType} onChange={(e) => setForm((f) => ({ ...f, descriptionType: e.target.value, description: '' }))}>
+                <select className={calcStyles.formControl} required value={form.descriptionType} onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((f) => ({
+                    ...f, descriptionType: val, description: '', vehicleType: '',
+                    ...(val !== f.descriptionType ? { fromLocation: '', toLocation: '', kilometers: '', amount: '' } : {}),
+                  }));
+                }}>
                   <option value="">— Select type —</option>
                   {DESCRIPTION_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
                 {form.descriptionType === 'Other' && (
                   <input type="text" className={calcStyles.formControl} required value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Enter description" style={{ marginTop: 6 }} />
                 )}
+                {form.descriptionType === 'Conveyance' && (
+                  <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Vehicle Type *</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                    {Object.keys(VEHICLE_RATE).map((v) => (
+                      <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: form.vehicleType === v ? 700 : 500, color: form.vehicleType === v ? 'var(--mx-brand)' : '#374151', padding: '6px 12px', borderRadius: 'var(--mx-radius-sm)', border: form.vehicleType === v ? '2px solid var(--mx-brand)' : '1px solid var(--mx-border)', background: form.vehicleType === v ? 'var(--mx-brand-subtle)' : 'var(--mx-surface)', transition: 'all 0.15s ease' }}>
+                        <input type="radio" name="vehicleType" value={v} checked={form.vehicleType === v} style={{ display: 'none' }} onChange={() => {
+                          setForm((f) => {
+                            const km = Number(f.kilometers) || 0;
+                            const rate = VEHICLE_RATE[v];
+                            const isCab = v === 'Cab';
+                            return { ...f, vehicleType: v, amount: isCab ? '' : (km > 0 && rate > 0 ? String(km * rate) : ''), kilometers: isCab ? '' : f.kilometers };
+                          });
+                        }} />
+                        {v}{VEHICLE_RATE[v] > 0 ? ` (₹${VEHICLE_RATE[v]}/km)` : ''}
+                      </label>
+                    ))}
+                  </div>
+                  </>
+                )}
               </div>
             </div>
 
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Employees *</label>
+              <label className={calcStyles.label}>Employee(s) *</label>
+              {form.employeeIds.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                  {form.employeeIds.map((id) => {
+                    const user = users.find((u) => u.id === id);
+                    const isMe = id === myUserId;
+                    return (
+                      <span key={id} className={historyStyles.rolePill} style={{ background: isMe ? 'var(--mx-brand-subtle)' : 'var(--mx-info-subtle)', color: isMe ? 'var(--mx-brand)' : 'var(--mx-info)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {user?.name || user?.username || id}{isMe ? ' (You)' : ''}
+                        {!isMe && (
+                          <button type="button" onClick={() => setForm((f) => ({ ...f, employeeIds: f.employeeIds.filter((c) => c !== id) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, color: 'inherit', opacity: 0.7 }}>&times;</button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
               <select
                 className={calcStyles.formControl}
                 onChange={(e) => {
@@ -658,45 +719,45 @@ export default function ReimbursementView({ currentUser }: Props) {
                   e.target.value = '';
                 }}
               >
-                <option value="">— Select employee —</option>
+                <option value="">— Add companion (optional) —</option>
                 {users.filter((u) => !form.employeeIds.includes(u.id)).map((u) => (
                   <option key={u.id} value={u.id}>{u.name || u.username}</option>
                 ))}
               </select>
-              {form.employeeIds.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                  {form.employeeIds.map((id) => {
-                    const user = users.find((u) => u.id === id);
-                    return (
-                      <span key={id} className={historyStyles.rolePill} style={{ background: 'var(--mx-info-subtle)', color: 'var(--mx-info)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        {user?.name || user?.username || id}
-                        <button type="button" onClick={() => setForm((f) => ({ ...f, employeeIds: f.employeeIds.filter((c) => c !== id) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, color: 'inherit', opacity: 0.7 }}>&times;</button>
-                      </span>
-                    );
-                  })}
+            </div>
+
+            {TRAVEL_DESCRIPTIONS.has(form.descriptionType) && (
+              <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>From{form.descriptionType === 'Conveyance' ? ' *' : ''}</label>
+                  <input type="text" className={calcStyles.formControl} required={form.descriptionType === 'Conveyance'} value={form.fromLocation} onChange={(e) => setForm((f) => ({ ...f, fromLocation: e.target.value }))} placeholder="Origin location" />
                 </div>
-              )}
-            </div>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>To{form.descriptionType === 'Conveyance' ? ' *' : ''}</label>
+                  <input type="text" className={calcStyles.formControl} required={form.descriptionType === 'Conveyance'} value={form.toLocation} onChange={(e) => setForm((f) => ({ ...f, toLocation: e.target.value }))} placeholder="Destination location" />
+                </div>
+                {form.descriptionType === 'Conveyance' && form.vehicleType !== 'Cab' && (
+                  <div className={calcStyles.field}>
+                    <label className={calcStyles.label}>Kilometers *</label>
+                    <input type="text" inputMode="decimal" className={calcStyles.formControl} required value={form.kilometers} onChange={(e) => {
+                      const v = e.target.value;
+                      if (v !== '' && !/^\d*\.?\d*$/.test(v)) return;
+                      setForm((f) => {
+                        const km = Number(v) || 0;
+                        const rate = VEHICLE_RATE[f.vehicleType] || 0;
+                        const autoAmount = f.vehicleType && km > 0 ? String(km * rate) : f.amount;
+                        return { ...f, kilometers: v, amount: autoAmount };
+                      });
+                    }} placeholder="e.g. 12.5" />
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>From</label>
-                <input type="text" className={calcStyles.formControl} value={form.fromLocation} onChange={(e) => setForm((f) => ({ ...f, fromLocation: e.target.value }))} placeholder="Origin location" />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>To</label>
-                <input type="text" className={calcStyles.formControl} value={form.toLocation} onChange={(e) => setForm((f) => ({ ...f, toLocation: e.target.value }))} placeholder="Destination location" />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Kilometers</label>
-                <input type="text" inputMode="decimal" className={calcStyles.formControl} value={form.kilometers} onChange={(e) => { const v = e.target.value; if (v === '' || /^\d*\.?\d*$/.test(v)) setForm((f) => ({ ...f, kilometers: v })); }} placeholder="e.g. 12.5" />
-              </div>
-            </div>
-
-            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Amount (₹) *</label>
-                <input type="number" className={calcStyles.formControl} required value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} min="0.01" step="0.01" placeholder="0.00" />
+                <label className={calcStyles.label}>Amount (₹) *{form.descriptionType === 'Conveyance' && form.vehicleType && form.vehicleType !== 'Cab' ? ` — ${form.vehicleType} @ ₹${VEHICLE_RATE[form.vehicleType]}/km` : ''}</label>
+                <input type="number" className={calcStyles.formControl} required value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} min="0.01" step="0.01" placeholder="0.00" readOnly={form.descriptionType === 'Conveyance' && !!form.vehicleType && form.vehicleType !== 'Cab'} style={form.descriptionType === 'Conveyance' && form.vehicleType && form.vehicleType !== 'Cab' ? { background: 'var(--mx-surface-sunken)', cursor: 'not-allowed' } : undefined} />
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Mode of Payment</label>
@@ -715,7 +776,7 @@ export default function ReimbursementView({ currentUser }: Props) {
             )}
 
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Attachment (Bill Proof) *</label>
+              <label className={calcStyles.label}>Attachment (Bill Proof) {form.descriptionType === 'Conveyance' && (form.vehicleType === '2 Wheeler' || form.vehicleType === '4 Wheeler') ? '' : '*'}</label>
               <label
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
