@@ -486,15 +486,29 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
 
             <div className={styles.field} style={{ marginBottom: 4 }}>
               <label className={styles.label}>Create New Quotation</label>
-              <div style={{ display: 'flex', gap: 16 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
-                  <input type="radio" name="quotationMode" checked={quotationMode === 'standard'} onChange={() => setQuotationMode('standard')} />
+              {/* Same segmented-pill toggle as Lead Capture / Inquiry's
+                  Capture/Import/List switcher (historyStyles.modeToggle) —
+                  reused here instead of raw radio inputs so this reads as
+                  the same "pick a mode" control everywhere in the app. */}
+              <div className={historyStyles.modeToggle} role="radiogroup" aria-label="Quotation type">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={quotationMode === 'standard'}
+                  className={`${historyStyles.modeToggleBtn} ${quotationMode === 'standard' ? historyStyles.modeToggleBtnActive : ''}`}
+                  onClick={() => setQuotationMode('standard')}
+                >
                   Standard Product Quotation
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
-                  <input type="radio" name="quotationMode" checked={quotationMode === 'custom'} onChange={() => setQuotationMode('custom')} />
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={quotationMode === 'custom'}
+                  className={`${historyStyles.modeToggleBtn} ${quotationMode === 'custom' ? historyStyles.modeToggleBtnActive : ''}`}
+                  onClick={() => setQuotationMode('custom')}
+                >
                   Custom Product Quotation
-                </label>
+                </button>
               </div>
             </div>
 
