@@ -134,6 +134,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.phone === 'string') patch.phone = body.phone.trim();
     if (typeof body.email === 'string') patch.email = body.email.trim();
     if (typeof body.address === 'string') patch.address = body.address.trim();
+    if (typeof body.source === 'string') patch.source = body.source.trim();
     if (typeof body.salesPerson === 'string' && body.salesPerson.trim()) patch.sales_person = body.salesPerson.trim();
     if (VALID_PRIORITY.includes(body.priority)) patch.priority = body.priority;
     if (VALID_STATUS.includes(body.status)) patch.status = body.status;

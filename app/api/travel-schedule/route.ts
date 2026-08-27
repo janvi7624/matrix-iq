@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { travelScheduleStore } from '@/lib/travelScheduleStore';
+import { travelScheduleStore, sanitizeCoTravellers, sanitizeHotelAccommodation, sanitizeAdvanceRequest } from '@/lib/travelScheduleStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { TravelScheduleRecord } from '@/lib/types';
 
@@ -42,8 +42,9 @@ export async function POST(request: NextRequest) {
     required_arrival_time: typeof body.requiredArrivalTime === 'string' ? body.requiredArrivalTime : '',
     expected_departure_time: typeof body.expectedDepartureTime === 'string' ? body.expectedDepartureTime : '',
     purpose: typeof body.purpose === 'string' ? body.purpose.trim() : '',
+    purpose_other: typeof body.purposeOther === 'string' ? body.purposeOther.trim() : '',
+    mode_of_travel: typeof body.modeOfTravel === 'string' ? body.modeOfTravel.trim() : '',
     linked_client: typeof body.linkedClient === 'string' ? body.linkedClient.trim() : '',
-    expense_note: typeof body.expenseNote === 'string' ? body.expenseNote.trim() : '',
     project_id: typeof body.projectId === 'string' ? body.projectId : '',
     project_name: '',
     manager_id: '', manager_name: '', manager_action_at: '', manager_remarks: '',
@@ -55,6 +56,9 @@ export async function POST(request: NextRequest) {
     hr_final_verifier_id: '', hr_final_verifier_name: '', hr_final_verified_at: '', hr_final_remarks: '',
     companion_ids: Array.isArray(body.companionIds) ? body.companionIds.filter((v: unknown) => typeof v === 'string') : [],
     companion_names: [],
+    co_travellers: sanitizeCoTravellers(body.coTravellers),
+    hotel_accommodation: sanitizeHotelAccommodation(body.hotelAccommodation),
+    advance_request: sanitizeAdvanceRequest(body.advanceRequest),
     change_request_remarks: '', change_requested_by: ''
   };
 

@@ -1,6 +1,50 @@
 import { Model } from 'sequelize';
-import { TravelScheduleRecord, TravelScheduleStatus } from './types';
+import { TravelScheduleRecord, TravelScheduleStatus, TravelCoTraveller, TravelHotelRequest, TravelAdvanceRequest } from './types';
 import { db, isUuid } from './db';
+
+// Shared shape-sanitizers for the 3 new structured fields — used by both
+// POST (create) and PUT (update) so the two API routes can't drift apart on
+// what counts as a valid entry.
+export function sanitizeCoTravellers(input: unknown): TravelCoTraveller[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
+    .map((o) => ({
+      name: typeof o.name === 'string' ? o.name.trim() : '',
+      contact: typeof o.contact === 'string' ? o.contact.trim() : '',
+      origin: typeof o.origin === 'string' ? o.origin.trim() : '',
+      destination: typeof o.destination === 'string' ? o.destination.trim() : '',
+      travelDate: typeof o.travelDate === 'string' ? o.travelDate : ''
+    }))
+    .filter((c) => c.name);
+}
+
+export function sanitizeHotelAccommodation(input: unknown): TravelHotelRequest | null {
+  if (!input || typeof input !== 'object') return null;
+  const o = input as Record<string, unknown>;
+  if (!o.required) return { required: false, preferredArea: '', suggestedHotel: '', location: '', checkInDate: '', checkOutDate: '', numberOfGuests: 0, additionalRequirement: '' };
+  return {
+    required: true,
+    preferredArea: typeof o.preferredArea === 'string' ? o.preferredArea.trim() : '',
+    suggestedHotel: typeof o.suggestedHotel === 'string' ? o.suggestedHotel.trim() : '',
+    location: typeof o.location === 'string' ? o.location.trim() : '',
+    checkInDate: typeof o.checkInDate === 'string' ? o.checkInDate : '',
+    checkOutDate: typeof o.checkOutDate === 'string' ? o.checkOutDate : '',
+    numberOfGuests: Number(o.numberOfGuests) || 0,
+    additionalRequirement: typeof o.additionalRequirement === 'string' ? o.additionalRequirement.trim() : ''
+  };
+}
+
+export function sanitizeAdvanceRequest(input: unknown): TravelAdvanceRequest | null {
+  if (!input || typeof input !== 'object') return null;
+  const o = input as Record<string, unknown>;
+  if (!o.required) return { required: false, requestedAmount: 0, remark: '' };
+  return {
+    required: true,
+    requestedAmount: Number(o.requestedAmount) || 0,
+    remark: typeof o.remark === 'string' ? o.remark.trim() : ''
+  };
+}
 
 const FIELDS = [
   { name: 'request_code' },
@@ -12,8 +56,9 @@ const FIELDS = [
   { name: 'required_arrival_time' },
   { name: 'expected_departure_time' },
   { name: 'purpose' },
+  { name: 'purpose_other' },
+  { name: 'mode_of_travel' },
   { name: 'linked_client' },
-  { name: 'expense_note' },
   { name: 'project_id', kind: 'nullable' as const },
   { name: 'manager_id', kind: 'nullable' as const },
   { name: 'manager_action_at', kind: 'date' as const },
@@ -35,6 +80,9 @@ const FIELDS = [
   { name: 'hr_final_verified_at', kind: 'date' as const },
   { name: 'hr_final_remarks' },
   { name: 'companion_ids', kind: 'json' as const },
+  { name: 'co_travellers', kind: 'json' as const },
+  { name: 'hotel_accommodation', kind: 'jsonObject' as const },
+  { name: 'advance_request', kind: 'jsonObject' as const },
   { name: 'change_request_remarks' },
   { name: 'change_requested_by' }
 ];
@@ -47,6 +95,7 @@ function isoOrEmpty(value: unknown): string {
 function toAttr(value: unknown, kind: string): unknown {
   if (kind === 'nullable' || kind === 'date') return value === '' || value === undefined ? null : value;
   if (kind === 'number') return value === '' || value === undefined || value === null ? null : value;
+  if (kind === 'jsonObject') return value === undefined ? null : value;
   return value;
 }
 
@@ -84,6 +133,7 @@ function toRecord(row: Model): TravelScheduleRecord {
     else if (kind === 'date') record[name] = isoOrEmpty(raw);
     else if (kind === 'number') record[name] = raw === null || raw === undefined ? 0 : Number(raw);
     else if (kind === 'json') record[name] = raw ?? [];
+    else if (kind === 'jsonObject') record[name] = raw ?? null;
     else record[name] = raw ?? '';
   }
   return record as unknown as TravelScheduleRecord;

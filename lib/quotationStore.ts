@@ -1,8 +1,8 @@
-import { Model, Op } from 'sequelize';
+import { Model, Op, QueryTypes } from 'sequelize';
 import { QuotationEffectiveStatus, QuotationRecord, QuotationStatus } from './types';
 import { computeQuotationPrefix, formatQuotationNumber } from './quotationNumber';
 import { DomainKey } from './types';
-import { db, isUuid } from './db';
+import { db, isUuid, sequelize } from './db';
 import { resolveVisibilityScope } from './departmentScope';
 import { findUserByUsername } from './userStore';
 import { sendQuotationStatusEmail } from './email/notifications';
@@ -91,26 +91,35 @@ export interface CreateQuotationInput {
   validityDays?: number;
 }
 
+// Atomically claims the next sequence number for one calendar day, shared
+// across every domain prefix that day (NT-AI-.../001, NT-ROBO-.../002,
+// NT-AV-.../003, ... rather than each prefix independently resetting to
+// 001) — the INSERT ... ON CONFLICT ... DO UPDATE is a single statement, so
+// Postgres's own row-level locking makes this safe under concurrent callers
+// without an explicit transaction/advisory lock. Replaces the old "scan
+// every quotation_number, take max+1" approach, which was both wrong (reset
+// per prefix, not just per day) and race-prone (read-then-write with no
+// locking at all).
+async function nextSequenceForDay(dateOnly: string): Promise<number> {
+  const rows = await sequelize.query<{ last_value: number }>(
+    `INSERT INTO quotation_sequences (sequence_date, last_value, updated_at)
+     VALUES (:d, 1, NOW())
+     ON CONFLICT (sequence_date)
+     DO UPDATE SET last_value = quotation_sequences.last_value + 1, updated_at = NOW()
+     RETURNING last_value`,
+    { replacements: { d: dateOnly }, type: QueryTypes.SELECT }
+  );
+  return rows[0].last_value;
+}
+
 async function nextQuotationNumber(prefix: string, now: Date): Promise<string> {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const day = now.getDate();
+  const dateOnly = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-  const existingRows = await db.Quotation.findAll({ attributes: ['quotation_number'] });
-  const existingNumbers = new Set(existingRows.map((r) => r.get('quotation_number') as string));
-  const sequencePattern = new RegExp(`^NT-${prefix}-${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}/(\\d+)$`);
-  let sequence =
-    [...existingNumbers].reduce((max, num) => {
-      const match = num.match(sequencePattern);
-      return match ? Math.max(max, parseInt(match[1], 10)) : max;
-    }, 0) + 1;
-
-  let quotationNumber = formatQuotationNumber(prefix, year, month, day, sequence);
-  while (existingNumbers.has(quotationNumber)) {
-    sequence += 1;
-    quotationNumber = formatQuotationNumber(prefix, year, month, day, sequence);
-  }
-  return quotationNumber;
+  const sequence = await nextSequenceForDay(dateOnly);
+  return formatQuotationNumber(prefix, year, month, day, sequence);
 }
 
 export async function createQuotation(input: CreateQuotationInput): Promise<QuotationRecord> {

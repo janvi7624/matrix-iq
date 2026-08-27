@@ -11,8 +11,10 @@ module.exports = (sequelize, DataTypes) => {
     required_arrival_time: { type: DataTypes.STRING },
     expected_departure_time: { type: DataTypes.STRING },
     purpose: { type: DataTypes.TEXT },
+    // Freeform text shown only when purpose === 'Others' — see lib/travelOptions.ts.
+    purpose_other: { type: DataTypes.STRING },
+    mode_of_travel: { type: DataTypes.STRING },
     linked_client: { type: DataTypes.STRING },
-    expense_note: { type: DataTypes.TEXT },
     project_id: { type: DataTypes.UUID },
     // Stage 2: Department Manager
     manager_id: { type: DataTypes.UUID },
@@ -38,8 +40,18 @@ module.exports = (sequelize, DataTypes) => {
     hr_final_verifier_id: { type: DataTypes.UUID },
     hr_final_verified_at: { type: DataTypes.DATE },
     hr_final_remarks: { type: DataTypes.TEXT },
-    // Companions (other travellers)
+    // Companions (other travellers) — existing app-user pickers.
     companion_ids: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // Co-travellers — arbitrary people, not necessarily app users, each with
+    // their own name/contact/origin/destination/travel date. Array of
+    // {name, contact, origin, destination, travelDate}.
+    co_travellers: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // {required, preferredArea, suggestedHotel, location, checkInDate,
+    // checkOutDate, numberOfGuests, additionalRequirement} | null — a single
+    // request, not a list, so null means "not requested" rather than [].
+    hotel_accommodation: { type: DataTypes.JSONB },
+    // {required, requestedAmount, remark} | null
+    advance_request: { type: DataTypes.JSONB },
     // Change request tracking
     change_request_remarks: { type: DataTypes.TEXT },
     change_requested_by: { type: DataTypes.STRING }

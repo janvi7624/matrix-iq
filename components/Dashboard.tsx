@@ -72,6 +72,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [modules, setModules] = useState<ModuleConfigRecord[] | null>(null);
   const [unattendedLeads, setUnattendedLeads] = useState<number | null>(null);
   const [marketingStats, setMarketingStats] = useState<{ isReviewer: boolean; awaitingReview?: number; myOpenCount?: number } | null>(null);
+  const [marketingReminderUrgentCount, setMarketingReminderUrgentCount] = useState<number>(0);
   const [allProjects, setAllProjects] = useState<ProjectRecord[] | null>(null);
   const [recentQuotations, setRecentQuotations] = useState<QuotationRecord[] | null>(null);
   const [demos, setDemos] = useState<DemoScheduleRecord[] | null>(null);
@@ -120,6 +121,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setReminderCount(data.reminderCount ?? null);
         setUnattendedLeads(data.unattendedLeads ?? null);
         setMarketingStats(data.marketingStats ?? null);
+        setMarketingReminderUrgentCount(data.marketingReminderUrgentCount ?? 0);
         setAllProjects(data.allProjects ?? []);
         setDemos(data.demos ?? []);
         setManagersByDepartment(data.managersByDepartment ?? {});
@@ -205,6 +207,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (marketingStats?.isReviewer && marketingStats.awaitingReview) {
       items.push({ key: 'marketing', label: 'Marketing tickets awaiting review', count: marketingStats.awaitingReview, href: '/marketing-requests?filter=submitted', tone: 'info' });
     }
+    if (marketingReminderUrgentCount) {
+      items.push({
+        key: 'marketing-reminders',
+        label: `Marketing request${marketingReminderUrgentCount === 1 ? '' : 's'} due today or overdue`,
+        count: marketingReminderUrgentCount,
+        href: '/marketing-requests?filter=due',
+        tone: 'urgent'
+      });
+    }
     if (reminderCount) {
       items.push({ key: 'sitevisit', label: `Site visit reminder${reminderCount === 1 ? '' : 's'} due`, count: reminderCount, href: '/site-visits?focus=open', tone: 'info' });
     }
@@ -255,6 +266,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     backOfficeKpis,
     unattendedLeads,
     marketingStats,
+    marketingReminderUrgentCount,
     reminderCount,
     demosAwaitingMyConfirmation,
     demosAwaitingMyApproval,

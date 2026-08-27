@@ -11,6 +11,7 @@ import { getDomainProducts } from '@/lib/domainProducts';
 import { STAGE_LABEL, STAGE_HINT } from '@/lib/siteVisitReminder';
 import TeamCheckboxes from './TeamCheckboxes';
 import { useToast } from './ui/ToastProvider';
+import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
@@ -180,6 +181,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
   }
 
   function validateStep(index: number): string | null {
+    if (index === 0 && !form.projectId) return 'Select or create a project before continuing.';
     if (index === 0 && !form.companyName.trim()) return 'Company name is required.';
     if (index === 1 && !form.visitDate) return 'Visit date is required.';
     return null;
@@ -279,6 +281,24 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
             <div className={historyStyles.wizardCardHint}>Start typing a company name — if they've visited before, we'll suggest their saved details.</div>
             {errors.length > 0 && <div className={historyStyles.loginError}>{errors[0]}</div>}
             {autofillNotice && <div className={historyStyles.autofillNotice}>{autofillNotice}</div>}
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Project<Required /></label>
+              <ProjectSelect
+                value={form.projectId}
+                required
+                onChange={(projectId, project) => {
+                  setForm((f) => ({
+                    ...f,
+                    projectId,
+                    companyName: project?.company || project?.client_name || f.companyName,
+                    contactPerson: project?.contact_person || f.contactPerson,
+                    clientEmail: project?.email || f.clientEmail,
+                    clientPhone: project?.phone || f.clientPhone,
+                    location: project?.address || f.location
+                  }));
+                }}
+              />
+            </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Company name<Required /></label>
               <input
@@ -444,7 +464,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
               <div className={historyStyles.reviewRow}><strong>Stage:</strong> {form.stage ? STAGE_LABEL[form.stage] : '-'}</div>
             </div>
             <div className={calcStyles.small} style={{ marginTop: 12 }}>
-              {form.projectId ? `This visit will be linked to project ${form.projectId}.` : 'No matching project — a new one will be created automatically for this client.'}
+              This visit will be linked to project {form.projectId}.
             </div>
           </>
         )}

@@ -16,7 +16,6 @@ import {
   MarketingRequestRecord,
   MarketingRequestStatus,
   MarketingRequestType,
-  ProjectRecord,
   UserRole
 } from '@/lib/types';
 import {
@@ -26,6 +25,7 @@ import {
   getProductCategoryStyle,
   isMarketingRequestOverdue
 } from '@/lib/marketingRequestHelpers';
+import { MarketingReminderBand, marketingReminderBand, daysOverdue } from '@/lib/marketingRequestReminder';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { MarketingRosterEntry } from '@/lib/marketingRoster';
 import AppShell from './AppShell';
@@ -92,6 +92,29 @@ function formatDateTime(iso: string): string {
 function PriorityBadge({ priority }: { priority: MarketingRequestPriority }) {
   const meta = MARKETING_PRIORITY_META[priority] || { label: priority };
   return <SharedPriorityBadge tone={PRIORITY_TONE[priority] || 'info'} label={meta.label} />;
+}
+
+// Reuses the same restrained 4-step badge component/palette as priority
+// (cool -> info -> warm -> hot) instead of inventing new reminder colors.
+const REMINDER_LABEL: Record<MarketingReminderBand, string> = {
+  upcoming: 'Upcoming',
+  due_soon: 'Due Soon',
+  due_today: 'Due Today',
+  overdue: 'Overdue',
+  none: ''
+};
+const REMINDER_TONE: Record<MarketingReminderBand, PriorityTone> = {
+  upcoming: 'cool',
+  due_soon: 'info',
+  due_today: 'warm',
+  overdue: 'hot',
+  none: 'cool'
+};
+
+function ReminderBadge({ record }: { record: Pick<MarketingRequestRecord, 'timeline' | 'needed_by_date' | 'status'> }) {
+  const band = marketingReminderBand(record);
+  if (band === 'none') return null;
+  return <SharedPriorityBadge tone={REMINDER_TONE[band]} label={REMINDER_LABEL[band]} />;
 }
 
 function StatusBadge({ status }: { status: MarketingRequestStatus }) {
@@ -479,7 +502,10 @@ function MarketingRequestRow({
             <span style={{ opacity: 0.4 }}>—</span>
           )}
         </td>
-        <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{formatDate(r.needed_by_date || r.created_at)}</td>
+        <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+          {formatDate(r.needed_by_date || r.created_at)}
+          <div style={{ marginTop: 4 }}><ReminderBadge record={r} /></div>
+        </td>
         <td>
           <button type="button" className={historyStyles.toggleBtn} onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>
             {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -530,6 +556,16 @@ function MarketingRequestRow({
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#134e4a', marginTop: 2 }}>{r.technical_member_name || r.technical_member_username || 'Not assigned yet'}</div>
                   <div style={{ fontSize: 11.5, color: '#0f766e' }}>{r.technical_review_decision ? `Decision: ${r.technical_review_decision}` : 'Technical validation'}</div>
                 </div>
+
+                {marketingReminderBand(r) !== 'none' && (
+                  <div style={{ background: '#fff7ed', padding: '10px 14px', borderRadius: 8, border: '1px solid #fed7aa' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#9a3412', textTransform: 'uppercase' }}>Reminder Status</div>
+                    <div style={{ marginTop: 4 }}><ReminderBadge record={r} /></div>
+                    {marketingReminderBand(r) === 'overdue' && (
+                      <div style={{ fontSize: 11.5, color: '#9a3412', marginTop: 4 }}>Overdue by {daysOverdue(r)} day{daysOverdue(r) === 1 ? '' : 's'}</div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* SECTION 1: Original Request Details */}
@@ -1106,7 +1142,6 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
   const [mode, setMode] = useState<'new' | 'list'>('list');
   const [tab, setTab] = useState<FilterTab>(startFilter === 'submitted' ? 'marketing_queue' : 'all');
   const [requests, setRequests] = useState<MarketingRequestRecord[]>([]);
-  const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
   const [marketingRoster, setMarketingRoster] = useState<MarketingRosterEntry[]>([]);
   const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
@@ -1116,6 +1151,8 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
   const [q, setQ] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
+  // Deep-linked from the Dashboard/sidebar's "due today or overdue" count (?filter=due).
+  const [dueOnly, setDueOnly] = useState(startFilter === 'due');
 
   async function loadRequests() {
     setLoading(true);
@@ -1134,7 +1171,6 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
 
   useEffect(() => {
     loadRequests();
-    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
     fetch('/api/technical-roster').then((r) => (r.ok ? r.json() : [])).then(setTechnicalRoster).catch(() => setTechnicalRoster([]));
     fetch('/api/marketing-roster').then((r) => (r.ok ? r.json() : [])).then(setMarketingRoster).catch(() => setMarketingRoster([]));
     fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
@@ -1177,6 +1213,14 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
       rows = rows.filter((r) => r.priority === priorityFilter);
     }
 
+    // Due today or overdue only
+    if (dueOnly) {
+      rows = rows.filter((r) => {
+        const band = marketingReminderBand(r);
+        return band === 'due_today' || band === 'overdue';
+      });
+    }
+
     // Search query
     if (q.trim()) {
       const needle = q.trim().toLowerCase();
@@ -1189,7 +1233,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
     }
 
     return [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-  }, [requests, tab, categoryFilter, priorityFilter, q, currentUser.username]);
+  }, [requests, tab, categoryFilter, priorityFilter, dueOnly, q, currentUser.username]);
 
   function replaceRecord(updated: MarketingRequestRecord) {
     setRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -1315,7 +1359,6 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
       {mode === 'new' && (
         <MarketingRequestWizard
           creating={creating}
-          projects={projects}
           onSubmit={handleSubmitRequest}
           onViewAllRequests={() => setMode('list')}
         />
@@ -1452,13 +1495,19 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               <option value="low">Low</option>
             </select>
 
-            {(categoryFilter || priorityFilter || q) && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, whiteSpace: 'nowrap' }}>
+              <input type="checkbox" checked={dueOnly} onChange={(e) => setDueOnly(e.target.checked)} />
+              Due today or overdue
+            </label>
+
+            {(categoryFilter || priorityFilter || dueOnly || q) && (
               <button
                 type="button"
                 className={historyStyles.button}
                 onClick={() => {
                   setCategoryFilter('');
                   setPriorityFilter('');
+                  setDueOnly(false);
                   setQ('');
                 }}
               >

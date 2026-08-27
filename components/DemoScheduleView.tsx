@@ -3,7 +3,7 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { DemoOutcome, DemoPriority, DemoProductLine, DemoRequestStatus, DemoScheduleRecord, DomainKey, ProjectRecord, QuotationRecord, UserRole } from '@/lib/types';
+import { DemoOutcome, DemoPriority, DemoProductLine, DemoRequestStatus, DemoScheduleRecord, DomainKey, QuotationRecord, UserRole } from '@/lib/types';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
@@ -17,6 +17,7 @@ import calcStyles from './calculator.module.css';
 import { nowDatetimeInputValue, todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import ProjectSelect from './ui/ProjectSelect';
 import Button from './ui/Button';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
@@ -489,7 +490,6 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   const canCreate = !(TMS_ROLE_KEYS as readonly string[]).includes(currentUser.role);
   const searchParams = useSearchParams();
   const [records, setRecords] = useState<DemoScheduleRecord[]>([]);
-  const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [projectQuotations, setProjectQuotations] = useState<QuotationRecord[]>([]);
   const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
   const [managersByDepartment, setManagersByDepartment] = useState<Record<string, { id: string; username: string; name: string }[]>>({});
@@ -504,11 +504,10 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   async function load() {
     setStatus('Loading...');
     try {
-      const [dRes, pRes] = await Promise.all([fetch('/api/demo-schedule'), fetch('/api/projects')]);
+      const dRes = await fetch('/api/demo-schedule');
       if (!dRes.ok) throw new Error(String(dRes.status));
       const data: DemoScheduleRecord[] = await dRes.json();
       setRecords(data);
-      setProjects(pRes.ok ? await pRes.json() : []);
       setStatus(data.length ? `${data.length} demo${data.length === 1 ? '' : 's'} found.` : '');
       setLoaded(true);
     } catch {
@@ -528,6 +527,10 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
       .catch(() => setManagersByDepartment({}));
   }, []);
 
+  // Prefill (company/location/clientName) now happens directly in
+  // ProjectSelect's onChange from the full record it already has — this
+  // effect only needs the project's quotations, which aren't part of that
+  // record.
   useEffect(() => {
     if (!form.projectId) {
       setProjectQuotations([]);
@@ -535,16 +538,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
     }
     fetch(`/api/projects/${form.projectId}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        if (!json) return;
-        setProjectQuotations(json.quotations || []);
-        setForm((f) => ({
-          ...f,
-          company: f.company || json.project.company,
-          location: f.location || json.project.address,
-          clientName: f.clientName || json.project.client_name
-        }));
-      })
+      .then((json) => setProjectQuotations(json?.quotations || []))
       .catch(() => setProjectQuotations([]));
   }, [form.projectId]);
 
@@ -637,12 +631,20 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Project *</label>
-              <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value, quotationId: '' }))} required>
-                <option value="">-- Select project --</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.company || p.client_name}</option>
-                ))}
-              </select>
+              <ProjectSelect
+                value={form.projectId}
+                required
+                onChange={(projectId, project) =>
+                  setForm((f) => ({
+                    ...f,
+                    projectId,
+                    quotationId: '',
+                    company: project?.company || f.company,
+                    location: project?.address || f.location,
+                    clientName: project?.client_name || f.clientName
+                  }))
+                }
+              />
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Quotation</label>

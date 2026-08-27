@@ -31,6 +31,7 @@ import DiscountsList from './DiscountsList';
 import CustomProductsList from './CustomProductsList';
 import SummaryPanel from './SummaryPanel';
 import { useToast } from './ui/ToastProvider';
+import ProjectSelect from './ui/ProjectSelect';
 import styles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 
@@ -477,12 +478,23 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
               <div className={`${styles.row} ${styles.columns}`}>
                 <div className={styles.field}>
                   <label className={styles.label} htmlFor="projectSelect">Project</label>
-                  <select id="projectSelect" className={styles.formControl} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                    <option value="">-- No project (one will be created) --</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.company || p.client_name} ({PROJECT_STAGE_LABEL[p.stage]})</option>
-                    ))}
-                  </select>
+                  <ProjectSelect
+                    value={projectId}
+                    placeholder="-- No project (client details below stay independent) --"
+                    onChange={(next, project) => {
+                      setProjectId(next);
+                      if (project) {
+                        setDetails((d) => ({
+                          ...d,
+                          clientName: project.client_name || d.clientName,
+                          clientCompany: project.company || d.clientCompany,
+                          clientEmail: project.email || d.clientEmail,
+                          clientPhone: project.phone || d.clientPhone,
+                          clientAddress: project.address || d.clientAddress
+                        }));
+                      }
+                    }}
+                  />
                   {selectedProject && <div className={styles.small}>Stage: {PROJECT_STAGE_LABEL[selectedProject.stage]}</div>}
                 </div>
               </div>

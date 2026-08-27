@@ -3,19 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { isMarketingManager, isModuleActionAllowed } from '@/lib/permissions';
 import { apiErrorResponse } from '@/lib/apiError';
-
-const NON_FINAL_STATUSES = new Set([
-  'submitted',
-  'marketing_in_progress',
-  'pending_technical_review',
-  'technical_approved',
-  'tech_changes_requested',
-  'marketing_final_review',
-  'waiting_info',
-  'ready_for_review',
-  'timeline_set',
-  'in_progress'
-]);
+import { isMarketingRequestOpen, summarizeMarketingReminders } from '@/lib/marketingRequestReminder';
 
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
@@ -36,7 +24,8 @@ export async function GET(request: NextRequest) {
       (r) => r.status === 'pending_technical_review' && (r.technical_member_username === viewer.username || isTechnical)
     ).length;
 
-    const myOpenCount = records.filter((r) => r.created_by === viewer.username && NON_FINAL_STATUSES.has(r.status)).length;
+    const myOpenCount = records.filter((r) => r.created_by === viewer.username && isMarketingRequestOpen(r.status)).length;
+    const reminderBreakdown = summarizeMarketingReminders(records);
 
     return NextResponse.json({
       isReviewer,
@@ -46,7 +35,8 @@ export async function GET(request: NextRequest) {
       pendingTechnical,
       readyForDelivery,
       myPendingTechnical,
-      myOpenCount
+      myOpenCount,
+      reminderBreakdown
     });
   } catch (error) {
     return apiErrorResponse(error);

@@ -345,8 +345,9 @@ export interface TravelScheduleRecord {
   required_arrival_time: string;
   expected_departure_time: string;
   purpose: string;
+  purpose_other: string;
+  mode_of_travel: string;
   linked_client: string;
-  expense_note: string;
   project_id: string;
   project_name: string;
   // Stage 2: Department Manager
@@ -378,12 +379,41 @@ export interface TravelScheduleRecord {
   hr_final_verifier_name: string;
   hr_final_verified_at: string;
   hr_final_remarks: string;
-  // Companions
+  // Companions (existing app-user pickers)
   companion_ids: string[];
   companion_names: string[];
+  // Co-travellers — arbitrary people, not necessarily app users
+  co_travellers: TravelCoTraveller[];
+  hotel_accommodation: TravelHotelRequest | null;
+  advance_request: TravelAdvanceRequest | null;
   // Change request
   change_request_remarks: string;
   change_requested_by: string;
+}
+
+export interface TravelCoTraveller {
+  name: string;
+  contact: string;
+  origin: string;
+  destination: string;
+  travelDate: string;
+}
+
+export interface TravelHotelRequest {
+  required: boolean;
+  preferredArea: string;
+  suggestedHotel: string;
+  location: string;
+  checkInDate: string;
+  checkOutDate: string;
+  numberOfGuests: number;
+  additionalRequirement: string;
+}
+
+export interface TravelAdvanceRequest {
+  required: boolean;
+  requestedAmount: number;
+  remark: string;
 }
 
 // ---------------------------------------------------------------------------

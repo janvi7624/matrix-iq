@@ -255,6 +255,67 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
   const canEdit = useMemo(() => isPrivileged || data?.project.created_by === currentUser.username, [isPrivileged, data, currentUser.username]);
 
+  // Client/contact master fields — the Project Dashboard is meant to be the
+  // single place these can be edited (every other module only references a
+  // project by id, never patches these), but until now this view only
+  // rendered them as static text even though PATCH /api/projects/[id]
+  // already accepted them. Local draft + explicit Save (not per-keystroke
+  // patching) so typing doesn't fire a request per character or fight the
+  // reload this component does after every save.
+  const [detailsDraft, setDetailsDraft] = useState({ clientName: '', company: '', contactPerson: '', phone: '', email: '', address: '', source: '' });
+  const [savingDetails, setSavingDetails] = useState(false);
+
+  // Only re-syncs on the initial load / when navigating to a different
+  // project (by id) — NOT on every subsequent patchProject-triggered
+  // refetch elsewhere in this view (priority, status, stage, ...), which
+  // would otherwise silently clobber an unsaved in-progress edit here.
+  useEffect(() => {
+    const p = data?.project;
+    if (!p) return;
+    setDetailsDraft({
+      clientName: p.client_name || '',
+      company: p.company || '',
+      contactPerson: p.contact_person || '',
+      phone: p.phone || '',
+      email: p.email || '',
+      address: p.address || '',
+      source: p.source || ''
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.project.id]);
+
+  const detailsDirty = useMemo(() => {
+    const p = data?.project;
+    if (!p) return false;
+    return (
+      detailsDraft.clientName !== (p.client_name || '') ||
+      detailsDraft.company !== (p.company || '') ||
+      detailsDraft.contactPerson !== (p.contact_person || '') ||
+      detailsDraft.phone !== (p.phone || '') ||
+      detailsDraft.email !== (p.email || '') ||
+      detailsDraft.address !== (p.address || '') ||
+      detailsDraft.source !== (p.source || '')
+    );
+  }, [detailsDraft, data?.project]);
+
+  async function handleSaveDetails() {
+    setSavingDetails(true);
+    try {
+      await patchProject({
+        clientName: detailsDraft.clientName.trim(),
+        company: detailsDraft.company.trim(),
+        contactPerson: detailsDraft.contactPerson.trim(),
+        phone: detailsDraft.phone.trim(),
+        email: detailsDraft.email.trim(),
+        address: detailsDraft.address.trim(),
+        source: detailsDraft.source.trim()
+      });
+      toast.success('Project details updated.');
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
   async function patchProject(patch: Record<string, unknown>) {
     try {
       const response = await fetch(`/api/projects/${projectId}`, {
@@ -825,18 +886,57 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <div className={historyStyles.detailPanel} style={{ marginTop: 0 }}>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Client Name</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.clientName} onChange={(e) => setDetailsDraft((d) => ({ ...d, clientName: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.client_name || '-'}</div>}
+              </div>
+              <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Company</label>
-                <div className={calcStyles.small}>{project.company || '-'}</div>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.company} onChange={(e) => setDetailsDraft((d) => ({ ...d, company: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.company || '-'}</div>}
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Contact Person</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.contactPerson} onChange={(e) => setDetailsDraft((d) => ({ ...d, contactPerson: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.contact_person || '-'}</div>}
+              </div>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Phone</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.phone} onChange={(e) => setDetailsDraft((d) => ({ ...d, phone: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.phone || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Email</label>
-                <div className={calcStyles.small}>{project.email || '-'}</div>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.email} onChange={(e) => setDetailsDraft((d) => ({ ...d, email: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.email || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Address</label>
-                <div className={calcStyles.small}>{project.address || '-'}</div>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.address} onChange={(e) => setDetailsDraft((d) => ({ ...d, address: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.address || '-'}</div>}
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Source</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.source} onChange={(e) => setDetailsDraft((d) => ({ ...d, source: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.source || '-'}</div>}
               </div>
             </div>
+            {canEdit && detailsDirty && (
+              <div style={{ marginTop: 4, marginBottom: 8 }}>
+                <button type="button" className={calcStyles.btn} disabled={savingDetails} onClick={handleSaveDetails}>
+                  {savingDetails ? 'Saving...' : 'Save Details'}
+                </button>
+              </div>
+            )}
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Priority</label>
@@ -885,10 +985,6 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 {canEdit ? (
                   <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={project.next_follow_up_date} onChange={(e) => patchProject({ nextFollowUpDate: e.target.value })} />
                 ) : <div className={calcStyles.small}>{formatDate(project.next_follow_up_date)}</div>}
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Source</label>
-                <div className={calcStyles.small}>{project.source || '-'}</div>
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Assigned Technical Person</label>
