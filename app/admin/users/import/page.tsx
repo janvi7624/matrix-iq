@@ -1,9 +1,8 @@
 'use client';
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { BRAND } from '@/lib/branding';
+import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -245,20 +244,7 @@ export default function ImportEmployeesPage() {
   const createdRows = committed?.rows.filter((r) => (r.status === 'created' || r.status === 'needsReview') && r.tempPassword) || [];
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/admin/users" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>{BRAND.appName} — Import Employees</h1>
-            <div className={historyStyles.sub}>Administration &rsaquo; User Management &rsaquo; bulk-create accounts from Excel.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Link className={historyStyles.button} href="/admin/users">Back to User Management</Link>
-        </div>
-      </header>
-      <main className={historyStyles.main}>
+    <AppShell title={`${BRAND.appName} — Import Employees`} subtitle="Administration › User Management › bulk-create accounts from Excel.">
         {currentRole !== null && !authorized ? (
           <div className={calcStyles.sectionPanel}>
             <p>Bulk employee import is available to Admin and Super Admin accounts only.</p>
@@ -379,7 +365,6 @@ export default function ImportEmployeesPage() {
             )}
           </>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

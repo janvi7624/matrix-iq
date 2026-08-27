@@ -1,12 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
 import { QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { needsFollowUp } from '@/lib/followUp';
-import { BRAND } from '@/lib/branding';
+import AppShell from './AppShell';
 import QuotationTable from './QuotationTable';
 import { useToast } from './ui/ToastProvider';
 import styles from './quotationHistory.module.css';
@@ -29,7 +26,6 @@ const STATUS_OPTIONS: { value: QuotationEffectiveStatus; label: string }[] = [
 // Auth (login + admin/manager role) is enforced by proxy.ts before this ever
 // renders — this component only handles fetching, filtering, and displaying.
 export default function QuotationHistoryView({ title, subtitle, showXlsxExport = false }: QuotationHistoryViewProps) {
-  const router = useRouter();
   const toast = useToast();
   const [rows, setRows] = useState<QuotationRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
@@ -87,12 +83,6 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   const visibleRows = useMemo(() => (followUpOnly ? rows.filter((r) => needsFollowUp(r)) : rows), [rows, followUpOnly]);
   const salesPeople = useMemo(() => Array.from(new Set(rows.map((r) => r.created_by).filter(Boolean))).sort(), [rows]);
 
-  async function handleLogout() {
-    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
-    router.push('/login');
-    router.refresh();
-  }
-
   async function handleDelete(id: string) {
     try {
       const response = await fetch(`/api/admin/quotations/${id}`, { method: 'DELETE' });
@@ -136,25 +126,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   }
 
   return (
-    <div className={styles.body}>
-      <header className={styles.header}>
-        <Link href="/" className={styles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
-          <div>
-            <h1>{title}</h1>
-            <div className={styles.sub}>{orgWide ? subtitle : 'Every quotation in your department, with a guaranteed-unique quotation number.'}</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Link className={styles.button} href="/">
-            &larr; Back to Dashboard
-          </Link>
-          <button type="button" className={styles.button} onClick={handleLogout}>
-            Log out
-          </button>
-        </div>
-      </header>
-      <main className={styles.main}>
+    <AppShell title={title} subtitle={orgWide ? subtitle : 'Every quotation in your department, with a guaranteed-unique quotation number.'}>
         <div className={styles.toolbar}>
           <input
             type="text"
@@ -215,7 +187,6 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
             onChangeStatus={handleChangeStatus}
           />
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

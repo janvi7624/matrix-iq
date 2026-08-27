@@ -3,9 +3,9 @@
 import { Fragment, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import Image from 'next/image';
 import { MoreVertical } from 'lucide-react';
 import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types';
+import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { BRAND } from '@/lib/branding';
@@ -499,33 +499,14 @@ export default function ManageUsersPage() {
   }
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>{BRAND.appName} — User Management</h1>
-            <div className={historyStyles.sub}>Administration &rsaquo; create and manage login accounts.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {isAdminTier && (
+    <AppShell title={`${BRAND.appName} — User Management`} subtitle="Administration › create and manage login accounts.">
+        {isAdminTier && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
             <Link className={`${historyStyles.button} ${historyStyles.primary}`} href="/admin/users/import">
               Import Employees
             </Link>
-          )}
-          <Link className={historyStyles.button} href="/admin/roles">
-            Role Management
-          </Link>
-          <Link className={historyStyles.button} href="/admin/audit-log">
-            Audit Log
-          </Link>
-          <Link className={historyStyles.button} href="/">
-            Back to Dashboard
-          </Link>
-        </div>
-      </header>
-      <main className={historyStyles.main}>
+          </div>
+        )}
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Add user</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           {createError && <div className={historyStyles.loginError}>{createError}</div>}
@@ -769,7 +750,6 @@ export default function ManageUsersPage() {
             <button type="button" className={historyStyles.button} disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>Next →</button>
           </div>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

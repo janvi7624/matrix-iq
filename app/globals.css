@@ -73,6 +73,102 @@
   --mx-role-hr: #be185d;
   --mx-role-hr-subtle: rgba(190, 24, 93, 0.12);
 
+  /* ─────────────────────────────────────────────────────────────────────
+     Extended palette — literal color values used across multi-stage status
+     callouts (Marketing Requests, Reimbursement, Project Detail). These
+     were hand-typed as raw hex in dozens of places across those files;
+     naming them here doesn't change a single rendered pixel — every value
+     below is copied verbatim from what was already in use — it just gives
+     each one a single source of truth instead of N scattered literals.
+     Named after the Tailwind CSS default-palette step each value already
+     matches (these files were written against that palette from the start).
+     ───────────────────────────────────────────────────────────────────── */
+
+  /* Slate — secondary neutral scale (cooler-tinted than the --mx-ink/-border
+     family above, which follows Tailwind's separate "gray" scale) */
+  --mx-slate-100: #f1f5f9;
+  --mx-slate-200: #e2e8f0;
+  --mx-slate-300: #cbd5e1;
+  --mx-slate-400: #94a3b8;
+  --mx-slate-500: #64748b;
+  --mx-slate-600: #475569;
+  --mx-slate-700: #334155;
+  --mx-slate-800: #1e293b;
+  --mx-slate-900: #0f172a;
+
+  /* Gray — extends --mx-ink/-border with the missing in-between steps */
+  --mx-gray-50: #f9fafb;
+  --mx-gray-100: #f3f4f6;
+  --mx-gray-700: #374151;
+
+  /* Blue — extends --mx-info with its surrounding steps */
+  --mx-blue-50: #eff6ff;
+  --mx-blue-100: #dbeafe;
+  --mx-blue-200: #bfdbfe;
+  --mx-blue-300: #93c5fd;
+  --mx-blue-500: #3b82f6;
+  --mx-blue-600: #2563eb;
+  --mx-blue-800: #1e40af;
+  --mx-blue-900: #1e3a8a;
+
+  /* Teal */
+  --mx-teal-50: #f0fdfa;
+  --mx-teal-200: #99f6e4;
+  --mx-teal-700: #0f766e;
+  --mx-teal-900: #134e4a;
+
+  /* Emerald */
+  --mx-emerald-50: #ecfdf5;
+  --mx-emerald-200: #a7f3d0;
+  --mx-emerald-600: #059669;
+  --mx-emerald-700: #047857;
+  --mx-emerald-800: #065f46;
+
+  /* Green — extends --mx-success with its surrounding steps */
+  --mx-green-50: #f0fdf4;
+  --mx-green-200: #bbf7d0;
+  --mx-green-600: #16a34a;
+  --mx-green-800: #166534;
+  --mx-green-900: #14532d;
+
+  /* Amber — extends --mx-warning with its surrounding steps */
+  --mx-amber-50: #fffbeb;
+  --mx-amber-100: #fef3c7;
+  --mx-amber-200: #fde68a;
+  --mx-amber-400: #fbbf24;
+  --mx-amber-500: #f59e0b;
+  --mx-amber-600: #d97706;
+  --mx-amber-800: #92400e;
+  --mx-amber-900: #78350f;
+
+  /* Orange */
+  --mx-orange-50: #fff7ed;
+  --mx-orange-200: #fed7aa;
+  --mx-orange-600: #ea580c;
+  --mx-orange-700: #c2410c;
+  --mx-orange-800: #9a3412;
+
+  /* Red — extends --mx-danger/--mx-brand with their surrounding steps */
+  --mx-red-50: #fef2f2;
+  --mx-red-200: #fecaca;
+  --mx-red-800: #991b1b;
+
+  /* Rose */
+  --mx-rose-200: #fecdd3;
+  --mx-rose-700: #be123c;
+
+  /* Purple / violet */
+  --mx-purple-50: #faf5ff;
+  --mx-purple-200: #e9d5ff;
+  --mx-purple-700: #7e22ce;
+  --mx-purple-800: #6b21a8;
+  --mx-violet-50: #f5f3ff;
+  --mx-violet-600: #7c3aed;
+  --mx-violet-700: #6d28d9;
+
+  /* Indigo */
+  --mx-indigo-500: #6366f1;
+
   /* Radius scale */
   --mx-radius-xs: 6px;
   --mx-radius-sm: 9px;

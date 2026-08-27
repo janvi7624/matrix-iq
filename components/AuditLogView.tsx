@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { AuditLogEntry } from '@/lib/types';
 import { exportListToPdf } from '@/lib/exportPdf';
-import { BRAND } from '@/lib/branding';
+import AppShell from './AppShell';
 import styles from './quotationHistory.module.css';
 
 function formatDateTime(iso: string): string {
@@ -53,20 +51,7 @@ export default function AuditLogView() {
   }
 
   return (
-    <div className={styles.body}>
-      <header className={styles.header}>
-        <Link href="/" className={styles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
-          <div>
-            <h1>Audit Log</h1>
-            <div className={styles.sub}>Every status-changing action across the Back Office workflow.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Link className={styles.button} href="/">&larr; Back to Dashboard</Link>
-        </div>
-      </header>
-      <main className={styles.main}>
+    <AppShell title="Audit Log" subtitle="Every status-changing action across the Back Office workflow.">
         <div className={styles.toolbar}>
           <select value={entityType} onChange={(e) => setEntityType(e.target.value as '' | AuditLogEntry['entity_type'])} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db' }}>
             <option value="">All entities</option>
@@ -120,7 +105,6 @@ export default function AuditLogView() {
             </tbody>
           </table>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

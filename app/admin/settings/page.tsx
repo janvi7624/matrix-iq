@@ -1,10 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { AppConfig, NotificationTemplate } from '@/lib/types';
-import { BRAND } from '@/lib/branding';
+import AppShell from '@/components/AppShell';
 import styles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 
@@ -73,22 +71,7 @@ export default function ApplicationSettingsPage() {
   }
 
   return (
-    <div className={styles.body}>
-      <header className={styles.header}>
-        <Link href="/" className={styles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
-          <div>
-            <h1>Application Configuration</h1>
-            <div className={styles.sub}>Administration &rsaquo; company details, tax, terms, and numbering — no code required.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link className={styles.button} href="/admin/products">Product Master</Link>
-          <Link className={styles.button} href="/admin/modules">Module Manager</Link>
-          <Link className={styles.button} href="/">Back to Dashboard</Link>
-        </div>
-      </header>
-      <main className={styles.main}>
+    <AppShell title="Application Configuration" subtitle="Administration › company details, tax, terms, and numbering — no code required.">
         <div className={styles.status}>{status}</div>
         {config && (
           <>
@@ -266,7 +249,6 @@ export default function ApplicationSettingsPage() {
             </button>
           </>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

@@ -4,7 +4,6 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Package, Send, User } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 import { composeQuote } from '@/lib/calculations';
 import { generateQuotationPdf } from '@/lib/pdf';
 import { computeQuotationPrefix, generateDraftQuotationNumber, refreshDraftQuotationNumber } from '@/lib/quotationNumber';
@@ -13,7 +12,7 @@ import { getRoomSuggestions } from '@/lib/roomSuggestions';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
-import { BRAND } from '@/lib/branding';
+import AppShell from './AppShell';
 import StandeeEstimator from './estimators/StandeeEstimator';
 import LedEstimator, { LedModelPreset } from './estimators/LedEstimator';
 import ConferenceEstimator, { ModelPreset } from './estimators/ConferenceEstimator';
@@ -409,37 +408,20 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
     setStepError('');
   }
 
-  async function handleLogout() {
-    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
-    router.push('/login');
-    router.refresh();
-  }
 
   const isAv = domain === 'av';
   const showScaffolding = isAv && (avProjectType === 'standee' || avProjectType === 'led');
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>New Quotation</h1>
-            <div className={historyStyles.sub}>Configure a product, add it to the quote, and generate a client-ready PDF.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+    <AppShell title="New Quotation" subtitle="Configure a product, add it to the quote, and generate a client-ready PDF.">
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
           <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role] || styles.rolePillUser}`}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
           {currentUser.role !== 'user' && currentUser.role !== 'engineer' && currentUser.role !== 'backoffice' && currentUser.role !== 'marketing' && currentUser.role !== 'accounts' && currentUser.role !== 'hr' && (
             <Link className={historyStyles.button} href="/quotation-history" target="_blank" rel="noreferrer">
               Quotation History
             </Link>
           )}
-          <Link className={historyStyles.button} href="/">&larr; Back to Dashboard</Link>
-          <button type="button" className={historyStyles.button} onClick={handleLogout}>Log out</button>
         </div>
-      </header>
-      <main className={historyStyles.main}>
         {revisingFrom && (
           <div className={styles.sectionPanel} style={{ border: '1px solid #dc2626', background: '#fef2f2' }}>
             <div style={{ fontWeight: 700, color: '#b91c1c', marginBottom: 6 }}>
@@ -793,8 +775,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
             </button>
           )}
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }
 

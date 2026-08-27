@@ -2,10 +2,9 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { CustomFieldDef, CustomFieldType, CustomModuleDef, RoleRecord, UserRole } from '@/lib/types';
-import { BRAND } from '@/lib/branding';
 import { MODULE_ICON_OPTIONS, resolveModuleIcon } from '@/lib/icons';
+import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -181,21 +180,7 @@ export default function CustomModuleBuilderPage() {
   }
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>Custom Module Builder</h1>
-            <div className={historyStyles.sub}>Administration &rsaquo; create new business modules — fields, approval, and permissions — without writing code.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link className={historyStyles.button} href="/admin/modules">Module Manager</Link>
-          <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
-        </div>
-      </header>
-      <main className={historyStyles.main}>
+    <AppShell title="Custom Module Builder" subtitle="Administration › create new business modules — fields, approval, and permissions — without writing code.">
         <div className={historyStyles.status}>{status}</div>
 
         {editingId ? (
@@ -336,7 +321,6 @@ export default function CustomModuleBuilderPage() {
             </tbody>
           </table>
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }

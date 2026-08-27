@@ -32,6 +32,24 @@ function parseDescription(desc: string): { description: string; vehicleType: str
 
 const TRAVEL_TYPES = new Set(['Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket']);
 
+// Column widths are in "characters" for the default font, roughly matching
+// the 10pt Calibri used throughout this sheet. Rows have a fixed height and
+// cells don't auto-wrap, so a long Description or an Employee list with
+// several names silently overflows into the next (non-blank) column and
+// gets visually cropped there — this estimates how many wrapped lines a
+// value needs at a given column width so the row can be sized to fit it.
+function estimateLineCount(text: string, colWidthChars: number): number {
+  if (!text) return 1;
+  const effectiveWidth = Math.max(colWidthChars - 2, 4);
+  // Pad the estimate — under-sizing looks identical to the cropping bug
+  // this exists to fix, over-sizing just leaves a little extra whitespace.
+  return Math.max(1, Math.ceil((text.length * 1.15) / effectiveWidth));
+}
+
+function rowHeightForLines(lines: number): number {
+  return Math.max(22, lines * 15);
+}
+
 function isTravel(desc: string): boolean {
   const { description } = parseDescription(desc);
   return TRAVEL_TYPES.has(description);
@@ -206,14 +224,16 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
     for (let i = 0; i < travelRecords.length; i++) {
       const rec = travelRecords[i];
       const { description, vehicleType } = parseDescription(rec.description || '');
+      const employeeText = rec.employee_names.join(', ');
+      const lines = Math.max(estimateLineCount(description, 22), estimateLineCount(employeeText, 16));
       const row = ws.getRow(r);
-      row.height = 22;
+      row.height = rowHeightForLines(lines);
       const rowFill = i % 2 === 0 ? whiteFill : lightGrayFill;
 
       setCell(row, 1, fmtDateShort(rec.date), { fill: rowFill, alignment: { horizontal: 'center' } });
-      setCell(row, 2, description, { fill: rowFill });
+      setCell(row, 2, description, { fill: rowFill, alignment: { wrapText: true } });
       setCell(row, 3, vehicleType, { fill: rowFill, alignment: { horizontal: 'center' } });
-      setCell(row, 4, rec.employee_names.join(', '), { fill: rowFill });
+      setCell(row, 4, employeeText, { fill: rowFill, alignment: { wrapText: true } });
       setCell(row, 5, rec.from_location || '', { fill: rowFill });
       setCell(row, 6, rec.to_location || '', { fill: rowFill });
       setCell(row, 7, rec.kilometers ? String(rec.kilometers) : '', { fill: rowFill, alignment: { horizontal: 'center' } });
@@ -275,15 +295,18 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
     let otherTotal = 0;
     for (let i = 0; i < otherRecords.length; i++) {
       const rec = otherRecords[i];
+      const description = rec.description || '';
+      const employeeText = rec.employee_names.join(', ');
+      const lines = Math.max(estimateLineCount(description, 52), estimateLineCount(employeeText, 43));
       const row = ws.getRow(r);
-      row.height = 22;
+      row.height = rowHeightForLines(lines);
       const rowFill = i % 2 === 0 ? whiteFill : lightGrayFill;
 
       setCell(row, 1, fmtDateShort(rec.date), { fill: rowFill, alignment: { horizontal: 'center' } });
       ws.mergeCells(r, 2, r, 4);
-      setCell(row, 2, rec.description || '', { fill: rowFill });
+      setCell(row, 2, description, { fill: rowFill, alignment: { wrapText: true } });
       ws.mergeCells(r, 5, r, 7);
-      setCell(row, 5, rec.employee_names.join(', '), { fill: rowFill });
+      setCell(row, 5, employeeText, { fill: rowFill, alignment: { wrapText: true } });
       setCell(row, 8, Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
       setCell(row, 9, rec.mode_of_payment || '', { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
       applyBorders(row, 1, 9);
@@ -359,18 +382,20 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
     let adminTotal = 0;
     for (let i = 0; i < adminRecords.length; i++) {
       const rec = adminRecords[i];
-      const row = ws.getRow(r);
-      row.height = 22;
-      const rowFill = i % 2 === 0 ? adminBgFill : whiteFill;
       const route = rec.description === 'Hotel'
         ? (rec.from_location || '')
         : `${rec.from_location || ''} → ${rec.to_location || ''}`;
+      const description = rec.description || '';
+      const lines = Math.max(estimateLineCount(description, 36), estimateLineCount(route, 33));
+      const row = ws.getRow(r);
+      row.height = rowHeightForLines(lines);
+      const rowFill = i % 2 === 0 ? adminBgFill : whiteFill;
 
       setCell(row, 1, fmtDateShort(rec.date), { fill: rowFill, alignment: { horizontal: 'center' } });
       ws.mergeCells(r, 2, r, 3);
-      setCell(row, 2, rec.description || '', { fill: rowFill });
+      setCell(row, 2, description, { fill: rowFill, alignment: { wrapText: true } });
       ws.mergeCells(r, 4, r, 5);
-      setCell(row, 4, route, { fill: rowFill });
+      setCell(row, 4, route, { fill: rowFill, alignment: { wrapText: true } });
       setCell(row, 6, rec.admin_total_amount || Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
       setCell(row, 7, rec.admin_split_count ? `÷ ${rec.admin_split_count}` : '', { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
       setCell(row, 8, Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });

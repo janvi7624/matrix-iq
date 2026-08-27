@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { PublicUser, RoleRecord } from '@/lib/types';
-import { BRAND } from '@/lib/branding';
+import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 
@@ -89,25 +88,14 @@ export default function EmployeeProfilePage() {
   const roleLabel = roles.find((r) => r.key === user?.role)?.label || user?.role || '-';
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/admin/users" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>{user ? user.name : 'Employee Profile'}</h1>
-            <div className={historyStyles.sub}>Administration &rsaquo; User Management &rsaquo; Employee Profile</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {user && (
+    <AppShell title={user ? user.name : 'Employee Profile'} subtitle="Administration › User Management › Employee Profile">
+        {user && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
             <Link className={historyStyles.button} href={`/admin/performance-review?user=${encodeURIComponent(user.username)}`}>
               View Full Performance Review →
             </Link>
-          )}
-          <Link className={historyStyles.button} href="/admin/users">Back to Directory</Link>
-        </div>
-      </header>
-      <main className={historyStyles.main}>
+          </div>
+        )}
         {user === undefined && <div className={historyStyles.status}>Loading profile...</div>}
         {user === null && <div className={historyStyles.status}>Employee not found.</div>}
         {user && (
@@ -174,7 +162,6 @@ export default function EmployeeProfilePage() {
             )}
           </>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }

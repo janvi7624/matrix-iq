@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { BRAND } from '@/lib/branding';
 import { CATALOGS, CatalogDef, CreateFieldDef, findCatalog, PriceFieldDef } from '@/lib/catalogRegistry';
 import { AI_SLAB_LABELS } from '@/lib/data/aiAnalytics';
 import { CatalogOverrideRow } from '@/lib/catalogOverrides';
+import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -453,21 +451,7 @@ export default function ProductCatalogPage() {
   const activeCatalog = findCatalog(activeId)!;
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>Product Catalog</h1>
-            <div className={historyStyles.sub}>Administration &rsaquo; rename or reprice any AV, Robotics, AI Analytics &amp; VisitIQ product used in quotations.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link className={historyStyles.button} href="/admin/products">Product Master</Link>
-          <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
-        </div>
-      </header>
-      <main className={historyStyles.main}>
+    <AppShell title="Product Catalog" subtitle="Administration › rename or reprice any AV, Robotics, AI Analytics & VisitIQ product used in quotations.">
         <div className={historyStyles.status}>{status}</div>
         <div className={historyStyles.status}>
           Changes here apply to every NEW quotation from now on — a quotation already saved keeps whatever price/name it had at the time it was created.
@@ -502,7 +486,6 @@ export default function ProductCatalogPage() {
             {renderAddSection(CONFERENCE_ACCESSORY)}
           </>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }
