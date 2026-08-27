@@ -11,7 +11,11 @@ module.exports = (sequelize, DataTypes) => {
     amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     mode_of_payment: { type: DataTypes.STRING },
     amount_in_words: { type: DataTypes.STRING(500) },
-    attachment_urls: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
+    attachment_urls: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    is_admin_entry: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    admin_note: { type: DataTypes.TEXT },
+    admin_total_amount: { type: DataTypes.DECIMAL(12, 2) },
+    admin_split_count: { type: DataTypes.INTEGER }
   }, {
     tableName: 'reimbursements',
     underscored: true,

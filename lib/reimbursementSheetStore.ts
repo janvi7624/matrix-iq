@@ -7,7 +7,7 @@ const MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
 const INCLUDE_USERS = [
-  { model: db.User, as: 'creator', attributes: ['id', 'username', 'name', 'employeeId', 'department'] },
+  { model: db.User, as: 'creator', attributes: ['id', 'username', 'name', 'employeeId', 'department', 'designation'] },
   { model: db.User, as: 'manager', attributes: ['id', 'username', 'name'] },
   { model: db.User, as: 'hrReviewer', attributes: ['id', 'username', 'name'] },
   { model: db.User, as: 'accountsHandler', attributes: ['id', 'username', 'name'] },
@@ -26,13 +26,15 @@ async function computeTotals(createdBy: string, year: number, month: number) {
 
   const rows = await db.Reimbursement.findAll({
     where: { created_by: createdBy, date: { [Op.gte]: startDate, [Op.lt]: endDate } } as never,
-    attributes: ['amount'],
+    attributes: ['amount', 'is_admin_entry'],
   });
 
   let total = 0;
   let count = 0;
   for (const r of rows) {
-    total += Number((r.get({ plain: true }) as Record<string, unknown>).amount) || 0;
+    const plain = r.get({ plain: true }) as Record<string, unknown>;
+    if (plain.is_admin_entry) continue;
+    total += Number(plain.amount) || 0;
     count++;
   }
   return { total: Math.round(total * 100) / 100, count, totalInWords: numberToIndianWords(total) };
@@ -51,6 +53,7 @@ function toRecord(row: Model, totals: { total: number; count: number; totalInWor
     creator_name: (creator?.name as string) || (creator?.username as string) || '',
     creator_employee_id: (creator?.employeeId as string) || '',
     creator_department: (creator?.department as string) || '',
+    creator_designation: (creator?.designation as string) || '',
     sheet_code: (p.sheet_code as string) || '',
     month: p.month as number,
     year: p.year as number,

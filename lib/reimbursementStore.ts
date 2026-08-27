@@ -21,7 +21,11 @@ function toRecord(row: Model, companionMap?: Map<string, string>): Reimbursement
     amount: Number(p.amount) || 0,
     mode_of_payment: (p.mode_of_payment as string) ?? '',
     amount_in_words: (p.amount_in_words as string) ?? '',
-    attachment_urls: (p.attachment_urls as string[]) ?? []
+    attachment_urls: (p.attachment_urls as string[]) ?? [],
+    is_admin_entry: (p.is_admin_entry as boolean) ?? false,
+    admin_note: (p.admin_note as string) ?? '',
+    admin_total_amount: Number(p.admin_total_amount) || 0,
+    admin_split_count: Number(p.admin_split_count) || 0,
   };
 }
 
@@ -47,7 +51,8 @@ async function list(viewerUsername: string, isPrivileged: boolean, year: number,
   const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
 
   const where: Record<string, unknown> = {
-    date: { [Op.gte]: startDate, [Op.lt]: endDate }
+    date: { [Op.gte]: startDate, [Op.lt]: endDate },
+    is_admin_entry: false,
   };
 
   if (!isPrivileged) {
