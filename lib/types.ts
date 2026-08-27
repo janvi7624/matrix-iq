@@ -44,8 +44,11 @@ export interface Discount {
 export interface CustomProduct {
   id: number;
   name: string;
+  description: string;
+  unit: string;
   qty: number;
   price: number;
+  remarks: string;
 }
 
 export interface SiItem {
@@ -736,7 +739,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet';
   entity_id: string;
   action: string;
   previous_status: string;

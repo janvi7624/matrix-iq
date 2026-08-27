@@ -47,12 +47,15 @@ export function composeQuote(params: {
       const price = Number(item.price) || 0;
       const amount = qty * price;
       customProductsTotal += amount;
+      const name = item.name && item.name.trim() ? item.name.trim() : 'Custom product';
+      const spec = item.description && item.description.trim() ? ` — ${item.description.trim()}` : '';
+      const remark = item.remarks && item.remarks.trim() ? ` (${item.remarks.trim()})` : '';
       lineItems.push({
-        description: item.name && item.name.trim() ? item.name.trim() : 'Custom product',
+        description: `${name}${spec}${remark}`,
         qty,
         rate: price,
         amount,
-        unit: 'Nos'
+        unit: item.unit && item.unit.trim() ? item.unit.trim() : 'Nos'
       });
     });
     productGroups.push({ label: 'Custom products', start, end: lineItems.length });

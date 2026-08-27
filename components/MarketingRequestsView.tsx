@@ -537,8 +537,11 @@ function MarketingRequestRow({
                 </div>
               )}
 
-              {/* 3-Way Context Summary Bar */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 14 }}>
+              {/* 3-Way Context Summary Bar — uses the shared, already-responsive
+                  summaryCardGrid container (2 columns at <=640px) instead of a
+                  bare inline auto-fit/minmax grid with no mobile override;
+                  each card keeps its own distinct inline background/border. */}
+              <div className={historyStyles.summaryCardGrid} style={{ marginBottom: 14, marginTop: 0 }}>
                 <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Original Requester</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>{r.creator_name || r.created_by}</div>
@@ -1366,8 +1369,10 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
 
       {mode === 'list' && (
         <>
-          {/* Triage & Stage Quick Metric Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
+          {/* Triage & Stage Quick Metric Cards — shared quickActionGrid
+              container for the same reason as the summary bar above: gets
+              the existing <=640px 2-column override for free. */}
+          <div className={historyStyles.quickActionGrid} style={{ marginBottom: 16, marginTop: 0 }}>
             <button
               type="button"
               onClick={() => setTab('all')}

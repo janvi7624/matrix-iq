@@ -54,7 +54,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'quotation', label: 'New Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', icon: 'file-text', href: '/quotation', section: 'Sales', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'my-quotations', label: 'Existing Quotations', desc: "Every quotation you've created, with status, versions, and follow-ups.", icon: 'clipboard-list', href: '/my-quotations', section: 'Sales', order: 3, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: 'map-pin', href: '/site-visits', section: 'Sales', order: 4, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
-  { key: 'leads', label: 'Lead Capture', desc: 'Scan a business card at an event and qualify the lead on the spot.', icon: 'contact', href: '/leads', section: 'Sales', order: 6, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  { key: 'leads', label: 'Lead Capture / Inquiry', desc: 'Scan a business card at an event, or bulk-import from CSV or multiple photos, and qualify each lead on the spot.', icon: 'contact', href: '/leads', section: 'Sales', order: 6, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: 'monitor', href: '/demo-schedule', section: 'Sales', order: 7, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'hr-dashboard', label: 'HR Dashboard', desc: 'Upcoming birthdays and work anniversaries.', icon: 'cake', href: '/hr-dashboard', section: 'HR', order: 0, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
@@ -122,11 +122,13 @@ const NEW_DEFAULT_ICONS = new Map(SEED_MODULES.map((m) => [m.key, m.icon]));
 // default exactly, so an admin's own custom label is never overwritten.
 const FORCED_RELABELS: Record<string, string> = {
   quotation: 'New Quotation',
-  'my-quotations': 'Existing Quotations'
+  'my-quotations': 'Existing Quotations',
+  leads: 'Lead Capture / Inquiry'
 };
 const OLD_DEFAULT_LABELS: Record<string, string> = {
   quotation: 'Quotation',
-  'my-quotations': 'My Quotations'
+  'my-quotations': 'My Quotations',
+  leads: 'Lead Capture'
 };
 
 // CRM was merged into Projects (section 23) — its own module tile/route no

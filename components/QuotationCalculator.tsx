@@ -129,10 +129,16 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
   const toast = useToast();
   const [wizardStep, setWizardStep] = useState(0);
   const [stepError, setStepError] = useState('');
+  // Purely a UX affordance — collapses the standard-catalog picker out of the
+  // way for a custom-only quote. Never gates saving: cartItems and
+  // customProducts both always count toward "has at least one product," and
+  // switching back to Standard (or just expanding the collapsed catalog
+  // section) never clears anything, so mixed quotations keep working.
+  const [quotationMode, setQuotationMode] = useState<'standard' | 'custom'>('standard');
 
   function goNext() {
-    if (wizardStep === 0 && cartItems.length === 0) {
-      setStepError('Add at least one product to the quote before continuing.');
+    if (wizardStep === 0 && cartItems.length === 0 && customProducts.length === 0) {
+      setStepError('Add at least one product (standard or custom) to the quote before continuing.');
       return;
     }
     if (wizardStep === 1 && !details.clientName.trim() && !details.clientCompany.trim()) {
@@ -472,7 +478,25 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
         {wizardStep === 0 && (
           <div className={historyStyles.wizardCard}>
             <h2 className={historyStyles.wizardCardTitle}><Package size={22} /> Build the Quote</h2>
-            <div className={historyStyles.wizardCardHint}>Pick a product, configure it below, then add it to the quote. Repeat to add more products to the same quote.</div>
+            <div className={historyStyles.wizardCardHint}>
+              {quotationMode === 'custom'
+                ? 'Add one or more custom line items below — no catalog product is required. You can still add standard products too, if this quote is a mix of both.'
+                : 'Pick a product, configure it below, then add it to the quote. Repeat to add more products to the same quote.'}
+            </div>
+
+            <div className={styles.field} style={{ marginBottom: 4 }}>
+              <label className={styles.label}>Create New Quotation</label>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                  <input type="radio" name="quotationMode" checked={quotationMode === 'standard'} onChange={() => setQuotationMode('standard')} />
+                  Standard Product Quotation
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                  <input type="radio" name="quotationMode" checked={quotationMode === 'custom'} onChange={() => setQuotationMode('custom')} />
+                  Custom Product Quotation
+                </label>
+              </div>
+            </div>
 
             <div className={styles.sectionPanel}>
               <div className={`${styles.row} ${styles.columns}`}>
@@ -498,37 +522,76 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
                   {selectedProject && <div className={styles.small}>Stage: {PROJECT_STAGE_LABEL[selectedProject.stage]}</div>}
                 </div>
               </div>
-              <div className={`${styles.row} ${styles.columns}`}>
-                <div className={styles.field}>
-                  <label className={styles.label} htmlFor="domainSelect">What are you quoting?</label>
-                  <select id="domainSelect" className={styles.formControl} value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey | '')}>
-                    <option value="">-- Choose a product category --</option>
-                    <option value="av">AV</option>
-                    <option value="robotics">Robotics</option>
-                    <option value="ai">AI Video Analytics (Video Management System)</option>
-                    <option value="si">System Integration</option>
-                    <option value="visitiq">VisitIQ VMS (Visitor Management System)</option>
-                  </select>
+              {quotationMode === 'custom' ? (
+                <details>
+                  <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', padding: '4px 0' }}>
+                    + Also add Standard Product Quotation items (optional)
+                  </summary>
+                  <div className={`${styles.row} ${styles.columns}`} style={{ marginTop: 12 }}>
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="domainSelect">What are you quoting?</label>
+                      <select id="domainSelect" className={styles.formControl} value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey | '')}>
+                        <option value="">-- Choose a product category --</option>
+                        <option value="av">AV</option>
+                        <option value="robotics">Robotics</option>
+                        <option value="ai">AI Video Analytics (Video Management System)</option>
+                        <option value="si">System Integration</option>
+                        <option value="visitiq">VisitIQ VMS (Visitor Management System)</option>
+                      </select>
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="projectVertical">Client&apos;s industry (optional)</label>
+                      <select
+                        id="projectVertical"
+                        className={styles.formControl}
+                        value={details.projectVertical}
+                        onChange={(e) => setDetails((d) => ({ ...d, projectVertical: e.target.value }))}
+                      >
+                        <option value="">Not specified</option>
+                        <option value="Corporate">Corporate</option>
+                        <option value="Retail">Retail</option>
+                        <option value="Education">Education</option>
+                        <option value="Hospitality">Hospitality</option>
+                        <option value="Healthcare">Healthcare</option>
+                        <option value="Government">Government</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                </details>
+              ) : (
+                <div className={`${styles.row} ${styles.columns}`}>
+                  <div className={styles.field}>
+                    <label className={styles.label} htmlFor="domainSelect">What are you quoting?</label>
+                    <select id="domainSelect" className={styles.formControl} value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey | '')}>
+                      <option value="">-- Choose a product category --</option>
+                      <option value="av">AV</option>
+                      <option value="robotics">Robotics</option>
+                      <option value="ai">AI Video Analytics (Video Management System)</option>
+                      <option value="si">System Integration</option>
+                      <option value="visitiq">VisitIQ VMS (Visitor Management System)</option>
+                    </select>
+                  </div>
+                  <div className={styles.field}>
+                    <label className={styles.label} htmlFor="projectVertical">Client&apos;s industry (optional)</label>
+                    <select
+                      id="projectVertical"
+                      className={styles.formControl}
+                      value={details.projectVertical}
+                      onChange={(e) => setDetails((d) => ({ ...d, projectVertical: e.target.value }))}
+                    >
+                      <option value="">Not specified</option>
+                      <option value="Corporate">Corporate</option>
+                      <option value="Retail">Retail</option>
+                      <option value="Education">Education</option>
+                      <option value="Hospitality">Hospitality</option>
+                      <option value="Healthcare">Healthcare</option>
+                      <option value="Government">Government</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
                 </div>
-                <div className={styles.field}>
-                  <label className={styles.label} htmlFor="projectVertical">Client&apos;s industry (optional)</label>
-                  <select
-                    id="projectVertical"
-                    className={styles.formControl}
-                    value={details.projectVertical}
-                    onChange={(e) => setDetails((d) => ({ ...d, projectVertical: e.target.value }))}
-                  >
-                    <option value="">Not specified</option>
-                    <option value="Corporate">Corporate</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Education">Education</option>
-                    <option value="Hospitality">Hospitality</option>
-                    <option value="Healthcare">Healthcare</option>
-                    <option value="Government">Government</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-              </div>
+              )}
             </div>
 
             {isAv && (
@@ -641,8 +704,8 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
 
               <CustomProductsList
                 products={customProducts}
-                onAdd={() => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: '', qty: 1, price: 0 }])}
-                onAddFromCatalog={(product) => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: product.name, qty: product.defaultQty || 1, price: product.sellingPrice }])}
+                onAdd={() => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: '', description: '', unit: '', qty: 1, price: 0, remarks: '' }])}
+                onAddFromCatalog={(product) => setCustomProducts((prev) => [...prev, { id: nextId.current++, name: product.name, description: '', unit: '', qty: product.defaultQty || 1, price: product.sellingPrice, remarks: '' }])}
                 onChangeItem={(id, patch) => setCustomProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))}
                 onRemove={(id) => setCustomProducts((prev) => prev.filter((p) => p.id !== id))}
               />

@@ -17,7 +17,19 @@
    Structured so a future dark theme is a single added block that only
    redefines these tokens (e.g. `[data-theme="dark"] { --mx-surface: ... }`)
    — no dark theme ships yet, this is just leaving the door open.
-   Breakpoints (not tokenizable in plain CSS media queries): 768px, 1080px.
+   Breakpoints (not tokenizable in plain CSS media queries — custom
+   properties can't be used inside @media conditions): the de facto tier
+   convention across every .module.css file in this app is:
+     <=480px   phone
+     <=768px   mobile / small tablet (dominant, consistent "mobile" cutoff
+               used everywhere — Sidebar's drawer, AppShell padding, table
+               font-size, etc.)
+     769-1080px tablet (Sidebar's collapsed icon-only rail)
+     >1080px   desktop
+   Individual components add their own sub-breakpoints below 768px (720/
+   640/560/400px, etc.) for their own content — that's normal and doesn't
+   need to match this list; only the four tier boundaries above should stay
+   consistent when adding new responsive CSS.
 =========================================================================== */
 :root {
   /* Brand */
