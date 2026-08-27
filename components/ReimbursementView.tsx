@@ -137,7 +137,12 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [approvedTotalInWords, setApprovedTotalInWords] = useState('');
   const [approvedDetailLoading, setApprovedDetailLoading] = useState(false);
 
+  const [editingAmountId, setEditingAmountId] = useState<string | null>(null);
+  const [editingAmountValue, setEditingAmountValue] = useState('');
+  const [editingAmountLoading, setEditingAmountLoading] = useState(false);
+
   const isPrivileged = ['superadmin', 'admin', 'manager'].includes(currentUser.role);
+  const isHr = currentUser.role === 'hr';
   const canSeeAdminEntries = ['superadmin', 'admin', 'hr', 'accounts'].includes(currentUser.role);
   const myUserId = useMemo(() => users.find((u) => u.username === currentUser.username)?.id || '', [users, currentUser.username]);
 
@@ -379,6 +384,22 @@ export default function ReimbursementView({ currentUser }: Props) {
       console.error('Voucher export error:', error);
       toast.error('Failed to export voucher.');
     }
+  }
+
+  async function handleHrAmountEdit(recId: string) {
+    const amt = Number(editingAmountValue);
+    if (!amt || amt <= 0) { toast.error('Enter a valid amount.'); return; }
+    setEditingAmountLoading(true);
+    try {
+      const res = await fetch(`/api/reimbursement/${recId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: amt }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => null); toast.error(e?.error || 'Failed to update amount.'); return; }
+      toast.success('Amount updated.');
+      setEditingAmountId(null);
+      if (selectedPending) openPendingSheet(selectedPending);
+    } catch { toast.error('Failed to update amount.'); }
+    finally { setEditingAmountLoading(false); }
   }
 
   async function handleSheetAction(endpoint: string, body: Record<string, unknown>) {
@@ -1185,7 +1206,31 @@ export default function ReimbursementView({ currentUser }: Props) {
                           <td>{rec.from_location || <span style={{ opacity: 0.35 }}>—</span>}</td>
                           <td>{rec.to_location || <span style={{ opacity: 0.35 }}>—</span>}</td>
                           <td className={historyStyles.num}>{rec.kilometers || <span style={{ opacity: 0.35 }}>—</span>}</td>
-                          <td className={historyStyles.amount} style={{ fontWeight: 600 }}>₹{rec.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td className={historyStyles.amount} style={{ fontWeight: 600 }}>
+                            {editingAmountId === rec.id ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <input
+                                  type="number" step="0.01" min="0.01" autoFocus
+                                  value={editingAmountValue}
+                                  onChange={(e) => setEditingAmountValue(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') handleHrAmountEdit(rec.id); if (e.key === 'Escape') setEditingAmountId(null); }}
+                                  style={{ width: 90, padding: '3px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'right' }}
+                                  disabled={editingAmountLoading}
+                                />
+                                <button onClick={() => handleHrAmountEdit(rec.id)} disabled={editingAmountLoading} style={{ padding: '2px 6px', fontSize: '11px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>{editingAmountLoading ? '...' : 'Save'}</button>
+                                <button onClick={() => setEditingAmountId(null)} disabled={editingAmountLoading} style={{ padding: '2px 6px', fontSize: '11px', background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                                <span>{'₹'}{rec.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                {isHr && (
+                                  <button onClick={() => { setEditingAmountId(rec.id); setEditingAmountValue(String(rec.amount)); }} title="Edit amount" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--mx-ink-muted, #6b7280)', display: 'inline-flex' }}>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
                           <td>{rec.mode_of_payment ? <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-surface-sunken, #f3f4f6)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{rec.mode_of_payment}</span> : <span style={{ opacity: 0.35 }}>—</span>}</td>
                           <td>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>

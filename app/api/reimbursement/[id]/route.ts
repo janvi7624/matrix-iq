@@ -25,12 +25,28 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const existing = await reimbursementStore.findById(id);
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (existing.created_by !== viewer.username && !viewer.isPrivileged) {
+
+  const isHr = viewer.role === 'hr';
+  const isOwnerOrPrivileged = existing.created_by === viewer.username || viewer.isPrivileged;
+  if (!isOwnerOrPrivileged && !isHr) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+
+  // HR can only edit the amount field
+  if (isHr && !isOwnerOrPrivileged) {
+    if (body.amount === undefined) return NextResponse.json({ error: 'No amount provided' }, { status: 400 });
+    const amt = Number(body.amount);
+    if (!amt || amt <= 0) return NextResponse.json({ error: 'Amount must be greater than zero' }, { status: 400 });
+    try {
+      const updated = await reimbursementStore.update(id, { amount: amt, amount_in_words: numberToIndianWords(amt) });
+      return NextResponse.json(updated);
+    } catch (error) {
+      return apiErrorResponse(error);
+    }
+  }
 
   const patch: Record<string, unknown> = {};
   if (body.date !== undefined) patch.date = body.date;

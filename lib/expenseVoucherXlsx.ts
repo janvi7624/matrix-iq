@@ -84,6 +84,11 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
 
   const indianNumFmt = '#,##,##0.00';
 
+  function estimateRowHeight(text: string, colWidthChars: number): number {
+    const lines = Math.ceil(text.length / colWidthChars);
+    return Math.max(22, lines * 15);
+  }
+
   function setCell(row: any, col: number, value: string | number, opts?: { font?: any; fill?: any; alignment?: any; numFmt?: string }) {
     const cell = row.getCell(col);
     cell.value = value;
@@ -207,13 +212,14 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
       const rec = travelRecords[i];
       const { description, vehicleType } = parseDescription(rec.description || '');
       const row = ws.getRow(r);
-      row.height = 22;
+      const empText = rec.employee_names.join(', ');
+      row.height = estimateRowHeight(empText, 16);
       const rowFill = i % 2 === 0 ? whiteFill : lightGrayFill;
 
       setCell(row, 1, fmtDateShort(rec.date), { fill: rowFill, alignment: { horizontal: 'center' } });
       setCell(row, 2, description, { fill: rowFill });
       setCell(row, 3, vehicleType, { fill: rowFill, alignment: { horizontal: 'center' } });
-      setCell(row, 4, rec.employee_names.join(', '), { fill: rowFill });
+      setCell(row, 4, rec.employee_names.join(', '), { fill: rowFill, alignment: { wrapText: true } });
       setCell(row, 5, rec.from_location || '', { fill: rowFill });
       setCell(row, 6, rec.to_location || '', { fill: rowFill });
       setCell(row, 7, rec.kilometers ? String(rec.kilometers) : '', { fill: rowFill, alignment: { horizontal: 'center' } });
@@ -276,14 +282,15 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
     for (let i = 0; i < otherRecords.length; i++) {
       const rec = otherRecords[i];
       const row = ws.getRow(r);
-      row.height = 22;
+      const empText = rec.employee_names.join(', ');
+      row.height = estimateRowHeight(empText, 43);
       const rowFill = i % 2 === 0 ? whiteFill : lightGrayFill;
 
       setCell(row, 1, fmtDateShort(rec.date), { fill: rowFill, alignment: { horizontal: 'center' } });
       ws.mergeCells(r, 2, r, 4);
       setCell(row, 2, rec.description || '', { fill: rowFill });
       ws.mergeCells(r, 5, r, 7);
-      setCell(row, 5, rec.employee_names.join(', '), { fill: rowFill });
+      setCell(row, 5, rec.employee_names.join(', '), { fill: rowFill, alignment: { wrapText: true } });
       setCell(row, 8, Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
       setCell(row, 9, rec.mode_of_payment || '', { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
       applyBorders(row, 1, 9);
