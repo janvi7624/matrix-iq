@@ -18,12 +18,17 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 const DESCRIPTION_OPTIONS = ['Lunch', 'Dinner', 'Snacks', 'Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Hotel', 'Other'];
 
+const TRAVEL_DESCRIPTIONS = new Set(['Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket']);
+
+const VEHICLE_RATE: Record<string, number> = { '2 Wheeler': 4, '4 Wheeler': 8, 'Cab': 0 };
+
 const MODE_OPTIONS = ['Cash', 'UPI', 'Bank Transfer', 'Credit Card', 'Debit Card', 'Cheque', 'Other'];
 
 const EMPTY_FORM = {
   date: '', description: '', descriptionType: '' as string, employeeIds: [] as string[],
   fromLocation: '', toLocation: '', kilometers: '',
-  amount: '', modeOfPayment: '', attachmentUrls: [] as string[]
+  amount: '', modeOfPayment: '', attachmentUrls: [] as string[],
+  vehicleType: '' as string,
 };
 
 const STATUS_CONFIG: Record<ReimbursementSheetStatus, { label: string; color: string; bg: string; step: number }> = {
@@ -118,6 +123,8 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [pendingRecords, setPendingRecords] = useState<ReimbursementRecord[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingTotalInWords, setPendingTotalInWords] = useState('');
+  const [pendingAdminRecords, setPendingAdminRecords] = useState<ReimbursementRecord[]>([]);
+  const [pendingAdminTotal, setPendingAdminTotal] = useState(0);
   const [pendingDetailLoading, setPendingDetailLoading] = useState(false);
 
   const [approvedSheets, setApprovedSheets] = useState<ReimbursementSheetRecord[]>([]);
@@ -125,10 +132,14 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [selectedApproved, setSelectedApproved] = useState<ReimbursementSheetRecord | null>(null);
   const [approvedRecords, setApprovedRecords] = useState<ReimbursementRecord[]>([]);
   const [approvedTotal, setApprovedTotal] = useState(0);
+  const [approvedAdminRecords, setApprovedAdminRecords] = useState<ReimbursementRecord[]>([]);
+  const [approvedAdminTotal, setApprovedAdminTotal] = useState(0);
   const [approvedTotalInWords, setApprovedTotalInWords] = useState('');
   const [approvedDetailLoading, setApprovedDetailLoading] = useState(false);
 
   const isPrivileged = ['superadmin', 'admin', 'manager'].includes(currentUser.role);
+  const canSeeAdminEntries = ['superadmin', 'admin', 'hr', 'accounts'].includes(currentUser.role);
+  const myUserId = useMemo(() => users.find((u) => u.username === currentUser.username)?.id || '', [users, currentUser.username]);
 
   const sheetStatus = sheet?.status || 'draft';
   const canEdit = ['draft', 'manager_change_requested', 'hr_change_requested'].includes(sheetStatus);
@@ -176,6 +187,8 @@ export default function ReimbursementView({ currentUser }: Props) {
     setSelectedPending(s);
     setPendingDetailLoading(true);
     setPendingRecords([]);
+    setPendingAdminRecords([]);
+    setPendingAdminTotal(0);
     setActionRemarks('');
     setPaymentRef('');
     fetch(`/api/reimbursement/sheet/${s.id}/entries`)
@@ -185,6 +198,8 @@ export default function ReimbursementView({ currentUser }: Props) {
           setPendingRecords(data.records ?? []);
           setPendingTotal(data.total ?? 0);
           setPendingTotalInWords(data.totalInWords ?? '');
+          setPendingAdminRecords(data.adminRecords ?? []);
+          setPendingAdminTotal(data.adminTotal ?? 0);
           if (data.sheet) setSelectedPending(data.sheet);
         }
       })
@@ -205,6 +220,8 @@ export default function ReimbursementView({ currentUser }: Props) {
     setSelectedApproved(s);
     setApprovedDetailLoading(true);
     setApprovedRecords([]);
+    setApprovedAdminRecords([]);
+    setApprovedAdminTotal(0);
     fetch(`/api/reimbursement/sheet/${s.id}/entries`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
@@ -212,6 +229,8 @@ export default function ReimbursementView({ currentUser }: Props) {
           setApprovedRecords(data.records ?? []);
           setApprovedTotal(data.total ?? 0);
           setApprovedTotalInWords(data.totalInWords ?? '');
+          setApprovedAdminRecords(data.adminRecords ?? []);
+          setApprovedAdminTotal(data.adminTotal ?? 0);
           if (data.sheet) setSelectedApproved(data.sheet);
         }
       })
@@ -266,12 +285,18 @@ export default function ReimbursementView({ currentUser }: Props) {
     e.preventDefault();
     if (!form.date || !form.descriptionType || !form.amount) { toast.error('Date, description and amount are required.'); return; }
     if (form.descriptionType === 'Other' && !form.description.trim()) { toast.error('Please enter the description for "Other".'); return; }
+    if (form.descriptionType === 'Conveyance' && !form.vehicleType) { toast.error('Please select vehicle type (2 Wheeler or 4 Wheeler).'); return; }
+    if (form.descriptionType === 'Conveyance' && (!form.fromLocation.trim() || !form.toLocation.trim())) { toast.error('From and To are required for Conveyance.'); return; }
+    if (form.descriptionType === 'Conveyance' && form.vehicleType !== 'Cab' && !form.kilometers) { toast.error('Kilometers is required for 2 Wheeler / 4 Wheeler.'); return; }
     if (!form.employeeIds.length) { toast.error('Please select at least one employee.'); return; }
-    if (!form.attachmentUrls.length) { toast.error('Please attach at least one bill proof.'); return; }
+    const attachmentOptional = form.descriptionType === 'Conveyance' && (form.vehicleType === '2 Wheeler' || form.vehicleType === '4 Wheeler');
+    if (!attachmentOptional && !form.attachmentUrls.length) { toast.error('Please attach at least one bill proof.'); return; }
 
-    const fullDescription = form.descriptionType === 'Other'
-      ? form.description.trim()
-      : form.descriptionType;
+    const fullDescription = form.descriptionType === 'Conveyance' && form.vehicleType
+      ? `Conveyance (${form.vehicleType})`
+      : form.descriptionType === 'Other'
+        ? form.description.trim()
+        : form.descriptionType;
 
     setSaving(true);
     try {
@@ -305,18 +330,23 @@ export default function ReimbursementView({ currentUser }: Props) {
 
   function startEdit(rec: ReimbursementRecord) {
     if (!canEdit) { toast.error('Cannot edit — sheet has been submitted for approval.'); return; }
-    const knownType = DESCRIPTION_OPTIONS.find((o) => o !== 'Other' && rec.description === o);
+    const vehicleMatch = rec.description.match(/^Conveyance \((2 Wheeler|4 Wheeler)\)$/);
+    let descType: string;
+    let vehicle = '';
+    if (vehicleMatch) { descType = 'Conveyance'; vehicle = vehicleMatch[1]; }
+    else { const knownType = DESCRIPTION_OPTIONS.find((o) => o !== 'Other' && rec.description === o); descType = knownType || (rec.description ? 'Other' : ''); }
     setForm({
       date: rec.date,
-      descriptionType: knownType || (rec.description ? 'Other' : ''),
-      description: knownType ? '' : rec.description,
+      descriptionType: descType,
+      description: descType && descType !== 'Other' ? '' : rec.description,
       employeeIds: rec.employee_ids,
       fromLocation: rec.from_location,
       toLocation: rec.to_location,
       kilometers: rec.kilometers ? String(rec.kilometers) : '',
       amount: String(rec.amount),
       modeOfPayment: rec.mode_of_payment,
-      attachmentUrls: rec.attachment_urls
+      attachmentUrls: rec.attachment_urls,
+      vehicleType: vehicle,
     });
     setEditId(rec.id);
     setShowForm(true);
@@ -336,30 +366,19 @@ export default function ReimbursementView({ currentUser }: Props) {
     setShowForm(false);
   }
 
-  function exportCsv() {
-    if (!records.length) { toast.error('No entries to export.'); return; }
-    const header = ['#', 'Date', 'Description', 'Employee(s)', 'From', 'To', 'KM', 'Amount (₹)', 'Mode of Payment'];
-    const csvCell = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = records.map((rec, i) => [
-      i + 1,
-      rec.date,
-      csvCell(rec.description),
-      csvCell(rec.employee_names.join(', ')),
-      csvCell(rec.from_location),
-      csvCell(rec.to_location),
-      rec.kilometers || '',
-      rec.amount.toFixed(2),
-      csvCell(rec.mode_of_payment),
-    ].join(','));
-    rows.push(`,,,,,,,"${total.toFixed(2)}","${totalInWords}"`);
-    const csv = '﻿' + [header.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Reimbursement_${MONTHS[month - 1]}_${year}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async function downloadVoucher(sheetId: string) {
+    try {
+      const res = await fetch(`/api/reimbursement/sheet/${sheetId}/voucher`);
+      if (!res.ok) { toast.error('Failed to load voucher data.'); return; }
+      const data = await res.json();
+      if (!data.records?.length) { toast.error('No entries to export.'); return; }
+      const { generateExpenseVoucherXlsx } = await import('@/lib/expenseVoucherXlsx');
+      await generateExpenseVoucherXlsx(data);
+      toast.success('Expense Voucher downloaded.');
+    } catch (error) {
+      console.error('Voucher export error:', error);
+      toast.error('Failed to export voucher.');
+    }
   }
 
   async function handleSheetAction(endpoint: string, body: Record<string, unknown>) {
@@ -430,15 +449,15 @@ export default function ReimbursementView({ currentUser }: Props) {
           {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
         {canEdit && (
-          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => { setShowForm((v) => !v); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM }); } }}>
+          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => { setShowForm((v) => !v); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM, employeeIds: myUserId ? [myUserId] : [] }); } }}>
             {showForm ? 'Cancel' : '+ Add Entry'}
           </button>
         )}
         <button type="button" className={historyStyles.button} onClick={() => { fetchRecords(); fetchSheet(); }}>Refresh</button>
         {records.length > 0 && (
-          <button type="button" className={historyStyles.button} onClick={exportCsv} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <button type="button" className={historyStyles.button} onClick={() => sheet && downloadVoucher(sheet.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export CSV
+            Export Voucher
           </button>
         )}
       </div>
@@ -638,18 +657,62 @@ export default function ReimbursementView({ currentUser }: Props) {
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Description *</label>
-                <select className={calcStyles.formControl} required value={form.descriptionType} onChange={(e) => setForm((f) => ({ ...f, descriptionType: e.target.value, description: '' }))}>
+                <select className={calcStyles.formControl} required value={form.descriptionType} onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((f) => ({
+                    ...f, descriptionType: val, description: '', vehicleType: '',
+                    ...(val !== f.descriptionType ? { fromLocation: '', toLocation: '', kilometers: '', amount: '' } : {}),
+                  }));
+                }}>
                   <option value="">— Select type —</option>
                   {DESCRIPTION_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
                 {form.descriptionType === 'Other' && (
                   <input type="text" className={calcStyles.formControl} required value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Enter description" style={{ marginTop: 6 }} />
                 )}
+                {form.descriptionType === 'Conveyance' && (
+                  <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Vehicle Type *</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                    {Object.keys(VEHICLE_RATE).map((v) => (
+                      <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: form.vehicleType === v ? 700 : 500, color: form.vehicleType === v ? 'var(--mx-brand)' : '#374151', padding: '6px 12px', borderRadius: 'var(--mx-radius-sm)', border: form.vehicleType === v ? '2px solid var(--mx-brand)' : '1px solid var(--mx-border)', background: form.vehicleType === v ? 'var(--mx-brand-subtle)' : 'var(--mx-surface)', transition: 'all 0.15s ease' }}>
+                        <input type="radio" name="vehicleType" value={v} checked={form.vehicleType === v} style={{ display: 'none' }} onChange={() => {
+                          setForm((f) => {
+                            const km = Number(f.kilometers) || 0;
+                            const rate = VEHICLE_RATE[v];
+                            const isCab = v === 'Cab';
+                            return { ...f, vehicleType: v, amount: isCab ? '' : (km > 0 && rate > 0 ? String(km * rate) : ''), kilometers: isCab ? '' : f.kilometers };
+                          });
+                        }} />
+                        {v}{VEHICLE_RATE[v] > 0 ? ` (₹${VEHICLE_RATE[v]}/km)` : ''}
+                      </label>
+                    ))}
+                  </div>
+                  </>
+                )}
               </div>
             </div>
 
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Employees *</label>
+              <label className={calcStyles.label}>Employee(s) *</label>
+              {form.employeeIds.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                  {form.employeeIds.map((id) => {
+                    const user = users.find((u) => u.id === id);
+                    const isMe = id === myUserId;
+                    return (
+                      <span key={id} className={historyStyles.rolePill} style={{ background: isMe ? 'var(--mx-brand-subtle)' : 'var(--mx-info-subtle)', color: isMe ? 'var(--mx-brand)' : 'var(--mx-info)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {user?.name || user?.username || id}{isMe ? ' (You)' : ''}
+                        {!isMe && (
+                          <button type="button" onClick={() => setForm((f) => ({ ...f, employeeIds: f.employeeIds.filter((c) => c !== id) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, color: 'inherit', opacity: 0.7 }}>&times;</button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
               <select
                 className={calcStyles.formControl}
                 onChange={(e) => {
@@ -658,45 +721,45 @@ export default function ReimbursementView({ currentUser }: Props) {
                   e.target.value = '';
                 }}
               >
-                <option value="">— Select employee —</option>
+                <option value="">— Add companion (optional) —</option>
                 {users.filter((u) => !form.employeeIds.includes(u.id)).map((u) => (
                   <option key={u.id} value={u.id}>{u.name || u.username}</option>
                 ))}
               </select>
-              {form.employeeIds.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                  {form.employeeIds.map((id) => {
-                    const user = users.find((u) => u.id === id);
-                    return (
-                      <span key={id} className={historyStyles.rolePill} style={{ background: 'var(--mx-info-subtle)', color: 'var(--mx-info)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        {user?.name || user?.username || id}
-                        <button type="button" onClick={() => setForm((f) => ({ ...f, employeeIds: f.employeeIds.filter((c) => c !== id) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, color: 'inherit', opacity: 0.7 }}>&times;</button>
-                      </span>
-                    );
-                  })}
+            </div>
+
+            {TRAVEL_DESCRIPTIONS.has(form.descriptionType) && (
+              <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>From{form.descriptionType === 'Conveyance' ? ' *' : ''}</label>
+                  <input type="text" className={calcStyles.formControl} required={form.descriptionType === 'Conveyance'} value={form.fromLocation} onChange={(e) => setForm((f) => ({ ...f, fromLocation: e.target.value }))} placeholder="Origin location" />
                 </div>
-              )}
-            </div>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>To{form.descriptionType === 'Conveyance' ? ' *' : ''}</label>
+                  <input type="text" className={calcStyles.formControl} required={form.descriptionType === 'Conveyance'} value={form.toLocation} onChange={(e) => setForm((f) => ({ ...f, toLocation: e.target.value }))} placeholder="Destination location" />
+                </div>
+                {form.descriptionType === 'Conveyance' && form.vehicleType !== 'Cab' && (
+                  <div className={calcStyles.field}>
+                    <label className={calcStyles.label}>Kilometers *</label>
+                    <input type="text" inputMode="decimal" className={calcStyles.formControl} required value={form.kilometers} onChange={(e) => {
+                      const v = e.target.value;
+                      if (v !== '' && !/^\d*\.?\d*$/.test(v)) return;
+                      setForm((f) => {
+                        const km = Number(v) || 0;
+                        const rate = VEHICLE_RATE[f.vehicleType] || 0;
+                        const autoAmount = f.vehicleType && km > 0 ? String(km * rate) : f.amount;
+                        return { ...f, kilometers: v, amount: autoAmount };
+                      });
+                    }} placeholder="e.g. 12.5" />
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>From</label>
-                <input type="text" className={calcStyles.formControl} value={form.fromLocation} onChange={(e) => setForm((f) => ({ ...f, fromLocation: e.target.value }))} placeholder="Origin location" />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>To</label>
-                <input type="text" className={calcStyles.formControl} value={form.toLocation} onChange={(e) => setForm((f) => ({ ...f, toLocation: e.target.value }))} placeholder="Destination location" />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Kilometers</label>
-                <input type="text" inputMode="decimal" className={calcStyles.formControl} value={form.kilometers} onChange={(e) => { const v = e.target.value; if (v === '' || /^\d*\.?\d*$/.test(v)) setForm((f) => ({ ...f, kilometers: v })); }} placeholder="e.g. 12.5" />
-              </div>
-            </div>
-
-            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Amount (₹) *</label>
-                <input type="number" className={calcStyles.formControl} required value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} min="0.01" step="0.01" placeholder="0.00" />
+                <label className={calcStyles.label}>Amount (₹) *{form.descriptionType === 'Conveyance' && form.vehicleType && form.vehicleType !== 'Cab' ? ` — ${form.vehicleType} @ ₹${VEHICLE_RATE[form.vehicleType]}/km` : ''}</label>
+                <input type="number" className={calcStyles.formControl} required value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} min="0.01" step="0.01" placeholder="0.00" readOnly={form.descriptionType === 'Conveyance' && !!form.vehicleType && form.vehicleType !== 'Cab'} style={form.descriptionType === 'Conveyance' && form.vehicleType && form.vehicleType !== 'Cab' ? { background: 'var(--mx-surface-sunken)', cursor: 'not-allowed' } : undefined} />
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Mode of Payment</label>
@@ -715,7 +778,7 @@ export default function ReimbursementView({ currentUser }: Props) {
             )}
 
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Attachment (Bill Proof) *</label>
+              <label className={calcStyles.label}>Attachment (Bill Proof) {form.descriptionType === 'Conveyance' && (form.vehicleType === '2 Wheeler' || form.vehicleType === '4 Wheeler') ? '' : '*'}</label>
               <label
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -970,12 +1033,23 @@ export default function ReimbursementView({ currentUser }: Props) {
                           {sp.creator_department ? `${sp.creator_department} · ` : ''}{sp.sheet_code} · {MONTHS[sp.month - 1]} {sp.year}
                         </div>
                         <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--mx-ink)', marginTop: 6 }}>
-                          Total: ₹{sp.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({sp.total_in_words})
+                          Reimbursement Total: ₹{pendingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({pendingTotalInWords})
                         </div>
+                        {canSeeAdminEntries && pendingAdminTotal > 0 && (
+                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e40af', marginTop: 3 }}>
+                            Company Paid: ₹{pendingAdminTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (not in reimbursement)
+                          </div>
+                        )}
                       </div>
-                      <span style={{ padding: '4px 14px', borderRadius: 20, background: cfg.color, color: '#fff', fontSize: '12px', fontWeight: 700 }}>
-                        {cfg.label}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button type="button" className={historyStyles.button} onClick={() => downloadVoucher(sp.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '12px', padding: '5px 12px' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Download Voucher
+                        </button>
+                        <span style={{ padding: '4px 14px', borderRadius: 20, background: cfg.color, color: '#fff', fontSize: '12px', fontWeight: 700 }}>
+                          {cfg.label}
+                        </span>
+                      </div>
                     </div>
 
                     <StepIndicator currentStep={cfg.step} status={sp.status} />
@@ -1141,6 +1215,70 @@ export default function ReimbursementView({ currentUser }: Props) {
                   </table>
                 </div>
               )}
+
+              {/* Admin Entries (Company Paid) — visible to HR/Accounts/Admin/Superadmin only */}
+              {canSeeAdminEntries && pendingAdminRecords.length > 0 && (
+                <div style={{ marginTop: 20 }}>
+                  <div style={{
+                    padding: '10px 16px', borderRadius: '8px 8px 0 0',
+                    background: '#dbeafe', border: '1px solid #93c5fd', borderBottom: 'none',
+                    fontSize: '13.5px', fontWeight: 700, color: '#1e40af',
+                  }}>
+                    Company Paid Expenses (Added by Admin) — Not included in reimbursement
+                  </div>
+                  <div className={historyStyles.tableWrap} style={{ borderRadius: '0 0 8px 8px' }}>
+                    <table className={historyStyles.table}>
+                      <thead>
+                        <tr style={{ background: '#eff6ff' }}>
+                          <th>#</th>
+                          <th>Date</th>
+                          <th>Description</th>
+                          <th>From</th>
+                          <th>To</th>
+                          <th style={{ textAlign: 'right' }}>Total</th>
+                          <th style={{ textAlign: 'center' }}>Split</th>
+                          <th style={{ textAlign: 'right' }}>Per Person</th>
+                          <th>Payment</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingAdminRecords.map((rec, i) => (
+                          <tr key={rec.id} style={{ background: i % 2 === 0 ? '#f8faff' : '#fff' }}>
+                            <td style={{ color: 'var(--mx-ink-faint)', fontSize: '12px' }}>{i + 1}</td>
+                            <td style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{formatDate(rec.date)}</td>
+                            <td>{rec.description || '—'}</td>
+                            <td>{rec.from_location || '—'}</td>
+                            <td>{rec.to_location || '—'}</td>
+                            <td style={{ textAlign: 'right', fontSize: '12px', color: 'var(--mx-ink-muted)' }}>
+                              {rec.admin_total_amount ? `₹${rec.admin_total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                            </td>
+                            <td style={{ textAlign: 'center', fontSize: '12px', color: 'var(--mx-ink-muted)' }}>
+                              {rec.admin_split_count ? `÷ ${rec.admin_split_count}` : '—'}
+                            </td>
+                            <td className={historyStyles.amount} style={{ fontWeight: 600, color: '#1e40af' }}>
+                              ₹{rec.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td>
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: '#dbeafe', fontSize: '11.5px', fontWeight: 600, color: '#1e40af', whiteSpace: 'nowrap' }}>
+                                {rec.mode_of_payment || 'Company Paid'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: '#eff6ff' }}>
+                          <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid #93c5fd', color: '#1e40af' }}>Company Paid Total</td>
+                          <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid #93c5fd', color: '#1e40af' }}>
+                            ₹{pendingAdminTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ borderTop: '2px solid #93c5fd' }} />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </>
@@ -1234,12 +1372,23 @@ export default function ReimbursementView({ currentUser }: Props) {
                           {sa.creator_department ? `${sa.creator_department} · ` : ''}{sa.sheet_code} · {MONTHS[sa.month - 1]} {sa.year}
                         </div>
                         <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--mx-ink)', marginTop: 6 }}>
-                          Total: ₹{sa.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({sa.total_in_words})
+                          Reimbursement Total: ₹{approvedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({approvedTotalInWords})
                         </div>
+                        {canSeeAdminEntries && approvedAdminTotal > 0 && (
+                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e40af', marginTop: 3 }}>
+                            Company Paid: ₹{approvedAdminTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (not in reimbursement)
+                          </div>
+                        )}
                       </div>
-                      <span style={{ padding: '4px 14px', borderRadius: 20, background: cfg.color, color: '#fff', fontSize: '12px', fontWeight: 700 }}>
-                        {cfg.label}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button type="button" className={historyStyles.button} onClick={() => downloadVoucher(sa.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '12px', padding: '5px 12px' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Download Voucher
+                        </button>
+                        <span style={{ padding: '4px 14px', borderRadius: 20, background: cfg.color, color: '#fff', fontSize: '12px', fontWeight: 700 }}>
+                          {cfg.label}
+                        </span>
+                      </div>
                     </div>
 
                     <StepIndicator currentStep={cfg.step} status={sa.status} />
@@ -1333,6 +1482,70 @@ export default function ReimbursementView({ currentUser }: Props) {
                       </tr>
                     </tfoot>
                   </table>
+                </div>
+              )}
+
+              {/* Admin Entries (Company Paid) — visible to HR/Accounts/Admin/Superadmin only */}
+              {canSeeAdminEntries && approvedAdminRecords.length > 0 && (
+                <div style={{ marginTop: 20 }}>
+                  <div style={{
+                    padding: '10px 16px', borderRadius: '8px 8px 0 0',
+                    background: '#dbeafe', border: '1px solid #93c5fd', borderBottom: 'none',
+                    fontSize: '13.5px', fontWeight: 700, color: '#1e40af',
+                  }}>
+                    Company Paid Expenses (Added by Admin) — Not included in reimbursement
+                  </div>
+                  <div className={historyStyles.tableWrap} style={{ borderRadius: '0 0 8px 8px' }}>
+                    <table className={historyStyles.table}>
+                      <thead>
+                        <tr style={{ background: '#eff6ff' }}>
+                          <th>#</th>
+                          <th>Date</th>
+                          <th>Description</th>
+                          <th>From</th>
+                          <th>To</th>
+                          <th style={{ textAlign: 'right' }}>Total</th>
+                          <th style={{ textAlign: 'center' }}>Split</th>
+                          <th style={{ textAlign: 'right' }}>Per Person</th>
+                          <th>Payment</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {approvedAdminRecords.map((rec, i) => (
+                          <tr key={rec.id} style={{ background: i % 2 === 0 ? '#f8faff' : '#fff' }}>
+                            <td style={{ color: 'var(--mx-ink-faint)', fontSize: '12px' }}>{i + 1}</td>
+                            <td style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{formatDate(rec.date)}</td>
+                            <td>{rec.description || '—'}</td>
+                            <td>{rec.from_location || '—'}</td>
+                            <td>{rec.to_location || '—'}</td>
+                            <td style={{ textAlign: 'right', fontSize: '12px', color: 'var(--mx-ink-muted)' }}>
+                              {rec.admin_total_amount ? `₹${rec.admin_total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                            </td>
+                            <td style={{ textAlign: 'center', fontSize: '12px', color: 'var(--mx-ink-muted)' }}>
+                              {rec.admin_split_count ? `÷ ${rec.admin_split_count}` : '—'}
+                            </td>
+                            <td className={historyStyles.amount} style={{ fontWeight: 600, color: '#1e40af' }}>
+                              ₹{rec.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td>
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: '#dbeafe', fontSize: '11.5px', fontWeight: 600, color: '#1e40af', whiteSpace: 'nowrap' }}>
+                                {rec.mode_of_payment || 'Company Paid'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: '#eff6ff' }}>
+                          <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid #93c5fd', color: '#1e40af' }}>Company Paid Total</td>
+                          <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid #93c5fd', color: '#1e40af' }}>
+                            ₹{approvedAdminTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ borderTop: '2px solid #93c5fd' }} />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
               )}
             </>

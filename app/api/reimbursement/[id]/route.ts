@@ -48,7 +48,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (body.modeOfPayment !== undefined) patch.mode_of_payment = typeof body.modeOfPayment === 'string' ? body.modeOfPayment.trim() : '';
   if (body.attachmentUrls !== undefined) {
     const urls = Array.isArray(body.attachmentUrls) ? body.attachmentUrls.filter((v: unknown) => typeof v === 'string') : [];
-    if (!urls.length) return NextResponse.json({ error: 'At least one attachment is required' }, { status: 400 });
+    const desc = typeof body.description === 'string' ? body.description.trim() : (patch.description as string || '');
+    const isConveyance2w4w = /^Conveyance \((2 Wheeler|4 Wheeler)\)$/.test(desc);
+    if (!isConveyance2w4w && !urls.length) return NextResponse.json({ error: 'At least one attachment is required' }, { status: 400 });
     patch.attachment_urls = urls;
   }
 

@@ -18,10 +18,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const creator = await findUserByUsername(sheet.created_by);
     if (!creator) return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
 
-    const records = await reimbursementStore.listByUserId(creator.id, sheet.year, sheet.month);
+    const allRecords = await reimbursementStore.listByUserId(creator.id, sheet.year, sheet.month);
+    const records = allRecords.filter((r) => !r.is_admin_entry);
     const total = records.reduce((sum, r) => sum + r.amount, 0);
 
-    return NextResponse.json({ sheet, records, total, totalInWords: numberToIndianWords(total) });
+    const canSeeAdmin = ['superadmin', 'admin', 'hr', 'accounts'].includes(viewer.role);
+    const adminRecords = canSeeAdmin ? allRecords.filter((r) => r.is_admin_entry) : [];
+    const adminTotal = adminRecords.reduce((sum, r) => sum + r.amount, 0);
+
+    return NextResponse.json({
+      sheet, records, total, totalInWords: numberToIndianWords(total),
+      adminRecords, adminTotal, adminTotalInWords: adminTotal > 0 ? numberToIndianWords(adminTotal) : '',
+    });
   } catch (error) {
     return apiErrorResponse(error);
   }

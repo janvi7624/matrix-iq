@@ -438,6 +438,10 @@ export interface ReimbursementRecord {
   mode_of_payment: string;
   amount_in_words: string;
   attachment_urls: string[];
+  is_admin_entry: boolean;
+  admin_note: string;
+  admin_total_amount: number;
+  admin_split_count: number;
 }
 
 export type ReimbursementSheetStatus =
@@ -455,6 +459,7 @@ export interface ReimbursementSheetRecord {
   creator_name: string;
   creator_employee_id: string;
   creator_department: string;
+  creator_designation: string;
   sheet_code: string;
   month: number;
   year: number;

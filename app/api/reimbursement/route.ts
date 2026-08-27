@@ -38,7 +38,8 @@ export async function POST(request: NextRequest) {
   if (!date) return NextResponse.json({ error: 'Date is required' }, { status: 400 });
   if (!description) return NextResponse.json({ error: 'Description is required' }, { status: 400 });
   if (!amount || amount <= 0) return NextResponse.json({ error: 'Amount must be greater than zero' }, { status: 400 });
-  if (!attachmentUrls.length) return NextResponse.json({ error: 'At least one attachment (bill proof) is required' }, { status: 400 });
+  const isConveyance2w4w = /^Conveyance \((2 Wheeler|4 Wheeler)\)$/.test(description);
+  if (!isConveyance2w4w && !attachmentUrls.length) return NextResponse.json({ error: 'At least one attachment (bill proof) is required' }, { status: 400 });
 
   try {
     const record = await reimbursementStore.create(viewer.username, {
