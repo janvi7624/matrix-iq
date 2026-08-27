@@ -82,13 +82,16 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
     for (let c = from; c <= to; c++) row.getCell(c).border = thinBorder;
   }
 
-  function setCell(row: any, col: number, value: string | number, opts?: { font?: any; fill?: any; alignment?: any }) {
+  const indianNumFmt = '#,##,##0.00';
+
+  function setCell(row: any, col: number, value: string | number, opts?: { font?: any; fill?: any; alignment?: any; numFmt?: string }) {
     const cell = row.getCell(col);
     cell.value = value;
     cell.font = opts?.font || normalFont;
     if (opts?.fill) cell.fill = opts.fill;
     cell.alignment = { vertical: 'middle', ...(opts?.alignment || {}) };
     cell.border = thinBorder;
+    if (opts?.numFmt) cell.numFmt = opts.numFmt;
   }
 
   // Load logo
@@ -106,19 +109,22 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
   titleRow.height = 36;
   ws.mergeCells(r, 1, r, 2);
   if (logoId !== null) {
-    const logoColWidth = (13 + 22) * 7.5;
+    const colAWidth = 13 * 7.5;
+    const colBWidth = 22 * 7.5;
+    const mergedWidth = colAWidth + colBWidth;
     const logoWidth = 120;
     const logoHeight = 34;
     const rowHeight = 36;
-    const xOffset = (logoColWidth - logoWidth) / 2;
-    const yOffset = (rowHeight - logoHeight) / 2;
+    const xPx = (mergedWidth - logoWidth) / 2;
+    const yPx = (rowHeight - logoHeight) / 2;
+    const colFraction = xPx < colAWidth ? xPx / colAWidth : 1 + (xPx - colAWidth) / colBWidth;
     ws.addImage(logoId, {
-      tl: { col: xOffset / (13 * 7.5), row: yOffset / rowHeight },
+      tl: { col: colFraction, row: yPx / rowHeight },
       ext: { width: logoWidth, height: logoHeight },
     });
   }
   ws.mergeCells(r, 3, r, 9);
-  setCell(titleRow, 3, 'Expense Voucher', { font: titleFont, alignment: { horizontal: 'center', vertical: 'middle' } });
+  setCell(titleRow, 3, 'Employee Expense Claim Form', { font: titleFont, alignment: { horizontal: 'center', vertical: 'middle' } });
   for (let c = 1; c <= 9; c++) titleRow.getCell(c).fill = yellowFill;
   applyBorders(titleRow, 1, 9);
   r++;
@@ -129,6 +135,7 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
   const headerRows: [string, string, string, string][] = [
     ['Emp. ID', data.employee.employeeId, 'Date', fmtDate(new Date().toISOString())],
     ['Emp. Name', data.employee.name, 'Department', data.employee.department],
+    ['Designation', data.employee.designation, 'Expense Period', `${monthNames[data.sheet.month]} - ${data.sheet.year}`],
   ];
 
   for (const [lLabel, lVal, rLabel, rVal] of headerRows) {
@@ -145,8 +152,6 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
   }
 
   const infoRows: [string, string][] = [
-    ['Designation', data.employee.designation],
-    ['Expense Period', `${monthNames[data.sheet.month]} ${data.sheet.year}`],
     ['Paid to', data.sheet.paidTo],
   ];
   for (const [label, val] of infoRows) {
@@ -212,7 +217,7 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
       setCell(row, 5, rec.from_location || '', { fill: rowFill });
       setCell(row, 6, rec.to_location || '', { fill: rowFill });
       setCell(row, 7, rec.kilometers ? String(rec.kilometers) : '', { fill: rowFill, alignment: { horizontal: 'center' } });
-      setCell(row, 8, Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
+      setCell(row, 8, Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
       setCell(row, 9, rec.mode_of_payment || '', { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
       applyBorders(row, 1, 9);
       travelTotal += Number(rec.amount);
@@ -223,12 +228,12 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
     const subRow = ws.getRow(r);
     subRow.height = 20;
     ws.mergeCells(r, 1, r, 7);
-    setCell(subRow, 1, 'Conveyance Subtotal', {
+    setCell(subRow, 1, 'Total Conveyance', {
       font: boldFont,
       fill: subtotalFill,
       alignment: { horizontal: 'right', vertical: 'middle' },
     });
-    setCell(subRow, 8, travelTotal, { font: { ...boldFont, size: 12 }, fill: subtotalFill, alignment: { horizontal: 'center', vertical: 'middle' } });
+    setCell(subRow, 8, travelTotal, { font: { ...boldFont, size: 12 }, fill: subtotalFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
     setCell(subRow, 9, '', { fill: subtotalFill });
     applyBorders(subRow, 1, 9);
     r++;
@@ -279,7 +284,7 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
       setCell(row, 2, rec.description || '', { fill: rowFill });
       ws.mergeCells(r, 5, r, 7);
       setCell(row, 5, rec.employee_names.join(', '), { fill: rowFill });
-      setCell(row, 8, Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
+      setCell(row, 8, Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
       setCell(row, 9, rec.mode_of_payment || '', { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
       applyBorders(row, 1, 9);
       otherTotal += Number(rec.amount);
@@ -290,12 +295,12 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
     const subRow = ws.getRow(r);
     subRow.height = 20;
     ws.mergeCells(r, 1, r, 7);
-    setCell(subRow, 1, 'Food, Hotel & Other Subtotal', {
+    setCell(subRow, 1, 'Food, Hotel & Other Expenses Total', {
       font: boldFont,
       fill: subtotalFill,
       alignment: { horizontal: 'right', vertical: 'middle' },
     });
-    setCell(subRow, 8, otherTotal, { font: { ...boldFont, size: 12 }, fill: subtotalFill, alignment: { horizontal: 'center', vertical: 'middle' } });
+    setCell(subRow, 8, otherTotal, { font: { ...boldFont, size: 12 }, fill: subtotalFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
     setCell(subRow, 9, '', { fill: subtotalFill });
     applyBorders(subRow, 1, 9);
     r++;
@@ -312,7 +317,7 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
   totalRow.height = 22;
   ws.mergeCells(r, 1, r, 7);
   setCell(totalRow, 1, `Rupees in Words: ${data.totalInWords} Only/-`, { font: boldFont, fill: lightYellowFill });
-  setCell(totalRow, 8, data.total, { font: { ...boldFont, size: 12 }, fill: lightYellowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
+  setCell(totalRow, 8, data.total, { font: { ...boldFont, size: 12 }, fill: lightYellowFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
   setCell(totalRow, 9, '', { fill: lightYellowFill });
   applyBorders(totalRow, 1, 9);
   r++;
@@ -366,9 +371,9 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
       setCell(row, 2, rec.description || '', { fill: rowFill });
       ws.mergeCells(r, 4, r, 5);
       setCell(row, 4, route, { fill: rowFill });
-      setCell(row, 6, rec.admin_total_amount || Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
+      setCell(row, 6, rec.admin_total_amount || Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
       setCell(row, 7, rec.admin_split_count ? `÷ ${rec.admin_split_count}` : '', { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
-      setCell(row, 8, Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
+      setCell(row, 8, Number(rec.amount), { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
       setCell(row, 9, rec.mode_of_payment || 'Company Paid', { fill: rowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
       applyBorders(row, 1, 9);
       adminTotal += Number(rec.amount);
@@ -378,12 +383,12 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
     const subRow = ws.getRow(r);
     subRow.height = 20;
     ws.mergeCells(r, 1, r, 7);
-    setCell(subRow, 1, 'Company Paid Subtotal', {
+    setCell(subRow, 1, 'Total', {
       font: boldFont,
       fill: subtotalFill,
       alignment: { horizontal: 'right', vertical: 'middle' },
     });
-    setCell(subRow, 8, adminTotal, { font: { ...boldFont, size: 12 }, fill: subtotalFill, alignment: { horizontal: 'center', vertical: 'middle' } });
+    setCell(subRow, 8, adminTotal, { font: { ...boldFont, size: 12 }, fill: subtotalFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
     setCell(subRow, 9, '', { fill: subtotalFill });
     applyBorders(subRow, 1, 9);
     r++;
@@ -405,7 +410,7 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
       fill: yellowFill,
       alignment: { horizontal: 'right', vertical: 'middle' },
     });
-    setCell(finalTotalRow, 8, finalTotal, { font: { ...boldFont, size: 13 }, fill: yellowFill, alignment: { horizontal: 'center', vertical: 'middle' } });
+    setCell(finalTotalRow, 8, finalTotal, { font: { ...boldFont, size: 13 }, fill: yellowFill, alignment: { horizontal: 'center', vertical: 'middle' }, numFmt: indianNumFmt });
     setCell(finalTotalRow, 9, '', { fill: yellowFill });
     applyBorders(finalTotalRow, 1, 9);
     r++;
@@ -508,7 +513,7 @@ export async function generateExpenseVoucherXlsx(data: VoucherData): Promise<voi
   r++;
   const note1Row = ws.getRow(r);
   ws.mergeCells(r, 1, r, 9);
-  setCell(note1Row, 1, 'Note:- Please attach the Original Bill / Payment receipt as proof.', { font: { ...smallFont, italic: true, color: { argb: 'FF6B7280' } } });
+  setCell(note1Row, 1, 'Note:- Bills / supporting proofs are digitally attached in the internal software, MatrixIQ.', { font: { ...smallFont, italic: true, color: { argb: 'FF6B7280' } } });
 
   // ── OUTER BORDER (medium) on the entire used range ──
   const lastRow = r;
