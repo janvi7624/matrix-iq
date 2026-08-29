@@ -1,0 +1,274 @@
+/* Department health detail dialog (components/DepartmentHealthDetail.tsx).
+   Sits on top of notify.module.css's .overlay/.wideCard, so only the content
+   inside the card is styled here. All colour/radius/shadow from --mx-* tokens. */
+
+.card {
+    /* Wider than the shared .wideCard default — this holds a per-member table,
+       not a short form. */
+    width: min(780px, 100%);
+}
+
+.head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.headText { flex: 1; min-width: 0; }
+.eyebrow {
+    font-size: 10.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--mx-ink-faint);
+}
+.title {
+    margin: 2px 0 0;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--mx-ink);
+    overflow-wrap: anywhere;
+}
+.description {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+    line-height: 1.5;
+}
+.closeBtn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+}
+.closeBtn:hover { background: var(--mx-gray-100); color: var(--mx-ink); }
+
+.loadingWrap { padding: 8px 0 20px; }
+
+/* ---------- Score ---------- */
+.scoreBlock {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 18px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border);
+}
+.scoreValue {
+    font-size: 2.6rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+.scoreMeta { min-width: 0; }
+.scoreBand { font-size: 14px; font-weight: 800; }
+.scoreSub { font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 3px; line-height: 1.45; }
+
+/* ---------- Band scale ---------- */
+/* Shows where the score falls relative to the two thresholds, which is the
+   part a bare percentage can't communicate. Widths come from the API's
+   thresholds object, so this can't drift from scoreBand() server-side. */
+.scale { margin: 14px 2px 4px; }
+.scaleTrack {
+    position: relative;
+    display: flex;
+    height: 10px;
+    border-radius: var(--mx-radius-full);
+    overflow: visible;
+}
+.zoneRed,
+.zoneYellow,
+.zoneGreen { height: 100%; }
+.zoneRed { background: var(--mx-danger); opacity: 0.3; border-radius: var(--mx-radius-full) 0 0 var(--mx-radius-full); }
+.zoneYellow { background: var(--mx-warning); opacity: 0.3; }
+.zoneGreen { background: var(--mx-success); opacity: 0.3; border-radius: 0 var(--mx-radius-full) var(--mx-radius-full) 0; }
+.scaleMarker {
+    position: absolute;
+    top: -4px;
+    width: 4px;
+    height: 18px;
+    margin-left: -2px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-surface);
+    border: 2px solid;
+    box-shadow: var(--mx-shadow-xs);
+}
+.scaleLabels {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-size: 10.5px;
+    color: var(--mx-ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+.scaleTick {
+    position: absolute;
+    transform: translateX(-50%);
+}
+
+/* ---------- Formula ---------- */
+.formula {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 16px 0 4px;
+    padding: 11px 13px;
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-info-subtle);
+    border: 1px solid var(--mx-blue-200);
+    font-size: 12.5px;
+    color: var(--mx-blue-800);
+    line-height: 1.5;
+}
+.formulaIcon { flex-shrink: 0; margin-top: 1px; }
+
+.sectionTitle {
+    margin: 20px 0 10px;
+    font-size: 11.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mx-ink-muted);
+}
+
+/* ---------- Department totals ---------- */
+.totalsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+.totalCard {
+    padding: 12px 14px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+}
+.totalValue {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--mx-ink);
+    font-variant-numeric: tabular-nums;
+}
+.totalLabel { font-size: 11.5px; color: var(--mx-ink-muted); margin-top: 3px; line-height: 1.4; }
+
+/* ---------- Managers ---------- */
+.managerRow { display: flex; gap: 8px; flex-wrap: wrap; }
+.managerChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px 5px 5px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-role-manager-subtle);
+    color: var(--mx-role-manager);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+.managerAvatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-role-manager);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+/* ---------- Members ---------- */
+.memberList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.member {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    border-radius: var(--mx-radius-md);
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
+}
+.memberAvatar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-slate-300);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+}
+.memberBody { flex: 1; min-width: 0; }
+.memberTop {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+.memberName {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--mx-ink);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.memberDesignation { font-weight: 500; color: var(--mx-ink-muted); }
+.memberScore {
+    font-size: 13.5px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.memberBar {
+    height: 6px;
+    margin-top: 7px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-gray-100);
+    overflow: hidden;
+}
+.memberBarFill {
+    display: block;
+    height: 100%;
+    border-radius: var(--mx-radius-full);
+    transition: width var(--mx-duration-slow) var(--mx-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+    .memberBarFill { transition: none; }
+}
+.memberMetrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin-top: 7px;
+    font-size: 11.5px;
+    color: var(--mx-ink-muted);
+}
+.memberMetric strong { color: var(--mx-ink); font-variant-numeric: tabular-nums; }
+
+.emptyNote {
+    margin: 12px 0 0;
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+    line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+    .scoreBlock { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .scoreValue { font-size: 2.2rem; }
+    .title { font-size: 1.2rem; }
+    .memberTop { flex-direction: column; align-items: flex-start; gap: 2px; }
+}

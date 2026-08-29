@@ -200,6 +200,48 @@
     color: var(--mx-ink-muted);
 }
 
+/* ---------- Department health ---------- */
+.healthHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.healthLegend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 22px 2px 4px;
+}
+.legendItem {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+    font-variant-numeric: tabular-nums;
+}
+.legendItem i {
+    width: 9px;
+    height: 9px;
+    border-radius: var(--mx-radius-full);
+    flex-shrink: 0;
+}
+/* Its own grid rather than the shared .kpiGrid — the gauge tiles carry an arc,
+   a headline metric and an affordance row now, so a 150px track squeezed them.
+   190px keeps 4-across on a desktop while giving the arc room to read. */
+.healthGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+}
+@media (max-width: 560px) {
+    .healthGrid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+}
+
 .tile {
     display: flex;
     flex-direction: column;

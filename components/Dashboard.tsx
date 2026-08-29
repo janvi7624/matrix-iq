@@ -8,6 +8,7 @@ import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import { formatMoney } from '@/lib/format';
 import AppShell from './AppShell';
 import HealthGauge from './ui/HealthGauge';
+import DepartmentHealthDetail from './DepartmentHealthDetail';
 import { BRAND } from '@/lib/branding';
 import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
@@ -81,6 +82,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [pendingHandovers, setPendingHandovers] = useState<ProjectHandoverRecord[]>([]);
   const [travelPendingCount, setTravelPendingCount] = useState<number>(0);
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  // Which department's health detail dialog is open, by name (null = none).
+  const [openHealthDepartment, setOpenHealthDepartment] = useState<string | null>(null);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
@@ -366,23 +369,53 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               see — org-wide gets every department, a department manager
               gets just their own, everyone else gets one personal gauge.
               See app/api/dashboard/health/route.ts + lib/departmentScoring.ts
-              for how scope/scoring is resolved. Click a gauge for the
-              numbers behind its score. */}
-          <div className={styles.sectionHeading}>
-            {health.scope === 'org'
-              ? 'Department Health'
-              : health.scope === 'department'
-                ? health.gauges.length === 1
-                  ? `${health.gauges[0].department} Team Health`
-                  : 'Team Health'
-                : 'Your Performance'}
+              for how scope/scoring is resolved. Clicking a gauge opens
+              DepartmentHealthDetail, which lazy-loads the per-member
+              breakdown from /api/dashboard/health/[department]. */}
+          <div className={styles.healthHead}>
+            <div className={styles.sectionHeading}>
+              {health.scope === 'org'
+                ? 'Department Health'
+                : health.scope === 'department'
+                  ? health.gauges.length === 1
+                    ? `${health.gauges[0].department} Team Health`
+                    : 'Team Health'
+                  : 'Your Performance'}
+            </div>
+            {/* Legend, so the band colours are readable without opening a gauge. */}
+            <div className={styles.healthLegend}>
+              <span className={styles.legendItem}><i style={{ background: 'var(--mx-danger)' }} /> Below 40</span>
+              <span className={styles.legendItem}><i style={{ background: 'var(--mx-warning)' }} /> 40–69</span>
+              <span className={styles.legendItem}><i style={{ background: 'var(--mx-success)' }} /> 70+</span>
+            </div>
           </div>
-          <div className={styles.kpiGrid}>
-            {health.gauges.map((g) => (
-              <HealthGauge key={g.department} label={g.department} score={g.score} band={g.band} breakdown={g.breakdown} />
-            ))}
+          <div className={styles.healthGrid}>
+            {[...health.gauges]
+              // Worst first: the gauge that needs attention shouldn't be
+              // whichever one happens to sort last alphabetically. Unscored
+              // ('na') departments go to the end rather than reading as 0%.
+              .sort((a, b) => {
+                if (a.band === 'na' && b.band === 'na') return a.department.localeCompare(b.department);
+                if (a.band === 'na') return 1;
+                if (b.band === 'na') return -1;
+                return a.score - b.score;
+              })
+              .map((g) => (
+                <HealthGauge
+                  key={g.department}
+                  label={g.department}
+                  score={g.score}
+                  band={g.band}
+                  breakdown={g.breakdown}
+                  onOpen={() => setOpenHealthDepartment(g.department)}
+                />
+              ))}
           </div>
         </>
+      )}
+
+      {openHealthDepartment && (
+        <DepartmentHealthDetail department={openHealthDepartment} onClose={() => setOpenHealthDepartment(null)} />
       )}
 
       <div className={styles.recentGrid}>

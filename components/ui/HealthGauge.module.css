@@ -1,70 +1,123 @@
+/* Department health gauge tile (components/ui/HealthGauge.tsx).
+   A real <button> rather than a div with role="button" — it gets keyboard
+   activation, the global focus ring and correct semantics for free. */
 .tile {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 14px 16px 16px;
+    width: 100%;
+    padding: 14px 14px 12px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
     border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-sm);
     cursor: pointer;
-    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+    font: inherit;
+    color: inherit;
+    text-align: center;
+    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
 }
 .tile:hover {
-    transform: translateY(-1px);
+    transform: translateY(-2px);
     box-shadow: var(--mx-shadow-md);
+    border-color: var(--mx-border-strong);
 }
 .tile:focus-visible {
     outline: 2px solid var(--mx-brand);
     outline-offset: 2px;
 }
+.tile:hover .openHint {
+    color: var(--mx-brand);
+}
 
+/* The score sits inside the arc's opening rather than below it, so the tile
+   reads as one object and stays compact enough for a 4-across grid. */
+.gaugeWrap {
+    position: relative;
+    width: 100%;
+    max-width: 132px;
+}
 .svg {
     width: 100%;
-    max-width: 140px;
     height: auto;
+    display: block;
+}
+.gaugeCenter {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
 }
 .progressArc {
-    transition: stroke-dashoffset var(--mx-duration-base) var(--mx-ease);
+    transition: stroke-dasharray var(--mx-duration-slow) var(--mx-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+    .progressArc { transition: none; }
 }
 
 .scoreLine {
-    font-size: 1.5rem;
+    font-size: 1.55rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
-    margin-top: -6px;
+    line-height: 1;
 }
 .label {
-    font-size: 0.82rem;
+    font-size: 0.85rem;
     font-weight: 700;
     color: var(--mx-ink);
-    margin-top: 2px;
-    text-align: center;
+    margin-top: 8px;
+    /* Long department names wrap rather than widening the grid track. */
+    overflow-wrap: anywhere;
+}
+.bandRow {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+}
+.bandDot {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--mx-radius-full);
+    flex-shrink: 0;
 }
 .bandText {
     font-size: 0.72rem;
-    font-weight: 600;
-    margin-top: 2px;
+    font-weight: 700;
 }
 
-.breakdown {
+.headlineMetric {
     width: 100%;
-    margin-top: 12px;
-    padding-top: 10px;
+    margin-top: 10px;
+    padding-top: 9px;
     border-top: 1px solid var(--mx-border);
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-    cursor: default;
-}
-.breakdownRow {
-    display: flex;
     justify-content: space-between;
-    gap: 10px;
-    font-size: 0.78rem;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.74rem;
     color: var(--mx-ink-muted);
 }
-.breakdownRow strong {
+.headlineLabel {
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+.headlineMetric strong {
     color: var(--mx-ink);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.openHint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 9px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--mx-ink-faint);
+    transition: color var(--mx-duration-base) var(--mx-ease);
 }
