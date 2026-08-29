@@ -1,0 +1,564 @@
+/* ---------------------------------------------------------------------------
+   Employee Directory (components/EmployeeDirectory.tsx)
+
+   Every colour/radius/shadow/duration below comes from the --mx-* tokens in
+   app/globals.css — no raw hex, so the directory picks up any palette change
+   for free. Layout follows the same responsive tiers the rest of the app uses
+   (see the note at the top of globals.css): the 10-column table is the
+   desktop presentation and is replaced outright by a card list at <=768px
+   rather than being left to scroll horizontally.
+--------------------------------------------------------------------------- */
+
+/* ---------- Summary strip ---------- */
+.statRow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.statCard {
+    padding: 12px 14px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-xs);
+}
+/* Clickable stat cards double as one-tap filters (All / Active / Inactive /
+   Pending). Rendered as <button> so they're keyboard-reachable and announce
+   their pressed state via aria-pressed. */
+.statCardBtn {
+    composes: statCard;
+    display: block;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease), transform var(--mx-duration-base) var(--mx-ease);
+}
+.statCardBtn:hover {
+    border-color: var(--mx-brand);
+    box-shadow: var(--mx-shadow-sm);
+    transform: translateY(-1px);
+}
+.statCardActive {
+    border-color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+}
+.statValue {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--mx-ink);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+.statLabel {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mx-ink-muted);
+    margin-top: 4px;
+}
+
+/* ---------- Toolbar ---------- */
+.toolbar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.searchWrap {
+    position: relative;
+    flex: 1 1 260px;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+.searchIcon {
+    position: absolute;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    color: var(--mx-ink-muted);
+    pointer-events: none;
+}
+.searchInput {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 10px 38px 10px 36px;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    /* 16px keeps iOS Safari from zooming the page on focus. */
+    font-size: 16px;
+    font-family: inherit;
+    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+}
+.searchInput:focus-visible {
+    outline: none;
+    border-color: var(--mx-brand);
+    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
+}
+.searchClear {
+    position: absolute;
+    right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: var(--mx-radius-xs);
+    background: none;
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+}
+.searchClear:hover { background: var(--mx-gray-100); color: var(--mx-ink); }
+
+.filterSelect {
+    min-height: 44px;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    /* A <select>'s intrinsic width is its widest <option>, and department /
+       designation names are free text. As a flex item its automatic minimum
+       size (min-width: auto) resolves to that intrinsic width, and per CSS a
+       min-width always beats a max-width — so `max-width: 100%` alone was
+       being defeated and one long option name pushed the whole toolbar wider
+       than the page. min-width: 0 lets the cap actually apply.
+       flex-basis 170px with shrink allowed keeps four selects on one row at
+       desktop width while still letting them give up space when they can't. */
+    flex: 0 1 170px;
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
+}
+.filterSelect:focus-visible {
+    outline: none;
+    border-color: var(--mx-brand);
+    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
+}
+/* A select showing something other than its "All …" default gets a brand tint
+   so it's obvious at a glance which filters are narrowing the list — the
+   chips below say the same thing in words. */
+.filterSelectActive {
+    border-color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+    font-weight: 600;
+}
+
+/* ---------- Active-filter chips + result count ---------- */
+.metaRow {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    min-height: 28px;
+}
+.resultCount {
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+    font-variant-numeric: tabular-nums;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 10px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-brand-subtle);
+    border: 1px solid var(--mx-red-200);
+    color: var(--mx-brand-hover);
+    font-size: 12px;
+    font-weight: 600;
+    /* The Search chip echoes whatever the user typed, which is unbounded — so
+       the chip needs a hard cap or one long query widens the whole row. */
+    min-width: 0;
+    max-width: min(340px, 100%);
+}
+.chipLabel { color: var(--mx-ink-muted); font-weight: 500; flex-shrink: 0; }
+.chipValue {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.chipClear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: var(--mx-radius-full);
+    background: none;
+    color: var(--mx-brand-hover);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.chipClear:hover { background: var(--mx-red-200); }
+.clearAllBtn {
+    background: none;
+    border: none;
+    padding: 4px 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--mx-info);
+    cursor: pointer;
+    border-radius: var(--mx-radius-xs);
+}
+.clearAllBtn:hover { text-decoration: underline; }
+.spacer { margin-left: auto; }
+
+/* ---------- Bulk action bar ---------- */
+/* Only rendered when at least one row is selected, so it never takes up space
+   during ordinary browsing. */
+.bulkBar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-brand-subtle);
+    border: 1px solid var(--mx-red-200);
+}
+.bulkCount {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--mx-brand-hover);
+}
+
+/* ---------- Table (desktop) ---------- */
+.tableWrap {
+    overflow-x: auto;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
+}
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--mx-surface);
+}
+.table th,
+.table td {
+    text-align: left;
+    padding: 11px 12px;
+    font-size: 13.5px;
+    border-bottom: 1px solid var(--mx-border);
+    vertical-align: middle;
+}
+.table tbody tr:last-child td { border-bottom: none; }
+.table thead th {
+    background: var(--mx-gray-50);
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mx-ink-muted);
+    white-space: nowrap;
+}
+.table tbody tr:hover td { background: var(--mx-surface-sunken); }
+.rowSelected td { background: var(--mx-brand-subtle) !important; }
+
+/* Sortable column header — a real button inside the th so it's keyboard
+   operable and screen readers get the sort direction from aria-sort on the th. */
+.sortBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    padding: 2px;
+    margin: -2px;
+    font: inherit;
+    color: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+    border-radius: var(--mx-radius-xs);
+}
+.sortBtn:hover { color: var(--mx-brand); }
+.sortIcon { display: flex; align-items: center; opacity: 0.35; }
+.sortIconActive { opacity: 1; color: var(--mx-brand); }
+
+.checkCell { width: 36px; padding-right: 0 !important; }
+.checkbox {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: var(--mx-brand);
+}
+.actionCell { width: 48px; text-align: right !important; }
+
+/* Identity cell — avatar + name over username, so two former columns
+   ("Username", "Name") collapse into one readable unit. */
+/* max-width gives the ellipsis on .personName below something to truncate
+   against — in an auto-layout table the <td> otherwise grows to fit its
+   content, so `text-overflow` never has a constrained box to work in and the
+   identity column widens the table (internal scroll) instead of clipping. */
+.person { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 260px; }
+.avatar {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--mx-radius-sm);
+    background: linear-gradient(135deg, var(--mx-brand), var(--mx-brand-hover));
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.02em;
+}
+.avatarInactive {
+    background: var(--mx-slate-300);
+    color: var(--mx-slate-700);
+}
+.personText { min-width: 0; }
+/* display: block is load-bearing, not cosmetic. In the desktop table these two
+   render as <span>s, and `overflow`/`text-overflow` do not apply to
+   non-replaced inline boxes — so the ellipsis silently did nothing and a long
+   employee name widened the cell instead of truncating. (The mobile card
+   renders them as <div>s, which is why only the table was affected.) */
+.personName {
+    display: block;
+    font-weight: 600;
+    color: var(--mx-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.personSub {
+    display: block;
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+    font-family: var(--font-geist-mono), 'Courier New', monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.profileLink { color: inherit; text-decoration: none; }
+.profileLink:hover .personName { color: var(--mx-brand); text-decoration: underline; }
+
+/* Contact cell — email over phone, replacing two separate columns. */
+.contact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.contactPrimary {
+    color: var(--mx-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+}
+.contactSecondary { font-size: 12px; color: var(--mx-ink-muted); }
+.muted { color: var(--mx-ink-muted); }
+
+.managerBadge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-role-manager-subtle);
+    color: var(--mx-role-manager);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+}
+/* Surfaces UserRecord.mustChangePassword, which the directory previously never
+   showed — an imported account that has never been logged into looks identical
+   to a fully onboarded one otherwise. */
+.pendingBadge {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 1px 7px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-warning-subtle);
+    color: var(--mx-warning);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+/* ---------- Expanded activity row ---------- */
+.activityRow td { background: var(--mx-surface-sunken); }
+.activityGrid {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: stretch;
+}
+.activityStat {
+    flex: 1 1 130px;
+    padding: 10px 12px;
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+}
+.activityStatValue { font-size: 18px; font-weight: 800; color: var(--mx-ink); font-variant-numeric: tabular-nums; }
+.activityStatLabel { font-size: 11px; color: var(--mx-ink-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+.activityLogins { flex-basis: 100%; font-size: 12.5px; color: var(--mx-ink-muted); }
+.activityLogins strong { color: var(--mx-ink); }
+.loginOk { color: var(--mx-success); }
+.loginFail { color: var(--mx-danger); }
+
+/* ---------- Card list (mobile) ---------- */
+/* Hidden on desktop; swaps places with .tableWrap at 768px. A 10-column table
+   cannot be made usable on a phone by scrolling alone. */
+.cardList { display: none; }
+.card {
+    padding: 14px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-xs);
+    margin-bottom: 10px;
+}
+.cardSelected { border-color: var(--mx-brand); background: var(--mx-brand-subtle); }
+.cardHead { display: flex; align-items: flex-start; gap: 10px; }
+.cardHeadText { flex: 1; min-width: 0; }
+.cardPills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.cardMeta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px 14px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--mx-border);
+}
+.cardMetaLabel {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mx-ink-muted);
+}
+/* overflow-wrap: anywhere as well as word-break — an email with no spaces is a
+   single unbreakable token that would otherwise widen the card grid on a phone. */
+.cardMetaValue { font-size: 13px; color: var(--mx-ink); word-break: break-word; overflow-wrap: anywhere; min-width: 0; }
+
+/* ---------- Pagination ---------- */
+/* Pinned to the bottom of the viewport rather than left at the end of the
+   document. At the default 20 rows per page the table is taller than the
+   screen, so an in-flow pager sat permanently below the fold — you had to
+   scroll the whole list just to reach "Next", then scroll back up to read the
+   rows. Sticky keeps it in reach from the moment the page loads.
+
+   position: sticky (not fixed) means it still occupies its normal space in
+   flow, so it releases and settles naturally once you scroll to the true end
+   of the list — it never permanently covers the last row. Safe to use here
+   because no ancestor between this and .shellMain sets an overflow value
+   (.tableWrap's overflow-x lives inside the table region, not around it).
+   z-index 5 clears the table content while staying well under the sidebar
+   (40), the mobile drawer (55), toasts (1000) and modals (1100). */
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-sm);
+}
+/* Applied only when there is more than one page — a pinned bar holding nothing
+   but a page-size selector is heavy for a list that fits on one page. */
+.pagerSticky {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    box-shadow: var(--mx-shadow-md);
+}
+.pagerInfo { font-size: 13px; color: var(--mx-ink-muted); font-variant-numeric: tabular-nums; }
+.pagerControls { display: flex; align-items: center; gap: 8px; }
+.pageBtn {
+    min-height: 38px;
+    min-width: 38px;
+    padding: 8px 12px;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border-strong);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    font-size: 13.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
+}
+.pageBtn:hover:not(:disabled) { background: var(--mx-surface-sunken); border-color: var(--mx-border-hover); }
+.pageBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pageStatus { font-size: 13px; color: var(--mx-ink-muted); font-variant-numeric: tabular-nums; padding: 0 4px; }
+.pageSizeWrap { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mx-ink-muted); white-space: nowrap; }
+/* " per page" — dropped at mobile widths to keep the sticky bar one row tall. */
+.pageSizeLabelRest { display: inline; }
+.pageSizeSelect {
+    min-height: 38px;
+    padding: 7px 10px;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border-strong);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    font-size: 13.5px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+/* Screen-reader-only: gives every filter control and the search box a real
+   label without adding five visible labels to the toolbar. */
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (max-width: 768px) {
+    .tableWrap { display: none; }
+    .cardList { display: block; }
+    .toolbar { flex-direction: column; align-items: stretch; }
+    .searchWrap { flex: 1 1 auto; }
+    /* flex must be reset, not just width: the toolbar is a COLUMN here, so the
+       `flex: 0 1 170px` basis above would size these on the main axis — i.e.
+       170px tall selects — rather than their width. */
+    .filterSelect { flex: 0 0 auto; width: 100%; }
+    .statRow { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .statValue { font-size: 19px; }
+    /* Keep the pinned bar to a single compact row — a two-row sticky footer
+       eats too much of a phone screen. The first/last-page buttons and the
+       words "per page" are dropped; Prev/Next plus "Page 1 of 2" is enough to
+       navigate, and the select keeps its screen-reader label either way. */
+    /* Full-bleed at mobile: .shellMain's padding is 16px, so -16px side margins
+       make the bar span exactly the viewport width — flush, not overflowing. */
+    .pagerSticky { border-radius: 0; margin-left: -16px; margin-right: -16px; border-left: none; border-right: none; }
+    .pager { gap: 8px; padding: 8px 10px; }
+    .pagerControls { gap: 4px; }
+    .pageBtnEdge { display: none; }
+    .pageSizeLabelRest { display: none; }
+    .pageBtn { padding: 8px 10px; font-size: 13px; }
+    .pageStatus { font-size: 12px; padding: 0; }
+}

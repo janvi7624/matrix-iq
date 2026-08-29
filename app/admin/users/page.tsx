@@ -1,15 +1,17 @@
 'use client';
 
-import { Fragment, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { MoreVertical } from 'lucide-react';
+import { ChevronDown, MoreVertical, Plus, Upload } from 'lucide-react';
 import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types';
 import AppShell from '@/components/AppShell';
+import EmployeeDirectory, { type UserActivity } from '@/components/EmployeeDirectory';
+import EmployeeEditDialog, { type EmployeeEditPayload } from '@/components/ui/EmployeeEditDialog';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
-import { BRAND } from '@/lib/branding';
 import PhoneInput from '@/components/ui/PhoneInput';
+import Button from '@/components/ui/Button';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { usePrompt } from '@/components/ui/PromptDialog';
@@ -24,17 +26,16 @@ interface RowMenuAction {
 // Renders the "⋮" trigger inline, but the panel itself through a portal to
 // document.body, fixed-positioned from the trigger's own bounding rect.
 // Necessary because the table sits inside a horizontally-scrolling wrapper
-// (historyStyles.tableWrap, overflow-x:auto) — per the CSS spec, setting
-// overflow-x alone silently turns overflow-y into auto too, so a plain
-// position:absolute panel would get clipped for any row near the bottom of
-// the visible table area.
-function RowActionsMenu({ actions }: { actions: RowMenuAction[] }) {
+// (overflow-x:auto) — per the CSS spec, setting overflow-x alone silently
+// turns overflow-y into auto too, so a plain position:absolute panel would get
+// clipped for any row near the bottom of the visible table area.
+function RowActionsMenu({ actions, label }: { actions: RowMenuAction[]; label: string }) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRectRef = useRef<{ top: number; bottom: number } | null>(null);
-  const PANEL_WIDTH = 200;
+  const PANEL_WIDTH = 210;
 
   // Flip the panel above the trigger instead of below it when there isn't
   // enough room beneath — otherwise a row near the bottom of a long table
@@ -65,10 +66,19 @@ function RowActionsMenu({ actions }: { actions: RowMenuAction[] }) {
       if (panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
       setOpen(false);
     }
+    // Escape closes the menu and returns focus to its trigger — without this a
+    // keyboard user who opened the menu had no way to dismiss it.
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
     document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', onKeyDown);
     window.addEventListener('scroll', close, true);
     return () => {
       document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('scroll', close, true);
     };
   }, [open]);
@@ -84,7 +94,15 @@ function RowActionsMenu({ actions }: { actions: RowMenuAction[] }) {
 
   return (
     <>
-      <button type="button" ref={triggerRef} className={historyStyles.rowMenuTrigger} onClick={toggle} aria-label="Row actions" aria-haspopup="menu" aria-expanded={open}>
+      <button
+        type="button"
+        ref={triggerRef}
+        className={historyStyles.rowMenuTrigger}
+        onClick={toggle}
+        aria-label={`Actions for ${label}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
         <MoreVertical size={18} />
       </button>
       {open &&
@@ -95,6 +113,7 @@ function RowActionsMenu({ actions }: { actions: RowMenuAction[] }) {
             className={`${historyStyles.notifPanel} ${historyStyles.rowMenuPanel}`}
             style={{ position: 'fixed', top: coords.top, left: coords.left, width: PANEL_WIDTH, zIndex: 1000 }}
             role="menu"
+            aria-label={`Actions for ${label}`}
           >
             {actions.map((action, i) =>
               action.href ? (
@@ -123,58 +142,6 @@ function RowActionsMenu({ actions }: { actions: RowMenuAction[] }) {
   );
 }
 
-const PAGE_SIZE = 20;
-
-// Known system roles keep their dedicated pill colors; any admin-created role
-// falls back to a neutral pill so a brand-new role never breaks this lookup.
-const KNOWN_ROLE_PILL_CLASS: Record<string, string> = {
-  superadmin: historyStyles.rolePillSuperadmin,
-  admin: historyStyles.rolePillAdmin,
-  manager: historyStyles.rolePillManager,
-  engineer: historyStyles.rolePillTechnical,
-  backoffice: historyStyles.rolePillBackoffice,
-  user: historyStyles.rolePillUser,
-  marketing: historyStyles.rolePillMarketing,
-  accounts: historyStyles.rolePillAccounts,
-  hr: historyStyles.rolePillHr
-};
-
-function RolePill({ role, roles }: { role: UserRole; roles: RoleRecord[] }) {
-  const record = roles.find((r) => r.key === role);
-  const label = record?.label || role;
-  const cls = KNOWN_ROLE_PILL_CLASS[role] || historyStyles.rolePillUser;
-  return <span className={`${historyStyles.rolePill} ${cls}`}>{label}</span>;
-}
-
-function StatusPill({ status }: { status: PublicUser['status'] }) {
-  return (
-    <span className={`${historyStyles.statusPill} ${status === 'active' ? historyStyles.statusPillActive : historyStyles.statusPillInactive}`}>
-      {status === 'active' ? 'Active' : 'Inactive'}
-    </span>
-  );
-}
-
-function RoleOptions({ roles, includeSuperadmin }: { roles: RoleRecord[]; includeSuperadmin: boolean }) {
-  return (
-    <>
-      {roles
-        .filter((r) => r.key !== 'superadmin' || includeSuperadmin)
-        .map((r) => (
-          <option key={r.key} value={r.key}>{r.label}</option>
-        ))}
-    </>
-  );
-}
-
-function formatDateTime(iso: string): string {
-  if (!iso) return '-';
-  try {
-    return new Date(iso).toLocaleString('en-IN');
-  } catch {
-    return iso;
-  }
-}
-
 interface NewUserForm {
   username: string;
   password: string;
@@ -189,29 +156,6 @@ interface NewUserForm {
 
 const BLANK_FORM: NewUserForm = { username: '', password: '', name: '', phone: '', email: '', role: 'user', employeeId: '', department: '', designation: '' };
 
-interface EditState {
-  name: string;
-  phone: string;
-  email: string;
-  role: UserRole;
-  employeeId: string;
-  department: string;
-  designation: string;
-  password: string;
-  isDepartmentManager: boolean;
-}
-
-interface ActivityItem { id: string; label: string; status: string; at: string; }
-interface ActivitySection { total: number; recent: ActivityItem[]; }
-interface LoginHistoryEntry { id: string; at: string; success: boolean; ip: string; }
-interface UserActivity {
-  projects: ActivitySection;
-  siteVisits: ActivitySection;
-  quotations: ActivitySection;
-  demoRequests: ActivitySection;
-  loginHistory: LoginHistoryEntry[];
-}
-
 export default function ManageUsersPage() {
   const toast = useToast();
   const confirm = useConfirm();
@@ -220,48 +164,64 @@ export default function ManageUsersPage() {
   const [users, setUsers] = useState<PublicUser[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
-  const [status, setStatus] = useState('Loading...');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  // The create form is collapsed by default. Looking someone up is the common
+  // task on this page and used to mean scrolling past a nine-field form to
+  // reach the directory; creating an account is the occasional one.
+  const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState<NewUserForm>(BLANK_FORM);
   const [createBusy, setCreateBusy] = useState(false);
   const [createError, setCreateError] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editState, setEditState] = useState<EditState | null>(null);
+
+  const [editingUser, setEditingUser] = useState<PublicUser | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [resendingIds, setResendingIds] = useState<Record<string, boolean>>({});
   const [activityOpenId, setActivityOpenId] = useState<string | null>(null);
   const [activity, setActivity] = useState<Record<string, UserActivity>>({});
-  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityLoadingId, setActivityLoadingId] = useState<string | null>(null);
 
-  // Employee Directory — search/filters/pagination over the same user list
-  // the add-user form already loads, same client-side pattern as LeadsView.
-  const [q, setQ] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'' | PublicUser['status']>('');
-  const [designationFilter, setDesignationFilter] = useState('');
-  const [page, setPage] = useState(1);
-
-  async function loadUsers() {
-    setStatus('Loading...');
+  // No setState before the first await — `loading` already starts true, so the
+  // mount effect below doesn't need to set it, and doing so synchronously
+  // inside an effect is what triggers a cascading re-render.
+  const loadUsers = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/users');
       if (!response.ok) throw new Error(`Server responded with ${response.status}`);
       const data: PublicUser[] = await response.json();
       setUsers(data);
-      setStatus(`${data.length} user${data.length === 1 ? '' : 's'}.`);
+      setLoadError('');
     } catch {
-      setStatus('Could not load users. Refresh to try again.');
+      setLoadError('Could not load the employee list. Check your connection and try again.');
+    } finally {
+      setLoading(false);
     }
-  }
+  }, []);
 
-  async function loadDepartments() {
+  // The retry path does need the spinner back, since ErrorState has replaced
+  // the list by then.
+  const retryLoadUsers = useCallback(() => {
+    setLoading(true);
+    setLoadError('');
+    loadUsers();
+  }, [loadUsers]);
+
+  const loadDepartments = useCallback(async () => {
     await fetch('/api/departments')
       .then((r) => (r.ok ? r.json() : []))
       .then((data: DepartmentRecord[]) => setDepartments(data))
       .catch(() => setDepartments([]));
-  }
+  }, []);
 
   useEffect(() => {
+    // Fetching on mount is the intended use of an effect. The rule can't see
+    // that loadUsers() has no synchronous prefix — every setState in it sits
+    // after `await fetch(...)` — so it flags the call site anyway.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadUsers();
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
@@ -272,35 +232,10 @@ export default function ManageUsersPage() {
       .then((data: RoleRecord[]) => setRoles(data.filter((r) => r.status === 'active')))
       .catch(() => setRoles([]));
     loadDepartments();
-  }, []);
+  }, [loadUsers, loadDepartments]);
 
   const isSuperadmin = currentRole === 'superadmin';
   const isAdminTier = isSuperadmin || currentRole === 'admin';
-
-  const designations = useMemo(
-    () => [...new Set(users.map((u) => u.designation).filter(Boolean))].sort(),
-    [users]
-  );
-
-  const visibleUsers = useMemo(() => {
-    let rows = users;
-    if (q.trim()) {
-      const needle = q.trim().toLowerCase();
-      rows = rows.filter((u) => `${u.name} ${u.employeeId} ${u.email} ${u.username}`.toLowerCase().includes(needle));
-    }
-    if (departmentFilter) rows = rows.filter((u) => u.department === departmentFilter);
-    if (roleFilter) rows = rows.filter((u) => u.role === roleFilter);
-    if (statusFilter) rows = rows.filter((u) => u.status === statusFilter);
-    if (designationFilter) rows = rows.filter((u) => u.designation === designationFilter);
-    return rows;
-  }, [users, q, departmentFilter, roleFilter, statusFilter, designationFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(visibleUsers.length / PAGE_SIZE));
-  const pageRows = visibleUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  useEffect(() => {
-    setPage(1);
-  }, [q, departmentFilter, roleFilter, statusFilter, designationFilter]);
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
@@ -318,29 +253,14 @@ export default function ManageUsersPage() {
         return;
       }
       setForm(BLANK_FORM);
+      setAddOpen(false);
+      toast.success(`Account created for ${form.name || form.username}.`);
       await loadUsers();
     } catch {
       setCreateError('Could not reach the server.');
     } finally {
       setCreateBusy(false);
     }
-  }
-
-  function startEdit(user: PublicUser) {
-    setEditingId(user.id);
-    const dept = departments.find((d) => d.name === user.department);
-    setEditState({
-      name: user.name,
-      phone: user.phone,
-      email: user.email,
-      role: user.role,
-      employeeId: user.employeeId || '',
-      department: user.department || '',
-      designation: user.designation || '',
-      password: '',
-      isDepartmentManager: dept ? dept.managerIds.includes(user.id) : false
-    });
-    setRowError((prev) => ({ ...prev, [user.id]: '' }));
   }
 
   async function patchUser(id: string, payload: Record<string, unknown>): Promise<boolean> {
@@ -366,13 +286,12 @@ export default function ManageUsersPage() {
 
   // Department.managerIds stays the single source of truth (see
   // /admin/departments) — this just keeps it in sync when the checkbox is
-  // toggled from the user's own edit row, including handling a department
-  // change: dropping the manager relationship from the old department (if
-  // any) and adding it to the new one when the checkbox is checked.
-  async function syncDepartmentManager(userId: string, previousDepartmentName: string) {
-    if (!editState) return;
+  // toggled from the edit dialog, including handling a department change:
+  // dropping the manager relationship from the old department (if any) and
+  // adding it to the new one when the checkbox is checked.
+  async function syncDepartmentManager(userId: string, previousDepartmentName: string, next: EmployeeEditPayload) {
     const oldDept = departments.find((d) => d.name === previousDepartmentName);
-    const newDept = departments.find((d) => d.name === editState.department);
+    const newDept = departments.find((d) => d.name === next.department);
 
     if (oldDept && oldDept.id !== newDept?.id && oldDept.managerIds.includes(userId)) {
       await fetch(`/api/admin/departments/${oldDept.id}`, {
@@ -384,8 +303,8 @@ export default function ManageUsersPage() {
 
     if (!newDept) return;
     const isManagerNow = newDept.managerIds.includes(userId);
-    if (editState.isDepartmentManager === isManagerNow) return;
-    const nextManagerIds = editState.isDepartmentManager ? [...newDept.managerIds, userId] : newDept.managerIds.filter((mid) => mid !== userId);
+    if (next.isDepartmentManager === isManagerNow) return;
+    const nextManagerIds = next.isDepartmentManager ? [...newDept.managerIds, userId] : newDept.managerIds.filter((mid) => mid !== userId);
     await fetch(`/api/admin/departments/${newDept.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -393,58 +312,127 @@ export default function ManageUsersPage() {
     }).catch(() => null);
   }
 
-  async function saveEdit(id: string, previousDepartmentName: string) {
-    if (!editState) return;
-    const payload: Record<string, unknown> = {
-      name: editState.name,
-      phone: editState.phone,
-      email: editState.email,
-      role: editState.role,
-      employeeId: editState.employeeId,
-      department: editState.department,
-      designation: editState.designation
-    };
-    if (editState.password) payload.password = editState.password;
-    const ok = await patchUser(id, payload);
-    if (ok) {
-      await syncDepartmentManager(id, previousDepartmentName);
-      await loadDepartments();
-      setEditingId(null);
-      setEditState(null);
+  async function handleSaveEdit(next: EmployeeEditPayload) {
+    if (!editingUser) return;
+    setEditError('');
+    setSavingEdit(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name: next.name,
+        phone: next.phone,
+        email: next.email,
+        role: next.role,
+        employeeId: next.employeeId,
+        department: next.department,
+        designation: next.designation
+      };
+      if (next.password) payload.password = next.password;
+
+      const response = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setEditError(body?.error || 'Could not save changes.');
+        return;
+      }
+      await syncDepartmentManager(editingUser.id, editingUser.department || '', next);
+      await Promise.all([loadUsers(), loadDepartments()]);
+      toast.success(`Saved changes to ${next.name || editingUser.username}.`);
+      setEditingUser(null);
+    } catch {
+      setEditError('Could not reach the server.');
+    } finally {
+      setSavingEdit(false);
     }
   }
 
   async function toggleStatus(user: PublicUser) {
     const next = user.status === 'active' ? 'inactive' : 'active';
     if (next === 'inactive') {
-      const ok = await confirm({ message: `Deactivate "${user.username}"? They will no longer be able to log in.`, danger: true });
+      const ok = await confirm({
+        title: 'Deactivate this employee?',
+        message: `“${user.name || user.username}” will no longer be able to log in. Their records stay intact and you can reactivate them at any time.`,
+        confirmLabel: 'Deactivate',
+        danger: true
+      });
       if (!ok) return;
     }
-    await patchUser(user.id, { status: next });
+    const ok = await patchUser(user.id, { status: next });
+    if (ok) toast.success(`${user.name || user.username} is now ${next}.`);
+  }
+
+  async function handleBulkStatus(selected: PublicUser[], next: PublicUser['status']) {
+    if (selected.length === 0) return;
+    const verb = next === 'active' ? 'Activate' : 'Deactivate';
+    const ok = await confirm({
+      title: `${verb} ${selected.length} employee${selected.length === 1 ? '' : 's'}?`,
+      message:
+        next === 'inactive'
+          ? `${selected.length} account${selected.length === 1 ? '' : 's'} will no longer be able to log in. Their records stay intact.`
+          : `${selected.length} account${selected.length === 1 ? '' : 's'} will be able to log in again.`,
+      confirmLabel: verb,
+      danger: next === 'inactive'
+    });
+    if (!ok) return;
+
+    // Sequential rather than Promise.all — these are writes against the same
+    // table and a burst of parallel PATCHes on a large selection is a good way
+    // to get partial failures that are hard to report on.
+    let failed = 0;
+    for (const user of selected) {
+      try {
+        const response = await fetch(`/api/admin/users/${user.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: next })
+        });
+        if (!response.ok) failed++;
+      } catch {
+        failed++;
+      }
+    }
+    await loadUsers();
+    const succeeded = selected.length - failed;
+    if (failed === 0) {
+      toast.success(`${succeeded} employee${succeeded === 1 ? '' : 's'} ${next === 'active' ? 'activated' : 'deactivated'}.`);
+    } else if (succeeded === 0) {
+      toast.error(`Could not update any of the ${selected.length} selected employees.`);
+    } else {
+      toast.error(`${succeeded} updated, ${failed} failed. Refresh to see the current state.`);
+    }
   }
 
   async function resetPassword(user: PublicUser) {
     const next = await promptText({
-      title: `New password for "${user.username}" (min 6 characters):`,
+      title: `New password for “${user.name || user.username}”`,
+      message: 'Minimum 6 characters. Share it with them securely and ask them to change it after logging in.',
       type: 'password',
+      confirmLabel: 'Set password',
       validate: (v) => (v.length < 6 ? 'Password must be at least 6 characters.' : null)
     });
     if (!next) return;
     const ok = await patchUser(user.id, { password: next });
-    if (ok) toast.success(`Password reset for "${user.username}".`);
+    if (ok) toast.success(`Password reset for ${user.name || user.username}.`);
   }
 
   async function resendWelcomeEmail(user: PublicUser) {
     if (!user.email) {
-      toast.error('This user has no email address on file — add one first.');
+      toast.error('This employee has no email address on file — add one first.');
       return;
     }
-    // The endpoint now awaits the actual send (can take a few seconds), so
-    // without this guard a second click while the first request is still in
-    // flight would silently issue and email a second temp password,
-    // orphaning the first one.
+    // The endpoint awaits the actual send (can take a few seconds), so without
+    // this guard a second click while the first request is still in flight
+    // would silently issue and email a second temp password, orphaning the
+    // first one.
     if (resendingIds[user.id]) return;
-    const ok = await confirm({ message: `Generate a new temporary password for "${user.username}" and email it to ${user.email}?` });
+    const ok = await confirm({
+      title: 'Resend welcome email?',
+      message: `A new temporary password will be generated for “${user.name || user.username}” and emailed to ${user.email}. Their current password will stop working.`,
+      confirmLabel: 'Send'
+    });
     if (!ok) return;
     setRowError((prev) => ({ ...prev, [user.id]: '' }));
     setResendingIds((prev) => ({ ...prev, [user.id]: true }));
@@ -468,7 +456,12 @@ export default function ManageUsersPage() {
   }
 
   async function handleDelete(user: PublicUser) {
-    const ok = await confirm({ message: `Remove user "${user.username}"? This cannot be undone.`, danger: true });
+    const ok = await confirm({
+      title: 'Delete this employee?',
+      message: `“${user.name || user.username}” (@${user.username}) will be permanently removed. This cannot be undone — deactivate them instead if you only need to revoke access.`,
+      confirmLabel: 'Delete permanently',
+      danger: true
+    });
     if (!ok) return;
     const response = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
     if (!response.ok) {
@@ -476,6 +469,7 @@ export default function ManageUsersPage() {
       toast.error(body?.error || 'Could not delete user.');
       return;
     }
+    toast.success(`${user.name || user.username} was deleted.`);
     await loadUsers();
   }
 
@@ -486,7 +480,7 @@ export default function ManageUsersPage() {
     }
     setActivityOpenId(user.id);
     if (activity[user.id]) return;
-    setActivityLoading(true);
+    setActivityLoadingId(user.id);
     try {
       const response = await fetch(`/api/admin/users/${user.id}/activity`);
       if (response.ok) {
@@ -494,262 +488,151 @@ export default function ManageUsersPage() {
         setActivity((prev) => ({ ...prev, [user.id]: data }));
       }
     } finally {
-      setActivityLoading(false);
+      setActivityLoadingId(null);
     }
   }
 
+  function renderRowMenu(user: PublicUser) {
+    const canManage = isSuperadmin || user.role !== 'superadmin';
+    const isActivityOpen = activityOpenId === user.id;
+    return (
+      <RowActionsMenu
+        label={user.name || user.username}
+        actions={[
+          { label: 'View profile', href: `/admin/users/${user.id}` },
+          { label: isActivityOpen ? 'Hide activity' : 'View activity', onClick: () => toggleActivity(user) },
+          ...(canManage
+            ? [
+                { label: 'Edit details', onClick: () => { setEditError(''); setEditingUser(user); } },
+                { label: 'Reset password', onClick: () => resetPassword(user) },
+                { label: 'Resend welcome email', onClick: () => resendWelcomeEmail(user) },
+                { label: user.status === 'active' ? 'Deactivate' : 'Activate', onClick: () => toggleStatus(user) }
+              ]
+            : []),
+          ...(isSuperadmin ? [{ label: 'Delete employee', onClick: () => handleDelete(user), danger: true }] : [])
+        ]}
+      />
+    );
+  }
+
   return (
-    <AppShell title={`${BRAND.appName} — User Management`} subtitle="Administration › create and manage login accounts.">
-        {isAdminTier && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
-            <Link className={`${historyStyles.button} ${historyStyles.primary}`} href="/admin/users/import">
-              Import Employees
-            </Link>
+    <AppShell title="Employee Directory" subtitle="Administration › find, manage and onboard login accounts.">
+      {/* Page actions sit above everything so the two ways to add people are
+          adjacent and discoverable, instead of one being a link at the top and
+          the other the submit button of an always-expanded form. */}
+      {isAdminTier && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
+          <Button
+            variant="primary"
+            icon={<Plus size={16} />}
+            onClick={() => setAddOpen((v) => !v)}
+            aria-expanded={addOpen}
+            aria-controls="addEmployeePanel"
+          >
+            Add employee
+          </Button>
+          <Link className={historyStyles.button} href="/admin/users/import">
+            <Upload size={15} style={{ marginRight: 7 }} /> Import from Excel
+          </Link>
+        </div>
+      )}
+
+      {addOpen && (
+        <form id="addEmployeePanel" className={calcStyles.sectionPanel} onSubmit={handleCreate} style={{ marginBottom: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <ChevronDown size={16} />
+            <strong style={{ fontSize: 15 }}>New employee account</strong>
           </div>
-        )}
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Add user</h2>
-        <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           {createError && <div className={historyStyles.loginError}>{createError}</div>}
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="newUsername">Username</label>
-              <input id="newUsername" className={calcStyles.formControl} type="text" value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="newPassword">Password</label>
-              <input id="newPassword" className={calcStyles.formControl} type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} minLength={6} required />
-            </div>
-          </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newName">Full name</label>
               <input id="newName" className={calcStyles.formControl} type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
             </div>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="newRole">Role</label>
-              <select id="newRole" className={calcStyles.formControl} value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as UserRole }))}>
-                <RoleOptions roles={roles} includeSuperadmin={isSuperadmin} />
-              </select>
+              <label className={calcStyles.label} htmlFor="newEmployeeId">Employee ID (optional)</label>
+              <input id="newEmployeeId" className={calcStyles.formControl} type="text" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} />
             </div>
           </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="newPhone">Phone</label>
-              <PhoneInput id="newPhone" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
+              <label className={calcStyles.label} htmlFor="newUsername">Username</label>
+              <input id="newUsername" className={calcStyles.formControl} type="text" autoComplete="off" value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} required />
             </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="newPassword">Password</label>
+              <input id="newPassword" className={calcStyles.formControl} type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} minLength={6} required />
+              <span className={calcStyles.lockedHint}>Minimum 6 characters.</span>
+            </div>
+          </div>
+          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newEmail">Email</label>
               <input id="newEmail" className={calcStyles.formControl} type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
             </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="newPhone">Phone</label>
+              <PhoneInput id="newPhone" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
+            </div>
           </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="newEmployeeId">Employee ID (optional)</label>
-              <input id="newEmployeeId" className={calcStyles.formControl} type="text" value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} />
-            </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newDepartment">Department</label>
               <select id="newDepartment" className={calcStyles.formControl} value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}>
-                <option value="">Select department...</option>
+                <option value="">Select department…</option>
                 {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
               </select>
             </div>
-          </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newDesignation">Designation</label>
               <input id="newDesignation" className={calcStyles.formControl} type="text" placeholder="e.g. Sales Executive" value={form.designation} onChange={(e) => setForm((f) => ({ ...f, designation: e.target.value }))} />
             </div>
           </div>
-          <button type="submit" className={calcStyles.btn} disabled={createBusy}>
-            {createBusy ? 'Adding...' : '+ Add user'}
-          </button>
-        </form>
-
-        <h2 className={calcStyles.h2}>Employee Directory</h2>
-        <div className={historyStyles.status}>{status}</div>
-        <div className={historyStyles.toolbar}>
-          <input
-            type="text"
-            placeholder="Search name, employee ID, email, or username..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
-            <option value="">All departments</option>
-            {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
-          </select>
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-            <option value="">All roles</option>
-            {roles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-          </select>
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | PublicUser['status'])}>
-            <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={designationFilter} onChange={(e) => setDesignationFilter(e.target.value)}>
-            <option value="">All designations</option>
-            {designations.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
-        </div>
-        <div className={historyStyles.tableWrap}>
-          <table className={historyStyles.table}>
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Name</th>
-                <th>Employee ID</th>
-                <th>Email</th>
-                <th>Mobile</th>
-                <th>Department</th>
-                <th>Designation</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.length === 0 && (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 24, color: '#9ca3af' }}>
-                  {users.length === 0 ? 'No users yet.' : 'No employees match your filters.'}
-                </td></tr>
-              )}
-              {pageRows.map((user) => {
-                const isEditing = editingId === user.id;
-                const canManage = isSuperadmin || user.role !== 'superadmin';
-                const isActivityOpen = activityOpenId === user.id;
-                const userActivity = activity[user.id];
-                return (
-                  <Fragment key={user.id}>
-                    <tr>
-                      <td className={historyStyles.num}>{user.username}</td>
-                      {isEditing && editState ? (
-                        <>
-                          <td>
-                            <input className={calcStyles.formControl} value={editState.name} onChange={(e) => setEditState({ ...editState, name: e.target.value })} />
-                          </td>
-                          <td>
-                            <input className={calcStyles.formControl} value={editState.employeeId} onChange={(e) => setEditState({ ...editState, employeeId: e.target.value })} />
-                          </td>
-                          <td>
-                            <input className={calcStyles.formControl} value={editState.email} onChange={(e) => setEditState({ ...editState, email: e.target.value })} />
-                          </td>
-                          <td>
-                            <PhoneInput value={editState.phone} onChange={(v) => setEditState({ ...editState, phone: v })} />
-                          </td>
-                          <td>
-                            <select className={calcStyles.formControl} value={editState.department} onChange={(e) => setEditState({ ...editState, department: e.target.value })}>
-                              <option value="">Select department...</option>
-                              {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
-                            </select>
-                            {editState.department && (
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, marginTop: 4 }}>
-                                <input
-                                  type="checkbox"
-                                  checked={editState.isDepartmentManager}
-                                  onChange={(e) => setEditState({ ...editState, isDepartmentManager: e.target.checked })}
-                                />
-                                Manager of {editState.department}
-                              </label>
-                            )}
-                          </td>
-                          <td>
-                            <input className={calcStyles.formControl} value={editState.designation} onChange={(e) => setEditState({ ...editState, designation: e.target.value })} />
-                          </td>
-                          <td>
-                            <select className={calcStyles.formControl} value={editState.role} onChange={(e) => setEditState({ ...editState, role: e.target.value as UserRole })}>
-                              <RoleOptions roles={roles} includeSuperadmin={isSuperadmin} />
-                            </select>
-                          </td>
-                          <td>
-                            <input className={calcStyles.formControl} type="password" placeholder="New password (optional)" value={editState.password} onChange={(e) => setEditState({ ...editState, password: e.target.value })} />
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveEdit(user.id, user.department || '')}>Save</button>
-                              <button type="button" className={historyStyles.button} onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</button>
-                            </div>
-                            {rowError[user.id] && <div className={historyStyles.loginError}>{rowError[user.id]}</div>}
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td>{user.name}</td>
-                          <td>{user.employeeId || '-'}</td>
-                          <td>{user.email || '-'}</td>
-                          <td>{user.phone || '-'}</td>
-                          <td>
-                            {user.department || '-'}
-                            {departments.find((d) => d.name === user.department)?.managerIds.includes(user.id) && (
-                              <span style={{ marginLeft: 6, fontSize: 10.5, opacity: 0.7 }}>(Manager)</span>
-                            )}
-                          </td>
-                          <td>{user.designation || '-'}</td>
-                          <td><RolePill role={user.role} roles={roles} /></td>
-                          <td><StatusPill status={user.status} /></td>
-                          <td>
-                            <RowActionsMenu
-                              actions={[
-                                { label: 'View Profile', href: `/admin/users/${user.id}` },
-                                { label: isActivityOpen ? 'Hide activity' : 'View activity', onClick: () => toggleActivity(user) },
-                                ...(canManage
-                                  ? [
-                                      { label: 'Edit', onClick: () => startEdit(user) },
-                                      { label: 'Reset Password', onClick: () => resetPassword(user) },
-                                      { label: 'Resend Welcome Email', onClick: () => resendWelcomeEmail(user) },
-                                      { label: user.status === 'active' ? 'Deactivate' : 'Activate', onClick: () => toggleStatus(user) }
-                                    ]
-                                  : []),
-                                ...(isSuperadmin ? [{ label: 'Delete', onClick: () => handleDelete(user), danger: true }] : [])
-                              ]}
-                            />
-                            {resendingIds[user.id] && <div style={{ fontSize: 11.5, opacity: 0.7, marginTop: 4 }}>Sending welcome email…</div>}
-                            {rowError[user.id] && <div className={historyStyles.loginError}>{rowError[user.id]}</div>}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                    {isActivityOpen && (
-                      <tr className={historyStyles.detailsRow}>
-                        <td colSpan={10}>
-                          {activityLoading && !userActivity ? (
-                            'Loading activity...'
-                          ) : userActivity ? (
-                            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 13 }}>
-                              <div><strong>{userActivity.projects.total}</strong> Projects</div>
-                              <div><strong>{userActivity.siteVisits.total}</strong> Site Visits</div>
-                              <div><strong>{userActivity.quotations.total}</strong> Quotations</div>
-                              <div><strong>{userActivity.demoRequests.total}</strong> Demo Requests</div>
-                              <div style={{ flexBasis: '100%' }}>
-                                <strong>Recent logins:</strong>{' '}
-                                {userActivity.loginHistory.length === 0
-                                  ? 'None recorded yet.'
-                                  : userActivity.loginHistory
-                                      .slice(0, 5)
-                                      .map((h) => `${formatDateTime(h.at)}${h.success ? '' : ' (failed)'}`)
-                                      .join('  •  ')}
-                              </div>
-                            </div>
-                          ) : (
-                            'Could not load activity.'
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center', marginTop: 14 }}>
-            <button type="button" className={historyStyles.button} disabled={page === 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
-            <span className={calcStyles.small}>Page {page} of {totalPages}</span>
-            <button type="button" className={historyStyles.button} disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>Next →</button>
+          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="newRole">Role</label>
+              <select id="newRole" className={calcStyles.formControl} value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as UserRole }))}>
+                {roles
+                  .filter((r) => r.key !== 'superadmin' || isSuperadmin)
+                  .map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+              </select>
+            </div>
           </div>
-        )}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+            <Button type="submit" variant="primary" loading={createBusy} loadingLabel="Adding…">Add employee</Button>
+            <Button variant="ghost" onClick={() => { setAddOpen(false); setCreateError(''); }}>Cancel</Button>
+          </div>
+        </form>
+      )}
+
+      <EmployeeDirectory
+        users={users}
+        roles={roles}
+        departments={departments}
+        loading={loading}
+        loadError={loadError}
+        onRetry={retryLoadUsers}
+        onBulkStatus={handleBulkStatus}
+        rowError={rowError}
+        resendingIds={resendingIds}
+        activity={activity}
+        activityLoadingId={activityLoadingId}
+        activityOpenId={activityOpenId}
+        renderRowMenu={renderRowMenu}
+      />
+
+      {editingUser && (
+        <EmployeeEditDialog
+          user={editingUser}
+          roles={roles}
+          departments={departments}
+          includeSuperadmin={isSuperadmin}
+          error={editError}
+          saving={savingEdit}
+          onSave={handleSaveEdit}
+          onClose={() => { setEditingUser(null); setEditError(''); }}
+        />
+      )}
     </AppShell>
   );
 }
