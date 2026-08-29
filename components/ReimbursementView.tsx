@@ -32,13 +32,13 @@ const EMPTY_FORM = {
 };
 
 const STATUS_CONFIG: Record<ReimbursementSheetStatus, { label: string; color: string; bg: string; step: number }> = {
-  draft:                     { label: 'Draft',                    color: '#6b7280', bg: '#f3f4f6', step: 0 },
-  submitted:                 { label: 'Awaiting Manager Approval', color: '#d97706', bg: '#fffbeb', step: 1 },
-  manager_approved:          { label: 'Manager Approved',         color: '#2563eb', bg: '#eff6ff', step: 2 },
-  manager_change_requested:  { label: 'Changes Requested (Manager)', color: '#dc2626', bg: '#fef2f2', step: 1 },
-  hr_approved:               { label: 'HR Approved',              color: '#7c3aed', bg: '#f5f3ff', step: 3 },
-  hr_change_requested:       { label: 'Changes Requested (HR)',   color: '#dc2626', bg: '#fef2f2', step: 2 },
-  payment_done:              { label: 'Payment Completed',        color: '#16a34a', bg: '#f0fdf4', step: 4 },
+  draft:                     { label: 'Draft',                    color: 'var(--mx-ink-muted)', bg: 'var(--mx-gray-100)', step: 0 },
+  submitted:                 { label: 'Awaiting Manager Approval', color: 'var(--mx-amber-600)', bg: 'var(--mx-amber-50)', step: 1 },
+  manager_approved:          { label: 'Manager Approved',         color: 'var(--mx-blue-600)', bg: 'var(--mx-blue-50)', step: 2 },
+  manager_change_requested:  { label: 'Changes Requested (Manager)', color: 'var(--mx-brand)', bg: 'var(--mx-red-50)', step: 1 },
+  hr_approved:               { label: 'HR Approved',              color: 'var(--mx-violet-600)', bg: 'var(--mx-violet-50)', step: 3 },
+  hr_change_requested:       { label: 'Changes Requested (HR)',   color: 'var(--mx-brand)', bg: 'var(--mx-red-50)', step: 2 },
+  payment_done:              { label: 'Payment Completed',        color: 'var(--mx-green-600)', bg: 'var(--mx-green-50)', step: 4 },
 };
 
 const STEPS = ['Employee', 'Manager', 'HR', 'Accounts'];
@@ -63,11 +63,11 @@ function StepIndicator({ currentStep, status }: { currentStep: number; status: R
         const done = i < currentStep;
         const active = i === currentStep;
         const rejected = isChangeReq && active;
-        let dotColor = 'var(--mx-border-strong, #d1d5db)';
-        let dotBg = 'var(--mx-surface, #fff)';
-        if (done) { dotColor = '#16a34a'; dotBg = '#16a34a'; }
-        else if (rejected) { dotColor = '#dc2626'; dotBg = '#dc2626'; }
-        else if (active) { dotColor = '#2563eb'; dotBg = '#2563eb'; }
+        let dotColor = 'var(--mx-border-strong)';
+        let dotBg = 'var(--mx-surface)';
+        if (done) { dotColor = 'var(--mx-green-600)'; dotBg = 'var(--mx-green-600)'; }
+        else if (rejected) { dotColor = 'var(--mx-brand)'; dotBg = 'var(--mx-brand)'; }
+        else if (active) { dotColor = 'var(--mx-blue-600)'; dotBg = 'var(--mx-blue-600)'; }
 
         return (
           <div key={label} style={{ display: 'flex', alignItems: 'center', flex: i < STEPS.length - 1 ? 1 : 'none' }}>
@@ -75,17 +75,17 @@ function StepIndicator({ currentStep, status }: { currentStep: number; status: R
               <div style={{
                 width: 28, height: 28, borderRadius: '50%', border: `2px solid ${dotColor}`, background: dotBg,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700,
-                color: done || active || rejected ? '#fff' : 'var(--mx-ink-faint, #9ca3af)',
+                color: done || active || rejected ? 'var(--mx-surface)' : 'var(--mx-ink-faint)',
                 transition: 'all 0.2s ease',
               }}>
                 {done ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--mx-surface)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 ) : rejected ? '!' : (i + 1)}
               </div>
-              <span style={{ fontSize: '10.5px', fontWeight: active || done ? 700 : 500, color: active ? dotColor : 'var(--mx-ink-faint, #9ca3af)', marginTop: 4, whiteSpace: 'nowrap' }}>{label}</span>
+              <span style={{ fontSize: '10.5px', fontWeight: active || done ? 700 : 500, color: active ? dotColor : 'var(--mx-ink-faint)', marginTop: 4, whiteSpace: 'nowrap' }}>{label}</span>
             </div>
             {i < STEPS.length - 1 && (
-              <div style={{ flex: 1, height: 2, background: done ? '#16a34a' : 'var(--mx-border-strong, #e5e7eb)', margin: '0 4px', marginBottom: 18, transition: 'background 0.2s ease' }} />
+              <div style={{ flex: 1, height: 2, background: done ? 'var(--mx-green-600)' : 'var(--mx-border-strong)', margin: '0 4px', marginBottom: 18, transition: 'background 0.2s ease' }} />
             )}
           </div>
         );
@@ -425,24 +425,24 @@ export default function ReimbursementView({ currentUser }: Props) {
   return (
     <AppShell title="Reimbursement" subtitle="Submit and track monthly expense reimbursement bills.">
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--mx-border-strong, #e5e7eb)', marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--mx-border-strong)', marginBottom: 16 }}>
         <button type="button" onClick={() => { setTab('my'); setSelectedPending(null); }} style={{
           padding: '10px 24px', fontSize: '13.5px', fontWeight: tab === 'my' ? 700 : 500, cursor: 'pointer',
-          background: 'none', border: 'none', borderBottom: tab === 'my' ? '2px solid var(--mx-brand, #2563eb)' : '2px solid transparent',
-          color: tab === 'my' ? 'var(--mx-brand, #2563eb)' : 'var(--mx-ink-muted, #6b7280)', marginBottom: -2,
+          background: 'none', border: 'none', borderBottom: tab === 'my' ? '2px solid var(--mx-brand)' : '2px solid transparent',
+          color: tab === 'my' ? 'var(--mx-brand)' : 'var(--mx-ink-muted)', marginBottom: -2,
         }}>
           My Sheet
         </button>
         {isPrivileged && (
           <button type="button" onClick={() => setTab('pending')} style={{
             padding: '10px 24px', fontSize: '13.5px', fontWeight: tab === 'pending' ? 700 : 500, cursor: 'pointer',
-            background: 'none', border: 'none', borderBottom: tab === 'pending' ? '2px solid var(--mx-brand, #2563eb)' : '2px solid transparent',
-            color: tab === 'pending' ? 'var(--mx-brand, #2563eb)' : 'var(--mx-ink-muted, #6b7280)', marginBottom: -2,
+            background: 'none', border: 'none', borderBottom: tab === 'pending' ? '2px solid var(--mx-brand)' : '2px solid transparent',
+            color: tab === 'pending' ? 'var(--mx-brand)' : 'var(--mx-ink-muted)', marginBottom: -2,
             display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>
             Pending Approvals
             {pendingSheets.length > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 20, borderRadius: 10, background: '#dc2626', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '0 6px' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 20, borderRadius: 10, background: 'var(--mx-brand)', color: 'var(--mx-surface)', fontSize: '11px', fontWeight: 700, padding: '0 6px' }}>
                 {pendingSheets.length}
               </span>
             )}
@@ -451,8 +451,8 @@ export default function ReimbursementView({ currentUser }: Props) {
         {isPrivileged && (
           <button type="button" onClick={() => setTab('approved')} style={{
             padding: '10px 24px', fontSize: '13.5px', fontWeight: tab === 'approved' ? 700 : 500, cursor: 'pointer',
-            background: 'none', border: 'none', borderBottom: tab === 'approved' ? '2px solid var(--mx-brand, #2563eb)' : '2px solid transparent',
-            color: tab === 'approved' ? 'var(--mx-brand, #2563eb)' : 'var(--mx-ink-muted, #6b7280)', marginBottom: -2,
+            background: 'none', border: 'none', borderBottom: tab === 'approved' ? '2px solid var(--mx-brand)' : '2px solid transparent',
+            color: tab === 'approved' ? 'var(--mx-brand)' : 'var(--mx-ink-muted)', marginBottom: -2,
           }}>
             Approved
           </button>
@@ -500,7 +500,7 @@ export default function ReimbursementView({ currentUser }: Props) {
             </div>
             <span style={{
               display: 'inline-block', padding: '4px 14px', borderRadius: 20,
-              background: statusCfg.color, color: '#fff', fontSize: '12px', fontWeight: 700,
+              background: statusCfg.color, color: 'var(--mx-surface)', fontSize: '12px', fontWeight: 700,
               letterSpacing: '0.02em',
             }}>
               {statusCfg.label}
@@ -513,7 +513,7 @@ export default function ReimbursementView({ currentUser }: Props) {
           {sheet.change_request_remarks && (sheetStatus === 'manager_change_requested' || sheetStatus === 'hr_change_requested') && (
             <div style={{
               marginTop: 8, padding: '10px 14px', borderRadius: 'var(--mx-radius-xs, 6px)',
-              background: '#fef2f2', border: '1px solid #fecaca', fontSize: '13px', color: '#991b1b',
+              background: 'var(--mx-red-50)', border: '1px solid var(--mx-red-200)', fontSize: '13px', color: 'var(--mx-red-800)',
             }}>
               <strong>Changes requested{sheet.change_requested_by ? ` by ${sheet.change_requested_by}` : ''}:</strong> {sheet.change_request_remarks}
             </div>
@@ -541,7 +541,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
           {/* Manager: Approve / Request Changes */}
           {sheetStatus === 'submitted' && sheet.created_by !== currentUser.username && (
-            <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface, #fff)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong, #e5e7eb)' }}>
+            <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong)' }}>
               <div style={{ fontSize: '13.5px', fontWeight: 700, marginBottom: 8, color: 'var(--mx-ink)' }}>Manager Decision</div>
               <div style={{ fontSize: '12.5px', color: 'var(--mx-ink-muted)', marginBottom: 10 }}>
                 Review {sheet.creator_name}&apos;s reimbursement for {MONTHS[sheet.month - 1]} {sheet.year} — {sheet.entry_count} entries totaling ₹{sheet.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -560,7 +560,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                   className={`${historyStyles.button} ${historyStyles.primary}`}
                   disabled={actionLoading}
                   onClick={() => handleSheetAction('manager-decide', { decision: 'manager_approved', remarks: actionRemarks })}
-                  style={{ background: '#16a34a', borderColor: '#16a34a' }}
+                  style={{ background: 'var(--mx-green-600)', borderColor: 'var(--mx-green-600)' }}
                 >
                   {actionLoading ? 'Processing…' : 'Approve'}
                 </button>
@@ -572,7 +572,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                     if (!actionRemarks.trim()) { toast.error('Please provide remarks for the change request.'); return; }
                     handleSheetAction('manager-decide', { decision: 'manager_change_requested', remarks: actionRemarks });
                   }}
-                  style={{ color: '#dc2626', borderColor: '#dc2626' }}
+                  style={{ color: 'var(--mx-brand)', borderColor: 'var(--mx-brand)' }}
                 >
                   Request Changes
                 </button>
@@ -582,7 +582,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
           {/* HR: Approve / Request Changes */}
           {sheetStatus === 'manager_approved' && sheet.created_by !== currentUser.username && (
-            <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface, #fff)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong, #e5e7eb)' }}>
+            <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong)' }}>
               <div style={{ fontSize: '13.5px', fontWeight: 700, marginBottom: 8, color: 'var(--mx-ink)' }}>HR Review</div>
               <div style={{ fontSize: '12.5px', color: 'var(--mx-ink-muted)', marginBottom: 4 }}>
                 {sheet.creator_name} ({sheet.creator_employee_id}) &middot; {MONTHS[sheet.month - 1]} {sheet.year} &middot; {sheet.entry_count} entries &middot; ₹{sheet.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -607,7 +607,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                   className={`${historyStyles.button} ${historyStyles.primary}`}
                   disabled={actionLoading}
                   onClick={() => handleSheetAction('hr-decide', { decision: 'hr_approved', remarks: actionRemarks })}
-                  style={{ background: '#16a34a', borderColor: '#16a34a' }}
+                  style={{ background: 'var(--mx-green-600)', borderColor: 'var(--mx-green-600)' }}
                 >
                   {actionLoading ? 'Processing…' : 'Approve & Forward to Accounts'}
                 </button>
@@ -619,7 +619,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                     if (!actionRemarks.trim()) { toast.error('Please provide remarks for the change request.'); return; }
                     handleSheetAction('hr-decide', { decision: 'hr_change_requested', remarks: actionRemarks });
                   }}
-                  style={{ color: '#dc2626', borderColor: '#dc2626' }}
+                  style={{ color: 'var(--mx-brand)', borderColor: 'var(--mx-brand)' }}
                 >
                   Request Changes
                 </button>
@@ -629,7 +629,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
           {/* Accounts: Mark Payment Done */}
           {sheetStatus === 'hr_approved' && sheet.created_by !== currentUser.username && (
-            <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface, #fff)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong, #e5e7eb)' }}>
+            <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong)' }}>
               <div style={{ fontSize: '13.5px', fontWeight: 700, marginBottom: 8, color: 'var(--mx-ink)' }}>Accounts — Process Payment</div>
               <div style={{ fontSize: '12.5px', color: 'var(--mx-ink-muted)', marginBottom: 10 }}>
                 {sheet.creator_name} ({sheet.creator_employee_id}) &middot; {MONTHS[sheet.month - 1]} {sheet.year} &middot; ₹{sheet.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({sheet.total_in_words})
@@ -649,7 +649,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                 className={`${historyStyles.button} ${historyStyles.primary}`}
                 disabled={actionLoading}
                 onClick={() => handleSheetAction('accounts-complete', { paymentReference: paymentRef, remarks: actionRemarks })}
-                style={{ background: '#16a34a', borderColor: '#16a34a' }}
+                style={{ background: 'var(--mx-green-600)', borderColor: 'var(--mx-green-600)' }}
               >
                 {actionLoading ? 'Processing…' : 'Mark Payment Done'}
               </button>
@@ -658,7 +658,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
           {/* Payment done summary */}
           {sheetStatus === 'payment_done' && (
-            <div style={{ marginTop: 10, fontSize: '13px', color: '#16a34a', fontWeight: 600 }}>
+            <div style={{ marginTop: 10, fontSize: '13px', color: 'var(--mx-green-600)', fontWeight: 600 }}>
               Payment completed{sheet.accounts_handler_name ? ` by ${sheet.accounts_handler_name}` : ''}{sheet.accounts_completed_at ? ` on ${formatDate(sheet.accounts_completed_at)}` : ''}
               {sheet.payment_reference ? ` — Ref: ${sheet.payment_reference}` : ''}
             </div>
@@ -694,11 +694,11 @@ export default function ReimbursementView({ currentUser }: Props) {
                 {form.descriptionType === 'Conveyance' && (
                   <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Vehicle Type *</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--mx-gray-700)' }}>Vehicle Type *</span>
                   </div>
                   <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
                     {Object.keys(VEHICLE_RATE).map((v) => (
-                      <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: form.vehicleType === v ? 700 : 500, color: form.vehicleType === v ? 'var(--mx-brand)' : '#374151', padding: '6px 12px', borderRadius: 'var(--mx-radius-sm)', border: form.vehicleType === v ? '2px solid var(--mx-brand)' : '1px solid var(--mx-border)', background: form.vehicleType === v ? 'var(--mx-brand-subtle)' : 'var(--mx-surface)', transition: 'all 0.15s ease' }}>
+                      <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: form.vehicleType === v ? 700 : 500, color: form.vehicleType === v ? 'var(--mx-brand)' : 'var(--mx-gray-700)', padding: '6px 12px', borderRadius: 'var(--mx-radius-sm)', border: form.vehicleType === v ? '2px solid var(--mx-brand)' : '1px solid var(--mx-border)', background: form.vehicleType === v ? 'var(--mx-brand-subtle)' : 'var(--mx-surface)', transition: 'all 0.15s ease' }}>
                         <input type="radio" name="vehicleType" value={v} checked={form.vehicleType === v} style={{ display: 'none' }} onChange={() => {
                           setForm((f) => {
                             const km = Number(f.kilometers) || 0;
@@ -803,23 +803,23 @@ export default function ReimbursementView({ currentUser }: Props) {
               <label
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  padding: '20px 16px', border: '2px dashed var(--mx-border-strong, #d1d5db)', borderRadius: 'var(--mx-radius-sm, 8px)',
-                  background: 'var(--mx-surface-sunken, #f9fafb)', cursor: uploading ? 'wait' : 'pointer',
+                  padding: '20px 16px', border: '2px dashed var(--mx-border-strong)', borderRadius: 'var(--mx-radius-sm, 8px)',
+                  background: 'var(--mx-surface-sunken)', cursor: uploading ? 'wait' : 'pointer',
                   transition: 'border-color 0.15s ease, background 0.15s ease',
                   opacity: uploading ? 0.6 : 1
                 }}
-                onMouseEnter={(e) => { if (!uploading) { e.currentTarget.style.borderColor = 'var(--mx-brand, #2563eb)'; e.currentTarget.style.background = 'var(--mx-info-subtle, #eff6ff)'; } }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--mx-border-strong, #d1d5db)'; e.currentTarget.style.background = 'var(--mx-surface-sunken, #f9fafb)'; }}
+                onMouseEnter={(e) => { if (!uploading) { e.currentTarget.style.borderColor = 'var(--mx-brand)'; e.currentTarget.style.background = 'var(--mx-info-subtle)'; } }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--mx-border-strong)'; e.currentTarget.style.background = 'var(--mx-surface-sunken)'; }}
               >
                 <input type="file" multiple accept="image/*,.pdf" onChange={(e) => { handleUpload(e.target.files); e.target.value = ''; }} disabled={uploading} style={{ display: 'none' }} />
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--mx-ink-faint, #9ca3af)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 6 }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--mx-ink-faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 6 }}>
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
                 {uploading
-                  ? <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--mx-ink-muted, #6b7280)' }}>Uploading…</span>
+                  ? <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--mx-ink-muted)' }}>Uploading…</span>
                   : <>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--mx-ink, #111827)' }}>Click to upload bill proof</span>
-                      <span style={{ fontSize: '11.5px', color: 'var(--mx-ink-faint, #9ca3af)', marginTop: 2 }}>Images or PDF up to 10 MB</span>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--mx-ink)' }}>Click to upload bill proof</span>
+                      <span style={{ fontSize: '11.5px', color: 'var(--mx-ink-faint)', marginTop: 2 }}>Images or PDF up to 10 MB</span>
                     </>
                 }
               </label>
@@ -828,21 +828,21 @@ export default function ReimbursementView({ currentUser }: Props) {
                   {form.attachmentUrls.map((url, i) => (
                     <div key={i} style={{
                       display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-                      background: 'var(--mx-surface, #fff)', border: '1px solid var(--mx-border-strong, #e5e7eb)',
+                      background: 'var(--mx-surface)', border: '1px solid var(--mx-border-strong)',
                       borderRadius: 'var(--mx-radius-xs, 6px)'
                     }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mx-success, #16a34a)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mx-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
                       </svg>
-                      <a href={url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, fontSize: '13px', color: 'var(--mx-info, #2563eb)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <a href={url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, fontSize: '13px', color: 'var(--mx-info)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {friendlyFileName(url)}
                       </a>
                       <button type="button" onClick={() => setForm((f) => ({ ...f, attachmentUrls: f.attachmentUrls.filter((_, j) => j !== i) }))} style={{
-                        background: 'none', border: '1px solid var(--mx-danger, #dc2626)', color: 'var(--mx-danger, #dc2626)',
+                        background: 'none', border: '1px solid var(--mx-danger)', color: 'var(--mx-danger)',
                         cursor: 'pointer', padding: '2px 8px', borderRadius: 'var(--mx-radius-xs, 4px)', fontSize: '11px', fontWeight: 600,
                         transition: 'background 0.15s ease'
                       }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--mx-danger-subtle, #fef2f2)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--mx-danger-subtle)'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
                       >Remove</button>
                     </div>
@@ -896,7 +896,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                       {rec.employee_names.length > 0 ? (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           {rec.employee_names.map((name, j) => (
-                            <span key={j} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-info-subtle, #eff6ff)', color: 'var(--mx-info, #2563eb)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{name}</span>
+                            <span key={j} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-info-subtle)', color: 'var(--mx-info)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{name}</span>
                           ))}
                         </div>
                       ) : <span style={{ opacity: 0.35 }}>—</span>}
@@ -905,13 +905,13 @@ export default function ReimbursementView({ currentUser }: Props) {
                     <td>{rec.to_location || <span style={{ opacity: 0.35 }}>—</span>}</td>
                     <td className={historyStyles.num}>{rec.kilometers || <span style={{ opacity: 0.35 }}>—</span>}</td>
                     <td className={historyStyles.amount} style={{ fontWeight: 600 }}>₹{rec.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td>{rec.mode_of_payment ? <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-surface-sunken, #f3f4f6)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{rec.mode_of_payment}</span> : <span style={{ opacity: 0.35 }}>—</span>}</td>
+                    <td>{rec.mode_of_payment ? <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-surface-sunken)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{rec.mode_of_payment}</span> : <span style={{ opacity: 0.35 }}>—</span>}</td>
                     <td>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {rec.attachment_urls.map((url, j) => (
                           <a key={j} href={url} target="_blank" rel="noopener noreferrer" title={friendlyFileName(url)} style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-                            background: 'var(--mx-info-subtle, #eff6ff)', color: 'var(--mx-info, #2563eb)',
+                            background: 'var(--mx-info-subtle)', color: 'var(--mx-info)',
                             borderRadius: 'var(--mx-radius-xs, 6px)', fontSize: '12px', fontWeight: 600,
                             textDecoration: 'none', whiteSpace: 'nowrap', transition: 'background 0.15s ease'
                           }}>
@@ -927,18 +927,18 @@ export default function ReimbursementView({ currentUser }: Props) {
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button type="button" onClick={() => startEdit(rec)} style={{
                               display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-                              background: 'var(--mx-surface, #fff)', border: '1px solid var(--mx-border-strong, #d1d5db)',
+                              background: 'var(--mx-surface)', border: '1px solid var(--mx-border-strong)',
                               borderRadius: 'var(--mx-radius-xs, 6px)', fontSize: '12px', fontWeight: 600,
-                              color: 'var(--mx-ink, #111)', cursor: 'pointer', transition: 'background 0.15s ease'
+                              color: 'var(--mx-ink)', cursor: 'pointer', transition: 'background 0.15s ease'
                             }}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                               Edit
                             </button>
                             <button type="button" onClick={() => handleDelete(rec.id)} style={{
                               display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-                              background: 'var(--mx-surface, #fff)', border: '1px solid var(--mx-danger, #dc2626)',
+                              background: 'var(--mx-surface)', border: '1px solid var(--mx-danger)',
                               borderRadius: 'var(--mx-radius-xs, 6px)', fontSize: '12px', fontWeight: 600,
-                              color: 'var(--mx-danger, #dc2626)', cursor: 'pointer', transition: 'background 0.15s ease'
+                              color: 'var(--mx-danger)', cursor: 'pointer', transition: 'background 0.15s ease'
                             }}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
                               Delete
@@ -951,10 +951,10 @@ export default function ReimbursementView({ currentUser }: Props) {
                 ))}
               </tbody>
               <tfoot>
-                <tr style={{ background: 'var(--mx-surface-sunken, #f9fafb)' }}>
-                  <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid var(--mx-border-strong, #d1d5db)' }}>Monthly Total</td>
-                  <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid var(--mx-border-strong, #d1d5db)', color: 'var(--mx-ink)' }}>₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td colSpan={canEdit ? 3 : 2} style={{ fontStyle: 'italic', fontSize: '12px', color: 'var(--mx-ink-muted)', borderTop: '2px solid var(--mx-border-strong, #d1d5db)' }}>{totalInWords}</td>
+                <tr style={{ background: 'var(--mx-surface-sunken)' }}>
+                  <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid var(--mx-border-strong)' }}>Monthly Total</td>
+                  <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid var(--mx-border-strong)', color: 'var(--mx-ink)' }}>₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                  <td colSpan={canEdit ? 3 : 2} style={{ fontStyle: 'italic', fontSize: '12px', color: 'var(--mx-ink-muted)', borderTop: '2px solid var(--mx-border-strong)' }}>{totalInWords}</td>
                 </tr>
               </tfoot>
             </table>
@@ -987,12 +987,12 @@ export default function ReimbursementView({ currentUser }: Props) {
                         onClick={() => openPendingSheet(s)}
                         style={{
                           padding: '14px 18px', borderRadius: 'var(--mx-radius-sm, 10px)',
-                          border: '1px solid var(--mx-border-strong, #e5e7eb)', background: 'var(--mx-surface, #fff)',
+                          border: '1px solid var(--mx-border-strong)', background: 'var(--mx-surface)',
                           cursor: 'pointer', transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--mx-brand, #2563eb)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.08)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--mx-border-strong, #e5e7eb)'; e.currentTarget.style.boxShadow = 'none'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--mx-brand)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.08)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--mx-border-strong)'; e.currentTarget.style.boxShadow = 'none'; }}
                       >
                         <div>
                           <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--mx-ink)', marginBottom: 2 }}>
@@ -1009,7 +1009,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                          <span style={{ padding: '4px 12px', borderRadius: 16, background: cfg.color, color: '#fff', fontSize: '11.5px', fontWeight: 700 }}>
+                          <span style={{ padding: '4px 12px', borderRadius: 16, background: cfg.color, color: 'var(--mx-surface)', fontSize: '11.5px', fontWeight: 700 }}>
                             {cfg.label}
                           </span>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mx-ink-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
@@ -1057,7 +1057,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                           Reimbursement Total: ₹{pendingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({pendingTotalInWords})
                         </div>
                         {canSeeAdminEntries && pendingAdminTotal > 0 && (
-                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e40af', marginTop: 3 }}>
+                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--mx-blue-800)', marginTop: 3 }}>
                             Company Paid: ₹{pendingAdminTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (not in reimbursement)
                           </div>
                         )}
@@ -1067,7 +1067,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                           Download Voucher
                         </button>
-                        <span style={{ padding: '4px 14px', borderRadius: 20, background: cfg.color, color: '#fff', fontSize: '12px', fontWeight: 700 }}>
+                        <span style={{ padding: '4px 14px', borderRadius: 20, background: cfg.color, color: 'var(--mx-surface)', fontSize: '12px', fontWeight: 700 }}>
                           {cfg.label}
                         </span>
                       </div>
@@ -1077,7 +1077,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
                     {/* Manager decision panel */}
                     {sp.status === 'submitted' && (
-                      <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface, #fff)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong, #e5e7eb)' }}>
+                      <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong)' }}>
                         <div style={{ fontSize: '13.5px', fontWeight: 700, marginBottom: 10, color: 'var(--mx-ink)' }}>Your Decision</div>
                         <textarea
                           className={calcStyles.formControl}
@@ -1090,7 +1090,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={actionLoading}
                             onClick={() => handlePendingAction('manager-decide', { decision: 'manager_approved', remarks: actionRemarks })}
-                            style={{ background: '#16a34a', borderColor: '#16a34a' }}>
+                            style={{ background: 'var(--mx-green-600)', borderColor: 'var(--mx-green-600)' }}>
                             {actionLoading ? 'Processing…' : 'Approve & Forward to HR'}
                           </button>
                           <button type="button" className={historyStyles.button} disabled={actionLoading}
@@ -1098,7 +1098,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                               if (!actionRemarks.trim()) { toast.error('Please provide remarks for the change request.'); return; }
                               handlePendingAction('manager-decide', { decision: 'manager_change_requested', remarks: actionRemarks });
                             }}
-                            style={{ color: '#dc2626', borderColor: '#dc2626' }}>
+                            style={{ color: 'var(--mx-brand)', borderColor: 'var(--mx-brand)' }}>
                             Request Changes
                           </button>
                         </div>
@@ -1107,7 +1107,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
                     {/* HR decision panel */}
                     {sp.status === 'manager_approved' && (
-                      <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface, #fff)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong, #e5e7eb)' }}>
+                      <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong)' }}>
                         <div style={{ fontSize: '13.5px', fontWeight: 700, marginBottom: 6, color: 'var(--mx-ink)' }}>HR Review</div>
                         {sp.manager_name && (
                           <div style={{ fontSize: '12px', color: 'var(--mx-ink-faint)', marginBottom: 10 }}>
@@ -1126,7 +1126,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={actionLoading}
                             onClick={() => handlePendingAction('hr-decide', { decision: 'hr_approved', remarks: actionRemarks })}
-                            style={{ background: '#16a34a', borderColor: '#16a34a' }}>
+                            style={{ background: 'var(--mx-green-600)', borderColor: 'var(--mx-green-600)' }}>
                             {actionLoading ? 'Processing…' : 'Approve & Forward to Accounts'}
                           </button>
                           <button type="button" className={historyStyles.button} disabled={actionLoading}
@@ -1134,7 +1134,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                               if (!actionRemarks.trim()) { toast.error('Please provide remarks for the change request.'); return; }
                               handlePendingAction('hr-decide', { decision: 'hr_change_requested', remarks: actionRemarks });
                             }}
-                            style={{ color: '#dc2626', borderColor: '#dc2626' }}>
+                            style={{ color: 'var(--mx-brand)', borderColor: 'var(--mx-brand)' }}>
                             Request Changes
                           </button>
                         </div>
@@ -1143,7 +1143,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
                     {/* Accounts payment panel */}
                     {sp.status === 'hr_approved' && (
-                      <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface, #fff)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong, #e5e7eb)' }}>
+                      <div style={{ marginTop: 14, padding: '14px 16px', background: 'var(--mx-surface)', borderRadius: 'var(--mx-radius-xs, 8px)', border: '1px solid var(--mx-border-strong)' }}>
                         <div style={{ fontSize: '13.5px', fontWeight: 700, marginBottom: 10, color: 'var(--mx-ink)' }}>Process Payment</div>
                         <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 10 }}>
                           <div className={calcStyles.field}>
@@ -1157,7 +1157,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                         </div>
                         <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={actionLoading}
                           onClick={() => handlePendingAction('accounts-complete', { paymentReference: paymentRef, remarks: actionRemarks })}
-                          style={{ background: '#16a34a', borderColor: '#16a34a' }}>
+                          style={{ background: 'var(--mx-green-600)', borderColor: 'var(--mx-green-600)' }}>
                           {actionLoading ? 'Processing…' : 'Mark Payment Done'}
                         </button>
                       </div>
@@ -1198,7 +1198,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                             {rec.employee_names.length > 0 ? (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                 {rec.employee_names.map((name, j) => (
-                                  <span key={j} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-info-subtle, #eff6ff)', color: 'var(--mx-info, #2563eb)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{name}</span>
+                                  <span key={j} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-info-subtle)', color: 'var(--mx-info)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{name}</span>
                                 ))}
                               </div>
                             ) : <span style={{ opacity: 0.35 }}>—</span>}
@@ -1237,7 +1237,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                               {rec.attachment_urls.map((url, j) => (
                                 <a key={j} href={url} target="_blank" rel="noopener noreferrer" title={friendlyFileName(url)} style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-                                  background: 'var(--mx-info-subtle, #eff6ff)', color: 'var(--mx-info, #2563eb)',
+                                  background: 'var(--mx-info-subtle)', color: 'var(--mx-info)',
                                   borderRadius: 'var(--mx-radius-xs, 6px)', fontSize: '12px', fontWeight: 600,
                                   textDecoration: 'none', whiteSpace: 'nowrap',
                                 }}>
@@ -1251,10 +1251,10 @@ export default function ReimbursementView({ currentUser }: Props) {
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr style={{ background: 'var(--mx-surface-sunken, #f9fafb)' }}>
-                        <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid var(--mx-border-strong, #d1d5db)' }}>Monthly Total</td>
-                        <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid var(--mx-border-strong, #d1d5db)', color: 'var(--mx-ink)' }}>₹{pendingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        <td colSpan={2} style={{ fontStyle: 'italic', fontSize: '12px', color: 'var(--mx-ink-muted)', borderTop: '2px solid var(--mx-border-strong, #d1d5db)' }}>{pendingTotalInWords}</td>
+                      <tr style={{ background: 'var(--mx-surface-sunken)' }}>
+                        <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid var(--mx-border-strong)' }}>Monthly Total</td>
+                        <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid var(--mx-border-strong)', color: 'var(--mx-ink)' }}>₹{pendingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td colSpan={2} style={{ fontStyle: 'italic', fontSize: '12px', color: 'var(--mx-ink-muted)', borderTop: '2px solid var(--mx-border-strong)' }}>{pendingTotalInWords}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -1266,15 +1266,15 @@ export default function ReimbursementView({ currentUser }: Props) {
                 <div style={{ marginTop: 20 }}>
                   <div style={{
                     padding: '10px 16px', borderRadius: '8px 8px 0 0',
-                    background: '#dbeafe', border: '1px solid #93c5fd', borderBottom: 'none',
-                    fontSize: '13.5px', fontWeight: 700, color: '#1e40af',
+                    background: 'var(--mx-blue-100)', border: '1px solid var(--mx-blue-300)', borderBottom: 'none',
+                    fontSize: '13.5px', fontWeight: 700, color: 'var(--mx-blue-800)',
                   }}>
                     Company Paid Expenses (Added by Admin) — Not included in reimbursement
                   </div>
                   <div className={historyStyles.tableWrap} style={{ borderRadius: '0 0 8px 8px' }}>
                     <table className={historyStyles.table}>
                       <thead>
-                        <tr style={{ background: '#eff6ff' }}>
+                        <tr style={{ background: 'var(--mx-blue-50)' }}>
                           <th>#</th>
                           <th>Date</th>
                           <th>Description</th>
@@ -1288,7 +1288,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                       </thead>
                       <tbody>
                         {pendingAdminRecords.map((rec, i) => (
-                          <tr key={rec.id} style={{ background: i % 2 === 0 ? '#f8faff' : '#fff' }}>
+                          <tr key={rec.id} style={{ background: i % 2 === 0 ? 'var(--mx-blue-50)' : 'var(--mx-surface)' }}>
                             <td style={{ color: 'var(--mx-ink-faint)', fontSize: '12px' }}>{i + 1}</td>
                             <td style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{formatDate(rec.date)}</td>
                             <td>{rec.description || '—'}</td>
@@ -1300,11 +1300,11 @@ export default function ReimbursementView({ currentUser }: Props) {
                             <td style={{ textAlign: 'center', fontSize: '12px', color: 'var(--mx-ink-muted)' }}>
                               {rec.admin_split_count ? `÷ ${rec.admin_split_count}` : '—'}
                             </td>
-                            <td className={historyStyles.amount} style={{ fontWeight: 600, color: '#1e40af' }}>
+                            <td className={historyStyles.amount} style={{ fontWeight: 600, color: 'var(--mx-blue-800)' }}>
                               ₹{rec.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </td>
                             <td>
-                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: '#dbeafe', fontSize: '11.5px', fontWeight: 600, color: '#1e40af', whiteSpace: 'nowrap' }}>
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-blue-100)', fontSize: '11.5px', fontWeight: 600, color: 'var(--mx-blue-800)', whiteSpace: 'nowrap' }}>
                                 {rec.mode_of_payment || 'Company Paid'}
                               </span>
                             </td>
@@ -1312,12 +1312,12 @@ export default function ReimbursementView({ currentUser }: Props) {
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr style={{ background: '#eff6ff' }}>
-                          <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid #93c5fd', color: '#1e40af' }}>Company Paid Total</td>
-                          <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid #93c5fd', color: '#1e40af' }}>
+                        <tr style={{ background: 'var(--mx-blue-50)' }}>
+                          <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid var(--mx-blue-300)', color: 'var(--mx-blue-800)' }}>Company Paid Total</td>
+                          <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid var(--mx-blue-300)', color: 'var(--mx-blue-800)' }}>
                             ₹{pendingAdminTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </td>
-                          <td style={{ borderTop: '2px solid #93c5fd' }} />
+                          <td style={{ borderTop: '2px solid var(--mx-blue-300)' }} />
                         </tr>
                       </tfoot>
                     </table>
@@ -1352,12 +1352,12 @@ export default function ReimbursementView({ currentUser }: Props) {
                         onClick={() => openApprovedSheet(s)}
                         style={{
                           padding: '14px 18px', borderRadius: 'var(--mx-radius-sm, 10px)',
-                          border: '1px solid var(--mx-border-strong, #e5e7eb)', background: 'var(--mx-surface, #fff)',
+                          border: '1px solid var(--mx-border-strong)', background: 'var(--mx-surface)',
                           cursor: 'pointer', transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--mx-brand, #2563eb)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.08)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--mx-border-strong, #e5e7eb)'; e.currentTarget.style.boxShadow = 'none'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--mx-brand)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.08)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--mx-border-strong)'; e.currentTarget.style.boxShadow = 'none'; }}
                       >
                         <div>
                           <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--mx-ink)', marginBottom: 2 }}>
@@ -1374,7 +1374,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                          <span style={{ padding: '4px 12px', borderRadius: 16, background: cfg.color, color: '#fff', fontSize: '11.5px', fontWeight: 700 }}>
+                          <span style={{ padding: '4px 12px', borderRadius: 16, background: cfg.color, color: 'var(--mx-surface)', fontSize: '11.5px', fontWeight: 700 }}>
                             {cfg.label}
                           </span>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mx-ink-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
@@ -1420,7 +1420,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                           Reimbursement Total: ₹{approvedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({approvedTotalInWords})
                         </div>
                         {canSeeAdminEntries && approvedAdminTotal > 0 && (
-                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#1e40af', marginTop: 3 }}>
+                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--mx-blue-800)', marginTop: 3 }}>
                             Company Paid: ₹{approvedAdminTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (not in reimbursement)
                           </div>
                         )}
@@ -1430,7 +1430,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                           Download Voucher
                         </button>
-                        <span style={{ padding: '4px 14px', borderRadius: 20, background: cfg.color, color: '#fff', fontSize: '12px', fontWeight: 700 }}>
+                        <span style={{ padding: '4px 14px', borderRadius: 20, background: cfg.color, color: 'var(--mx-surface)', fontSize: '12px', fontWeight: 700 }}>
                           {cfg.label}
                         </span>
                       </div>
@@ -1491,7 +1491,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                             {rec.employee_names.length > 0 ? (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                 {rec.employee_names.map((name, j) => (
-                                  <span key={j} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-info-subtle, #eff6ff)', color: 'var(--mx-info, #2563eb)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{name}</span>
+                                  <span key={j} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-info-subtle)', color: 'var(--mx-info)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{name}</span>
                                 ))}
                               </div>
                             ) : <span style={{ opacity: 0.35 }}>—</span>}
@@ -1500,13 +1500,13 @@ export default function ReimbursementView({ currentUser }: Props) {
                           <td>{rec.to_location || <span style={{ opacity: 0.35 }}>—</span>}</td>
                           <td className={historyStyles.num}>{rec.kilometers || <span style={{ opacity: 0.35 }}>—</span>}</td>
                           <td className={historyStyles.amount} style={{ fontWeight: 600 }}>₹{rec.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                          <td>{rec.mode_of_payment ? <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-surface-sunken, #f3f4f6)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{rec.mode_of_payment}</span> : <span style={{ opacity: 0.35 }}>—</span>}</td>
+                          <td>{rec.mode_of_payment ? <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-surface-sunken)', fontSize: '11.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{rec.mode_of_payment}</span> : <span style={{ opacity: 0.35 }}>—</span>}</td>
                           <td>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                               {rec.attachment_urls.map((url, j) => (
                                 <a key={j} href={url} target="_blank" rel="noopener noreferrer" title={friendlyFileName(url)} style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-                                  background: 'var(--mx-info-subtle, #eff6ff)', color: 'var(--mx-info, #2563eb)',
+                                  background: 'var(--mx-info-subtle)', color: 'var(--mx-info)',
                                   borderRadius: 'var(--mx-radius-xs, 6px)', fontSize: '12px', fontWeight: 600,
                                   textDecoration: 'none', whiteSpace: 'nowrap',
                                 }}>
@@ -1520,10 +1520,10 @@ export default function ReimbursementView({ currentUser }: Props) {
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr style={{ background: 'var(--mx-surface-sunken, #f9fafb)' }}>
-                        <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid var(--mx-border-strong, #d1d5db)' }}>Monthly Total</td>
-                        <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid var(--mx-border-strong, #d1d5db)', color: 'var(--mx-ink)' }}>₹{approvedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        <td colSpan={2} style={{ fontStyle: 'italic', fontSize: '12px', color: 'var(--mx-ink-muted)', borderTop: '2px solid var(--mx-border-strong, #d1d5db)' }}>{approvedTotalInWords}</td>
+                      <tr style={{ background: 'var(--mx-surface-sunken)' }}>
+                        <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid var(--mx-border-strong)' }}>Monthly Total</td>
+                        <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid var(--mx-border-strong)', color: 'var(--mx-ink)' }}>₹{approvedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td colSpan={2} style={{ fontStyle: 'italic', fontSize: '12px', color: 'var(--mx-ink-muted)', borderTop: '2px solid var(--mx-border-strong)' }}>{approvedTotalInWords}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -1535,15 +1535,15 @@ export default function ReimbursementView({ currentUser }: Props) {
                 <div style={{ marginTop: 20 }}>
                   <div style={{
                     padding: '10px 16px', borderRadius: '8px 8px 0 0',
-                    background: '#dbeafe', border: '1px solid #93c5fd', borderBottom: 'none',
-                    fontSize: '13.5px', fontWeight: 700, color: '#1e40af',
+                    background: 'var(--mx-blue-100)', border: '1px solid var(--mx-blue-300)', borderBottom: 'none',
+                    fontSize: '13.5px', fontWeight: 700, color: 'var(--mx-blue-800)',
                   }}>
                     Company Paid Expenses (Added by Admin) — Not included in reimbursement
                   </div>
                   <div className={historyStyles.tableWrap} style={{ borderRadius: '0 0 8px 8px' }}>
                     <table className={historyStyles.table}>
                       <thead>
-                        <tr style={{ background: '#eff6ff' }}>
+                        <tr style={{ background: 'var(--mx-blue-50)' }}>
                           <th>#</th>
                           <th>Date</th>
                           <th>Description</th>
@@ -1557,7 +1557,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                       </thead>
                       <tbody>
                         {approvedAdminRecords.map((rec, i) => (
-                          <tr key={rec.id} style={{ background: i % 2 === 0 ? '#f8faff' : '#fff' }}>
+                          <tr key={rec.id} style={{ background: i % 2 === 0 ? 'var(--mx-blue-50)' : 'var(--mx-surface)' }}>
                             <td style={{ color: 'var(--mx-ink-faint)', fontSize: '12px' }}>{i + 1}</td>
                             <td style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{formatDate(rec.date)}</td>
                             <td>{rec.description || '—'}</td>
@@ -1569,11 +1569,11 @@ export default function ReimbursementView({ currentUser }: Props) {
                             <td style={{ textAlign: 'center', fontSize: '12px', color: 'var(--mx-ink-muted)' }}>
                               {rec.admin_split_count ? `÷ ${rec.admin_split_count}` : '—'}
                             </td>
-                            <td className={historyStyles.amount} style={{ fontWeight: 600, color: '#1e40af' }}>
+                            <td className={historyStyles.amount} style={{ fontWeight: 600, color: 'var(--mx-blue-800)' }}>
                               ₹{rec.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </td>
                             <td>
-                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: '#dbeafe', fontSize: '11.5px', fontWeight: 600, color: '#1e40af', whiteSpace: 'nowrap' }}>
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: 'var(--mx-blue-100)', fontSize: '11.5px', fontWeight: 600, color: 'var(--mx-blue-800)', whiteSpace: 'nowrap' }}>
                                 {rec.mode_of_payment || 'Company Paid'}
                               </span>
                             </td>
@@ -1581,12 +1581,12 @@ export default function ReimbursementView({ currentUser }: Props) {
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr style={{ background: '#eff6ff' }}>
-                          <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid #93c5fd', color: '#1e40af' }}>Company Paid Total</td>
-                          <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid #93c5fd', color: '#1e40af' }}>
+                        <tr style={{ background: 'var(--mx-blue-50)' }}>
+                          <td colSpan={7} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13.5px', borderTop: '2px solid var(--mx-blue-300)', color: 'var(--mx-blue-800)' }}>Company Paid Total</td>
+                          <td className={historyStyles.amount} style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '2px solid var(--mx-blue-300)', color: 'var(--mx-blue-800)' }}>
                             ₹{approvedAdminTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </td>
-                          <td style={{ borderTop: '2px solid #93c5fd' }} />
+                          <td style={{ borderTop: '2px solid var(--mx-blue-300)' }} />
                         </tr>
                       </tfoot>
                     </table>

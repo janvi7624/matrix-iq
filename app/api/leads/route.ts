@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { leadStore, findDuplicateLead } from '@/lib/leadStore';
+import { leadStore, createOrMergeLead } from '@/lib/leadStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
-import { DomainKey, LeadPriority, LeadRecord } from '@/lib/types';
-
-function unionStrings(a: string[], b: string[]): string[] {
-  return [...new Set([...a, ...b])];
-}
+import { DomainKey, LeadPriority } from '@/lib/types';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITIES: LeadPriority[] = ['hot', 'warm', 'cool', ''];
@@ -38,7 +34,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Name or company is required' }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
   const mobile = typeof body.mobile === 'string' ? body.mobile.trim() : '';
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
@@ -55,69 +50,37 @@ export async function POST(request: NextRequest) {
     // Same mobile/email already scanned by anyone — merge into that lead
     // instead of creating a duplicate (spec: two reps scanning the same card
     // at an event must not fork into two records).
-    const duplicate = await findDuplicateLead(mobile, email);
-    if (duplicate) {
-      const merged = await leadStore.update(duplicate.id, {
-        name: name || duplicate.name,
-        company: company || duplicate.company,
-        mobile: mobile || duplicate.mobile,
-        email: email || duplicate.email,
-        designation: designation || duplicate.designation,
-        city: city || duplicate.city,
-        card_image_url: cardImageUrl || duplicate.card_image_url,
-        interests: unionStrings(duplicate.interests, interests) as DomainKey[],
-        sub_interests: unionStrings(duplicate.sub_interests, subInterests),
-        follow_up_actions: unionStrings(duplicate.follow_up_actions, followUpActions),
-        priority: priority || duplicate.priority,
-        budget: budget || duplicate.budget,
-        notes: notes ? (duplicate.notes ? `${duplicate.notes}\n---\n${notes}` : notes) : duplicate.notes,
-        updated_at: now
-      });
+    const result = await createOrMergeLead(
+      { name, mobile, email, designation, company, city, cardImageUrl, interests, subInterests, followUpActions, priority, budget, notes },
+      viewer.username
+    );
+
+    if (result.merged) {
+      const before = result.duplicateBefore!;
       await logAudit({
         by: viewer.username,
         role: viewer.role,
         entityType: 'lead',
-        entityId: duplicate.id,
-        action: `Lead re-scanned & merged (already captured by ${duplicate.created_by}): ${merged?.name || merged?.company}`,
-        previousStatus: duplicate.priority || 'unrated',
-        newStatus: merged?.priority || 'unrated',
+        entityId: before.id,
+        action: `Lead re-scanned & merged (already captured by ${before.created_by}): ${result.record.name || result.record.company}`,
+        previousStatus: before.priority || 'unrated',
+        newStatus: result.record.priority || 'unrated',
         ip: getClientIp(request)
       });
-      return NextResponse.json({ ...merged, duplicate: true, duplicateCapturedBy: duplicate.created_by }, { status: 200 });
+      return NextResponse.json({ ...result.record, duplicate: true, duplicateCapturedBy: before.created_by }, { status: 200 });
     }
 
-    const record: LeadRecord = {
-      id: `${Date.now()}`,
-      created_at: now,
-      created_by: viewer.username,
-      updated_at: now,
-      name,
-      mobile,
-      email,
-      designation,
-      company,
-      city,
-      card_image_url: cardImageUrl,
-      interests,
-      sub_interests: subInterests,
-      priority,
-      follow_up_actions: followUpActions,
-      budget,
-      notes,
-      project_id: ''
-    };
-    const created = await leadStore.create(record);
     await logAudit({
       by: viewer.username,
       role: viewer.role,
       entityType: 'lead',
-      entityId: created.id,
-      action: `Lead captured: ${created.name || created.company}`,
+      entityId: result.record.id,
+      action: `Lead captured: ${result.record.name || result.record.company}`,
       previousStatus: '',
-      newStatus: created.priority || 'unrated',
+      newStatus: result.record.priority || 'unrated',
       ip: getClientIp(request)
     });
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json(result.record, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);
   }

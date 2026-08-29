@@ -12,13 +12,12 @@ import {
   MarketingProductCategory,
   MarketingRequestPriority,
   MarketingRequestRecord,
-  MarketingRequestType,
-  ProjectRecord
+  MarketingRequestType
 } from '@/lib/types';
 import { MARKETING_PRIORITY_META, MARKETING_REQUEST_TYPE_LABEL, getProductCategoryStyle } from '@/lib/marketingRequestHelpers';
-import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
+import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -69,12 +68,11 @@ const STEPS: { icon: LucideIcon; label: string }[] = [
 
 interface MarketingRequestWizardProps {
   creating: boolean;
-  projects: ProjectRecord[];
   onSubmit: (form: MarketingRequestForm) => Promise<MarketingRequestRecord | null>;
   onViewAllRequests: () => void;
 }
 
-export default function MarketingRequestWizard({ creating, projects, onSubmit, onViewAllRequests }: MarketingRequestWizardProps) {
+export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRequests }: MarketingRequestWizardProps) {
   const toast = useToast();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<MarketingRequestForm>(emptyForm());
@@ -261,17 +259,14 @@ export default function MarketingRequestWizard({ creating, projects, onSubmit, o
               />
             </div>
 
-            {projects.length > 0 && (
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Related Sales Project (Optional)</label>
-                <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))}>
-                  <option value="">-- Not linked to a specific project --</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.company || p.client_name} ({PROJECT_STAGE_LABEL[p.stage]})</option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Related Sales Project (Optional)</label>
+              <ProjectSelect
+                value={form.projectId}
+                placeholder="-- Not linked to a specific project --"
+                onChange={(projectId) => setForm((f) => ({ ...f, projectId }))}
+              />
+            </div>
           </>
         )}
 

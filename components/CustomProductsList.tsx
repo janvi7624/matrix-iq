@@ -60,37 +60,63 @@ export default function CustomProductsList({ products, onAdd, onAddFromCatalog, 
         )}
         <div>
           {products.map((item) => (
-            <div key={item.id} className={styles.lineItemRow}>
-              <input
-                type="text"
-                className={`${styles.formControl} ${styles.lineItemInput}`}
-                placeholder="Product name"
-                value={item.name}
-                onChange={(e) => onChangeItem(item.id, { name: e.target.value })}
-              />
-              <input
-                type="number"
-                className={`${styles.formControl} ${styles.lineItemInput}`}
-                min={1}
-                step={1}
-                placeholder="Qty"
-                value={item.qty}
-                onFocus={selectAllOnFocus}
-                onChange={(e) => onChangeItem(item.id, { qty: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-              />
-              <input
-                type="number"
-                className={`${styles.formControl} ${styles.lineItemInput}`}
-                min={0}
-                step="any"
-                placeholder="Enter Product Price"
-                value={item.price === 0 ? '' : item.price}
-                onFocus={selectAllOnFocus}
-                onChange={(e) => onChangeItem(item.id, { price: parseFloat(e.target.value) || 0 })}
-              />
-              <button type="button" className={styles.removeItemBtn} title="Remove product" onClick={() => onRemove(item.id)}>
-                ×
-              </button>
+            <div key={item.id} className={styles.sectionPanel} style={{ marginTop: 8, padding: 12 }}>
+              <div className={styles.lineItemRow}>
+                <input
+                  type="text"
+                  className={`${styles.formControl} ${styles.lineItemInput}`}
+                  style={{ flex: 2 }}
+                  placeholder="Product / Service name"
+                  value={item.name}
+                  onChange={(e) => onChangeItem(item.id, { name: e.target.value })}
+                />
+                <input
+                  type="text"
+                  className={`${styles.formControl} ${styles.lineItemInput}`}
+                  placeholder="Unit (e.g. Nos.)"
+                  value={item.unit}
+                  onChange={(e) => onChangeItem(item.id, { unit: e.target.value })}
+                />
+                <input
+                  type="number"
+                  className={`${styles.formControl} ${styles.lineItemInput}`}
+                  min={1}
+                  step={1}
+                  placeholder="Qty"
+                  value={item.qty}
+                  onFocus={selectAllOnFocus}
+                  onChange={(e) => onChangeItem(item.id, { qty: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                />
+                <input
+                  type="number"
+                  className={`${styles.formControl} ${styles.lineItemInput}`}
+                  min={0}
+                  step="any"
+                  placeholder="Price"
+                  value={item.price === 0 ? '' : item.price}
+                  onFocus={selectAllOnFocus}
+                  onChange={(e) => onChangeItem(item.id, { price: parseFloat(e.target.value) || 0 })}
+                />
+                <button type="button" className={styles.removeItemBtn} title="Remove product" onClick={() => onRemove(item.id)}>
+                  ×
+                </button>
+              </div>
+              <div className={styles.lineItemRow} style={{ marginTop: 6 }}>
+                <input
+                  type="text"
+                  className={`${styles.formControl} ${styles.lineItemInput}`}
+                  placeholder="Description / Specification (optional)"
+                  value={item.description}
+                  onChange={(e) => onChangeItem(item.id, { description: e.target.value })}
+                />
+                <input
+                  type="text"
+                  className={`${styles.formControl} ${styles.lineItemInput}`}
+                  placeholder="Remarks (optional)"
+                  value={item.remarks}
+                  onChange={(e) => onChangeItem(item.id, { remarks: e.target.value })}
+                />
+              </div>
             </div>
           ))}
         </div>

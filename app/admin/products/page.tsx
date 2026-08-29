@@ -1,11 +1,9 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { ProductRecord, ProductStatus } from '@/lib/types';
 import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
-import { BRAND } from '@/lib/branding';
+import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -199,21 +197,7 @@ export default function ProductMasterPage() {
   }
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>Product Master</h1>
-            <div className={historyStyles.sub}>Administration &rsaquo; products available to pick from in every quotation&apos;s Custom Products list.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link className={historyStyles.button} href="/admin/settings">Application Settings</Link>
-          <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
-        </div>
-      </header>
-      <main className={historyStyles.main}>
+    <AppShell title="Product Master" subtitle="Administration › products available to pick from in every quotation's Custom Products list.">
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Add product</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           {createError && <div className={historyStyles.loginError}>{createError}</div>}
@@ -402,7 +386,6 @@ export default function ProductMasterPage() {
             </tbody>
           </table>
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }

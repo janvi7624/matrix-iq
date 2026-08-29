@@ -61,14 +61,28 @@ export default function Sidebar() {
   }, []);
 
   // Explicit user choice wins; otherwise default to a compact rail on
-  // tablet-width screens and fully expanded everywhere else.
+  // tablet-width screens and fully expanded everywhere else — re-evaluated
+  // on resize (debounced) as well as on mount, so dragging the window across
+  // the 768/1080 boundary (or rotating a tablet) doesn't leave the rail
+  // stuck at whatever it computed on first paint. Never overrides an
+  // explicit toggle (toggleCollapsed() below persists one to localStorage).
   useEffect(() => {
-    const saved = window.localStorage.getItem('sidebar-collapsed');
-    if (saved !== null) {
-      setCollapsed(saved === 'true');
-    } else {
+    function applyDefaultIfNoExplicitChoice() {
+      if (window.localStorage.getItem('sidebar-collapsed') !== null) return;
       setCollapsed(window.innerWidth > 768 && window.innerWidth <= 1080);
     }
+    applyDefaultIfNoExplicitChoice();
+
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    function onResize() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(applyDefaultIfNoExplicitChoice, 150);
+    }
+    window.addEventListener('resize', onResize);
+    return () => {
+      clearTimeout(resizeTimer);
+      window.removeEventListener('resize', onResize);
+    };
   }, []);
 
   function toggleCollapsed() {

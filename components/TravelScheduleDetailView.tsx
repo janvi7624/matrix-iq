@@ -9,6 +9,8 @@ import StatusBadge from './ui/StatusBadge';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import TravelScheduleForm, { EMPTY_TRAVEL_EXTRA_FIELDS, travelExtraFieldsFromRecord, travelExtraFieldsToPayload } from './TravelScheduleForm';
+import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -122,9 +124,8 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
   const [uploading, setUploading] = useState(false);
   const [departmentManagers, setDepartmentManagers] = useState<Record<string, { username: string }[]>>({});
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ origin: '', destination: '', startDate: '', endDate: '', requiredArrivalTime: '', expectedDepartureTime: '', purpose: '', linkedClient: '', expenseNote: '', projectId: '', companionIds: [] as string[] });
+  const [editForm, setEditForm] = useState({ origin: '', destination: '', startDate: '', endDate: '', requiredArrivalTime: '', expectedDepartureTime: '', linkedClient: '', projectId: '', companionIds: [] as string[], ...EMPTY_TRAVEL_EXTRA_FIELDS });
   const [allUsers, setAllUsers] = useState<{ id: string; username: string; name: string }[]>([]);
-  const [projects, setProjects] = useState<{ id: string; client_name?: string; company?: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [activePanel, setActivePanel] = useState<ActionPanel>(null);
   const [actionRemarks, setActionRemarks] = useState('');
@@ -149,7 +150,6 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
       .then((r) => (r.ok ? r.json() : {}))
       .then(setDepartmentManagers)
       .catch(() => setDepartmentManagers({}));
-    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
     fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setAllUsers).catch(() => setAllUsers([]));
   }, []);
 
@@ -290,9 +290,10 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
       origin: record.origin, destination: record.destination,
       startDate: record.start_date, endDate: record.end_date,
       requiredArrivalTime: record.required_arrival_time, expectedDepartureTime: record.expected_departure_time,
-      purpose: record.purpose, linkedClient: record.linked_client, expenseNote: record.expense_note,
+      linkedClient: record.linked_client,
       projectId: record.project_id,
-      companionIds: Array.isArray(record.companion_ids) ? [...record.companion_ids] : []
+      companionIds: Array.isArray(record.companion_ids) ? [...record.companion_ids] : [],
+      ...travelExtraFieldsFromRecord(record)
     });
     setEditing(true);
   }
@@ -307,7 +308,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
       const response = await fetch(`/api/travel-schedule/${requestId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify({ ...editForm, ...travelExtraFieldsToPayload(editForm) })
       });
       if (!response.ok) {
         const errBody = await response.json().catch(() => null);
@@ -554,27 +555,26 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
               <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 12 }}>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Project</label>
-                  <select className={calcStyles.formControl} value={editForm.projectId} onChange={(e) => setEditForm((f) => ({ ...f, projectId: e.target.value }))}>
-                    <option value="">— Select project —</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.client_name || ''}{p.company ? ` — ${p.company}` : ''}</option>
-                    ))}
-                  </select>
+                  <ProjectSelect
+                    value={editForm.projectId}
+                    onChange={(projectId, project) => setEditForm((f) => ({ ...f, projectId, linkedClient: project?.company || project?.client_name || f.linkedClient }))}
+                  />
                 </div>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Linked Client</label>
                   <input className={calcStyles.formControl} value={editForm.linkedClient} onChange={(e) => setEditForm((f) => ({ ...f, linkedClient: e.target.value }))} />
                 </div>
               </div>
-              <div className={calcStyles.field} style={{ marginTop: 8 }}>
-                <label className={calcStyles.label}>Purpose of Travel</label>
-                <textarea className={calcStyles.formControl} rows={2} value={editForm.purpose} onChange={(e) => setEditForm((f) => ({ ...f, purpose: e.target.value }))} />
+              <div style={{ marginTop: 8 }}>
+                <TravelScheduleForm
+                  value={editForm}
+                  onChange={(patch) => setEditForm((f) => ({ ...f, ...patch }))}
+                  requesterOrigin={editForm.origin}
+                  requesterDestination={editForm.destination}
+                  requesterTravelDate={editForm.startDate}
+                />
               </div>
-              <div className={calcStyles.field} style={{ marginTop: 8 }}>
-                <label className={calcStyles.label}>Expense Note</label>
-                <textarea className={calcStyles.formControl} rows={2} value={editForm.expenseNote} onChange={(e) => setEditForm((f) => ({ ...f, expenseNote: e.target.value }))} />
-              </div>
-              <div className={calcStyles.field} style={{ marginTop: 8 }}>
+              <div className={calcStyles.field} style={{ marginTop: 12 }}>
                 <label className={calcStyles.label}>Travel Companions</label>
                 <select
                   className={calcStyles.formControl}
@@ -636,8 +636,10 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                   <div><strong>Project:</strong> {record.project_name || '-'}</div>
                   <div><strong>Linked Client:</strong> {record.linked_client || '-'}</div>
                 </div>
-                <div style={{ marginTop: 8 }}><strong>Purpose:</strong> {record.purpose || '-'}</div>
-                <div style={{ marginTop: 8 }}><strong>Expense Note:</strong> {record.expense_note || '-'}</div>
+                <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 8 }}>
+                  <div><strong>Purpose:</strong> {record.purpose || '-'}{record.purpose === 'Others' && record.purpose_other ? ` — ${record.purpose_other}` : ''}</div>
+                  <div><strong>Mode of Travel:</strong> {record.mode_of_travel || '-'}</div>
+                </div>
                 <div style={{ marginTop: 8 }}><strong>Requested By:</strong> {record.created_by} on {formatDate(record.created_at)}</div>
                 {record.companion_names && record.companion_names.length > 0 && (
                   <div style={{ marginTop: 8 }}>
@@ -649,7 +651,47 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                     </span>
                   </div>
                 )}
+                {record.co_travellers && record.co_travellers.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <strong>Co-Travellers:</strong>{' '}
+                    <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6, verticalAlign: 'middle' }}>
+                      {record.co_travellers.map((c, i) => (
+                        <span key={i} style={{ padding: '2px 8px', borderRadius: 12, background: 'var(--mx-surface-alt, #e5e7eb)', fontSize: '0.85rem' }}>
+                          {c.name}{c.origin && c.destination ? ` (${c.origin} → ${c.destination})` : ''}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                )}
               </div>
+
+              {(record.hotel_accommodation?.required || record.advance_request?.required) && (
+                <div className={calcStyles.sectionPanel} style={{ marginTop: 16 }}>
+                  <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>Hotel & Advance Requests</h3>
+                  {record.hotel_accommodation?.required && (
+                    <div style={{ marginBottom: record.advance_request?.required ? 12 : 0 }}>
+                      <strong>Hotel Accommodation</strong>
+                      <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 4 }}>
+                        <div>Preferred Area: {record.hotel_accommodation.preferredArea || '-'}</div>
+                        <div>Suggested Hotel: {record.hotel_accommodation.suggestedHotel || '-'}</div>
+                      </div>
+                      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+                        <div>Check-in: {formatDate(record.hotel_accommodation.checkInDate)}</div>
+                        <div>Check-out: {formatDate(record.hotel_accommodation.checkOutDate)}</div>
+                      </div>
+                      <div>Guests: {record.hotel_accommodation.numberOfGuests || '-'}</div>
+                      {record.hotel_accommodation.additionalRequirement && <div>Note: {record.hotel_accommodation.additionalRequirement}</div>}
+                    </div>
+                  )}
+                  {record.advance_request?.required && (
+                    <div>
+                      <strong>Advance Request</strong>
+                      <div style={{ marginTop: 4 }}>Requested Amount: {formatCurrency(record.advance_request.requestedAmount)}</div>
+                      {record.advance_request.remark && <div>Remark: {record.advance_request.remark}</div>}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 

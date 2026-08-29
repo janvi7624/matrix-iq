@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 
-// Best-effort client IP for the audit log — Vercel/most proxies set
+// Best-effort client IP for the audit log — reverse proxies typically set
 // x-forwarded-for; NextRequest has no reliable .ip in the Node runtime, so
 // this returns '' when nothing usable is present rather than guessing.
 export function getClientIp(request: NextRequest): string {

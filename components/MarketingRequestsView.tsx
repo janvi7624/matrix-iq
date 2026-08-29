@@ -16,7 +16,6 @@ import {
   MarketingRequestRecord,
   MarketingRequestStatus,
   MarketingRequestType,
-  ProjectRecord,
   UserRole
 } from '@/lib/types';
 import {
@@ -26,6 +25,7 @@ import {
   getProductCategoryStyle,
   isMarketingRequestOverdue
 } from '@/lib/marketingRequestHelpers';
+import { MarketingReminderBand, marketingReminderBand, daysOverdue } from '@/lib/marketingRequestReminder';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { MarketingRosterEntry } from '@/lib/marketingRoster';
 import AppShell from './AppShell';
@@ -92,6 +92,29 @@ function formatDateTime(iso: string): string {
 function PriorityBadge({ priority }: { priority: MarketingRequestPriority }) {
   const meta = MARKETING_PRIORITY_META[priority] || { label: priority };
   return <SharedPriorityBadge tone={PRIORITY_TONE[priority] || 'info'} label={meta.label} />;
+}
+
+// Reuses the same restrained 4-step badge component/palette as priority
+// (cool -> info -> warm -> hot) instead of inventing new reminder colors.
+const REMINDER_LABEL: Record<MarketingReminderBand, string> = {
+  upcoming: 'Upcoming',
+  due_soon: 'Due Soon',
+  due_today: 'Due Today',
+  overdue: 'Overdue',
+  none: ''
+};
+const REMINDER_TONE: Record<MarketingReminderBand, PriorityTone> = {
+  upcoming: 'cool',
+  due_soon: 'info',
+  due_today: 'warm',
+  overdue: 'hot',
+  none: 'cool'
+};
+
+function ReminderBadge({ record }: { record: Pick<MarketingRequestRecord, 'timeline' | 'needed_by_date' | 'status'> }) {
+  const band = marketingReminderBand(record);
+  if (band === 'none') return null;
+  return <SharedPriorityBadge tone={REMINDER_TONE[band]} label={REMINDER_LABEL[band]} />;
 }
 
 function StatusBadge({ status }: { status: MarketingRequestStatus }) {
@@ -175,28 +198,28 @@ function WorkflowStepper({ record: r }: { record: MarketingRequestRecord }) {
   ];
 
   return (
-    <div style={{ margin: '14px 0 20px', background: '#f8fafc', padding: '14px 16px', borderRadius: 12, border: '1px solid #e2e8f0' }}>
-      <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', marginBottom: 10 }}>
+    <div style={{ margin: '14px 0 20px', background: 'var(--mx-surface-sunken)', padding: '14px 16px', borderRadius: 12, border: '1px solid var(--mx-slate-200)' }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--mx-slate-500)', letterSpacing: '0.05em', marginBottom: 10 }}>
         Workflow Progression (Requester ➔ Marketing ➔ Technical ➔ Marketing ➔ Requester)
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         {steps.map((s, idx) => {
-          let bg = '#f1f5f9';
-          let fg = '#64748b';
-          let border = '1px solid #e2e8f0';
+          let bg = 'var(--mx-slate-100)';
+          let fg = 'var(--mx-slate-500)';
+          let border = '1px solid var(--mx-slate-200)';
 
           if (s.done) {
-            bg = '#ecfdf5';
-            fg = '#059669';
-            border = '1px solid #a7f3d0';
+            bg = 'var(--mx-emerald-50)';
+            fg = 'var(--mx-emerald-600)';
+            border = '1px solid var(--mx-emerald-200)';
           } else if (s.warning) {
-            bg = '#fffbeb';
-            fg = '#b45309';
-            border = '1px solid #fde68a';
+            bg = 'var(--mx-amber-50)';
+            fg = 'var(--mx-warning)';
+            border = '1px solid var(--mx-amber-200)';
           } else if (s.active) {
-            bg = '#eff6ff';
-            fg = '#2563eb';
-            border = '1.5px solid #93c5fd';
+            bg = 'var(--mx-blue-50)';
+            fg = 'var(--mx-blue-600)';
+            border = '1.5px solid var(--mx-blue-300)';
           }
 
           return (
@@ -221,7 +244,7 @@ function WorkflowStepper({ record: r }: { record: MarketingRequestRecord }) {
                   <div style={{ fontSize: 10.5, opacity: 0.8, fontWeight: 500 }}>{s.sub}</div>
                 </div>
               </div>
-              {idx < steps.length - 1 && <ArrowRight size={13} style={{ color: '#cbd5e1' }} />}
+              {idx < steps.length - 1 && <ArrowRight size={13} style={{ color: 'var(--mx-slate-300)' }} />}
             </div>
           );
         })}
@@ -443,7 +466,7 @@ function MarketingRequestRow({
             <span>{r.title}</span>
           </div>
           {r.description && (
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280 }}>
+            <div style={{ fontSize: 12, color: 'var(--mx-slate-500)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280 }}>
               {r.description}
             </div>
           )}
@@ -463,23 +486,26 @@ function MarketingRequestRow({
           )}
         </td>
         <td>
-          <span style={{ fontWeight: 600, color: '#0f172a' }}>{r.creator_name || r.created_by}</span>
+          <span style={{ fontWeight: 600, color: 'var(--mx-slate-900)' }}>{r.creator_name || r.created_by}</span>
         </td>
         <td>
           {r.assigned_to ? (
-            <span style={{ color: '#2563eb', fontWeight: 500 }}>{r.assigned_to_name || r.assigned_to}</span>
+            <span style={{ color: 'var(--mx-blue-600)', fontWeight: 500 }}>{r.assigned_to_name || r.assigned_to}</span>
           ) : (
             <span style={{ opacity: 0.5 }}>Unassigned</span>
           )}
         </td>
         <td>
           {r.technical_member_name || r.technical_member_username ? (
-            <span style={{ color: '#0f766e', fontWeight: 500 }}>{r.technical_member_name || r.technical_member_username}</span>
+            <span style={{ color: 'var(--mx-teal-700)', fontWeight: 500 }}>{r.technical_member_name || r.technical_member_username}</span>
           ) : (
             <span style={{ opacity: 0.4 }}>—</span>
           )}
         </td>
-        <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{formatDate(r.needed_by_date || r.created_at)}</td>
+        <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+          {formatDate(r.needed_by_date || r.created_at)}
+          <div style={{ marginTop: 4 }}><ReminderBadge record={r} /></div>
+        </td>
         <td>
           <button type="button" className={historyStyles.toggleBtn} onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>
             {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -497,12 +523,12 @@ function MarketingRequestRow({
               {/* Assignment acceptance gate — the assigned member must confirm
                   availability before they can do any work on this request. */}
               {r.assignment_status === 'pending' && r.assigned_to === currentUser.username && (
-                <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 10, padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ background: 'var(--mx-blue-50)', border: '1.5px solid var(--mx-blue-200)', borderRadius: 10, padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1d4ed8', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-info)', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
                       <AlertTriangle size={18} /> This request was assigned to you
                     </div>
-                    <div style={{ fontSize: 13, color: '#1e3a8a' }}>Confirm your availability before you start working on it.</div>
+                    <div style={{ fontSize: 13, color: 'var(--mx-blue-900)' }}>Confirm your availability before you start working on it.</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Button variant="primary" compact loading={busy} onClick={handleAcceptAssignment}>Accept</Button>
@@ -511,43 +537,56 @@ function MarketingRequestRow({
                 </div>
               )}
 
-              {/* 3-Way Context Summary Bar */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 14 }}>
-                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Original Requester</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>{r.creator_name || r.created_by}</div>
-                  <div style={{ fontSize: 11.5, color: '#64748b' }}>Created on {formatDate(r.created_at)}</div>
+              {/* 3-Way Context Summary Bar — uses the shared, already-responsive
+                  summaryCardGrid container (2 columns at <=640px) instead of a
+                  bare inline auto-fit/minmax grid with no mobile override;
+                  each card keeps its own distinct inline background/border. */}
+              <div className={historyStyles.summaryCardGrid} style={{ marginBottom: 14, marginTop: 0 }}>
+                <div style={{ background: 'var(--mx-surface-sunken)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--mx-slate-200)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--mx-slate-500)', textTransform: 'uppercase' }}>Original Requester</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--mx-slate-900)', marginTop: 2 }}>{r.creator_name || r.created_by}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--mx-slate-500)' }}>Created on {formatDate(r.created_at)}</div>
                 </div>
 
-                <div style={{ background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, border: '1px solid #bbf7d0' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>Marketing Member</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#14532d', marginTop: 2 }}>{r.assigned_to_name || r.assigned_to || 'Unassigned'}</div>
-                  <div style={{ fontSize: 11.5, color: '#166534' }}>{r.status === 'submitted' ? 'Awaiting assignment/action' : 'Managing Request'}</div>
+                <div style={{ background: 'var(--mx-green-50)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--mx-green-200)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--mx-green-800)', textTransform: 'uppercase' }}>Marketing Member</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--mx-green-900)', marginTop: 2 }}>{r.assigned_to_name || r.assigned_to || 'Unassigned'}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--mx-green-800)' }}>{r.status === 'submitted' ? 'Awaiting assignment/action' : 'Managing Request'}</div>
                 </div>
 
-                <div style={{ background: '#f0fdfa', padding: '10px 14px', borderRadius: 8, border: '1px solid #99f6e4' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#0f766e', textTransform: 'uppercase' }}>Technical Reviewer</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#134e4a', marginTop: 2 }}>{r.technical_member_name || r.technical_member_username || 'Not assigned yet'}</div>
-                  <div style={{ fontSize: 11.5, color: '#0f766e' }}>{r.technical_review_decision ? `Decision: ${r.technical_review_decision}` : 'Technical validation'}</div>
+                <div style={{ background: 'var(--mx-teal-50)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--mx-teal-200)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--mx-teal-700)', textTransform: 'uppercase' }}>Technical Reviewer</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--mx-teal-900)', marginTop: 2 }}>{r.technical_member_name || r.technical_member_username || 'Not assigned yet'}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--mx-teal-700)' }}>{r.technical_review_decision ? `Decision: ${r.technical_review_decision}` : 'Technical validation'}</div>
                 </div>
+
+                {marketingReminderBand(r) !== 'none' && (
+                  <div style={{ background: 'var(--mx-orange-50)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--mx-orange-200)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--mx-orange-800)', textTransform: 'uppercase' }}>Reminder Status</div>
+                    <div style={{ marginTop: 4 }}><ReminderBadge record={r} /></div>
+                    {marketingReminderBand(r) === 'overdue' && (
+                      <div style={{ fontSize: 11.5, color: 'var(--mx-orange-800)', marginTop: 4 }}>Overdue by {daysOverdue(r)} day{daysOverdue(r) === 1 ? '' : 's'}</div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* SECTION 1: Original Request Details */}
               <div className={calcStyles.sectionPanel} style={{ marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Megaphone size={16} style={{ color: '#2563eb' }} />
+                    <Megaphone size={16} style={{ color: 'var(--mx-blue-600)' }} />
                     <span style={{ fontWeight: 700, fontSize: 14 }}>Original Requirement</span>
                   </div>
                   <ProductCategoryBadge category={r.product_category} />
                 </div>
 
-                <div style={{ fontSize: 13.5, color: '#1e293b', whiteSpace: 'pre-wrap', lineHeight: 1.5, marginBottom: 10 }}>
+                <div style={{ fontSize: 13.5, color: 'var(--mx-slate-800)', whiteSpace: 'pre-wrap', lineHeight: 1.5, marginBottom: 10 }}>
                   {r.description}
                 </div>
 
                 {r.additional_info && (
-                  <div style={{ fontSize: 12.5, color: '#475569', background: '#f1f5f9', padding: '8px 12px', borderRadius: 6, marginBottom: 10 }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--mx-slate-600)', background: 'var(--mx-slate-100)', padding: '8px 12px', borderRadius: 6, marginBottom: 10 }}>
                     <strong>Additional Information:</strong> {r.additional_info}
                   </div>
                 )}
@@ -560,7 +599,7 @@ function MarketingRequestRow({
 
                 {r.attachments && r.attachments.length > 0 && (
                   <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Requester Attachments:</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--mx-slate-500)', marginBottom: 4 }}>Requester Attachments:</div>
                     <div className={historyStyles.imageStrip}>
                       {r.attachments.map((url) => (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -575,28 +614,28 @@ function MarketingRequestRow({
 
               {/* SECTION 2: Technical Review Banner / Feedback (if changes requested or approved) */}
               {r.status === 'tech_changes_requested' && (
-                <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#b45309', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+                <div style={{ background: 'var(--mx-amber-50)', border: '1.5px solid var(--mx-amber-200)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-warning)', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
                     <AlertTriangle size={18} /> Technical Feedback: Changes Requested
                   </div>
-                  <div style={{ fontSize: 13, color: '#78350f', background: 'rgba(255,255,255,0.7)', padding: '10px 12px', borderRadius: 6, border: '1px solid #fef3c7', whiteSpace: 'pre-wrap' }}>
+                  <div style={{ fontSize: 13, color: 'var(--mx-amber-900)', background: 'rgba(255,255,255,0.7)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--mx-amber-100)', whiteSpace: 'pre-wrap' }}>
                     {r.technical_remarks || 'Please review and update the content per technical requirements.'}
                   </div>
-                  <div style={{ fontSize: 11.5, color: '#92400e', marginTop: 6 }}>
+                  <div style={{ fontSize: 11.5, color: 'var(--mx-amber-800)', marginTop: 6 }}>
                     Feedback provided by <strong>{r.technical_reviewed_by || r.technical_member_username}</strong> on {formatDateTime(r.technical_reviewed_at)}. Marketing member will apply changes and deliver the final result.
                   </div>
                 </div>
               )}
 
               {r.status === 'technical_approved' && (
-                <div style={{ background: '#ecfdf5', border: '1.5px solid #a7f3d0', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#047857', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                <div style={{ background: 'var(--mx-emerald-50)', border: '1.5px solid var(--mx-emerald-200)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-emerald-700)', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
                     <CheckCircle2 size={18} /> Technical Review Approved!
                   </div>
-                  <div style={{ fontSize: 13, color: '#065f46' }}>
+                  <div style={{ fontSize: 13, color: 'var(--mx-emerald-800)' }}>
                     {r.technical_remarks ? `Technical notes: "${r.technical_remarks}"` : 'The technical specification and materials have been approved.'}
                   </div>
-                  <div style={{ fontSize: 11.5, color: '#047857', marginTop: 4 }}>
+                  <div style={{ fontSize: 11.5, color: 'var(--mx-emerald-700)', marginTop: 4 }}>
                     Approved by <strong>{r.technical_reviewed_by || r.technical_member_username}</strong> on {formatDateTime(r.technical_reviewed_at)}. Marketing member can now complete final delivery to {r.created_by}.
                   </div>
                 </div>
@@ -606,10 +645,10 @@ function MarketingRequestRow({
               {(r.status === 'submitted' || r.status === 'marketing_in_progress' || r.status === 'tech_changes_requested') && (
                 <>
                   {canAccessMarketingWorkspace && (
-                    <div className={calcStyles.sectionPanel} style={{ marginBottom: 14, borderLeft: '4px solid #2563eb' }}>
+                    <div className={calcStyles.sectionPanel} style={{ marginBottom: 14, borderLeft: '4px solid var(--mx-blue-600)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Wrench size={16} style={{ color: '#2563eb' }} />
+                          <Wrench size={16} style={{ color: 'var(--mx-blue-600)' }} />
                           <span style={{ fontWeight: 700, fontSize: 14 }}>Marketing Workspace — Prepare &amp; Coordinate</span>
                         </div>
                         {r.status === 'submitted' && isUnassignedMarketing && (
@@ -696,14 +735,14 @@ function MarketingRequestRow({
                       </div>
 
                       {/* Marketing Workspace Action Bar */}
-                      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--mx-slate-200)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
                         <div>
                           {r.technical_member_name || r.technical_member_username ? (
-                            <div style={{ fontSize: 13, color: '#0f766e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ fontSize: 13, color: 'var(--mx-teal-700)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                               <CheckCircle2 size={16} /> Technical Verifier: <strong>{r.technical_member_name || r.technical_member_username}</strong>
                             </div>
                           ) : (
-                            <div style={{ fontSize: 12.5, color: '#b45309', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ fontSize: 12.5, color: 'var(--mx-warning)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
                               <Clock size={15} /> Awaiting Manager to assign Technical Verifier below
                             </div>
                           )}
@@ -723,11 +762,11 @@ function MarketingRequestRow({
                   )}
 
                   {isMarketingAssignedToOther && (
-                    <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#334155', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>
-                        <Lock size={16} style={{ color: '#64748b' }} /> Assigned to Marketing Member: {r.assigned_to_name || r.assigned_to}
+                    <div style={{ background: 'var(--mx-surface-sunken)', border: '1.5px solid var(--mx-slate-200)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-slate-700)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>
+                        <Lock size={16} style={{ color: 'var(--mx-slate-500)' }} /> Assigned to Marketing Member: {r.assigned_to_name || r.assigned_to}
                       </div>
-                      <div style={{ fontSize: 12.5, color: '#64748b' }}>
+                      <div style={{ fontSize: 12.5, color: 'var(--mx-slate-500)' }}>
                         This workspace is currently being handled by <strong>{r.assigned_to_name || r.assigned_to}</strong>, who will coordinate directly with the Technical Team.
                       </div>
                     </div>
@@ -738,25 +777,25 @@ function MarketingRequestRow({
               {/* Display Marketing Prepared Content (Read Only when in later stages) */}
               {r.status !== 'submitted' && r.status !== 'marketing_in_progress' && r.marketing_prepared_content && (
                 <div className={calcStyles.sectionPanel} style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--mx-slate-700)', marginBottom: 6 }}>
                     Prepared Content by Marketing ({r.assigned_to_name || r.assigned_to || 'Marketing'})
                   </div>
-                  <div style={{ fontSize: 13, color: '#1e293b', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 13, color: 'var(--mx-slate-800)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                     {r.marketing_prepared_content}
                   </div>
                   {r.marketing_remarks && (
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+                    <div style={{ fontSize: 12, color: 'var(--mx-slate-500)', marginTop: 6 }}>
                       <strong>Marketing Remarks:</strong> {r.marketing_remarks}
                     </div>
                   )}
                   {r.technical_instructions && (
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                    <div style={{ fontSize: 12, color: 'var(--mx-slate-500)', marginTop: 4 }}>
                       <strong>Instructions for Technical:</strong> {r.technical_instructions}
                     </div>
                   )}
                   {r.marketing_attachments && r.marketing_attachments.length > 0 && (
                     <div style={{ marginTop: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Marketing Collateral / Attachments:</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--mx-slate-500)', marginBottom: 4 }}>Marketing Collateral / Attachments:</div>
                       <div className={historyStyles.imageStrip}>
                         {r.marketing_attachments.map((url) => (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -772,17 +811,17 @@ function MarketingRequestRow({
 
               {/* SECTION 4: Technical Team Member Action Box (Step 4 & 5) */}
               {r.status === 'pending_technical_review' && (
-                <div style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
+                <div style={{ background: 'var(--mx-teal-50)', border: '1.5px solid var(--mx-teal-200)', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#0f766e', fontWeight: 700, fontSize: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-teal-700)', fontWeight: 700, fontSize: 14 }}>
                       <UserCheck size={18} /> Step 4 — Technical Team Review
                     </div>
-                    <div style={{ fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
+                    <div style={{ fontSize: 12, color: 'var(--mx-teal-700)', fontWeight: 600 }}>
                       Assigned To: {r.technical_member_name || r.technical_member_username}
                     </div>
                   </div>
 
-                  <p style={{ fontSize: 13, color: '#134e4a', margin: '4px 0 12px' }}>
+                  <p style={{ fontSize: 13, color: 'var(--mx-teal-900)', margin: '4px 0 12px' }}>
                     Review the product specification and marketing draft. You can either approve the request or send remarks back if changes are needed.
                   </p>
 
@@ -808,8 +847,8 @@ function MarketingRequestRow({
                   )}
 
                   {showTechChangesDialog && (
-                    <div style={{ background: '#fff', padding: '12px', borderRadius: 8, border: '1px solid #fecdd3', marginTop: 10 }}>
-                      <label className={calcStyles.label} style={{ color: '#be123c' }}>
+                    <div style={{ background: 'var(--mx-surface)', padding: '12px', borderRadius: 8, border: '1px solid var(--mx-rose-200)', marginTop: 10 }}>
+                      <label className={calcStyles.label} style={{ color: 'var(--mx-rose-700)' }}>
                         Technical Remarks / Changes Needed *
                       </label>
                       <textarea
@@ -844,11 +883,11 @@ function MarketingRequestRow({
               {(r.status === 'technical_approved' || r.status === 'marketing_final_review' || r.status === 'tech_changes_requested') && (
                 <>
                   {canAccessMarketingWorkspace && (
-                    <div style={{ background: '#faf5ff', border: '1.5px solid #e9d5ff', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#7e22ce', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+                    <div style={{ background: 'var(--mx-purple-50)', border: '1.5px solid var(--mx-purple-200)', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-purple-700)', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
                         <Sparkles size={18} /> Step 7 — Final Submission to Original Requester ({r.creator_name || r.created_by})
                       </div>
-                      <p style={{ fontSize: 12.5, color: '#6b21a8', margin: '0 0 10px' }}>
+                      <p style={{ fontSize: 12.5, color: 'var(--mx-purple-800)', margin: '0 0 10px' }}>
                         Deliver the finalized marketing collateral directly to <strong>{r.creator_name || r.created_by}</strong> to complete this request.
                       </p>
 
@@ -912,11 +951,11 @@ function MarketingRequestRow({
                   )}
 
                   {isMarketingAssignedToOther && (
-                    <div style={{ background: '#faf5ff', border: '1.5px solid #e9d5ff', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#7e22ce', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ background: 'var(--mx-purple-50)', border: '1.5px solid var(--mx-purple-200)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--mx-purple-700)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Sparkles size={16} /> Awaiting Final Delivery by {r.assigned_to_name || r.assigned_to}
                       </div>
-                      <div style={{ fontSize: 12.5, color: '#6b21a8', marginTop: 4 }}>
+                      <div style={{ fontSize: 12.5, color: 'var(--mx-purple-800)', marginTop: 4 }}>
                         Assigned marketing member <strong>{r.assigned_to_name || r.assigned_to}</strong> will deliver the final collateral directly to {r.creator_name || r.created_by}.
                       </div>
                     </div>
@@ -926,18 +965,18 @@ function MarketingRequestRow({
 
               {/* SECTION 6: Completed Deliverables Display (For Requester & all) */}
               {r.status === 'completed' && (
-                <div style={{ background: '#ecfdf5', border: '1.5px solid #a7f3d0', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#047857', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                <div style={{ background: 'var(--mx-emerald-50)', border: '1.5px solid var(--mx-emerald-200)', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-emerald-700)', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
                     <CheckCircle2 size={18} /> Request Completed &amp; Delivered to {r.creator_name || r.created_by}
                   </div>
                   {r.final_submission_notes && (
-                    <div style={{ fontSize: 13, color: '#065f46', marginTop: 4 }}>
+                    <div style={{ fontSize: 13, color: 'var(--mx-emerald-800)', marginTop: 4 }}>
                       <strong>Delivery Message:</strong> {r.final_submission_notes}
                     </div>
                   )}
                   {r.final_submission_files && r.final_submission_files.length > 0 && (
                     <div style={{ marginTop: 10 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#047857', marginBottom: 4 }}>Final Deliverables:</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--mx-emerald-700)', marginBottom: 4 }}>Final Deliverables:</div>
                       <div className={historyStyles.imageStrip}>
                         {r.final_submission_files.map((url) => (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -953,9 +992,9 @@ function MarketingRequestRow({
 
               {/* Assignment Controls for Marketing Manager / Reviewer */}
               {isReviewer && (
-                <div className={calcStyles.sectionPanel} style={{ marginTop: 14, marginBottom: 14, background: '#f8fafc', border: '1.5px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <UserCheck size={16} style={{ color: '#2563eb' }} /> Manager Team Assignments
+                <div className={calcStyles.sectionPanel} style={{ marginTop: 14, marginBottom: 14, background: 'var(--mx-surface-sunken)', border: '1.5px solid var(--mx-slate-200)' }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--mx-slate-900)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <UserCheck size={16} style={{ color: 'var(--mx-blue-600)' }} /> Manager Team Assignments
                   </div>
                   <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 0 }}>
                     <div className={calcStyles.field}>
@@ -1028,11 +1067,11 @@ function MarketingRequestRow({
 
               {/* SECTION 7: Comments & Collaboration Timeline */}
               <div style={{ marginTop: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13.5, color: '#334155', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13.5, color: 'var(--mx-slate-700)', marginBottom: 8 }}>
                   <MessageSquare size={15} /> Discussion &amp; Remarks Timeline ({r.comments?.length || 0})
                 </div>
                 {(!r.comments || r.comments.length === 0) && (
-                  <div className={calcStyles.small} style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                  <div className={calcStyles.small} style={{ color: 'var(--mx-slate-400)', fontStyle: 'italic' }}>
                     No comments yet. Anyone involved can leave a message.
                   </div>
                 )}
@@ -1077,7 +1116,7 @@ function MarketingRequestRow({
               </div>
 
               {canDelete && (
-                <div style={{ marginTop: 18, borderTop: '1px solid #f1f5f9', paddingTop: 10 }}>
+                <div style={{ marginTop: 18, borderTop: '1px solid var(--mx-slate-100)', paddingTop: 10 }}>
                   <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => onDelete(r)}>
                     Delete Request
                   </Button>
@@ -1106,7 +1145,6 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
   const [mode, setMode] = useState<'new' | 'list'>('list');
   const [tab, setTab] = useState<FilterTab>(startFilter === 'submitted' ? 'marketing_queue' : 'all');
   const [requests, setRequests] = useState<MarketingRequestRecord[]>([]);
-  const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
   const [marketingRoster, setMarketingRoster] = useState<MarketingRosterEntry[]>([]);
   const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
@@ -1116,6 +1154,8 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
   const [q, setQ] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
+  // Deep-linked from the Dashboard/sidebar's "due today or overdue" count (?filter=due).
+  const [dueOnly, setDueOnly] = useState(startFilter === 'due');
 
   async function loadRequests() {
     setLoading(true);
@@ -1134,7 +1174,6 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
 
   useEffect(() => {
     loadRequests();
-    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
     fetch('/api/technical-roster').then((r) => (r.ok ? r.json() : [])).then(setTechnicalRoster).catch(() => setTechnicalRoster([]));
     fetch('/api/marketing-roster').then((r) => (r.ok ? r.json() : [])).then(setMarketingRoster).catch(() => setMarketingRoster([]));
     fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
@@ -1177,6 +1216,14 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
       rows = rows.filter((r) => r.priority === priorityFilter);
     }
 
+    // Due today or overdue only
+    if (dueOnly) {
+      rows = rows.filter((r) => {
+        const band = marketingReminderBand(r);
+        return band === 'due_today' || band === 'overdue';
+      });
+    }
+
     // Search query
     if (q.trim()) {
       const needle = q.trim().toLowerCase();
@@ -1189,7 +1236,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
     }
 
     return [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-  }, [requests, tab, categoryFilter, priorityFilter, q, currentUser.username]);
+  }, [requests, tab, categoryFilter, priorityFilter, dueOnly, q, currentUser.username]);
 
   function replaceRecord(updated: MarketingRequestRecord) {
     setRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -1315,7 +1362,6 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
       {mode === 'new' && (
         <MarketingRequestWizard
           creating={creating}
-          projects={projects}
           onSubmit={handleSubmitRequest}
           onViewAllRequests={() => setMode('list')}
         />
@@ -1323,8 +1369,10 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
 
       {mode === 'list' && (
         <>
-          {/* Triage & Stage Quick Metric Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
+          {/* Triage & Stage Quick Metric Cards — shared quickActionGrid
+              container for the same reason as the summary bar above: gets
+              the existing <=640px 2-column override for free. */}
+          <div className={historyStyles.quickActionGrid} style={{ marginBottom: 16, marginTop: 0 }}>
             <button
               type="button"
               onClick={() => setTab('all')}
@@ -1332,12 +1380,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               style={{
                 textAlign: 'left',
                 cursor: 'pointer',
-                border: tab === 'all' ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                background: tab === 'all' ? '#eff6ff' : '#ffffff'
+                border: tab === 'all' ? '2px solid var(--mx-blue-600)' : '1px solid var(--mx-slate-200)',
+                background: tab === 'all' ? 'var(--mx-blue-50)' : 'var(--mx-surface)'
               }}
             >
-              <div style={{ fontSize: 11.5, color: '#64748b', fontWeight: 600 }}>All Requests</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#0f172a' }}>{counts.all}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--mx-slate-500)', fontWeight: 600 }}>All Requests</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-slate-900)' }}>{counts.all}</div>
             </button>
 
             <button
@@ -1347,12 +1395,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               style={{
                 textAlign: 'left',
                 cursor: 'pointer',
-                border: tab === 'marketing_queue' ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                background: tab === 'marketing_queue' ? '#eff6ff' : '#ffffff'
+                border: tab === 'marketing_queue' ? '2px solid var(--mx-blue-600)' : '1px solid var(--mx-slate-200)',
+                background: tab === 'marketing_queue' ? 'var(--mx-blue-50)' : 'var(--mx-surface)'
               }}
             >
-              <div style={{ fontSize: 11.5, color: '#2563eb', fontWeight: 700 }}>Awaiting Marketing</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#1d4ed8' }}>{counts.marketingQueue}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--mx-blue-600)', fontWeight: 700 }}>Awaiting Marketing</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-info)' }}>{counts.marketingQueue}</div>
             </button>
 
             <button
@@ -1362,12 +1410,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               style={{
                 textAlign: 'left',
                 cursor: 'pointer',
-                border: tab === 'technical_review' ? '2px solid #0f766e' : '1px solid #e2e8f0',
-                background: tab === 'technical_review' ? '#f0fdfa' : '#ffffff'
+                border: tab === 'technical_review' ? '2px solid var(--mx-teal-700)' : '1px solid var(--mx-slate-200)',
+                background: tab === 'technical_review' ? 'var(--mx-teal-50)' : 'var(--mx-surface)'
               }}
             >
-              <div style={{ fontSize: 11.5, color: '#0f766e', fontWeight: 700 }}>Pending Technical</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#0f766e' }}>{counts.technicalReview}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--mx-teal-700)', fontWeight: 700 }}>Pending Technical</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-teal-700)' }}>{counts.technicalReview}</div>
             </button>
 
             <button
@@ -1377,12 +1425,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               style={{
                 textAlign: 'left',
                 cursor: 'pointer',
-                border: tab === 'ready_delivery' ? '2px solid #7c3aed' : '1px solid #e2e8f0',
-                background: tab === 'ready_delivery' ? '#faf5ff' : '#ffffff'
+                border: tab === 'ready_delivery' ? '2px solid var(--mx-violet-600)' : '1px solid var(--mx-slate-200)',
+                background: tab === 'ready_delivery' ? 'var(--mx-purple-50)' : 'var(--mx-surface)'
               }}
             >
-              <div style={{ fontSize: 11.5, color: '#7c3aed', fontWeight: 700 }}>Ready for Delivery</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#6d28d9' }}>{counts.readyDelivery}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--mx-violet-600)', fontWeight: 700 }}>Ready for Delivery</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-violet-700)' }}>{counts.readyDelivery}</div>
             </button>
 
             <button
@@ -1392,12 +1440,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               style={{
                 textAlign: 'left',
                 cursor: 'pointer',
-                border: tab === 'completed' ? '2px solid #16a34a' : '1px solid #e2e8f0',
-                background: tab === 'completed' ? '#f0fdf4' : '#ffffff'
+                border: tab === 'completed' ? '2px solid var(--mx-green-600)' : '1px solid var(--mx-slate-200)',
+                background: tab === 'completed' ? 'var(--mx-green-50)' : 'var(--mx-surface)'
               }}
             >
-              <div style={{ fontSize: 11.5, color: '#16a34a', fontWeight: 700 }}>Completed</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#15803d' }}>{counts.completed}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--mx-green-600)', fontWeight: 700 }}>Completed</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-success)' }}>{counts.completed}</div>
             </button>
 
             <button
@@ -1407,12 +1455,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               style={{
                 textAlign: 'left',
                 cursor: 'pointer',
-                border: tab === 'my_requests' ? '2px solid #ea580c' : '1px solid #e2e8f0',
-                background: tab === 'my_requests' ? '#fff7ed' : '#ffffff'
+                border: tab === 'my_requests' ? '2px solid var(--mx-orange-600)' : '1px solid var(--mx-slate-200)',
+                background: tab === 'my_requests' ? 'var(--mx-orange-50)' : 'var(--mx-surface)'
               }}
             >
-              <div style={{ fontSize: 11.5, color: '#ea580c', fontWeight: 700 }}>My Requests</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#c2410c' }}>{counts.myRequests}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--mx-orange-600)', fontWeight: 700 }}>My Requests</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-orange-700)' }}>{counts.myRequests}</div>
             </button>
           </div>
 
@@ -1452,13 +1500,19 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               <option value="low">Low</option>
             </select>
 
-            {(categoryFilter || priorityFilter || q) && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, whiteSpace: 'nowrap' }}>
+              <input type="checkbox" checked={dueOnly} onChange={(e) => setDueOnly(e.target.checked)} />
+              Due today or overdue
+            </label>
+
+            {(categoryFilter || priorityFilter || dueOnly || q) && (
               <button
                 type="button"
                 className={historyStyles.button}
                 onClick={() => {
                   setCategoryFilter('');
                   setPriorityFilter('');
+                  setDueOnly(false);
                   setQ('');
                 }}
               >

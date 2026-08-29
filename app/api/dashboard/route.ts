@@ -14,6 +14,7 @@ import { listDepartmentManagers, isUserADepartmentManager } from '@/lib/departme
 import { listTechnicalRoster } from '@/lib/technicalRoster';
 import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
+import { summarizeMarketingReminders } from '@/lib/marketingRequestReminder';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 import { travelScheduleStore } from '@/lib/travelScheduleStore';
@@ -161,6 +162,8 @@ export async function GET(request: NextRequest) {
     const marketingStats = marketingRecords.isReviewer
       ? { isReviewer: true, awaitingReview: marketingRecords.records.filter((r) => r.status === 'submitted').length }
       : { isReviewer: false, myOpenCount: marketingRecords.records.filter((r) => ['submitted', 'timeline_set', 'in_progress'].includes(r.status)).length };
+    const marketingReminderBreakdown = summarizeMarketingReminders(marketingRecords.records);
+    const marketingReminderUrgentCount = marketingReminderBreakdown.due_today + marketingReminderBreakdown.overdue;
 
     let quotationStats: { total: number; draft: number; sent: number; approved: number; rejected: number; expired: number } | null = null;
     if (isManagerTier) {
@@ -188,6 +191,7 @@ export async function GET(request: NextRequest) {
       reminderCount,
       unattendedLeads: leadStats.unattended,
       marketingStats,
+      marketingReminderUrgentCount,
       allProjects: projectsLight,
       demos: demosForQueue,
       managersByDepartment,

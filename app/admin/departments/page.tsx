@@ -1,10 +1,8 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { DepartmentRecord } from '@/lib/types';
-import { BRAND } from '@/lib/branding';
+import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -150,21 +148,7 @@ export default function DepartmentMasterPage() {
   }
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>Department Master</h1>
-            <div className={historyStyles.sub}>Administration &rsaquo; departments used across user profiles — no code change required.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link className={historyStyles.button} href="/admin/users">User Management</Link>
-          <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
-        </div>
-      </header>
-      <main className={historyStyles.main}>
+    <AppShell title="Department Master" subtitle="Administration › departments used across user profiles — no code change required.">
         <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Add department</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           {createError && <div className={historyStyles.loginError}>{createError}</div>}
@@ -267,7 +251,6 @@ export default function DepartmentMasterPage() {
             </tbody>
           </table>
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }

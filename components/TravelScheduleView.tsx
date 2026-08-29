@@ -7,14 +7,10 @@ import { TRAVEL_STATUS_LABEL, TRAVEL_STATUS_TONE, travelPendingLabel } from '@/l
 import AppShell from './AppShell';
 import StatusBadge from './ui/StatusBadge';
 import { useToast } from './ui/ToastProvider';
+import TravelScheduleForm, { EMPTY_TRAVEL_EXTRA_FIELDS, travelExtraFieldsToPayload } from './TravelScheduleForm';
+import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
-
-interface ProjectOption {
-  id: string;
-  client_name?: string;
-  company?: string;
-}
 
 interface UserOption {
   id: string;
@@ -25,8 +21,9 @@ interface UserOption {
 const EMPTY_FORM = {
   origin: '', destination: '', startDate: '', endDate: '',
   requiredArrivalTime: '', expectedDepartureTime: '',
-  purpose: '', linkedClient: '', expenseNote: '', projectId: '',
-  companionIds: [] as string[]
+  linkedClient: '', projectId: '',
+  companionIds: [] as string[],
+  ...EMPTY_TRAVEL_EXTRA_FIELDS
 };
 
 function formatDate(iso: string): string {
@@ -42,7 +39,6 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const toast = useToast();
   const [records, setRecords] = useState<TravelScheduleRecord[]>([]);
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -66,7 +62,6 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
 
   useEffect(() => {
     load();
-    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
     fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
   }, []);
 
@@ -81,7 +76,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
       const response = await fetch('/api/travel-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, ...travelExtraFieldsToPayload(form) })
       });
       if (!response.ok) throw new Error(String(response.status));
       setForm(EMPTY_FORM);
@@ -143,27 +138,24 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Project</label>
-                  <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))}>
-                    <option value="">— Select project —</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.client_name || ''}{p.company ? ` — ${p.company}` : ''}</option>
-                  ))}
-                </select>
+                <ProjectSelect
+                  value={form.projectId}
+                  onChange={(projectId, project) => setForm((f) => ({ ...f, projectId, linkedClient: project?.company || project?.client_name || f.linkedClient }))}
+                />
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Linked Client</label>
                 <input className={calcStyles.formControl} value={form.linkedClient} onChange={(e) => setForm((f) => ({ ...f, linkedClient: e.target.value }))} />
               </div>
             </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Purpose of Travel</label>
-              <textarea className={calcStyles.formControl} rows={2} value={form.purpose} onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Expense Note</label>
-              <textarea className={calcStyles.formControl} rows={2} value={form.expenseNote} onChange={(e) => setForm((f) => ({ ...f, expenseNote: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
+            <TravelScheduleForm
+              value={form}
+              onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+              requesterOrigin={form.origin}
+              requesterDestination={form.destination}
+              requesterTravelDate={form.startDate}
+            />
+            <div className={calcStyles.field} style={{ marginTop: 12 }}>
               <label className={calcStyles.label}>Travel Companions</label>
               <select
                 className={calcStyles.formControl}

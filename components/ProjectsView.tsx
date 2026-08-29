@@ -282,6 +282,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
         ) : (
         loaded && (
+          <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
               <tr>
@@ -343,6 +344,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               )}
             </tbody>
           </table>
+          </div>
         )
         )}
     </AppShell>

@@ -255,6 +255,67 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
   const canEdit = useMemo(() => isPrivileged || data?.project.created_by === currentUser.username, [isPrivileged, data, currentUser.username]);
 
+  // Client/contact master fields — the Project Dashboard is meant to be the
+  // single place these can be edited (every other module only references a
+  // project by id, never patches these), but until now this view only
+  // rendered them as static text even though PATCH /api/projects/[id]
+  // already accepted them. Local draft + explicit Save (not per-keystroke
+  // patching) so typing doesn't fire a request per character or fight the
+  // reload this component does after every save.
+  const [detailsDraft, setDetailsDraft] = useState({ clientName: '', company: '', contactPerson: '', phone: '', email: '', address: '', source: '' });
+  const [savingDetails, setSavingDetails] = useState(false);
+
+  // Only re-syncs on the initial load / when navigating to a different
+  // project (by id) — NOT on every subsequent patchProject-triggered
+  // refetch elsewhere in this view (priority, status, stage, ...), which
+  // would otherwise silently clobber an unsaved in-progress edit here.
+  useEffect(() => {
+    const p = data?.project;
+    if (!p) return;
+    setDetailsDraft({
+      clientName: p.client_name || '',
+      company: p.company || '',
+      contactPerson: p.contact_person || '',
+      phone: p.phone || '',
+      email: p.email || '',
+      address: p.address || '',
+      source: p.source || ''
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.project.id]);
+
+  const detailsDirty = useMemo(() => {
+    const p = data?.project;
+    if (!p) return false;
+    return (
+      detailsDraft.clientName !== (p.client_name || '') ||
+      detailsDraft.company !== (p.company || '') ||
+      detailsDraft.contactPerson !== (p.contact_person || '') ||
+      detailsDraft.phone !== (p.phone || '') ||
+      detailsDraft.email !== (p.email || '') ||
+      detailsDraft.address !== (p.address || '') ||
+      detailsDraft.source !== (p.source || '')
+    );
+  }, [detailsDraft, data?.project]);
+
+  async function handleSaveDetails() {
+    setSavingDetails(true);
+    try {
+      await patchProject({
+        clientName: detailsDraft.clientName.trim(),
+        company: detailsDraft.company.trim(),
+        contactPerson: detailsDraft.contactPerson.trim(),
+        phone: detailsDraft.phone.trim(),
+        email: detailsDraft.email.trim(),
+        address: detailsDraft.address.trim(),
+        source: detailsDraft.source.trim()
+      });
+      toast.success('Project details updated.');
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
   async function patchProject(patch: Record<string, unknown>) {
     try {
       const response = await fetch(`/api/projects/${projectId}`, {
@@ -556,9 +617,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div className={historyStyles.summaryCardValue}>{lastActivity ? lastActivity.label : '-'}</div>
             <div className={calcStyles.small}>{lastActivity ? formatDateTime(lastActivity.at) : ''}</div>
           </div>
-          <div className={historyStyles.summaryCard} style={{ borderColor: isOverdue ? '#dc2626' : undefined }}>
+          <div className={historyStyles.summaryCard} style={{ borderColor: isOverdue ? 'var(--mx-brand)' : undefined }}>
             <div className={historyStyles.summaryCardLabel}>Next Follow-up</div>
-            <div className={historyStyles.summaryCardValue} style={{ color: isOverdue ? '#b91c1c' : undefined }}>
+            <div className={historyStyles.summaryCardValue} style={{ color: isOverdue ? 'var(--mx-danger)' : undefined }}>
               {formatDate(project.next_follow_up_date)}{isOverdue ? ' (overdue)' : ''}
             </div>
           </div>
@@ -633,26 +694,26 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
         {/* Pending handover banner — shown to the recipient */}
         {pendingHandover && pendingHandover.to_username === currentUser.username && (
-          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid #f59e0b', background: '#fffbeb', padding: 16, borderRadius: 8 }}>
-            <div style={{ fontWeight: 600, marginBottom: 8, color: '#92400e' }}>
+          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid var(--mx-amber-500)', background: 'var(--mx-amber-50)', padding: 16, borderRadius: 8 }}>
+            <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--mx-amber-800)' }}>
               Handover Request
             </div>
-            <div style={{ fontSize: 14, marginBottom: 12, color: '#78350f' }}>
+            <div style={{ fontSize: 14, marginBottom: 12, color: 'var(--mx-amber-900)' }}>
               <strong>{pendingHandover.from_name || pendingHandover.from_username}</strong> wants to hand over this project to you.
-              {pendingHandover.remarks && <div style={{ marginTop: 6, padding: '8px 12px', background: '#fef3c7', borderRadius: 6, fontSize: 13 }}>Remarks: {pendingHandover.remarks}</div>}
+              {pendingHandover.remarks && <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--mx-amber-100)', borderRadius: 6, fontSize: 13 }}>Remarks: {pendingHandover.remarks}</div>}
             </div>
 
             {!showDeclineForm ? (
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
-                  style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                  style={{ background: 'var(--mx-green-600)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
                   disabled={respondingHandover}
                   onClick={() => respondToHandover(true, '')}
                 >
                   Accept
                 </button>
                 <button
-                  style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                  style={{ background: 'var(--mx-brand)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
                   disabled={respondingHandover}
                   onClick={() => setShowDeclineForm(true)}
                 >
@@ -660,8 +721,8 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 </button>
               </div>
             ) : (
-              <div style={{ background: '#fff', border: '1px solid #fbbf24', borderRadius: 8, padding: 14 }}>
-                <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 14, color: '#92400e' }}>Reason for declining</div>
+              <div style={{ background: 'var(--mx-surface)', border: '1px solid var(--mx-amber-400)', borderRadius: 8, padding: 14 }}>
+                <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 14, color: 'var(--mx-amber-800)' }}>Reason for declining</div>
                 <textarea
                   className={calcStyles.formControl}
                   rows={3}
@@ -672,7 +733,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
-                    style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                    style={{ background: 'var(--mx-brand)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
                     disabled={respondingHandover || !declineReason.trim()}
                     onClick={() => {
                       respondToHandover(false, declineReason.trim());
@@ -683,7 +744,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     {respondingHandover ? 'Submitting...' : 'Submit Decline'}
                   </button>
                   <button
-                    style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}
+                    style={{ background: 'var(--mx-border)', color: 'var(--mx-gray-700)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}
                     onClick={() => { setShowDeclineForm(false); setDeclineReason(''); }}
                   >
                     Cancel
@@ -696,12 +757,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
         {/* Pending handover info — shown to the sender */}
         {pendingHandover && pendingHandover.from_username === currentUser.username && (
-          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid #3b82f6', background: '#eff6ff', padding: 16, borderRadius: 8 }}>
-            <div style={{ fontSize: 14, color: '#1e40af', marginBottom: 10 }}>
+          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid var(--mx-blue-500)', background: 'var(--mx-blue-50)', padding: 16, borderRadius: 8 }}>
+            <div style={{ fontSize: 14, color: 'var(--mx-blue-800)', marginBottom: 10 }}>
               Handover request sent to <strong>{pendingHandover.to_name || pendingHandover.to_username}</strong> — waiting for their response.
             </div>
             <button
-              style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
+              style={{ background: 'var(--mx-brand)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
               disabled={respondingHandover}
               onClick={async () => {
                 const ok = await confirm({ message: 'Cancel this handover request?', danger: true });
@@ -730,7 +791,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
         {/* Handover modal */}
         {showHandover && (
-          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid #6366f1', padding: 16, borderRadius: 8 }}>
+          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid var(--mx-indigo-500)', padding: 16, borderRadius: 8 }}>
             <div style={{ fontWeight: 600, marginBottom: 12 }}>Handover Project</div>
             <div className={calcStyles.field} style={{ marginBottom: 12 }}>
               <label className={calcStyles.label}>Hand over to</label>
@@ -750,14 +811,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: handoverLogs.length > 0 ? 14 : 0 }}>
               <button
-                style={{ background: '#6366f1', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                style={{ background: 'var(--mx-indigo-500)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
                 disabled={submittingHandover || !handoverToUserId}
                 onClick={submitHandover}
               >
                 {submittingHandover ? 'Sending...' : 'Send Request'}
               </button>
               <button
-                style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}
+                style={{ background: 'var(--mx-border)', color: 'var(--mx-gray-700)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}
                 onClick={() => { setShowHandover(false); setHandoverToUserId(''); setHandoverRemarks(''); setShowHandoverHistory(false); }}
               >
                 Cancel
@@ -770,35 +831,35 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <button
                   type="button"
                   onClick={() => setShowHandoverHistory((v) => !v)}
-                  style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', fontSize: 13, fontWeight: 500, padding: 0, textDecoration: 'underline' }}
+                  style={{ background: 'none', border: 'none', color: 'var(--mx-indigo-500)', cursor: 'pointer', fontSize: 13, fontWeight: 500, padding: 0, textDecoration: 'underline' }}
                 >
                   {showHandoverHistory ? 'Hide History' : `View History (${handoverLogs.length})`}
                 </button>
                 {showHandoverHistory && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
                     {handoverLogs.map((log) => {
-                      const statusColor = log.status === 'approved' ? '#16a34a' : log.status === 'rejected' ? '#dc2626' : log.status === 'cancelled' ? '#6b7280' : '#f59e0b';
+                      const statusColor = log.status === 'approved' ? 'var(--mx-green-600)' : log.status === 'rejected' ? 'var(--mx-brand)' : log.status === 'cancelled' ? 'var(--mx-ink-muted)' : 'var(--mx-amber-500)';
                       const statusLabel = log.status === 'approved' ? 'Accepted' : log.status === 'rejected' ? 'Declined' : log.status === 'cancelled' ? 'Cancelled' : 'Pending';
                       return (
-                        <div key={log.id} style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13 }}>
+                        <div key={log.id} style={{ padding: '10px 14px', background: 'var(--mx-surface-sunken)', borderRadius: 6, border: '1px solid var(--mx-slate-200)', fontSize: 13 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                             <span>
                               <strong>{log.from_name || log.from_username}</strong>
                               {' \u2192 '}
                               <strong>{log.to_name || log.to_username}</strong>
                             </span>
-                            <span style={{ color: statusColor, fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 4, background: `${statusColor}15` }}>
+                            <span style={{ color: statusColor, fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 4, background: `color-mix(in srgb, ${statusColor} 8.24%, transparent)` }}>
                               {statusLabel}
                             </span>
                           </div>
-                          <div style={{ color: '#64748b', fontSize: 12 }}>
+                          <div style={{ color: 'var(--mx-slate-500)', fontSize: 12 }}>
                             {new Date(log.created_at).toLocaleString('en-IN')}
                           </div>
                           {log.remarks && (
-                            <div style={{ marginTop: 4, color: '#475569', fontSize: 12 }}>Request remarks: {log.remarks}</div>
+                            <div style={{ marginTop: 4, color: 'var(--mx-slate-600)', fontSize: 12 }}>Request remarks: {log.remarks}</div>
                           )}
                           {log.response_remarks && (
-                            <div style={{ marginTop: 4, color: log.status === 'rejected' ? '#dc2626' : '#475569', fontSize: 12, fontWeight: 500 }}>
+                            <div style={{ marginTop: 4, color: log.status === 'rejected' ? 'var(--mx-brand)' : 'var(--mx-slate-600)', fontSize: 12, fontWeight: 500 }}>
                               {log.status === 'rejected' ? 'Decline reason' : 'Response'}: {log.response_remarks}
                             </div>
                           )}
@@ -825,18 +886,57 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <div className={historyStyles.detailPanel} style={{ marginTop: 0 }}>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Client Name</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.clientName} onChange={(e) => setDetailsDraft((d) => ({ ...d, clientName: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.client_name || '-'}</div>}
+              </div>
+              <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Company</label>
-                <div className={calcStyles.small}>{project.company || '-'}</div>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.company} onChange={(e) => setDetailsDraft((d) => ({ ...d, company: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.company || '-'}</div>}
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Contact Person</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.contactPerson} onChange={(e) => setDetailsDraft((d) => ({ ...d, contactPerson: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.contact_person || '-'}</div>}
+              </div>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Phone</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.phone} onChange={(e) => setDetailsDraft((d) => ({ ...d, phone: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.phone || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Email</label>
-                <div className={calcStyles.small}>{project.email || '-'}</div>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.email} onChange={(e) => setDetailsDraft((d) => ({ ...d, email: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.email || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Address</label>
-                <div className={calcStyles.small}>{project.address || '-'}</div>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.address} onChange={(e) => setDetailsDraft((d) => ({ ...d, address: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.address || '-'}</div>}
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Source</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.source} onChange={(e) => setDetailsDraft((d) => ({ ...d, source: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.source || '-'}</div>}
               </div>
             </div>
+            {canEdit && detailsDirty && (
+              <div style={{ marginTop: 4, marginBottom: 8 }}>
+                <button type="button" className={calcStyles.btn} disabled={savingDetails} onClick={handleSaveDetails}>
+                  {savingDetails ? 'Saving...' : 'Save Details'}
+                </button>
+              </div>
+            )}
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Priority</label>
@@ -885,10 +985,6 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 {canEdit ? (
                   <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={project.next_follow_up_date} onChange={(e) => patchProject({ nextFollowUpDate: e.target.value })} />
                 ) : <div className={calcStyles.small}>{formatDate(project.next_follow_up_date)}</div>}
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Source</label>
-                <div className={calcStyles.small}>{project.source || '-'}</div>
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Assigned Technical Person</label>

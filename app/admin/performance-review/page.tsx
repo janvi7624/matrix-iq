@@ -2,11 +2,9 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { PublicUser } from '@/lib/types';
-import { BRAND } from '@/lib/branding';
+import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 
@@ -182,20 +180,7 @@ function PerformanceReviewPageContent() {
   }, [selected]);
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>Performance Review</h1>
-            <div className={historyStyles.sub}>Administration &rsaquo; a full performance dashboard for one employee at a time.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
-        </div>
-      </header>
-      <main className={historyStyles.main}>
+    <AppShell title="Performance Review" subtitle="Administration › a full performance dashboard for one employee at a time.">
         <div className={historyStyles.toolbar}>
           <select className={calcStyles.formControl} style={{ width: 'auto', minWidth: 260 }} value={selected} onChange={(e) => setSelected(e.target.value)}>
             <option value="">-- Select employee --</option>
@@ -288,8 +273,7 @@ function PerformanceReviewPageContent() {
             </div>
           </>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }
 

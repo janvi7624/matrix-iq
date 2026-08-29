@@ -9,6 +9,7 @@ import { isLeadUnattended } from '@/lib/followUp';
 import { AlertTriangle, Flame, Contact } from 'lucide-react';
 import AppShell from './AppShell';
 import LeadCaptureWizard from './LeadCaptureWizard';
+import LeadBulkImportWizard from './LeadBulkImportWizard';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
@@ -44,7 +45,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const confirm = useConfirm();
   const searchParams = useSearchParams();
   const startUnattended = searchParams.get('filter') === 'unattended';
-  const [mode, setMode] = useState<'capture' | 'list'>(startUnattended ? 'list' : 'capture');
+  const [mode, setMode] = useState<'capture' | 'list' | 'bulk'>(startUnattended ? 'list' : 'capture');
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [loading, setLoading] = useState(true);
@@ -179,7 +180,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
 
   return (
-    <AppShell title="Lead Capture" subtitle="Scan a business card at an event, qualify the lead, and follow up — all in one flow.">
+    <AppShell title="Lead Capture / Inquiry" subtitle="Scan a business card, bulk-import from CSV or photos, qualify the lead, and follow up — all in one flow.">
         {stats && (
           <div className={calcStyles.row} style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
             <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
@@ -208,7 +209,14 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
         <div className={historyStyles.modeToggle}>
           <button type="button" className={`${historyStyles.modeToggleBtn} ${mode === 'capture' ? historyStyles.modeToggleBtnActive : ''}`} onClick={() => setMode('capture')}>
-            Capture Lead
+            + Add Inquiry
+          </button>
+          <button
+            type="button"
+            className={`${historyStyles.modeToggleBtn} ${mode === 'bulk' ? historyStyles.modeToggleBtnActive : ''}`}
+            onClick={() => setMode('bulk')}
+          >
+            Import Leads / Inquiries
           </button>
           <button
             type="button"
@@ -221,6 +229,15 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
         {mode === 'capture' && (
           <LeadCaptureWizard creating={creating} onSubmit={handleSubmitLead} onConvertToProject={handleConvertToProject} onViewAllLeads={showAllLeads} />
+        )}
+
+        {mode === 'bulk' && (
+          <LeadBulkImportWizard
+            onImportComplete={() => {
+              loadStats();
+            }}
+            onCancel={showAllLeads}
+          />
         )}
 
         {mode === 'list' && (
@@ -341,7 +358,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
 export default function LeadsView(props: LeadsViewProps) {
   return (
-    <Suspense fallback={<AppShell title="Lead Capture" subtitle="Scan a business card at an event, qualify the lead, and follow up — all in one flow.">{null}</AppShell>}>
+    <Suspense fallback={<AppShell title="Lead Capture / Inquiry" subtitle="Scan a business card, bulk-import from CSV or photos, qualify the lead, and follow up — all in one flow.">{null}</AppShell>}>
       <LeadsViewContent {...props} />
     </Suspense>
   );

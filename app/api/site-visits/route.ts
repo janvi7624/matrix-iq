@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { siteVisitStore } from '@/lib/siteVisitStore';
-import { appendProjectTimeline, findProjectById, projectStore } from '@/lib/projectStore';
+import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { sendFieldOpsLifecycleEmail } from '@/lib/email/notifications';
 import { findUsersByUsernames } from '@/lib/userStore';
-import { DomainKey, ProjectRecord, SiteVisitRecord, VisitStage } from '@/lib/types';
+import { DomainKey, SiteVisitRecord, VisitStage } from '@/lib/types';
 
 const VALID_CATEGORIES: (DomainKey | '')[] = ['', 'av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_STAGES: (VisitStage | '')[] = ['', 'hot', 'warm', 'cold'];
@@ -47,47 +47,20 @@ export async function POST(request: NextRequest) {
   const clientPhone = typeof body.clientPhone === 'string' ? body.clientPhone.trim() : '';
   const location = typeof body.location === 'string' ? body.location.trim() : '';
 
+  // Every site visit belongs to a Project — selected (or created via
+  // "+ Add New Project") through the shared components/ui/ProjectSelect.tsx
+  // on the Site Visit wizard, same as every other project-linked module.
+  // No longer silently fabricates a Project here when one isn't supplied;
+  // that used to happen invisibly, bypassing the Project Dashboard as the
+  // single place project master data gets created/reviewed.
+  const projectId = typeof body.projectId === 'string' ? body.projectId.trim() : '';
+  if (!projectId) {
+    return NextResponse.json({ error: 'A project is required' }, { status: 400 });
+  }
+
   try {
-    // Every site visit belongs to a Project. If the caller already has one
-    // (e.g. logging a second visit, or a visit for a different domain with
-    // the same client), link to it; otherwise a new Project is created
-    // automatically so the pipeline always has a master record to attach to.
-    let projectId = typeof body.projectId === 'string' ? body.projectId.trim() : '';
-    if (projectId) {
-      const project = await findProjectById(projectId);
-      if (!project) projectId = '';
-    }
-    if (!projectId) {
-      const now = new Date().toISOString();
-      const newProject: ProjectRecord = {
-        id: `${Date.now()}`,
-        created_at: now,
-        created_by: viewer.username,
-        client_name: contactPerson,
-        company: companyName,
-        contact_person: contactPerson,
-        phone: clientPhone,
-        email: clientEmail,
-        address: location,
-        sales_person: viewer.username,
-        source: '',
-        status: 'active',
-        stage: 'site_visit',
-        cold_call_responded: '',
-        priority: 'medium',
-        expected_closing_date: '',
-        next_follow_up_date: '',
-        remarks: '',
-        notes: [],
-        attachments: [],
-        assigned_technical_person_id: '',
-        assigned_technical_person_name: '',
-        timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created (from site visit)', remarks: '' }],
-        updated_at: now
-      };
-      const createdProject = await projectStore.create(newProject);
-      projectId = createdProject.id;
-    }
+    const project = await findProjectById(projectId);
+    if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     const now = new Date().toISOString();
     const record: SiteVisitRecord = {

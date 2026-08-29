@@ -10,6 +10,7 @@ import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { listVisibleModules } from '@/lib/moduleConfigStore';
 import { travelScheduleStore } from '@/lib/travelScheduleStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
+import { marketingReminderBand } from '@/lib/marketingRequestReminder';
 
 // Sidebar renders on every authenticated page and used to pay for its own
 // /api/auth/me call, then — only once that resolved — up to 4 more
@@ -52,10 +53,15 @@ export async function GET(request: NextRequest) {
       travelScheduleStore.list(viewer.username, isPrivileged),
       listDepartmentManagers()
     ]);
-    if (isMarketingReviewer) {
-      const awaitingReview = marketingRecords.filter((r) => r.status === 'submitted').length;
-      if (awaitingReview) badges['marketing-requests'] = awaitingReview;
-    }
+    // Sums two different concerns into one nav badge — a reviewer's approval
+    // backlog, and anyone's own requests crossing into due-today/overdue —
+    // both worth surfacing, neither replacing the other.
+    const awaitingReview = isMarketingReviewer ? marketingRecords.filter((r) => r.status === 'submitted').length : 0;
+    const dueOrOverdue = marketingRecords.filter((r) => {
+      const band = marketingReminderBand(r);
+      return band === 'due_today' || band === 'overdue';
+    }).length;
+    if (awaitingReview + dueOrOverdue) badges['marketing-requests'] = awaitingReview + dueOrOverdue;
 
     if (demosForBadge) {
       const pendingApprovals = demosForBadge.filter((d) => d.status === 'pending_technical' || d.status === 'pending_manager').length;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { travelScheduleStore } from '@/lib/travelScheduleStore';
+import { travelScheduleStore, sanitizeCoTravellers, sanitizeHotelAccommodation, sanitizeAdvanceRequest } from '@/lib/travelScheduleStore';
 import { listAuditLog } from '@/lib/auditLogStore';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -45,10 +45,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (typeof body.requiredArrivalTime === 'string') patch.required_arrival_time = body.requiredArrivalTime;
     if (typeof body.expectedDepartureTime === 'string') patch.expected_departure_time = body.expectedDepartureTime;
     if (typeof body.purpose === 'string') patch.purpose = body.purpose.trim();
+    if (typeof body.purposeOther === 'string') patch.purpose_other = body.purposeOther.trim();
+    if (typeof body.modeOfTravel === 'string') patch.mode_of_travel = body.modeOfTravel.trim();
     if (typeof body.linkedClient === 'string') patch.linked_client = body.linkedClient.trim();
-    if (typeof body.expenseNote === 'string') patch.expense_note = body.expenseNote.trim();
     if (typeof body.projectId === 'string') patch.project_id = body.projectId;
     if (Array.isArray(body.companionIds)) patch.companion_ids = body.companionIds.filter((v: unknown) => typeof v === 'string');
+    if (body.coTravellers !== undefined) patch.co_travellers = sanitizeCoTravellers(body.coTravellers);
+    if (body.hotelAccommodation !== undefined) patch.hotel_accommodation = sanitizeHotelAccommodation(body.hotelAccommodation);
+    if (body.advanceRequest !== undefined) patch.advance_request = sanitizeAdvanceRequest(body.advanceRequest);
 
     const updated = await travelScheduleStore.update(id, patch as never);
     return NextResponse.json(updated);

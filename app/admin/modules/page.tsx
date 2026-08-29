@@ -1,10 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { ModuleConfigRecord, RoleRecord, UserRole } from '@/lib/types';
-import { BRAND } from '@/lib/branding';
+import AppShell from '@/components/AppShell';
 import { MODULE_ICON_OPTIONS, resolveModuleIcon } from '@/lib/icons';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
@@ -95,21 +93,7 @@ export default function ModuleManagerPage() {
   }
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>Module Manager</h1>
-            <div className={historyStyles.sub}>Administration &rsaquo; enable, disable, rename, reorder, and set role visibility for every module — no code required.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link className={historyStyles.button} href="/admin/custom-modules">Custom Module Builder</Link>
-          <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
-        </div>
-      </header>
-      <main className={historyStyles.main}>
+    <AppShell title="Module Manager" subtitle="Administration › enable, disable, rename, reorder, and set role visibility for every module — no code required.">
         <div className={historyStyles.status}>{status}</div>
         <div className={historyStyles.status}>
           Disabling a module hides it from the Dashboard for everyone (data is never deleted). Role columns control who sees it when enabled.
@@ -182,7 +166,6 @@ export default function ModuleManagerPage() {
             </div>
           </div>
         ))}
-      </main>
-    </div>
+    </AppShell>
   );
 }

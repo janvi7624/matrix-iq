@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { CustomModuleDef, CustomModuleRecord, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
+import AppShell from './AppShell';
 import CustomFieldInput from './CustomFieldInput';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -155,36 +154,14 @@ export default function CustomModuleView({ moduleKey }: CustomModuleViewProps) {
 
   if (loadError) {
     return (
-      <div className={historyStyles.body}>
-        <header className={historyStyles.header}>
-          <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-            <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-            <div><h1>{BRAND.appName}</h1></div>
-          </Link>
-        </header>
-        <main className={historyStyles.main}>
+      <AppShell title={BRAND.appName} subtitle="">
           <div className={historyStyles.status}>{status}</div>
-          <Link className={historyStyles.button} href="/">&larr; Back to Dashboard</Link>
-        </main>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className={historyStyles.body}>
-      <header className={historyStyles.header}>
-        <Link href="/" className={historyStyles.headerBrand} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={historyStyles.headerLogo} unoptimized />
-          <div>
-            <h1>{module_?.icon} {module_?.name || '...'}</h1>
-            <div className={historyStyles.sub}>Custom module — created from the UI, no code involved.</div>
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Link className={historyStyles.button} href="/">Back to Dashboard</Link>
-        </div>
-      </header>
-      <main className={historyStyles.main}>
+    <AppShell title={`${module_?.icon ?? ''} ${module_?.name || '...'}`} subtitle="Custom module — created from the UI, no code involved.">
         {module_ && (
           <>
             <div className={historyStyles.toolbar}>
@@ -260,7 +237,6 @@ export default function CustomModuleView({ moduleKey }: CustomModuleViewProps) {
             </div>
           </>
         )}
-      </main>
-    </div>
+    </AppShell>
   );
 }
