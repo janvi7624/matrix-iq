@@ -1,7 +1,10 @@
+import type { Model } from 'sequelize';
+import { Op } from 'sequelize';
 import { DomainKey, LeadPriority, LeadRecord } from './types';
 import { createRecordStore } from './recordStore';
 import { db, isUuid } from './db';
 import { isLeadUnattended } from './followUp';
+import { resolveVisibilityScope, canAccessOwnedRecord } from './departmentScope';
 
 function unionStrings(a: string[], b: string[]): string[] {
   return [...new Set([...a, ...b])];
@@ -22,13 +25,58 @@ const LEAD_FIELDS = [
   { name: 'follow_up_actions', kind: 'json' as const },
   { name: 'budget' },
   { name: 'notes' },
-  { name: 'project_id', kind: 'nullable' as const }
+  { name: 'project_id', kind: 'nullable' as const },
+  { name: 'assigned_to_id', kind: 'nullable' as const },
+  { name: 'assigned_by_id', kind: 'nullable' as const },
+  { name: 'assigned_at', kind: 'date' as const }
 ];
 
 const base = createRecordStore<LeadRecord>(db.Lead, LEAD_FIELDS, { departmentScoped: true });
 
+// Leads read through their own include set rather than createRecordStore's
+// creator-only one, because a lead now carries two more people: the assignee
+// and whoever assigned them. createRecordStore is shared by six modules, so
+// widening its include list there would make five unrelated modules pay for a
+// join they don't use.
+const LEAD_INCLUDES = () => [
+  { model: db.User, as: 'creator', attributes: ['id', 'username'] },
+  { model: db.User, as: 'assignee', attributes: ['id', 'username', 'name'] },
+  { model: db.User, as: 'assigner', attributes: ['id', 'username'] }
+];
+
+function toLeadRecord(row: Model): LeadRecord {
+  const record = base.toRecord(row);
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  const assignee = plain.assignee as { username?: string; name?: string } | null;
+  const assigner = plain.assigner as { username?: string } | null;
+  return {
+    ...record,
+    assigned_to: assignee?.username ?? '',
+    assigned_to_name: assignee?.name || assignee?.username || '',
+    assigned_by: assigner?.username ?? ''
+  };
+}
+
+// Visibility is department scope OR assignment. The base store filters on
+// created_by alone, which would mean a manager could assign a lead to a rep
+// who then couldn't open it — the rep didn't capture it and may sit outside
+// the capturer's department scope. Assignment has to grant access or the
+// feature doesn't work.
+async function listLeads(viewerUsername: string, _viewerIsPrivileged: boolean): Promise<LeadRecord[]> {
+  const scope = await resolveVisibilityScope(viewerUsername);
+  const where: Record<string | symbol, unknown> = {};
+  if (scope.scopedUserIds) {
+    where[Op.or] = [
+      { created_by: { [Op.in]: scope.scopedUserIds } },
+      { assigned_to_id: { [Op.in]: scope.scopedUserIds } }
+    ];
+  }
+  const rows = await db.Lead.findAll({ where: where as never, include: LEAD_INCLUDES(), order: [['created_at', 'DESC']] });
+  return rows.map(toLeadRecord);
+}
+
 export const leadStore = {
-  list: base.list,
+  list: listLeads,
   listOwnedBy: base.listOwnedBy,
   create: base.create,
   update: base.update,
@@ -37,8 +85,66 @@ export const leadStore = {
 
 export async function findLeadById(id: string): Promise<LeadRecord | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.Lead.findByPk(id, { include: [{ model: db.User, as: 'creator', attributes: ['id', 'username'] }] });
-  return row ? base.toRecord(row) : undefined;
+  const row = await db.Lead.findByPk(id, { include: LEAD_INCLUDES() });
+  return row ? toLeadRecord(row) : undefined;
+}
+
+// Whether this viewer may act on a lead (edit it, log a follow-up, convert it
+// to a project) — as opposed to merely see it in a list.
+//
+// canAccessOwnedRecord() alone is not enough now that leads are assignable:
+// it only knows about created_by + department scope, so a rep who was handed a
+// lead they didn't capture would find it in their list and then get a 403 the
+// moment they tried to work it. The assignee is exactly the person expected to
+// act on it, so being assigned has to grant write access as well as read.
+export async function canWorkLead(
+  viewerUsername: string,
+  lead: { created_by: string; assigned_to: string }
+): Promise<boolean> {
+  if (lead.assigned_to && lead.assigned_to === viewerUsername) return true;
+  return canAccessOwnedRecord(viewerUsername, lead.created_by);
+}
+
+export interface AssignLeadsResult {
+  assigned: number;
+  failed: string[];
+}
+
+// Assigns (or, with assigneeId === '', unassigns) one or more leads in a
+// single call — the Leads view offers both a per-row action and a bulk
+// "assign N selected", and both land here so the two can't drift apart.
+// Authorisation is the caller's job (see app/api/leads/assign/route.ts);
+// this only writes.
+export async function assignLeads(
+  leadIds: string[],
+  assigneeId: string,
+  assignerUsername: string
+): Promise<AssignLeadsResult> {
+  const assigner = assignerUsername
+    ? await db.User.findOne({ where: { username: assignerUsername } as never, attributes: ['id'] })
+    : null;
+  const now = new Date().toISOString();
+  const failed: string[] = [];
+  let assigned = 0;
+
+  for (const id of leadIds) {
+    if (!isUuid(id)) {
+      failed.push(id);
+      continue;
+    }
+    const updated = await base.update(id, {
+      assigned_to_id: assigneeId,
+      // Clearing the assignee clears the provenance too, so an unassigned
+      // lead never shows a stale "assigned by X on <date>".
+      assigned_by_id: assigneeId ? ((assigner?.get('id') as string) ?? '') : '',
+      assigned_at: assigneeId ? now : '',
+      updated_at: now
+    } as Partial<LeadRecord>);
+    if (updated) assigned += 1;
+    else failed.push(id);
+  }
+
+  return { assigned, failed };
 }
 
 // Same mobile number or email address, whoever scanned it — the trade-show
@@ -145,7 +251,14 @@ export async function createOrMergeLead(input: CreateOrMergeLeadInput, actorUser
     follow_up_actions: input.followUpActions,
     budget: input.budget,
     notes: input.notes,
-    project_id: ''
+    project_id: '',
+    // A freshly captured lead is unassigned — a sales manager routes it.
+    assigned_to_id: '',
+    assigned_by_id: '',
+    assigned_at: '',
+    assigned_to: '',
+    assigned_to_name: '',
+    assigned_by: ''
   };
   const created = await base.create(record);
   return { record: created, merged: false };
@@ -300,15 +413,21 @@ export interface LeadStats {
   today: number;
   hot: number;
   unattended: number;
+  /** Captured but not yet routed to a rep — the sales manager's queue. */
+  unassigned: number;
+  /** Assigned to the viewer personally. */
+  assignedToMe: number;
 }
 
 export async function computeLeadStats(viewerUsername: string, viewerIsPrivileged: boolean): Promise<LeadStats> {
-  const leads = await base.list(viewerUsername, viewerIsPrivileged);
+  const leads = await listLeads(viewerUsername, viewerIsPrivileged);
   const todayStr = new Date().toDateString();
   return {
     total: leads.length,
     today: leads.filter((l) => new Date(l.created_at).toDateString() === todayStr).length,
     hot: leads.filter((l) => l.priority === 'hot').length,
-    unattended: leads.filter(isLeadUnattended).length
+    unattended: leads.filter(isLeadUnattended).length,
+    unassigned: leads.filter((l) => !l.assigned_to_id).length,
+    assignedToMe: leads.filter((l) => l.assigned_to === viewerUsername).length
   };
 }

@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { leadStore } from '@/lib/leadStore';
+import { leadStore, canWorkLead } from '@/lib/leadStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DomainKey, LeadPriority, LeadRecord } from '@/lib/types';
-import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITIES: LeadPriority[] = ['hot', 'warm', 'cool', ''];
@@ -22,7 +21,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const records = await leadStore.list(viewer.username, true);
     const existing = records.find((r) => r.id === id);
     if (!existing) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-    if (!(await canAccessOwnedRecord(viewer.username, existing.created_by))) {
+    // canWorkLead, not canAccessOwnedRecord — the rep a lead is assigned to
+    // must be able to edit it even when they didn't capture it and sit outside
+    // the capturer's department scope.
+    if (!(await canWorkLead(viewer.username, existing))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -1,0 +1,159 @@
+/* Lead assignment UI inside components/LeadsView.tsx — the "Assigned To"
+   column, the per-row assignee picker, and the bulk-assign bar.
+   All colour/radius/motion from the --mx-* tokens in app/globals.css. */
+
+/* ---------- Bulk assign bar ---------- */
+/* Only rendered while at least one row is selected, so it never occupies
+   space during ordinary browsing. */
+.bulkBar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-brand-subtle);
+    border: 1px solid var(--mx-red-200);
+}
+.bulkCount {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--mx-brand-hover);
+    white-space: nowrap;
+}
+.bulkSelect {
+    min-height: 38px;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    font-size: 13.5px;
+    font-family: inherit;
+    cursor: pointer;
+    /* min-width: 0 so a long rep name can't widen the bar past the page —
+       a select's intrinsic width is its widest option, and min-width:auto on a
+       flex item beats max-width. */
+    flex: 0 1 200px;
+    min-width: 0;
+    max-width: 100%;
+}
+.linkBtn {
+    background: none;
+    border: none;
+    padding: 4px 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--mx-info);
+    cursor: pointer;
+    border-radius: var(--mx-radius-xs);
+}
+.linkBtn:hover { text-decoration: underline; }
+
+/* ---------- Row selection ---------- */
+.checkCell { width: 34px; padding-right: 0 !important; }
+.checkbox {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: var(--mx-brand);
+}
+.rowSelected td { background: var(--mx-brand-subtle) !important; }
+
+/* ---------- Assigned-to cell ---------- */
+.assigneeCell { min-width: 150px; }
+/* An unassigned lead is the thing a sales manager is looking for, so it gets a
+   real badge rather than a dash that disappears into the table. */
+.unassignedPill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-warning-subtle);
+    color: var(--mx-warning);
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.assigneeName {
+    display: block;
+    font-weight: 600;
+    color: var(--mx-ink);
+    overflow-wrap: anywhere;
+}
+.assigneeMeta {
+    display: block;
+    font-size: 11px;
+    color: var(--mx-ink-muted);
+    margin-top: 1px;
+}
+/* Highlights the viewer's own leads in a shared list. */
+.assigneeMine {
+    display: inline-block;
+    margin-left: 5px;
+    padding: 1px 6px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-info-subtle);
+    color: var(--mx-info);
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+}
+
+/* Per-row picker — assigning one lead shouldn't need a dialog. */
+.rowSelect {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 34px;
+    padding: 6px 8px;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-xs);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    font-size: 12.5px;
+    font-family: inherit;
+    cursor: pointer;
+    max-width: 190px;
+}
+.rowSelect:disabled { opacity: 0.5; cursor: progress; }
+/* Draws the eye to rows still needing a decision. */
+.rowSelectUnassigned {
+    border-color: var(--mx-warning);
+    background: var(--mx-warning-subtle);
+    font-weight: 600;
+}
+
+/* ---------- Stat card ---------- */
+.statBtn {
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+}
+.statBtn:hover { border-color: var(--mx-brand); box-shadow: var(--mx-shadow-sm); }
+.statActive { border: 1px solid var(--mx-brand) !important; background: var(--mx-brand-subtle); }
+.statValue {
+    font-size: 24px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+}
+.statWarning { color: var(--mx-warning); }
+.statInfo { color: var(--mx-info); }
+
+@media (max-width: 768px) {
+    .bulkSelect { flex: 1 1 100%; }
+    .rowSelect { max-width: none; }
+}

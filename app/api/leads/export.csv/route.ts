@@ -4,7 +4,10 @@ import { leadStore } from '@/lib/leadStore';
 import { toCsv } from '@/lib/csv';
 import { apiErrorResponse } from '@/lib/apiError';
 
-const HEADERS = ['Name', 'Company', 'Designation', 'Mobile', 'Email', 'City', 'Interests', 'Sub-Interests', 'Priority', 'Follow-Up', 'Budget', 'Notes', 'Captured By', 'Date'];
+// "Assigned To" sits next to "Captured By" rather than replacing it — who
+// captured a lead and who owns working it are different facts, and a sales
+// manager exporting the pipeline needs both.
+const HEADERS = ['Name', 'Company', 'Designation', 'Mobile', 'Email', 'City', 'Interests', 'Sub-Interests', 'Priority', 'Follow-Up', 'Budget', 'Notes', 'Assigned To', 'Assigned On', 'Captured By', 'Date'];
 
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
@@ -15,6 +18,7 @@ export async function GET(request: NextRequest) {
     const rows = leads.map((l) => [
       l.name, l.company, l.designation, l.mobile, l.email, l.city,
       l.interests.join('; '), l.sub_interests.join('; '), l.priority, l.follow_up_actions.join('; '), l.budget, l.notes,
+      l.assigned_to_name || l.assigned_to || 'Unassigned', l.assigned_at,
       l.created_by, l.created_at
     ]);
     const csv = toCsv(HEADERS, rows);

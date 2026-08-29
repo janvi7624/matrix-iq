@@ -16,7 +16,12 @@ module.exports = (sequelize, DataTypes) => {
     budget: { type: DataTypes.STRING },
     notes: { type: DataTypes.TEXT },
     // Set once "Convert to Project" runs.
-    project_id: { type: DataTypes.UUID }
+    project_id: { type: DataTypes.UUID },
+    // Lead assignment — who owns working this lead, who assigned it, and when.
+    // Separate from created_by, which stays "who captured it".
+    assigned_to_id: { type: DataTypes.UUID },
+    assigned_by_id: { type: DataTypes.UUID },
+    assigned_at: { type: DataTypes.DATE }
   }, {
     tableName: 'leads',
     underscored: true,
@@ -26,6 +31,8 @@ module.exports = (sequelize, DataTypes) => {
   Lead.associate = (models) => {
     Lead.belongsTo(models.Project, { foreignKey: 'project_id', as: 'project' });
     Lead.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
+    Lead.belongsTo(models.User, { foreignKey: 'assigned_to_id', as: 'assignee' });
+    Lead.belongsTo(models.User, { foreignKey: 'assigned_by_id', as: 'assigner' });
   };
 
   return Lead;
