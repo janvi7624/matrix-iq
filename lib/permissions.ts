@@ -57,6 +57,29 @@ export async function isModuleActionAllowed(viewer: { role: string; isPrivileged
 // route. Falls back to the old flat isModuleActionAllowed('approve') check
 // when no department literally named "Marketing" exists yet or it has no
 // manager mapped, so nothing gets stuck on an unmapped org.
+// Who may route captured leads to sales reps. Mirrors isMarketingManager
+// below: an org-wide viewer always can, otherwise it's the people actually
+// listed in Department.managerIds for a sales-side department, with the
+// module-level 'assign' permission as the escape hatch for orgs whose
+// structure doesn't match those department names.
+//
+// Both Sales departments are checked because the seed ships "Sales" and
+// "GEM - Sales" as separate departments feeding the same pipeline (see the
+// scorer registry in lib/departmentScoring.ts, which maps both to
+// scoreSalesTeam) — a manager of either routes leads.
+const LEAD_MANAGER_DEPARTMENTS = ['Sales', 'GEM - Sales'];
+
+export async function canAssignLeads(viewer: { username: string; role: string; isPrivileged: boolean }): Promise<boolean> {
+  if (await hasCapability(viewer.role, 'viewAllDepartments')) return true;
+  const managersByDepartment = await listDepartmentManagers();
+  const isSalesManager = LEAD_MANAGER_DEPARTMENTS.some((name) =>
+    (managersByDepartment[name] || []).some((m) => m.username === viewer.username)
+  );
+  if (isSalesManager) return true;
+  if (viewer.isPrivileged) return true;
+  return isModuleActionAllowed(viewer, 'leads', 'assign');
+}
+
 export async function isMarketingManager(viewer: { username: string; role: string; isPrivileged: boolean }): Promise<boolean> {
   if (await hasCapability(viewer.role, 'viewAllDepartments')) return true;
   const managers = (await listDepartmentManagers())['Marketing'];

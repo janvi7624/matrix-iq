@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { leadStore } from '@/lib/leadStore';
+import { leadStore, canWorkLead } from '@/lib/leadStore';
 import { projectStore } from '@/lib/projectStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectRecord } from '@/lib/types';
-import { canAccessOwnedRecord } from '@/lib/departmentScope';
 
 // Links a captured lead into the sales pipeline as a Project — CRM was
 // merged into Projects (section 23), so this is now the single "turn a lead
@@ -21,7 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const records = await leadStore.list(viewer.username, true);
     const lead = records.find((r) => r.id === id);
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-    if (!(await canAccessOwnedRecord(viewer.username, lead.created_by))) {
+    if (!(await canWorkLead(viewer.username, lead))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     if (lead.project_id) return NextResponse.json({ error: 'Already converted to a project' }, { status: 400 });

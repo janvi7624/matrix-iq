@@ -6,13 +6,14 @@ import { useSearchParams } from 'next/navigation';
 import { DomainKey, LeadPriority, LeadRecord, LeadSource, UserRole } from '@/lib/types';
 import { LEAD_DOMAIN_TILES, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
-import { AlertTriangle, Flame, Contact, Share2 } from 'lucide-react';
+import { AlertTriangle, Flame, Contact, Share2, UserPlus, UserCheck } from 'lucide-react';
 import AppShell from './AppShell';
 import LeadCaptureWizard from './LeadCaptureWizard';
 import LeadBulkImportWizard from './LeadBulkImportWizard';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import notifyStyles from './ui/notify.module.css';
+import assignStyles from './leadAssignment.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
@@ -23,7 +24,20 @@ interface LeadsViewProps {
   currentUser: { username: string; role: UserRole };
 }
 
+interface Assignee {
+  id: string;
+  username: string;
+  name: string;
+  department: string;
+  designation: string;
+}
+
 const PAGE_SIZE = 20;
+
+// Sentinel values for the "Assigned to" filter dropdown. Prefixed so they can
+// never collide with a real user id.
+const FILTER_UNASSIGNED = '@unassigned';
+const FILTER_MINE = '@mine';
 
 function formatDateTime(iso: string): string {
   if (!iso) return '-';
@@ -91,8 +105,20 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [unattendedOnly, setUnattendedOnly] = useState(startUnattended);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [page, setPage] = useState(1);
-  const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number } | null>(null);
+  const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number; unassigned: number; assignedToMe: number } | null>(null);
   const [metaInfoLead, setMetaInfoLead] = useState<LeadRecord | null>(null);
+
+  // ── Assignment ──────────────────────────────────────────────────────────
+  // `assignees` non-empty is also the "this viewer may assign" signal:
+  // /api/leads/assignees 403s for anyone who can't, so one fetch decides both
+  // whether to render the assignment controls and what to put in them.
+  const [assignees, setAssignees] = useState<Assignee[] | null>(null);
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAssigneeId, setBulkAssigneeId] = useState('');
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const canAssign = !!assignees;
 
   async function loadLeads() {
     setStatus('Loading...');
@@ -121,10 +147,100 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     }
   }
 
+  // A 403 here is the expected answer for a rep rather than an error — it just
+  // means no assignment controls for them, so it stays silent.
+  async function loadAssignees() {
+    try {
+      const response = await fetch('/api/leads/assignees');
+      if (!response.ok) {
+        setAssignees(null);
+        return;
+      }
+      const data: { assignees: Assignee[] } = await response.json();
+      setAssignees(data.assignees);
+    } catch {
+      setAssignees(null);
+    }
+  }
+
   useEffect(() => {
     loadLeads();
     loadStats();
+    loadAssignees();
   }, []);
+
+  // Sends both the per-row change and the bulk action through the one
+  // endpoint, so authorisation and audit logging can't diverge between them.
+  async function assign(leadIds: string[], assigneeId: string): Promise<boolean> {
+    try {
+      const response = await fetch('/api/leads/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds, assigneeId })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(body?.error || 'Could not assign. Please try again.');
+        return false;
+      }
+      const result: { assigned: number; failed: string[]; assigneeName: string; leads: LeadRecord[] } = await response.json();
+
+      // Patch the rows in place from the response rather than refetching the
+      // whole list — keeps the current scroll position, filters and selection.
+      setLeads((prev) => {
+        const updatedById = new Map(result.leads.map((l) => [l.id, l]));
+        return prev.map((l) => updatedById.get(l.id) ?? l);
+      });
+      loadStats();
+
+      const noun = `${result.assigned} lead${result.assigned === 1 ? '' : 's'}`;
+      if (result.failed.length) {
+        toast.error(`${noun} updated, ${result.failed.length} could not be.`);
+      } else {
+        toast.success(assigneeId ? `${noun} assigned to ${result.assigneeName}.` : `${noun} unassigned.`);
+      }
+      return true;
+    } catch {
+      toast.error('Could not reach the server.');
+      return false;
+    }
+  }
+
+  async function handleRowAssign(leadId: string, assigneeId: string) {
+    setAssigningId(leadId);
+    try {
+      await assign([leadId], assigneeId);
+    } finally {
+      setAssigningId(null);
+    }
+  }
+
+  async function handleBulkAssign() {
+    // selectedVisibleIds, not selectedIds — see its definition below.
+    const ids = selectedVisibleIds;
+    if (!ids.length) return;
+    // Unassigning several leads at once is destructive enough to confirm —
+    // it silently drops whoever was working them.
+    if (!bulkAssigneeId) {
+      const ok = await confirm({
+        title: `Unassign ${ids.length} lead${ids.length === 1 ? '' : 's'}?`,
+        message: 'They will go back to the unassigned queue and whoever is working them now will lose them.',
+        confirmLabel: 'Unassign',
+        danger: true
+      });
+      if (!ok) return;
+    }
+    setBulkBusy(true);
+    try {
+      const ok = await assign(ids, bulkAssigneeId);
+      if (ok) {
+        setSelectedIds(new Set());
+        setBulkAssigneeId('');
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   const visibleLeads = useMemo(() => {
     let rows = leads;
@@ -136,20 +252,55 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     if (interestFilter) rows = rows.filter((l) => l.interests.includes(interestFilter));
     if (sourceFilter) rows = rows.filter((l) => l.source === sourceFilter);
     if (unattendedOnly) rows = rows.filter(isLeadUnattended);
+    if (assigneeFilter === FILTER_UNASSIGNED) rows = rows.filter((l) => !l.assigned_to_id);
+    else if (assigneeFilter === FILTER_MINE) rows = rows.filter((l) => l.assigned_to === currentUser.username);
+    else if (assigneeFilter) rows = rows.filter((l) => l.assigned_to_id === assigneeFilter);
     const sorted = [...rows].sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name);
       if (sortBy === 'oldest') return a.created_at < b.created_at ? -1 : 1;
       return a.created_at < b.created_at ? 1 : -1;
     });
     return sorted;
-  }, [leads, q, priorityFilter, interestFilter, sourceFilter, unattendedOnly, sortBy]);
+  }, [leads, q, priorityFilter, interestFilter, sourceFilter, unattendedOnly, sortBy, assigneeFilter, currentUser.username]);
 
   const totalPages = Math.max(1, Math.ceil(visibleLeads.length / PAGE_SIZE));
   const pageRows = visibleLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
-  }, [q, priorityFilter, interestFilter, sourceFilter, unattendedOnly, sortBy]);
+  }, [q, priorityFilter, interestFilter, sourceFilter, unattendedOnly, sortBy, assigneeFilter]);
+
+  // Selection is only ever acted on through this intersection with the visible
+  // rows, so a stale id left behind by a filter change simply stops counting —
+  // a bulk assign can never reach a lead the manager isn't looking at.
+  // Not memoized: it's a filter over one page's worth of rows, and wrapping a
+  // Set lookup in useMemo defeats the React Compiler's own memoization
+  // (react-hooks/preserve-manual-memoization) for no measurable gain.
+  const selectedVisibleIds = visibleLeads.filter((l) => selectedIds.has(l.id)).map((l) => l.id);
+  const allOnPageSelected = pageRows.length > 0 && pageRows.every((l) => selectedIds.has(l.id));
+
+  function toggleRowSelection(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function togglePageSelection() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) pageRows.forEach((l) => next.delete(l.id));
+      else pageRows.forEach((l) => next.add(l.id));
+      return next;
+    });
+  }
+
+  // Name/Company/Designation/Mobile/Email/Interests/Priority/Source/
+  // Assigned To/Captured By/Date/actions = 12, +1 for the selection
+  // checkbox column when the viewer can assign leads.
+  const columnCount = canAssign ? 13 : 12;
 
   async function handleSubmitLead(form: {
     name: string; mobile: string; email: string; designation: string; company: string; city: string; cardImageUrl: string;
@@ -249,6 +400,31 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               <div style={{ fontSize: 24, fontWeight: 800, color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><AlertTriangle size={20} /> {stats.unattended}</div>
               <div className={calcStyles.small}>Unattended</div>
             </button>
+            {/* A sales manager's actual queue: what has come in and still
+                needs routing to a rep. One tap filters the list to it. */}
+            {canAssign && (
+              <button
+                type="button"
+                className={`${calcStyles.sectionPanel} ${assignStyles.statBtn} ${assigneeFilter === FILTER_UNASSIGNED ? assignStyles.statActive : ''}`}
+                onClick={() => { setMode('list'); setAssigneeFilter(FILTER_UNASSIGNED); }}
+                aria-pressed={assigneeFilter === FILTER_UNASSIGNED}
+              >
+                <div className={`${assignStyles.statValue} ${assignStyles.statWarning}`}><UserPlus size={20} /> {stats.unassigned}</div>
+                <div className={calcStyles.small}>To Assign</div>
+              </button>
+            )}
+            {/* Reps get the mirror image — what has been routed to them. */}
+            {stats.assignedToMe > 0 && (
+              <button
+                type="button"
+                className={`${calcStyles.sectionPanel} ${assignStyles.statBtn} ${assigneeFilter === FILTER_MINE ? assignStyles.statActive : ''}`}
+                onClick={() => { setMode('list'); setAssigneeFilter(FILTER_MINE); }}
+                aria-pressed={assigneeFilter === FILTER_MINE}
+              >
+                <div className={`${assignStyles.statValue} ${assignStyles.statInfo}`}><UserCheck size={20} /> {stats.assignedToMe}</div>
+                <div className={calcStyles.small}>Assigned To Me</div>
+              </button>
+            )}
           </div>
         )}
 
@@ -306,6 +482,18 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 <option value="business_card">Business Card</option>
                 <option value="csv_import">CSV Import</option>
               </select>
+              <select
+                className={calcStyles.formControl}
+                style={{ width: 'auto' }}
+                value={assigneeFilter}
+                onChange={(e) => setAssigneeFilter(e.target.value)}
+                aria-label="Filter by assignee"
+              >
+                <option value="">All assignees</option>
+                <option value={FILTER_UNASSIGNED}>Unassigned</option>
+                <option value={FILTER_MINE}>Assigned to me</option>
+                {(assignees || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
               <select className={calcStyles.formControl} style={{ width: 'auto' }} value={sortBy} onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}>
                 <option value="newest">Newest first</option>
                 <option value="oldest">Oldest first</option>
@@ -325,6 +513,31 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             </div>
             {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
+            {canAssign && selectedVisibleIds.length > 0 && (
+              <div className={assignStyles.bulkBar}>
+                <span className={assignStyles.bulkCount}>
+                  {selectedVisibleIds.length} lead{selectedVisibleIds.length === 1 ? '' : 's'} selected
+                </span>
+                <select
+                  className={assignStyles.bulkSelect}
+                  value={bulkAssigneeId}
+                  onChange={(e) => setBulkAssigneeId(e.target.value)}
+                  aria-label="Assign selected leads to"
+                >
+                  <option value="">— Unassign —</option>
+                  {(assignees || []).map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}{a.designation ? ` · ${a.designation}` : ''}</option>
+                  ))}
+                </select>
+                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={handleBulkAssign} disabled={bulkBusy}>
+                  {bulkBusy ? 'Assigning…' : bulkAssigneeId ? 'Assign' : 'Unassign'}
+                </button>
+                <button type="button" className={assignStyles.linkBtn} onClick={() => setSelectedIds(new Set())}>
+                  Clear selection
+                </button>
+              </div>
+            )}
+
             {loading ? (
               <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={9} /></div>
             ) : loadFailed ? (
@@ -334,6 +547,17 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               <table className={historyStyles.table}>
                 <thead>
                   <tr>
+                    {canAssign && (
+                      <th className={assignStyles.checkCell}>
+                        <input
+                          type="checkbox"
+                          className={assignStyles.checkbox}
+                          checked={allOnPageSelected}
+                          onChange={togglePageSelection}
+                          aria-label={allOnPageSelected ? 'Deselect all leads on this page' : 'Select all leads on this page'}
+                        />
+                      </th>
+                    )}
                     <th>Name</th>
                     <th>Company</th>
                     <th>Designation</th>
@@ -342,6 +566,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                     <th>Interests</th>
                     <th>Priority</th>
                     <th>Source</th>
+                    <th>Assigned To</th>
                     <th>Captured By</th>
                     <th>Date</th>
                     <th></th>
@@ -349,7 +574,18 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 </thead>
                 <tbody>
                   {pageRows.map((l) => (
-                    <tr key={l.id}>
+                    <tr key={l.id} className={selectedIds.has(l.id) ? assignStyles.rowSelected : ''}>
+                      {canAssign && (
+                        <td className={assignStyles.checkCell}>
+                          <input
+                            type="checkbox"
+                            className={assignStyles.checkbox}
+                            checked={selectedIds.has(l.id)}
+                            onChange={() => toggleRowSelection(l.id)}
+                            aria-label={`Select lead ${l.name || l.company || l.id}`}
+                          />
+                        </td>
+                      )}
                       <td>{l.name || '-'}</td>
                       <td>{l.company || '-'}</td>
                       <td>{l.designation || '-'}</td>
@@ -368,6 +604,40 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                       </td>
                       <td><PriorityBadge priority={l.priority} /></td>
                       <td><SourceBadge lead={l} onClick={() => setMetaInfoLead(l)} /></td>
+                      {/* A manager gets a picker (assigning one lead shouldn't
+                          need a dialog); everyone else gets the read-only fact. */}
+                      <td className={assignStyles.assigneeCell}>
+                        {canAssign ? (
+                          <select
+                            className={`${assignStyles.rowSelect} ${!l.assigned_to_id ? assignStyles.rowSelectUnassigned : ''}`}
+                            value={l.assigned_to_id || ''}
+                            disabled={assigningId === l.id}
+                            onChange={(e) => handleRowAssign(l.id, e.target.value)}
+                            aria-label={`Assign lead ${l.name || l.company || l.id} to`}
+                          >
+                            <option value="">Unassigned</option>
+                            {(assignees || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                            {/* Keeps the current assignee selectable even if
+                                they've since moved out of the assignable set
+                                (department change, deactivation) — otherwise the
+                                select would silently show "Unassigned" for a
+                                lead that is in fact assigned. */}
+                            {l.assigned_to_id && !(assignees || []).some((a) => a.id === l.assigned_to_id) && (
+                              <option value={l.assigned_to_id}>{l.assigned_to_name || l.assigned_to} (inactive)</option>
+                            )}
+                          </select>
+                        ) : l.assigned_to ? (
+                          <>
+                            <span className={assignStyles.assigneeName}>
+                              {l.assigned_to_name || l.assigned_to}
+                              {l.assigned_to === currentUser.username && <span className={assignStyles.assigneeMine}>You</span>}
+                            </span>
+                            {l.assigned_by && <span className={assignStyles.assigneeMeta}>by {l.assigned_by}</span>}
+                          </>
+                        ) : (
+                          <span className={assignStyles.unassignedPill}>Unassigned</span>
+                        )}
+                      </td>
                       <td>{l.created_by}</td>
                       <td>{formatDateTime(l.created_at)}</td>
                       <td>
@@ -383,7 +653,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                     </tr>
                   ))}
                   {pageRows.length === 0 && (
-                    <tr><td colSpan={11}>
+                    <tr><td colSpan={columnCount}>
                       <EmptyState
                         icon={Contact}
                         title={leads.length === 0 ? 'No leads captured yet' : 'No leads match your filters'}

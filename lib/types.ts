@@ -1073,6 +1073,20 @@ export interface LeadRecord {
   meta_platform: 'fb' | 'ig' | '';
   meta_created_at: string;
   meta_raw_field_data: MetaLeadFieldDatum[];
+  // ── Assignment ──────────────────────────────────────────────────────────
+  // Who owns working this lead, set by a sales manager. Distinct from
+  // created_by (who captured it) — a lead captured at a trade show by one rep
+  // is routinely assigned to another, and both facts matter. All four are ''
+  // for a lead that hasn't been assigned yet.
+  // assigned_to_id is the stored FK; assigned_to / assigned_to_name /
+  // assigned_by are resolved from the `assignee`/`assigner` associations on
+  // read (same pattern as created_by) and are not writable.
+  assigned_to_id: string;
+  assigned_by_id: string;
+  assigned_at: string;
+  assigned_to: string;
+  assigned_to_name: string;
+  assigned_by: string;
 }
 
 // ---------------------------------------------------------------------------

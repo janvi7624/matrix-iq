@@ -38,7 +38,12 @@ module.exports = (sequelize, DataTypes) => {
     meta_created_at: { type: DataTypes.DATE },
     // Every raw field_data entry Meta sent, including custom/unmapped form
     // questions that don't map onto a MatrixIQ column — nothing is discarded.
-    meta_raw_field_data: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
+    meta_raw_field_data: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // Lead assignment — who owns working this lead, who assigned it, and when.
+    // Separate from created_by, which stays "who captured it".
+    assigned_to_id: { type: DataTypes.UUID },
+    assigned_by_id: { type: DataTypes.UUID },
+    assigned_at: { type: DataTypes.DATE }
   }, {
     tableName: 'leads',
     underscored: true,
@@ -48,6 +53,8 @@ module.exports = (sequelize, DataTypes) => {
   Lead.associate = (models) => {
     Lead.belongsTo(models.Project, { foreignKey: 'project_id', as: 'project' });
     Lead.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
+    Lead.belongsTo(models.User, { foreignKey: 'assigned_to_id', as: 'assignee' });
+    Lead.belongsTo(models.User, { foreignKey: 'assigned_by_id', as: 'assigner' });
   };
 
   return Lead;
