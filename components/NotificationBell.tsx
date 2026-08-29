@@ -5,9 +5,19 @@ import { Bell } from 'lucide-react';
 import { NotificationRecord } from '@/lib/types';
 import styles from './quotationHistory.module.css';
 
+// Static, entity-id-agnostic destinations (the list itself, not one record).
 const ENTITY_LINK: Record<string, string> = {
   marketing_request: '/marketing-requests'
 };
+
+// Entity types whose notification should open the EXACT record, not a
+// generic list — added as needed (tms_task first, since a vague "a task
+// was assigned to you" notification that goes nowhere was a reported real
+// complaint; see components/TmsTaskDetailView.tsx).
+function entityHref(entityType: string, entityId: string): string {
+  if (entityType === 'tms_task' && entityId) return `/tms/tasks/${entityId}`;
+  return ENTITY_LINK[entityType] || '#';
+}
 
 function formatDateTime(iso: string): string {
   try {
@@ -104,12 +114,15 @@ export default function NotificationBell() {
             )}
           </div>
           {notifications.length === 0 ? (
-            <div className={styles.notifEmpty}>No notifications yet.</div>
+            <div className={styles.notifEmpty}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>You&apos;re all caught up</div>
+              <div style={{ fontWeight: 400 }}>New task assignments and important updates will appear here.</div>
+            </div>
           ) : (
             notifications.map((n) => (
               <a
                 key={n.id}
-                href={ENTITY_LINK[n.entity_type] || '#'}
+                href={entityHref(n.entity_type, n.entity_id)}
                 onClick={() => markRead(n.id)}
                 className={`${styles.notifItem} ${n.is_read ? '' : styles.notifItemUnread}`}
               >

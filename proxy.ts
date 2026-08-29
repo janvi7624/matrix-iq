@@ -20,7 +20,11 @@ import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 // gets a privilege check without a DB call: baked into the signed token at
 // login/token-reissue time.
 
-const PUBLIC_PATHS = new Set(['/login', '/api/auth/login', '/api/auth/logout', '/manifest.webmanifest']);
+// /api/integrations/meta/webhook supplies its own authenticity check in
+// place of session auth — Meta's GET verification handshake (hub.verify_token)
+// and POST signature verification (X-Hub-Signature-256), see that route —
+// since Meta's servers never carry a MatrixIQ session cookie.
+const PUBLIC_PATHS = new Set(['/login', '/api/auth/login', '/api/auth/logout', '/manifest.webmanifest', '/api/integrations/meta/webhook']);
 // admin + superadmin only — plain 'user' accounts are blocked from all of these.
 const ADMIN_ONLY_PREFIXES = ['/admin', '/quotation-history', '/api/admin'];
 // Reachable even while a bulk-imported account is force-locked to changing

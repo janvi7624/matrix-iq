@@ -73,6 +73,10 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'app-settings', label: 'Application Settings', desc: 'Company details, tax, terms, and numbering.', icon: 'settings', href: '/admin/settings', section: 'Administration', order: 7, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'module-manager', label: 'Module Manager', desc: 'Enable, disable, rename, and reorder every module.', icon: 'puzzle', href: '/admin/modules', section: 'Administration', order: 8, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'custom-modules', label: 'Custom Module Builder', desc: 'Create new business modules without writing code.', icon: 'wrench', href: '/admin/custom-modules', section: 'Administration', order: 9, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  // Narrower than PRIVILEGED_ROLES (excludes 'manager') — Meta credentials
+  // and lead-routing rules are Admin/Super Admin only, same restriction
+  // 'audit-log' already uses. See lib/metaConfig.ts.
+  { key: 'meta-lead-integration', label: 'Meta Lead Integration', desc: 'Connect Facebook & Instagram Lead Ads to Lead Capture / Inquiry.', icon: 'share-2', href: '/admin/meta-integration', section: 'Administration', order: 10, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
 
   // TMS (Technical Management System) — Robotics/AI/AV/Marketing-only, see
   // lib/tmsAccess.ts. visibleToRoles covers the 4 TMS roles + privileged

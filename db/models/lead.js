@@ -16,7 +16,29 @@ module.exports = (sequelize, DataTypes) => {
     budget: { type: DataTypes.STRING },
     notes: { type: DataTypes.TEXT },
     // Set once "Convert to Project" runs.
-    project_id: { type: DataTypes.UUID }
+    project_id: { type: DataTypes.UUID },
+    // 'manual' | 'business_card' | 'csv_import' | 'meta_lead_ads'
+    source: { type: DataTypes.STRING(30), allowNull: false, defaultValue: 'manual' },
+    // Meta (Facebook/Instagram) Lead Ads attribution — see lib/metaLeadIngest.ts.
+    // meta_lead_id has a DB-level unique index (migration
+    // 20260901120000-add-meta-fields-to-leads.js) so the same Meta lead can
+    // never create two rows, even under concurrent webhook delivery.
+    meta_lead_id: { type: DataTypes.STRING },
+    meta_page_id: { type: DataTypes.STRING },
+    meta_form_id: { type: DataTypes.STRING },
+    meta_form_name: { type: DataTypes.STRING },
+    meta_campaign_id: { type: DataTypes.STRING },
+    meta_campaign_name: { type: DataTypes.STRING },
+    meta_adset_id: { type: DataTypes.STRING },
+    meta_adset_name: { type: DataTypes.STRING },
+    meta_ad_id: { type: DataTypes.STRING },
+    meta_ad_name: { type: DataTypes.STRING },
+    // 'fb' | 'ig'
+    meta_platform: { type: DataTypes.STRING(10) },
+    meta_created_at: { type: DataTypes.DATE },
+    // Every raw field_data entry Meta sent, including custom/unmapped form
+    // questions that don't map onto a MatrixIQ column — nothing is discarded.
+    meta_raw_field_data: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
   }, {
     tableName: 'leads',
     underscored: true,

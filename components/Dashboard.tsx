@@ -72,6 +72,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [backOfficeKpis, setBackOfficeKpis] = useState<BackOfficeKpis | null>(null);
   const [modules, setModules] = useState<ModuleConfigRecord[] | null>(null);
   const [unattendedLeads, setUnattendedLeads] = useState<number | null>(null);
+  const [metaLeadsToday, setMetaLeadsToday] = useState<number>(0);
   const [marketingStats, setMarketingStats] = useState<{ isReviewer: boolean; awaitingReview?: number; myOpenCount?: number } | null>(null);
   const [marketingReminderUrgentCount, setMarketingReminderUrgentCount] = useState<number>(0);
   const [allProjects, setAllProjects] = useState<ProjectRecord[] | null>(null);
@@ -123,6 +124,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setFollowUpCount(data.followUpCount ?? null);
         setReminderCount(data.reminderCount ?? null);
         setUnattendedLeads(data.unattendedLeads ?? null);
+        setMetaLeadsToday(data.metaLeadsToday ?? 0);
         setMarketingStats(data.marketingStats ?? null);
         setMarketingReminderUrgentCount(data.marketingReminderUrgentCount ?? 0);
         setAllProjects(data.allProjects ?? []);
@@ -207,6 +209,9 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (unattendedLeads) {
       items.push({ key: 'leads', label: 'Unattended leads', count: unattendedLeads, href: '/leads?filter=unattended', tone: 'urgent' });
     }
+    if (metaLeadsToday) {
+      items.push({ key: 'meta-leads', label: `New Meta lead${metaLeadsToday === 1 ? '' : 's'} today`, count: metaLeadsToday, href: '/leads', tone: 'info' });
+    }
     if (marketingStats?.isReviewer && marketingStats.awaitingReview) {
       items.push({ key: 'marketing', label: 'Marketing tickets awaiting review', count: marketingStats.awaitingReview, href: '/marketing-requests?filter=submitted', tone: 'info' });
     }
@@ -268,6 +273,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     isBackOffice,
     backOfficeKpis,
     unattendedLeads,
+    metaLeadsToday,
     marketingStats,
     marketingReminderUrgentCount,
     reminderCount,

@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     // instead of creating a duplicate (spec: two reps scanning the same card
     // at an event must not fork into two records).
     const result = await createOrMergeLead(
-      { name, mobile, email, designation, company, city, cardImageUrl, interests, subInterests, followUpActions, priority, budget, notes },
+      { name, mobile, email, designation, company, city, cardImageUrl, interests, subInterests, followUpActions, priority, budget, notes, source: cardImageUrl ? 'business_card' : 'manual' },
       viewer.username
     );
 

@@ -7,6 +7,9 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { sendTaskLifecycleEmail } from '@/lib/email/notifications';
 import { findUserById } from '@/lib/userStore';
 import { TmsPriority, TmsTaskRecord } from '@/lib/types';
+import { taskAssignedNotification } from '@/lib/tmsLabels';
+import { logAudit } from '@/lib/auditLogStore';
+import { getClientIp } from '@/lib/requestIp';
 
 const VALID_PRIORITY: TmsPriority[] = ['low', 'medium', 'high'];
 
@@ -68,9 +71,10 @@ export async function POST(request: NextRequest) {
     if (assigneeId) {
       const assignee = await findUserById(assigneeId);
       if (assignee && assignee.username !== viewer.username) {
+        const notification = taskAssignedNotification(name, project.name, viewer.name, record.priority, created.due_date);
         await notifyUsers([assignee.username], {
-          title: 'A task was assigned to you',
-          body: `"${name}" on ${project.name}${created.due_date ? ` — due ${created.due_date}` : ''}`,
+          title: notification.title,
+          body: notification.body,
           type: 'tms_task_assigned',
           entityType: 'tms_task',
           entityId: created.id
@@ -87,6 +91,18 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    await logAudit({
+      by: viewer.username,
+      role: viewer.role,
+      entityType: 'tms_task',
+      entityId: created.id,
+      action: `Task created${created.assignee_name ? ` and assigned to ${created.assignee_name}` : ''}`,
+      previousStatus: '',
+      newStatus: created.status,
+      remarks: created.name,
+      ip: getClientIp(request)
+    });
 
     return NextResponse.json(created, { status: 201 });
   } catch (error) {

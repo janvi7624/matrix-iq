@@ -53,7 +53,9 @@ const modelDefiners = [
   require('./notification.js'),
   require('./projectHandoverRequest.js'),
   require('./reimbursement.js'),
-  require('./reimbursementSheet.js')
+  require('./reimbursementSheet.js'),
+  require('./metaIntegrationConfig.js'),
+  require('./metaWebhookEvent.js')
 ];
 
 const db = {};

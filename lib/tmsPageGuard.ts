@@ -10,6 +10,7 @@ import { TmsModuleKey } from './tmsAccess';
 export interface TmsPageViewer {
   id: string;
   username: string;
+  name: string;
   role: UserRole;
   isPrivileged: boolean;
   department: string;
@@ -33,7 +34,7 @@ export async function requireTmsPage(moduleKey: TmsModuleKey): Promise<TmsPageVi
   if (!user) redirect('/login');
 
   const [isPrivileged, deptInfo] = await Promise.all([resolveIsPrivileged(user.role), findUserNameAndDeptByUsername(user.username)]);
-  const viewer: TmsPageViewer = { id: user.id, username: user.username, role: user.role, isPrivileged, department: deptInfo?.department ?? '' };
+  const viewer: TmsPageViewer = { id: user.id, username: user.username, name: user.name, role: user.role, isPrivileged, department: deptInfo?.department ?? '' };
 
   if (!(await isModuleAccessAllowed(moduleKey, viewer))) redirect('/');
   return viewer;

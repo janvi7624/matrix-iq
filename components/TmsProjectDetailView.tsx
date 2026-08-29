@@ -1,17 +1,66 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FileText, Layers, Paperclip, ShoppingCart } from 'lucide-react';
+import { FileText, Layers, Paperclip, ShoppingCart, Check } from 'lucide-react';
 import { TmsBomRequestRecord, TmsPriority, TmsProcurementRecord, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
-import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE } from '@/lib/tmsLabels';
+import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
 import PriorityBadge from './ui/PriorityBadge';
+import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useToast } from './ui/ToastProvider';
 import EmptyState from './ui/EmptyState';
+
+// The real pipeline every TMS project moves through (tms_projects.status —
+// see lib/tmsLabels.ts's TMS_PROJECT_STATUS_LABEL for the source of truth).
+// on_hold/cancelled are side-states, not sequential pipeline steps — a
+// project can be "in_progress AND on_hold", so they're shown as a separate
+// badge (already rendered above this stepper) rather than a step in it.
+const PROJECT_PIPELINE: TmsProjectStatus[] = ['planning', 'not_started', 'in_progress', 'completed'];
+
+function ProjectWorkflowStepper({ status }: { status: TmsProjectStatus }) {
+  const isSideState = status === 'on_hold' || status === 'cancelled';
+  const activeIndex = isSideState ? -1 : PROJECT_PIPELINE.indexOf(status);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0, margin: '4px 0 16px' }}>
+      {PROJECT_PIPELINE.map((step, i) => {
+        const done = !isSideState && i < activeIndex;
+        const current = !isSideState && i === activeIndex;
+        return (
+          <div key={step} style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 84 }}>
+              <div
+                style={{
+                  width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11.5, fontWeight: 700,
+                  background: done ? 'var(--mx-success)' : current ? 'var(--mx-brand)' : 'var(--mx-surface-sunken)',
+                  color: done || current ? '#fff' : 'var(--mx-ink-faint)',
+                  border: current ? '2px solid var(--mx-brand-hover)' : '1px solid var(--mx-border)'
+                }}
+              >
+                {done ? <Check size={13} /> : i + 1}
+              </div>
+              <span style={{ fontSize: 11, fontWeight: current ? 700 : 500, color: current ? 'var(--mx-ink)' : 'var(--mx-ink-muted)', textAlign: 'center' }}>
+                {TMS_PROJECT_STATUS_LABEL[step]}
+              </span>
+            </div>
+            {i < PROJECT_PIPELINE.length - 1 && (
+              <div style={{ width: 32, height: 2, background: done ? 'var(--mx-success)' : 'var(--mx-border)', marginBottom: 16 }} />
+            )}
+          </div>
+        );
+      })}
+      {isSideState && (
+        <span style={{ marginLeft: 12, marginBottom: 16 }}>
+          <StatusBadge tone={TMS_PROJECT_STATUS_TONE[status]} label={`Currently: ${TMS_PROJECT_STATUS_LABEL[status]}`} />
+        </span>
+      )}
+    </div>
+  );
+}
 
 interface DetailResponse {
   project: TmsProjectRecord;
@@ -57,6 +106,17 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<{ status: TmsProjectStatus; priority: TmsPriority; progressPercent: number; remarks: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [assignableUsers, setAssignableUsers] = useState<PersonPickerOption[]>([]);
+  const [editingTeam, setEditingTeam] = useState(false);
+  const [teamEditIds, setTeamEditIds] = useState<string[]>([]);
+  const [savingTeam, setSavingTeam] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/tms/assignable-users')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((users: PersonPickerOption[]) => setAssignableUsers(users))
+      .catch(() => setAssignableUsers([]));
+  }, []);
 
   async function load() {
     setStatus('Loading...');
@@ -79,8 +139,6 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
-
-  const teamNames = useMemo(() => data?.project.team_member_names.join(', ') || 'No team members assigned', [data]);
 
   async function handleUpload(files: FileList | null) {
     if (!files || !files.length || !data) return;
@@ -130,6 +188,31 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
       toast.error('Could not update this project.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  function startEditTeam() {
+    if (!data) return;
+    setTeamEditIds(data.project.team_member_ids);
+    setEditingTeam(true);
+  }
+
+  async function saveTeam() {
+    setSavingTeam(true);
+    try {
+      const response = await fetch(`/api/tms/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamMemberIds: teamEditIds })
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      setEditingTeam(false);
+      await load();
+      toast.success('Assigned engineers updated.');
+    } catch {
+      toast.error('Could not update the assigned engineers.');
+    } finally {
+      setSavingTeam(false);
     }
   }
 
@@ -201,34 +284,77 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
       </div>
 
       {tab === 'overview' && (
-        <div className={calcStyles.sectionPanel}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div><strong>Client:</strong> {project.client_name || '-'}</div>
-            <div><strong>Client contact:</strong> {project.client_contact || '-'}</div>
-            <div><strong>Project Manager:</strong> {project.project_manager_name || '-'}</div>
+        <>
+          <div className={calcStyles.sectionPanel}>
+            <ProjectWorkflowStepper status={project.status} />
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div><strong>Client:</strong> {project.client_name || '-'}</div>
+              <div><strong>Client contact:</strong> {project.client_contact || '-'}</div>
+              <div><strong>Project Manager:</strong> {project.project_manager_name || '-'}</div>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div><strong>Start date:</strong> {formatDate(project.start_date)}</div>
+              <div><strong>Estimated close:</strong> {formatDate(project.estimated_close_date)}</div>
+              <div><strong>Actual close:</strong> {formatDate(project.actual_close_date)}</div>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div><strong>Budget:</strong> {formatCurrency(project.budget)}</div>
+              <div><strong>Progress:</strong> {project.progress_percent}%</div>
+            </div>
+            <div style={{ marginTop: 12 }}><strong>Description:</strong> {project.description || '-'}</div>
+            <div style={{ marginTop: 12 }}><strong>Notes / Remarks:</strong> {project.remarks || '-'}</div>
           </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div><strong>Start date:</strong> {formatDate(project.start_date)}</div>
-            <div><strong>Estimated close:</strong> {formatDate(project.estimated_close_date)}</div>
-            <div><strong>Actual close:</strong> {formatDate(project.actual_close_date)}</div>
+
+          <div className={calcStyles.sectionPanel} style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: editingTeam ? 12 : 0 }}>
+              <div className={calcStyles.h2} style={{ margin: 0 }}>Assigned Engineers</div>
+              {!editingTeam && (
+                <button type="button" className={historyStyles.button} onClick={startEditTeam}>
+                  {project.team_member_ids.length ? 'Edit' : '+ Assign Engineer'}
+                </button>
+              )}
+            </div>
+            {editingTeam ? (
+              <>
+                <PersonPicker
+                  options={assignableUsers}
+                  selectedIds={teamEditIds}
+                  onChange={setTeamEditIds}
+                  multiple
+                  placeholder="Search engineer…"
+                  roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
+                  emptyMessage="No matching active Technical Team members found."
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button type="button" className={calcStyles.btn} onClick={saveTeam} disabled={savingTeam}>
+                    {savingTeam ? 'Saving…' : 'Save'}
+                  </button>
+                  <button type="button" className={historyStyles.button} onClick={() => setEditingTeam(false)}>Cancel</button>
+                </div>
+              </>
+            ) : project.team_member_ids.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--mx-ink-muted)' }}>No engineers assigned yet.</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {project.team_member_names.map((name) => (
+                  <span key={name} style={{ fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 'var(--mx-radius-full)', background: 'var(--mx-brand-subtle)', color: 'var(--mx-brand-hover)' }}>
+                    {name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div><strong>Budget:</strong> {formatCurrency(project.budget)}</div>
-            <div><strong>Progress:</strong> {project.progress_percent}%</div>
-            <div><strong>Team:</strong> {teamNames}</div>
-          </div>
-          <div style={{ marginTop: 12 }}><strong>Description:</strong> {project.description || '-'}</div>
-          <div style={{ marginTop: 12 }}><strong>Notes / Remarks:</strong> {project.remarks || '-'}</div>
-        </div>
+        </>
       )}
 
       {tab === 'tasks' && (
         tasks.length === 0 ? (
           <EmptyState icon={Layers} title="No tasks yet" message="Tasks created for this project will appear here." />
         ) : (
+          <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
-              <tr><th>Task</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Due</th></tr>
+              <tr><th>Task</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Due</th><th></th></tr>
             </thead>
             <tbody>
               {tasks.map((t) => (
@@ -238,10 +364,12 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                   <td><StatusBadge tone={TMS_TASK_STATUS_TONE[t.status]} label={TMS_TASK_STATUS_LABEL[t.status]} /></td>
                   <td><PriorityBadge tone={TMS_PRIORITY_TONE[t.priority]} label={TMS_PRIORITY_LABEL[t.priority]} /></td>
                   <td>{formatDate(t.due_date)}</td>
+                  <td><Link className={historyStyles.button} href={`/tms/tasks/${t.id}`}>View</Link></td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )
       )}
 
@@ -249,6 +377,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
         bomRequests.length === 0 ? (
           <EmptyState icon={FileText} title="No BOM requests yet" message="Material requests for this project will appear here." />
         ) : (
+          <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
               <tr><th>Request</th><th>Item</th><th>Qty</th><th>Status</th><th></th></tr>
@@ -265,6 +394,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
               ))}
             </tbody>
           </table>
+          </div>
         )
       )}
 
@@ -272,6 +402,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
         procurements.length === 0 ? (
           <EmptyState icon={ShoppingCart} title="No procurement records yet" message="Procurement generated from approved BOM requests will appear here." />
         ) : (
+          <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
               <tr><th>Procurement</th><th>Item</th><th>Vendor</th><th>Purchase Status</th><th></th></tr>
@@ -288,6 +419,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
               ))}
             </tbody>
           </table>
+          </div>
         )
       )}
 

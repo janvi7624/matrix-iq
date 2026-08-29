@@ -116,6 +116,39 @@ const TECHNICAL_KPI_LABELS: { key: keyof TechnicalKpis; label: string }[] = [
   { key: 'pendingProcurement', label: 'Pending Procurement' }
 ];
 
+interface MetaLeadAnalyticsBucket {
+  key: string;
+  label: string;
+  count: number;
+}
+
+interface MetaLeadAnalytics {
+  total: number;
+  byPlatform: MetaLeadAnalyticsBucket[];
+  byCampaign: MetaLeadAnalyticsBucket[];
+  byForm: MetaLeadAnalyticsBucket[];
+  byStatus: MetaLeadAnalyticsBucket[];
+  byAssignedUser: MetaLeadAnalyticsBucket[];
+  convertedToProject: number;
+}
+
+function BreakdownList({ title, buckets }: { title: string; buckets: MetaLeadAnalyticsBucket[] }) {
+  if (!buckets.length) return null;
+  return (
+    <div style={{ minWidth: 220, flex: 1 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mx-ink-faint)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 }}>{title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {buckets.slice(0, 6).map((b) => (
+          <div key={b.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '5px 10px', borderRadius: 6, background: 'var(--mx-surface-sunken)' }}>
+            <span>{b.label}</span>
+            <span style={{ fontWeight: 700 }}>{b.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface MarketingStats {
   isReviewer: boolean;
   isTechnical: boolean;
@@ -145,6 +178,7 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
   const [backOfficeKpis, setBackOfficeKpis] = useState<BackOfficeKpis | null>(null);
   const [tmsData, setTmsData] = useState<TmsDashboardResponse | null>(null);
   const [marketingStats, setMarketingStats] = useState<MarketingStats | null>(null);
+  const [metaLeadAnalytics, setMetaLeadAnalytics] = useState<MetaLeadAnalytics | null>(null);
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
@@ -199,9 +233,19 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
       .catch(() => setMarketingStats(null));
   }, [isMarketing]);
 
+  // Meta Lead Ads — everyone who can already see leads (every role reaches
+  // /leads) gets this breakdown; it's just a summarized view of records
+  // already visible to them via the normal department-scoped lead list.
+  useEffect(() => {
+    fetch('/api/leads/meta-analytics')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: MetaLeadAnalytics | null) => setMetaLeadAnalytics(data))
+      .catch(() => setMetaLeadAnalytics(null));
+  }, []);
+
   const technicalKpis = useMemo(() => (tmsData ? summarizeTechnical(tmsData) : null), [tmsData]);
 
-  const nothingLoadedYet = !quotationStats && !kpis && !backOfficeKpis && !technicalKpis && !marketingStats;
+  const nothingLoadedYet = !quotationStats && !kpis && !backOfficeKpis && !technicalKpis && !marketingStats && !metaLeadAnalytics;
 
   return (
     <AppShell title="Analytics" subtitle="Quotation, project, and pipeline performance at a glance.">
@@ -278,6 +322,29 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
                 <div className={styles.kpiLabel}>{k.label}</div>
               </div>
             ))}
+          </div>
+        </>
+      )}
+
+      {metaLeadAnalytics && metaLeadAnalytics.total > 0 && (
+        <>
+          <h2 className={calcStyles.h2}>Meta Lead Ads</h2>
+          <div className={styles.kpiGrid}>
+            <div className={styles.kpiCard}>
+              <div className={styles.kpiValue}>{metaLeadAnalytics.total}</div>
+              <div className={styles.kpiLabel}>Total Meta Leads</div>
+            </div>
+            <div className={styles.kpiCard}>
+              <div className={styles.kpiValue}>{metaLeadAnalytics.convertedToProject}</div>
+              <div className={styles.kpiLabel}>Converted to Project</div>
+            </div>
+          </div>
+          <div className={calcStyles.sectionPanel} style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+            <BreakdownList title="By Campaign" buckets={metaLeadAnalytics.byCampaign} />
+            <BreakdownList title="By Form" buckets={metaLeadAnalytics.byForm} />
+            <BreakdownList title="By Platform" buckets={metaLeadAnalytics.byPlatform} />
+            <BreakdownList title="By Status" buckets={metaLeadAnalytics.byStatus} />
+            <BreakdownList title="By Assigned Sales Person" buckets={metaLeadAnalytics.byAssignedUser} />
           </div>
         </>
       )}

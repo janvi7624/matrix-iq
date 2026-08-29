@@ -135,7 +135,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.email === 'string') patch.email = body.email.trim();
     if (typeof body.address === 'string') patch.address = body.address.trim();
     if (typeof body.source === 'string') patch.source = body.source.trim();
-    if (typeof body.salesPerson === 'string' && body.salesPerson.trim()) patch.sales_person = body.salesPerson.trim();
+    // Resolved from an actual user id (the UI offers a picker, not free
+    // text) so a typo/case mismatch can never silently mislabel this field
+    // — see the salesPersonId handling in POST above for the fuller story.
+    if (typeof body.salesPersonId === 'string' && body.salesPersonId.trim()) {
+      const salesPersonUser = await findUserById(body.salesPersonId.trim());
+      if (salesPersonUser) patch.sales_person = salesPersonUser.name || salesPersonUser.username;
+    } else if (typeof body.salesPerson === 'string' && body.salesPerson.trim()) {
+      patch.sales_person = body.salesPerson.trim();
+    }
     if (VALID_PRIORITY.includes(body.priority)) patch.priority = body.priority;
     if (VALID_STATUS.includes(body.status)) patch.status = body.status;
     if (typeof body.expectedClosingDate === 'string') patch.expected_closing_date = body.expectedClosingDate;

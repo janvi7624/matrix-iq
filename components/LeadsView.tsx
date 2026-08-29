@@ -3,15 +3,16 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { DomainKey, LeadPriority, LeadRecord, UserRole } from '@/lib/types';
+import { DomainKey, LeadPriority, LeadRecord, LeadSource, UserRole } from '@/lib/types';
 import { LEAD_DOMAIN_TILES, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
-import { AlertTriangle, Flame, Contact } from 'lucide-react';
+import { AlertTriangle, Flame, Contact, Share2 } from 'lucide-react';
 import AppShell from './AppShell';
 import LeadCaptureWizard from './LeadCaptureWizard';
 import LeadBulkImportWizard from './LeadBulkImportWizard';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import notifyStyles from './ui/notify.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
@@ -40,6 +41,38 @@ function PriorityBadge({ priority }: { priority: LeadPriority }) {
   return <span className={`${historyStyles.priorityBadge} ${cls}`}><Icon size={12} /> {priority.toUpperCase()}</span>;
 }
 
+const SOURCE_LABEL: Record<LeadSource, string> = {
+  manual: 'Manual',
+  business_card: 'Business Card',
+  csv_import: 'CSV Import',
+  meta_lead_ads: 'Meta Lead Ads'
+};
+
+function metaPlatformLabel(platform: string): string {
+  return platform === 'ig' ? 'Instagram' : platform === 'fb' ? 'Facebook' : 'Meta';
+}
+
+function SourceBadge({ lead, onClick }: { lead: LeadRecord; onClick?: () => void }) {
+  const isMeta = lead.source === 'meta_lead_ads';
+  const label = SOURCE_LABEL[lead.source] || 'Manual';
+  return (
+    <button
+      type="button"
+      onClick={isMeta ? onClick : undefined}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 600,
+        padding: '2px 9px', borderRadius: 'var(--mx-radius-full)',
+        color: isMeta ? 'var(--mx-blue-600)' : 'var(--mx-ink-muted)',
+        background: isMeta ? 'var(--mx-blue-50)' : 'var(--mx-surface-sunken)',
+        border: 'none', cursor: isMeta ? 'pointer' : 'default'
+      }}
+    >
+      {isMeta && <Share2 size={11} />}
+      {label}
+    </button>
+  );
+}
+
 function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
@@ -54,10 +87,12 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [q, setQ] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<LeadPriority | ''>('');
   const [interestFilter, setInterestFilter] = useState<DomainKey | ''>('');
+  const [sourceFilter, setSourceFilter] = useState<LeadSource | ''>('');
   const [unattendedOnly, setUnattendedOnly] = useState(startUnattended);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [page, setPage] = useState(1);
-  const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number } | null>(null);
+  const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number } | null>(null);
+  const [metaInfoLead, setMetaInfoLead] = useState<LeadRecord | null>(null);
 
   async function loadLeads() {
     setStatus('Loading...');
@@ -99,6 +134,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     }
     if (priorityFilter) rows = rows.filter((l) => l.priority === priorityFilter);
     if (interestFilter) rows = rows.filter((l) => l.interests.includes(interestFilter));
+    if (sourceFilter) rows = rows.filter((l) => l.source === sourceFilter);
     if (unattendedOnly) rows = rows.filter(isLeadUnattended);
     const sorted = [...rows].sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name);
@@ -106,14 +142,14 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       return a.created_at < b.created_at ? 1 : -1;
     });
     return sorted;
-  }, [leads, q, priorityFilter, interestFilter, unattendedOnly, sortBy]);
+  }, [leads, q, priorityFilter, interestFilter, sourceFilter, unattendedOnly, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(visibleLeads.length / PAGE_SIZE));
   const pageRows = visibleLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
-  }, [q, priorityFilter, interestFilter, unattendedOnly, sortBy]);
+  }, [q, priorityFilter, interestFilter, sourceFilter, unattendedOnly, sortBy]);
 
   async function handleSubmitLead(form: {
     name: string; mobile: string; email: string; designation: string; company: string; city: string; cardImageUrl: string;
@@ -198,6 +234,15 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             <button
               type="button"
               className={calcStyles.sectionPanel}
+              style={{ flex: 1, minWidth: 120, textAlign: 'center', cursor: 'pointer', border: sourceFilter === 'meta_lead_ads' ? '1px solid var(--mx-blue-600)' : undefined }}
+              onClick={() => { setMode('list'); setSourceFilter((v) => (v === 'meta_lead_ads' ? '' : 'meta_lead_ads')); }}
+            >
+              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--mx-blue-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Share2 size={18} /> {stats.metaTotal}</div>
+              <div className={calcStyles.small}>Meta Leads</div>
+            </button>
+            <button
+              type="button"
+              className={calcStyles.sectionPanel}
               style={{ flex: 1, minWidth: 120, textAlign: 'center', cursor: 'pointer', border: unattendedOnly ? '1px solid #dc2626' : undefined }}
               onClick={() => { setMode('list'); setUnattendedOnly(true); }}
             >
@@ -254,6 +299,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 <option value="">All interests</option>
                 {LEAD_DOMAIN_TILES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
+              <select className={calcStyles.formControl} style={{ width: 'auto' }} value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as LeadSource | '')}>
+                <option value="">All sources</option>
+                <option value="meta_lead_ads">Meta Lead Ads</option>
+                <option value="manual">Manual</option>
+                <option value="business_card">Business Card</option>
+                <option value="csv_import">CSV Import</option>
+              </select>
               <select className={calcStyles.formControl} style={{ width: 'auto' }} value={sortBy} onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}>
                 <option value="newest">Newest first</option>
                 <option value="oldest">Oldest first</option>
@@ -289,6 +341,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                     <th>Email</th>
                     <th>Interests</th>
                     <th>Priority</th>
+                    <th>Source</th>
                     <th>Captured By</th>
                     <th>Date</th>
                     <th></th>
@@ -314,6 +367,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                         ) : '-'}
                       </td>
                       <td><PriorityBadge priority={l.priority} /></td>
+                      <td><SourceBadge lead={l} onClick={() => setMetaInfoLead(l)} /></td>
                       <td>{l.created_by}</td>
                       <td>{formatDateTime(l.created_at)}</td>
                       <td>
@@ -329,7 +383,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                     </tr>
                   ))}
                   {pageRows.length === 0 && (
-                    <tr><td colSpan={10}>
+                    <tr><td colSpan={11}>
                       <EmptyState
                         icon={Contact}
                         title={leads.length === 0 ? 'No leads captured yet' : 'No leads match your filters'}
@@ -351,6 +405,26 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               </div>
             )}
           </>
+        )}
+
+        {metaInfoLead && (
+          <div className={notifyStyles.overlay} role="presentation" onClick={() => setMetaInfoLead(null)}>
+            <div className={notifyStyles.wideCard} role="dialog" aria-modal="true" aria-label="Meta Information" onClick={(e) => e.stopPropagation()}>
+              <div className={notifyStyles.confirmTitle}>Meta Information</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 14, rowGap: 8, fontSize: 13.5, marginTop: 10 }}>
+                <span style={{ color: 'var(--mx-ink-faint)' }}>Platform</span><span>{metaPlatformLabel(metaInfoLead.meta_platform)}</span>
+                <span style={{ color: 'var(--mx-ink-faint)' }}>Campaign</span><span>{metaInfoLead.meta_campaign_name || '—'}</span>
+                <span style={{ color: 'var(--mx-ink-faint)' }}>Ad Set</span><span>{metaInfoLead.meta_adset_name || '—'}</span>
+                <span style={{ color: 'var(--mx-ink-faint)' }}>Ad</span><span>{metaInfoLead.meta_ad_name || '—'}</span>
+                <span style={{ color: 'var(--mx-ink-faint)' }}>Form</span><span>{metaInfoLead.meta_form_name || '—'}</span>
+                <span style={{ color: 'var(--mx-ink-faint)' }}>Meta Lead ID</span><span style={{ fontFamily: 'monospace' }}>{metaInfoLead.meta_lead_id || '—'}</span>
+                <span style={{ color: 'var(--mx-ink-faint)' }}>Received</span><span>{formatDateTime(metaInfoLead.meta_created_at)}</span>
+              </div>
+              <div className={notifyStyles.confirmActions} style={{ marginTop: 18 }}>
+                <button type="button" className={notifyStyles.confirmOk} onClick={() => setMetaInfoLead(null)}>Close</button>
+              </div>
+            </div>
+          </div>
         )}
     </AppShell>
   );

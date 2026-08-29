@@ -41,11 +41,16 @@ export async function POST(request: NextRequest) {
   const now = new Date().toISOString();
   // Only a privileged role may attribute a project to someone else (e.g. an
   // Admin entering data on a sales rep's behalf) — otherwise created_by IS
-  // the ownership/visibility key (see projectStore.list), so letting any
-  // caller set it would let a plain "user" plant projects under another
-  // employee's name or drop one into visibility limbo with a bogus name.
-  const requestedSalesPerson = typeof body.salesPerson === 'string' && body.salesPerson.trim() ? body.salesPerson.trim() : '';
-  const salesPerson = viewer.isPrivileged && requestedSalesPerson ? requestedSalesPerson : viewer.username;
+  // the ownership/visibility key (see projectStore.list). This resolves the
+  // sales person from an actual user id (the UI now offers a picker, not
+  // free text) so a typo/case mismatch can never silently drop created_by
+  // to null and make the project invisible to its own owner — previously
+  // `salesPerson` was a free-text string matched case-sensitively against
+  // usernames in projectStore.create(), and any mismatch (e.g. "Pankaj" vs
+  // the real username "pankaj") resolved to a NULL owner with no error.
+  const requestedSalesPersonId = typeof body.salesPersonId === 'string' ? body.salesPersonId.trim() : '';
+  const requestedSalesPersonUser = viewer.isPrivileged && requestedSalesPersonId ? await findUserById(requestedSalesPersonId) : undefined;
+  const salesPerson = requestedSalesPersonUser ? requestedSalesPersonUser.username : viewer.username;
   const assignedTechnicalPersonId = typeof body.assignedTechnicalPersonId === 'string' ? body.assignedTechnicalPersonId.trim() : '';
   const assignedTechnicalPerson = assignedTechnicalPersonId ? await findUserById(assignedTechnicalPersonId) : undefined;
   const record: ProjectRecord = {

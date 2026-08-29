@@ -190,6 +190,7 @@ export async function GET(request: NextRequest) {
       followUpCount,
       reminderCount,
       unattendedLeads: leadStats.unattended,
+      metaLeadsToday: leadStats.metaToday,
       marketingStats,
       marketingReminderUrgentCount,
       allProjects: projectsLight,

@@ -38,6 +38,7 @@ import {
   Settings,
   Puzzle,
   Wrench,
+  Share2,
   Layers,
   List,
   Inbox,
@@ -91,6 +92,7 @@ export const ATTENTION_ICON: Record<string, LucideIcon> = {
   dc: Package,
   'dc-verify': CheckCircle2,
   leads: Contact,
+  'meta-leads': Share2,
   marketing: Megaphone,
   sitevisit: MapPin,
   'my-demo-confirm': UserCheck,
@@ -142,7 +144,8 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   'shopping-cart': ShoppingCart,
   'receipt-indian-rupee': ReceiptIndianRupee,
   cake: Cake,
-  users: Users
+  users: Users,
+  'share-2': Share2
 };
 
 export const MODULE_ICON_OPTIONS = Object.keys(MODULE_ICON_REGISTRY);

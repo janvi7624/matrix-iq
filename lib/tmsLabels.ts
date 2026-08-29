@@ -137,6 +137,28 @@ export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// WHAT/WHERE/WHO/WHEN/PRIORITY in one notification — a vague "a task was
+// assigned to you" that doesn't say what the task even is was a specific
+// reported complaint ("received notifications that a task was expected of
+// me, but did not really know what the task was"). Shared by the task
+// create and reassignment routes (app/api/tms/tasks/route.ts and
+// [id]/route.ts) so the two notification moments never drift apart.
+export function formatTmsDueDate(due: string): string {
+  if (!due) return 'No due date set';
+  try {
+    return new Date(due + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return due;
+  }
+}
+
+export function taskAssignedNotification(taskName: string, projectName: string, assignerName: string, priority: TmsPriority, dueDate: string): { title: string; body: string } {
+  return {
+    title: 'New Task Assigned',
+    body: `"${taskName}"\nProject: ${projectName}\nAssigned by: ${assignerName}\nPriority: ${TMS_PRIORITY_LABEL[priority]}\nDue: ${formatTmsDueDate(dueDate)}`
+  };
+}
+
 export const TMS_ROLE_LABEL: Record<string, string> = {
   'technical-manager': 'Technical Manager',
   'team-lead': 'Team Lead',

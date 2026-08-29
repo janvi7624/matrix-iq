@@ -36,6 +36,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ].filter(Boolean);
 
     const now = new Date().toISOString();
+    // Every other lead source keeps the original "Event Lead Capture" label
+    // (this route predates the Meta integration and that string is already
+    // relied on elsewhere) — only a Meta-sourced lead gets its real channel
+    // carried through, so a converted project doesn't misleadingly claim an
+    // in-person capture for a Facebook/Instagram lead.
+    const projectSource = lead.source === 'meta_lead_ads' ? `Meta Lead Ads (${lead.meta_platform === 'ig' ? 'Instagram' : 'Facebook'})` : 'Event Lead Capture';
     const project: ProjectRecord = {
       id: `${Date.now()}`,
       created_at: now,
@@ -47,7 +53,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       email: lead.email,
       address: lead.city,
       sales_person: viewer.username,
-      source: 'Event Lead Capture',
+      source: projectSource,
       status: 'active',
       stage: 'cold_call',
       cold_call_responded: '',

@@ -50,7 +50,6 @@ import calcStyles from './calculator.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
-import { usePrompt } from './ui/PromptDialog';
 
 interface DetailResponse {
   project: ProjectRecord;
@@ -119,7 +118,6 @@ interface ProjectDetailViewProps {
 export default function ProjectDetailView({ projectId, currentUser }: ProjectDetailViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
-  const promptText = usePrompt();
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const [data, setData] = useState<DetailResponse | null>(null);
   const [status, setStatus] = useState('Loading...');
@@ -148,6 +146,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [showDeclineForm, setShowDeclineForm] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
   const [showHandoverHistory, setShowHandoverHistory] = useState(false);
+  const [showAssignSalesPerson, setShowAssignSalesPerson] = useState(false);
+  const [assignSalesPersonId, setAssignSalesPersonId] = useState('');
+  const [submittingSalesPerson, setSubmittingSalesPerson] = useState(false);
+  const [orgUsers, setOrgUsers] = useState<{ id: string; username: string; name: string }[]>([]);
 
   useEffect(() => {
     fetch('/api/technical-roster')
@@ -162,6 +164,18 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       .then((r) => (r.ok ? r.json() : []))
       .then((users: { id: string; username: string; name: string }[]) => setAllUsers(users))
       .catch(() => setAllUsers([]));
+  }, []);
+
+  // Org-wide (not department-scoped) user list for the "Assign Team" / sales
+  // person picker — unlike Handover this is a data-correction/labeling
+  // action typically done by an Admin, who may not share a department with
+  // the salesperson being assigned, so the handover-scoped list (limited to
+  // the viewer's own department) would be too narrow here.
+  useEffect(() => {
+    fetch('/api/users/list')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((users: { id: string; username: string; name: string }[]) => setOrgUsers(users))
+      .catch(() => setOrgUsers([]));
   }, []);
 
   // Check for pending handover requests on this project
@@ -491,11 +505,22 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     );
   }
 
-  async function handleAssignTeam() {
+  function handleAssignTeam() {
     if (!data) return;
-    const next = await promptText({ title: 'Sales person for this project:', defaultValue: data.project.sales_person });
-    if (next === null || !next.trim()) return;
-    await patchProject({ salesPerson: next.trim() });
+    const current = orgUsers.find((u) => u.name === data.project.sales_person || u.username === data.project.sales_person);
+    setAssignSalesPersonId(current?.id || '');
+    setShowAssignSalesPerson(true);
+  }
+
+  async function submitAssignSalesPerson() {
+    if (!assignSalesPersonId) { toast.error('Please select a person'); return; }
+    setSubmittingSalesPerson(true);
+    try {
+      await patchProject({ salesPersonId: assignSalesPersonId });
+      setShowAssignSalesPerson(false);
+    } finally {
+      setSubmittingSalesPerson(false);
+    }
   }
 
   async function handleCloseProject() {
@@ -870,6 +895,41 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/* Assign Team / sales person modal — a real user picker, not free
+            text, so a typo or case mismatch (e.g. "Pankaj" vs the actual
+            username "pankaj") can never silently leave this label pointing
+            at nobody real. Only updates the display label (sales_person) —
+            actual ownership/visibility transfer stays Handover Project's job. */}
+        {showAssignSalesPerson && (
+          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid var(--mx-indigo-500)', padding: 16, borderRadius: 8 }}>
+            <div style={{ fontWeight: 600, marginBottom: 12 }}>Assign Sales Person</div>
+            <div className={calcStyles.field} style={{ marginBottom: 12 }}>
+              <label className={calcStyles.label}>Sales person</label>
+              <select className={calcStyles.formControl} value={assignSalesPersonId} onChange={(e) => setAssignSalesPersonId(e.target.value)}>
+                <option value="">-- Select person --</option>
+                {orgUsers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                style={{ background: 'var(--mx-indigo-500)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                disabled={submittingSalesPerson || !assignSalesPersonId}
+                onClick={submitAssignSalesPerson}
+              >
+                {submittingSalesPerson ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                style={{ background: 'var(--mx-border)', color: 'var(--mx-gray-700)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}
+                onClick={() => { setShowAssignSalesPerson(false); setAssignSalesPersonId(''); }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
 

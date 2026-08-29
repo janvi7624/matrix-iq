@@ -1,4 +1,4 @@
-import { DomainKey, LeadPriority, LeadRecord } from './types';
+import { DomainKey, LeadPriority, LeadRecord, LeadSource, MetaLeadFieldDatum } from './types';
 import { createRecordStore } from './recordStore';
 import { db, isUuid } from './db';
 import { isLeadUnattended } from './followUp';
@@ -22,7 +22,21 @@ const LEAD_FIELDS = [
   { name: 'follow_up_actions', kind: 'json' as const },
   { name: 'budget' },
   { name: 'notes' },
-  { name: 'project_id', kind: 'nullable' as const }
+  { name: 'project_id', kind: 'nullable' as const },
+  { name: 'source' },
+  { name: 'meta_lead_id', kind: 'nullable' as const },
+  { name: 'meta_page_id', kind: 'nullable' as const },
+  { name: 'meta_form_id', kind: 'nullable' as const },
+  { name: 'meta_form_name', kind: 'nullable' as const },
+  { name: 'meta_campaign_id', kind: 'nullable' as const },
+  { name: 'meta_campaign_name', kind: 'nullable' as const },
+  { name: 'meta_adset_id', kind: 'nullable' as const },
+  { name: 'meta_adset_name', kind: 'nullable' as const },
+  { name: 'meta_ad_id', kind: 'nullable' as const },
+  { name: 'meta_ad_name', kind: 'nullable' as const },
+  { name: 'meta_platform', kind: 'nullable' as const },
+  { name: 'meta_created_at', kind: 'date' as const },
+  { name: 'meta_raw_field_data', kind: 'json' as const }
 ];
 
 const base = createRecordStore<LeadRecord>(db.Lead, LEAD_FIELDS, { departmentScoped: true });
@@ -78,6 +92,25 @@ export async function findDuplicateLead(mobile: string, email: string): Promise<
 // it'll become a new record or get merged into an existing one — used by
 // both the single-capture POST route and bulk import, so there's exactly
 // one implementation of "what happens when a duplicate is found."
+// Meta (Facebook/Instagram) Lead Ads attribution for a single incoming
+// lead — set only by lib/metaLeadIngest.ts. Every other caller (manual
+// capture, CSV import, business-card scan) omits this entirely.
+export interface CreateOrMergeLeadMetaInput {
+  leadId: string;
+  pageId: string;
+  formId: string;
+  formName: string;
+  campaignId: string;
+  campaignName: string;
+  adsetId: string;
+  adsetName: string;
+  adId: string;
+  adName: string;
+  platform: 'fb' | 'ig' | '';
+  createdAt: string;
+  rawFieldData: MetaLeadFieldDatum[];
+}
+
 export interface CreateOrMergeLeadInput {
   name: string;
   mobile: string;
@@ -92,6 +125,10 @@ export interface CreateOrMergeLeadInput {
   priority: LeadPriority;
   budget: string;
   notes: string;
+  // Defaults to 'manual' when omitted — every pre-existing call site (single
+  // capture, CSV/image bulk import) is unaffected by this addition.
+  source?: LeadSource;
+  meta?: CreateOrMergeLeadMetaInput;
 }
 
 export interface CreateOrMergeLeadResult {
@@ -104,10 +141,44 @@ export interface CreateOrMergeLeadResult {
   duplicateBefore?: LeadRecord;
 }
 
+function metaPlatformLabel(platform: 'fb' | 'ig' | ''): string {
+  return platform === 'ig' ? 'Instagram' : platform === 'fb' ? 'Facebook' : 'Meta';
+}
+
 export async function createOrMergeLead(input: CreateOrMergeLeadInput, actorUsername: string): Promise<CreateOrMergeLeadResult> {
   const now = new Date().toISOString();
   const duplicate = await findDuplicateLead(input.mobile, input.email);
   if (duplicate) {
+    // A Meta touch on an existing lead never overwrites its original
+    // source/acquisition channel or a Meta attribution it already has
+    // (first-touch preserved) — instead it's recorded as a line in notes
+    // plus the caller's own audit-log entry, mirroring how a merge already
+    // preserves history via notes rather than by replacing fields.
+    let notesAddition = '';
+    const metaAttribution: Partial<LeadRecord> = {};
+    if (input.meta) {
+      notesAddition = `Meta touch: "${input.meta.campaignName || input.meta.formName || 'Lead Ad'}" via ${metaPlatformLabel(input.meta.platform)} (Meta Lead ID: ${input.meta.leadId})`;
+      if (!duplicate.meta_lead_id) {
+        metaAttribution.meta_lead_id = input.meta.leadId;
+        metaAttribution.meta_page_id = input.meta.pageId;
+        metaAttribution.meta_form_id = input.meta.formId;
+        metaAttribution.meta_form_name = input.meta.formName;
+        metaAttribution.meta_campaign_id = input.meta.campaignId;
+        metaAttribution.meta_campaign_name = input.meta.campaignName;
+        metaAttribution.meta_adset_id = input.meta.adsetId;
+        metaAttribution.meta_adset_name = input.meta.adsetName;
+        metaAttribution.meta_ad_id = input.meta.adId;
+        metaAttribution.meta_ad_name = input.meta.adName;
+        metaAttribution.meta_platform = input.meta.platform;
+        metaAttribution.meta_created_at = input.meta.createdAt;
+        metaAttribution.meta_raw_field_data = input.meta.rawFieldData;
+      }
+    }
+    const combinedNotes = notesAddition
+      ? (duplicate.notes ? `${duplicate.notes}\n---\n${notesAddition}` : notesAddition)
+      : input.notes
+        ? (duplicate.notes ? `${duplicate.notes}\n---\n${input.notes}` : input.notes)
+        : duplicate.notes;
     const merged = await base.update(duplicate.id, {
       name: input.name || duplicate.name,
       company: input.company || duplicate.company,
@@ -121,7 +192,8 @@ export async function createOrMergeLead(input: CreateOrMergeLeadInput, actorUser
       follow_up_actions: unionStrings(duplicate.follow_up_actions, input.followUpActions),
       priority: input.priority || duplicate.priority,
       budget: input.budget || duplicate.budget,
-      notes: input.notes ? (duplicate.notes ? `${duplicate.notes}\n---\n${input.notes}` : input.notes) : duplicate.notes,
+      notes: combinedNotes,
+      ...metaAttribution,
       updated_at: now
     });
     return { record: (merged as LeadRecord) ?? duplicate, merged: true, duplicateBefore: duplicate };
@@ -145,7 +217,21 @@ export async function createOrMergeLead(input: CreateOrMergeLeadInput, actorUser
     follow_up_actions: input.followUpActions,
     budget: input.budget,
     notes: input.notes,
-    project_id: ''
+    project_id: '',
+    source: input.source || 'manual',
+    meta_lead_id: input.meta?.leadId || '',
+    meta_page_id: input.meta?.pageId || '',
+    meta_form_id: input.meta?.formId || '',
+    meta_form_name: input.meta?.formName || '',
+    meta_campaign_id: input.meta?.campaignId || '',
+    meta_campaign_name: input.meta?.campaignName || '',
+    meta_adset_id: input.meta?.adsetId || '',
+    meta_adset_name: input.meta?.adsetName || '',
+    meta_ad_id: input.meta?.adId || '',
+    meta_ad_name: input.meta?.adName || '',
+    meta_platform: input.meta?.platform || '',
+    meta_created_at: input.meta?.createdAt || '',
+    meta_raw_field_data: input.meta?.rawFieldData || []
   };
   const created = await base.create(record);
   return { record: created, merged: false };
@@ -251,7 +337,7 @@ export interface BulkLeadCommitSummary {
 // skipped, matching single-capture's existing behavior — the caller
 // controls which rows actually reach commit by only sending the ones the
 // user approved on the review screen.
-export async function commitBulkLeads(rows: BulkLeadRow[], actorUsername: string): Promise<BulkLeadCommitSummary> {
+export async function commitBulkLeads(rows: BulkLeadRow[], actorUsername: string, source: LeadSource = 'csv_import'): Promise<BulkLeadCommitSummary> {
   const preview = await previewBulkLeads(rows);
   const results: BulkLeadCommitRowResult[] = [];
   let created = 0;
@@ -279,7 +365,8 @@ export async function commitBulkLeads(rows: BulkLeadRow[], actorUsername: string
         followUpActions: [],
         priority: '',
         budget: row.budget,
-        notes: row.notes
+        notes: row.notes,
+        source
       },
       actorUsername
     );
@@ -295,20 +382,84 @@ export async function commitBulkLeads(rows: BulkLeadRow[], actorUsername: string
   return { created, merged, failed, results };
 }
 
+// The idempotency guard lib/metaLeadIngest.ts checks before doing any
+// Graph API work — a hit here means this exact Meta lead was already
+// ingested (a webhook retry, or the manual "Sync Meta Leads" re-processing
+// an event that already succeeded), so ingestion short-circuits instead of
+// creating (or merging into) a second record. This is a pre-check only —
+// the leads.meta_lead_id unique index is the actual DB-level guarantee
+// under true concurrent delivery, see the create() unique-violation catch.
+export async function findLeadByMetaLeadId(metaLeadId: string): Promise<LeadRecord | undefined> {
+  if (!metaLeadId) return undefined;
+  const row = await db.Lead.findOne({ where: { meta_lead_id: metaLeadId } as never });
+  return row ? findLeadById(row.get('id') as string) : undefined;
+}
+
 export interface LeadStats {
   total: number;
   today: number;
   hot: number;
   unattended: number;
+  metaTotal: number;
+  metaToday: number;
+}
+
+export interface MetaLeadAnalyticsBucket {
+  key: string;
+  label: string;
+  count: number;
+}
+
+export interface MetaLeadAnalytics {
+  total: number;
+  byPlatform: MetaLeadAnalyticsBucket[];
+  byCampaign: MetaLeadAnalyticsBucket[];
+  byForm: MetaLeadAnalyticsBucket[];
+  byStatus: MetaLeadAnalyticsBucket[]; // 'new' (not yet converted) vs 'converted'
+  byAssignedUser: MetaLeadAnalyticsBucket[];
+  convertedToProject: number;
+}
+
+function countBy(leads: LeadRecord[], keyOf: (l: LeadRecord) => string, labelOf: (key: string, l: LeadRecord) => string): MetaLeadAnalyticsBucket[] {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const l of leads) {
+    const key = keyOf(l) || 'unknown';
+    const existing = counts.get(key);
+    if (existing) existing.count++;
+    else counts.set(key, { label: labelOf(key, l), count: 1 });
+  }
+  return Array.from(counts.entries())
+    .map(([key, v]) => ({ key, label: v.label, count: v.count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// Marketing performance view (spec: campaign/form/status/assignee
+// breakdown, and how many converted into a Project) — deliberately no
+// spend/ROI figures, since Meta ad-spend data isn't part of this
+// integration and faking it isn't acceptable.
+export async function computeMetaLeadAnalytics(viewerUsername: string, viewerIsPrivileged: boolean): Promise<MetaLeadAnalytics> {
+  const leads = (await base.list(viewerUsername, viewerIsPrivileged)).filter((l) => l.source === 'meta_lead_ads');
+  return {
+    total: leads.length,
+    byPlatform: countBy(leads, (l) => l.meta_platform, (key) => (key === 'ig' ? 'Instagram' : key === 'fb' ? 'Facebook' : 'Unknown')),
+    byCampaign: countBy(leads, (l) => l.meta_campaign_id, (_key, l) => l.meta_campaign_name || 'Unnamed campaign'),
+    byForm: countBy(leads, (l) => l.meta_form_id, (_key, l) => l.meta_form_name || 'Unnamed form'),
+    byStatus: countBy(leads, (l) => (l.project_id ? 'converted' : 'new'), (key) => (key === 'converted' ? 'Converted to Project' : 'New')),
+    byAssignedUser: countBy(leads, (l) => l.created_by, (key) => key),
+    convertedToProject: leads.filter((l) => l.project_id).length
+  };
 }
 
 export async function computeLeadStats(viewerUsername: string, viewerIsPrivileged: boolean): Promise<LeadStats> {
   const leads = await base.list(viewerUsername, viewerIsPrivileged);
   const todayStr = new Date().toDateString();
+  const metaLeads = leads.filter((l) => l.source === 'meta_lead_ads');
   return {
     total: leads.length,
     today: leads.filter((l) => new Date(l.created_at).toDateString() === todayStr).length,
     hot: leads.filter((l) => l.priority === 'hot').length,
-    unattended: leads.filter(isLeadUnattended).length
+    unattended: leads.filter(isLeadUnattended).length,
+    metaTotal: metaLeads.length,
+    metaToday: metaLeads.filter((l) => new Date(l.created_at).toDateString() === todayStr).length
   };
 }

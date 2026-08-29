@@ -3,14 +3,15 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Layers } from 'lucide-react';
-import { DepartmentRecord, PublicUser, TmsPriority, TmsProjectRecord, TmsProjectStatus, UserRole } from '@/lib/types';
+import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsProjectStatus, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS } from '@/lib/tmsConstants';
-import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE } from '@/lib/tmsLabels';
+import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_ROLE_LABEL } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
 import PriorityBadge from './ui/PriorityBadge';
+import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
@@ -23,6 +24,7 @@ const EMPTY_FORM = {
   description: '',
   departmentId: '',
   projectManagerId: '',
+  teamMemberIds: [] as string[],
   startDate: '',
   estimatedCloseDate: '',
   budget: '',
@@ -48,7 +50,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   const toast = useToast();
   const [projects, setProjects] = useState<TmsProjectRecord[]>([]);
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
-  const [users, setUsers] = useState<PublicUser[]>([]);
+  const [users, setUsers] = useState<PersonPickerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -68,7 +70,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     setLoading(true);
     setLoadFailed(false);
     try {
-      const [projectsRes, deptRes, usersRes] = await Promise.all([fetch('/api/tms/projects'), fetch('/api/departments'), fetch('/api/users/lite')]);
+      const [projectsRes, deptRes, usersRes] = await Promise.all([fetch('/api/tms/projects'), fetch('/api/departments'), fetch('/api/tms/assignable-users')]);
       if (!projectsRes.ok) throw new Error(String(projectsRes.status));
       const data: TmsProjectRecord[] = await projectsRes.json();
       setProjects(data);
@@ -167,6 +169,18 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
               </select>
             </div>
           </div>
+          <div className={calcStyles.field}>
+            <label className={calcStyles.label}>Assign Technical Person{form.teamMemberIds.length ? ` (${form.teamMemberIds.length} selected)` : ''}</label>
+            <PersonPicker
+              options={users}
+              selectedIds={form.teamMemberIds}
+              onChange={(ids) => setForm((f) => ({ ...f, teamMemberIds: ids }))}
+              multiple
+              placeholder="Search engineer…"
+              roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
+              emptyMessage="No matching active Technical Team members found."
+            />
+          </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Client name</label>
@@ -241,6 +255,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       ) : loadFailed ? (
         <ErrorState message="Could not load TMS projects — check your connection and try again." onRetry={load} />
       ) : (
+        <div className={historyStyles.tableWrap}>
         <table className={historyStyles.table}>
           <thead>
             <tr>
@@ -248,6 +263,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
               <th>Client</th>
               <th>Department</th>
               <th>Manager</th>
+              <th>Engineers</th>
               <th>Status</th>
               <th>Priority</th>
               <th>Progress</th>
@@ -258,7 +274,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={10}>
                   <EmptyState
                     icon={Layers}
                     title={projects.length === 0 ? 'No TMS projects yet' : 'No projects match your filters'}
@@ -274,6 +290,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
                   <td>{p.client_name || '-'}</td>
                   <td>{p.department_name}</td>
                   <td>{p.project_manager_name || '-'}</td>
+                  <td>{p.team_member_names.length ? p.team_member_names.join(', ') : '-'}</td>
                   <td><StatusBadge tone={TMS_PROJECT_STATUS_TONE[p.status]} label={TMS_PROJECT_STATUS_LABEL[p.status]} /></td>
                   <td><PriorityBadge tone={TMS_PRIORITY_TONE[p.priority]} label={TMS_PRIORITY_LABEL[p.priority]} /></td>
                   <td>
@@ -291,6 +308,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
             )}
           </tbody>
         </table>
+        </div>
       )}
     </AppShell>
   );

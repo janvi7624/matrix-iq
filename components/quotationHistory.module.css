@@ -1111,7 +1111,7 @@
 .notifItem:hover { background: var(--mx-surface-sunken); }
 .notifItemUnread { background: var(--mx-brand-subtle); }
 .notifItemTitle { font-size: 13px; color: var(--mx-ink); }
-.notifItemBody { font-size: 12px; color: var(--mx-ink-muted); margin-top: 2px; }
+.notifItemBody { font-size: 12px; color: var(--mx-ink-muted); margin-top: 2px; white-space: pre-line; }
 
 /* Per-row "⋮" actions menu (table rows with too many actions to show as
    inline buttons — e.g. Admin Users). Panel is rendered via a portal to

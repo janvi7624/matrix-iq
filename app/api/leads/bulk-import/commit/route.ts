@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const rows = (body.rows as unknown[]).map(toRow);
-    const summary = await commitBulkLeads(rows, viewer.username);
+    const summary = await commitBulkLeads(rows, viewer.username, importType === 'images' ? 'business_card' : 'csv_import');
 
     await logAudit({
       by: viewer.username,

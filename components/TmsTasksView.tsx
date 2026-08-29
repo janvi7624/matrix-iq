@@ -1,14 +1,16 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { ClipboardList } from 'lucide-react';
-import { DepartmentRecord, PublicUser, TmsPriority, TmsProjectRecord, TmsTaskRecord, TmsTaskStatus, UserRole } from '@/lib/types';
+import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsTaskRecord, TmsTaskStatus, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS } from '@/lib/tmsConstants';
-import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_TASK_STATUS_LABEL, todayIso } from '@/lib/tmsLabels';
+import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import PriorityBadge from './ui/PriorityBadge';
+import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
@@ -51,7 +53,7 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
   const [tasks, setTasks] = useState<TmsTaskRecord[]>([]);
   const [projects, setProjects] = useState<TmsProjectRecord[]>([]);
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
-  const [users, setUsers] = useState<PublicUser[]>([]);
+  const [users, setUsers] = useState<PersonPickerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -80,7 +82,7 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
         fetch('/api/tms/tasks'),
         fetch('/api/tms/projects'),
         fetch('/api/departments'),
-        fetch('/api/users/lite')
+        fetch('/api/tms/assignable-users')
       ]);
       if (!tasksRes.ok) throw new Error(String(tasksRes.status));
       const data: TmsTaskRecord[] = await tasksRes.json();
@@ -204,11 +206,11 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate} style={{ marginBottom: 20 }}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Task name</label>
+              <label className={calcStyles.label}>Task Name — What needs to be done?</label>
               <input className={calcStyles.formControl} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
             </div>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Project</label>
+              <label className={calcStyles.label}>Project — Which project is this for?</label>
               <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
                 <option value="">Select project</option>
                 {projects.map((p) => (
@@ -216,15 +218,17 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
                 ))}
               </select>
             </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Assignee</label>
-              <select className={calcStyles.formControl} value={form.assigneeId} onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}>
-                <option value="">Unassigned</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name || u.username}</option>
-                ))}
-              </select>
-            </div>
+          </div>
+          <div className={calcStyles.field}>
+            <label className={calcStyles.label}>Assign To — Who will do this?</label>
+            <PersonPicker
+              options={users}
+              selectedIds={form.assigneeId ? [form.assigneeId] : []}
+              onChange={(ids) => setForm((f) => ({ ...f, assigneeId: ids[0] || '' }))}
+              placeholder="Search engineer…"
+              roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
+              emptyMessage="No matching active Technical Team members found."
+            />
           </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
@@ -249,12 +253,12 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
               <input type="date" className={calcStyles.formControl} value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
             </div>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Due date</label>
+              <label className={calcStyles.label}>Due Date *</label>
               <input type="date" className={calcStyles.formControl} value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
             </div>
           </div>
           <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Description</label>
+            <label className={calcStyles.label}>Description — Explain the work required.</label>
             <textarea className={calcStyles.formControl} rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
           </div>
           <button type="submit" className={calcStyles.btn} disabled={creating}>
@@ -323,7 +327,14 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
         <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={7} /></div>
       ) : loadFailed ? (
         <ErrorState message="Could not load TMS tasks — check your connection and try again." onRetry={load} />
+      ) : sortedRows.length === 0 ? (
+        <EmptyState
+          icon={ClipboardList}
+          title={tasks.length === 0 ? 'No Tasks Assigned' : 'No tasks here'}
+          message={tasks.length === 0 ? "You're currently all caught up." : 'Nothing matches this view — try a different bucket or filter.'}
+        />
       ) : (
+        <div className={historyStyles.tableWrap}>
         <table className={historyStyles.table}>
           <thead>
             <tr>
@@ -334,36 +345,31 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
               <th>Due Date</th>
               <th>Priority</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {sortedRows.length === 0 ? (
-              <tr>
-                <td colSpan={7}>
-                  <EmptyState icon={ClipboardList} title="No tasks here" message="Nothing matches this view — try a different bucket or filter." />
+            {sortedRows.map((t) => (
+              <tr key={t.id}>
+                <td>{t.name}</td>
+                <td>{t.project_name}</td>
+                <td>{t.department_name || '-'}</td>
+                <td>{t.assignee_name || 'Unassigned'}</td>
+                <td>{formatDate(t.due_date)}</td>
+                <td><PriorityBadge tone={TMS_PRIORITY_TONE[t.priority]} label={TMS_PRIORITY_LABEL[t.priority]} /></td>
+                <td>
+                  <select className={calcStyles.formControl} style={{ width: 'auto' }} value={t.status} onChange={(e) => handleStatusChange(t, e.target.value as TmsTaskStatus)}>
+                    {(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((s) => (
+                      <option key={s} value={s}>{TMS_TASK_STATUS_LABEL[s]}</option>
+                    ))}
+                  </select>
                 </td>
+                <td><Link className={historyStyles.button} href={`/tms/tasks/${t.id}`}>View</Link></td>
               </tr>
-            ) : (
-              sortedRows.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.name}</td>
-                  <td>{t.project_name}</td>
-                  <td>{t.department_name || '-'}</td>
-                  <td>{t.assignee_name || 'Unassigned'}</td>
-                  <td>{formatDate(t.due_date)}</td>
-                  <td><PriorityBadge tone={TMS_PRIORITY_TONE[t.priority]} label={TMS_PRIORITY_LABEL[t.priority]} /></td>
-                  <td>
-                    <select className={calcStyles.formControl} style={{ width: 'auto' }} value={t.status} onChange={(e) => handleStatusChange(t, e.target.value as TmsTaskStatus)}>
-                      {(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((s) => (
-                        <option key={s} value={s}>{TMS_TASK_STATUS_LABEL[s]}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              ))
-            )}
+            ))}
           </tbody>
         </table>
+        </div>
       )}
     </AppShell>
   );

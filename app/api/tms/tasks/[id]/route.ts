@@ -6,6 +6,9 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { sendTaskLifecycleEmail } from '@/lib/email/notifications';
 import { findUserById, findUserByUsername } from '@/lib/userStore';
 import { TmsPriority, TmsTaskRecord, TmsTaskStatus } from '@/lib/types';
+import { taskAssignedNotification } from '@/lib/tmsLabels';
+import { logAudit, listAuditLog } from '@/lib/auditLogStore';
+import { getClientIp } from '@/lib/requestIp';
 
 const VALID_STATUS: TmsTaskStatus[] = ['to_do', 'in_progress', 'on_hold', 'completed', 'cancelled'];
 const VALID_PRIORITY: TmsPriority[] = ['low', 'medium', 'high'];
@@ -34,7 +37,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!(await canAccessTask(viewer, { assignee_id: task.assignee_id, created_by: task.created_by }))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    return NextResponse.json(task);
+    const activity = await listAuditLog('tms_task', id);
+    return NextResponse.json({ task, activity });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -56,6 +60,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    if (body.action === 'addAttachment') {
+      const urls = Array.isArray(body.urls) ? body.urls.filter((u: unknown): u is string => typeof u === 'string') : [];
+      if (!urls.length) return NextResponse.json({ error: 'No attachment URLs provided' }, { status: 400 });
+      const updated = await tmsTaskStore.update(id, { attachments: [...existing.attachments, ...urls], updated_at: new Date().toISOString() });
+      await logAudit({ by: viewer.username, role: viewer.role, entityType: 'tms_task', entityId: id, action: `${urls.length} attachment${urls.length === 1 ? '' : 's'} added`, previousStatus: '', newStatus: '', ip: getClientIp(request) });
+      return NextResponse.json(updated);
+    }
+
     const patch: Partial<TmsTaskRecord> = { updated_at: new Date().toISOString() };
     if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim();
     if (typeof body.description === 'string') patch.description = body.description.trim();
@@ -74,12 +86,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const updated = await tmsTaskStore.update(id, patch);
 
+    const newAssignee = newAssigneeId ? await findUserById(newAssigneeId) : null;
     if (newAssigneeId) {
-      const assignee = await findUserById(newAssigneeId);
+      const assignee = newAssignee;
       if (assignee && assignee.username !== viewer.username) {
+        const notification = taskAssignedNotification(
+          patch.name || existing.name,
+          existing.project_name,
+          viewer.name,
+          patch.priority || existing.priority,
+          patch.due_date !== undefined ? patch.due_date : existing.due_date
+        );
         await notifyUsers([assignee.username], {
-          title: 'A task was assigned to you',
-          body: `"${existing.name}" on ${existing.project_name}`,
+          title: notification.title,
+          body: notification.body,
           type: 'tms_task_assigned',
           entityType: 'tms_task',
           entityId: id
@@ -112,6 +132,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         });
       }
     }
+
+    // Every meaningful change gets one audit row (status, reassignment, or a
+    // plain field edit if neither of those changed) — this is the task
+    // detail page's entire "Activity" history, see TmsTaskDetailView.tsx.
+    const changeParts: string[] = [];
+    if (patch.status && patch.status !== existing.status) changeParts.push(`status → ${patch.status.replace(/_/g, ' ')}`);
+    if (newAssigneeId) changeParts.push(`reassigned to ${newAssignee?.name || newAssignee?.username || 'someone new'}`);
+    // A comment (see TmsTaskDetailView.tsx's "Add Comment") is just a
+    // remarks-append PATCH with nothing else changed — labeled distinctly
+    // so it reads as "Comment added" in Activity rather than a vague edit.
+    const isCommentOnly = changeParts.length === 0 && typeof body.remarks === 'string' && body.remarks !== existing.remarks;
+    await logAudit({
+      by: viewer.username,
+      role: viewer.role,
+      entityType: 'tms_task',
+      entityId: id,
+      action: changeParts.length ? `Task updated: ${changeParts.join(', ')}` : isCommentOnly ? 'Comment added' : 'Task details updated',
+      previousStatus: existing.status,
+      newStatus: patch.status || existing.status,
+      ip: getClientIp(request)
+    });
 
     return NextResponse.json(updated);
   } catch (error) {

@@ -24,7 +24,7 @@ const EMPTY_FORM = {
   phone: '',
   email: '',
   address: '',
-  salesPerson: '',
+  salesPersonId: '',
   source: '',
   priority: 'medium' as ProjectPriority,
   expectedClosingDate: '',
@@ -70,6 +70,16 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [assignableUsers, setAssignableUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!isPrivileged) return;
+    fetch('/api/users/list')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
+      .catch(() => setAssignableUsers([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [fSalesPerson, setFSalesPerson] = useState('');
   const [fStage, setFStage] = useState<ProjectStage | ''>('');
@@ -212,10 +222,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               </div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Sales person</label>
-                <input className={calcStyles.formControl} placeholder="Defaults to you" value={form.salesPerson} onChange={(e) => setForm((f) => ({ ...f, salesPerson: e.target.value }))} />
-              </div>
+              {isPrivileged && (
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Sales person</label>
+                  <select className={calcStyles.formControl} value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
+                    <option value="">Defaults to you</option>
+                    {assignableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Source</label>
                 <input className={calcStyles.formControl} placeholder="Referral, website, cold call…" value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))} />

@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, createContext, useCallback, useContext, useState } from 'react';
+import { FormEvent, createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { ProjectPriority, ProjectRecord } from '@/lib/types';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import PhoneInput from './PhoneInput';
@@ -20,7 +20,7 @@ interface ProjectCreateForm {
   phone: string;
   email: string;
   address: string;
-  salesPerson: string;
+  salesPersonId: string;
   source: string;
   priority: ProjectPriority;
   expectedClosingDate: string;
@@ -29,7 +29,7 @@ interface ProjectCreateForm {
 
 const EMPTY_FORM: ProjectCreateForm = {
   clientName: '', company: '', contactPerson: '', phone: '', email: '', address: '',
-  salesPerson: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: ''
+  salesPersonId: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: ''
 };
 
 interface PendingCreate {
@@ -44,6 +44,15 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
   const [pending, setPending] = useState<PendingCreate | null>(null);
   const [form, setForm] = useState<ProjectCreateForm>(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
+  const [assignableUsers, setAssignableUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!pending) return;
+    fetch('/api/users/list')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
+      .catch(() => setAssignableUsers([]));
+  }, [pending]);
 
   const open = useCallback((prefill?: Partial<ProjectCreateForm>) => {
     return new Promise<ProjectRecord | null>((resolve) => {
@@ -120,7 +129,12 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Sales person</label>
-                  <input className={calcStyles.formControl} placeholder="Defaults to you" value={form.salesPerson} onChange={(e) => setForm((f) => ({ ...f, salesPerson: e.target.value }))} />
+                  <select className={calcStyles.formControl} value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
+                    <option value="">Defaults to you</option>
+                    {assignableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Source</label>

@@ -744,7 +744,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration';
   entity_id: string;
   action: string;
   previous_status: string;
@@ -1023,6 +1023,18 @@ export interface CustomModuleRecord {
 
 export type LeadPriority = 'hot' | 'warm' | 'cool' | '';
 
+// How this lead first entered MatrixIQ. 'meta_lead_ads' leads flow through
+// lib/metaLeadIngest.ts — see that file for the acquisition pipeline.
+export type LeadSource = 'manual' | 'business_card' | 'csv_import' | 'meta_lead_ads';
+
+// One entry from Meta's field_data array on a leadgen node — preserved
+// verbatim (including custom/unmapped form questions) so nothing Meta sent
+// is ever discarded, even if it doesn't map onto a MatrixIQ column.
+export interface MetaLeadFieldDatum {
+  name: string;
+  values: string[];
+}
+
 export interface LeadRecord {
   id: string;
   created_at: string;
@@ -1045,6 +1057,73 @@ export interface LeadRecord {
   // Projects, so this is now the single "already converted" marker;
   // previously there was a separate crm_id for a since-retired CRM module).
   project_id: string;
+  source: LeadSource;
+  // Meta (Facebook/Instagram) Lead Ads attribution — blank for every source
+  // other than 'meta_lead_ads'. See lib/metaLeadIngest.ts.
+  meta_lead_id: string;
+  meta_page_id: string;
+  meta_form_id: string;
+  meta_form_name: string;
+  meta_campaign_id: string;
+  meta_campaign_name: string;
+  meta_adset_id: string;
+  meta_adset_name: string;
+  meta_ad_id: string;
+  meta_ad_name: string;
+  meta_platform: 'fb' | 'ig' | '';
+  meta_created_at: string;
+  meta_raw_field_data: MetaLeadFieldDatum[];
+}
+
+// ---------------------------------------------------------------------------
+// Meta (Facebook/Instagram) Lead Ads integration — lib/metaConfig.ts,
+// lib/metaGraphClient.ts, lib/metaLeadIngest.ts, app/api/integrations/meta/*,
+// app/api/admin/meta-integration/*. Credentials (App ID/Secret, verify
+// token, Page access token) are never stored here or anywhere in the
+// database — they live only in server env vars (META_APP_ID etc.). This
+// record is purely non-secret operational/routing state.
+// ---------------------------------------------------------------------------
+
+export type MetaAssignmentMode = 'fixed' | 'round_robin' | 'campaign';
+
+export interface MetaCampaignRoute {
+  departmentId?: string;
+  ownerId?: string;
+}
+
+export interface MetaIntegrationConfigRecord {
+  id: string;
+  webhookVerified: boolean;
+  lastConnectionTestAt: string;
+  lastConnectionTestOk: boolean | null;
+  lastConnectionTestMessage: string;
+  lastWebhookReceivedAt: string;
+  lastSuccessfulSyncAt: string;
+  assignmentMode: MetaAssignmentMode;
+  defaultDepartmentId: string;
+  defaultOwnerId: string;
+  defaultOwnerUsername: string;
+  roundRobinPool: string[]; // user ids
+  roundRobinCursor: number;
+  campaignRoutingMap: Record<string, MetaCampaignRoute>;
+  updatedAt: string;
+  updatedByUsername: string;
+}
+
+export type MetaWebhookEventStatus = 'pending' | 'processed' | 'failed' | 'ignored_duplicate';
+
+export interface MetaWebhookEventRecord {
+  id: string;
+  leadgenId: string;
+  pageId: string;
+  formId: string;
+  rawPayload: unknown;
+  status: MetaWebhookEventStatus;
+  attempts: number;
+  lastError: string;
+  resultingLeadId: string;
+  createdAt: string;
+  processedAt: string;
 }
 
 // ---------------------------------------------------------------------------
