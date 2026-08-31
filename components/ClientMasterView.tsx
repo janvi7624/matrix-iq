@@ -9,6 +9,8 @@ import calcStyles from './calculator.module.css';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
+import FilterBar from './ui/FilterBar';
+import Table, { TableColumn, TableWrap } from './ui/Table';
 
 interface ClientMasterViewProps {
   currentUser: { username: string; role: UserRole };
@@ -58,16 +60,56 @@ export default function ClientMasterView(_props: ClientMasterViewProps) {
     });
   }, [clients, search]);
 
+  const columns: TableColumn<ClientSummary>[] = [
+    { key: 'client', header: 'Client', cellClassName: historyStyles.clientName, render: (c) => c.displayName },
+    {
+      key: 'contacts',
+      header: 'Contacts',
+      render: (c) =>
+        c.contacts.length === 0 ? (
+          <span className={calcStyles.small}>-</span>
+        ) : (
+          c.contacts.map((ct, i) => (
+            <div key={i} className={`${calcStyles.small} ${historyStyles.contactLine}`}>
+              {ct.clientName || '-'}{ct.phone ? ` · ${ct.phone}` : ''}{ct.email ? ` · ${ct.email}` : ''}
+              {(ct.altContactName || ct.altContactPhone) && (
+                <div className={historyStyles.altContactLine}>
+                  Alt: {ct.altContactName || '-'}{ct.altContactPhone ? ` · ${ct.altContactPhone}` : ''}
+                </div>
+              )}
+            </div>
+          ))
+        )
+    },
+    {
+      key: 'productHandlers',
+      header: 'Product Handlers',
+      render: (c) =>
+        c.productHandlers.length === 0 ? (
+          <span className={calcStyles.small}>-</span>
+        ) : (
+          <div className={historyStyles.productHandlerList}>
+            {c.productHandlers.map((h, i) => (
+              <span key={i} className={`${historyStyles.priorityBadge} ${historyStyles.priorityBadgeInfo} ${historyStyles.productHandlerBadge}`}>
+                {h.product} — {h.handledBy}
+              </span>
+            ))}
+          </div>
+        )
+    },
+    { key: 'projects', header: 'Projects', render: (c) => c.projectCount }
+  ];
+
   return (
     <AppShell title="Client Master" subtitle="Every client across your projects — contact details and who's handling which product.">
-      <div className={historyStyles.toolbar}>
+      <FilterBar>
         <input
           type="text"
           placeholder="Search client, company, contact, product, sales person…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-      </div>
+      </FilterBar>
       {!loading && !loadFailed && (
         <div className={historyStyles.status}>
           {clients.length ? `${filtered.length} of ${clients.length} client${clients.length === 1 ? '' : 's'} shown.` : ''}
@@ -75,72 +117,23 @@ export default function ClientMasterView(_props: ClientMasterViewProps) {
       )}
 
       {loading ? (
-        <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={4} /></div>
+        <TableWrap><SkeletonRows rows={8} columns={4} /></TableWrap>
       ) : loadFailed ? (
         <ErrorState message="Could not load the client directory — check your connection and try again." onRetry={load} />
       ) : (
         loaded && (
-          <div className={historyStyles.tableWrap}>
-            <table className={historyStyles.table}>
-              <thead>
-                <tr>
-                  <th>Client</th>
-                  <th>Contacts</th>
-                  <th>Product Handlers</th>
-                  <th>Projects</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={4}>
-                      <EmptyState
-                        icon={Users}
-                        title={clients.length === 0 ? 'No clients yet' : 'No clients match your search'}
-                        message={clients.length === 0 ? 'Clients appear here automatically once projects are created.' : 'Try a different search term.'}
-                      />
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((c) => (
-                    <tr key={c.key}>
-                      <td style={{ fontWeight: 600 }}>{c.displayName}</td>
-                      <td>
-                        {c.contacts.length === 0 ? (
-                          <span className={calcStyles.small}>-</span>
-                        ) : (
-                          c.contacts.map((ct, i) => (
-                            <div key={i} className={calcStyles.small} style={{ marginBottom: i < c.contacts.length - 1 ? 4 : 0 }}>
-                              {ct.clientName || '-'}{ct.phone ? ` · ${ct.phone}` : ''}{ct.email ? ` · ${ct.email}` : ''}
-                              {(ct.altContactName || ct.altContactPhone) && (
-                                <div style={{ opacity: 0.75 }}>
-                                  Alt: {ct.altContactName || '-'}{ct.altContactPhone ? ` · ${ct.altContactPhone}` : ''}
-                                </div>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </td>
-                      <td>
-                        {c.productHandlers.length === 0 ? (
-                          <span className={calcStyles.small}>-</span>
-                        ) : (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {c.productHandlers.map((h, i) => (
-                              <span key={i} className={`${historyStyles.priorityBadge} ${historyStyles.priorityBadgeInfo}`} style={{ whiteSpace: 'nowrap' }}>
-                                {h.product} — {h.handledBy}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td>{c.projectCount}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <Table
+            columns={columns}
+            rows={filtered}
+            rowKey={(c) => c.key}
+            empty={
+              <EmptyState
+                icon={Users}
+                title={clients.length === 0 ? 'No clients yet' : 'No clients match your search'}
+                message={clients.length === 0 ? 'Clients appear here automatically once projects are created.' : 'Try a different search term.'}
+              />
+            }
+          />
         )
       )}
     </AppShell>

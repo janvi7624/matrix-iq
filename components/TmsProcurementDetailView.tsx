@@ -11,6 +11,11 @@ import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
 import { useToast } from './ui/ToastProvider';
 import EmptyState from './ui/EmptyState';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import styles from './tmsDetail.module.css';
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -146,31 +151,29 @@ export default function TmsProcurementDetailView({ procurementId, currentUser }:
 
   return (
     <AppShell title={record.item_name} subtitle={`${record.procurement_code} · ${record.project_name}`} showBackLink>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className={styles.headerRow}>
         <StatusBadge tone={TMS_PURCHASE_STATUS_TONE[record.purchase_status]} label={TMS_PURCHASE_STATUS_LABEL[record.purchase_status]} />
         <StatusBadge tone={TMS_DELIVERY_STATUS_TONE[record.delivery_status]} label={TMS_DELIVERY_STATUS_LABEL[record.delivery_status]} />
         <Link className={historyStyles.button} href="/tms/procurement">Back to Procurement</Link>
       </div>
 
       <div className={calcStyles.sectionPanel}>
-        <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Purchase status</label>
-            <select className={calcStyles.formControl} value={record.purchase_status} disabled={saving} onChange={(e) => handlePurchaseStatusChange(e.target.value as TmsPurchaseStatus)}>
+        <FieldRow>
+          <Field label="Purchase status">
+            <Select value={record.purchase_status} disabled={saving} onChange={(e) => handlePurchaseStatusChange(e.target.value as TmsPurchaseStatus)}>
               {(Object.keys(TMS_PURCHASE_STATUS_LABEL) as TmsPurchaseStatus[]).map((s) => (
                 <option key={s} value={s}>{TMS_PURCHASE_STATUS_LABEL[s]}</option>
               ))}
-            </select>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Delivery status</label>
-            <select className={calcStyles.formControl} value={record.delivery_status} disabled={saving} onChange={(e) => handleDeliveryStatusChange(e.target.value as TmsDeliveryStatus)}>
+            </Select>
+          </Field>
+          <Field label="Delivery status">
+            <Select value={record.delivery_status} disabled={saving} onChange={(e) => handleDeliveryStatusChange(e.target.value as TmsDeliveryStatus)}>
               {(Object.keys(TMS_DELIVERY_STATUS_LABEL) as TmsDeliveryStatus[]).map((s) => (
                 <option key={s} value={s}>{TMS_DELIVERY_STATUS_LABEL[s]}</option>
               ))}
-            </select>
-          </div>
-        </div>
+            </Select>
+          </Field>
+        </FieldRow>
 
         <div className={`${calcStyles.row} ${calcStyles.columns}`}>
           <div><strong>Project:</strong> {record.project_name}</div>
@@ -184,47 +187,41 @@ export default function TmsProcurementDetailView({ procurementId, currentUser }:
           <div><strong>Estimated cost:</strong> {formatCurrency(record.estimated_cost)}</div>
         </div>
 
-        <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 12 }}>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Vendor / OEM</label>
-            <input className={calcStyles.formControl} value={form.vendor} onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))} />
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Quoted cost</label>
-            <input type="number" min="0" className={calcStyles.formControl} value={form.quotedCost} onChange={(e) => setForm((f) => ({ ...f, quotedCost: e.target.value }))} />
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Final cost</label>
-            <input type="number" min="0" className={calcStyles.formControl} value={form.finalCost} onChange={(e) => setForm((f) => ({ ...f, finalCost: e.target.value }))} />
-          </div>
-        </div>
-        <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Expected delivery date</label>
-            <input type="date" className={calcStyles.formControl} value={form.expectedDeliveryDate} onChange={(e) => setForm((f) => ({ ...f, expectedDeliveryDate: e.target.value }))} />
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Actual delivery date</label>
-            <input type="date" className={calcStyles.formControl} value={form.actualDeliveryDate} onChange={(e) => setForm((f) => ({ ...f, actualDeliveryDate: e.target.value }))} />
-          </div>
-        </div>
-        <div className={calcStyles.field}>
-          <label className={calcStyles.label}>Remarks</label>
-          <textarea className={calcStyles.formControl} rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
-        </div>
+        <FieldRow className={styles.infoRow}>
+          <Field label="Vendor / OEM">
+            <Input value={form.vendor} onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))} />
+          </Field>
+          <Field label="Quoted cost">
+            <Input type="number" min="0" value={form.quotedCost} onChange={(e) => setForm((f) => ({ ...f, quotedCost: e.target.value }))} />
+          </Field>
+          <Field label="Final cost">
+            <Input type="number" min="0" value={form.finalCost} onChange={(e) => setForm((f) => ({ ...f, finalCost: e.target.value }))} />
+          </Field>
+        </FieldRow>
+        <FieldRow>
+          <Field label="Expected delivery date">
+            <Input type="date" value={form.expectedDeliveryDate} onChange={(e) => setForm((f) => ({ ...f, expectedDeliveryDate: e.target.value }))} />
+          </Field>
+          <Field label="Actual delivery date">
+            <Input type="date" value={form.actualDeliveryDate} onChange={(e) => setForm((f) => ({ ...f, actualDeliveryDate: e.target.value }))} />
+          </Field>
+        </FieldRow>
+        <Field label="Remarks">
+          <Textarea rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
+        </Field>
         <button type="button" className={calcStyles.btn} disabled={saving} onClick={handleSaveDetails}>
           {saving ? 'Saving…' : 'Save details'}
         </button>
       </div>
 
-      <div className={calcStyles.sectionPanel} style={{ marginTop: 18 }}>
+      <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop18}`}>
         <div className={calcStyles.h2}>Documents / Quotation</div>
         <input type="file" multiple disabled={uploading} onChange={(e) => handleUpload(e.target.files)} />
         {uploading && <div className={historyStyles.status}>Uploading…</div>}
         {record.documents.length === 0 ? (
           <EmptyState icon={Paperclip} title="No documents yet" message="Upload a vendor quotation or PO document above." />
         ) : (
-          <ul style={{ marginTop: 12 }}>
+          <ul className={styles.attachmentList}>
             {record.documents.map((url) => (
               <li key={url}>
                 <a href={url} target="_blank" rel="noreferrer">{url.split('/').pop()}</a>

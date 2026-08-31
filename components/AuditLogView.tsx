@@ -5,6 +5,9 @@ import { AuditLogEntry } from '@/lib/types';
 import { exportListToPdf } from '@/lib/exportPdf';
 import AppShell from './AppShell';
 import styles from './quotationHistory.module.css';
+import FilterBar from './ui/FilterBar';
+import ToolbarButton from './ui/ToolbarButton';
+import Table, { TableColumn } from './ui/Table';
 
 function formatDateTime(iso: string): string {
   if (!iso) return '-';
@@ -50,10 +53,21 @@ export default function AuditLogView() {
     );
   }
 
+  const columns: TableColumn<AuditLogEntry>[] = [
+    { key: 'at', header: 'Date/Time', render: (r) => formatDateTime(r.at) },
+    { key: 'by', header: 'User', render: (r) => r.by },
+    { key: 'role', header: 'Role', render: (r) => r.role },
+    { key: 'entity', header: 'Entity', render: (r) => `${r.entity_type} ${r.entity_id}` },
+    { key: 'action', header: 'Action', render: (r) => r.action },
+    { key: 'statusChange', header: 'Previous → New', render: (r) => `${r.previous_status || '-'} → ${r.new_status || '-'}` },
+    { key: 'remarks', header: 'Remarks', render: (r) => r.remarks || '-' },
+    { key: 'ip', header: 'IP', render: (r) => r.ip || '-' }
+  ];
+
   return (
     <AppShell title="Audit Log" subtitle="Every status-changing action across the Back Office workflow.">
-        <div className={styles.toolbar}>
-          <select value={entityType} onChange={(e) => setEntityType(e.target.value as '' | AuditLogEntry['entity_type'])} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db' }}>
+        <FilterBar>
+          <select className={styles.plainSelect} value={entityType} onChange={(e) => setEntityType(e.target.value as '' | AuditLogEntry['entity_type'])}>
             <option value="">All entities</option>
             <option value="demo">Demo requests</option>
             <option value="delivery_challan">Delivery Challans</option>
@@ -65,45 +79,17 @@ export default function AuditLogView() {
             <option value="department">Departments</option>
             <option value="user_import">User Imports</option>
           </select>
-          <button type="button" className={styles.button} onClick={handleExportPdf}>Export PDF</button>
-          <button type="button" className={styles.button} onClick={load}>Refresh</button>
-        </div>
+          <ToolbarButton onClick={handleExportPdf}>Export PDF</ToolbarButton>
+          <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+        </FilterBar>
         <div className={styles.status}>{status}</div>
         {loaded && (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Date/Time</th>
-                <th>User</th>
-                <th>Role</th>
-                <th>Entity</th>
-                <th>Action</th>
-                <th>Previous → New</th>
-                <th>Remarks</th>
-                <th>IP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className={styles.empty}>No audit log entries yet.</td>
-                </tr>
-              ) : (
-                rows.map((r) => (
-                  <tr key={r.id}>
-                    <td>{formatDateTime(r.at)}</td>
-                    <td>{r.by}</td>
-                    <td>{r.role}</td>
-                    <td>{r.entity_type} {r.entity_id}</td>
-                    <td>{r.action}</td>
-                    <td>{r.previous_status || '-'} → {r.new_status || '-'}</td>
-                    <td>{r.remarks || '-'}</td>
-                    <td>{r.ip || '-'}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <Table
+            columns={columns}
+            rows={rows}
+            rowKey={(r) => r.id}
+            empty={<div className={styles.empty}>No audit log entries yet.</div>}
+          />
         )}
     </AppShell>
   );

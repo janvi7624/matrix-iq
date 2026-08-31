@@ -100,6 +100,7 @@
   --mx-gray-50: #f9fafb;
   --mx-gray-100: #f3f4f6;
   --mx-gray-700: #374151;
+  --mx-gray-800: #1f2937;
 
   /* Blue — extends --mx-info with its surrounding steps */
   --mx-blue-50: #eff6ff;
@@ -196,6 +197,48 @@
   --mx-duration-fast: 120ms;
   --mx-duration-base: 180ms;
   --mx-duration-slow: 280ms;
+
+  /* Typography — role-named (not a t-shirt ladder) because the app's real
+     sizes are oddly specific (10.5/11.5/12.5/13.5/14.5/16/18.4/24px) already
+     in use across the existing .module.css files; naming them here doesn't
+     change anything that renders. The 12/13/14/15px literals scattered
+     through the legacy modules are deliberately NOT tokenized yet — that's a
+     later module-by-module pass, not this one. */
+  --mx-font-sans: Arial, Helvetica, sans-serif; /* matches body's current literal */
+  --mx-font-mono: 'Courier New', monospace;
+
+  --mx-text-micro: 10.5px; /* uppercase micro-pills */
+  --mx-text-badge: 11.5px; /* status / priority / source badges */
+  --mx-text-meta: 12.5px; /* secondary meta line under a value */
+  --mx-text-body: 13.5px; /* table cells + toolbar controls — dominant size */
+  --mx-text-control: 14.5px; /* buttons, dialog body copy */
+  --mx-text-input: 16px; /* form fields — 16px floor stops iOS Safari auto-zoom */
+  --mx-text-title: 1.15rem; /* dialog / card titles */
+  --mx-text-stat: 24px; /* stat-tile numerals */
+
+  --mx-weight-normal: 400;
+  --mx-weight-medium: 600;
+  --mx-weight-semibold: 700;
+  --mx-weight-bold: 800;
+
+  --mx-leading-tight: 1.2;
+  --mx-leading-normal: 1.45;
+  --mx-leading-relaxed: 1.55;
+
+  --mx-tracking-caps: 0.04em; /* uppercase pills */
+
+  /* Z-index — documents the layering already in use (sticky table cells,
+     PortalHeader, sidebar, GlobalSearch, toasts, modals) so new components
+     don't invent a competing number. Existing files keep their literals;
+     these are for new CSS. Note toast sits BELOW modal: a toast raised while
+     a dialog is open renders behind it — documented as-is, not changed here. */
+  --mx-z-sticky: 5;
+  --mx-z-header: 40;
+  --mx-z-nav: 46;
+  --mx-z-drawer: 60;
+  --mx-z-dropdown: 200;
+  --mx-z-toast: 1000;
+  --mx-z-modal: 1100;
 }
 
 @theme inline {
@@ -215,5 +258,5 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--mx-font-sans);
 }

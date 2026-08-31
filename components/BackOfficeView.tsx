@@ -16,6 +16,9 @@ import { useConfirm } from './ui/ConfirmDialog';
 import Button from './ui/Button';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { todayDateInputValue } from '@/lib/dateHelpers';
+import styles from './backOffice.module.css';
+import FilterBar from './ui/FilterBar';
+import Table, { TableColumn } from './ui/Table';
 
 const DC_STATUS_LABEL: Record<DcStatus, string> = { prepared: 'Prepared', dispatched: 'Dispatched', returned: 'Returned', closed: 'Closed' };
 const DC_STATUS_TONE: Record<DcStatus, StatusTone> = {
@@ -60,12 +63,12 @@ function GenerateDcPanel({ demo, onGenerated }: { demo: DemoScheduleRecord; onGe
   }
 
   return (
-    <div className={historyStyles.detailPanel} style={{ marginTop: 0 }}>
-      <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Generate Delivery Challan</h2>
-      <div className={calcStyles.small} style={{ marginBottom: 12 }}>
+    <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
+      <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Generate Delivery Challan</h2>
+      <div className={`${calcStyles.small} ${calcStyles.smallSpaced}`}>
         For {demo.client_name}{demo.company ? ` (${demo.company})` : ''} — demo on {new Date(demo.scheduled_at).toLocaleString('en-IN')}
       </div>
-      <div className={historyStyles.reviewGrid} style={{ marginBottom: 12 }}>
+      <div className={`${historyStyles.reviewGrid} ${historyStyles.reviewGridSpaced}`}>
         {demo.products_required.length === 0 ? (
           <div className={historyStyles.reviewRow}>No products were listed as required on this request.</div>
         ) : (
@@ -153,9 +156,9 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
   }
 
   return (
-    <div className={historyStyles.detailPanel} style={{ marginTop: 0 }}>
-      <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Create Manual Delivery Challan</h2>
-      <div className={calcStyles.small} style={{ marginBottom: 12 }}>
+    <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
+      <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Create Manual Delivery Challan</h2>
+      <div className={`${calcStyles.small} ${calcStyles.smallSpaced}`}>
         No linked Sales Request — for a walk-in or custom dispatch that never went through demo approval.
       </div>
       <div className={calcStyles.field}>
@@ -198,7 +201,7 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
         </div>
       </div>
 
-      <div className={calcStyles.label} style={{ marginBottom: 8, marginTop: 12 }}>Items</div>
+      <div className={`${calcStyles.label} ${styles.itemsHeading}`}>Items</div>
       <div className={historyStyles.tableWrap}>
       <table className={historyStyles.table}>
         <thead>
@@ -234,11 +237,11 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
         </tbody>
       </table>
       </div>
-      <div style={{ marginTop: 8 }}>
+      <div className={styles.addItemRow}>
         <Button variant="secondary" compact onClick={() => setItems((prev) => [...prev, { ...EMPTY_MANUAL_ITEM }])}>+ Add Item</Button>
       </div>
 
-      <div className={historyStyles.actionGroupButtons} style={{ marginTop: 16 }}>
+      <div className={`${historyStyles.actionGroupButtons} ${styles.sectionSpacingTop16}`}>
         <Button variant="primary" icon={<Package size={16} />} loading={busy} loadingLabel="Creating…" onClick={handleGenerate}>Create Delivery Challan</Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
@@ -336,9 +339,9 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
 
   return (
     <div className={historyStyles.detailPanel}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
+      <div className={styles.detailHeaderRow}>
         <div>
-          <h2 className={calcStyles.h2} style={{ margin: 0 }}>{dc.dc_number}</h2>
+          <h2 className={`${calcStyles.h2} ${calcStyles.h2Reset}`}>{dc.dc_number}</h2>
           <div className={calcStyles.small}>
             {dc.client_name} · Issued by {dc.issued_by} on {formatDate(dc.issued_date)}
             {dc.project_id ? (
@@ -354,7 +357,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
         <StatusBadge tone={DC_STATUS_TONE[dc.status]} label={DC_STATUS_LABEL[dc.status]} />
       </div>
 
-      <div className={historyStyles.actionBar} style={{ margin: '12px 0' }}>
+      <div className={`${historyStyles.actionBar} ${historyStyles.actionBarTight}`}>
         <div className={historyStyles.actionGroup}>
           <div className={historyStyles.actionGroupLabel}>Secondary Actions</div>
           <div className={historyStyles.actionGroupButtons}>
@@ -372,7 +375,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
         )}
       </div>
 
-      <h3 style={{ marginTop: 0 }}>Materials</h3>
+      <h3 className={historyStyles.h3Flush}>Materials</h3>
       <div className={historyStyles.tableWrap}>
       <table className={historyStyles.table}>
         <thead>
@@ -434,7 +437,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
 
       {canManage && dc.status === 'prepared' && (
         <>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 12 }}>
+          <div className={`${calcStyles.row} ${calcStyles.columns} ${styles.formRowSpacingTop}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Requested By</label>
               <input className={calcStyles.formControl} value={assignedEngineer} onChange={(e) => setAssignedEngineer(e.target.value)} />
@@ -455,9 +458,9 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
       )}
 
       {canManage && dc.status === 'dispatched' && (
-        <div style={{ marginTop: 16 }}>
+        <div className={styles.sectionSpacingTop16}>
           <h3>Material return — verification checklist</h3>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <label className={`${styles.materialsReturnedCheckbox}`}>
             <input type="checkbox" checked={returned} onChange={(e) => setReturned(e.target.checked)} />
             Materials returned
           </label>
@@ -473,14 +476,14 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
             </div>
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Flags</label>
-              <div style={{ display: 'flex', gap: 14 }}>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div className={styles.flagsRow}>
+                <label className={historyStyles.inlineCheckboxRow}>
                   <input type="checkbox" checked={missing} onChange={(e) => setMissing(e.target.checked)} /> Missing
                 </label>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <label className={historyStyles.inlineCheckboxRow}>
                   <input type="checkbox" checked={damaged} onChange={(e) => setDamaged(e.target.checked)} /> Damaged
                 </label>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <label className={historyStyles.inlineCheckboxRow}>
                   <input type="checkbox" checked={serialNumberVerified} onChange={(e) => setSerialNumberVerified(e.target.checked)} /> Serial verified
                 </label>
               </div>
@@ -488,9 +491,9 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
           </div>
           <div className={calcStyles.field}>
             <label className={calcStyles.label}>Accessories returned</label>
-            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            <div className={styles.accessoriesRow}>
               {(['powerCable', 'remote', 'adapter', 'stand', 'packing'] as const).map((key) => (
-                <label key={key} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <label key={key} className={historyStyles.inlineCheckboxRow}>
                   <input
                     type="checkbox"
                     checked={accessories[key]}
@@ -503,13 +506,12 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
           </div>
           <div className={calcStyles.field}>
             <label className={calcStyles.label}>Remarks</label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            <div className={styles.remarkTagsRow}>
               {BACK_OFFICE_REMARK_TAGS.map((tag) => (
                 <button
                   key={tag}
                   type="button"
-                  className={remarkTags.includes(tag) ? historyStyles.modeToggleBtnActive : historyStyles.modeToggleBtn}
-                  style={{ borderRadius: 999, padding: '6px 12px', border: '1px solid #d1d5db' }}
+                  className={`${remarkTags.includes(tag) ? historyStyles.modeToggleBtnActive : historyStyles.modeToggleBtn} ${historyStyles.pillButton}`}
                   onClick={() => toggleRemarkTag(tag)}
                 >
                   {BACK_OFFICE_REMARK_LABEL[tag]}
@@ -536,7 +538,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
       )}
 
       {dc.status === 'returned' && (
-        <div style={{ marginTop: 16 }}>
+        <div className={styles.sectionSpacingTop16}>
           <h3>Return verification</h3>
           <div className={historyStyles.reviewGrid}>
             <div className={historyStyles.reviewRow}><strong>Condition:</strong> {dc.material_return.condition || '-'}</div>
@@ -546,7 +548,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
             <div className={historyStyles.reviewRow}><strong>Remarks:</strong> {dc.material_return.remarkTags.map((t) => BACK_OFFICE_REMARK_LABEL[t]).join(', ') || '-'}{dc.material_return.remarks ? ` — ${dc.material_return.remarks}` : ''}</div>
           </div>
           {canManage && (
-            <div className={historyStyles.actionGroup} style={{ marginTop: 10 }}>
+            <div className={`${historyStyles.actionGroup} ${styles.sectionSpacingTop10}`}>
               <div className={historyStyles.actionGroupLabel}>Primary Actions</div>
               <div className={historyStyles.actionGroupButtons}>
                 <Button variant="success" icon={<Lock size={16} />} loading={busy} loadingLabel="Closing…" onClick={handleCloseClick}>Close DC</Button>
@@ -630,14 +632,32 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
     setDcs((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
   }
 
+  const dcColumns: TableColumn<DeliveryChallanRecord>[] = [
+    { key: 'dcNumber', header: 'DC Number', cellClassName: historyStyles.num, render: (dc) => dc.dc_number },
+    { key: 'project', header: 'Project', render: (dc) => (dc.project_id ? <Link href={`/projects/${dc.project_id}`}>{dc.project_id}</Link> : '-') },
+    { key: 'client', header: 'Client', render: (dc) => dc.client_name },
+    { key: 'requestedBy', header: 'Requested By', render: (dc) => dc.assigned_engineer || '-' },
+    { key: 'status', header: 'Status', render: (dc) => <StatusBadge tone={DC_STATUS_TONE[dc.status]} label={DC_STATUS_LABEL[dc.status]} /> },
+    { key: 'issuedDate', header: 'Issued Date', render: (dc) => formatDate(dc.issued_date) },
+    {
+      key: 'actions',
+      header: '',
+      render: (dc) => (
+        <button type="button" className={historyStyles.button} onClick={() => setOpenId(openId === dc.id ? null : dc.id)}>
+          {openId === dc.id ? 'Hide' : 'View'}
+        </button>
+      )
+    }
+  ];
+
   return (
     <AppShell title="Back Office Operations" subtitle="Delivery Challans — materials out, dispatched, returned, and closed.">
         {!demoForGenerate && !linkedDc && demosAwaitingDc.length > 0 && (
-          <div className={calcStyles.sectionPanel} style={{ marginBottom: 24 }}>
+          <div className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpacedLg}`}>
             <div className={calcStyles.h2}>Demo{demosAwaitingDc.length === 1 ? '' : 's'} awaiting a Delivery Challan</div>
-            <ul style={{ marginTop: 12, listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <ul className={styles.awaitingList}>
               {demosAwaitingDc.map((demo) => (
-                <li key={demo.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <li key={demo.id} className={styles.awaitingListItem}>
                   <span>{demo.client_name}</span>
                   <Link className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary} ${historyStyles.actionBtnCompact}`} href={`/backoffice?demoId=${demo.id}`}>Generate DC →</Link>
                 </li>
@@ -657,51 +677,19 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
           />
         )}
 
-        <h2 className={calcStyles.h2} style={{ marginTop: demoForGenerate || linkedDc || showManualDc ? 24 : 0 }}>All Delivery Challans</h2>
-        <div className={historyStyles.toolbar}>
+        <h2 className={`${calcStyles.h2} ${demoForGenerate || linkedDc || showManualDc ? styles.allDcHeadingSpaced : calcStyles.h2Flush}`}>All Delivery Challans</h2>
+        <FilterBar>
           {canManage && !showManualDc && <Button variant="primary" icon={<Plus size={16} />} compact onClick={() => setShowManualDc(true)}>Create Manual DC</Button>}
           <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
-        </div>
+        </FilterBar>
         <div className={historyStyles.status}>{status}</div>
         {loaded && (
-          <div className={historyStyles.tableWrap}>
-          <table className={historyStyles.table}>
-            <thead>
-              <tr>
-                <th>DC Number</th>
-                <th>Project</th>
-                <th>Client</th>
-                <th>Requested By</th>
-                <th>Status</th>
-                <th>Issued Date</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {dcs.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className={historyStyles.empty}>No Delivery Challans yet — generate one from an approved demo request.</td>
-                </tr>
-              ) : (
-                dcs.map((dc) => (
-                  <tr key={dc.id}>
-                    <td className={historyStyles.num}>{dc.dc_number}</td>
-                    <td>{dc.project_id ? <Link href={`/projects/${dc.project_id}`}>{dc.project_id}</Link> : '-'}</td>
-                    <td>{dc.client_name}</td>
-                    <td>{dc.assigned_engineer || '-'}</td>
-                    <td><StatusBadge tone={DC_STATUS_TONE[dc.status]} label={DC_STATUS_LABEL[dc.status]} /></td>
-                    <td>{formatDate(dc.issued_date)}</td>
-                    <td>
-                      <button type="button" className={historyStyles.button} onClick={() => setOpenId(openId === dc.id ? null : dc.id)}>
-                        {openId === dc.id ? 'Hide' : 'View'}
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-          </div>
+          <Table
+            columns={dcColumns}
+            rows={dcs}
+            rowKey={(dc) => dc.id}
+            empty={<div className={historyStyles.empty}>No Delivery Challans yet — generate one from an approved demo request.</div>}
+          />
         )}
         {openId && !linkedDc && (
           (() => {

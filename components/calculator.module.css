@@ -252,6 +252,65 @@
     padding-left: 12px;
     border-left: 4px solid var(--mx-brand);
 }
+/* Modifier for a .h2 that opens a page (no space needed above it) — was
+   inline style={{ marginTop: 0 }} in several simple record-list views. */
+.h2Flush {
+    margin-top: 0;
+}
+/* Modifier for a .sectionPanel form that's conditionally shown above a
+   toolbar/table — was inline style={{ marginBottom: 20 }}. */
+.sectionPanelSpaced {
+    margin-bottom: 20px;
+}
+/* QuotationCalculator — was inline style={{}} */
+.topBar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+.revisionBanner { border: 1px solid var(--mx-brand); background: var(--mx-red-50); }
+.revisionBannerTitle { font-weight: 700; color: var(--mx-danger); margin-bottom: 6px; }
+.fieldTight { margin-bottom: 4px; }
+.summaryToggle { cursor: pointer; font-weight: 600; font-size: 0.9rem; padding: 4px 0; }
+.rowSpacedTop { margin-top: 12px; }
+.smallTopPad { padding-top: 10px; }
+.smallBottomSpace { margin-bottom: 8px; }
+.flexFill { flex: 1; }
+.actionsSpaced { margin-top: 18px; }
+.logStatusSuccess { color: var(--mx-success); }
+.logStatusError { color: var(--mx-danger); }
+.savedQuotationRow { margin-top: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ---------------------------------------------------------------------
+   Small spacing/layout utilities — a deliberate, narrow exception to this
+   file's semantic-class convention. The estimator components (this file +
+   components/estimators/*) repeat the same handful of ad-hoc vertical-
+   rhythm gaps (6/8/10/14px) and flex-row patterns dozens of times across
+   ~2000 lines; giving each call site its own uniquely-named semantic class
+   would be pure churn for values that carry no distinct meaning beyond
+   "a bit of space here." Reach for these only when replacing exactly this
+   kind of one-off inline style; anything with real visual identity (a
+   card, a badge, a panel) still gets a real semantic class.
+   --------------------------------------------------------------------- */
+.mt6 { margin-top: 6px; }
+.mt8 { margin-top: 8px; }
+.mt10 { margin-top: 10px; }
+.mt14 { margin-top: 14px; }
+.mb0 { margin-bottom: 0; }
+.mb4 { margin-bottom: 4px; }
+.pl18 { padding-left: 18px; }
+.cursorPointerBold { cursor: pointer; font-weight: 600; }
+.inlineFlexGap6 { display: flex; align-items: center; gap: 6px; }
+.inlineFlexGap8 { display: flex; align-items: center; gap: 8px; }
+.dangerText { color: var(--mx-danger); }
+.priceInputNarrow { width: 100px; text-align: right; }
+/* VisitIQ Estimator's "Add-ons" sub-heading — an .h2 used at h3 size. */
+.visitIqAddOnsHeading { font-size: 1rem; margin-top: 18px; }
+.sectionPanelSpacedLg {
+    margin-bottom: 24px;
+}
+.h2Reset {
+    margin: 0;
+}
+.smallSpaced {
+    margin-bottom: 12px;
+}
 .btn {
     min-height: 48px;
     padding: 13px 20px;

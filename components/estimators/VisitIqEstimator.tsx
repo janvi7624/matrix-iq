@@ -147,10 +147,10 @@ export default function VisitIqEstimator({ active, onResultChange, overrides }: 
           <div className={styles.small}>Employees: <strong>{formatLimit(plan.employees)}</strong></div>
           <div className={styles.small}>Admins: <strong>{plan.admins}</strong></div>
         </div>
-        <p className={styles.small} style={{ marginTop: 8 }}>Includes: {plan.features.join(', ')}</p>
+        <p className={`${styles.small} ${styles.mt8}`}>Includes: {plan.features.join(', ')}</p>
       </div>
 
-      <h3 className={styles.h2} style={{ fontSize: '1rem', marginTop: 18 }}>Add-ons</h3>
+      <h3 className={`${styles.h2} ${styles.visitIqAddOnsHeading}`}>Add-ons</h3>
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="visitiqExtraRobots">Extra Temi robots ({formatMoney(1599)}/mo each)</label>

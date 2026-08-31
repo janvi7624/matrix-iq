@@ -11,6 +11,10 @@ import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
 import PriorityBadge from './ui/PriorityBadge';
 import { useToast } from './ui/ToastProvider';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import ToolbarButton from './ui/ToolbarButton';
+import styles from './tmsDetail.module.css';
 
 interface TaskDetailResponse {
   task: TmsTaskRecord;
@@ -148,14 +152,14 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
 
   return (
     <AppShell title={task.name} subtitle={`Task on ${task.project_name}`} showBackLink>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className={styles.headerRow}>
         <StatusBadge tone={TMS_TASK_STATUS_TONE[task.status]} label={TMS_TASK_STATUS_LABEL[task.status]} />
         <PriorityBadge tone={TMS_PRIORITY_TONE[task.priority]} label={TMS_PRIORITY_LABEL[task.priority]} />
         <Link className={historyStyles.button} href={`/tms/projects/${task.project_id}`}>View Project</Link>
         <Link className={historyStyles.button} href="/tms/tasks">Back to Tasks</Link>
       </div>
 
-      <div className={calcStyles.sectionPanel} style={{ marginBottom: 16 }}>
+      <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
         <div className={`${calcStyles.row} ${calcStyles.columns}`}>
           <div><strong>Project:</strong> {task.project_name}</div>
           <div><strong>Assigned By:</strong> {task.created_by}</div>
@@ -166,13 +170,13 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
           <div><strong>Start Date:</strong> {formatDate(task.start_date)}</div>
           <div><strong>Due Date:</strong> {formatDate(task.due_date)}</div>
         </div>
-        <div style={{ marginTop: 12 }}><strong>Description:</strong></div>
-        <div style={{ marginTop: 4, whiteSpace: 'pre-line' }}>{task.description || 'No description provided.'}</div>
+        <div className={styles.infoRow}><strong>Description:</strong></div>
+        <div className={styles.descriptionValue}>{task.description || 'No description provided.'}</div>
       </div>
 
-      <div className={calcStyles.sectionPanel} style={{ marginBottom: 16 }}>
-        <div className={calcStyles.h2} style={{ marginTop: 0 }}>Update Status</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
+        <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Update Status</div>
+        <div className={styles.actionButtonsRow}>
           {task.status === 'to_do' && (
             <button type="button" className={calcStyles.btn} disabled={saving} onClick={() => changeStatus('in_progress')}>Start Task</button>
           )}
@@ -180,14 +184,13 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
             <button type="button" className={calcStyles.btn} disabled={saving} onClick={() => changeStatus('completed')}>Mark Complete</button>
           )}
           {task.status !== 'on_hold' && task.status !== 'completed' && task.status !== 'cancelled' && (
-            <button type="button" className={historyStyles.button} disabled={saving} onClick={() => changeStatus('on_hold')}>Put On Hold</button>
+            <ToolbarButton disabled={saving} onClick={() => changeStatus('on_hold')}>Put On Hold</ToolbarButton>
           )}
           {task.status === 'on_hold' && (
-            <button type="button" className={historyStyles.button} disabled={saving} onClick={() => changeStatus('in_progress')}>Resume</button>
+            <ToolbarButton disabled={saving} onClick={() => changeStatus('in_progress')}>Resume</ToolbarButton>
           )}
-          <select
-            className={calcStyles.formControl}
-            style={{ width: 'auto' }}
+          <Select
+            auto
             value={task.status}
             disabled={saving}
             onChange={(e) => changeStatus(e.target.value as TmsTaskStatus)}
@@ -195,20 +198,20 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
             {(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((s) => (
               <option key={s} value={s}>{TMS_TASK_STATUS_LABEL[s]}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 
-      <div className={calcStyles.sectionPanel} style={{ marginBottom: 16 }}>
-        <div className={calcStyles.h2} style={{ marginTop: 0 }}>Attachments</div>
+      <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
+        <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Attachments</div>
         <input type="file" multiple disabled={uploading} onChange={(e) => handleUpload(e.target.files)} />
         {uploading && <div className={historyStyles.status}>Uploading…</div>}
         {task.attachments.length === 0 ? (
-          <div style={{ fontSize: 13, color: 'var(--mx-ink-muted)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className={styles.emptyNoteRow}>
             <Paperclip size={14} /> No attachments yet.
           </div>
         ) : (
-          <ul style={{ marginTop: 12 }}>
+          <ul className={styles.attachmentList}>
             {task.attachments.map((url) => (
               <li key={url}>
                 <a href={url} target="_blank" rel="noreferrer">{url.split('/').pop()}</a>
@@ -219,27 +222,26 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
       </div>
 
       <div className={calcStyles.sectionPanel}>
-        <div className={calcStyles.h2} style={{ marginTop: 0 }}>Activity</div>
-        <div className={calcStyles.field} style={{ marginBottom: 12 }}>
-          <textarea
-            className={calcStyles.formControl}
+        <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Activity</div>
+        <div className={`${calcStyles.field} ${styles.commentBox}`}>
+          <Textarea
             rows={2}
             placeholder="Add a comment for your manager or teammates…"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
-          <button type="button" className={calcStyles.btn} style={{ marginTop: 8 }} disabled={postingComment || !comment.trim()} onClick={postComment}>
+          <button type="button" className={`${calcStyles.btn} ${calcStyles.mt8}`} disabled={postingComment || !comment.trim()} onClick={postComment}>
             {postingComment ? 'Posting…' : 'Add Comment'}
           </button>
         </div>
         {activity.length === 0 ? (
-          <div style={{ fontSize: 13, color: 'var(--mx-ink-muted)' }}>No activity yet.</div>
+          <div className={styles.mutedText13}>No activity yet.</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className={styles.activityList}>
             {activity.map((a) => (
-              <div key={a.id} style={{ padding: '10px 12px', background: 'var(--mx-surface-sunken)', borderRadius: 'var(--mx-radius-sm)', fontSize: 13 }}>
-                <div style={{ fontWeight: 600 }}>{a.action}</div>
-                <div style={{ color: 'var(--mx-ink-muted)', fontSize: 12, marginTop: 2 }}>{a.by} · {formatDateTime(a.at)}</div>
+              <div key={a.id} className={styles.activityItem}>
+                <div className={styles.activityAction}>{a.action}</div>
+                <div className={styles.activityMeta}>{a.by} · {formatDateTime(a.at)}</div>
               </div>
             ))}
           </div>

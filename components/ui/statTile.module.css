@@ -1,0 +1,44 @@
+/* Layout/interactive rules moved verbatim from components/leadAssignment.module.css
+   (.statBtn/.statActive/.statValue/.statWarning/.statInfo) — panel chrome
+   itself still comes from calculator.module.css's .sectionPanel, applied by
+   the caller alongside these classes, same composition the original markup
+   used. */
+
+.statTile {
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
+}
+
+.statBtn {
+    composes: statTile;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    border: none;
+    background: none;
+    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+}
+.statBtn:hover { border-color: var(--mx-brand); box-shadow: var(--mx-shadow-sm); }
+.statActive { border: 1px solid var(--mx-brand) !important; background: var(--mx-brand-subtle); }
+
+.statValue {
+    font-size: var(--mx-text-stat);
+    font-weight: var(--mx-weight-bold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+}
+.statSuccess { color: var(--mx-success); }
+.statDanger { color: var(--mx-danger); }
+.statWarning { color: var(--mx-warning); }
+.statInfo { color: var(--mx-info); }
+/* A second, distinct blue — the original Meta tile used --mx-blue-600
+   (#2563eb), not --mx-info (#1d4ed8), which Assigned-to-me already used.
+   Preserved as its own tone rather than unified, since collapsing them
+   would be a visual change beyond the one approved delta (Meta's active
+   border color) for this migration. */
+.statAccent { color: var(--mx-blue-600); }
+.statBrand { color: var(--mx-brand); }

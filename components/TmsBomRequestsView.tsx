@@ -13,6 +13,13 @@ import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import FilterBar from './ui/FilterBar';
+import ToolbarButton from './ui/ToolbarButton';
+import Table, { TableColumn } from './ui/Table';
 
 const EMPTY_FORM = {
   projectId: '',
@@ -108,70 +115,70 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
     }
   }
 
+  const columns: TableColumn<TmsBomRequestRecord>[] = [
+    { key: 'request', header: 'Request', cellClassName: historyStyles.num, render: (r) => r.bom_request_code },
+    { key: 'project', header: 'Project', render: (r) => r.project_name },
+    { key: 'item', header: 'Item', render: (r) => r.item_name },
+    { key: 'qty', header: 'Qty', render: (r) => r.quantity },
+    { key: 'requestedBy', header: 'Requested By', render: (r) => r.requested_by_name || '-' },
+    { key: 'status', header: 'Status', render: (r) => <StatusBadge tone={TMS_BOM_STATUS_TONE[r.status]} label={TMS_BOM_STATUS_LABEL[r.status]} /> },
+    { key: 'actions', header: '', render: (r) => <Link className={historyStyles.button} href={`/tms/bom-requests/${r.id}`}>View</Link> }
+  ];
+
   return (
     <AppShell title="BOM Request" subtitle="Bill of materials requests, review, and approval.">
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+      <div className={historyStyles.actionRow}>
         <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
           {showForm ? 'Cancel' : '+ New BOM Request'}
         </button>
-        <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
+        <ToolbarButton onClick={load}>Refresh</ToolbarButton>
       </div>
 
       {showForm && (
-        <form className={calcStyles.sectionPanel} style={{ marginBottom: 20 }}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Project</label>
-              <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
+        <form className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`}>
+          <FieldRow>
+            <Field label="Project">
+              <Select value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
                 <option value="">Select project</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.project_code} — {p.name}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Item name</label>
-              <input className={calcStyles.formControl} value={form.itemName} onChange={(e) => setForm((f) => ({ ...f, itemName: e.target.value }))} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Part number / Model</label>
-              <input className={calcStyles.formControl} value={form.partNumber} onChange={(e) => setForm((f) => ({ ...f, partNumber: e.target.value }))} />
-            </div>
-          </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Quantity</label>
-              <input type="number" min="1" className={calcStyles.formControl} value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Preferred brand / OEM</label>
-              <input className={calcStyles.formControl} value={form.preferredBrand} onChange={(e) => setForm((f) => ({ ...f, preferredBrand: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Estimated cost</label>
-              <input type="number" min="0" className={calcStyles.formControl} value={form.estimatedCost} onChange={(e) => setForm((f) => ({ ...f, estimatedCost: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Required date</label>
-              <input type="date" className={calcStyles.formControl} value={form.requiredDate} onChange={(e) => setForm((f) => ({ ...f, requiredDate: e.target.value }))} />
-            </div>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Specification</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.specification} onChange={(e) => setForm((f) => ({ ...f, specification: e.target.value }))} />
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Item description</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.itemDescription} onChange={(e) => setForm((f) => ({ ...f, itemDescription: e.target.value }))} />
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Remarks</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className={historyStyles.button} disabled={creating} onClick={(e) => handleCreate(e, false)}>
+              </Select>
+            </Field>
+            <Field label="Item name">
+              <Input value={form.itemName} onChange={(e) => setForm((f) => ({ ...f, itemName: e.target.value }))} required />
+            </Field>
+            <Field label="Part number / Model">
+              <Input value={form.partNumber} onChange={(e) => setForm((f) => ({ ...f, partNumber: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <FieldRow>
+            <Field label="Quantity">
+              <Input type="number" min="1" value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))} />
+            </Field>
+            <Field label="Preferred brand / OEM">
+              <Input value={form.preferredBrand} onChange={(e) => setForm((f) => ({ ...f, preferredBrand: e.target.value }))} />
+            </Field>
+            <Field label="Estimated cost">
+              <Input type="number" min="0" value={form.estimatedCost} onChange={(e) => setForm((f) => ({ ...f, estimatedCost: e.target.value }))} />
+            </Field>
+            <Field label="Required date">
+              <Input type="date" value={form.requiredDate} onChange={(e) => setForm((f) => ({ ...f, requiredDate: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <Field label="Specification">
+            <Textarea rows={2} value={form.specification} onChange={(e) => setForm((f) => ({ ...f, specification: e.target.value }))} />
+          </Field>
+          <Field label="Item description">
+            <Textarea rows={2} value={form.itemDescription} onChange={(e) => setForm((f) => ({ ...f, itemDescription: e.target.value }))} />
+          </Field>
+          <Field label="Remarks">
+            <Textarea rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
+          </Field>
+          <div className={historyStyles.rowActionsInline}>
+            <ToolbarButton disabled={creating} onClick={(e) => handleCreate(e, false)}>
               {creating ? 'Saving…' : 'Save as draft'}
-            </button>
+            </ToolbarButton>
             <button type="button" className={calcStyles.btn} disabled={creating} onClick={(e) => handleCreate(e, true)}>
               {creating ? 'Submitting…' : 'Submit for review'}
             </button>
@@ -179,21 +186,21 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
         </form>
       )}
 
-      <div className={historyStyles.toolbar}>
+      <FilterBar>
         <input type="text" placeholder="Search request code, item, part number…" value={fSearch} onChange={(e) => setFSearch(e.target.value)} />
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fProject} onChange={(e) => setFProject(e.target.value)}>
+        <Select auto value={fProject} onChange={(e) => setFProject(e.target.value)}>
           <option value="">All projects</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsBomRequestStatus | '')}>
+        </Select>
+        <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsBomRequestStatus | '')}>
           <option value="">All statuses</option>
           {(Object.keys(TMS_BOM_STATUS_LABEL) as TmsBomRequestStatus[]).map((s) => (
             <option key={s} value={s}>{TMS_BOM_STATUS_LABEL[s]}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
       {loading ? (
@@ -201,44 +208,18 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
       ) : loadFailed ? (
         <ErrorState message="Could not load BOM requests — check your connection and try again." onRetry={load} />
       ) : (
-        <table className={historyStyles.table}>
-          <thead>
-            <tr>
-              <th>Request</th>
-              <th>Project</th>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Requested By</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={7}>
-                  <EmptyState
-                    icon={FileText}
-                    title={records.length === 0 ? 'No BOM requests yet' : 'No requests match your filters'}
-                    message={records.length === 0 ? 'Create a request to start tracking material requirements.' : 'Try clearing a filter or search term.'}
-                  />
-                </td>
-              </tr>
-            ) : (
-              filtered.map((r) => (
-                <tr key={r.id}>
-                  <td className={historyStyles.num}>{r.bom_request_code}</td>
-                  <td>{r.project_name}</td>
-                  <td>{r.item_name}</td>
-                  <td>{r.quantity}</td>
-                  <td>{r.requested_by_name || '-'}</td>
-                  <td><StatusBadge tone={TMS_BOM_STATUS_TONE[r.status]} label={TMS_BOM_STATUS_LABEL[r.status]} /></td>
-                  <td><Link className={historyStyles.button} href={`/tms/bom-requests/${r.id}`}>View</Link></td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <Table
+          columns={columns}
+          rows={filtered}
+          rowKey={(r) => r.id}
+          empty={
+            <EmptyState
+              icon={FileText}
+              title={records.length === 0 ? 'No BOM requests yet' : 'No requests match your filters'}
+              message={records.length === 0 ? 'Create a request to start tracking material requirements.' : 'Try clearing a filter or search term.'}
+            />
+          }
+        />
       )}
     </AppShell>
   );

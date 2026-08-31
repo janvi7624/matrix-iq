@@ -322,7 +322,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
             {attentionLoading ? (
               'Checking…'
             ) : (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span className={styles.attentionAllCaughtUp}>
                 <ALL_CAUGHT_UP_ICON size={16} /> You&apos;re all caught up.
               </span>
             )}
@@ -390,9 +390,9 @@ export default function Dashboard({ currentUser }: DashboardProps) {
             </div>
             {/* Legend, so the band colours are readable without opening a gauge. */}
             <div className={styles.healthLegend}>
-              <span className={styles.legendItem}><i style={{ background: 'var(--mx-danger)' }} /> Below 40</span>
-              <span className={styles.legendItem}><i style={{ background: 'var(--mx-warning)' }} /> 40–69</span>
-              <span className={styles.legendItem}><i style={{ background: 'var(--mx-success)' }} /> 70+</span>
+              <span className={styles.legendItem}><i className={styles.legendDotDanger} /> Below 40</span>
+              <span className={styles.legendItem}><i className={styles.legendDotWarning} /> 40–69</span>
+              <span className={styles.legendItem}><i className={styles.legendDotSuccess} /> 70+</span>
             </div>
           </div>
           <div className={styles.healthGrid}>

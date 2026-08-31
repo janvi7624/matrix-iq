@@ -239,8 +239,7 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
           <div className={styles.small}>{aspectSuggestion ? aspectSuggestion.text : 'Enter height and width to see an aspect ratio suggestion.'}</div>
           <button
             type="button"
-            className={styles.secondaryButton}
-            style={{ marginTop: 8 }}
+            className={`${styles.secondaryButton} ${styles.mt8}`}
             onClick={() => {
               if (aspectSuggestion) setHeight(Number(aspectSuggestion.suggestedHeight.toFixed(2)));
             }}

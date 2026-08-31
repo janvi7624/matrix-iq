@@ -9,6 +9,13 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import SubmitButton from './ui/SubmitButton';
+import FilterBar from './ui/FilterBar';
+import ToolbarButton from './ui/ToolbarButton';
+import Table, { TableColumn } from './ui/Table';
 
 const EMPTY_FORM = { projectId: '', poNumber: '', poDate: '', amount: '', advanceReceived: '', paymentTerms: '', attachmentUrl: '' };
 
@@ -117,101 +124,74 @@ export default function PoView({ currentUser }: PoViewProps) {
     );
   }
 
+  const columns: TableColumn<PoRecord>[] = [
+    { key: 'project', header: 'Project', render: (r) => <Link href={`/projects/${r.project_id}`}>{r.project_id}</Link> },
+    { key: 'poNumber', header: 'PO Number', render: (r) => r.po_number },
+    { key: 'poDate', header: 'PO Date', render: (r) => formatDate(r.po_date) },
+    { key: 'amount', header: 'Amount', cellClassName: historyStyles.amount, render: (r) => r.amount.toLocaleString('en-IN') },
+    { key: 'advance', header: 'Advance', cellClassName: historyStyles.amount, render: (r) => r.advance_received.toLocaleString('en-IN') },
+    { key: 'balance', header: 'Balance', cellClassName: historyStyles.amount, render: (r) => Math.max(0, r.amount - r.advance_received).toLocaleString('en-IN') },
+    { key: 'paymentTerms', header: 'Payment Terms', render: (r) => r.payment_terms || '-' },
+    { key: 'attachment', header: 'Attachment', render: (r) => (r.attachment_url ? <a href={r.attachment_url} target="_blank" rel="noreferrer">View</a> : '-') },
+    {
+      key: 'actions',
+      header: '',
+      render: (r) => isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>Delete</button>
+    }
+  ];
+
   return (
     <AppShell title="Purchase Orders" subtitle="PO number, amount, advance received, and payment terms per project.">
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Log a PO</h2>
+        <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Log a PO</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Project *</label>
-              <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
+          <FieldRow>
+            <Field label="Project *">
+              <Select value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
                 <option value="">-- Select project --</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.id} — {p.company || p.client_name}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>PO number *</label>
-              <input className={calcStyles.formControl} value={form.poNumber} onChange={(e) => setForm((f) => ({ ...f, poNumber: e.target.value }))} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>PO date</label>
-              <input type="date" className={calcStyles.formControl} value={form.poDate} onChange={(e) => setForm((f) => ({ ...f, poDate: e.target.value }))} />
-            </div>
-          </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Amount</label>
-              <input type="number" className={calcStyles.formControl} value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Advance received</label>
-              <input type="number" className={calcStyles.formControl} value={form.advanceReceived} onChange={(e) => setForm((f) => ({ ...f, advanceReceived: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Payment terms</label>
-              <input className={calcStyles.formControl} value={form.paymentTerms} onChange={(e) => setForm((f) => ({ ...f, paymentTerms: e.target.value }))} />
-            </div>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Attachment</label>
+              </Select>
+            </Field>
+            <Field label="PO number *">
+              <Input value={form.poNumber} onChange={(e) => setForm((f) => ({ ...f, poNumber: e.target.value }))} required />
+            </Field>
+            <Field label="PO date">
+              <Input type="date" value={form.poDate} onChange={(e) => setForm((f) => ({ ...f, poDate: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <FieldRow>
+            <Field label="Amount">
+              <Input type="number" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
+            </Field>
+            <Field label="Advance received">
+              <Input type="number" value={form.advanceReceived} onChange={(e) => setForm((f) => ({ ...f, advanceReceived: e.target.value }))} />
+            </Field>
+            <Field label="Payment terms">
+              <Input value={form.paymentTerms} onChange={(e) => setForm((f) => ({ ...f, paymentTerms: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <Field label="Attachment">
             <input type="file" disabled={uploading} onChange={(e) => handleAttachment(e.target.files?.[0] || null)} />
             {uploading && <div className={calcStyles.small}>Uploading…</div>}
             {form.attachmentUrl && <div className={calcStyles.small}><a href={form.attachmentUrl} target="_blank" rel="noreferrer">View uploaded file</a></div>}
-          </div>
-          <button type="submit" className={calcStyles.btn} disabled={creating}>
-            {creating ? 'Saving…' : 'Log PO'}
-          </button>
+          </Field>
+          <SubmitButton disabled={creating}>{creating ? 'Saving…' : 'Log PO'}</SubmitButton>
         </form>
 
-        <div className={historyStyles.toolbar} style={{ marginTop: 24 }}>
-          <button type="button" className={historyStyles.button} onClick={handleExportPdf}>Export PDF</button>
-          <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
-          <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
-        </div>
+        <FilterBar className={historyStyles.toolbarSpaced}>
+          <ToolbarButton onClick={handleExportPdf}>Export PDF</ToolbarButton>
+          <ToolbarButton onClick={() => window.print()}>Print</ToolbarButton>
+          <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+        </FilterBar>
         <div className={historyStyles.status}>{status}</div>
         {loaded && (
-          <table className={historyStyles.table}>
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>PO Number</th>
-                <th>PO Date</th>
-                <th>Amount</th>
-                <th>Advance</th>
-                <th>Balance</th>
-                <th>Payment Terms</th>
-                <th>Attachment</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className={historyStyles.empty}>No POs logged yet.</td>
-                </tr>
-              ) : (
-                records.map((r) => (
-                  <tr key={r.id}>
-                    <td><Link href={`/projects/${r.project_id}`}>{r.project_id}</Link></td>
-                    <td>{r.po_number}</td>
-                    <td>{formatDate(r.po_date)}</td>
-                    <td className={historyStyles.amount}>{r.amount.toLocaleString('en-IN')}</td>
-                    <td className={historyStyles.amount}>{r.advance_received.toLocaleString('en-IN')}</td>
-                    <td className={historyStyles.amount}>{Math.max(0, r.amount - r.advance_received).toLocaleString('en-IN')}</td>
-                    <td>{r.payment_terms || '-'}</td>
-                    <td>{r.attachment_url ? <a href={r.attachment_url} target="_blank" rel="noreferrer">View</a> : '-'}</td>
-                    <td>
-                      {isPrivileged && (
-                        <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>Delete</button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <Table
+            columns={columns}
+            rows={records}
+            rowKey={(r) => r.id}
+            empty={<div className={historyStyles.empty}>No POs logged yet.</div>}
+          />
         )}
     </AppShell>
   );

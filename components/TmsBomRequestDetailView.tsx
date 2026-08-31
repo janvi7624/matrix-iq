@@ -12,6 +12,7 @@ import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { usePrompt } from './ui/PromptDialog';
 import EmptyState from './ui/EmptyState';
+import styles from './tmsDetail.module.css';
 import { Paperclip } from 'lucide-react';
 
 function formatDate(iso: string): string {
@@ -203,7 +204,7 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
 
   return (
     <AppShell title={record.item_name} subtitle={`${record.bom_request_code} · ${record.project_name}`} showBackLink>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className={styles.headerRowTight}>
         <StatusBadge tone={TMS_BOM_STATUS_TONE[record.status]} label={TMS_BOM_STATUS_LABEL[record.status]} />
         <Link className={historyStyles.button} href="/tms/bom-requests">Back to BOM Requests</Link>
         {record.status === 'draft' && (
@@ -242,7 +243,7 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
       </div>
 
       {pendingLabel && (
-        <div className={historyStyles.status} style={{ marginBottom: 16 }}>
+        <div className={`${historyStyles.status} ${styles.panelSpaced16}`}>
           {pendingLabel}
         </div>
       )}
@@ -263,42 +264,42 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
           <div><strong>Quantity:</strong> {record.quantity}</div>
           <div><strong>Preferred brand / OEM:</strong> {record.preferred_brand || '-'}</div>
         </div>
-        <div style={{ marginTop: 12 }}><strong>Specification:</strong> {record.specification || '-'}</div>
-        <div style={{ marginTop: 12 }}><strong>Item description:</strong> {record.item_description || '-'}</div>
-        <div style={{ marginTop: 12 }}><strong>Remarks:</strong> {record.remarks || '-'}</div>
+        <div className={styles.infoRow}><strong>Specification:</strong> {record.specification || '-'}</div>
+        <div className={styles.infoRow}><strong>Item description:</strong> {record.item_description || '-'}</div>
+        <div className={styles.infoRow}><strong>Remarks:</strong> {record.remarks || '-'}</div>
         {record.status === 'rejected' && (
-          <div style={{ marginTop: 12, color: 'var(--mx-danger)' }}><strong>Rejection reason:</strong> {record.rejection_reason || '-'}</div>
+          <div className={styles.infoRowDanger}><strong>Rejection reason:</strong> {record.rejection_reason || '-'}</div>
         )}
         {record.reviewed_by_name && (
-          <div style={{ marginTop: 12 }}><strong>Reviewed by (Technical Manager):</strong> {record.reviewed_by_name} on {formatDate(record.reviewed_at)}</div>
+          <div className={styles.infoRow}><strong>Reviewed by (Technical Manager):</strong> {record.reviewed_by_name} on {formatDate(record.reviewed_at)}</div>
         )}
         {record.admin_reviewed_by_name && (
-          <div style={{ marginTop: 12 }}><strong>Approved by (Administration):</strong> {record.admin_reviewed_by_name} on {formatDate(record.admin_reviewed_at)}</div>
+          <div className={styles.infoRow}><strong>Approved by (Administration):</strong> {record.admin_reviewed_by_name} on {formatDate(record.admin_reviewed_at)}</div>
         )}
         {record.finance_reviewed_by_name && (
-          <div style={{ marginTop: 12 }}><strong>Approved by (Finance):</strong> {record.finance_reviewed_by_name} on {formatDate(record.finance_reviewed_at)}</div>
+          <div className={styles.infoRow}><strong>Approved by (Finance):</strong> {record.finance_reviewed_by_name} on {formatDate(record.finance_reviewed_at)}</div>
         )}
         {record.payment_marked_by_name && (
-          <div style={{ marginTop: 12 }}><strong>Payment marked by (Accounts):</strong> {record.payment_marked_by_name} on {formatDate(record.payment_marked_at)}</div>
+          <div className={styles.infoRow}><strong>Payment marked by (Accounts):</strong> {record.payment_marked_by_name} on {formatDate(record.payment_marked_at)}</div>
         )}
         {record.received_by_name && (
-          <div style={{ marginTop: 12 }}><strong>Material received by:</strong> {record.received_by_name} on {formatDate(record.received_at)}</div>
+          <div className={styles.infoRow}><strong>Material received by:</strong> {record.received_by_name} on {formatDate(record.received_at)}</div>
         )}
       </div>
 
       {record.status === 'finance_approved' && isAccountsManager && (
-        <div className={calcStyles.sectionPanel} style={{ marginTop: 18 }}>
+        <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop18}`}>
           <div className={calcStyles.h2}>Mark Payment Done</div>
-          <div className={calcStyles.small} style={{ marginBottom: 8 }}>Attach a payment proof (receipt, transfer confirmation, etc.) to mark this request paid.</div>
+          <div className={`${calcStyles.small} ${calcStyles.smallSpaced}`}>Attach a payment proof (receipt, transfer confirmation, etc.) to mark this request paid.</div>
           <input type="file" multiple disabled={uploadingProof} onChange={(e) => handleMarkPayment(e.target.files)} />
           {uploadingProof && <div className={historyStyles.status}>Uploading…</div>}
         </div>
       )}
 
       {record.payment_proof_attachments.length > 0 && (
-        <div className={calcStyles.sectionPanel} style={{ marginTop: 18 }}>
+        <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop18}`}>
           <div className={calcStyles.h2}>Payment Proof</div>
-          <ul style={{ marginTop: 12 }}>
+          <ul className={styles.attachmentList}>
             {record.payment_proof_attachments.map((url) => (
               <li key={url}>
                 <a href={url} target="_blank" rel="noreferrer">{url.split('/').pop()}</a>
@@ -308,14 +309,14 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
         </div>
       )}
 
-      <div className={calcStyles.sectionPanel} style={{ marginTop: 18 }}>
+      <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop18}`}>
         <div className={calcStyles.h2}>Attachments</div>
         <input type="file" multiple disabled={uploading} onChange={(e) => handleUpload(e.target.files)} />
         {uploading && <div className={historyStyles.status}>Uploading…</div>}
         {record.attachments.length === 0 ? (
           <EmptyState icon={Paperclip} title="No attachments yet" message="Upload a quotation, spec sheet, or reference document above." />
         ) : (
-          <ul style={{ marginTop: 12 }}>
+          <ul className={styles.attachmentList}>
             {record.attachments.map((url) => (
               <li key={url}>
                 <a href={url} target="_blank" rel="noreferrer">{url.split('/').pop()}</a>

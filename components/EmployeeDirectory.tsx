@@ -474,7 +474,7 @@ export default function EmployeeDirectory({
       )}
 
       {loading ? (
-        <div className={styles.tableWrap} style={{ padding: 14 }}>
+        <div className={`${styles.tableWrap} ${styles.tableWrapPadded}`}>
           <SkeletonRows rows={6} columns={5} />
         </div>
       ) : sorted.length === 0 ? (
@@ -636,7 +636,7 @@ export default function EmployeeDirectory({
 
                   {isActivityOpen && (
                     <div className={styles.cardMeta}>
-                      <div style={{ gridColumn: '1 / -1' }}><ActivityPanel user={user} /></div>
+                      <div className={styles.cardMetaFullSpan}><ActivityPanel user={user} /></div>
                     </div>
                   )}
                 </div>

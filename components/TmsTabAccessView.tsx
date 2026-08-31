@@ -84,7 +84,7 @@ export default function TmsTabAccessView({ currentUser }: TmsTabAccessViewProps)
             {sortedRoles.map((role) => (
               <Fragment key={role.id}>
                 <tr>
-                  <td className={historyStyles.permModuleCell} colSpan={modules.length + 1} style={{ background: '#f8f9fb' }}>
+                  <td className={`${historyStyles.permModuleCell} ${historyStyles.permGroupRow}`} colSpan={modules.length + 1}>
                     <strong>{TMS_ROLE_LABEL[role.key] || role.label}</strong>
                   </td>
                 </tr>

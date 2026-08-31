@@ -16,6 +16,14 @@ import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import SubmitButton from './ui/SubmitButton';
+import FilterBar from './ui/FilterBar';
+import ToolbarButton from './ui/ToolbarButton';
+import Table, { TableColumn } from './ui/Table';
 
 const EMPTY_FORM = {
   name: '',
@@ -132,45 +140,65 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     }
   }
 
+  const columns: TableColumn<TmsProjectRecord>[] = [
+    { key: 'project', header: 'Project', cellClassName: historyStyles.num, render: (p) => <>{p.project_code}<div>{p.name}</div></> },
+    { key: 'client', header: 'Client', render: (p) => p.client_name || '-' },
+    { key: 'department', header: 'Department', render: (p) => p.department_name },
+    { key: 'manager', header: 'Manager', render: (p) => p.project_manager_name || '-' },
+    { key: 'engineers', header: 'Engineers', render: (p) => (p.team_member_names.length ? p.team_member_names.join(', ') : '-') },
+    { key: 'status', header: 'Status', render: (p) => <StatusBadge tone={TMS_PROJECT_STATUS_TONE[p.status]} label={TMS_PROJECT_STATUS_LABEL[p.status]} /> },
+    { key: 'priority', header: 'Priority', render: (p) => <PriorityBadge tone={TMS_PRIORITY_TONE[p.priority]} label={TMS_PRIORITY_LABEL[p.priority]} /> },
+    {
+      key: 'progress',
+      header: 'Progress',
+      render: (p) => (
+        <>
+          <div className={historyStyles.progressTrack}>
+            <div className={historyStyles.progressFill} style={{ width: `${p.progress_percent}%` }} />
+          </div>
+          <div className={historyStyles.progressLabel}>{p.progress_percent}%</div>
+        </>
+      )
+    },
+    { key: 'estClose', header: 'Est. Close', render: (p) => formatDate(p.estimated_close_date) },
+    { key: 'actions', header: '', render: (p) => <Link className={historyStyles.button} href={`/tms/projects/${p.id}`}>View</Link> }
+  ];
+
   return (
     <AppShell title="TMS Projects" subtitle="Technical execution projects — team, budget, status, and progress.">
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+      <div className={historyStyles.actionRow}>
         <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
           {showForm ? 'Cancel' : '+ New Project'}
         </button>
-        <button type="button" className={historyStyles.button} onClick={load}>
+        <ToolbarButton onClick={load}>
           Refresh
-        </button>
+        </ToolbarButton>
       </div>
 
       {showForm && (
-        <form className={calcStyles.sectionPanel} onSubmit={handleCreate} style={{ marginBottom: 20 }}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Project name</label>
-              <input className={calcStyles.formControl} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Department</label>
-              <select className={calcStyles.formControl} value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value }))} required>
+        <form className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`} onSubmit={handleCreate}>
+          <FieldRow>
+            <Field label="Project name">
+              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+            </Field>
+            <Field label="Department">
+              <Select value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value }))} required>
                 <option value="">Select department</option>
                 {tmsDepartments.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Project Manager / Technical Manager</label>
-              <select className={calcStyles.formControl} value={form.projectManagerId} onChange={(e) => setForm((f) => ({ ...f, projectManagerId: e.target.value }))}>
+              </Select>
+            </Field>
+            <Field label="Project Manager / Technical Manager">
+              <Select value={form.projectManagerId} onChange={(e) => setForm((f) => ({ ...f, projectManagerId: e.target.value }))}>
                 <option value="">Unassigned</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>{u.name || u.username}</option>
                 ))}
-              </select>
-            </div>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Assign Technical Person{form.teamMemberIds.length ? ` (${form.teamMemberIds.length} selected)` : ''}</label>
+              </Select>
+            </Field>
+          </FieldRow>
+          <Field label={`Assign Technical Person${form.teamMemberIds.length ? ` (${form.teamMemberIds.length} selected)` : ''}`}>
             <PersonPicker
               options={users}
               selectedIds={form.teamMemberIds}
@@ -180,74 +208,64 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
               roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
               emptyMessage="No matching active Technical Team members found."
             />
-          </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Client name</label>
-              <input className={calcStyles.formControl} value={form.clientName} onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Client contact details</label>
-              <input className={calcStyles.formControl} placeholder="Phone / email" value={form.clientContact} onChange={(e) => setForm((f) => ({ ...f, clientContact: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Priority</label>
-              <select className={calcStyles.formControl} value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as TmsPriority }))}>
+          </Field>
+          <FieldRow>
+            <Field label="Client name">
+              <Input value={form.clientName} onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))} />
+            </Field>
+            <Field label="Client contact details">
+              <Input placeholder="Phone / email" value={form.clientContact} onChange={(e) => setForm((f) => ({ ...f, clientContact: e.target.value }))} />
+            </Field>
+            <Field label="Priority">
+              <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as TmsPriority }))}>
                 {(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => (
                   <option key={p} value={p}>{TMS_PRIORITY_LABEL[p]}</option>
                 ))}
-              </select>
-            </div>
-          </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Start date</label>
-              <input type="date" className={calcStyles.formControl} value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Estimated close date</label>
-              <input type="date" className={calcStyles.formControl} value={form.estimatedCloseDate} onChange={(e) => setForm((f) => ({ ...f, estimatedCloseDate: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Budget</label>
-              <input type="number" min="0" className={calcStyles.formControl} value={form.budget} onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))} />
-            </div>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Description</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Notes / Remarks</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
-          </div>
-          <button type="submit" className={calcStyles.btn} disabled={creating}>
-            {creating ? 'Creating…' : 'Create project'}
-          </button>
+              </Select>
+            </Field>
+          </FieldRow>
+          <FieldRow>
+            <Field label="Start date">
+              <Input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+            </Field>
+            <Field label="Estimated close date">
+              <Input type="date" value={form.estimatedCloseDate} onChange={(e) => setForm((f) => ({ ...f, estimatedCloseDate: e.target.value }))} />
+            </Field>
+            <Field label="Budget">
+              <Input type="number" min="0" value={form.budget} onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <Field label="Description">
+            <Textarea rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+          </Field>
+          <Field label="Notes / Remarks">
+            <Textarea rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
+          </Field>
+          <SubmitButton disabled={creating}>{creating ? 'Creating…' : 'Create project'}</SubmitButton>
         </form>
       )}
 
-      <div className={historyStyles.toolbar}>
+      <FilterBar>
         <input type="text" placeholder="Search project code, name, client…" value={fSearch} onChange={(e) => setFSearch(e.target.value)} />
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fDepartment} onChange={(e) => setFDepartment(e.target.value)}>
+        <Select auto value={fDepartment} onChange={(e) => setFDepartment(e.target.value)}>
           <option value="">All departments</option>
           {TMS_DEPARTMENTS.map((d) => (
             <option key={d} value={d}>{d}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsProjectStatus | '')}>
+        </Select>
+        <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsProjectStatus | '')}>
           <option value="">All statuses</option>
           {(Object.keys(TMS_PROJECT_STATUS_LABEL) as TmsProjectStatus[]).map((s) => (
             <option key={s} value={s}>{TMS_PROJECT_STATUS_LABEL[s]}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fPriority} onChange={(e) => setFPriority(e.target.value as TmsPriority | '')}>
+        </Select>
+        <Select auto value={fPriority} onChange={(e) => setFPriority(e.target.value as TmsPriority | '')}>
           <option value="">All priorities</option>
           {(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => (
             <option key={p} value={p}>{TMS_PRIORITY_LABEL[p]}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
       {loading ? (
@@ -255,60 +273,19 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       ) : loadFailed ? (
         <ErrorState message="Could not load TMS projects — check your connection and try again." onRetry={load} />
       ) : (
-        <div className={historyStyles.tableWrap}>
-        <table className={historyStyles.table}>
-          <thead>
-            <tr>
-              <th>Project</th>
-              <th>Client</th>
-              <th>Department</th>
-              <th>Manager</th>
-              <th>Engineers</th>
-              <th>Status</th>
-              <th>Priority</th>
-              <th>Progress</th>
-              <th>Est. Close</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={10}>
-                  <EmptyState
-                    icon={Layers}
-                    title={projects.length === 0 ? 'No TMS projects yet' : 'No projects match your filters'}
-                    message={projects.length === 0 ? 'Create your first technical project to start assigning tasks and tracking work.' : 'Try clearing a filter or search term.'}
-                    action={projects.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Project</button> : undefined}
-                  />
-                </td>
-              </tr>
-            ) : (
-              filtered.map((p) => (
-                <tr key={p.id}>
-                  <td className={historyStyles.num}>{p.project_code}<div>{p.name}</div></td>
-                  <td>{p.client_name || '-'}</td>
-                  <td>{p.department_name}</td>
-                  <td>{p.project_manager_name || '-'}</td>
-                  <td>{p.team_member_names.length ? p.team_member_names.join(', ') : '-'}</td>
-                  <td><StatusBadge tone={TMS_PROJECT_STATUS_TONE[p.status]} label={TMS_PROJECT_STATUS_LABEL[p.status]} /></td>
-                  <td><PriorityBadge tone={TMS_PRIORITY_TONE[p.priority]} label={TMS_PRIORITY_LABEL[p.priority]} /></td>
-                  <td>
-                    <div className={historyStyles.progressTrack}>
-                      <div className={historyStyles.progressFill} style={{ width: `${p.progress_percent}%` }} />
-                    </div>
-                    <div className={historyStyles.progressLabel}>{p.progress_percent}%</div>
-                  </td>
-                  <td>{formatDate(p.estimated_close_date)}</td>
-                  <td>
-                    <Link className={historyStyles.button} href={`/tms/projects/${p.id}`}>View</Link>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        </div>
+        <Table
+          columns={columns}
+          rows={filtered}
+          rowKey={(p) => p.id}
+          empty={
+            <EmptyState
+              icon={Layers}
+              title={projects.length === 0 ? 'No TMS projects yet' : 'No projects match your filters'}
+              message={projects.length === 0 ? 'Create your first technical project to start assigning tasks and tracking work.' : 'Try clearing a filter or search term.'}
+              action={projects.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Project</button> : undefined}
+            />
+          }
+        />
       )}
     </AppShell>
   );
