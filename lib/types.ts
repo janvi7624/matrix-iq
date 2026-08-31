@@ -1376,3 +1376,30 @@ export interface TmsProcurementRecord {
   documents: string[];
   updated_at: string;
 }
+
+// Office Operation Expense Management (HR section) — one line item of the
+// HR/Admin department's own operating spend. `sr_no` is the DB-assigned
+// human-facing serial (see the migration), separate from the UUID `id`.
+export interface OfficeOperationExpenseRecord {
+  id: string;
+  sr_no: number;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  creator_name: string;
+  date: string;
+  usecase: string;
+  // Sub-level of `usecase` — the specific salary under 'Salary', or the
+  // free-typed label under 'Other'. Empty for usecases with no second level.
+  usecase_detail: string;
+  expense_head: string;
+  item_name: string;
+  // Sub-level of `item_name` — the department for 'Department', or (once the
+  // per-item sub-item lists are supplied) the chosen sub-item. See
+  // lib/officeOperationExpenseOptions.ts.
+  item_sub_name: string;
+  // Optional — null when no quantity was entered (e.g. an electricity bill),
+  // which is deliberately distinct from a quantity of 1.
+  item_qty: number | null;
+  amount: number;
+}
