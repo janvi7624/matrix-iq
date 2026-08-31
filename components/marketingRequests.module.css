@@ -1,0 +1,221 @@
+/* components/MarketingRequestsView.tsx — was inline style={{}} objects. */
+
+/* ProductCategoryBadge — background/color/border-color stay inline since
+   they come from getProductCategoryStyle(category), an arbitrary-category-
+   keyed helper; everything else here is fixed. */
+.categoryBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border-style: solid;
+  border-width: 1px;
+}
+
+/* WorkflowStepper */
+.stepperCard {
+  margin: 14px 0 20px;
+  background: var(--mx-surface-sunken);
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--mx-slate-200);
+}
+.stepperTitle {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--mx-slate-500);
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+.stepperRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.stepWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.stepBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--mx-slate-100);
+  color: var(--mx-slate-500);
+  border: 1px solid var(--mx-slate-200);
+  font-size: 12px;
+  font-weight: 600;
+}
+.stepBadgeDone { background: var(--mx-emerald-50); color: var(--mx-emerald-600); border: 1px solid var(--mx-emerald-200); }
+.stepBadgeWarning { background: var(--mx-amber-50); color: var(--mx-warning); border: 1px solid var(--mx-amber-200); }
+.stepBadgeActive { background: var(--mx-blue-50); color: var(--mx-blue-600); border: 1.5px solid var(--mx-blue-300); }
+.stepBadgeBold { font-weight: 700; }
+.stepIndexNum { opacity: 0.5; }
+.stepSub { font-size: 10.5px; opacity: 0.8; font-weight: 500; }
+.stepArrowIcon { color: var(--mx-slate-300); }
+
+/* Row — collapsed table row */
+.clickableRow { cursor: pointer; }
+.titleCell { font-weight: 600; }
+.descriptionPreview {
+  font-size: 12px;
+  color: var(--mx-slate-500);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+.overdueInline { margin-left: 6px; display: inline-flex; align-items: center; gap: 4px; }
+.creatorName { font-weight: 600; color: var(--mx-slate-900); }
+.assignedToText { color: var(--mx-blue-600); font-weight: 500; }
+.unassignedLabel { opacity: 0.5; }
+.technicalMemberText { color: var(--mx-teal-700); font-weight: 500; }
+.noTechAssigned { opacity: 0.4; }
+.deadlineCell { font-size: 12.5px; white-space: nowrap; }
+
+/* Expanded detail wrapper */
+.detailWrap { padding: 8px 4px; width: 100%; }
+
+/* Assignment acceptance gate */
+.acceptanceGate {
+  background: var(--mx-blue-50);
+  border: 1.5px solid var(--mx-blue-200);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.gateTitle { display: flex; align-items: center; gap: 8px; color: var(--mx-info); font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.gateBody { font-size: 13px; color: var(--mx-blue-900); }
+.gateActions { display: flex; gap: 8px; }
+
+/* 3-way context summary bar */
+.contextGrid { margin-bottom: 14px; margin-top: 0; }
+.contextCardRequester { background: var(--mx-surface-sunken); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--mx-slate-200); }
+.contextCardMarketing { background: var(--mx-green-50); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--mx-green-200); }
+.contextCardTechnical { background: var(--mx-teal-50); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--mx-teal-200); }
+.contextCardReminder { background: var(--mx-orange-50); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--mx-orange-200); }
+.contextLabelSlate { font-size: 11px; font-weight: 700; color: var(--mx-slate-500); text-transform: uppercase; }
+.contextLabelGreen { font-size: 11px; font-weight: 700; color: var(--mx-green-800); text-transform: uppercase; }
+.contextLabelTeal { font-size: 11px; font-weight: 700; color: var(--mx-teal-700); text-transform: uppercase; }
+.contextLabelOrange { font-size: 11px; font-weight: 700; color: var(--mx-orange-800); text-transform: uppercase; }
+.contextValueSlate { font-size: 14px; font-weight: 700; color: var(--mx-slate-900); margin-top: 2px; }
+.contextValueGreen { font-size: 14px; font-weight: 700; color: var(--mx-green-900); margin-top: 2px; }
+.contextValueTeal { font-size: 14px; font-weight: 700; color: var(--mx-teal-900); margin-top: 2px; }
+.contextMetaSlate { font-size: 11.5px; color: var(--mx-slate-500); }
+.contextMetaGreen { font-size: 11.5px; color: var(--mx-green-800); }
+.contextMetaTeal { font-size: 11.5px; color: var(--mx-teal-700); }
+.contextMetaOrange { font-size: 11.5px; color: var(--mx-orange-800); margin-top: 4px; }
+
+/* SECTION 1: Original Request Details */
+.rowHeaderBetween { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.iconBlue { color: var(--mx-blue-600); }
+.sectionTitle14 { font-weight: 700; font-size: 14px; }
+.originalReqBody { font-size: 13.5px; color: var(--mx-slate-800); white-space: pre-wrap; line-height: 1.5; margin-bottom: 10px; }
+.additionalInfoBox { font-size: 12.5px; color: var(--mx-slate-600); background: var(--mx-slate-100); padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; }
+.linkedProjectLine { font-size: 12.5px; margin-bottom: 8px; }
+.attachmentsLabel { font-size: 12px; font-weight: 600; color: var(--mx-slate-500); margin-bottom: 4px; }
+
+/* SECTION 2: Technical review banners */
+.warningBanner { background: var(--mx-amber-50); border: 1.5px solid var(--mx-amber-200); border-radius: 10px; padding: 14px 16px; }
+.warningBannerTitle { display: flex; align-items: center; gap: 8px; color: var(--mx-warning); font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+.warningBannerBody { font-size: 13px; color: var(--mx-amber-900); background: rgba(255, 255, 255, 0.7); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--mx-amber-100); white-space: pre-wrap; }
+.warningBannerFooter { font-size: 11.5px; color: var(--mx-amber-800); margin-top: 6px; }
+.successBanner { background: var(--mx-emerald-50); border: 1.5px solid var(--mx-emerald-200); border-radius: 10px; padding: 14px 16px; }
+.successBannerTitle { display: flex; align-items: center; gap: 8px; color: var(--mx-emerald-700); font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.successBannerBody { font-size: 13px; color: var(--mx-emerald-800); }
+.successBannerFooter { font-size: 11.5px; color: var(--mx-emerald-700); margin-top: 4px; }
+
+/* SECTION 3: Marketing Workspace */
+.workspaceAccent { border-left: 4px solid var(--mx-blue-600); }
+.workspaceHeaderRow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.workspaceFieldSpacer { margin-top: 10px; margin-bottom: 14px; }
+.attachmentThumbWrap { position: relative; display: inline-block; }
+.workspaceActionBar { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--mx-slate-200); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.techVerifierAssigned { font-size: 13px; color: var(--mx-teal-700); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.techVerifierPending { font-size: 12.5px; color: var(--mx-warning); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.lockedPanel { background: var(--mx-surface-sunken); border: 1.5px solid var(--mx-slate-200); border-radius: 10px; padding: 14px 16px; }
+.lockedPanelTitle { display: flex; align-items: center; gap: 8px; color: var(--mx-slate-700); font-weight: 700; font-size: 13.5px; margin-bottom: 4px; }
+.lockIconColor { color: var(--mx-slate-500); }
+.lockedPanelBody { font-size: 12.5px; color: var(--mx-slate-500); }
+
+/* Marketing prepared content, read-only display */
+.readOnlyContentTitle { font-size: 13px; font-weight: 700; color: var(--mx-slate-700); margin-bottom: 6px; }
+.readOnlyContentBody { font-size: 13px; color: var(--mx-slate-800); white-space: pre-wrap; line-height: 1.5; }
+.readOnlyRemark { font-size: 12px; color: var(--mx-slate-500); margin-top: 6px; }
+.readOnlyInstructions { font-size: 12px; color: var(--mx-slate-500); margin-top: 4px; }
+
+/* SECTION 4: Technical Team Member Action Box */
+.techReviewBox { background: var(--mx-teal-50); border: 1.5px solid var(--mx-teal-200); border-radius: 10px; padding: 16px; }
+.techReviewHeaderLeft { display: flex; align-items: center; gap: 8px; color: var(--mx-teal-700); font-weight: 700; font-size: 14px; }
+.techReviewAssignedTo { font-size: 12px; color: var(--mx-teal-700); font-weight: 600; }
+.techReviewIntro { font-size: 13px; color: var(--mx-teal-900); margin: 4px 0 12px; }
+.changesDialogBox { background: var(--mx-surface); padding: 12px; border-radius: 8px; border: 1px solid var(--mx-rose-200); margin-top: 10px; }
+.changesDialogLabel { color: var(--mx-rose-700); }
+
+/* SECTION 5: Final Submission to Original Requester */
+.finalSubmissionBox { background: var(--mx-purple-50); border: 1.5px solid var(--mx-purple-200); border-radius: 10px; padding: 16px; }
+.finalSubmissionHeader { display: flex; align-items: center; gap: 8px; color: var(--mx-purple-700); font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+.finalSubmissionIntro { font-size: 12.5px; color: var(--mx-purple-800); margin: 0 0 10px; }
+.finalAwaitingBox { background: var(--mx-purple-50); border: 1.5px solid var(--mx-purple-200); border-radius: 10px; padding: 14px 16px; }
+.finalAwaitingTitle { font-size: 13.5px; font-weight: 700; color: var(--mx-purple-700); display: flex; align-items: center; gap: 6px; }
+.finalAwaitingBody { font-size: 12.5px; color: var(--mx-purple-800); margin-top: 4px; }
+
+/* SECTION 6: Completed Deliverables Display */
+.completedBox { background: var(--mx-emerald-50); border: 1.5px solid var(--mx-emerald-200); border-radius: 10px; padding: 16px; }
+.completedDeliveryMsg { font-size: 13px; color: var(--mx-emerald-800); margin-top: 4px; }
+.completedDeliverablesLabel { font-size: 12px; font-weight: 600; color: var(--mx-emerald-700); margin-bottom: 4px; }
+
+/* Manager Team Assignments panel */
+.managerPanelAccent { background: var(--mx-surface-sunken); border: 1.5px solid var(--mx-slate-200); }
+.managerPanelTitle { font-size: 13.5px; font-weight: 700; color: var(--mx-slate-900); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+
+/* SECTION 7: Comments & Collaboration Timeline */
+.commentsSection { margin-top: 16px; }
+.commentsHeader { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13.5px; color: var(--mx-slate-700); margin-bottom: 8px; }
+.noCommentsNote { color: var(--mx-slate-400); font-style: italic; }
+.commentBody { margin-top: 2px; font-size: 13px; }
+.commentInputRow { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.commentInputFlex { flex: 1 1 240px; }
+.deleteSection { margin-top: 18px; border-top: 1px solid var(--mx-slate-100); padding-top: 10px; }
+
+/* Main list view — Triage & Stage quick-metric cards */
+.metricGrid { margin-bottom: 16px; margin-top: 0; }
+.metricCard { text-align: left; cursor: pointer; border: 1px solid var(--mx-slate-200); background: var(--mx-surface); }
+.metricCardActiveBlue { border: 2px solid var(--mx-blue-600); background: var(--mx-blue-50); }
+.metricCardActiveTeal { border: 2px solid var(--mx-teal-700); background: var(--mx-teal-50); }
+.metricCardActiveViolet { border: 2px solid var(--mx-violet-600); background: var(--mx-purple-50); }
+.metricCardActiveGreen { border: 2px solid var(--mx-green-600); background: var(--mx-green-50); }
+.metricCardActiveOrange { border: 2px solid var(--mx-orange-600); background: var(--mx-orange-50); }
+.metricLabelDefault { font-size: 11.5px; color: var(--mx-slate-500); font-weight: 600; }
+.metricLabelBlue { font-size: 11.5px; color: var(--mx-blue-600); font-weight: 700; }
+.metricLabelTeal { font-size: 11.5px; color: var(--mx-teal-700); font-weight: 700; }
+.metricLabelViolet { font-size: 11.5px; color: var(--mx-violet-600); font-weight: 700; }
+.metricLabelGreen { font-size: 11.5px; color: var(--mx-green-600); font-weight: 700; }
+.metricLabelOrange { font-size: 11.5px; color: var(--mx-orange-600); font-weight: 700; }
+.metricValueDefault { font-size: 22px; font-weight: 800; color: var(--mx-slate-900); }
+.metricValueInfo { font-size: 22px; font-weight: 800; color: var(--mx-info); }
+.metricValueTeal { font-size: 22px; font-weight: 800; color: var(--mx-teal-700); }
+.metricValueViolet { font-size: 22px; font-weight: 800; color: var(--mx-violet-700); }
+.metricValueSuccess { font-size: 22px; font-weight: 800; color: var(--mx-success); }
+.metricValueOrange { font-size: 22px; font-weight: 800; color: var(--mx-orange-700); }
+
+/* Search & Filter Toolbar */
+.selectAuto { width: auto; }
+.dueOnlyLabel { display: flex; align-items: center; gap: 6px; font-size: 13.5px; white-space: nowrap; }
+.refreshIconSpacing { margin-right: 4px; }

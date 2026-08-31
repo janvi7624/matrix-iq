@@ -1,0 +1,33 @@
+/* components/LeadBulkImportWizard.tsx — was inline style={{}} objects. */
+
+.choiceRow { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.choiceCard { flex: 1 1 220px; cursor: pointer; text-align: left; }
+.brandIcon { color: var(--mx-brand); }
+.choiceCardTitle { font-weight: 700; margin-top: 8px; }
+.topActions { margin-top: 16px; }
+.iconMarginRight { margin-right: 4px; }
+.cancelBtnSpaced { margin-left: 8px; }
+.hiddenInput { display: none; }
+
+.mappingWarning { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-top: 10px; border-radius: 8px; background: var(--mx-danger-subtle); color: var(--mx-danger); font-size: 13px; }
+.mappingTable { margin-top: 12px; }
+.headerCell { font-weight: 600; }
+
+.actionsRow16 { display: flex; gap: 8px; margin-top: 16px; }
+
+.jobList { margin-top: 12px; }
+.jobRow { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--mx-border); }
+.successColor { color: var(--mx-success); }
+.mutedColor { color: var(--mx-ink-faint); }
+.jobFileName { flex: 1; }
+
+.summaryRow { display: flex; gap: 12px; margin-top: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.summaryTile { flex: 1; min-width: 100px; text-align: center; }
+.summaryTileValue { font-size: 22px; font-weight: 800; }
+.summaryTileValueSuccess { composes: summaryTileValue; color: var(--mx-success); }
+.summaryTileValueWarning { composes: summaryTileValue; color: var(--mx-warning); }
+.summaryTileValueDanger { composes: summaryTileValue; color: var(--mx-danger); }
+
+.statusBadgeValid { background: var(--mx-success-subtle, #dcfce7); color: var(--mx-success); }
+.statusBadgeDuplicate { background: var(--mx-warning-subtle, #fef3c7); color: var(--mx-warning); }
+.statusBadgeInvalid { background: var(--mx-danger-subtle, #fee2e2); color: var(--mx-danger); }

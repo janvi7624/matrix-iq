@@ -1,0 +1,20 @@
+/* components/MarketingRequestWizard.tsx — was inline style={{}} objects. */
+
+.mt16 { margin-top: 16px; }
+.mt20 { margin-top: 20px; }
+.mt24 { margin-top: 24px; }
+.mb16 { margin-bottom: 16px; }
+
+.categoryStrip { display: inline-flex; gap: 8px; align-items: center; background: var(--mx-surface-sunken); padding: 6px 14px; border-radius: 8px; border: 1px solid var(--mx-slate-200); margin-bottom: 16px; }
+.stripLabel { font-size: 13px; color: var(--mx-slate-500); }
+.stripValue { font-size: 13px; font-weight: 600; color: var(--mx-slate-900); }
+.stripDot { margin: 0 4px; color: var(--mx-slate-300); }
+
+.fieldMajor { flex: 1 1 60%; }
+.fieldMinor { flex: 1 1 40%; }
+.categorySelectActive { font-weight: 600; }
+
+.hiddenInput { display: none; }
+.attachmentThumbWrap { position: relative; display: inline-block; }
+
+.categoryPill { padding: 2px 8px; border-radius: 4px; font-weight: 600; }

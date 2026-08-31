@@ -1,0 +1,47 @@
+/* components/ProjectDetailView.tsx — was inline style={{}} objects. Panel/
+   form/table chrome still comes from quotationHistory.module.css and
+   calculator.module.css; these are the file-specific rules. */
+
+.topActionsRow { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.clientNameHeading { font-size: 18px; font-weight: 800; }
+.alertIcon { vertical-align: text-bottom; margin-right: 4px; }
+
+.followUpCardOverdue { border-color: var(--mx-brand); }
+.followUpValueOverdue { color: var(--mx-danger); }
+
+.saveDetailsWrap { margin-top: 4px; margin-bottom: 8px; }
+.rowBetween { display: flex; justify-content: space-between; gap: 8px; }
+
+/* Handover / assign-sales-person panels */
+.actionsRow8 { display: flex; gap: 8px; }
+.actionsRow8Mb14 { composes: actionsRow8; margin-bottom: 14px; }
+
+.amberPanel { margin-bottom: 16px; border-left: 3px solid var(--mx-amber-500); background: var(--mx-amber-50); padding: 16px; border-radius: 8px; }
+.amberPanelTitle { font-weight: 600; margin-bottom: 8px; color: var(--mx-amber-800); }
+.amberPanelBody { font-size: 14px; margin-bottom: 12px; color: var(--mx-amber-900); }
+.amberRemarkNote { margin-top: 6px; padding: 8px 12px; background: var(--mx-amber-100); border-radius: 6px; font-size: 13px; }
+
+.declineFormPanel { background: var(--mx-surface); border: 1px solid var(--mx-amber-400); border-radius: 8px; padding: 14px; }
+.declineFormTitle { font-weight: 500; margin-bottom: 8px; font-size: 14px; color: var(--mx-amber-800); }
+
+.bluePanel { margin-bottom: 16px; border-left: 3px solid var(--mx-blue-500); background: var(--mx-blue-50); padding: 16px; border-radius: 8px; }
+.bluePanelBody { font-size: 14px; color: var(--mx-blue-800); margin-bottom: 10px; }
+
+.indigoPanel { margin-bottom: 16px; border-left: 3px solid var(--mx-indigo-500); padding: 16px; border-radius: 8px; }
+.panelTitle { font-weight: 600; margin-bottom: 12px; }
+
+.acceptBtn { background: var(--mx-green-600); color: var(--mx-surface); border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+.brandActionBtn { background: var(--mx-brand); color: var(--mx-surface); border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+.cancelActionBtn { background: var(--mx-border); color: var(--mx-gray-700); border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; }
+.cancelRequestBtn { background: var(--mx-brand); color: var(--mx-surface); border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.indigoActionBtn { background: var(--mx-indigo-500); color: var(--mx-surface); border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+
+.historyToggleBtn { background: none; border: none; color: var(--mx-indigo-500); cursor: pointer; font-size: 13px; font-weight: 500; padding: 0; text-decoration: underline; }
+.historyList { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.historyLogCard { padding: 10px 14px; background: var(--mx-surface-sunken); border-radius: 6px; border: 1px solid var(--mx-slate-200); font-size: 13px; }
+.historyLogHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.historyStatusBadge { font-weight: 600; font-size: 12px; padding: 2px 8px; border-radius: 4px; }
+.historyLogDate { color: var(--mx-slate-500); font-size: 12px; }
+.historyLogNote { margin-top: 4px; color: var(--mx-slate-600); font-size: 12px; }
+.historyLogResponseNote { margin-top: 4px; color: var(--mx-slate-600); font-size: 12px; font-weight: 500; }
+.historyLogResponseNoteRejected { color: var(--mx-brand); }

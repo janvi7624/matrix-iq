@@ -13,6 +13,7 @@ import TravelScheduleForm, { EMPTY_TRAVEL_EXTRA_FIELDS, travelExtraFieldsFromRec
 import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './travelDetail.module.css';
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -58,10 +59,10 @@ function auditActionLabel(action: string): string {
   return AUDIT_ACTION_LABELS[action] || action;
 }
 
-function auditActionTone(action: string): string {
-  if (action.includes('request_changes')) return 'var(--mx-danger, #dc2626)';
-  if (action.includes('approve') || action === 'complete_booking') return 'var(--mx-success, #16a34a)';
-  return 'var(--mx-brand, #2563eb)';
+function auditActionToneClass(action: string): string {
+  if (action.includes('request_changes')) return styles.auditBarDanger;
+  if (action.includes('approve') || action === 'complete_booking') return styles.auditBarSuccess;
+  return styles.auditBarBrand;
 }
 
 interface TravelScheduleDetailViewProps {
@@ -367,7 +368,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
   return (
     <AppShell title={`Travel Request ${record.request_code}`} subtitle={`${record.origin} → ${record.destination}`} showBackLink>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className={styles.headerRow}>
         <StatusBadge tone={TRAVEL_STATUS_TONE[record.status] || 'pending'} label={TRAVEL_STATUS_LABEL[record.status]} />
         <Link className={historyStyles.button} href="/travel-schedule">Back to Travel Schedule</Link>
 
@@ -411,9 +412,9 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
       {/* Inline action panels — replace window.prompt */}
       {activePanel && (
-        <div className={calcStyles.sectionPanel} style={{ borderLeft: `3px solid ${activePanel.includes('changes') ? 'var(--mx-danger)' : 'var(--mx-primary, #2563eb)'}`, marginBottom: 16, background: 'var(--mx-surface-alt, #f8fafc)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <h4 className={calcStyles.h2} style={{ margin: 0 }}>
+        <div className={`${calcStyles.sectionPanel} ${styles.actionPanel} ${activePanel.includes('changes') ? styles.actionPanelDanger : styles.actionPanelNeutral}`}>
+          <div className={styles.actionPanelHeader}>
+            <h4 className={`${calcStyles.h2} ${calcStyles.h2Reset}`}>
               {activePanel === 'manager_approve' && 'Manager Approval'}
               {activePanel === 'manager_changes' && 'Request Changes (Manager)'}
               {activePanel === 'hr_approve' && 'HR Review & Approval'}
@@ -424,7 +425,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
               {activePanel === 'hr_final_approve' && 'Final Verification & Confirmation'}
               {activePanel === 'hr_final_changes' && 'Send Back for Corrections'}
             </h4>
-            <button type="button" className={historyStyles.button} onClick={() => setActivePanel(null)} style={{ padding: '2px 10px', fontSize: '0.85rem' }}>Cancel</button>
+            <button type="button" className={`${historyStyles.button} ${styles.panelCancelBtn}`} onClick={() => setActivePanel(null)}>Cancel</button>
           </div>
 
           {/* Remarks field - shown for all panels */}
@@ -438,7 +439,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
           {/* Send back to - shown for admin request changes */}
           {activePanel === 'admin_changes' && (
-            <div className={calcStyles.field} style={{ marginTop: 8 }}>
+            <div className={`${calcStyles.field} ${calcStyles.mt8}`}>
               <label className={calcStyles.label}>Send back to *</label>
               <select className={calcStyles.formControl} value={adminSendBackTo} onChange={(e) => setAdminSendBackTo(e.target.value)}>
                 <option value="employee">Employee (for corrections)</option>
@@ -450,7 +451,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
           {/* Cost field - shown for HR approve and booking */}
           {(activePanel === 'hr_approve' || activePanel === 'booking') && (
-            <div className={calcStyles.field} style={{ marginTop: 8 }}>
+            <div className={`${calcStyles.field} ${calcStyles.mt8}`}>
               <label className={calcStyles.label}>{activePanel === 'hr_approve' ? 'Estimated Travel Cost (optional)' : 'Actual Journey Cost (optional)'}</label>
               <input type="number" className={calcStyles.formControl} value={actionCost} onChange={(e) => setActionCost(e.target.value)} placeholder="e.g. 15000" />
             </div>
@@ -458,7 +459,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
           {/* Booking details - shown for booking panel */}
           {activePanel === 'booking' && (
-            <div className={calcStyles.field} style={{ marginTop: 8 }}>
+            <div className={`${calcStyles.field} ${calcStyles.mt8}`}>
               <label className={calcStyles.label}>Booking / Ticket Details *</label>
               <textarea className={calcStyles.formControl} rows={3} value={actionBookingDetails} onChange={(e) => setActionBookingDetails(e.target.value)}
                 placeholder="Enter ticket numbers, PNR, flight/train details, timings..." />
@@ -467,12 +468,12 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
           {/* HR document upload - shown for HR approve */}
           {activePanel === 'hr_approve' && (
-            <div className={calcStyles.field} style={{ marginTop: 8 }}>
+            <div className={`${calcStyles.field} ${calcStyles.mt8}`}>
               <label className={calcStyles.label}>Attach Documents (optional)</label>
               <input type="file" multiple disabled={uploading} onChange={(e) => { handleUploadHrDocs(e.target.files); e.target.value = ''; }} />
               {uploading && <div className={historyStyles.status}>Uploading...</div>}
               {pendingHrDocUrls.length > 0 && (
-                <ul style={{ margin: '4px 0 0', paddingLeft: 20, fontSize: '0.85rem' }}>
+                <ul className={styles.docList}>
                   {pendingHrDocUrls.map((url) => <li key={url}>{url.split('/').pop()}</li>)}
                 </ul>
               )}
@@ -481,45 +482,45 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
           {/* Ticket document upload - shown for booking */}
           {activePanel === 'booking' && (
-            <div className={calcStyles.field} style={{ marginTop: 8 }}>
+            <div className={`${calcStyles.field} ${calcStyles.mt8}`}>
               <label className={calcStyles.label}>Attach Ticket Documents (optional)</label>
               <input type="file" multiple disabled={uploading} onChange={(e) => { handleUploadTicketDocs(e.target.files); e.target.value = ''; }} />
               {uploading && <div className={historyStyles.status}>Uploading...</div>}
               {pendingTicketDocUrls.length > 0 && (
-                <ul style={{ margin: '4px 0 0', paddingLeft: 20, fontSize: '0.85rem' }}>
+                <ul className={styles.docList}>
                   {pendingTicketDocUrls.map((url) => <li key={url}>{url.split('/').pop()}</li>)}
                 </ul>
               )}
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <div className={styles.actionButtonsRow}>
             {activePanel === 'manager_approve' && <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleManagerApprove}>{busy ? 'Processing...' : 'Approve'}</button>}
-            {activePanel === 'manager_changes' && <button type="button" className={calcStyles.btn} disabled={busy} style={{ background: 'var(--mx-danger, #dc2626)' }} onClick={handleManagerRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</button>}
+            {activePanel === 'manager_changes' && <button type="button" className={`${calcStyles.btn} ${styles.dangerActionBtn}`} disabled={busy} onClick={handleManagerRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</button>}
             {activePanel === 'hr_approve' && <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleHrApprove}>{busy ? 'Processing...' : 'Approve & Forward to Admin'}</button>}
-            {activePanel === 'hr_changes' && <button type="button" className={calcStyles.btn} disabled={busy} style={{ background: 'var(--mx-danger, #dc2626)' }} onClick={handleHrRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</button>}
+            {activePanel === 'hr_changes' && <button type="button" className={`${calcStyles.btn} ${styles.dangerActionBtn}`} disabled={busy} onClick={handleHrRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</button>}
             {activePanel === 'admin_approve' && <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleAdminApprove}>{busy ? 'Processing...' : 'Approve & Send to Accounts'}</button>}
-            {activePanel === 'admin_changes' && <button type="button" className={calcStyles.btn} disabled={busy} style={{ background: 'var(--mx-danger, #dc2626)' }} onClick={handleAdminRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</button>}
+            {activePanel === 'admin_changes' && <button type="button" className={`${calcStyles.btn} ${styles.dangerActionBtn}`} disabled={busy} onClick={handleAdminRequestChanges}>{busy ? 'Processing...' : 'Request Changes'}</button>}
             {activePanel === 'booking' && <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleCompleteBooking}>{busy ? 'Processing...' : 'Complete Booking'}</button>}
             {activePanel === 'hr_final_approve' && <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleHrFinalApprove}>{busy ? 'Processing...' : 'Verify & Send to Employee'}</button>}
-            {activePanel === 'hr_final_changes' && <button type="button" className={calcStyles.btn} disabled={busy} style={{ background: 'var(--mx-danger, #dc2626)' }} onClick={handleHrFinalRequestChanges}>{busy ? 'Processing...' : 'Send Back'}</button>}
+            {activePanel === 'hr_final_changes' && <button type="button" className={`${calcStyles.btn} ${styles.dangerActionBtn}`} disabled={busy} onClick={handleHrFinalRequestChanges}>{busy ? 'Processing...' : 'Send Back'}</button>}
             <button type="button" className={historyStyles.button} onClick={() => setActivePanel(null)}>Cancel</button>
           </div>
         </div>
       )}
 
       {record.status === 'changes_requested' && record.change_request_remarks && (
-        <div className={calcStyles.sectionPanel} style={{ borderLeft: '3px solid var(--mx-danger)', marginBottom: 16 }}>
+        <div className={`${calcStyles.sectionPanel} ${styles.changesRequestedPanel}`}>
           <strong>Changes Requested by {record.change_requested_by}:</strong>
-          <div style={{ marginTop: 4 }}>{record.change_request_remarks}</div>
+          <div className={calcStyles.mt4}>{record.change_request_remarks}</div>
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'start' }}>
+      <div className={styles.layoutGrid}>
         <div>
           {editing ? (
             <div className={calcStyles.sectionPanel}>
-              <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>Edit Travel Request</h3>
+              <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Edit Travel Request</h3>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Origin *</label>
@@ -530,7 +531,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                   <input className={calcStyles.formControl} value={editForm.destination} onChange={(e) => setEditForm((f) => ({ ...f, destination: e.target.value }))} required />
                 </div>
               </div>
-              <h4 className={calcStyles.label} style={{ marginTop: 12, marginBottom: 4, fontSize: '0.85rem', opacity: 0.7 }}>When do you need to reach the destination?</h4>
+              <h4 className={`${calcStyles.label} ${styles.subHeading}`}>When do you need to reach the destination?</h4>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Arrival Date *</label>
@@ -541,7 +542,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                   <input type="time" className={calcStyles.formControl} value={editForm.requiredArrivalTime} onChange={(e) => setEditForm((f) => ({ ...f, requiredArrivalTime: e.target.value }))} />
                 </div>
               </div>
-              <h4 className={calcStyles.label} style={{ marginTop: 12, marginBottom: 4, fontSize: '0.85rem', opacity: 0.7 }}>When do you want to leave the destination?</h4>
+              <h4 className={`${calcStyles.label} ${styles.subHeading}`}>When do you want to leave the destination?</h4>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Departure Date</label>
@@ -552,7 +553,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                   <input type="time" className={calcStyles.formControl} value={editForm.expectedDepartureTime} onChange={(e) => setEditForm((f) => ({ ...f, expectedDepartureTime: e.target.value }))} />
                 </div>
               </div>
-              <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 12 }}>
+              <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mt12}`}>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Project</label>
                   <ProjectSelect
@@ -565,7 +566,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                   <input className={calcStyles.formControl} value={editForm.linkedClient} onChange={(e) => setEditForm((f) => ({ ...f, linkedClient: e.target.value }))} />
                 </div>
               </div>
-              <div style={{ marginTop: 8 }}>
+              <div className={calcStyles.mt8}>
                 <TravelScheduleForm
                   value={editForm}
                   onChange={(patch) => setEditForm((f) => ({ ...f, ...patch }))}
@@ -574,7 +575,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                   requesterTravelDate={editForm.startDate}
                 />
               </div>
-              <div className={calcStyles.field} style={{ marginTop: 12 }}>
+              <div className={`${calcStyles.field} ${calcStyles.mt12}`}>
                 <label className={calcStyles.label}>Travel Companions</label>
                 <select
                   className={calcStyles.formControl}
@@ -592,20 +593,20 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                   ))}
                 </select>
                 {editForm.companionIds.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                  <div className={styles.companionPillRow}>
                     {editForm.companionIds.map((id) => {
                       const user = allUsers.find((u) => u.id === id);
                       return (
-                        <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 12, background: 'var(--mx-surface-alt, #e5e7eb)', fontSize: '0.85rem' }}>
+                        <span key={id} className={styles.pillEditable}>
                           {user?.name || user?.username || id}
-                          <button type="button" onClick={() => setEditForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, opacity: 0.6 }}>&times;</button>
+                          <button type="button" onClick={() => setEditForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))} className={styles.pillRemoveBtn}>&times;</button>
                         </span>
                       );
                     })}
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <div className={styles.actionButtonsRow}>
                 <button type="button" className={calcStyles.btn} disabled={saving} onClick={handleSaveEdit}>{saving ? 'Saving...' : 'Save Changes'}</button>
                 <button type="button" className={historyStyles.button} onClick={() => setEditing(false)}>Cancel</button>
               </div>
@@ -614,7 +615,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
             <>
               {/* Travel Details */}
               <div className={calcStyles.sectionPanel}>
-                <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>Travel Details</h3>
+                <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Travel Details</h3>
                 <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                   <div><strong>Origin:</strong> {record.origin || '-'}</div>
                   <div><strong>Destination:</strong> {record.destination}</div>
@@ -630,33 +631,33 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
               </div>
 
               {/* Project & Purpose */}
-              <div className={calcStyles.sectionPanel} style={{ marginTop: 16 }}>
-                <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>Project & Purpose</h3>
+              <div className={`${calcStyles.sectionPanel} ${styles.panelTop16}`}>
+                <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Project & Purpose</h3>
                 <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                   <div><strong>Project:</strong> {record.project_name || '-'}</div>
                   <div><strong>Linked Client:</strong> {record.linked_client || '-'}</div>
                 </div>
-                <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 8 }}>
+                <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mt8}`}>
                   <div><strong>Purpose:</strong> {record.purpose || '-'}{record.purpose === 'Others' && record.purpose_other ? ` — ${record.purpose_other}` : ''}</div>
                   <div><strong>Mode of Travel:</strong> {record.mode_of_travel || '-'}</div>
                 </div>
-                <div style={{ marginTop: 8 }}><strong>Requested By:</strong> {record.created_by} on {formatDate(record.created_at)}</div>
+                <div className={calcStyles.mt8}><strong>Requested By:</strong> {record.created_by} on {formatDate(record.created_at)}</div>
                 {record.companion_names && record.companion_names.length > 0 && (
-                  <div style={{ marginTop: 8 }}>
+                  <div className={calcStyles.mt8}>
                     <strong>Travel Companions:</strong>{' '}
-                    <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6, verticalAlign: 'middle' }}>
+                    <span className={styles.inlinePillGroup}>
                       {record.companion_names.map((name, i) => (
-                        <span key={i} style={{ padding: '2px 8px', borderRadius: 12, background: 'var(--mx-surface-alt, #e5e7eb)', fontSize: '0.85rem' }}>{name}</span>
+                        <span key={i} className={styles.pillBase}>{name}</span>
                       ))}
                     </span>
                   </div>
                 )}
                 {record.co_travellers && record.co_travellers.length > 0 && (
-                  <div style={{ marginTop: 8 }}>
+                  <div className={calcStyles.mt8}>
                     <strong>Co-Travellers:</strong>{' '}
-                    <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6, verticalAlign: 'middle' }}>
+                    <span className={styles.inlinePillGroup}>
                       {record.co_travellers.map((c, i) => (
-                        <span key={i} style={{ padding: '2px 8px', borderRadius: 12, background: 'var(--mx-surface-alt, #e5e7eb)', fontSize: '0.85rem' }}>
+                        <span key={i} className={styles.pillBase}>
                           {c.name}{c.origin && c.destination ? ` (${c.origin} → ${c.destination})` : ''}
                         </span>
                       ))}
@@ -666,12 +667,12 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
               </div>
 
               {(record.hotel_accommodation?.required || record.advance_request?.required) && (
-                <div className={calcStyles.sectionPanel} style={{ marginTop: 16 }}>
-                  <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>Hotel & Advance Requests</h3>
+                <div className={`${calcStyles.sectionPanel} ${styles.panelTop16}`}>
+                  <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Hotel & Advance Requests</h3>
                   {record.hotel_accommodation?.required && (
-                    <div style={{ marginBottom: record.advance_request?.required ? 12 : 0 }}>
+                    <div className={record.advance_request?.required ? styles.hotelBlockSpaced : undefined}>
                       <strong>Hotel Accommodation</strong>
-                      <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 4 }}>
+                      <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mt4}`}>
                         <div>Preferred Area: {record.hotel_accommodation.preferredArea || '-'}</div>
                         <div>Suggested Hotel: {record.hotel_accommodation.suggestedHotel || '-'}</div>
                       </div>
@@ -686,7 +687,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
                   {record.advance_request?.required && (
                     <div>
                       <strong>Advance Request</strong>
-                      <div style={{ marginTop: 4 }}>Requested Amount: {formatCurrency(record.advance_request.requestedAmount)}</div>
+                      <div className={calcStyles.mt4}>Requested Amount: {formatCurrency(record.advance_request.requestedAmount)}</div>
                       {record.advance_request.remark && <div>Remark: {record.advance_request.remark}</div>}
                     </div>
                   )}
@@ -697,8 +698,8 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
           {/* Costing */}
           {(record.estimated_cost > 0 || record.actual_cost > 0) && (
-            <div className={calcStyles.sectionPanel} style={{ marginTop: 16 }}>
-              <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>Costing</h3>
+            <div className={`${calcStyles.sectionPanel} ${styles.panelTop16}`}>
+              <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Costing</h3>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <div><strong>Estimated Cost:</strong> {formatCurrency(record.estimated_cost)}</div>
                 <div><strong>Actual Cost:</strong> {formatCurrency(record.actual_cost)}</div>
@@ -707,19 +708,19 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
           )}
 
           {/* Approval History — from audit log */}
-          <div className={calcStyles.sectionPanel} style={{ marginTop: 16 }}>
-            <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>Approval History ({auditHistory.length})</h3>
+          <div className={`${calcStyles.sectionPanel} ${styles.panelTop16}`}>
+            <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Approval History ({auditHistory.length})</h3>
             {auditHistory.length === 0 ? (
-              <div style={{ marginTop: 8, opacity: 0.6 }}>No activity yet.</div>
+              <div className={styles.mutedNote}>No activity yet.</div>
             ) : (
-              <div style={{ marginTop: 4, maxHeight: 240, overflowY: 'auto' }}>
+              <div className={styles.auditScroll}>
                 {[...auditHistory].reverse().map((entry) => (
-                  <div key={entry.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--mx-border, #e5e7eb)' }}>
-                    <div style={{ width: 4, minHeight: 20, borderRadius: 2, background: auditActionTone(entry.action), marginTop: 2, flexShrink: 0 }} />
-                    <div style={{ flex: 1, fontSize: '0.9rem' }}>
+                  <div key={entry.id} className={styles.auditEntry}>
+                    <div className={`${styles.auditBar} ${auditActionToneClass(entry.action)}`} />
+                    <div className={styles.auditBody}>
                       <div><strong>{auditActionLabel(entry.action)}</strong> by {entry.by}</div>
-                      <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{formatDate(entry.at)}{entry.new_status ? ` — Status: ${TRAVEL_STATUS_LABEL[entry.new_status as TravelScheduleStatus] || entry.new_status}` : ''}</div>
-                      {entry.remarks && <div style={{ marginTop: 2, fontStyle: 'italic', opacity: 0.8 }}>&ldquo;{entry.remarks}&rdquo;</div>}
+                      <div className={styles.auditMeta}>{formatDate(entry.at)}{entry.new_status ? ` — Status: ${TRAVEL_STATUS_LABEL[entry.new_status as TravelScheduleStatus] || entry.new_status}` : ''}</div>
+                      {entry.remarks && <div className={styles.auditRemark}>&ldquo;{entry.remarks}&rdquo;</div>}
                     </div>
                   </div>
                 ))}
@@ -729,16 +730,16 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
           {/* Booking Details */}
           {record.booking_details && (
-            <div className={calcStyles.sectionPanel} style={{ marginTop: 16 }}>
-              <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>Booking Details</h3>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{record.booking_details}</div>
+            <div className={`${calcStyles.sectionPanel} ${styles.panelTop16}`}>
+              <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Booking Details</h3>
+              <div className={styles.preWrap}>{record.booking_details}</div>
             </div>
           )}
 
           {/* HR Documents */}
           {record.hr_documents.length > 0 && (
-            <div className={calcStyles.sectionPanel} style={{ marginTop: 16 }}>
-              <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>HR Documents</h3>
+            <div className={`${calcStyles.sectionPanel} ${styles.panelTop16}`}>
+              <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>HR Documents</h3>
               <ul>
                 {record.hr_documents.map((url, i) => (
                   <li key={url}><a href={url} target="_blank" rel="noreferrer" download={friendlyDocName(url, record, `DOC${record.hr_documents.length > 1 ? i + 1 : ''}`)}>{friendlyDocName(url, record, `DOC${record.hr_documents.length > 1 ? i + 1 : ''}`)}</a></li>
@@ -749,8 +750,8 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
           {/* Ticket Documents */}
           {record.ticket_documents.length > 0 && (
-            <div className={calcStyles.sectionPanel} style={{ marginTop: 16 }}>
-              <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>Ticket Documents</h3>
+            <div className={`${calcStyles.sectionPanel} ${styles.panelTop16}`}>
+              <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Ticket Documents</h3>
               <ul>
                 {record.ticket_documents.map((url, i) => (
                   <li key={url}><a href={url} target="_blank" rel="noreferrer" download={friendlyDocName(url, record, `Ticket${record.ticket_documents.length > 1 ? i + 1 : ''}`)}>{friendlyDocName(url, record, `Ticket${record.ticket_documents.length > 1 ? i + 1 : ''}`)}</a></li>
@@ -763,10 +764,10 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
         {/* Workflow Stepper */}
         <div className={calcStyles.sectionPanel}>
-          <h3 className={calcStyles.h2} style={{ marginTop: 0 }}>Workflow Progress</h3>
+          <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Workflow Progress</h3>
           <WorkflowStepper steps={buildSteps(record)} />
           {record.status !== 'completed' && record.status !== 'changes_requested' && (
-            <div className={historyStyles.status} style={{ marginTop: 12 }}>
+            <div className={`${historyStyles.status} ${calcStyles.mt12}`}>
               {travelPendingLabel(record.status)}
             </div>
           )}

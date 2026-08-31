@@ -288,12 +288,21 @@
    kind of one-off inline style; anything with real visual identity (a
    card, a badge, a panel) still gets a real semantic class.
    --------------------------------------------------------------------- */
+.mt4 { margin-top: 4px; }
 .mt6 { margin-top: 6px; }
 .mt8 { margin-top: 8px; }
 .mt10 { margin-top: 10px; }
+.mt12 { margin-top: 12px; }
 .mt14 { margin-top: 14px; }
 .mb0 { margin-bottom: 0; }
 .mb4 { margin-bottom: 4px; }
+.mb6 { margin-bottom: 6px; }
+.mb8 { margin-bottom: 8px; }
+.mb10 { margin-bottom: 10px; }
+.mb12 { margin-bottom: 12px; }
+.mb14 { margin-bottom: 14px; }
+.qtyInputMini { width: 56px; padding: 2px 6px; }
+.formActionsRow { display: flex; gap: 10px; flex-wrap: wrap; }
 .pl18 { padding-left: 18px; }
 .cursorPointerBold { cursor: pointer; font-weight: 600; }
 .inlineFlexGap6 { display: flex; align-items: center; gap: 6px; }
@@ -307,6 +316,13 @@
 }
 .h2Reset {
     margin: 0;
+}
+/* Wizard success screens' heading (no left accent border) — was inline
+   style={{ marginTop: 0, borderLeft: 'none', paddingLeft: 0 }}. */
+.h2NoAccent {
+    margin-top: 0;
+    border-left: none;
+    padding-left: 0;
 }
 .smallSpaced {
     margin-bottom: 12px;

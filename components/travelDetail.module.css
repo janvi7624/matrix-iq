@@ -1,0 +1,47 @@
+/* components/TravelScheduleDetailView.tsx — was inline style={{}} objects.
+   Panel/table/form chrome still comes from quotationHistory.module.css and
+   calculator.module.css. Two colors here were previously referenced via
+   undefined custom properties with a literal fallback (var(--mx-primary,
+   #2563eb), var(--mx-surface-alt, #e5e7eb)) — since those two properties are
+   never actually defined in app/globals.css, the fallback was always what
+   rendered. Mapped onto the equivalent real tokens (--mx-blue-600, --mx-border)
+   here for byte-identical color output. */
+
+.headerRow { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+
+.actionPanel { margin-bottom: 16px; background: var(--mx-surface-sunken); }
+.actionPanelDanger { border-left: 3px solid var(--mx-danger); }
+.actionPanelNeutral { border-left: 3px solid var(--mx-blue-600); }
+.actionPanelHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.panelCancelBtn { padding: 2px 10px; font-size: 0.85rem; }
+.docList { margin: 4px 0 0; padding-left: 20px; font-size: 0.85rem; }
+.actionButtonsRow { display: flex; gap: 8px; margin-top: 12px; }
+.dangerActionBtn { background: var(--mx-danger); }
+
+.changesRequestedPanel { border-left: 3px solid var(--mx-danger); margin-bottom: 16px; }
+
+.layoutGrid { display: grid; grid-template-columns: 1fr 280px; gap: 24px; align-items: start; }
+
+.subHeading { margin-top: 12px; margin-bottom: 4px; font-size: 0.85rem; opacity: 0.7; }
+.panelTop16 { margin-top: 16px; }
+
+.companionPillRow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pillBase { padding: 2px 8px; border-radius: 12px; background: var(--mx-border); font-size: 0.85rem; }
+.pillEditable { composes: pillBase; display: inline-flex; align-items: center; gap: 4px; }
+.pillRemoveBtn { background: none; border: none; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1; opacity: 0.6; }
+.inlinePillGroup { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
+
+.hotelBlockSpaced { margin-bottom: 12px; }
+
+.mutedNote { margin-top: 8px; opacity: 0.6; }
+.auditScroll { margin-top: 4px; max-height: 240px; overflow-y: auto; }
+.auditEntry { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--mx-border); }
+.auditBar { width: 4px; min-height: 20px; border-radius: 2px; margin-top: 2px; flex-shrink: 0; }
+.auditBarDanger { background: var(--mx-danger); }
+.auditBarSuccess { background: var(--mx-success); }
+.auditBarBrand { background: var(--mx-brand); }
+.auditBody { flex: 1; font-size: 0.9rem; }
+.auditMeta { font-size: 0.8rem; opacity: 0.6; }
+.auditRemark { margin-top: 2px; font-style: italic; opacity: 0.8; }
+
+.preWrap { white-space: pre-wrap; }

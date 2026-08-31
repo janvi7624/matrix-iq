@@ -20,6 +20,7 @@ import { useToast } from './ui/ToastProvider';
 import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './marketingRequestWizard.module.css';
 
 export interface MarketingRequestForm {
   title: string;
@@ -149,16 +150,16 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
       <div className={historyStyles.wizardCard}>
         <div className={historyStyles.successPanel}>
           <div className={historyStyles.successIcon}><CheckCircle2 size={48} /></div>
-          <h2 className={calcStyles.h2} style={{ marginTop: 0, borderLeft: 'none', paddingLeft: 0 }}>Request sent to Marketing!</h2>
-          <div className={calcStyles.small} style={{ marginBottom: 12 }}>
+          <h2 className={`${calcStyles.h2} ${calcStyles.h2NoAccent}`}>Request sent to Marketing!</h2>
+          <div className={`${calcStyles.small} ${calcStyles.mb12}`}>
             <strong>{successRecord.title}</strong> has been submitted. A Marketing Team member will review your requirement, prepare the content, and coordinate technical review before delivering the final result back to you.
           </div>
-          <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center', background: '#f8fafc', padding: '6px 14px', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16 }}>
-            <span style={{ fontSize: 13, color: '#64748b' }}>Category:</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{successRecord.product_category}</span>
-            <span style={{ margin: '0 4px', color: '#cbd5e1' }}>•</span>
-            <span style={{ fontSize: 13, color: '#64748b' }}>Requester:</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{successRecord.created_by}</span>
+          <div className={styles.categoryStrip}>
+            <span className={styles.stripLabel}>Category:</span>
+            <span className={styles.stripValue}>{successRecord.product_category}</span>
+            <span className={styles.stripDot}>•</span>
+            <span className={styles.stripLabel}>Requester:</span>
+            <span className={styles.stripValue}>{successRecord.created_by}</span>
           </div>
           <div className={historyStyles.successActions}>
             <button type="button" className={historyStyles.bigBtn} onClick={handleRequestAnother}>Submit Another Request</button>
@@ -194,8 +195,8 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
             <div className={historyStyles.wizardCardHint}>Specify what marketing collateral or assistance you need and the product domain.</div>
             {errors.length > 0 && <div className={historyStyles.loginError}>{errors[0]}</div>}
 
-            <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 16 }}>
-              <div className={calcStyles.field} style={{ flex: '1 1 60%' }}>
+            <div className={`${calcStyles.row} ${calcStyles.columns} ${styles.mt16}`}>
+              <div className={`${calcStyles.field} ${styles.fieldMajor}`}>
                 <label className={calcStyles.label}>Request Title *</label>
                 <input
                   className={calcStyles.formControl}
@@ -205,16 +206,15 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
                 />
               </div>
 
-              <div className={calcStyles.field} style={{ flex: '1 1 40%' }}>
+              <div className={`${calcStyles.field} ${styles.fieldMinor}`}>
                 <label className={calcStyles.label}>Product Category *</label>
                 <select
-                  className={calcStyles.formControl}
+                  className={`${calcStyles.formControl} ${form.productCategory ? styles.categorySelectActive : ''}`}
                   value={form.productCategory}
                   onChange={(e) => setForm((f) => ({ ...f, productCategory: e.target.value as MarketingProductCategory }))}
                   style={
                     form.productCategory
                       ? {
-                          fontWeight: 600,
                           color: categoryStyle.text,
                           background: categoryStyle.bg,
                           borderColor: categoryStyle.border
@@ -232,7 +232,7 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
               </div>
             </div>
 
-            <div style={{ marginTop: 16 }}>
+            <div className={styles.mt16}>
               <label className={calcStyles.label}>Collateral Type</label>
               <div className={historyStyles.tagGrid}>
                 {REQUEST_TYPE_TILES.map((t) => (
@@ -248,7 +248,7 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
               </div>
             </div>
 
-            <div className={calcStyles.field} style={{ marginTop: 16 }}>
+            <div className={`${calcStyles.field} ${styles.mt16}`}>
               <label className={calcStyles.label}>Description of Requirement *</label>
               <textarea
                 className={calcStyles.formControl}
@@ -286,7 +286,7 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
                 </div>
               ))}
             </div>
-            <div className={calcStyles.field} style={{ marginTop: 20 }}>
+            <div className={`${calcStyles.field} ${styles.mt20}`}>
               <label className={calcStyles.label}>Required Deadline / Needed By Date (Optional)</label>
               <input
                 type="date"
@@ -305,9 +305,9 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
             <h2 className={historyStyles.wizardCardTitle}><Paperclip size={22} /> Attachments &amp; Additional Information</h2>
             <div className={historyStyles.wizardCardHint}>Add reference logos, sample documents, product data sheets, or extra notes.</div>
 
-            <div style={{ marginBottom: 16 }}>
+            <div className={styles.mb16}>
               <label className={calcStyles.label}>Attachments</label>
-              <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" multiple style={{ display: 'none' }} onChange={(e) => handleFilesSelected(e.target.files)} />
+              <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" multiple className={styles.hiddenInput} onChange={(e) => handleFilesSelected(e.target.files)} />
               <div>
                 <button type="button" className={calcStyles.secondaryButton} disabled={uploading} onClick={() => fileInputRef.current?.click()}>
                   {uploading ? 'Uploading…' : '+ Add Files / Attachments'}
@@ -315,10 +315,10 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
               </div>
 
               {form.attachments.length > 0 && (
-                <div className={historyStyles.imageStrip} style={{ marginTop: 12 }}>
+                <div className={`${historyStyles.imageStrip} ${calcStyles.mt12}`}>
                   {form.attachments.map((url) => (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <div key={url} style={{ position: 'relative', display: 'inline-block' }}>
+                    <div key={url} className={styles.attachmentThumbWrap}>
                       <img src={url} alt="Attachment" title="Click to remove" onClick={() => setForm((f) => ({ ...f, attachments: f.attachments.filter((u) => u !== url) }))} />
                     </div>
                   ))}
@@ -326,7 +326,7 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
               )}
             </div>
 
-            <div className={calcStyles.field} style={{ marginTop: 16 }}>
+            <div className={`${calcStyles.field} ${styles.mt16}`}>
               <label className={calcStyles.label}>Additional Information (Optional)</label>
               <textarea
                 className={calcStyles.formControl}
@@ -344,10 +344,10 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
             <h2 className={historyStyles.wizardCardTitle}><CheckCircle2 size={22} /> Review &amp; Submit Request</h2>
             <div className={historyStyles.wizardCardHint}>Review all information before submitting to the Marketing team.</div>
 
-            <div className={historyStyles.reviewGrid} style={{ marginTop: 16 }}>
+            <div className={`${historyStyles.reviewGrid} ${styles.mt16}`}>
               <div className={historyStyles.reviewRow}>
                 <strong>Product Category:</strong>
-                <span style={{ padding: '2px 8px', borderRadius: 4, background: categoryStyle.bg, color: categoryStyle.text, fontWeight: 600 }}>
+                <span className={styles.categoryPill} style={{ background: categoryStyle.bg, color: categoryStyle.text }}>
                   {form.productCategory}
                 </span>
               </div>
@@ -364,7 +364,7 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
           </>
         )}
 
-        <div className={historyStyles.wizardNav} style={{ marginTop: 24 }}>
+        <div className={`${historyStyles.wizardNav} ${styles.mt24}`}>
           {step > 0 ? <button type="button" className={historyStyles.bigBtnGhost} onClick={goBack}>← Back</button> : <span />}
           {step < STEPS.length - 1 ? (
             <button type="button" className={historyStyles.bigBtn} onClick={goNext}>Next →</button>

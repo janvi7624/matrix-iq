@@ -38,6 +38,7 @@ import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './marketingRequests.module.css';
 import Button from './ui/Button';
 import SharedStatusBadge, { StatusTone } from './ui/StatusBadge';
 import SharedPriorityBadge, { PriorityTone } from './ui/PriorityBadge';
@@ -125,19 +126,11 @@ function ProductCategoryBadge({ category }: { category: MarketingProductCategory
   const style = getProductCategoryStyle(category);
   return (
     <span
+      className={styles.categoryBadge}
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '3px 9px',
-        borderRadius: 6,
-        fontSize: 11.5,
-        fontWeight: 700,
-        letterSpacing: '0.02em',
         background: style.bg,
         color: style.text,
-        border: `1px solid ${style.border}`,
-        whiteSpace: 'nowrap'
+        borderColor: style.border
       }}
     >
       <Layers size={11} /> {category || 'Other'}
@@ -198,53 +191,34 @@ function WorkflowStepper({ record: r }: { record: MarketingRequestRecord }) {
   ];
 
   return (
-    <div style={{ margin: '14px 0 20px', background: 'var(--mx-surface-sunken)', padding: '14px 16px', borderRadius: 12, border: '1px solid var(--mx-slate-200)' }}>
-      <div style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--mx-slate-500)', letterSpacing: '0.05em', marginBottom: 10 }}>
+    <div className={styles.stepperCard}>
+      <div className={styles.stepperTitle}>
         Workflow Progression (Requester ➔ Marketing ➔ Technical ➔ Marketing ➔ Requester)
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <div className={styles.stepperRow}>
         {steps.map((s, idx) => {
-          let bg = 'var(--mx-slate-100)';
-          let fg = 'var(--mx-slate-500)';
-          let border = '1px solid var(--mx-slate-200)';
+          let colorClass = '';
 
           if (s.done) {
-            bg = 'var(--mx-emerald-50)';
-            fg = 'var(--mx-emerald-600)';
-            border = '1px solid var(--mx-emerald-200)';
+            colorClass = styles.stepBadgeDone;
           } else if (s.warning) {
-            bg = 'var(--mx-amber-50)';
-            fg = 'var(--mx-warning)';
-            border = '1px solid var(--mx-amber-200)';
+            colorClass = styles.stepBadgeWarning;
           } else if (s.active) {
-            bg = 'var(--mx-blue-50)';
-            fg = 'var(--mx-blue-600)';
-            border = '1.5px solid var(--mx-blue-300)';
+            colorClass = styles.stepBadgeActive;
           }
 
           return (
-            <div key={s.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <div key={s.label} className={styles.stepWrap}>
               <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '5px 10px',
-                  borderRadius: 8,
-                  background: bg,
-                  color: fg,
-                  border,
-                  fontSize: 12,
-                  fontWeight: s.active ? 700 : 600
-                }}
+                className={`${styles.stepBadge} ${colorClass} ${s.active ? styles.stepBadgeBold : ''}`}
               >
-                {s.done ? <Check size={13} /> : s.warning ? <AlertTriangle size={13} /> : s.active ? <Clock size={13} /> : <span style={{ opacity: 0.5 }}>{idx + 1}</span>}
+                {s.done ? <Check size={13} /> : s.warning ? <AlertTriangle size={13} /> : s.active ? <Clock size={13} /> : <span className={styles.stepIndexNum}>{idx + 1}</span>}
                 <div>
                   <div>{s.label}</div>
-                  <div style={{ fontSize: 10.5, opacity: 0.8, fontWeight: 500 }}>{s.sub}</div>
+                  <div className={styles.stepSub}>{s.sub}</div>
                 </div>
               </div>
-              {idx < steps.length - 1 && <ArrowRight size={13} style={{ color: 'var(--mx-slate-300)' }} />}
+              {idx < steps.length - 1 && <ArrowRight size={13} className={styles.stepArrowIcon} />}
             </div>
           );
         })}
@@ -460,13 +434,13 @@ function MarketingRequestRow({
 
   return (
     <>
-      <tr onClick={() => setExpanded((v) => !v)} style={{ cursor: 'pointer' }}>
-        <td style={{ fontWeight: 600 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <tr onClick={() => setExpanded((v) => !v)} className={styles.clickableRow}>
+        <td className={styles.titleCell}>
+          <div className={calcStyles.inlineFlexGap6}>
             <span>{r.title}</span>
           </div>
           {r.description && (
-            <div style={{ fontSize: 12, color: 'var(--mx-slate-500)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280 }}>
+            <div className={styles.descriptionPreview}>
               {r.description}
             </div>
           )}
@@ -480,31 +454,31 @@ function MarketingRequestRow({
         <td>
           <StatusBadge status={r.status} />
           {overdue && (
-            <span className={historyStyles.reminderBadge} style={{ marginLeft: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span className={`${historyStyles.reminderBadge} ${styles.overdueInline}`}>
               <AlertTriangle size={12} /> Overdue
             </span>
           )}
         </td>
         <td>
-          <span style={{ fontWeight: 600, color: 'var(--mx-slate-900)' }}>{r.creator_name || r.created_by}</span>
+          <span className={styles.creatorName}>{r.creator_name || r.created_by}</span>
         </td>
         <td>
           {r.assigned_to ? (
-            <span style={{ color: 'var(--mx-blue-600)', fontWeight: 500 }}>{r.assigned_to_name || r.assigned_to}</span>
+            <span className={styles.assignedToText}>{r.assigned_to_name || r.assigned_to}</span>
           ) : (
-            <span style={{ opacity: 0.5 }}>Unassigned</span>
+            <span className={styles.unassignedLabel}>Unassigned</span>
           )}
         </td>
         <td>
           {r.technical_member_name || r.technical_member_username ? (
-            <span style={{ color: 'var(--mx-teal-700)', fontWeight: 500 }}>{r.technical_member_name || r.technical_member_username}</span>
+            <span className={styles.technicalMemberText}>{r.technical_member_name || r.technical_member_username}</span>
           ) : (
-            <span style={{ opacity: 0.4 }}>—</span>
+            <span className={styles.noTechAssigned}>—</span>
           )}
         </td>
-        <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+        <td className={styles.deadlineCell}>
           {formatDate(r.needed_by_date || r.created_at)}
-          <div style={{ marginTop: 4 }}><ReminderBadge record={r} /></div>
+          <div className={calcStyles.mt4}><ReminderBadge record={r} /></div>
         </td>
         <td>
           <button type="button" className={historyStyles.toggleBtn} onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>
@@ -516,21 +490,21 @@ function MarketingRequestRow({
       {expanded && (
         <tr className={historyStyles.detailsRow}>
           <td colSpan={9}>
-            <div className={historyStyles.wideCellPin} style={{ padding: '8px 4px', width: '100%' }}>
+            <div className={`${historyStyles.wideCellPin} ${styles.detailWrap}`}>
               {/* Visual Workflow Stepper */}
               <WorkflowStepper record={r} />
 
               {/* Assignment acceptance gate — the assigned member must confirm
                   availability before they can do any work on this request. */}
               {r.assignment_status === 'pending' && r.assigned_to === currentUser.username && (
-                <div style={{ background: 'var(--mx-blue-50)', border: '1.5px solid var(--mx-blue-200)', borderRadius: 10, padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div className={styles.acceptanceGate}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-info)', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                    <div className={styles.gateTitle}>
                       <AlertTriangle size={18} /> This request was assigned to you
                     </div>
-                    <div style={{ fontSize: 13, color: 'var(--mx-blue-900)' }}>Confirm your availability before you start working on it.</div>
+                    <div className={styles.gateBody}>Confirm your availability before you start working on it.</div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div className={styles.gateActions}>
                     <Button variant="primary" compact loading={busy} onClick={handleAcceptAssignment}>Accept</Button>
                     <Button variant="danger" compact loading={busy} onClick={handleDeclineAssignment}>Decline</Button>
                   </div>
@@ -541,65 +515,65 @@ function MarketingRequestRow({
                   summaryCardGrid container (2 columns at <=640px) instead of a
                   bare inline auto-fit/minmax grid with no mobile override;
                   each card keeps its own distinct inline background/border. */}
-              <div className={historyStyles.summaryCardGrid} style={{ marginBottom: 14, marginTop: 0 }}>
-                <div style={{ background: 'var(--mx-surface-sunken)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--mx-slate-200)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--mx-slate-500)', textTransform: 'uppercase' }}>Original Requester</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--mx-slate-900)', marginTop: 2 }}>{r.creator_name || r.created_by}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--mx-slate-500)' }}>Created on {formatDate(r.created_at)}</div>
+              <div className={`${historyStyles.summaryCardGrid} ${styles.contextGrid}`}>
+                <div className={styles.contextCardRequester}>
+                  <div className={styles.contextLabelSlate}>Original Requester</div>
+                  <div className={styles.contextValueSlate}>{r.creator_name || r.created_by}</div>
+                  <div className={styles.contextMetaSlate}>Created on {formatDate(r.created_at)}</div>
                 </div>
 
-                <div style={{ background: 'var(--mx-green-50)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--mx-green-200)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--mx-green-800)', textTransform: 'uppercase' }}>Marketing Member</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--mx-green-900)', marginTop: 2 }}>{r.assigned_to_name || r.assigned_to || 'Unassigned'}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--mx-green-800)' }}>{r.status === 'submitted' ? 'Awaiting assignment/action' : 'Managing Request'}</div>
+                <div className={styles.contextCardMarketing}>
+                  <div className={styles.contextLabelGreen}>Marketing Member</div>
+                  <div className={styles.contextValueGreen}>{r.assigned_to_name || r.assigned_to || 'Unassigned'}</div>
+                  <div className={styles.contextMetaGreen}>{r.status === 'submitted' ? 'Awaiting assignment/action' : 'Managing Request'}</div>
                 </div>
 
-                <div style={{ background: 'var(--mx-teal-50)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--mx-teal-200)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--mx-teal-700)', textTransform: 'uppercase' }}>Technical Reviewer</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--mx-teal-900)', marginTop: 2 }}>{r.technical_member_name || r.technical_member_username || 'Not assigned yet'}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--mx-teal-700)' }}>{r.technical_review_decision ? `Decision: ${r.technical_review_decision}` : 'Technical validation'}</div>
+                <div className={styles.contextCardTechnical}>
+                  <div className={styles.contextLabelTeal}>Technical Reviewer</div>
+                  <div className={styles.contextValueTeal}>{r.technical_member_name || r.technical_member_username || 'Not assigned yet'}</div>
+                  <div className={styles.contextMetaTeal}>{r.technical_review_decision ? `Decision: ${r.technical_review_decision}` : 'Technical validation'}</div>
                 </div>
 
                 {marketingReminderBand(r) !== 'none' && (
-                  <div style={{ background: 'var(--mx-orange-50)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--mx-orange-200)' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--mx-orange-800)', textTransform: 'uppercase' }}>Reminder Status</div>
-                    <div style={{ marginTop: 4 }}><ReminderBadge record={r} /></div>
+                  <div className={styles.contextCardReminder}>
+                    <div className={styles.contextLabelOrange}>Reminder Status</div>
+                    <div className={calcStyles.mt4}><ReminderBadge record={r} /></div>
                     {marketingReminderBand(r) === 'overdue' && (
-                      <div style={{ fontSize: 11.5, color: 'var(--mx-orange-800)', marginTop: 4 }}>Overdue by {daysOverdue(r)} day{daysOverdue(r) === 1 ? '' : 's'}</div>
+                      <div className={styles.contextMetaOrange}>Overdue by {daysOverdue(r)} day{daysOverdue(r) === 1 ? '' : 's'}</div>
                     )}
                   </div>
                 )}
               </div>
 
               {/* SECTION 1: Original Request Details */}
-              <div className={calcStyles.sectionPanel} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Megaphone size={16} style={{ color: 'var(--mx-blue-600)' }} />
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>Original Requirement</span>
+              <div className={`${calcStyles.sectionPanel} ${calcStyles.mb14}`}>
+                <div className={styles.rowHeaderBetween}>
+                  <div className={calcStyles.inlineFlexGap8}>
+                    <Megaphone size={16} className={styles.iconBlue} />
+                    <span className={styles.sectionTitle14}>Original Requirement</span>
                   </div>
                   <ProductCategoryBadge category={r.product_category} />
                 </div>
 
-                <div style={{ fontSize: 13.5, color: 'var(--mx-slate-800)', whiteSpace: 'pre-wrap', lineHeight: 1.5, marginBottom: 10 }}>
+                <div className={styles.originalReqBody}>
                   {r.description}
                 </div>
 
                 {r.additional_info && (
-                  <div style={{ fontSize: 12.5, color: 'var(--mx-slate-600)', background: 'var(--mx-slate-100)', padding: '8px 12px', borderRadius: 6, marginBottom: 10 }}>
+                  <div className={styles.additionalInfoBox}>
                     <strong>Additional Information:</strong> {r.additional_info}
                   </div>
                 )}
 
                 {r.project_id && (
-                  <div style={{ fontSize: 12.5, marginBottom: 8 }}>
+                  <div className={styles.linkedProjectLine}>
                     <strong>Linked Sales Project:</strong> <Link href={`/projects/${r.project_id}`}>{r.project_id}</Link>
                   </div>
                 )}
 
                 {r.attachments && r.attachments.length > 0 && (
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--mx-slate-500)', marginBottom: 4 }}>Requester Attachments:</div>
+                  <div className={calcStyles.mt8}>
+                    <div className={styles.attachmentsLabel}>Requester Attachments:</div>
                     <div className={historyStyles.imageStrip}>
                       {r.attachments.map((url) => (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -614,28 +588,28 @@ function MarketingRequestRow({
 
               {/* SECTION 2: Technical Review Banner / Feedback (if changes requested or approved) */}
               {r.status === 'tech_changes_requested' && (
-                <div style={{ background: 'var(--mx-amber-50)', border: '1.5px solid var(--mx-amber-200)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-warning)', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+                <div className={`${styles.warningBanner} ${calcStyles.mb14}`}>
+                  <div className={styles.warningBannerTitle}>
                     <AlertTriangle size={18} /> Technical Feedback: Changes Requested
                   </div>
-                  <div style={{ fontSize: 13, color: 'var(--mx-amber-900)', background: 'rgba(255,255,255,0.7)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--mx-amber-100)', whiteSpace: 'pre-wrap' }}>
+                  <div className={styles.warningBannerBody}>
                     {r.technical_remarks || 'Please review and update the content per technical requirements.'}
                   </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--mx-amber-800)', marginTop: 6 }}>
+                  <div className={styles.warningBannerFooter}>
                     Feedback provided by <strong>{r.technical_reviewed_by || r.technical_member_username}</strong> on {formatDateTime(r.technical_reviewed_at)}. Marketing member will apply changes and deliver the final result.
                   </div>
                 </div>
               )}
 
               {r.status === 'technical_approved' && (
-                <div style={{ background: 'var(--mx-emerald-50)', border: '1.5px solid var(--mx-emerald-200)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-emerald-700)', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                <div className={`${styles.successBanner} ${calcStyles.mb14}`}>
+                  <div className={styles.successBannerTitle}>
                     <CheckCircle2 size={18} /> Technical Review Approved!
                   </div>
-                  <div style={{ fontSize: 13, color: 'var(--mx-emerald-800)' }}>
+                  <div className={styles.successBannerBody}>
                     {r.technical_remarks ? `Technical notes: "${r.technical_remarks}"` : 'The technical specification and materials have been approved.'}
                   </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--mx-emerald-700)', marginTop: 4 }}>
+                  <div className={styles.successBannerFooter}>
                     Approved by <strong>{r.technical_reviewed_by || r.technical_member_username}</strong> on {formatDateTime(r.technical_reviewed_at)}. Marketing member can now complete final delivery to {r.created_by}.
                   </div>
                 </div>
@@ -645,11 +619,11 @@ function MarketingRequestRow({
               {(r.status === 'submitted' || r.status === 'marketing_in_progress' || r.status === 'tech_changes_requested') && (
                 <>
                   {canAccessMarketingWorkspace && (
-                    <div className={calcStyles.sectionPanel} style={{ marginBottom: 14, borderLeft: '4px solid var(--mx-blue-600)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Wrench size={16} style={{ color: 'var(--mx-blue-600)' }} />
-                          <span style={{ fontWeight: 700, fontSize: 14 }}>Marketing Workspace — Prepare &amp; Coordinate</span>
+                    <div className={`${calcStyles.sectionPanel} ${calcStyles.mb14} ${styles.workspaceAccent}`}>
+                      <div className={styles.workspaceHeaderRow}>
+                        <div className={calcStyles.inlineFlexGap8}>
+                          <Wrench size={16} className={styles.iconBlue} />
+                          <span className={styles.sectionTitle14}>Marketing Workspace — Prepare &amp; Coordinate</span>
                         </div>
                         {r.status === 'submitted' && isUnassignedMarketing && (
                           <Button
@@ -696,17 +670,17 @@ function MarketingRequestRow({
                       </div>
 
                       {/* Marketing Attachments */}
-                      <div style={{ marginTop: 10, marginBottom: 14 }}>
+                      <div className={styles.workspaceFieldSpacer}>
                         <label className={calcStyles.label}>Marketing Prepared Attachments / Collateral</label>
                         <input
                           ref={mktFileInputRef}
                           type="file"
                           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
                           multiple
-                          style={{ display: 'none' }}
+                          className={calcStyles.hidden}
                           onChange={(e) => handleMarketingFileUpload(e.target.files)}
                         />
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <div className={calcStyles.inlineFlexGap8}>
                           <button
                             type="button"
                             className={calcStyles.secondaryButton}
@@ -718,10 +692,10 @@ function MarketingRequestRow({
                         </div>
 
                         {marketingFiles.length > 0 && (
-                          <div className={historyStyles.imageStrip} style={{ marginTop: 8 }}>
+                          <div className={`${historyStyles.imageStrip} ${calcStyles.mt8}`}>
                             {marketingFiles.map((url) => (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <div key={url} style={{ position: 'relative', display: 'inline-block' }}>
+                              <div key={url} className={styles.attachmentThumbWrap}>
                                 <img
                                   src={url}
                                   alt="Marketing Attachment"
@@ -735,14 +709,14 @@ function MarketingRequestRow({
                       </div>
 
                       {/* Marketing Workspace Action Bar */}
-                      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--mx-slate-200)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                      <div className={styles.workspaceActionBar}>
                         <div>
                           {r.technical_member_name || r.technical_member_username ? (
-                            <div style={{ fontSize: 13, color: 'var(--mx-teal-700)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div className={styles.techVerifierAssigned}>
                               <CheckCircle2 size={16} /> Technical Verifier: <strong>{r.technical_member_name || r.technical_member_username}</strong>
                             </div>
                           ) : (
-                            <div style={{ fontSize: 12.5, color: 'var(--mx-warning)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div className={styles.techVerifierPending}>
                               <Clock size={15} /> Awaiting Manager to assign Technical Verifier below
                             </div>
                           )}
@@ -762,11 +736,11 @@ function MarketingRequestRow({
                   )}
 
                   {isMarketingAssignedToOther && (
-                    <div style={{ background: 'var(--mx-surface-sunken)', border: '1.5px solid var(--mx-slate-200)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-slate-700)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>
-                        <Lock size={16} style={{ color: 'var(--mx-slate-500)' }} /> Assigned to Marketing Member: {r.assigned_to_name || r.assigned_to}
+                    <div className={`${styles.lockedPanel} ${calcStyles.mb14}`}>
+                      <div className={styles.lockedPanelTitle}>
+                        <Lock size={16} className={styles.lockIconColor} /> Assigned to Marketing Member: {r.assigned_to_name || r.assigned_to}
                       </div>
-                      <div style={{ fontSize: 12.5, color: 'var(--mx-slate-500)' }}>
+                      <div className={styles.lockedPanelBody}>
                         This workspace is currently being handled by <strong>{r.assigned_to_name || r.assigned_to}</strong>, who will coordinate directly with the Technical Team.
                       </div>
                     </div>
@@ -776,26 +750,26 @@ function MarketingRequestRow({
 
               {/* Display Marketing Prepared Content (Read Only when in later stages) */}
               {r.status !== 'submitted' && r.status !== 'marketing_in_progress' && r.marketing_prepared_content && (
-                <div className={calcStyles.sectionPanel} style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--mx-slate-700)', marginBottom: 6 }}>
+                <div className={`${calcStyles.sectionPanel} ${calcStyles.mb14}`}>
+                  <div className={styles.readOnlyContentTitle}>
                     Prepared Content by Marketing ({r.assigned_to_name || r.assigned_to || 'Marketing'})
                   </div>
-                  <div style={{ fontSize: 13, color: 'var(--mx-slate-800)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                  <div className={styles.readOnlyContentBody}>
                     {r.marketing_prepared_content}
                   </div>
                   {r.marketing_remarks && (
-                    <div style={{ fontSize: 12, color: 'var(--mx-slate-500)', marginTop: 6 }}>
+                    <div className={styles.readOnlyRemark}>
                       <strong>Marketing Remarks:</strong> {r.marketing_remarks}
                     </div>
                   )}
                   {r.technical_instructions && (
-                    <div style={{ fontSize: 12, color: 'var(--mx-slate-500)', marginTop: 4 }}>
+                    <div className={styles.readOnlyInstructions}>
                       <strong>Instructions for Technical:</strong> {r.technical_instructions}
                     </div>
                   )}
                   {r.marketing_attachments && r.marketing_attachments.length > 0 && (
-                    <div style={{ marginTop: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--mx-slate-500)', marginBottom: 4 }}>Marketing Collateral / Attachments:</div>
+                    <div className={calcStyles.mt8}>
+                      <div className={styles.attachmentsLabel}>Marketing Collateral / Attachments:</div>
                       <div className={historyStyles.imageStrip}>
                         {r.marketing_attachments.map((url) => (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -811,17 +785,17 @@ function MarketingRequestRow({
 
               {/* SECTION 4: Technical Team Member Action Box (Step 4 & 5) */}
               {r.status === 'pending_technical_review' && (
-                <div style={{ background: 'var(--mx-teal-50)', border: '1.5px solid var(--mx-teal-200)', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-teal-700)', fontWeight: 700, fontSize: 14 }}>
+                <div className={`${styles.techReviewBox} ${calcStyles.mb14}`}>
+                  <div className={styles.rowHeaderBetween}>
+                    <div className={styles.techReviewHeaderLeft}>
                       <UserCheck size={18} /> Step 4 — Technical Team Review
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--mx-teal-700)', fontWeight: 600 }}>
+                    <div className={styles.techReviewAssignedTo}>
                       Assigned To: {r.technical_member_name || r.technical_member_username}
                     </div>
                   </div>
 
-                  <p style={{ fontSize: 13, color: 'var(--mx-teal-900)', margin: '4px 0 12px' }}>
+                  <p className={styles.techReviewIntro}>
                     Review the product specification and marketing draft. You can either approve the request or send remarks back if changes are needed.
                   </p>
 
@@ -847,8 +821,8 @@ function MarketingRequestRow({
                   )}
 
                   {showTechChangesDialog && (
-                    <div style={{ background: 'var(--mx-surface)', padding: '12px', borderRadius: 8, border: '1px solid var(--mx-rose-200)', marginTop: 10 }}>
-                      <label className={calcStyles.label} style={{ color: 'var(--mx-rose-700)' }}>
+                    <div className={styles.changesDialogBox}>
+                      <label className={`${calcStyles.label} ${styles.changesDialogLabel}`}>
                         Technical Remarks / Changes Needed *
                       </label>
                       <textarea
@@ -859,7 +833,7 @@ function MarketingRequestRow({
                         onChange={(e) => setTechRemarksInput(e.target.value)}
                         autoFocus
                       />
-                      <div className={historyStyles.actionGroupButtons} style={{ marginTop: 10 }}>
+                      <div className={`${historyStyles.actionGroupButtons} ${calcStyles.mt10}`}>
                         <Button
                           variant="danger"
                           icon={<Send size={14} />}
@@ -883,11 +857,11 @@ function MarketingRequestRow({
               {(r.status === 'technical_approved' || r.status === 'marketing_final_review' || r.status === 'tech_changes_requested') && (
                 <>
                   {canAccessMarketingWorkspace && (
-                    <div style={{ background: 'var(--mx-purple-50)', border: '1.5px solid var(--mx-purple-200)', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-purple-700)', fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+                    <div className={`${styles.finalSubmissionBox} ${calcStyles.mb14}`}>
+                      <div className={styles.finalSubmissionHeader}>
                         <Sparkles size={18} /> Step 7 — Final Submission to Original Requester ({r.creator_name || r.created_by})
                       </div>
-                      <p style={{ fontSize: 12.5, color: 'var(--mx-purple-800)', margin: '0 0 10px' }}>
+                      <p className={styles.finalSubmissionIntro}>
                         Deliver the finalized marketing collateral directly to <strong>{r.creator_name || r.created_by}</strong> to complete this request.
                       </p>
 
@@ -902,14 +876,14 @@ function MarketingRequestRow({
                         />
                       </div>
 
-                      <div style={{ marginBottom: 12 }}>
+                      <div className={calcStyles.mb12}>
                         <label className={calcStyles.label}>Final Deliverable Files / Assets</label>
                         <input
                           ref={finalFileInputRef}
                           type="file"
                           accept="image/*,.pdf,.zip,.doc,.docx"
                           multiple
-                          style={{ display: 'none' }}
+                          className={calcStyles.hidden}
                           onChange={(e) => handleFinalFileUpload(e.target.files)}
                         />
                         <button
@@ -922,10 +896,10 @@ function MarketingRequestRow({
                         </button>
 
                         {finalFiles.length > 0 && (
-                          <div className={historyStyles.imageStrip} style={{ marginTop: 8 }}>
+                          <div className={`${historyStyles.imageStrip} ${calcStyles.mt8}`}>
                             {finalFiles.map((url) => (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <div key={url} style={{ position: 'relative', display: 'inline-block' }}>
+                              <div key={url} className={styles.attachmentThumbWrap}>
                                 <img
                                   src={url}
                                   alt="Final File"
@@ -951,11 +925,11 @@ function MarketingRequestRow({
                   )}
 
                   {isMarketingAssignedToOther && (
-                    <div style={{ background: 'var(--mx-purple-50)', border: '1.5px solid var(--mx-purple-200)', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--mx-purple-700)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div className={`${styles.finalAwaitingBox} ${calcStyles.mb14}`}>
+                      <div className={styles.finalAwaitingTitle}>
                         <Sparkles size={16} /> Awaiting Final Delivery by {r.assigned_to_name || r.assigned_to}
                       </div>
-                      <div style={{ fontSize: 12.5, color: 'var(--mx-purple-800)', marginTop: 4 }}>
+                      <div className={styles.finalAwaitingBody}>
                         Assigned marketing member <strong>{r.assigned_to_name || r.assigned_to}</strong> will deliver the final collateral directly to {r.creator_name || r.created_by}.
                       </div>
                     </div>
@@ -965,18 +939,18 @@ function MarketingRequestRow({
 
               {/* SECTION 6: Completed Deliverables Display (For Requester & all) */}
               {r.status === 'completed' && (
-                <div style={{ background: 'var(--mx-emerald-50)', border: '1.5px solid var(--mx-emerald-200)', borderRadius: 10, padding: '16px', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-emerald-700)', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                <div className={`${styles.completedBox} ${calcStyles.mb14}`}>
+                  <div className={styles.successBannerTitle}>
                     <CheckCircle2 size={18} /> Request Completed &amp; Delivered to {r.creator_name || r.created_by}
                   </div>
                   {r.final_submission_notes && (
-                    <div style={{ fontSize: 13, color: 'var(--mx-emerald-800)', marginTop: 4 }}>
+                    <div className={styles.completedDeliveryMsg}>
                       <strong>Delivery Message:</strong> {r.final_submission_notes}
                     </div>
                   )}
                   {r.final_submission_files && r.final_submission_files.length > 0 && (
-                    <div style={{ marginTop: 10 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--mx-emerald-700)', marginBottom: 4 }}>Final Deliverables:</div>
+                    <div className={calcStyles.mt10}>
+                      <div className={styles.completedDeliverablesLabel}>Final Deliverables:</div>
                       <div className={historyStyles.imageStrip}>
                         {r.final_submission_files.map((url) => (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -992,11 +966,11 @@ function MarketingRequestRow({
 
               {/* Assignment Controls for Marketing Manager / Reviewer */}
               {isReviewer && (
-                <div className={calcStyles.sectionPanel} style={{ marginTop: 14, marginBottom: 14, background: 'var(--mx-surface-sunken)', border: '1.5px solid var(--mx-slate-200)' }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--mx-slate-900)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <UserCheck size={16} style={{ color: 'var(--mx-blue-600)' }} /> Manager Team Assignments
+                <div className={`${calcStyles.sectionPanel} ${calcStyles.mt14} ${calcStyles.mb14} ${styles.managerPanelAccent}`}>
+                  <div className={styles.managerPanelTitle}>
+                    <UserCheck size={16} className={styles.iconBlue} /> Manager Team Assignments
                   </div>
-                  <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 0 }}>
+                  <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb0}`}>
                     <div className={calcStyles.field}>
                       <label className={calcStyles.label}>Marketing Assignee</label>
                       <select
@@ -1066,12 +1040,12 @@ function MarketingRequestRow({
               )}
 
               {/* SECTION 7: Comments & Collaboration Timeline */}
-              <div style={{ marginTop: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13.5, color: 'var(--mx-slate-700)', marginBottom: 8 }}>
+              <div className={styles.commentsSection}>
+                <div className={styles.commentsHeader}>
                   <MessageSquare size={15} /> Discussion &amp; Remarks Timeline ({r.comments?.length || 0})
                 </div>
                 {(!r.comments || r.comments.length === 0) && (
-                  <div className={calcStyles.small} style={{ color: 'var(--mx-slate-400)', fontStyle: 'italic' }}>
+                  <div className={`${calcStyles.small} ${styles.noCommentsNote}`}>
                     No comments yet. Anyone involved can leave a message.
                   </div>
                 )}
@@ -1082,15 +1056,14 @@ function MarketingRequestRow({
                         <div className={historyStyles.timelineMeta}>
                           <strong>{c.by}</strong> · {formatDateTime(c.at)}
                         </div>
-                        <div style={{ marginTop: 2, fontSize: 13 }}>{c.text}</div>
+                        <div className={styles.commentBody}>{c.text}</div>
                       </div>
                     ))}
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                <div className={styles.commentInputRow}>
                   <input
-                    className={calcStyles.formControl}
-                    style={{ flex: '1 1 240px' }}
+                    className={`${calcStyles.formControl} ${styles.commentInputFlex}`}
                     placeholder="Add a remark or question…"
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
@@ -1116,7 +1089,7 @@ function MarketingRequestRow({
               </div>
 
               {canDelete && (
-                <div style={{ marginTop: 18, borderTop: '1px solid var(--mx-slate-100)', paddingTop: 10 }}>
+                <div className={styles.deleteSection}>
                   <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => onDelete(r)}>
                     Delete Request
                   </Button>
@@ -1372,95 +1345,59 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
           {/* Triage & Stage Quick Metric Cards — shared quickActionGrid
               container for the same reason as the summary bar above: gets
               the existing <=640px 2-column override for free. */}
-          <div className={historyStyles.quickActionGrid} style={{ marginBottom: 16, marginTop: 0 }}>
+          <div className={`${historyStyles.quickActionGrid} ${styles.metricGrid}`}>
             <button
               type="button"
               onClick={() => setTab('all')}
-              className={calcStyles.sectionPanel}
-              style={{
-                textAlign: 'left',
-                cursor: 'pointer',
-                border: tab === 'all' ? '2px solid var(--mx-blue-600)' : '1px solid var(--mx-slate-200)',
-                background: tab === 'all' ? 'var(--mx-blue-50)' : 'var(--mx-surface)'
-              }}
+              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'all' ? styles.metricCardActiveBlue : ''}`}
             >
-              <div style={{ fontSize: 11.5, color: 'var(--mx-slate-500)', fontWeight: 600 }}>All Requests</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-slate-900)' }}>{counts.all}</div>
+              <div className={styles.metricLabelDefault}>All Requests</div>
+              <div className={styles.metricValueDefault}>{counts.all}</div>
             </button>
 
             <button
               type="button"
               onClick={() => setTab('marketing_queue')}
-              className={calcStyles.sectionPanel}
-              style={{
-                textAlign: 'left',
-                cursor: 'pointer',
-                border: tab === 'marketing_queue' ? '2px solid var(--mx-blue-600)' : '1px solid var(--mx-slate-200)',
-                background: tab === 'marketing_queue' ? 'var(--mx-blue-50)' : 'var(--mx-surface)'
-              }}
+              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'marketing_queue' ? styles.metricCardActiveBlue : ''}`}
             >
-              <div style={{ fontSize: 11.5, color: 'var(--mx-blue-600)', fontWeight: 700 }}>Awaiting Marketing</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-info)' }}>{counts.marketingQueue}</div>
+              <div className={styles.metricLabelBlue}>Awaiting Marketing</div>
+              <div className={styles.metricValueInfo}>{counts.marketingQueue}</div>
             </button>
 
             <button
               type="button"
               onClick={() => setTab('technical_review')}
-              className={calcStyles.sectionPanel}
-              style={{
-                textAlign: 'left',
-                cursor: 'pointer',
-                border: tab === 'technical_review' ? '2px solid var(--mx-teal-700)' : '1px solid var(--mx-slate-200)',
-                background: tab === 'technical_review' ? 'var(--mx-teal-50)' : 'var(--mx-surface)'
-              }}
+              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'technical_review' ? styles.metricCardActiveTeal : ''}`}
             >
-              <div style={{ fontSize: 11.5, color: 'var(--mx-teal-700)', fontWeight: 700 }}>Pending Technical</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-teal-700)' }}>{counts.technicalReview}</div>
+              <div className={styles.metricLabelTeal}>Pending Technical</div>
+              <div className={styles.metricValueTeal}>{counts.technicalReview}</div>
             </button>
 
             <button
               type="button"
               onClick={() => setTab('ready_delivery')}
-              className={calcStyles.sectionPanel}
-              style={{
-                textAlign: 'left',
-                cursor: 'pointer',
-                border: tab === 'ready_delivery' ? '2px solid var(--mx-violet-600)' : '1px solid var(--mx-slate-200)',
-                background: tab === 'ready_delivery' ? 'var(--mx-purple-50)' : 'var(--mx-surface)'
-              }}
+              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'ready_delivery' ? styles.metricCardActiveViolet : ''}`}
             >
-              <div style={{ fontSize: 11.5, color: 'var(--mx-violet-600)', fontWeight: 700 }}>Ready for Delivery</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-violet-700)' }}>{counts.readyDelivery}</div>
+              <div className={styles.metricLabelViolet}>Ready for Delivery</div>
+              <div className={styles.metricValueViolet}>{counts.readyDelivery}</div>
             </button>
 
             <button
               type="button"
               onClick={() => setTab('completed')}
-              className={calcStyles.sectionPanel}
-              style={{
-                textAlign: 'left',
-                cursor: 'pointer',
-                border: tab === 'completed' ? '2px solid var(--mx-green-600)' : '1px solid var(--mx-slate-200)',
-                background: tab === 'completed' ? 'var(--mx-green-50)' : 'var(--mx-surface)'
-              }}
+              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'completed' ? styles.metricCardActiveGreen : ''}`}
             >
-              <div style={{ fontSize: 11.5, color: 'var(--mx-green-600)', fontWeight: 700 }}>Completed</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-success)' }}>{counts.completed}</div>
+              <div className={styles.metricLabelGreen}>Completed</div>
+              <div className={styles.metricValueSuccess}>{counts.completed}</div>
             </button>
 
             <button
               type="button"
               onClick={() => setTab('my_requests')}
-              className={calcStyles.sectionPanel}
-              style={{
-                textAlign: 'left',
-                cursor: 'pointer',
-                border: tab === 'my_requests' ? '2px solid var(--mx-orange-600)' : '1px solid var(--mx-slate-200)',
-                background: tab === 'my_requests' ? 'var(--mx-orange-50)' : 'var(--mx-surface)'
-              }}
+              className={`${calcStyles.sectionPanel} ${styles.metricCard} ${tab === 'my_requests' ? styles.metricCardActiveOrange : ''}`}
             >
-              <div style={{ fontSize: 11.5, color: 'var(--mx-orange-600)', fontWeight: 700 }}>My Requests</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-orange-700)' }}>{counts.myRequests}</div>
+              <div className={styles.metricLabelOrange}>My Requests</div>
+              <div className={styles.metricValueOrange}>{counts.myRequests}</div>
             </button>
           </div>
 
@@ -1474,8 +1411,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
             />
 
             <select
-              className={calcStyles.formControl}
-              style={{ width: 'auto' }}
+              className={`${calcStyles.formControl} ${styles.selectAuto}`}
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
@@ -1488,8 +1424,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
             </select>
 
             <select
-              className={calcStyles.formControl}
-              style={{ width: 'auto' }}
+              className={`${calcStyles.formControl} ${styles.selectAuto}`}
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
             >
@@ -1500,7 +1435,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               <option value="low">Low</option>
             </select>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, whiteSpace: 'nowrap' }}>
+            <label className={styles.dueOnlyLabel}>
               <input type="checkbox" checked={dueOnly} onChange={(e) => setDueOnly(e.target.checked)} />
               Due today or overdue
             </label>
@@ -1521,7 +1456,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
             )}
 
             <button type="button" className={historyStyles.button} onClick={loadRequests}>
-              <RefreshCw size={14} style={{ marginRight: 4 }} /> Refresh
+              <RefreshCw size={14} className={styles.refreshIconSpacing} /> Refresh
             </button>
           </div>
 
