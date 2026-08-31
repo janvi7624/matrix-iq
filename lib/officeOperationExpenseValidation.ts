@@ -1,0 +1,103 @@
+import { OfficeOperationExpenseInput } from './officeOperationExpenseStore';
+import {
+  ITEM_FROM_DEPARTMENT_MASTER,
+  ITEM_SUB_OPTIONS,
+  USECASE_FREE_TEXT,
+  USECASE_SUB_OPTIONS,
+  isValidItem,
+  isValidUsecase
+} from './officeOperationExpenseOptions';
+import { listActiveDepartments } from './departmentStore';
+
+export type ParseResult = { data: OfficeOperationExpenseInput } | { error: string };
+
+// Shared by POST (create) and PUT (edit) so the two can't drift on what counts
+// as a valid entry — the edit path stays exactly as strict as the create path.
+// Returns a discriminated result rather than throwing, so the routes keep
+// answering with a 400 and a real message instead of a 500 via apiErrorResponse.
+//
+// Both picklist fields are validated against the same option lists the form
+// renders from (lib/officeOperationExpenseOptions.ts), so a hand-rolled
+// request can't put a value into the register that the UI would never offer.
+export async function parseExpenseBody(body: Record<string, unknown>): Promise<ParseResult> {
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+
+  const date = str(body.date);
+  const usecase = str(body.usecase);
+  const usecaseDetail = str(body.usecaseDetail);
+  const expenseHead = str(body.expenseHead);
+  const itemName = str(body.itemName);
+  const itemSubName = str(body.itemSubName);
+  const amount = Number(body.amount);
+
+  // Item Qty is optional. Absent / null / '' all mean "not specified" and
+  // store NULL. A value that IS supplied still has to be a sane positive
+  // number — accepting -3 or 'abc' would just move the bad data downstream.
+  // Checked before the required-field guards below so a garbage qty reports
+  // its own error rather than being masked by an unrelated one.
+  const rawQty = body.itemQty;
+  const qtyOmitted = rawQty === undefined || rawQty === null || String(rawQty).trim() === '';
+  let itemQty: number | null = null;
+  if (!qtyOmitted) {
+    const parsedQty = Number(rawQty);
+    if (!Number.isFinite(parsedQty) || parsedQty <= 0) return { error: 'Item Qty must be greater than zero when provided' };
+    itemQty = parsedQty;
+  }
+
+  if (!date) return { error: 'Date is required' };
+  if (!usecase) return { error: 'Usecase is required' };
+  if (!isValidUsecase(usecase)) return { error: `"${usecase}" is not a valid usecase` };
+  if (!expenseHead) return { error: 'Expense Head is required' };
+  if (!itemName) return { error: 'Item Name is required' };
+  if (!isValidItem(itemName)) return { error: `"${itemName}" is not a valid item` };
+  if (!Number.isFinite(amount) || amount <= 0) return { error: 'Amount must be greater than zero' };
+
+  // A usecase with a fixed sub-list must carry one of its values; 'Other' must
+  // carry the free-typed label (that's the only thing telling one 'Other' row
+  // from another); a usecase with neither stores nothing.
+  const usecaseSubs = USECASE_SUB_OPTIONS[usecase];
+  const usecaseHasDetail = !!usecaseSubs || usecase === USECASE_FREE_TEXT;
+  if (usecaseSubs) {
+    if (!usecaseDetail) return { error: `Select which ${usecase.toLowerCase()} this is` };
+    if (!usecaseSubs.includes(usecaseDetail)) return { error: `"${usecaseDetail}" is not a valid ${usecase} option` };
+  } else if (usecase === USECASE_FREE_TEXT && !usecaseDetail) {
+    return { error: 'Describe the usecase' };
+  }
+
+  const subNameError = await validateItemSubName(itemName, itemSubName);
+  if (subNameError) return { error: subNameError };
+
+  return {
+    data: {
+      date,
+      usecase,
+      usecase_detail: usecaseHasDetail ? usecaseDetail : '',
+      expense_head: expenseHead,
+      item_name: itemName,
+      item_sub_name: itemSubName,
+      item_qty: itemQty,
+      amount
+    }
+  };
+}
+
+// 'Department' resolves its options from Department Master (a DB read) rather
+// than the static ITEM_SUB_OPTIONS map, so it can't be folded into the
+// synchronous checks above. Every other item reads ITEM_SUB_OPTIONS; an item
+// with no entry there (Water Jug, Porter, Courier and Postage, Miscellaneous,
+// Electricity, Internet, CUG) has no sub-categories and so accepts an empty
+// item_sub_name.
+async function validateItemSubName(itemName: string, itemSubName: string): Promise<string | null> {
+  if (itemName === ITEM_FROM_DEPARTMENT_MASTER) {
+    if (!itemSubName) return 'Select a department';
+    const departments = await listActiveDepartments();
+    if (!departments.some((d) => d.name === itemSubName)) return `"${itemSubName}" is not an active department`;
+    return null;
+  }
+
+  const subs = ITEM_SUB_OPTIONS[itemName];
+  if (!subs?.length) return null;
+  if (!itemSubName) return `Select a sub-item for ${itemName}`;
+  if (!subs.includes(itemSubName)) return `"${itemSubName}" is not a valid sub-item for ${itemName}`;
+  return null;
+}

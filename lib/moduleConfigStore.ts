@@ -34,6 +34,19 @@ const TMS_ALL_ROLES: UserRole[] = [...TMS_OVERSIGHT_ROLES, 'technical-manager', 
 const TMS_MANAGER_ONLY_ROLES: UserRole[] = [...TMS_OVERSIGHT_ROLES, 'technical-manager'];
 const TMS_DEPARTMENTS = ['Robotics', 'AI', 'AV', 'Marketing'];
 
+// HR-scoped modules — the HR/Admin department's own records. Admin and Super
+// Admin keep oversight, but the generic 'manager' role is deliberately NOT
+// given access: that role covers every department's managers (Sales, Accounts,
+// Technical, ...), and this is HR's own data.
+//
+// Same problem TMS has: visibleToRoles alone can't express that, because
+// isModuleAccessAllowed's generic isPrivileged bypass is true for every
+// manager account and would let them straight through regardless of what's in
+// the list. Listing the key here routes it through HR_MODULE_ROLES instead of
+// viewer.isPrivileged.
+const HR_MODULE_ROLES: UserRole[] = ['hr', 'superadmin', 'admin'];
+const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses']);
+
 // TMS accounts also need a handful of Sales-section modules (their project
 // dashboard is tied to Project.assigned_technical_person_id, and they work
 // alongside Sales day to day) — added on top of the standard 6 roles, not
@@ -64,6 +77,9 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'reimbursement', label: 'Reimbursement', desc: 'Submit and track expense reimbursement bills.', icon: 'receipt-indian-rupee', href: '/reimbursement', section: 'HR', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'admin-expenses', label: 'Admin Expenses', desc: 'Add hotel & ticket expenses split across employees (admin only).', icon: 'briefcase', href: '/admin-expenses', section: 'HR', order: 3, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
+  // HR + Admin + Super Admin — see HR_RESTRICTED_KEYS above, which is what
+  // actually keeps the generic 'manager' role out (this list alone wouldn't).
+  { key: 'office-operation-expenses', label: 'Office Operation Expenses', desc: 'HR/Admin office operating spend — office, electricity, guest, director, salary, and pantry expenses.', icon: 'receipt-indian-rupee', href: '/office-operation-expenses', section: 'HR', order: 4, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   { key: 'backoffice', label: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', icon: 'package', href: '/backoffice', section: 'Operations', order: 1, enabled: true, isCustom: false, visibleToRoles: ['backoffice', 'admin', 'superadmin', 'manager'] },
   { key: 'marketing-requests', label: 'Marketing Requests', desc: 'Request marketing support — brochures, banners, social posts, and more — and track delivery timelines.', icon: 'megaphone', href: '/marketing-requests', section: 'Marketing', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: 'user', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -225,6 +241,13 @@ const OLD_ALL_ROLES_NO_HR: UserRole[] = ['superadmin', 'admin', 'manager', 'engi
 const HR_ALL_ROLES_KEYS = new Set(['my-quotations', 'travel-schedule', 'analytics']);
 const OLD_SALES_ROLES_NO_HR: UserRole[] = [...OLD_ALL_ROLES_NO_HR, ...TMS_ROLE_KEYS];
 
+// Office Operation Expenses widened from HR + Super Admin to also include
+// Admin. Literal snapshot of the old default (not a derived array) so it can't
+// drift if HR_MODULE_ROLES changes again later. Same don't-clobber-an-admin-
+// edit guard as every reconciliation above: a row whose visibility was already
+// customised via Module Manager keeps whatever the admin set.
+const OLD_HR_MODULE_ROLES_NO_ADMIN: UserRole[] = ['hr', 'superadmin'];
+
 // Travel Schedule moved from Sales to the new HR section — same
 // don't-clobber-an-admin-edit guard: only rewrites a row that still holds
 // the old default 'Sales' section value.
@@ -302,6 +325,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (HR_ALL_ROLES_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_NO_HR)) attrs.visibleToRoles = ALL_ROLES;
     if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_SALES_ROLES_NO_HR)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (RESECTIONED_TO_HR_KEYS.has(key) && plain.section === OLD_SECTION_FOR_HR) { attrs.section = NEW_SECTION_FOR_HR; attrs.order = 1; }
+    if (HR_RESTRICTED_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_HR_MODULE_ROLES_NO_ADMIN)) attrs.visibleToRoles = HR_MODULE_ROLES;
     if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }
@@ -347,10 +371,18 @@ export async function isModuleAccessAllowed(key: string, viewer: { role: UserRol
   const config = all.find((m) => m.key === key);
   if (!config || !config.enabled) return false;
 
-  // TMS keys don't get the generic isPrivileged bypass — that flag is true
-  // for every 'manager' account (Sales, HR, Accounts, ...), and TMS is meant
-  // to stay Technical Team + Admin/Super Admin only. See TMS_OVERSIGHT_ROLES.
-  const isPrivilegedHere = key.startsWith('tms') ? TMS_OVERSIGHT_ROLES.includes(viewer.role) : viewer.isPrivileged;
+  // TMS and HR-restricted keys don't get the generic isPrivileged bypass —
+  // that flag is true for every 'manager' account (Sales, HR, Accounts, ...),
+  // and TMS is meant to stay Technical Team + Admin/Super Admin only, while
+  // HR_RESTRICTED_KEYS is meant to stay HR + Admin + Super Admin only. See
+  // TMS_OVERSIGHT_ROLES / HR_MODULE_ROLES. Without this, the
+  // `if (isPrivilegedHere) return true` below would hand every manager account
+  // access regardless of visibleToRoles.
+  const isPrivilegedHere = key.startsWith('tms')
+    ? TMS_OVERSIGHT_ROLES.includes(viewer.role)
+    : HR_RESTRICTED_KEYS.has(key)
+      ? HR_MODULE_ROLES.includes(viewer.role)
+      : viewer.isPrivileged;
 
   if (!departmentAllowsModule(config, viewer.department, isPrivilegedHere)) return false;
   if (isPrivilegedHere) return true;

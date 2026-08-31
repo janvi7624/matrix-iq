@@ -54,6 +54,7 @@ const modelDefiners = [
   require('./projectHandoverRequest.js'),
   require('./reimbursement.js'),
   require('./reimbursementSheet.js'),
+  require('./officeOperationExpense.js'),
   require('./metaIntegrationConfig.js'),
   require('./metaWebhookEvent.js')
 ];
