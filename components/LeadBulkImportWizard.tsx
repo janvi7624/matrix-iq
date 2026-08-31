@@ -59,14 +59,14 @@ const TARGET_FIELD_OPTIONS: { key: TargetField; label: string }[] = [
 // Alias -> target field, matched after stripping everything but letters/digits.
 // cardImageUrl is deliberately excluded — CSV rows never carry a card image.
 const FIELD_ALIASES: Record<Exclude<TargetField, 'skip' | 'cardImageUrl'>, string[]> = {
-  name: ['name', 'fullname', 'contactname', 'leadname'],
-  company: ['company', 'companyname', 'organisation', 'organization', 'firm', 'businessname'],
+  name: ['name', 'fullname', 'contactname', 'leadname', 'clientname', 'customername', 'personname', 'contactperson', 'client', 'customer'],
+  company: ['company', 'companyname', 'organisation', 'organization', 'firm', 'businessname', 'firmname', 'clientcompany', 'accountname', 'enterprise', 'organisationname', 'organizationname'],
   designation: ['designation', 'title', 'jobtitle', 'role', 'position'],
-  mobile: ['mobile', 'phone', 'contact', 'contactnumber', 'mobilenumber', 'phonenumber', 'cell'],
-  email: ['email', 'emailid', 'mail', 'emailaddress'],
-  city: ['city', 'location', 'town'],
-  budget: ['budget'],
-  notes: ['remarks', 'notes', 'comment', 'comments', 'address', 'website', 'url', 'source']
+  mobile: ['mobile', 'phone', 'contact', 'contactnumber', 'mobilenumber', 'phonenumber', 'cell', 'mobileno', 'contactno', 'whatsapp', 'whatsappnumber', 'telephone'],
+  email: ['email', 'emailid', 'mail', 'emailaddress', 'emailidid'],
+  city: ['city', 'location', 'town', 'place'],
+  budget: ['budget', 'value', 'dealvalue', 'estimatedvalue'],
+  notes: ['remarks', 'notes', 'comment', 'comments', 'address', 'website', 'url', 'source', 'description']
 };
 
 function normalizeHeader(h: string): string {
@@ -120,12 +120,26 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
   // CSV path
   // ---------------------------------------------------------------------
 
-  async function handleCsvSelected(file: File | undefined) {
-    if (!file) return;
-    const text = await file.text();
-    const rows = parseCsv(text);
+  // Modern .xlsx/.xlsm are ZIP archives — first 4 bytes "PK\x03\x04" (or,
+  // rarely, one of the other PK-prefixed empty/spanned-archive signatures).
+  // Legacy "Excel 97-2003" .xls is a completely different container (OLE
+  // Compound File Binary Format), signature D0 CF 11 E0 A1 B1 1A E1.
+  // Sniffing the actual bytes instead of trusting the file's name/extension
+  // catches the real-world case that caused garbled "PK...[Content_Types].xml"
+  // column headers: someone selecting (or the OS file picker allowing) a
+  // genuine Excel workbook into the "Import CSV" flow, whether it's actually
+  // named .csv or not.
+  async function looksLikeXlsx(file: File): Promise<boolean> {
+    if (/\.xlsx?$|\.xlsm$/i.test(file.name)) return true;
+    const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+    const isZip = head[0] === 0x50 && head[1] === 0x4b && (head[2] === 0x03 || head[2] === 0x05 || head[2] === 0x07);
+    const isOle = head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0 && head[4] === 0xa1 && head[5] === 0xb1 && head[6] === 0x1a && head[7] === 0xe1;
+    return isZip || isOle;
+  }
+
+  function applyParsedRows(rows: string[][]) {
     if (rows.length < 2) {
-      toast.error('That CSV has no data rows.');
+      toast.error('That file has no data rows.');
       return;
     }
     const [headerRow, ...dataRows] = rows;
@@ -136,6 +150,31 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
     setColumnMapping(guessed);
     setImportType('csv');
     setScreen('csv-map');
+  }
+
+  async function handleCsvSelected(file: File | undefined) {
+    if (!file) return;
+    if (await looksLikeXlsx(file)) {
+      setBusy(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch('/api/leads/bulk-import/parse-xlsx', { method: 'POST', body: formData });
+        const body = await response.json().catch(() => null);
+        if (!response.ok || !body) {
+          toast.error(body?.error || 'Could not read that Excel file.');
+          return;
+        }
+        applyParsedRows([body.headers, ...body.rows]);
+      } catch {
+        toast.error('Could not read that Excel file.');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    const text = await file.text();
+    applyParsedRows(parseCsv(text));
   }
 
   function buildRowsFromCsvMapping(): { row: BulkRowDraft; sourceLabel: string }[] {
@@ -154,7 +193,13 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
     });
   }
 
+  const hasNameOrCompanyMapped = Object.values(columnMapping).some((t) => t === 'name' || t === 'company');
+
   async function handleConfirmMapping() {
+    if (!hasNameOrCompanyMapped) {
+      toast.error('Map at least one column to Name or Company — every row needs one or the other.');
+      return;
+    }
     const mapped = buildRowsFromCsvMapping();
     await runPreview(mapped, 'csv');
   }
@@ -311,10 +356,10 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
           <h2 className={historyStyles.wizardCardTitle}><Upload size={20} /> Import Leads / Inquiries</h2>
           <div className={historyStyles.wizardCardHint}>Bring in many leads at once from a spreadsheet, or from a batch of business-card photos.</div>
           <div className={calcStyles.row} style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
-            <button type="button" className={calcStyles.sectionPanel} style={{ flex: '1 1 220px', cursor: 'pointer', textAlign: 'left' }} onClick={() => csvFileInputRef.current?.click()}>
+            <button type="button" className={calcStyles.sectionPanel} style={{ flex: '1 1 220px', cursor: 'pointer', textAlign: 'left' }} disabled={busy} onClick={() => csvFileInputRef.current?.click()}>
               <FileSpreadsheet size={22} style={{ color: 'var(--mx-brand)' }} />
-              <div style={{ fontWeight: 700, marginTop: 8 }}>Import CSV</div>
-              <div className={calcStyles.small}>Upload a spreadsheet of leads — you'll map your columns to MatrixIQ's fields next.</div>
+              <div style={{ fontWeight: 700, marginTop: 8 }}>{busy ? 'Reading file…' : 'Import CSV / Excel'}</div>
+              <div className={calcStyles.small}>Upload a CSV or Excel (.xlsx) spreadsheet of leads — column mapping to MatrixIQ&apos;s fields comes next.</div>
             </button>
             <button type="button" className={calcStyles.sectionPanel} style={{ flex: '1 1 220px', cursor: 'pointer', textAlign: 'left' }} onClick={() => imageFileInputRef.current?.click()}>
               <Images size={22} style={{ color: 'var(--mx-brand)' }} />
@@ -328,7 +373,7 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
             </a>
             <button type="button" className={historyStyles.button} style={{ marginLeft: 8 }} onClick={onCancel}>Cancel</button>
           </div>
-          <input ref={csvFileInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={(e) => handleCsvSelected(e.target.files?.[0])} />
+          <input ref={csvFileInputRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={(e) => handleCsvSelected(e.target.files?.[0])} />
           <input ref={imageFileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => handleImagesSelected(e.target.files)} />
         </>
       )}
@@ -337,6 +382,12 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
         <>
           <h2 className={historyStyles.wizardCardTitle}><FileSpreadsheet size={20} /> Map CSV Columns</h2>
           <div className={historyStyles.wizardCardHint}>{csvDataRows.length} record{csvDataRows.length === 1 ? '' : 's'} found. Confirm which column maps to which field — we've guessed based on your headers.</div>
+          {!hasNameOrCompanyMapped && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', marginTop: 10, borderRadius: 8, background: 'var(--mx-danger-subtle)', color: 'var(--mx-danger)', fontSize: 13 }}>
+              <AlertTriangle size={16} />
+              None of your columns are mapped to Name or Company yet — set at least one below, or every row will be rejected as invalid.
+            </div>
+          )}
           <table className={historyStyles.table} style={{ marginTop: 12 }}>
             <thead>
               <tr>
@@ -366,7 +417,7 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
             </tbody>
           </table>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleConfirmMapping}>{busy ? 'Validating...' : 'Preview Records'}</button>
+            <button type="button" className={calcStyles.btn} disabled={busy || !hasNameOrCompanyMapped} onClick={handleConfirmMapping}>{busy ? 'Validating...' : 'Preview Records'}</button>
             <button type="button" className={historyStyles.button} onClick={reset}>Back</button>
           </div>
         </>

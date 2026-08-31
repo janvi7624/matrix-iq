@@ -6,10 +6,11 @@ import { useSearchParams } from 'next/navigation';
 import { DomainKey, LeadPriority, LeadRecord, LeadSource, UserRole } from '@/lib/types';
 import { LEAD_DOMAIN_TILES, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
-import { AlertTriangle, Flame, Contact, Share2, UserPlus, UserCheck } from 'lucide-react';
+import { AlertTriangle, Flame, Contact, Share2, UserPlus, UserCheck, Pencil } from 'lucide-react';
 import AppShell from './AppShell';
 import LeadCaptureWizard from './LeadCaptureWizard';
 import LeadBulkImportWizard from './LeadBulkImportWizard';
+import PhoneInput from './ui/PhoneInput';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import notifyStyles from './ui/notify.module.css';
@@ -107,6 +108,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [page, setPage] = useState(1);
   const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number; unassigned: number; assignedToMe: number } | null>(null);
   const [metaInfoLead, setMetaInfoLead] = useState<LeadRecord | null>(null);
+  const [editingLead, setEditingLead] = useState<LeadRecord | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', company: '', designation: '', mobile: '', email: '', city: '', budget: '', priority: '' as LeadPriority, notes: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // ── Assignment ──────────────────────────────────────────────────────────
   // `assignees` non-empty is also the "this viewer may assign" signal:
@@ -362,6 +366,46 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     }
     setLeads((prev) => prev.filter((l) => l.id !== lead.id));
     loadStats();
+  }
+
+  function openEditLead(lead: LeadRecord) {
+    setEditForm({
+      name: lead.name,
+      company: lead.company,
+      designation: lead.designation,
+      mobile: lead.mobile,
+      email: lead.email,
+      city: lead.city,
+      budget: lead.budget,
+      priority: lead.priority,
+      notes: lead.notes
+    });
+    setEditingLead(lead);
+  }
+
+  async function handleSaveEdit() {
+    if (!editingLead) return;
+    setSavingEdit(true);
+    try {
+      const response = await fetch(`/api/leads/${editingLead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(body?.error || 'Could not save changes.');
+        return;
+      }
+      const updated: LeadRecord = await response.json();
+      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      toast.success('Lead updated.');
+      setEditingLead(null);
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
@@ -642,6 +686,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                       <td>{formatDateTime(l.created_at)}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button type="button" className={historyStyles.button} onClick={() => openEditLead(l)} aria-label={`Edit lead ${l.name || l.company || l.id}`}>
+                            <Pencil size={12} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} /> Edit
+                          </button>
                           {!l.project_id ? (
                             <button type="button" className={historyStyles.button} onClick={() => handleConvertToProject(l.id)}>To Project</button>
                           ) : (
@@ -692,6 +739,65 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               </div>
               <div className={notifyStyles.confirmActions} style={{ marginTop: 18 }}>
                 <button type="button" className={notifyStyles.confirmOk} onClick={() => setMetaInfoLead(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {editingLead && (
+          <div className={notifyStyles.overlay} role="presentation" onClick={() => !savingEdit && setEditingLead(null)}>
+            <div className={notifyStyles.wideCard} role="dialog" aria-modal="true" aria-label="Edit Lead" onClick={(e) => e.stopPropagation()}>
+              <div className={notifyStyles.confirmTitle}>Edit Lead</div>
+              <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 10 }}>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Name</label>
+                  <input className={calcStyles.formControl} value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
+                </div>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Company</label>
+                  <input className={calcStyles.formControl} value={editForm.company} onChange={(e) => setEditForm((f) => ({ ...f, company: e.target.value }))} />
+                </div>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Designation</label>
+                  <input className={calcStyles.formControl} value={editForm.designation} onChange={(e) => setEditForm((f) => ({ ...f, designation: e.target.value }))} />
+                </div>
+              </div>
+              <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Mobile</label>
+                  <PhoneInput value={editForm.mobile} onChange={(v) => setEditForm((f) => ({ ...f, mobile: v }))} />
+                </div>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Email</label>
+                  <input type="email" className={calcStyles.formControl} value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} />
+                </div>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>City</label>
+                  <input className={calcStyles.formControl} value={editForm.city} onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))} />
+                </div>
+              </div>
+              <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Budget</label>
+                  <input className={calcStyles.formControl} value={editForm.budget} onChange={(e) => setEditForm((f) => ({ ...f, budget: e.target.value }))} />
+                </div>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Priority</label>
+                  <select className={calcStyles.formControl} value={editForm.priority} onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value as LeadPriority }))}>
+                    <option value="">Unrated</option>
+                    <option value="hot">{LEAD_PRIORITY_META.hot.label}</option>
+                    <option value="warm">{LEAD_PRIORITY_META.warm.label}</option>
+                    <option value="cool">{LEAD_PRIORITY_META.cool.label}</option>
+                  </select>
+                </div>
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Notes</label>
+                <textarea className={calcStyles.formControl} rows={3} value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} />
+              </div>
+              <div className={notifyStyles.confirmActions} style={{ marginTop: 18 }}>
+                <button type="button" className={notifyStyles.confirmCancel} disabled={savingEdit} onClick={() => setEditingLead(null)}>Cancel</button>
+                <button type="button" className={notifyStyles.confirmOk} disabled={savingEdit} onClick={handleSaveEdit}>{savingEdit ? 'Saving…' : 'Save Changes'}</button>
               </div>
             </div>
           </div>
