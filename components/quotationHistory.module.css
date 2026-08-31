@@ -598,6 +598,25 @@
     border-color: var(--mx-brand);
     box-shadow: 0 0 0 3px var(--mx-brand-subtle);
 }
+.loginPasswordWrap { position: relative; display: flex; }
+.loginPasswordWrap input { width: 100%; padding-right: 38px; }
+.loginPasswordToggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+    border-radius: 6px;
+}
+.loginPasswordToggle:hover { color: var(--mx-ink); background: var(--mx-surface-hover, rgba(0, 0, 0, 0.05)); }
 .loginError { color: #b91c1c; font-size: 13px; margin-bottom: 12px; }
 .loginSubmit {
     width: 100%;

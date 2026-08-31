@@ -4,6 +4,7 @@ import { projectStore } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectPriority, ProjectRecord } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
+import { syncTmsProjectForAssignment } from '@/lib/tmsHandoff';
 
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
 
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
     client_name: clientName,
     company,
     contact_person: typeof body.contactPerson === 'string' ? body.contactPerson.trim() : '',
+    alt_contact_phone: typeof body.altContactPhone === 'string' ? body.altContactPhone.trim() : '',
     phone: typeof body.phone === 'string' ? body.phone.trim() : '',
     email: typeof body.email === 'string' ? body.email.trim() : '',
     address: typeof body.address === 'string' ? body.address.trim() : '',
@@ -76,12 +78,20 @@ export async function POST(request: NextRequest) {
     attachments: [],
     assigned_technical_person_id: assignedTechnicalPerson ? assignedTechnicalPerson.id : '',
     assigned_technical_person_name: assignedTechnicalPerson ? assignedTechnicalPerson.name : '',
+    tms_project_id: '',
     timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created', remarks: '' }],
     updated_at: now
   };
 
   try {
     const created = await projectStore.create(record);
+    if (assignedTechnicalPerson) {
+      try {
+        await syncTmsProjectForAssignment(created, assignedTechnicalPerson, viewer.username);
+      } catch {
+        // Best-effort — the Sales project above was already created either way.
+      }
+    }
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

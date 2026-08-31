@@ -276,7 +276,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // already accepted them. Local draft + explicit Save (not per-keystroke
   // patching) so typing doesn't fire a request per character or fight the
   // reload this component does after every save.
-  const [detailsDraft, setDetailsDraft] = useState({ clientName: '', company: '', contactPerson: '', phone: '', email: '', address: '', source: '' });
+  const [detailsDraft, setDetailsDraft] = useState({ clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '', source: '' });
   const [savingDetails, setSavingDetails] = useState(false);
 
   // Only re-syncs on the initial load / when navigating to a different
@@ -290,6 +290,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       clientName: p.client_name || '',
       company: p.company || '',
       contactPerson: p.contact_person || '',
+      altContactPhone: p.alt_contact_phone || '',
       phone: p.phone || '',
       email: p.email || '',
       address: p.address || '',
@@ -305,6 +306,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       detailsDraft.clientName !== (p.client_name || '') ||
       detailsDraft.company !== (p.company || '') ||
       detailsDraft.contactPerson !== (p.contact_person || '') ||
+      detailsDraft.altContactPhone !== (p.alt_contact_phone || '') ||
       detailsDraft.phone !== (p.phone || '') ||
       detailsDraft.email !== (p.email || '') ||
       detailsDraft.address !== (p.address || '') ||
@@ -319,6 +321,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         clientName: detailsDraft.clientName.trim(),
         company: detailsDraft.company.trim(),
         contactPerson: detailsDraft.contactPerson.trim(),
+        altContactPhone: detailsDraft.altContactPhone.trim(),
         phone: detailsDraft.phone.trim(),
         email: detailsDraft.email.trim(),
         address: detailsDraft.address.trim(),
@@ -615,7 +618,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <div className={historyStyles.summaryCard}>
             <div className={historyStyles.summaryCardLabel}>Client Details</div>
             <div className={historyStyles.summaryCardValue}>{project.company || '-'}</div>
-            <div className={calcStyles.small}>{project.contact_person || '-'} · {project.phone || '-'}</div>
+            <div className={calcStyles.small}>{project.client_name || '-'} · {project.phone || '-'}</div>
           </div>
           <div className={historyStyles.summaryCard}>
             <div className={historyStyles.summaryCardLabel}>Sales Team</div>
@@ -946,7 +949,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <div className={historyStyles.detailPanel} style={{ marginTop: 0 }}>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Client Name</label>
+                <label className={calcStyles.label}>Client Representative Name</label>
                 {canEdit ? (
                   <input className={calcStyles.formControl} value={detailsDraft.clientName} onChange={(e) => setDetailsDraft((d) => ({ ...d, clientName: e.target.value }))} />
                 ) : <div className={calcStyles.small}>{project.client_name || '-'}</div>}
@@ -956,12 +959,6 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 {canEdit ? (
                   <input className={calcStyles.formControl} value={detailsDraft.company} onChange={(e) => setDetailsDraft((d) => ({ ...d, company: e.target.value }))} />
                 ) : <div className={calcStyles.small}>{project.company || '-'}</div>}
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Contact Person</label>
-                {canEdit ? (
-                  <input className={calcStyles.formControl} value={detailsDraft.contactPerson} onChange={(e) => setDetailsDraft((d) => ({ ...d, contactPerson: e.target.value }))} />
-                ) : <div className={calcStyles.small}>{project.contact_person || '-'}</div>}
               </div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -988,6 +985,20 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 {canEdit ? (
                   <input className={calcStyles.formControl} value={detailsDraft.source} onChange={(e) => setDetailsDraft((d) => ({ ...d, source: e.target.value }))} />
                 ) : <div className={calcStyles.small}>{project.source || '-'}</div>}
+              </div>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Alternate Contact Name (optional)</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.contactPerson} onChange={(e) => setDetailsDraft((d) => ({ ...d, contactPerson: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.contact_person || '-'}</div>}
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Alternate Contact Phone (optional)</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.altContactPhone} onChange={(e) => setDetailsDraft((d) => ({ ...d, altContactPhone: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.alt_contact_phone || '-'}</div>}
               </div>
             </div>
             {canEdit && detailsDirty && (

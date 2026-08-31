@@ -646,9 +646,13 @@ export interface ProjectRecord {
   id: string;
   created_at: string;
   created_by: string;
+  // Primary "Client Representative Name" (the create/edit forms label it
+  // that way; the column name is unchanged to avoid a data-moving rename).
   client_name: string;
   company: string;
+  // Optional alternate contact's name + phone — no longer a primary field.
   contact_person: string;
+  alt_contact_phone: string;
   phone: string;
   email: string;
   address: string;
@@ -672,6 +676,38 @@ export interface ProjectRecord {
   updated_at: string;
   assigned_technical_person_id: string;
   assigned_technical_person_name: string;
+  // See lib/tmsHandoff.ts — links to the TMS project auto-created/kept in
+  // sync when assigned_technical_person_id is set.
+  tms_project_id: string;
+}
+
+// ---------------------------------------------------------------------------
+// Client Master — a read-only directory aggregated from Projects (+ their
+// Quotations) at request time, see app/api/clients/route.ts. There is no
+// underlying `clients` table; these shapes exist purely as the API's
+// response contract.
+// ---------------------------------------------------------------------------
+export interface ClientContact {
+  clientName: string;
+  phone: string;
+  email: string;
+  altContactName: string;
+  altContactPhone: string;
+  projectId: string;
+}
+
+export interface ClientProductHandler {
+  product: string;
+  handledBy: string;
+}
+
+export interface ClientSummary {
+  key: string;
+  displayName: string;
+  contacts: ClientContact[];
+  productHandlers: ClientProductHandler[];
+  projectCount: number;
+  statusCounts: Record<string, number>;
 }
 
 // ---------------------------------------------------------------------------

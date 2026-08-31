@@ -21,6 +21,7 @@ const EMPTY_FORM = {
   clientName: '',
   company: '',
   contactPerson: '',
+  altContactPhone: '',
   phone: '',
   email: '',
   address: '',
@@ -195,16 +196,12 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           <form className={calcStyles.sectionPanel} onSubmit={handleCreate} style={{ marginBottom: 20 }}>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Client name</label>
+                <label className={calcStyles.label}>Client Representative Name</label>
                 <input className={calcStyles.formControl} value={form.clientName} onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))} />
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Company</label>
                 <input className={calcStyles.formControl} value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Contact person</label>
-                <input className={calcStyles.formControl} value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
               </div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -219,6 +216,16 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Address</label>
                 <input className={calcStyles.formControl} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+              </div>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Alternate Contact Name (optional)</label>
+                <input className={calcStyles.formControl} value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Alternate Contact Phone (optional)</label>
+                <PhoneInput value={form.altContactPhone} onChange={(v) => setForm((f) => ({ ...f, altContactPhone: v }))} />
               </div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>

@@ -100,7 +100,8 @@ export default function Sidebar() {
 
   const sections = useModuleSections(modules);
   const primarySection = primarySectionForDepartment(viewer?.department);
-  const { isExpanded, toggle } = useCollapsibleSections(primarySection);
+  const sectionLabels = useMemo(() => sections.map((s) => s.label), [sections]);
+  const { isExpanded, toggle } = useCollapsibleSections(primarySection, { accordion: true, allLabels: sectionLabels });
 
   const quickActions = useMemo(() => {
     const byKey = new Map((modules || []).map((m) => [m.key, m]));

@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
+import { Eye, EyeOff } from 'lucide-react';
 import styles from '@/components/quotationHistory.module.css';
 import { BRAND } from '@/lib/branding';
 
@@ -10,6 +11,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -60,7 +62,25 @@ function LoginForm() {
         </div>
         <div className={styles.loginField}>
           <label htmlFor="loginPassword">Password</label>
-          <input id="loginPassword" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <div className={styles.loginPasswordWrap}>
+            <input
+              id="loginPassword"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              className={styles.loginPasswordToggle}
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+          </div>
         </div>
         <button type="submit" className={styles.loginSubmit} disabled={busy}>
           {busy ? 'Signing in...' : 'Sign in'}
