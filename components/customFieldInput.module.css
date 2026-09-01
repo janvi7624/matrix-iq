@@ -1,0 +1,6 @@
+/* components/CustomFieldInput.tsx — was inline style={{}} objects. */
+
+.optionsWrap { display: flex; flex-wrap: wrap; gap: 10px; }
+.optionLabel { display: flex; align-items: center; gap: 4px; font-size: 13.5px; }
+.inlineFlexGap10 { display: flex; align-items: center; gap: 10px; }
+.fileImgPreview { height: 40px; border-radius: 6px; }

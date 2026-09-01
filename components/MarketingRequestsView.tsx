@@ -44,7 +44,7 @@ import SharedStatusBadge, { StatusTone } from './ui/StatusBadge';
 import SharedPriorityBadge, { PriorityTone } from './ui/PriorityBadge';
 
 interface MarketingRequestsViewProps {
-  currentUser: { id?: string; username: string; role: UserRole };
+  currentUser: { id?: string; username: string; role: UserRole; isPrivileged: boolean };
   isReviewer: boolean;
 }
 
@@ -233,7 +233,7 @@ function WorkflowStepper({ record: r }: { record: MarketingRequestRecord }) {
 
 interface RowProps {
   record: MarketingRequestRecord;
-  currentUser: { id?: string; username: string; role: UserRole };
+  currentUser: { id?: string; username: string; role: UserRole; isPrivileged: boolean };
   isReviewer: boolean;
   technicalRoster: TechnicalRosterEntry[];
   marketingRoster: MarketingRosterEntry[];
@@ -333,7 +333,10 @@ function MarketingRequestRow({
 
   const isAssignedTechnical = r.technical_member_username === currentUser.username || (currentUser.role === 'engineer' && r.status === 'pending_technical_review');
   const overdue = isMarketingRequestOverdue(r);
-  const canDelete = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const canDelete = currentUser.isPrivileged;
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);

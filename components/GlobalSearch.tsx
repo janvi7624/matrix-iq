@@ -48,8 +48,11 @@ export default function GlobalSearch() {
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { role?: string } | null) => {
-        if (d?.role === 'admin' || d?.role === 'superadmin' || d?.role === 'manager') setPrivileged(true);
+      .then((d: { isPrivileged?: boolean } | null) => {
+        // Role Management's isPrivileged flag, straight from the session —
+        // NOT re-derived from role name, since an admin can toggle a role's
+        // privileged status independently of what the role is called.
+        if (d?.isPrivileged) setPrivileged(true);
       })
       .catch(() => null);
   }, []);

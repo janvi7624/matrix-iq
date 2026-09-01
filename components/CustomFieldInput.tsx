@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CustomFieldDef, ProductRecord, ProjectRecord } from '@/lib/types';
 import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
+import fieldStyles from './customFieldInput.module.css';
 import { useToast } from './ui/ToastProvider';
 
 interface UserLite {
@@ -76,7 +77,7 @@ export default function CustomFieldInput({ field, value, onChange }: CustomField
       );
     case 'currency':
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className={styles.inlineFlexGap6}>
           <span>₹</span>
           <input className={styles.formControl} type="number" placeholder="Enter amount" value={value === 0 || value === undefined ? '' : (value as number)} onFocus={selectAllOnFocusIfZero} onChange={(e) => onChange(parseFloat(e.target.value) || 0)} />
         </div>
@@ -95,9 +96,9 @@ export default function CustomFieldInput({ field, value, onChange }: CustomField
     case 'multiselect': {
       const selected = Array.isArray(value) ? (value as string[]) : [];
       return (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        <div className={fieldStyles.optionsWrap}>
           {field.options.map((o) => (
-            <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13.5 }}>
+            <label key={o} className={fieldStyles.optionLabel}>
               <input
                 type="checkbox"
                 checked={selected.includes(o)}
@@ -113,9 +114,9 @@ export default function CustomFieldInput({ field, value, onChange }: CustomField
       return <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />;
     case 'radio':
       return (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        <div className={fieldStyles.optionsWrap}>
           {field.options.map((o) => (
-            <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13.5 }}>
+            <label key={o} className={fieldStyles.optionLabel}>
               <input type="radio" name={field.id} checked={value === o} onChange={() => onChange(o)} />
               {o}
             </label>
@@ -128,12 +129,12 @@ export default function CustomFieldInput({ field, value, onChange }: CustomField
     case 'file':
     case 'image':
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className={fieldStyles.inlineFlexGap10}>
           <input ref={fileInputRef} type="file" accept={field.type === 'image' ? 'image/*' : undefined} disabled={uploading} onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])} />
           {uploading && <span>Uploading...</span>}
           {typeof value === 'string' && value && (
             field.type === 'image'
-              ? <img src={value} alt={field.label} style={{ height: 40, borderRadius: 6 }} />
+              ? <img src={value} alt={field.label} className={fieldStyles.fileImgPreview} />
               : <a href={value} target="_blank" rel="noreferrer">View file</a>
           )}
         </div>

@@ -232,12 +232,6 @@ export async function generateQuotationPdf(input: QuotationPdfInput): Promise<vo
   doc.setFont('courier', 'normal');
   doc.text(formatNumberPdf(input.totals.subtotal), rightX, y, { align: 'right' });
   y += 6.5;
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(31, 41, 55);
-  doc.text(`Markup (${input.totals.markup}%)`, totalsX, y);
-  doc.setFont('courier', 'normal');
-  doc.text(formatNumberPdf(input.totals.markupAmount), rightX, y, { align: 'right' });
-  y += 6.5;
 
   if (input.totals.discountTotal) {
     doc.setFont('helvetica', 'normal');

@@ -1,0 +1,15 @@
+/* app/admin/product-catalog/page.tsx — was inline style={{}} objects. */
+
+.tierColumn { display: flex; flex-direction: column; gap: 3px; }
+.tierRow { display: flex; align-items: center; gap: 4px; }
+.tierLabel { font-size: 10px; color: var(--mx-ink-muted); width: 78px; flex-shrink: 0; }
+.tierInput { width: 90px; }
+.priceInput { width: 110px; }
+.actionsRow6 { display: flex; gap: 6px; }
+
+.newProductPanel { padding: 16px; margin-bottom: 16px; }
+.maxWidth320 { max-width: 320px; }
+.maxWidth260 { max-width: 260px; }
+.fieldsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 10px; }
+.createActionsRow { display: flex; gap: 8px; margin-top: 14px; }
+.mt24 { margin-top: 24px; }

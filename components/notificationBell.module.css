@@ -1,0 +1,15 @@
+/* components/NotificationBell.tsx — was inline style={{}} objects. */
+
+.bellRoot { position: relative; }
+.bellButton { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+.unreadBadge {
+  position: absolute; top: -4px; right: -4px; background: var(--mx-brand); color: var(--mx-surface);
+  border-radius: 999px; font-size: 10px; line-height: 16px; min-width: 16px; height: 16px;
+  text-align: center; padding: 0 3px; font-weight: 700;
+}
+.notifPanelPosition { position: absolute; right: 0; top: 110%; width: 340px; max-height: 420px; overflow-y: auto; z-index: 50; }
+.notifTitleText { font-size: 13.5px; }
+.emptyTitle { font-weight: 700; margin-bottom: 4px; }
+.emptyBody { font-weight: 400; }
+.itemTitleRead { font-weight: 400; }
+.itemTitleUnread { font-weight: 700; }

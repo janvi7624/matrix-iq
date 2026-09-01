@@ -61,23 +61,39 @@ export function composeQuote(params: {
     productGroups.push({ label: 'Custom products', start, end: lineItems.length });
   }
 
-  const subtotal = (includeActiveResult ? activeResult?.subtotal || 0 : 0) + cartTotal + customProductsTotal;
-  const markedUpTotal = subtotal * (1 + markupPercent / 100);
+  // The grand total is still accumulated from each source's own declared
+  // subtotal (a cart item's subtotal is authoritative and isn't required to
+  // equal the sum of its own lineItems — unchanged from before this
+  // change), just scaled by markup like everything else.
+  const rawSubtotal = (includeActiveResult ? activeResult?.subtotal || 0 : 0) + cartTotal + customProductsTotal;
+
+  // Markup is baked directly into each line item's own rate/amount rather
+  // than shown as a separate line — a ₹10,000 item with 100% markup reads
+  // as a ₹20,000 line item, matching what actually appears on the quote.
+  // Replacing (not mutating) each entry avoids corrupting the original
+  // objects held in estimator/cart state, which this function doesn't own.
+  const markupFactor = 1 + markupPercent / 100;
+  if (markupFactor !== 1) {
+    for (let i = 0; i < lineItems.length; i++) {
+      lineItems[i] = { ...lineItems[i], rate: lineItems[i].rate * markupFactor, amount: lineItems[i].amount * markupFactor };
+    }
+  }
+
+  const subtotal = rawSubtotal * markupFactor;
 
   let discountTotal = 0;
   discounts.forEach((d) => {
     const value = Number(d.value) || 0;
-    discountTotal += d.type === 'percent' ? markedUpTotal * (value / 100) : value;
+    discountTotal += d.type === 'percent' ? subtotal * (value / 100) : value;
   });
 
-  const preGstTotal = Math.max(0, markedUpTotal - discountTotal);
+  const preGstTotal = Math.max(0, subtotal - discountTotal);
   const gstAmount = preGstTotal * (GST_RATE_PERCENT / 100);
   const total = preGstTotal + gstAmount;
 
   const totals: Totals = {
     subtotal,
     markup: markupPercent,
-    markupAmount: markedUpTotal - subtotal,
     discountTotal,
     preGstTotal,
     gstAmount,

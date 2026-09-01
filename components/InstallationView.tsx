@@ -100,11 +100,14 @@ function InstallationRow({
 }
 
 interface InstallationViewProps {
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 export default function InstallationView({ currentUser }: InstallationViewProps) {
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const [records, setRecords] = useState<InstallationRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);

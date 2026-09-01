@@ -1,0 +1,10 @@
+/* app/admin/custom-modules/page.tsx — was inline style={{}} objects. */
+
+.iconSelectNarrow { max-width: 160px; }
+.checkboxLabel13 { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.approverField { max-width: 220px; }
+.mt20 { margin-top: 20px; }
+.flex2 { flex: 2; }
+.requiredCheckboxLabel { display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
+.fieldActionsRow { display: flex; gap: 4px; align-items: flex-end; }
+.saveActionsRow { display: flex; gap: 10px; margin-top: 20px; }

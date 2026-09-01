@@ -1,0 +1,8 @@
+/* components/AnalyticsView.tsx — was inline style={{}} objects. */
+
+.breakdownWrap { display: flex; gap: 24px; flex-wrap: wrap; }
+.breakdownCol { min-width: 220px; flex: 1; }
+.breakdownTitle { font-size: 12px; font-weight: 700; color: var(--mx-ink-faint); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 8px; }
+.breakdownList { display: flex; flex-direction: column; gap: 6px; }
+.breakdownRow { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 10px; border-radius: 6px; background: var(--mx-surface-sunken); }
+.breakdownCount { font-weight: 700; }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { NotificationRecord } from '@/lib/types';
 import styles from './quotationHistory.module.css';
+import bellStyles from './notificationBell.module.css';
 
 // Static, entity-id-agnostic destinations (the list itself, not one record).
 const ENTITY_LINK: Record<string, string> = {
@@ -76,37 +77,26 @@ export default function NotificationBell() {
   }
 
   return (
-    <div ref={rootRef} style={{ position: 'relative' }}>
+    <div ref={rootRef} className={bellStyles.bellRoot}>
       <button
         type="button"
-        className={styles.button}
+        className={`${styles.button} ${bellStyles.bellButton}`}
         onClick={() => setOpen((v) => !v)}
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
-        style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
       >
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span
-            style={{
-              position: 'absolute', top: -4, right: -4, background: '#dc2626', color: '#fff',
-              borderRadius: 999, fontSize: 10, lineHeight: '16px', minWidth: 16, height: 16,
-              textAlign: 'center', padding: '0 3px', fontWeight: 700
-            }}
-          >
+          <span className={bellStyles.unreadBadge}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
       {open && (
         <div
-          className={styles.notifPanel}
-          style={{
-            position: 'absolute', right: 0, top: '110%', width: 340, maxHeight: 420, overflowY: 'auto',
-            zIndex: 50
-          }}
+          className={`${styles.notifPanel} ${bellStyles.notifPanelPosition}`}
         >
           <div className={styles.notifHeader}>
-            <strong style={{ fontSize: 13.5 }}>Notifications</strong>
+            <strong className={bellStyles.notifTitleText}>Notifications</strong>
             {unreadCount > 0 && (
               <button type="button" onClick={markAllRead} className={styles.notifMarkAllBtn}>
                 Mark all read
@@ -115,8 +105,8 @@ export default function NotificationBell() {
           </div>
           {notifications.length === 0 ? (
             <div className={styles.notifEmpty}>
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>You&apos;re all caught up</div>
-              <div style={{ fontWeight: 400 }}>New task assignments and important updates will appear here.</div>
+              <div className={bellStyles.emptyTitle}>You&apos;re all caught up</div>
+              <div className={bellStyles.emptyBody}>New task assignments and important updates will appear here.</div>
             </div>
           ) : (
             notifications.map((n) => (
@@ -126,7 +116,7 @@ export default function NotificationBell() {
                 onClick={() => markRead(n.id)}
                 className={`${styles.notifItem} ${n.is_read ? '' : styles.notifItemUnread}`}
               >
-                <div className={styles.notifItemTitle} style={{ fontWeight: n.is_read ? 400 : 700 }}>{n.title}</div>
+                <div className={`${styles.notifItemTitle} ${n.is_read ? bellStyles.itemTitleRead : bellStyles.itemTitleUnread}`}>{n.title}</div>
                 <div className={styles.notifItemBody}>{n.body}</div>
                 <div className={styles.notifItemTime}>{formatDateTime(n.created_at)}</div>
               </a>

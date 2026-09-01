@@ -59,9 +59,11 @@ export interface SiItem {
 }
 
 export interface Totals {
+  // Already-marked-up figure — subtotal is the sum of what's actually
+  // displayed (each line item's rate/amount is pre-scaled by markup), so
+  // there's no separate "markup amount" left to report.
   subtotal: number;
   markup: number;
-  markupAmount: number;
   discountTotal: number;
   preGstTotal: number;
   gstAmount: number;

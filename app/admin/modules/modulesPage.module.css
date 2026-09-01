@@ -1,0 +1,7 @@
+/* app/admin/modules/page.tsx — was inline style={{}} objects. */
+
+.sectionBlock { margin-bottom: 24px; }
+.centerCell { text-align: center; }
+.reorderRow { display: flex; gap: 4px; }
+.iconSelect { width: 130px; }
+.ml6 { margin-left: 6px; }

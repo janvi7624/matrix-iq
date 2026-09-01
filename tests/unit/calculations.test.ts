@@ -56,7 +56,6 @@ describe('composeQuote — active-result folding', () => {
     expect(result.totals).toEqual({
       subtotal: 0,
       markup: 0,
-      markupAmount: 0,
       discountTotal: 0,
       preGstTotal: 0,
       gstAmount: 0,
@@ -165,17 +164,22 @@ describe('composeQuote — totals arithmetic', () => {
   it('applies zero markup as a no-op', () => {
     const item = makeCartItem({ subtotal: 1000 });
     const result = composeQuote({ activeResult: null, cartItems: [item], customProducts: [], discounts: [], markupPercent: 0 });
-    expect(result.totals.markupAmount).toBe(0);
     expect(result.totals.preGstTotal).toBe(1000);
+    expect(result.lineItems[0].rate).toBe(100);
+    expect(result.lineItems[0].amount).toBe(100);
   });
 
-  it('computes markup, GST and total correctly', () => {
+  it('computes markup, GST and total correctly, and bakes markup into each line item', () => {
     const item = makeCartItem({ subtotal: 1000 });
     const result = composeQuote({ activeResult: null, cartItems: [item], customProducts: [], discounts: [], markupPercent: 20 });
-    expect(result.totals.markupAmount).toBeCloseTo(200);
+    expect(result.totals.subtotal).toBeCloseTo(1200);
     expect(result.totals.preGstTotal).toBeCloseTo(1200);
     expect(result.totals.gstAmount).toBeCloseTo(216);
     expect(result.totals.total).toBeCloseTo(1416);
+    // The line item's own rate/amount already reflect the 20% markup —
+    // there's no separate "markup" line anywhere in the output.
+    expect(result.lineItems[0].rate).toBeCloseTo(120);
+    expect(result.lineItems[0].amount).toBeCloseTo(120);
   });
 
   it('computes a percent discount on the marked-up total, not the raw subtotal', () => {

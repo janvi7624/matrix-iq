@@ -1,0 +1,29 @@
+/* app/admin/meta-integration/page.tsx — was inline style={{}} objects. */
+
+.statusBadge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: var(--mx-radius-full); }
+.statusBadgeOn { color: var(--mx-success); background: var(--mx-success-subtle); }
+.statusBadgeOff { color: var(--mx-ink-faint); background: var(--mx-surface-sunken); }
+
+.connectionRow { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.credentialNote { font-size: 12.5px; color: var(--mx-ink-muted); }
+.credentialsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.credentialRow { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: var(--mx-radius-sm); background: var(--mx-surface-sunken); font-size: 12.5px; }
+.monoText { font-family: monospace; }
+
+.testResultsList { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.testResultRow { font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
+.testCheckIcon { font-weight: 700; }
+.testCheckOk { color: var(--mx-success); }
+.testCheckFail { color: var(--mx-brand); }
+
+.webhookGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; font-size: 13px; }
+.webhookFieldLabel { color: var(--mx-ink-faint); font-size: 11px; font-weight: 600; text-transform: uppercase; margin-bottom: 3px; }
+
+.assignModeField { max-width: 320px; margin-bottom: 12px; }
+.poolWrap { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.poolChip { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 5px 10px; border-radius: var(--mx-radius-sm); background: var(--mx-surface-sunken); cursor: pointer; }
+.poolChipSelected { background: var(--mx-brand-subtle); }
+.campaignRow { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+
+.lastSyncText { font-size: 13px; margin-bottom: 10px; }
+.syncResultText { margin-top: 10px; font-size: 13px; }

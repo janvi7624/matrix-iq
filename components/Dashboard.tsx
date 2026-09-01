@@ -17,7 +17,7 @@ import { sectionIconFor, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON } fr
 import styles from './dashboard.module.css';
 
 interface DashboardProps {
-  currentUser: { id: string; username: string; name: string; role: UserRole; department?: string };
+  currentUser: { id: string; username: string; name: string; role: UserRole; department?: string; isPrivileged: boolean };
 }
 
 type ManagersByDepartment = Record<string, { id: string; username: string; name: string }[]>;
@@ -86,9 +86,11 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   // Which department's health detail dialog is open, by name (null = none).
   const [openHealthDepartment, setOpenHealthDepartment] = useState<string | null>(null);
 
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
-  const isManagerTier = currentUser.role === 'manager' || currentUser.role === 'admin' || currentUser.role === 'superadmin';
 
   // Tiles are entirely config-driven now (Module Manager, /admin/modules) —
   // enable/disable/rename/reorder/re-section a module without a code change.
@@ -194,7 +196,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (isPrivileged && followUpCount) {
       items.push({ key: 'followup', label: `Quotation${followUpCount === 1 ? '' : 's'} needing a follow-up`, count: followUpCount, href: '/quotation-history', tone: 'urgent' });
     }
-    if ((currentUser.role === 'engineer' || isManagerTier) && kpis?.pendingApprovals) {
+    if ((currentUser.role === 'engineer' || isPrivileged) && kpis?.pendingApprovals) {
       items.push({ key: 'demo-approvals', label: `Demo request${kpis.pendingApprovals === 1 ? '' : 's'} awaiting approval`, count: kpis.pendingApprovals, href: '/demo-schedule', tone: 'urgent' });
     }
     if (isBackOffice && backOfficeKpis?.pendingDc) {
@@ -268,7 +270,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     isPrivileged,
     followUpCount,
     currentUser.role,
-    isManagerTier,
     kpis,
     isBackOffice,
     backOfficeKpis,

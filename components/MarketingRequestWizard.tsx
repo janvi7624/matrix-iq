@@ -319,7 +319,14 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
                   {form.attachments.map((url) => (
                     // eslint-disable-next-line @next/next/no-img-element
                     <div key={url} className={styles.attachmentThumbWrap}>
-                      <img src={url} alt="Attachment" title="Click to remove" onClick={() => setForm((f) => ({ ...f, attachments: f.attachments.filter((u) => u !== url) }))} />
+                      <button
+                        type="button"
+                        className={historyStyles.imageStripRemoveBtn}
+                        aria-label="Remove this attachment"
+                        onClick={() => setForm((f) => ({ ...f, attachments: f.attachments.filter((u) => u !== url) }))}
+                      >
+                        <img src={url} alt="" />
+                      </button>
                     </div>
                   ))}
                 </div>

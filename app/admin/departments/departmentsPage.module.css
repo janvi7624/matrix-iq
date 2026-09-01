@@ -1,0 +1,7 @@
+/* app/admin/departments/page.tsx — was inline style={{}} objects. */
+
+.reorderRow { display: flex; gap: 4px; }
+.managerPickerBox { max-height: 120px; overflow-y: auto; border: 1px solid var(--mx-border); border-radius: 6px; padding: 6px; min-width: 180px; }
+.managerCheckboxRow { display: flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 2px 0; }
+.actionsRow6 { display: flex; gap: 6px; }
+.mutedNote55 { opacity: 0.55; }

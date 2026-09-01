@@ -5,6 +5,7 @@
 // no server-only imports — safe to import from client or server code.
 import { standeeModels, STANDEE_CATEGORIES } from './data/standeeModels';
 import { ledModels } from './data/ledModels';
+import { aioModels } from './data/aioModels';
 import { interactivePanelProducts } from './data/interactivePanelProducts';
 import { avCameraProducts } from './data/avCameraProducts';
 import { cableProducts, CABLE_SERIES } from './data/cableProducts';
@@ -102,6 +103,20 @@ export const CATALOGS: CatalogDef[] = [
     ],
     keySource: 'separate',
     getBaseRecords: () => ledModels as unknown as Record<string, Record<string, unknown>>
+  },
+  {
+    id: 'aio',
+    label: 'AV — Active LED AIO Series',
+    nameField: 'details',
+    priceFields: [{ key: 'price', label: 'Price' }],
+    createFields: [
+      { key: 'details', label: 'Details', type: 'text' },
+      { key: 'diagonalInches', label: 'Diagonal (inches)', type: 'number' },
+      { key: 'resolutionClass', label: 'Resolution', type: 'select', options: ['FHD', '4K'] },
+      { key: 'price', label: 'Price', type: 'number' }
+    ],
+    keySource: 'separate',
+    getBaseRecords: () => aioModels as unknown as Record<string, Record<string, unknown>>
   },
   {
     id: 'interactive-panel',

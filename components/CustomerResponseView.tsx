@@ -40,11 +40,14 @@ function formatDate(iso: string): string {
 }
 
 interface CustomerResponseViewProps {
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 export default function CustomerResponseView({ currentUser }: CustomerResponseViewProps) {
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const [records, setRecords] = useState<CustomerResponseRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);

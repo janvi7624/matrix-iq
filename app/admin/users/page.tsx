@@ -15,6 +15,7 @@ import Button from '@/components/ui/Button';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { usePrompt } from '@/components/ui/PromptDialog';
+import pageStyles from './usersPage.module.css';
 
 interface RowMenuAction {
   label: string;
@@ -110,8 +111,8 @@ function RowActionsMenu({ actions, label }: { actions: RowMenuAction[]; label: s
         createPortal(
           <div
             ref={panelRef}
-            className={`${historyStyles.notifPanel} ${historyStyles.rowMenuPanel}`}
-            style={{ position: 'fixed', top: coords.top, left: coords.left, width: PANEL_WIDTH, zIndex: 1000 }}
+            className={`${historyStyles.notifPanel} ${historyStyles.rowMenuPanel} ${pageStyles.menuPanel}`}
+            style={{ top: coords.top, left: coords.left, width: PANEL_WIDTH }}
             role="menu"
             aria-label={`Actions for ${label}`}
           >
@@ -521,7 +522,7 @@ export default function ManageUsersPage() {
           adjacent and discoverable, instead of one being a link at the top and
           the other the submit button of an always-expanded form. */}
       {isAdminTier && (
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
+        <div className={pageStyles.pageActionsRow}>
           <Button
             variant="primary"
             icon={<Plus size={16} />}
@@ -532,16 +533,16 @@ export default function ManageUsersPage() {
             Add employee
           </Button>
           <Link className={historyStyles.button} href="/admin/users/import">
-            <Upload size={15} style={{ marginRight: 7 }} /> Import from Excel
+            <Upload size={15} className={pageStyles.iconMr7} /> Import from Excel
           </Link>
         </div>
       )}
 
       {addOpen && (
-        <form id="addEmployeePanel" className={calcStyles.sectionPanel} onSubmit={handleCreate} style={{ marginBottom: 22 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <form id="addEmployeePanel" className={`${calcStyles.sectionPanel} ${pageStyles.addFormPanel}`} onSubmit={handleCreate}>
+          <div className={pageStyles.addFormHeader}>
             <ChevronDown size={16} />
-            <strong style={{ fontSize: 15 }}>New employee account</strong>
+            <strong className={pageStyles.addFormTitle}>New employee account</strong>
           </div>
           {createError && <div className={historyStyles.loginError}>{createError}</div>}
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -598,7 +599,7 @@ export default function ManageUsersPage() {
               </select>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+          <div className={pageStyles.formActionsRowMt4}>
             <Button type="submit" variant="primary" loading={createBusy} loadingLabel="Adding…">Add employee</Button>
             <Button variant="ghost" onClick={() => { setAddOpen(false); setCreateError(''); }}>Cancel</Button>
           </div>

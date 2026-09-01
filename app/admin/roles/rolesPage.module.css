@@ -1,0 +1,12 @@
+/* app/admin/roles/page.tsx — was inline style={{}} objects. */
+
+.privilegedCheckboxLabel { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin-bottom: 12px; }
+.selectedRowHighlight { background: var(--mx-red-50); }
+.actionsRow6 { display: flex; gap: 6px; }
+.ml6 { margin-left: 6px; }
+.mt24 { margin-top: 24px; }
+.toolbarDivider { width: 1px; align-self: stretch; background: var(--mx-border); }
+.globalCapsPanel { margin-bottom: 18px; }
+.capsWrap { display: flex; gap: 8px; flex-wrap: wrap; }
+.capChip { padding: 8px 12px; border: 1px solid var(--mx-border); border-radius: 10px; }
+.capLabelText { font-size: 13.5px; font-weight: 600; }

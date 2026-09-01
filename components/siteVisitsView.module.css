@@ -1,0 +1,5 @@
+/* components/SiteVisitsView.tsx — was inline style={{}} objects. */
+
+.headerRow { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.hrDivider { margin: 18px 0; border: none; border-top: 1px solid var(--mx-border); }
+.checkboxLabelInline { display: flex; align-items: center; gap: 6px; font-size: 13.5px; }

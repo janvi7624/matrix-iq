@@ -6,9 +6,10 @@ import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 import AppShell from './AppShell';
 import styles from './dashboard.module.css';
 import calcStyles from './calculator.module.css';
+import analyticsStyles from './analyticsView.module.css';
 
 interface AnalyticsViewProps {
-  currentUser: { role: UserRole };
+  currentUser: { role: UserRole; isPrivileged: boolean };
 }
 
 interface QuotationStats {
@@ -135,13 +136,13 @@ interface MetaLeadAnalytics {
 function BreakdownList({ title, buckets }: { title: string; buckets: MetaLeadAnalyticsBucket[] }) {
   if (!buckets.length) return null;
   return (
-    <div style={{ minWidth: 220, flex: 1 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mx-ink-faint)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 }}>{title}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div className={analyticsStyles.breakdownCol}>
+      <div className={analyticsStyles.breakdownTitle}>{title}</div>
+      <div className={analyticsStyles.breakdownList}>
         {buckets.slice(0, 6).map((b) => (
-          <div key={b.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '5px 10px', borderRadius: 6, background: 'var(--mx-surface-sunken)' }}>
+          <div key={b.key} className={analyticsStyles.breakdownRow}>
             <span>{b.label}</span>
-            <span style={{ fontWeight: 700 }}>{b.count}</span>
+            <span className={analyticsStyles.breakdownCount}>{b.count}</span>
           </div>
         ))}
       </div>
@@ -180,10 +181,12 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
   const [marketingStats, setMarketingStats] = useState<MarketingStats | null>(null);
   const [metaLeadAnalytics, setMetaLeadAnalytics] = useState<MetaLeadAnalytics | null>(null);
 
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name here, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
   const isSales = currentUser.role === 'user';
-  const isManagerTier = currentUser.role === 'manager' || currentUser.role === 'admin' || currentUser.role === 'superadmin';
   // Technical department (TMS) — any of its roles, or a privileged viewer
   // overseeing everything, same "privileged sees every department's numbers"
   // convention the rest of this page already follows for Sales/Back Office.
@@ -275,7 +278,7 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
               <div className={styles.kpiLabel}>{k.label}</div>
             </div>
           ))}
-          {isManagerTier && MANAGER_KPI_LABELS.map((k) => (
+          {isPrivileged && MANAGER_KPI_LABELS.map((k) => (
             <div key={k.key} className={styles.kpiCard}>
               <div className={styles.kpiValue}>{kpis[k.key]}</div>
               <div className={styles.kpiLabel}>{k.label}</div>
@@ -339,7 +342,7 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
               <div className={styles.kpiLabel}>Converted to Project</div>
             </div>
           </div>
-          <div className={calcStyles.sectionPanel} style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+          <div className={`${calcStyles.sectionPanel} ${analyticsStyles.breakdownWrap}`}>
             <BreakdownList title="By Campaign" buckets={metaLeadAnalytics.byCampaign} />
             <BreakdownList title="By Form" buckets={metaLeadAnalytics.byForm} />
             <BreakdownList title="By Platform" buckets={metaLeadAnalytics.byPlatform} />

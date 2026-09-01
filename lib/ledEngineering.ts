@@ -1,6 +1,6 @@
 import { LED_CONTROLLER_RULES, LED_CONTROLLER_SPECS, LedControllerRule, LedControllerSpec } from './data/ledControllerData';
 
-export type LedUnit = 'ft' | 'm' | 'in';
+export type LedUnit = 'ft' | 'm' | 'in' | 'mm';
 export type LedInstallCategory = 'indoor' | 'outdoor';
 export type LedRedundancyMode = 'auto' | 'yes' | 'no';
 
@@ -19,6 +19,9 @@ export function getLedDimensionsFt({ height, width, unit }: LedDimensions): { wi
   } else if (unit === 'in') {
     heightFt /= 12;
     widthFt /= 12;
+  } else if (unit === 'mm') {
+    heightFt *= 0.00328084;
+    widthFt *= 0.00328084;
   }
   return { widthFt, heightFt };
 }
@@ -27,6 +30,7 @@ export function getAreaSqFt({ height, width, unit }: LedDimensions): number {
   const area = height * width;
   if (unit === 'm') return area * 10.7639;
   if (unit === 'in') return area * 0.00694444;
+  if (unit === 'mm') return area * 0.0000107639;
   return area;
 }
 
@@ -41,6 +45,7 @@ export const LED_ASPECT_PRESETS: Record<string, number> = {
 export function ftToCurrentUnit(ft: number, unit: LedUnit): number {
   if (unit === 'm') return ft / 3.28084;
   if (unit === 'in') return ft * 12;
+  if (unit === 'mm') return ft / 0.00328084;
   return ft;
 }
 
@@ -52,6 +57,7 @@ export function convertLedLength(value: number, fromUnit: LedUnit, toUnit: LedUn
   let ft = value;
   if (fromUnit === 'm') ft = value * 3.28084;
   else if (fromUnit === 'in') ft = value / 12;
+  else if (fromUnit === 'mm') ft = value * 0.00328084;
   return ftToCurrentUnit(ft, toUnit);
 }
 

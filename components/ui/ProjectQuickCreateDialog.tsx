@@ -166,7 +166,7 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                 <label className={calcStyles.label}>Remarks</label>
                 <textarea className={calcStyles.formControl} rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
               </div>
-              <div className={notifyStyles.confirmActions} style={{ marginTop: 18 }}>
+              <div className={`${notifyStyles.confirmActions} ${notifyStyles.confirmActionsSpaced}`}>
                 <button type="button" className={notifyStyles.confirmCancel} onClick={() => close(null)}>Cancel</button>
                 <button type="submit" className={notifyStyles.confirmOk} disabled={creating}>{creating ? 'Creating...' : 'Create Project'}</button>
               </div>

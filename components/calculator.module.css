@@ -309,6 +309,7 @@
 .inlineFlexGap8 { display: flex; align-items: center; gap: 8px; }
 .dangerText { color: var(--mx-danger); }
 .priceInputNarrow { width: 100px; text-align: right; }
+.spanAllMb4 { grid-column: 1 / -1; margin-bottom: 4px; }
 /* VisitIQ Estimator's "Add-ons" sub-heading — an .h2 used at h3 size. */
 .visitIqAddOnsHeading { font-size: 1rem; margin-top: 18px; }
 .sectionPanelSpacedLg {

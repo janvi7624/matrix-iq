@@ -1,0 +1,4 @@
+/* components/ui/EmployeeEditDialog.tsx — was inline style={{}} objects. */
+
+.managerCheckboxLabel { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-weight: 500; }
+.managerCheckbox { width: 17px; height: 17px; accent-color: var(--mx-brand); }

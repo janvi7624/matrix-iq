@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { CustomProduct, ProductRecord } from '@/lib/types';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
+import listStyles from './customProductsList.module.css';
 
 interface CustomProductsListProps {
   products: CustomProduct[];
@@ -36,10 +37,9 @@ export default function CustomProductsList({ products, onAdd, onAddFromCatalog, 
         <label className={styles.label}>Custom products</label>
         <div className={styles.small}>Use this to build tailor-made / preplanned AV projects (e.g. auditorium or theatre seating layouts) line by line, or to add any item not in the standard catalogs.</div>
         {catalog.length > 0 && onAddFromCatalog && (
-          <div className={styles.lineItemRow} style={{ alignItems: 'center' }}>
+          <div className={`${styles.lineItemRow} ${listStyles.alignCenter}`}>
             <select
-              className={`${styles.formControl} ${styles.lineItemInput}`}
-              style={{ flex: 2 }}
+              className={`${styles.formControl} ${styles.lineItemInput} ${listStyles.flex2}`}
               value={pickedId}
               onChange={(e) => {
                 const product = catalog.find((p) => p.id === e.target.value);
@@ -60,12 +60,11 @@ export default function CustomProductsList({ products, onAdd, onAddFromCatalog, 
         )}
         <div>
           {products.map((item) => (
-            <div key={item.id} className={styles.sectionPanel} style={{ marginTop: 8, padding: 12 }}>
+            <div key={item.id} className={`${styles.sectionPanel} ${listStyles.productCard}`}>
               <div className={styles.lineItemRow}>
                 <input
                   type="text"
-                  className={`${styles.formControl} ${styles.lineItemInput}`}
-                  style={{ flex: 2 }}
+                  className={`${styles.formControl} ${styles.lineItemInput} ${listStyles.flex2}`}
                   placeholder="Product / Service name"
                   value={item.name}
                   onChange={(e) => onChangeItem(item.id, { name: e.target.value })}
@@ -101,7 +100,7 @@ export default function CustomProductsList({ products, onAdd, onAddFromCatalog, 
                   ×
                 </button>
               </div>
-              <div className={styles.lineItemRow} style={{ marginTop: 6 }}>
+              <div className={`${styles.lineItemRow} ${styles.mt6}`}>
                 <input
                   type="text"
                   className={`${styles.formControl} ${styles.lineItemInput}`}

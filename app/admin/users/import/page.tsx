@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
+import styles from './importPage.module.css';
 
 interface ImportResultRow {
   rowNumber: number;
@@ -65,7 +66,7 @@ function ResultRow({ row }: { row: ImportResultRow }) {
       <td>{row.department || '-'}</td>
       <td>{row.username || '-'}</td>
       <td><span className={`${historyStyles.statusPill} ${STATUS_CLASS[row.status]}`}>{STATUS_LABEL[row.status]}</span></td>
-      <td style={{ fontSize: 12.5, color: '#6b7280' }}>{row.reason || '-'}</td>
+      <td className={styles.reasonText}>{row.reason || '-'}</td>
     </tr>
   );
 }
@@ -252,12 +253,12 @@ export default function ImportEmployeesPage() {
         ) : (
           <>
             <div className={calcStyles.sectionPanel}>
-              <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>1. Choose file</h2>
+              <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>1. Choose file</h2>
               <p className={calcStyles.small}>
                 Upload an .xlsx file with employee columns (e.g. Emp. ID, Emp. Name, Department, Designation, Location, E-mail, Phone Number).
                 Nothing is created yet — the next step previews exactly what would happen.
               </p>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className={styles.fileRow}>
                 <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handleFileChange} />
                 <button type="button" className={calcStyles.btn} disabled={!file || stage === 'previewing'} onClick={runPreview}>
                   {stage === 'previewing' ? 'Reading file...' : 'Preview Import'}
@@ -299,7 +300,7 @@ export default function ImportEmployeesPage() {
                 </div>
 
                 {stage === 'preview' && (
-                  <div style={{ marginTop: 14 }}>
+                  <div className={calcStyles.mt14}>
                     <button type="button" className={calcStyles.btn} onClick={runCommit}>
                       Confirm Import — Create {preview?.summary.created ?? 0} Account{(preview?.summary.created ?? 0) === 1 ? '' : 's'}
                     </button>
@@ -314,7 +315,7 @@ export default function ImportEmployeesPage() {
                       These temporary passwords are shown only on this results screen and are never stored in plain text or shown again after you leave this page.
                       Export or share them securely, then ask each employee to change their password on first login.
                     </p>
-                    <div style={{ marginBottom: 10 }}>
+                    <div className={calcStyles.mb10}>
                       <button type="button" className={calcStyles.btn} onClick={exportCredentials} disabled={exporting}>
                         {exporting ? 'Exporting...' : 'Export User Credentials (Excel)'}
                       </button>

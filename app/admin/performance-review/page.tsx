@@ -7,6 +7,7 @@ import { PublicUser } from '@/lib/types';
 import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+import pageStyles from './performanceReviewPage.module.css';
 
 interface PerformanceReview {
   user: { username: string; name: string; department: string; designation: string; employeeId: string; joiningDate: string; role: string };
@@ -48,7 +49,7 @@ function MetricGroup({ title, items }: { title: string; items: { label: string; 
         {items.map((item) => (
           <div key={item.label} className={historyStyles.summaryCard}>
             <div className={historyStyles.summaryCardLabel}>{item.label}</div>
-            <div className={historyStyles.summaryCardValue} style={{ fontSize: 20 }}>{item.value}</div>
+            <div className={`${historyStyles.summaryCardValue} ${pageStyles.metricValueLg}`}>{item.value}</div>
           </div>
         ))}
       </div>
@@ -58,8 +59,8 @@ function MetricGroup({ title, items }: { title: string; items: { label: string; 
 
 function TrendChart({ title, data }: { title: string; data: { bucket: string; count: number }[] }) {
   return (
-    <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 260 }}>
-      <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{title}</div>
+    <div className={`${calcStyles.sectionPanel} ${pageStyles.chartPanel}`}>
+      <div className={pageStyles.chartTitle}>{title}</div>
       {data.length === 0 ? (
         <div className={calcStyles.small}>No activity recorded yet.</div>
       ) : (
@@ -182,7 +183,7 @@ function PerformanceReviewPageContent() {
   return (
     <AppShell title="Performance Review" subtitle="Administration › a full performance dashboard for one employee at a time.">
         <div className={historyStyles.toolbar}>
-          <select className={calcStyles.formControl} style={{ width: 'auto', minWidth: 260 }} value={selected} onChange={(e) => setSelected(e.target.value)}>
+          <select className={`${calcStyles.formControl} ${pageStyles.employeeSelect}`} value={selected} onChange={(e) => setSelected(e.target.value)}>
             <option value="">-- Select employee --</option>
             {users.map((u) => (
               <option key={u.id} value={u.username}>{u.name} ({u.username}) — {u.designation || u.role}</option>
@@ -199,8 +200,8 @@ function PerformanceReviewPageContent() {
 
         {review && (
           <>
-            <div className={historyStyles.detailPanel} style={{ marginTop: 14 }}>
-              <div className={historyStyles.navGroupLabel} style={{ marginTop: 0 }}>General Information</div>
+            <div className={`${historyStyles.detailPanel} ${calcStyles.mt14}`}>
+              <div className={`${historyStyles.navGroupLabel} ${calcStyles.h2Flush}`}>General Information</div>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <div className={calcStyles.field}><label className={calcStyles.label}>Employee Name</label><div className={calcStyles.small}>{review.user.name}</div></div>
                 <div className={calcStyles.field}><label className={calcStyles.label}>Department</label><div className={calcStyles.small}>{review.user.department || '-'}</div></div>
@@ -251,7 +252,7 @@ function PerformanceReviewPageContent() {
             ]} />
 
             <div className={historyStyles.navGroupLabel}>Performance Charts</div>
-            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 18 }}>
+            <div className={pageStyles.chartsRow}>
               <TrendChart title="Weekly Performance (activities logged)" data={review.charts.weekly} />
               <TrendChart title="Monthly Performance" data={review.charts.monthly} />
               <TrendChart title="Yearly Performance" data={review.charts.yearly} />

@@ -89,9 +89,14 @@ interface QuotationCalculatorProps {
   // a regular sales rep can configure and add products but can't change the
   // numbers that set profit margin.
   canEditPricing: boolean;
+  // Role Management's isPrivileged flag (same value proxy.ts checks for the
+  // /quotation-history admin-only route) — kept separate from canEditPricing
+  // since they're different permissions that only happen to share a default;
+  // an admin can toggle one without the other via Role Management.
+  isPrivileged: boolean;
 }
 
-function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCalculatorProps) {
+function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged }: QuotationCalculatorProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Nothing is pre-selected — on login and again after every "Add to Quote",
@@ -416,7 +421,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
     <AppShell title="New Quotation" subtitle="Configure a product, add it to the quote, and generate a client-ready PDF.">
         <div className={styles.topBar}>
           <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role] || styles.rolePillUser}`}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
-          {currentUser.role !== 'user' && currentUser.role !== 'engineer' && currentUser.role !== 'backoffice' && currentUser.role !== 'marketing' && currentUser.role !== 'accounts' && currentUser.role !== 'hr' && (
+          {isPrivileged && (
             <Link className={historyStyles.button} href="/quotation-history" target="_blank" rel="noreferrer">
               Quotation History
             </Link>
@@ -598,7 +603,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
                     <option value="">-- Select product type --</option>
                     <option value="av-solution">AV Solution (suggest by room size)</option>
                     <option value="standee">Standee</option>
-                    <option value="led">LED Display</option>
+                    <option value="led">Active LED</option>
                     <option value="interactive-panel">Interactive Flat Panel</option>
                     <option value="conference">Conferencing Cameras &amp; Microphones</option>
                     <option value="cables">AV Cables</option>
@@ -672,7 +677,6 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
                 onChange={(patch) => setCostInputs((c) => ({ ...c, ...patch }))}
                 showInstallFabrication={isAv}
                 showScaffolding={showScaffolding}
-                canEditMarkup={canEditPricing}
               />
 
               <CartList
@@ -779,10 +783,10 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
   );
 }
 
-export default function QuotationCalculator({ currentUser, canEditPricing }: QuotationCalculatorProps) {
+export default function QuotationCalculator({ currentUser, canEditPricing, isPrivileged }: QuotationCalculatorProps) {
   return (
     <Suspense fallback={<div className={styles.page} />}>
-      <QuotationCalculatorContent currentUser={currentUser} canEditPricing={canEditPricing} />
+      <QuotationCalculatorContent currentUser={currentUser} canEditPricing={canEditPricing} isPrivileged={isPrivileged} />
     </Suspense>
   );
 }

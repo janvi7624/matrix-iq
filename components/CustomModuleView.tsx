@@ -7,6 +7,7 @@ import AppShell from './AppShell';
 import CustomFieldInput from './CustomFieldInput';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './customModuleView.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 
@@ -174,8 +175,8 @@ export default function CustomModuleView({ moduleKey }: CustomModuleViewProps) {
             <div className={historyStyles.status}>{status}</div>
 
             {formOpen && (
-              <div className={calcStyles.sectionPanel} style={{ marginBottom: 20 }}>
-                <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>{editingRecordId ? 'Edit record' : 'New record'}</h2>
+              <div className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`}>
+                <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>{editingRecordId ? 'Edit record' : 'New record'}</h2>
                 {formError && <div className={historyStyles.loginError}>{formError}</div>}
                 {module_.fields.map((field) => (
                   <div className={calcStyles.field} key={field.id}>
@@ -183,7 +184,7 @@ export default function CustomModuleView({ moduleKey }: CustomModuleViewProps) {
                     <CustomFieldInput field={field} value={formValues[field.id]} onChange={(v) => setFormValues((prev) => ({ ...prev, [field.id]: v }))} />
                   </div>
                 ))}
-                <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <div className={styles.saveActionsRow}>
                   <button type="button" className={calcStyles.btn} disabled={saving} onClick={handleSubmit}>{saving ? 'Saving...' : 'Save'}</button>
                   <button type="button" className={historyStyles.button} onClick={() => setFormOpen(false)}>Cancel</button>
                 </div>
@@ -215,7 +216,7 @@ export default function CustomModuleView({ moduleKey }: CustomModuleViewProps) {
                         )}
                         <td>{r.created_by}</td>
                         <td>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <div className={historyStyles.rowActionsInline}>
                             {canEdit && <button type="button" className={historyStyles.button} onClick={() => openEdit(r)}>Edit</button>}
                             {canDecide && (
                               <>

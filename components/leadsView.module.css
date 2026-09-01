@@ -246,3 +246,5 @@
     .bulkSelect { flex: 1 1 100%; }
     .rowSelect { max-width: none; }
 }
+
+.editIcon { vertical-align: text-bottom; margin-right: 4px; }

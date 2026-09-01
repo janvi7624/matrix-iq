@@ -5,6 +5,7 @@ import { AppConfig, NotificationTemplate } from '@/lib/types';
 import AppShell from '@/components/AppShell';
 import styles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
+import pageStyles from './settingsPage.module.css';
 
 export default function ApplicationSettingsPage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -75,7 +76,7 @@ export default function ApplicationSettingsPage() {
         <div className={styles.status}>{status}</div>
         {config && (
           <>
-            <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Company Information</h2>
+            <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Company Information</h2>
             <div className={calcStyles.sectionPanel}>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <div className={calcStyles.field}>
@@ -183,7 +184,7 @@ export default function ApplicationSettingsPage() {
 
             <h2 className={calcStyles.h2}>Number Series</h2>
             <div className={calcStyles.sectionPanel}>
-              <div className={calcStyles.field} style={{ maxWidth: 260 }}>
+              <div className={`${calcStyles.field} ${pageStyles.maxWidth260}`}>
                 <label className={calcStyles.label}>Delivery Challan prefix</label>
                 <input className={calcStyles.formControl} value={config.dcNumberPrefix} onChange={(e) => set('dcNumberPrefix', e.target.value)} />
               </div>
@@ -194,7 +195,7 @@ export default function ApplicationSettingsPage() {
 
             <h2 className={calcStyles.h2}>Marketing Settings</h2>
             <div className={calcStyles.sectionPanel}>
-              <div className={calcStyles.field} style={{ maxWidth: 320 }}>
+              <div className={`${calcStyles.field} ${pageStyles.maxWidth320}`}>
                 <label className={calcStyles.label}>Marketing Owner</label>
                 <select className={calcStyles.formControl} value={config.marketingOwnerId} onChange={(e) => set('marketingOwnerId', e.target.value)}>
                   <option value="">— None selected —</option>
@@ -210,7 +211,7 @@ export default function ApplicationSettingsPage() {
 
             <h2 className={calcStyles.h2}>TMS Settings</h2>
             <div className={calcStyles.sectionPanel}>
-              <div className={calcStyles.field} style={{ maxWidth: 320 }}>
+              <div className={`${calcStyles.field} ${pageStyles.maxWidth320}`}>
                 <label className={calcStyles.label}>BOM Finance Approver</label>
                 <select className={calcStyles.formControl} value={config.bomFinanceApproverId} onChange={(e) => set('bomFinanceApproverId', e.target.value)}>
                   <option value="">— None selected —</option>
@@ -230,8 +231,8 @@ export default function ApplicationSettingsPage() {
                 Text templates only — no email/SMS is actually sent yet, since there&apos;s no messaging integration in the app. These are here so the content is ready once that&apos;s wired up.
               </div>
               {config.notificationTemplates.map((t, i) => (
-                <div key={t.key} style={{ borderTop: i > 0 ? '1px solid #eef0f2' : undefined, paddingTop: i > 0 ? 12 : 0, marginTop: i > 0 ? 12 : 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 6 }}>{t.label}</div>
+                <div key={t.key} className={`${pageStyles.templateBlock} ${i > 0 ? pageStyles.templateBlockDivider : ''}`}>
+                  <div className={pageStyles.templateLabel}>{t.label}</div>
                   <div className={calcStyles.field}>
                     <label className={calcStyles.label}>Subject</label>
                     <input className={calcStyles.formControl} value={t.subject} onChange={(e) => setTemplate(i, { subject: e.target.value })} />

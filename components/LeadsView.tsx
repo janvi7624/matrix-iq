@@ -31,7 +31,7 @@ import Textarea from './ui/Textarea';
 import PriorityBadge from './ui/PriorityBadge';
 
 interface LeadsViewProps {
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 interface Assignee {
@@ -403,7 +403,10 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     }
   }
 
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
 
   const columns: TableColumn<LeadRecord>[] = [];
   if (canAssign) {
@@ -506,7 +509,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       render: (l) => (
         <div className={leadStyles.rowActions}>
           <ToolbarButton onClick={() => openEditLead(l)} aria-label={`Edit lead ${l.name || l.company || l.id}`}>
-            <Pencil size={12} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} /> Edit
+            <Pencil size={12} className={leadStyles.editIcon} /> Edit
           </ToolbarButton>
           {!l.project_id ? (
             <ToolbarButton onClick={() => handleConvertToProject(l.id)}>To Project</ToolbarButton>

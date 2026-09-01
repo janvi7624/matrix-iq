@@ -113,13 +113,16 @@ const EMPTY_RESPONSE = { feedback: '', responseType: '' as CustomerResponseRecor
 
 interface ProjectDetailViewProps {
   projectId: string;
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 export default function ProjectDetailView({ projectId, currentUser }: ProjectDetailViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const [data, setData] = useState<DetailResponse | null>(null);
   const [status, setStatus] = useState('Loading...');
   const [tab, setTab] = useState<TabKey>('overview');

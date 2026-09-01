@@ -20,6 +20,8 @@
     display: flex;
     align-items: center;
     gap: 14px;
+    text-decoration: none;
+    color: inherit;
 }
 .headerLogo {
     height: 38px;
@@ -267,6 +269,18 @@
     object-fit: cover;
     border-radius: 8px;
     border: 1px solid #e5e7eb;
+}
+/* Wraps an .imageStrip img that acts as a "click to remove" control — a
+   bare <button> reset so the image inside renders identically to a plain
+   <img>, but the control is keyboard-focusable/operable and has a real
+   accessible name (unlike an onClick on the <img> itself, which is neither). */
+.imageStripRemoveBtn {
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    display: inline-block;
+    line-height: 0;
 }
 .timeline {
     display: flex;
@@ -1216,3 +1230,19 @@
 .h3Flush { margin-top: 0; }
 .inlineCheckboxRow { display: flex; gap: 6px; align-items: center; }
 .pillButton { border-radius: 999px; padding: 6px 12px; border: 1px solid var(--mx-border-strong); }
+
+/* app/not-found.tsx and app/error.tsx — was inline style={{}} objects. */
+.fullPageColumn { min-height: 100vh; display: flex; flex-direction: column; }
+.centeredMain { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; }
+.errorCode { font-size: 64px; font-weight: 800; color: var(--mx-brand); }
+.errorHeading { margin: 0; }
+.errorBody { color: var(--mx-ink-muted); max-width: 420px; }
+.errorReference { color: var(--mx-ink-faint); font-size: 12px; }
+.errorActionsRow { display: flex; gap: 10px; }
+
+/* components/QuotationTable.tsx's VersionHistory used `styles.small` (this
+   module) pre-existing from before this session — but `.small` was never
+   actually defined here (only in calculator.module.css, which this file
+   doesn't import), so the loading/error/empty states silently rendered
+   unstyled. Added to match calculator.module.css's `.small` exactly. */
+.small { font-size: 0.92rem; color: #94a3b8; }

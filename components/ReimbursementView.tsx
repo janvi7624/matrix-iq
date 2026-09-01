@@ -10,7 +10,7 @@ import calcStyles from './calculator.module.css';
 import styles from './reimbursement.module.css';
 
 interface Props {
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 interface UserOption { id: string; username: string; name: string }
@@ -140,7 +140,10 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [editingAmountValue, setEditingAmountValue] = useState('');
   const [editingAmountLoading, setEditingAmountLoading] = useState(false);
 
-  const isPrivileged = ['superadmin', 'admin', 'manager'].includes(currentUser.role);
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const isHr = currentUser.role === 'hr';
   const canSeeAdminEntries = ['superadmin', 'admin', 'hr', 'accounts'].includes(currentUser.role);
   const myUserId = useMemo(() => users.find((u) => u.username === currentUser.username)?.id || '', [users, currentUser.username]);

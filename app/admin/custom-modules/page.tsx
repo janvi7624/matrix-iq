@@ -9,6 +9,7 @@ import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
+import pageStyles from './customModulesPage.module.css';
 
 function iconOptionLabel(key: string): string {
   return key.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
@@ -185,7 +186,7 @@ export default function CustomModuleBuilderPage() {
 
         {editingId ? (
           <form className={calcStyles.sectionPanel} onSubmit={handleSave}>
-            <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>{editingId === 'new' ? 'New Module' : 'Edit Module'}</h2>
+            <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>{editingId === 'new' ? 'New Module' : 'Edit Module'}</h2>
             {formError && <div className={historyStyles.loginError}>{formError}</div>}
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
@@ -194,12 +195,12 @@ export default function CustomModuleBuilderPage() {
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Icon</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className={calcStyles.inlineFlexGap8}>
                   {(() => {
                     const Icon = resolveModuleIcon(form.icon);
                     return Icon ? <Icon size={18} /> : null;
                   })()}
-                  <select className={calcStyles.formControl} value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} style={{ maxWidth: 160 }}>
+                  <select className={`${calcStyles.formControl} ${pageStyles.iconSelectNarrow}`} value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}>
                     {MODULE_ICON_OPTIONS.map((key) => (
                       <option key={key} value={key}>{iconOptionLabel(key)}</option>
                     ))}
@@ -212,12 +213,12 @@ export default function CustomModuleBuilderPage() {
               </div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+              <label className={pageStyles.checkboxLabel13}>
                 <input type="checkbox" checked={form.requiresApproval} onChange={(e) => setForm((f) => ({ ...f, requiresApproval: e.target.checked }))} />
                 Requires approval before a record is considered final
               </label>
               {form.requiresApproval && (
-                <div className={calcStyles.field} style={{ maxWidth: 220 }}>
+                <div className={`${calcStyles.field} ${pageStyles.approverField}`}>
                   <label className={calcStyles.label}>Approver role</label>
                   <select className={calcStyles.formControl} value={form.approverRole} onChange={(e) => setForm((f) => ({ ...f, approverRole: e.target.value as UserRole }))}>
                     <option value="">Select role...</option>
@@ -225,17 +226,17 @@ export default function CustomModuleBuilderPage() {
                   </select>
                 </div>
               )}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+              <label className={pageStyles.checkboxLabel13}>
                 <input type="checkbox" checked={form.enabled} onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))} />
                 Enabled (visible on Dashboard once saved)
               </label>
             </div>
 
-            <h3 style={{ marginTop: 20 }}>Fields</h3>
+            <h3 className={pageStyles.mt20}>Fields</h3>
             {form.fields.map((field, index) => (
-              <div key={field.id} className={calcStyles.sectionPanel} style={{ marginBottom: 10 }}>
+              <div key={field.id} className={`${calcStyles.sectionPanel} ${calcStyles.mb10}`}>
                 <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-                  <div className={calcStyles.field} style={{ flex: 2 }}>
+                  <div className={`${calcStyles.field} ${pageStyles.flex2}`}>
                     <label className={calcStyles.label}>Field label</label>
                     <input className={calcStyles.formControl} value={field.label} onChange={(e) => updateField(index, { label: e.target.value })} required />
                   </div>
@@ -245,11 +246,11 @@ export default function CustomModuleBuilderPage() {
                       {FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                   </div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap' }}>
+                  <label className={pageStyles.requiredCheckboxLabel}>
                     <input type="checkbox" checked={field.required} onChange={(e) => updateField(index, { required: e.target.checked })} />
                     Required
                   </label>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end' }}>
+                  <div className={pageStyles.fieldActionsRow}>
                     <button type="button" className={historyStyles.toggleBtn} disabled={index === 0} onClick={() => moveField(index, -1)}>↑</button>
                     <button type="button" className={historyStyles.toggleBtn} disabled={index === form.fields.length - 1} onClick={() => moveField(index, 1)}>↓</button>
                     <button type="button" className={historyStyles.deleteBtn} onClick={() => removeField(index)}>Remove</button>
@@ -270,7 +271,7 @@ export default function CustomModuleBuilderPage() {
             ))}
             <button type="button" className={historyStyles.button} onClick={addField}>+ Add Field</button>
 
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <div className={pageStyles.saveActionsRow}>
               <button type="submit" className={calcStyles.btn} disabled={saving}>{saving ? 'Saving...' : 'Save Module'}</button>
               <button type="button" className={historyStyles.button} onClick={cancelEdit}>Cancel</button>
             </div>
@@ -307,7 +308,7 @@ export default function CustomModuleBuilderPage() {
                     <span className={`${historyStyles.statusPill} ${m.enabled ? historyStyles.statusPillActive : historyStyles.statusPillInactive}`}>{m.enabled ? 'Enabled' : 'Disabled'}</span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <div className={historyStyles.rowActionsInline}>
                       <Link className={historyStyles.button} href={`/modules/${m.key}`}>Open</Link>
                       <button type="button" className={historyStyles.button} onClick={() => startEdit(m)}>Edit</button>
                       <button type="button" className={historyStyles.button} onClick={() => toggleEnabled(m)}>{m.enabled ? 'Disable' : 'Enable'}</button>

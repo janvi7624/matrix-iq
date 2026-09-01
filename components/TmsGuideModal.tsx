@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { FolderKanban, ListChecks, Bell, RefreshCw } from 'lucide-react';
 import notifyStyles from './ui/notify.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './tmsGuideModal.module.css';
 
 const SEEN_KEY = 'tms_guide_seen';
 
@@ -64,35 +65,35 @@ export default function TmsGuideModal({ onClose, dontShowAgainDefault = true }: 
     <div className={notifyStyles.overlay} role="presentation" onClick={close}>
       <div className={notifyStyles.wideCard} role="dialog" aria-modal="true" aria-label="Welcome to TMS" onClick={(e) => e.stopPropagation()}>
         <div className={notifyStyles.confirmTitle}>Welcome to TMS</div>
-        <p style={{ fontSize: 13.5, color: 'var(--mx-ink-muted)', marginTop: 6 }}>
+        <p className={styles.intro}>
           TMS helps you manage your technical projects and daily engineering tasks.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, margin: '16px 0' }}>
+        <div className={styles.stepsGrid}>
           {WELCOME_STEPS.map(({ icon: Icon, title, body }) => (
-            <div key={title} style={{ display: 'flex', gap: 10, padding: 12, borderRadius: 'var(--mx-radius-md)', background: 'var(--mx-surface-sunken)' }}>
-              <Icon size={18} color="var(--mx-brand)" style={{ flexShrink: 0, marginTop: 1 }} />
+            <div key={title} className={styles.stepCard}>
+              <Icon size={18} color="var(--mx-brand)" className={styles.stepIcon} />
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 2 }}>{title}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--mx-ink-muted)' }}>{body}</div>
+                <div className={styles.stepTitle}>{title}</div>
+                <div className={styles.stepBody}>{body}</div>
               </div>
             </div>
           ))}
         </div>
 
-        <div className={calcStyles.h2} style={{ fontSize: 13, marginBottom: 8 }}>How TMS Works</div>
-        <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--mx-ink-muted)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div className={`${calcStyles.h2} ${styles.sectionHeadingCompact}`}>How TMS Works</div>
+        <ol className={styles.stepsList}>
           {HOW_IT_WORKS.map((step) => (
             <li key={step}>{step}</li>
           ))}
         </ol>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--mx-ink-muted)', marginTop: 16 }}>
+        <label className={styles.dontShowLabel}>
           <input type="checkbox" checked={dontShowAgain} onChange={(e) => setDontShowAgain(e.target.checked)} />
           Don&apos;t show again
         </label>
 
-        <div className={notifyStyles.confirmActions} style={{ marginTop: 14 }}>
+        <div className={`${notifyStyles.confirmActions} ${styles.actionsSpaced}`}>
           <button type="button" className={notifyStyles.confirmOk} onClick={close}>Got it</button>
         </div>
       </div>

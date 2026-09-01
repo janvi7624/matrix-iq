@@ -7,6 +7,7 @@ import { MODULE_ICON_OPTIONS, resolveModuleIcon } from '@/lib/icons';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
+import pageStyles from './modulesPage.module.css';
 
 function iconOptionLabel(key: string): string {
   return key.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
@@ -100,7 +101,7 @@ export default function ModuleManagerPage() {
         </div>
 
         {[...bySection.entries()].map(([section, list]) => (
-          <div key={section} style={{ marginBottom: 24 }}>
+          <div key={section} className={pageStyles.sectionBlock}>
             <h2 className={calcStyles.h2}>{section}</h2>
             <div className={historyStyles.tableWrap}>
               <table className={historyStyles.table}>
@@ -111,27 +112,26 @@ export default function ModuleManagerPage() {
                     <th>Label</th>
                     <th>Href</th>
                     <th>Enabled</th>
-                    {roles.map((r) => <th key={r.key} style={{ textAlign: 'center' }} title={r.label}>{shortLabel(r.label)}</th>)}
+                    {roles.map((r) => <th key={r.key} className={pageStyles.centerCell} title={r.label}>{shortLabel(r.label)}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {list.map((m, i) => (
                     <tr key={m.id}>
                       <td>
-                        <div style={{ display: 'flex', gap: 4 }}>
+                        <div className={pageStyles.reorderRow}>
                           <button type="button" className={historyStyles.toggleBtn} disabled={i === 0} onClick={() => move(section, m.id, -1)}>↑</button>
                           <button type="button" className={historyStyles.toggleBtn} disabled={i === list.length - 1} onClick={() => move(section, m.id, 1)}>↓</button>
                         </div>
                       </td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div className={calcStyles.inlineFlexGap6}>
                           {(() => {
                             const Icon = resolveModuleIcon(m.icon);
                             return Icon ? <Icon size={16} /> : <span title="Legacy custom icon">{m.icon}</span>;
                           })()}
                           <select
-                            className={calcStyles.formControl}
-                            style={{ width: 130 }}
+                            className={`${calcStyles.formControl} ${pageStyles.iconSelect}`}
                             value={resolveModuleIcon(m.icon) ? m.icon : ''}
                             onChange={(e) => {
                               const icon = e.target.value;
@@ -148,14 +148,14 @@ export default function ModuleManagerPage() {
                       </td>
                       <td>
                         <input className={calcStyles.formControl} value={m.label} onChange={(e) => setModules((prev) => prev.map((x) => (x.id === m.id ? { ...x, label: e.target.value } : x)))} onBlur={(e) => patch(m.id, { label: e.target.value })} />
-                        {m.isCustom && <span className={`${historyStyles.rolePill} ${historyStyles.rolePillBackoffice}`} style={{ marginLeft: 6 }}>Custom</span>}
+                        {m.isCustom && <span className={`${historyStyles.rolePill} ${historyStyles.rolePillBackoffice} ${pageStyles.ml6}`}>Custom</span>}
                       </td>
                       <td className={historyStyles.num}>{m.href}</td>
                       <td>
                         <input type="checkbox" checked={m.enabled} onChange={(e) => patch(m.id, { enabled: e.target.checked })} />
                       </td>
                       {roles.map((r) => (
-                        <td key={r.key} style={{ textAlign: 'center' }}>
+                        <td key={r.key} className={pageStyles.centerCell}>
                           <input type="checkbox" checked={m.visibleToRoles.includes(r.key)} onChange={() => toggleRole(m, r.key)} />
                         </td>
                       ))}
