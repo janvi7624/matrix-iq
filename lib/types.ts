@@ -1392,7 +1392,8 @@ export interface OfficeOperationExpenseRecord {
   // Sub-level of `usecase` — the specific salary under 'Salary', or the
   // free-typed label under 'Other'. Empty for usecases with no second level.
   usecase_detail: string;
-  expense_head: string;
+  // The head of expense — a value from OFFICE_EXPENSE_ITEMS. Labelled
+  // "Expense Head" in the UI and the Excel voucher.
   item_name: string;
   // Sub-level of `item_name` — the department for 'Department', or (once the
   // per-item sub-item lists are supplied) the chosen sub-item. See
@@ -1402,4 +1403,6 @@ export interface OfficeOperationExpenseRecord {
   // which is deliberately distinct from a quantity of 1.
   item_qty: number | null;
   amount: number;
+  description: string;
+  remarks: string;
 }

@@ -25,9 +25,11 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
   const date = str(body.date);
   const usecase = str(body.usecase);
   const usecaseDetail = str(body.usecaseDetail);
-  const expenseHead = str(body.expenseHead);
   const itemName = str(body.itemName);
   const itemSubName = str(body.itemSubName);
+  // Both free-text and optional — no length/content rules beyond trimming.
+  const description = str(body.description);
+  const remarks = str(body.remarks);
   const amount = Number(body.amount);
 
   // Item Qty is optional. Absent / null / '' all mean "not specified" and
@@ -45,10 +47,9 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
   }
 
   if (!date) return { error: 'Date is required' };
-  if (!usecase) return { error: 'Usecase is required' };
-  if (!isValidUsecase(usecase)) return { error: `"${usecase}" is not a valid usecase` };
-  if (!expenseHead) return { error: 'Expense Head is required' };
-  if (!itemName) return { error: 'Item Name is required' };
+  if (!usecase) return { error: 'Category is required' };
+  if (!isValidUsecase(usecase)) return { error: `"${usecase}" is not a valid category` };
+  if (!itemName) return { error: 'Expense Head is required' };
   if (!isValidItem(itemName)) return { error: `"${itemName}" is not a valid item` };
   if (!Number.isFinite(amount) || amount <= 0) return { error: 'Amount must be greater than zero' };
 
@@ -61,7 +62,7 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
     if (!usecaseDetail) return { error: `Select which ${usecase.toLowerCase()} this is` };
     if (!usecaseSubs.includes(usecaseDetail)) return { error: `"${usecaseDetail}" is not a valid ${usecase} option` };
   } else if (usecase === USECASE_FREE_TEXT && !usecaseDetail) {
-    return { error: 'Describe the usecase' };
+    return { error: 'Describe the category' };
   }
 
   const subNameError = await validateItemSubName(itemName, itemSubName);
@@ -72,11 +73,12 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
       date,
       usecase,
       usecase_detail: usecaseHasDetail ? usecaseDetail : '',
-      expense_head: expenseHead,
       item_name: itemName,
       item_sub_name: itemSubName,
       item_qty: itemQty,
-      amount
+      amount,
+      description,
+      remarks
     }
   };
 }
@@ -97,7 +99,7 @@ async function validateItemSubName(itemName: string, itemSubName: string): Promi
 
   const subs = ITEM_SUB_OPTIONS[itemName];
   if (!subs?.length) return null;
-  if (!itemSubName) return `Select a sub-item for ${itemName}`;
-  if (!subs.includes(itemSubName)) return `"${itemSubName}" is not a valid sub-item for ${itemName}`;
+  if (!itemSubName) return `Select an Item Name for ${itemName}`;
+  if (!subs.includes(itemSubName)) return `"${itemSubName}" is not a valid Item Name for ${itemName}`;
   return null;
 }

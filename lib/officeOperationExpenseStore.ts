@@ -29,13 +29,14 @@ function toRecord(row: Model): OfficeOperationExpenseRecord {
     date: p.date ? String(p.date) : '',
     usecase: (p.usecase as string) ?? '',
     usecase_detail: (p.usecase_detail as string) ?? '',
-    expense_head: (p.expense_head as string) ?? '',
     item_name: (p.item_name as string) ?? '',
     item_sub_name: (p.item_sub_name as string) ?? '',
     // Preserved as null rather than coerced to 0 — "not specified" and "zero"
     // are different things, and Number(null) would quietly report 0.
     item_qty: p.item_qty === null || p.item_qty === undefined ? null : Number(p.item_qty),
-    amount: Number(p.amount) || 0
+    amount: Number(p.amount) || 0,
+    description: (p.description as string) ?? '',
+    remarks: (p.remarks as string) ?? ''
   };
 }
 
@@ -45,18 +46,19 @@ export interface OfficeOperationExpenseInput {
   date: string;
   usecase: string;
   usecase_detail: string;
-  expense_head: string;
   item_name: string;
   item_sub_name: string;
   item_qty: number | null;
   amount: number;
+  description: string;
+  remarks: string;
 }
 
 // Every field a client is allowed to change on an existing row. `sr_no`,
 // `created_by`, and the timestamps are absent on purpose — the serial is
 // DB-assigned and permanent, and attribution shouldn't be rewritable from a
 // PATCH body (same allow-list approach as lib/reimbursementStore.ts's update).
-const EDITABLE_FIELDS = ['date', 'usecase', 'usecase_detail', 'expense_head', 'item_name', 'item_sub_name', 'item_qty', 'amount'];
+const EDITABLE_FIELDS = ['date', 'usecase', 'usecase_detail', 'item_name', 'item_sub_name', 'item_qty', 'amount', 'description', 'remarks'];
 
 // This module is HR-only (see lib/officeOperationExpenseAccess.ts), so there's
 // no own-records-vs-everyone scoping to apply the way the org-wide modules
@@ -95,11 +97,12 @@ async function create(viewerUsername: string, data: OfficeOperationExpenseInput)
     date: data.date,
     usecase: data.usecase,
     usecase_detail: data.usecase_detail,
-    expense_head: data.expense_head,
     item_name: data.item_name,
     item_sub_name: data.item_sub_name,
     item_qty: data.item_qty,
-    amount: data.amount
+    amount: data.amount,
+    description: data.description,
+    remarks: data.remarks
   } as never);
 
   // Re-read so the response carries the sequence-assigned sr_no and the

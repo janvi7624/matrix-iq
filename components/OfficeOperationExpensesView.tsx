@@ -49,15 +49,17 @@ const emptyForm = {
   date: '',
   usecase: '',
   usecaseDetail: '',
-  expenseHead: '',
   itemName: '',
   itemSubName: '',
   itemQty: '',
-  amount: ''
+  amount: '',
+  description: '',
+  remarks: ''
 };
 
 interface OfficeOperationExpensesViewProps {
-  currentUser: { name: string; department: string };
+  // Only the name is used — it stamps "Prepared By" on the Excel sheet.
+  currentUser: { name: string };
 }
 
 export default function OfficeOperationExpensesView({ currentUser }: OfficeOperationExpensesViewProps) {
@@ -140,12 +142,13 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
       date: record.date,
       usecase: record.usecase,
       usecaseDetail: record.usecase_detail,
-      expenseHead: record.expense_head,
       itemName: record.item_name,
       itemSubName: record.item_sub_name,
       // null must reopen as an empty field, not the string "null".
       itemQty: record.item_qty === null ? '' : String(record.item_qty),
-      amount: String(record.amount)
+      amount: String(record.amount),
+      description: record.description,
+      remarks: record.remarks
     });
     setShowForm(true);
   }
@@ -173,12 +176,11 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     e.preventDefault();
 
     if (!form.date) { toast.error('Select a date'); return; }
-    if (!form.usecase) { toast.error('Select a usecase'); return; }
+    if (!form.usecase) { toast.error('Select a category'); return; }
     if (usecaseSubs && !form.usecaseDetail) { toast.error(`Select which ${form.usecase.toLowerCase()} this is`); return; }
-    if (usecaseIsFreeText && !form.usecaseDetail.trim()) { toast.error('Describe the usecase'); return; }
-    if (!form.expenseHead.trim()) { toast.error('Enter the expense head'); return; }
-    if (!form.itemName) { toast.error('Select an item'); return; }
-    if (itemSubs?.length && !form.itemSubName) { toast.error(`Select a sub-item for ${form.itemName}`); return; }
+    if (usecaseIsFreeText && !form.usecaseDetail.trim()) { toast.error('Describe the category'); return; }
+    if (!form.itemName) { toast.error('Select an expense head'); return; }
+    if (itemSubs?.length && !form.itemSubName) { toast.error(`Select an Item Name for ${form.itemName}`); return; }
     // Qty is optional — only complain when something was typed and it's not a
     // usable number.
     if (form.itemQty.trim() && !(Number(form.itemQty) > 0)) { toast.error('Item Qty must be greater than zero'); return; }
@@ -190,13 +192,14 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         date: form.date,
         usecase: form.usecase,
         usecaseDetail: usecaseSubs || usecaseIsFreeText ? form.usecaseDetail : '',
-        expenseHead: form.expenseHead,
         itemName: form.itemName,
         itemSubName: itemSubs?.length ? form.itemSubName : '',
         // Empty string, not 0 — the server reads '' as "not specified" and
         // stores NULL, whereas 0 would fail its positive-number check.
         itemQty: form.itemQty.trim(),
-        amount: Number(form.amount)
+        amount: Number(form.amount),
+        description: form.description,
+        remarks: form.remarks
       };
 
       const res = await fetch(
@@ -239,8 +242,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     try {
       await exportOfficeOperationExpensesXlsx({
         records, total, totalInWords, year, month,
-        preparedBy: currentUser.name,
-        department: currentUser.department
+        preparedBy: currentUser.name
       });
     } catch (err) {
       console.error('Export error:', err);
@@ -303,7 +305,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
               </div>
 
               <div>
-                <label style={labelStyle}>Usecase *</label>
+                <label style={labelStyle}>Category *</label>
                 <select
                   className={calcStyles.formControl}
                   value={form.usecase}
@@ -311,7 +313,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                   disabled={!options}
                   style={{ width: '100%' }}
                 >
-                  <option value="">Select usecase…</option>
+                  <option value="">Select category…</option>
                   {options?.usecases.map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
@@ -328,18 +330,13 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
               {usecaseIsFreeText && (
                 <div>
-                  <label style={labelStyle}>Specify usecase *</label>
+                  <label style={labelStyle}>Specify category *</label>
                   <input type="text" className={calcStyles.formControl} placeholder="e.g. Annual audit" value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)} style={{ width: '100%' }} />
                 </div>
               )}
 
               <div>
                 <label style={labelStyle}>Expense Head *</label>
-                <input type="text" className={calcStyles.formControl} placeholder="e.g. Ramesh Traders" value={form.expenseHead} onChange={(e) => setField('expenseHead', e.target.value)} style={{ width: '100%' }} />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Item Name *</label>
                 <select
                   className={calcStyles.formControl}
                   value={form.itemName}
@@ -347,14 +344,14 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                   disabled={!options}
                   style={{ width: '100%' }}
                 >
-                  <option value="">Select item…</option>
+                  <option value="">Select expense head…</option>
                   {options?.items.map((i) => <option key={i} value={i}>{i}</option>)}
                 </select>
               </div>
 
               {!!itemSubs?.length && (
                 <div>
-                  <label style={labelStyle}>{form.itemName} — sub-item *</label>
+                  <label style={labelStyle}>Item Name *</label>
                   <select className={calcStyles.formControl} value={form.itemSubName} onChange={(e) => setField('itemSubName', e.target.value)} style={{ width: '100%' }}>
                     <option value="">Select…</option>
                     {itemSubs.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -370,6 +367,17 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
               <div>
                 <label style={labelStyle}>Amount (₹) *</label>
                 <input type="number" className={calcStyles.formControl} placeholder="e.g. 4800" value={form.amount} onChange={(e) => setField('amount', e.target.value)} min="0" step="0.01" style={{ width: '100%' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
+              <div>
+                <label style={labelStyle}>Description</label>
+                <textarea className={calcStyles.formControl} rows={2} placeholder="What was purchased or paid for" value={form.description} onChange={(e) => setField('description', e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
+              </div>
+              <div>
+                <label style={labelStyle}>Remarks</label>
+                <textarea className={calcStyles.formControl} rows={2} placeholder="Anything worth noting" value={form.remarks} onChange={(e) => setField('remarks', e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
               </div>
             </div>
 
@@ -414,11 +422,12 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                 <tr>
                   <th>Sr No.</th>
                   <th>Date</th>
-                  <th>Usecase</th>
+                  <th>Category</th>
                   <th>Expense Head</th>
-                  <th>Item</th>
                   <th style={{ textAlign: 'right' }}>Qty</th>
                   <th style={{ textAlign: 'right' }}>Amount</th>
+                  <th>Description</th>
+                  <th>Remarks</th>
                   <th>Entered By</th>
                   <th>Actions</th>
                 </tr>
@@ -429,22 +438,43 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                     <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{formatSrNo(record.sr_no)}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>{formatDate(record.date)}</td>
                     <td>
-                      <span style={{ display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: '12px', fontWeight: 600, background: '#dbeafe', color: '#1e40af' }}>
-                        {record.usecase}
-                      </span>
-                      {record.usecase_detail && (
-                        <div style={{ marginTop: 3, fontSize: '12px', color: 'var(--mx-ink-muted)' }}>{record.usecase_detail}</div>
-                      )}
+                      {/* Detail sits inline beside the usecase badge, matching
+                          the Expense Head / sub-category pairing below. */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: '12px', fontWeight: 600, background: '#dbeafe', color: '#1e40af', whiteSpace: 'nowrap' }}>
+                          {record.usecase}
+                        </span>
+                        {record.usecase_detail && (
+                          <span style={{
+                            display: 'inline-block', padding: '1px 8px', borderRadius: 10,
+                            fontSize: '11.5px', background: '#f3f4f6', color: '#374151', fontWeight: 500,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {record.usecase_detail}
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td>{record.expense_head || '—'}</td>
                     <td>
-                      {record.item_name}
-                      {record.item_sub_name && (
-                        <div style={{ marginTop: 3, fontSize: '12px', color: 'var(--mx-ink-muted)' }}>{record.item_sub_name}</div>
-                      )}
+                      {/* Sub-category sits inline beside the head rather than
+                          stacked under it, so the pair reads as one value. */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span>{record.item_name}</span>
+                        {record.item_sub_name && (
+                          <span style={{
+                            display: 'inline-block', padding: '1px 8px', borderRadius: 10,
+                            fontSize: '11.5px', background: '#f3f4f6', color: '#374151', fontWeight: 500,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {record.item_sub_name}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{record.item_qty ?? '—'}</td>
                     <td style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(record.amount)}</td>
+                    <td style={{ maxWidth: 220 }}>{record.description || '—'}</td>
+                    <td style={{ maxWidth: 200 }}>{record.remarks || '—'}</td>
                     <td style={{ whiteSpace: 'nowrap', fontSize: '12.5px', color: 'var(--mx-ink-muted)' }}>{record.creator_name || '—'}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
