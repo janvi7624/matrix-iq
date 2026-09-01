@@ -6,26 +6,36 @@
 // table, deliberately: they're a fixed business vocabulary, not admin-editable
 // master data like Department Master or Product Master.
 
+// Surfaced in the UI and the Excel sheet as "Category" — the identifiers and
+// the `usecase` / `usecase_detail` DB columns keep the original name on
+// purpose: renaming them would mean a migration and a sweep through the store,
+// API and options route for no user-visible gain.
+//
 // 'Pantry' deliberately absent — pantry spend is tracked as an Item Name
 // (see OFFICE_EXPENSE_ITEMS below) rather than a usecase, so it isn't
 // recorded at two different levels of the same entry.
 export const OFFICE_EXPENSE_USECASES = [
   'Office',
-  'Electricity',
+  'Employee',
   'Guest',
   'Director',
-  'Salary',
-  'Other'
+  'Salary'
 ] as const;
 
-// Second level of `usecase`. Only 'Salary' has a fixed sub-list today; 'Other'
-// is handled separately (free text) since its whole point is covering what the
-// list doesn't. A usecase absent from this map renders no sub-field at all.
-export const USECASE_SUB_OPTIONS: Record<string, string[]> = {
-  Salary: ['Sweeper Salary', 'Office Boy']
-};
+// Second level of `usecase`, for usecases that need one. Deliberately EMPTY:
+// 'Salary' used to offer Sweeper Salary / Office Boy here, but that duplicated
+// what the Expense Head already says (item 'Salary' with its own sub-items
+// Sweeper / Keshav Kaka / Papa), so the same fact was being entered twice.
+//
+// A usecase absent from this map renders no sub-field at all, so adding an
+// entry here is the only change needed to bring one back.
+export const USECASE_SUB_OPTIONS: Record<string, string[]> = {};
 
-// The usecase whose detail is typed rather than picked.
+// The usecase whose detail is typed rather than picked. 'Other' has since been
+// removed from OFFICE_EXPENSE_USECASES, so nothing matches this today and no
+// entry can carry a usecase detail at all — the machinery is kept (rather than
+// ripped out of the form, validation and options route) purely as the
+// extension point for whenever a free-text usecase is wanted again.
 export const USECASE_FREE_TEXT = 'Other';
 
 export const OFFICE_EXPENSE_ITEMS = [

@@ -42,15 +42,17 @@ const emptyForm = {
   date: '',
   usecase: '',
   usecaseDetail: '',
-  expenseHead: '',
   itemName: '',
   itemSubName: '',
   itemQty: '',
-  amount: ''
+  amount: '',
+  description: '',
+  remarks: ''
 };
 
 interface OfficeOperationExpensesViewProps {
-  currentUser: { name: string; department: string };
+  // Only the name is used — it stamps "Prepared By" on the Excel sheet.
+  currentUser: { name: string };
 }
 
 export default function OfficeOperationExpensesView({ currentUser }: OfficeOperationExpensesViewProps) {
@@ -133,12 +135,13 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
       date: record.date,
       usecase: record.usecase,
       usecaseDetail: record.usecase_detail,
-      expenseHead: record.expense_head,
       itemName: record.item_name,
       itemSubName: record.item_sub_name,
       // null must reopen as an empty field, not the string "null".
       itemQty: record.item_qty === null ? '' : String(record.item_qty),
-      amount: String(record.amount)
+      amount: String(record.amount),
+      description: record.description,
+      remarks: record.remarks
     });
     setShowForm(true);
   }
@@ -166,12 +169,11 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     e.preventDefault();
 
     if (!form.date) { toast.error('Select a date'); return; }
-    if (!form.usecase) { toast.error('Select a usecase'); return; }
+    if (!form.usecase) { toast.error('Select a category'); return; }
     if (usecaseSubs && !form.usecaseDetail) { toast.error(`Select which ${form.usecase.toLowerCase()} this is`); return; }
-    if (usecaseIsFreeText && !form.usecaseDetail.trim()) { toast.error('Describe the usecase'); return; }
-    if (!form.expenseHead.trim()) { toast.error('Enter the expense head'); return; }
-    if (!form.itemName) { toast.error('Select an item'); return; }
-    if (itemSubs?.length && !form.itemSubName) { toast.error(`Select a sub-item for ${form.itemName}`); return; }
+    if (usecaseIsFreeText && !form.usecaseDetail.trim()) { toast.error('Describe the category'); return; }
+    if (!form.itemName) { toast.error('Select an expense head'); return; }
+    if (itemSubs?.length && !form.itemSubName) { toast.error(`Select an Item Name for ${form.itemName}`); return; }
     // Qty is optional — only complain when something was typed and it's not a
     // usable number.
     if (form.itemQty.trim() && !(Number(form.itemQty) > 0)) { toast.error('Item Qty must be greater than zero'); return; }
@@ -183,13 +185,14 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         date: form.date,
         usecase: form.usecase,
         usecaseDetail: usecaseSubs || usecaseIsFreeText ? form.usecaseDetail : '',
-        expenseHead: form.expenseHead,
         itemName: form.itemName,
         itemSubName: itemSubs?.length ? form.itemSubName : '',
         // Empty string, not 0 — the server reads '' as "not specified" and
         // stores NULL, whereas 0 would fail its positive-number check.
         itemQty: form.itemQty.trim(),
-        amount: Number(form.amount)
+        amount: Number(form.amount),
+        description: form.description,
+        remarks: form.remarks
       };
 
       const res = await fetch(
@@ -232,8 +235,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     try {
       await exportOfficeOperationExpensesXlsx({
         records, total, totalInWords, year, month,
-        preparedBy: currentUser.name,
-        department: currentUser.department
+        preparedBy: currentUser.name
       });
     } catch (err) {
       console.error('Export error:', err);
@@ -289,14 +291,14 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
               </div>
 
               <div>
-                <label className={styles.fieldLabel}>Usecase *</label>
+                <label className={styles.fieldLabel}>Category *</label>
                 <select
                   className={`${calcStyles.formControl} ${styles.fullWidth}`}
                   value={form.usecase}
                   onChange={(e) => { setField('usecase', e.target.value); setField('usecaseDetail', ''); }}
                   disabled={!options}
                 >
-                  <option value="">Select usecase…</option>
+                  <option value="">Select category…</option>
                   {options?.usecases.map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
@@ -314,14 +316,9 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
               {usecaseIsFreeText && (
                 <div>
                   <label className={styles.fieldLabel}>Specify usecase *</label>
-                  <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Annual audit" value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)} />
+                  <input type="text" className={calcStyles.formControl} placeholder="e.g. Annual audit" value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)} style={{ width: '100%' }} />
                 </div>
               )}
-
-              <div>
-                <label className={styles.fieldLabel}>Expense Head *</label>
-                <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Ramesh Traders" value={form.expenseHead} onChange={(e) => setField('expenseHead', e.target.value)} />
-              </div>
 
               <div>
                 <label className={styles.fieldLabel}>Item Name *</label>
@@ -331,7 +328,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                   onChange={(e) => { setField('itemName', e.target.value); setField('itemSubName', ''); }}
                   disabled={!options}
                 >
-                  <option value="">Select item…</option>
+                  <option value="">Select expense head…</option>
                   {options?.items.map((i) => <option key={i} value={i}>{i}</option>)}
                 </select>
               </div>
@@ -339,7 +336,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
               {!!itemSubs?.length && (
                 <div>
                   <label className={styles.fieldLabel}>{form.itemName} — sub-item *</label>
-                  <select className={`${calcStyles.formControl} ${styles.fullWidth}`} value={form.itemSubName} onChange={(e) => setField('itemSubName', e.target.value)}>
+                  <select className={calcStyles.formControl} value={form.itemSubName} onChange={(e) => setField('itemSubName', e.target.value)} style={{ width: '100%' }}>
                     <option value="">Select…</option>
                     {itemSubs.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -354,6 +351,17 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
               <div>
                 <label className={styles.fieldLabel}>Amount (₹) *</label>
                 <input type="number" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. 4800" value={form.amount} onChange={(e) => setField('amount', e.target.value)} min="0" step="0.01" />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
+              <div>
+                <label className={styles.fieldLabel}>Description</label>
+                <textarea className={calcStyles.formControl} rows={2} placeholder="What was purchased or paid for" value={form.description} onChange={(e) => setField('description', e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
+              </div>
+              <div>
+                <label className={styles.fieldLabel}>Remarks</label>
+                <textarea className={calcStyles.formControl} rows={2} placeholder="Anything worth noting" value={form.remarks} onChange={(e) => setField('remarks', e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
               </div>
             </div>
 
@@ -394,11 +402,11 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                 <tr>
                   <th>Sr No.</th>
                   <th>Date</th>
-                  <th>Usecase</th>
+                  <th>Category</th>
                   <th>Expense Head</th>
                   <th>Item</th>
-                  <th className={styles.textRight}>Qty</th>
-                  <th className={styles.textRight}>Amount</th>
+                  <th style={{ textAlign: 'right' }}>Qty</th>
+                  <th style={{ textAlign: 'right' }}>Amount</th>
                   <th>Entered By</th>
                   <th>Actions</th>
                 </tr>
@@ -409,23 +417,22 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                     <td className={styles.srNoCell}>{formatSrNo(record.sr_no)}</td>
                     <td className={styles.nowrap}>{formatDate(record.date)}</td>
                     <td>
-                      <span className={styles.usecaseBadge}>
+                      <span style={{ display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: '12px', fontWeight: 600, background: '#dbeafe', color: '#1e40af' }}>
                         {record.usecase}
                       </span>
                       {record.usecase_detail && (
-                        <div className={styles.subDetailText}>{record.usecase_detail}</div>
+                        <div style={{ marginTop: 3, fontSize: '12px', color: 'var(--mx-ink-muted)' }}>{record.usecase_detail}</div>
                       )}
                     </td>
-                    <td>{record.expense_head || '—'}</td>
                     <td>
                       {record.item_name}
                       {record.item_sub_name && (
-                        <div className={styles.subDetailText}>{record.item_sub_name}</div>
+                        <div style={{ marginTop: 3, fontSize: '12px', color: 'var(--mx-ink-muted)' }}>{record.item_sub_name}</div>
                       )}
                     </td>
-                    <td className={styles.qtyCell}>{record.item_qty ?? '—'}</td>
-                    <td className={styles.amountCell}>{formatCurrency(record.amount)}</td>
-                    <td className={styles.enteredByCell}>{record.creator_name || '—'}</td>
+                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{record.item_qty ?? '—'}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(record.amount)}</td>
+                    <td style={{ whiteSpace: 'nowrap', fontSize: '12.5px', color: 'var(--mx-ink-muted)' }}>{record.creator_name || '—'}</td>
                     <td>
                       <div className={styles.rowActions}>
                         <button

@@ -19,7 +19,7 @@ export default async function OfficeOperationExpensesPage() {
 
   if (!roleCanAccessOfficeOperationExpenses(session.role)) redirect('/');
 
-  // Passed through only so the Excel voucher can stamp "Prepared By" and the
-  // department in its header block — same pattern as ReimbursementView.
-  return <OfficeOperationExpensesView currentUser={{ name: user.name || user.username, department: user.department || '' }} />;
+  // Passed through only so the Excel sheet can stamp "Prepared By" in its
+  // header block — same pattern as ReimbursementView.
+  return <OfficeOperationExpensesView currentUser={{ name: user.name || user.username }} />;
 }
