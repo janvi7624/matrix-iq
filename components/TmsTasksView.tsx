@@ -79,7 +79,10 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
   const [fPriority, setFPriority] = useState<TmsPriority | ''>('');
   const [sortKey, setSortKey] = useState<SortKey>('due_date');
 
-  const tmsDepartments = useMemo(() => departments.filter((d) => (TMS_DEPARTMENTS as readonly string[]).includes(d.name)), [departments]);
+  const tmsDepartments = useMemo(
+    () => departments.filter((d) => (TMS_DEPARTMENTS as readonly string[]).includes(d.name)).sort((a, b) => a.name.localeCompare(b.name)),
+    [departments]
+  );
 
   async function load() {
     setStatus('Loading...');

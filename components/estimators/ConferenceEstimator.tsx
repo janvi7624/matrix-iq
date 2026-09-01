@@ -33,7 +33,10 @@ export default function ConferenceEstimator({ active, costInputs, onResultChange
 
   // Admin-added products (Product Catalog) have no entry in the hardcoded
   // avCameraProducts file — union their keys in.
-  const modelKeys = useMemo(() => [...baseModelKeys, ...extraProductKeys('conference', baseModelKeys, overrides)], [overrides]);
+  const modelKeys = useMemo(
+    () => [...baseModelKeys, ...extraProductKeys('conference', baseModelKeys, overrides)].sort((a, b) => a.localeCompare(b)),
+    [overrides]
+  );
 
   const baseProduct = avCameraProducts[modelKey];
   const conferenceOverride = overrides.get(overrideMapKey('conference', modelKey));

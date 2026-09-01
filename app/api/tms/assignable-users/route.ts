@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
           TMS_ROLE_KEYS.includes(u.role as (typeof TMS_ROLE_KEYS)[number]) &&
           canViewRole(viewer.role, u.role)
       )
-      .map((u) => ({ id: u.id, username: u.username, name: u.name, department: u.department, role: u.role }));
+      .map((u) => ({ id: u.id, username: u.username, name: u.name, department: u.department, role: u.role }))
+      .sort((a, b) => a.name.localeCompare(b.name));
     return NextResponse.json(scoped);
   } catch (error) {
     return apiErrorResponse(error);

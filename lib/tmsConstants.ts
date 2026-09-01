@@ -3,7 +3,7 @@
 // 'use client' component that needs just these values must import from THIS
 // file instead, or Next tries to bundle pg/sequelize for the browser and the
 // build fails ("Module not found: Can't resolve 'fs'/'net'/'tls'").
-export const TMS_DEPARTMENTS = ['Robotics', 'AI', 'AV', 'Marketing'] as const;
+export const TMS_DEPARTMENTS = ['AI', 'AV', 'Marketing', 'Robotics'] as const;
 export const TMS_ROLE_KEYS = ['technical-manager', 'team-lead', 'engineer', 'technician'] as const;
 export const TMS_MODULE_KEYS = ['tms-dashboard', 'tms-projects', 'tms-tasks', 'tms-bom-requests', 'tms-procurement', 'tms-users', 'tms-tab-access'] as const;
 export type TmsModuleKey = (typeof TMS_MODULE_KEYS)[number];

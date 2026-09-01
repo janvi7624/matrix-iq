@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
       users
         .filter((u) => u.status === 'active' && canViewRole(viewer.role, u.role))
         .map((u) => ({ id: u.id, username: u.username, name: u.name }))
+        .sort((a, b) => a.name.localeCompare(b.name))
     );
   } catch (error) {
     return apiErrorResponse(error);

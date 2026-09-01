@@ -412,7 +412,7 @@ export default function EmployeeDirectory({
           onChange={(e) => changeDepartment(e.target.value)}
         >
           <option value="">All departments</option>
-          {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+          {[...departments].sort((a, b) => a.name.localeCompare(b.name)).map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
         </select>
 
         <label className={styles.srOnly} htmlFor="empDirRole">Filter by role</label>

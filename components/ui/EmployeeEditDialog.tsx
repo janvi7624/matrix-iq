@@ -131,7 +131,7 @@ export default function EmployeeEditDialog({
               <label className={calcStyles.label} htmlFor="editDepartment">Department</label>
               <select id="editDepartment" className={calcStyles.formControl} value={form.department} onChange={(e) => set('department', e.target.value)}>
                 <option value="">No department</option>
-                {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+                {[...departments].sort((a, b) => a.name.localeCompare(b.name)).map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
               </select>
               {form.department && (
                 <label className={`${calcStyles.label} ${styles.managerCheckboxLabel}`}>

@@ -64,7 +64,10 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
   // Admin-added products (Product Catalog) have no entry in the hardcoded
   // ledModels file — union their keys in and merge overrides on top of
   // whatever base exists (or {} for a brand-new product).
-  const modelKeys = useMemo(() => [...Object.keys(ledModels), ...extraProductKeys('led', Object.keys(ledModels), overrides)], [overrides]);
+  const modelKeys = useMemo(
+    () => [...Object.keys(ledModels), ...extraProductKeys('led', Object.keys(ledModels), overrides)].sort((a, b) => a.localeCompare(b)),
+    [overrides]
+  );
   const effectiveModels = useMemo(() => {
     const map: Record<string, LedModel> = {};
     modelKeys.forEach((key) => {
