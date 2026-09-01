@@ -10,6 +10,14 @@ import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { todayDateInputValue } from '@/lib/dateHelpers';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import SubmitButton from './ui/SubmitButton';
+import FilterBar from './ui/FilterBar';
+import ToolbarButton from './ui/ToolbarButton';
+import Table, { TableColumn } from './ui/Table';
 
 const EMPTY_FORM = { projectId: '', demoId: '', feedback: '', responseType: '' as CustomerResponseType | '', expectedDecisionDate: '', remarks: '' };
 
@@ -32,11 +40,14 @@ function formatDate(iso: string): string {
 }
 
 interface CustomerResponseViewProps {
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 export default function CustomerResponseView({ currentUser }: CustomerResponseViewProps) {
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const [records, setRecords] = useState<CustomerResponseRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -108,90 +119,67 @@ export default function CustomerResponseView({ currentUser }: CustomerResponseVi
     );
   }
 
+  const columns: TableColumn<CustomerResponseRecord>[] = [
+    { key: 'date', header: 'Date', render: (r) => formatDate(r.created_at) },
+    { key: 'project', header: 'Project', render: (r) => <Link href={`/projects/${r.project_id}`}>{r.project_id}</Link> },
+    { key: 'type', header: 'Type', render: (r) => (r.response_type ? TYPE_LABEL[r.response_type] : '-') },
+    { key: 'feedback', header: 'Feedback', render: (r) => r.feedback || '-' },
+    { key: 'expectedDecision', header: 'Expected Decision', render: (r) => formatDate(r.expected_decision_date) },
+    { key: 'loggedBy', header: 'Logged By', render: (r) => r.created_by },
+    {
+      key: 'actions',
+      header: '',
+      render: (r) => isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>Delete</button>
+    }
+  ];
+
   return (
     <AppShell title="Customer Response" subtitle="What clients said after the demo.">
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Log a customer response</h2>
+        <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Log a customer response</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Project *</label>
-              <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
+          <FieldRow>
+            <Field label="Project *">
+              <Select value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
                 <option value="">-- Select project --</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.id} — {p.company || p.client_name}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Response type</label>
-              <select className={calcStyles.formControl} value={form.responseType} onChange={(e) => setForm((f) => ({ ...f, responseType: e.target.value as CustomerResponseType | '' }))}>
+              </Select>
+            </Field>
+            <Field label="Response type">
+              <Select value={form.responseType} onChange={(e) => setForm((f) => ({ ...f, responseType: e.target.value as CustomerResponseType | '' }))}>
                 <option value="">-- Select --</option>
                 {(Object.keys(TYPE_LABEL) as CustomerResponseType[]).map((t) => (
                   <option key={t} value={t}>{TYPE_LABEL[t]}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Expected decision date</label>
-              <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={form.expectedDecisionDate} onChange={(e) => setForm((f) => ({ ...f, expectedDecisionDate: e.target.value }))} />
-            </div>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Feedback</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.feedback} onChange={(e) => setForm((f) => ({ ...f, feedback: e.target.value }))} />
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Remarks</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
-          </div>
-          <button type="submit" className={calcStyles.btn} disabled={creating}>
-            {creating ? 'Saving…' : 'Log response'}
-          </button>
+              </Select>
+            </Field>
+            <Field label="Expected decision date">
+              <Input type="date" min={todayDateInputValue()} value={form.expectedDecisionDate} onChange={(e) => setForm((f) => ({ ...f, expectedDecisionDate: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <Field label="Feedback">
+            <Textarea rows={2} value={form.feedback} onChange={(e) => setForm((f) => ({ ...f, feedback: e.target.value }))} />
+          </Field>
+          <Field label="Remarks">
+            <Textarea rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
+          </Field>
+          <SubmitButton disabled={creating}>{creating ? 'Saving…' : 'Log response'}</SubmitButton>
         </form>
 
-        <div className={historyStyles.toolbar} style={{ marginTop: 24 }}>
-          <button type="button" className={historyStyles.button} onClick={handleExportPdf}>Export PDF</button>
-          <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
-          <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
-        </div>
+        <FilterBar className={historyStyles.toolbarSpaced}>
+          <ToolbarButton onClick={handleExportPdf}>Export PDF</ToolbarButton>
+          <ToolbarButton onClick={() => window.print()}>Print</ToolbarButton>
+          <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+        </FilterBar>
         <div className={historyStyles.status}>{status}</div>
         {loaded && (
-          <table className={historyStyles.table}>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Project</th>
-                <th>Type</th>
-                <th>Feedback</th>
-                <th>Expected Decision</th>
-                <th>Logged By</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className={historyStyles.empty}>No customer responses logged yet.</td>
-                </tr>
-              ) : (
-                records.map((r) => (
-                  <tr key={r.id}>
-                    <td>{formatDate(r.created_at)}</td>
-                    <td><Link href={`/projects/${r.project_id}`}>{r.project_id}</Link></td>
-                    <td>{r.response_type ? TYPE_LABEL[r.response_type] : '-'}</td>
-                    <td>{r.feedback || '-'}</td>
-                    <td>{formatDate(r.expected_decision_date)}</td>
-                    <td>{r.created_by}</td>
-                    <td>
-                      {isPrivileged && (
-                        <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>Delete</button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <Table
+            columns={columns}
+            rows={records}
+            rowKey={(r) => r.id}
+            empty={<div className={historyStyles.empty}>No customer responses logged yet.</div>}
+          />
         )}
     </AppShell>
   );

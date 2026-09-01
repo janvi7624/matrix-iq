@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Search, X, Check } from 'lucide-react';
 import calcStyles from '../calculator.module.css';
+import styles from './personPicker.module.css';
 
 export interface PersonPickerOption {
   id: string;
@@ -56,22 +57,18 @@ export default function PersonPicker({ options, selectedIds, onChange, multiple 
   return (
     <div>
       {selected.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        <div className={styles.selectedRow}>
           {selected.map((p) => (
             <span
               key={p.id}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600,
-                padding: '4px 6px 4px 10px', borderRadius: 'var(--mx-radius-full)',
-                background: 'var(--mx-brand-subtle)', color: 'var(--mx-brand-hover)'
-              }}
+              className={styles.selectedChip}
             >
               {p.name || p.username}
               <button
                 type="button"
                 onClick={() => remove(p.id)}
                 aria-label={`Remove ${p.name || p.username}`}
-                style={{ display: 'inline-flex', border: 'none', background: 'none', cursor: 'pointer', padding: 2, color: 'inherit' }}
+                className={styles.chipRemoveBtn}
               >
                 <X size={12} />
               </button>
@@ -80,21 +77,20 @@ export default function PersonPicker({ options, selectedIds, onChange, multiple 
         </div>
       )}
 
-      <div style={{ position: 'relative', marginBottom: 8 }}>
-        <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--mx-ink-faint)' }} />
+      <div className={styles.searchWrap}>
+        <Search size={15} className={styles.searchIcon} />
         <input
           type="text"
-          className={calcStyles.formControl}
-          style={{ paddingLeft: 32 }}
+          className={`${calcStyles.formControl} ${styles.searchInput}`}
           placeholder={placeholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
-      <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--mx-border)', borderRadius: 'var(--mx-radius-sm)' }}>
+      <div className={styles.resultsList}>
         {filtered.length === 0 ? (
-          <div style={{ padding: '16px 12px', textAlign: 'center', fontSize: 13, color: 'var(--mx-ink-faint)' }}>{emptyMessage}</div>
+          <div className={styles.emptyMessage}>{emptyMessage}</div>
         ) : (
           filtered.map((p) => {
             const isSelected = selectedIds.includes(p.id);
@@ -103,15 +99,11 @@ export default function PersonPicker({ options, selectedIds, onChange, multiple 
                 type="button"
                 key={p.id}
                 onClick={() => toggle(p.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
-                  padding: '10px 12px', border: 'none', borderBottom: '1px solid var(--mx-border)',
-                  background: isSelected ? 'var(--mx-brand-subtle)' : 'var(--mx-surface)', cursor: 'pointer', textAlign: 'left'
-                }}
+                className={`${styles.resultRow} ${isSelected ? styles.resultRowSelected : ''}`}
               >
                 <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--mx-ink)' }}>{p.name || p.username}</div>
-                  <div style={{ fontSize: 12, color: 'var(--mx-ink-muted)' }}>
+                  <div className={styles.resultName}>{p.name || p.username}</div>
+                  <div className={styles.resultMeta}>
                     {p.department}{p.department && ' · '}{roleLabel ? roleLabel(p.role) : p.role}
                   </div>
                 </div>

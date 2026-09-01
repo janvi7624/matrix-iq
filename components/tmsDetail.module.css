@@ -1,0 +1,59 @@
+/* Shared across TmsTaskDetailView / TmsBomRequestDetailView /
+   TmsProcurementDetailView / TmsProjectDetailView — was inline style={{}}
+   in every one of them. Panel/table/form chrome still comes from
+   quotationHistory.module.css and calculator.module.css. */
+
+.headerRow { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.headerRowTight { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+
+.panelSpaced16 { margin-bottom: 16px; }
+.panelSpaced18 { margin-bottom: 18px; }
+.panelSpacedTop16 { margin-top: 16px; }
+.panelSpacedTop18 { margin-top: 18px; }
+
+.infoRow { margin-top: 12px; }
+.infoRowDanger { margin-top: 12px; color: var(--mx-danger); }
+.descriptionValue { margin-top: 4px; white-space: pre-line; }
+
+.attachmentList { margin-top: 12px; }
+.emptyNoteRow { font-size: 13px; color: var(--mx-ink-muted); margin-top: 10px; display: flex; align-items: center; gap: 6px; }
+.mutedText13 { font-size: 13px; color: var(--mx-ink-muted); }
+
+.commentBox { margin-bottom: 12px; }
+.activityList { display: flex; flex-direction: column; gap: 8px; }
+.activityItem { padding: 10px 12px; background: var(--mx-surface-sunken); border-radius: var(--mx-radius-sm); font-size: 13px; }
+.activityAction { font-weight: 600; }
+.activityMeta { color: var(--mx-ink-muted); font-size: 12px; margin-top: 2px; }
+
+.tabRow { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.actionButtonsRow { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.teamHeaderRow { display: flex; align-items: center; justify-content: space-between; }
+.teamHeaderRowEditing { margin-bottom: 12px; }
+.pillRow { display: flex; flex-wrap: wrap; gap: 8px; }
+.namePill { font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: var(--mx-radius-full); background: var(--mx-brand-subtle); color: var(--mx-brand-hover); }
+
+/* ---------- Horizontal pipeline stepper (TmsProjectDetailView) ---------- */
+.pipelineRow { display: flex; align-items: center; flex-wrap: wrap; gap: 0; margin: 4px 0 16px; }
+.pipelineItem { display: flex; align-items: center; }
+.pipelineStep { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 84px; }
+.pipelineCircle {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11.5px;
+    font-weight: 700;
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-faint);
+}
+.pipelineCircleDone { background: var(--mx-success); color: #fff; border-color: var(--mx-success); }
+.pipelineCircleCurrent { background: var(--mx-brand); color: #fff; border: 2px solid var(--mx-brand-hover); }
+.pipelineLabel { font-size: 11px; font-weight: 500; color: var(--mx-ink-muted); text-align: center; }
+.pipelineLabelCurrent { font-weight: 700; color: var(--mx-ink); }
+.pipelineConnector { width: 32px; height: 2px; background: var(--mx-border); margin-bottom: 16px; }
+.pipelineConnectorDone { background: var(--mx-success); }
+.pipelineSideBadge { margin-left: 12px; margin-bottom: 16px; }

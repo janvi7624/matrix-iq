@@ -89,9 +89,14 @@ interface QuotationCalculatorProps {
   // a regular sales rep can configure and add products but can't change the
   // numbers that set profit margin.
   canEditPricing: boolean;
+  // Role Management's isPrivileged flag (same value proxy.ts checks for the
+  // /quotation-history admin-only route) — kept separate from canEditPricing
+  // since they're different permissions that only happen to share a default;
+  // an admin can toggle one without the other via Role Management.
+  isPrivileged: boolean;
 }
 
-function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCalculatorProps) {
+function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged }: QuotationCalculatorProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Nothing is pre-selected — on login and again after every "Add to Quote",
@@ -106,7 +111,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
   const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [activeResult, setActiveResult] = useState<DomainResult | null>(null);
-  const [logStatus, setLogStatus] = useState<{ text: string; color: string } | null>(null);
+  const [logStatus, setLogStatus] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [roomSeats, setRoomSeats] = useState(10);
@@ -319,14 +324,14 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
       setDetails((d) => ({ ...d, quotationNumber: record.quotation_number }));
       setLogStatus({
         text: isRevision ? `Saved as revision ${record.quotation_number} (original ${revisingFrom!.quotationNumber} unchanged).` : `Saved to quotation log as ${record.quotation_number}.`,
-        color: '#15803d'
+        tone: 'success'
       });
       setSavedQuotation({ id: record.id, quotation_number: record.quotation_number });
       return record;
     } catch (error) {
       setLogStatus({
         text: error instanceof Error && isRevision ? error.message : 'Quotation record server not reachable — PDF generated locally but NOT logged.',
-        color: '#b91c1c'
+        tone: 'error'
       });
       return null;
     }
@@ -414,17 +419,17 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
 
   return (
     <AppShell title="New Quotation" subtitle="Configure a product, add it to the quote, and generate a client-ready PDF.">
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
+        <div className={styles.topBar}>
           <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role] || styles.rolePillUser}`}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
-          {currentUser.role !== 'user' && currentUser.role !== 'engineer' && currentUser.role !== 'backoffice' && currentUser.role !== 'marketing' && currentUser.role !== 'accounts' && currentUser.role !== 'hr' && (
+          {isPrivileged && (
             <Link className={historyStyles.button} href="/quotation-history" target="_blank" rel="noreferrer">
               Quotation History
             </Link>
           )}
         </div>
         {revisingFrom && (
-          <div className={styles.sectionPanel} style={{ border: '1px solid #dc2626', background: '#fef2f2' }}>
-            <div style={{ fontWeight: 700, color: '#b91c1c', marginBottom: 6 }}>
+          <div className={`${styles.sectionPanel} ${styles.revisionBanner}`}>
+            <div className={styles.revisionBannerTitle}>
               Revising {revisingFrom.quotationNumber} — the original stays unchanged. Reconfigure the products below, then save to create a new version.
             </div>
             <div className={styles.field}>
@@ -466,7 +471,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
                 : 'Pick a product, configure it below, then add it to the quote. Repeat to add more products to the same quote.'}
             </div>
 
-            <div className={styles.field} style={{ marginBottom: 4 }}>
+            <div className={`${styles.field} ${styles.fieldTight}`}>
               <label className={styles.label}>Create New Quotation</label>
               {/* Same segmented-pill toggle as Lead Capture / Inquiry's
                   Capture/Import/List switcher (historyStyles.modeToggle) —
@@ -520,10 +525,10 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
               </div>
               {quotationMode === 'custom' ? (
                 <details>
-                  <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', padding: '4px 0' }}>
+                  <summary className={styles.summaryToggle}>
                     + Also add Standard Product Quotation items (optional)
                   </summary>
-                  <div className={`${styles.row} ${styles.columns}`} style={{ marginTop: 12 }}>
+                  <div className={`${styles.row} ${styles.columns} ${styles.rowSpacedTop}`}>
                     <div className={styles.field}>
                       <label className={styles.label} htmlFor="domainSelect">What are you quoting?</label>
                       <select id="domainSelect" className={styles.formControl} value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey | '')}>
@@ -598,7 +603,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
                     <option value="">-- Select product type --</option>
                     <option value="av-solution">AV Solution (suggest by room size)</option>
                     <option value="standee">Standee</option>
-                    <option value="led">LED Display</option>
+                    <option value="led">Active LED</option>
                     <option value="interactive-panel">Interactive Flat Panel</option>
                     <option value="conference">Conferencing Cameras &amp; Microphones</option>
                     <option value="cables">AV Cables</option>
@@ -636,15 +641,15 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
                   </div>
                   <div className={styles.field}>
                     <label className={styles.label}>Suggested for</label>
-                    <div className={styles.small} style={{ paddingTop: 10 }}>{roomSuggestions.tierLabel}</div>
+                    <div className={`${styles.small} ${styles.smallTopPad}`}>{roomSuggestions.tierLabel}</div>
                   </div>
                 </div>
-                <div className={styles.small} style={{ marginBottom: 8 }}>
+                <div className={`${styles.small} ${styles.smallBottomSpace}`}>
                   Tailored suggestions across every AV product category for this room size — click one to switch the product type and apply it. (Standees are lobby/signage kiosks, so they're not sized by seat count.)
                 </div>
                 {roomSuggestions.items.map((item) => (
                   <div key={item.avProjectType} className={styles.lineItemRow}>
-                    <span style={{ flex: 1 }}>
+                    <span className={styles.flexFill}>
                       <strong>{item.categoryLabel}:</strong> {item.modelLabel} — {item.reason}
                     </span>
                     <button type="button" className={historyStyles.button} onClick={() => applyRoomSuggestion(item)}>
@@ -672,7 +677,6 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
                 onChange={(patch) => setCostInputs((c) => ({ ...c, ...patch }))}
                 showInstallFabrication={isAv}
                 showScaffolding={showScaffolding}
-                canEditMarkup={canEditPricing}
               />
 
               <CartList
@@ -732,7 +736,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
               />
             </div>
 
-            <div className={styles.actions} style={{ marginTop: 18 }}>
+            <div className={`${styles.actions} ${styles.actionsSpaced}`}>
               <button type="button" className={styles.btn} disabled={pdfBusy} onClick={handleDownloadPdf}>
                 {pdfBusy ? 'Working…' : 'Save & Download PDF'}
               </button>
@@ -741,12 +745,12 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
               </button>
             </div>
             {logStatus && (
-              <div className={styles.small} style={{ color: logStatus.color }}>
+              <div className={`${styles.small} ${logStatus.tone === 'success' ? styles.logStatusSuccess : styles.logStatusError}`}>
                 {logStatus.text}
               </div>
             )}
             {savedQuotation && (
-              <div className={styles.small} style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div className={`${styles.small} ${styles.savedQuotationRow}`}>
                 {projectId ? (
                   <>
                     <span>
@@ -779,10 +783,10 @@ function QuotationCalculatorContent({ currentUser, canEditPricing }: QuotationCa
   );
 }
 
-export default function QuotationCalculator({ currentUser, canEditPricing }: QuotationCalculatorProps) {
+export default function QuotationCalculator({ currentUser, canEditPricing, isPrivileged }: QuotationCalculatorProps) {
   return (
     <Suspense fallback={<div className={styles.page} />}>
-      <QuotationCalculatorContent currentUser={currentUser} canEditPricing={canEditPricing} />
+      <QuotationCalculatorContent currentUser={currentUser} canEditPricing={canEditPricing} isPrivileged={isPrivileged} />
     </Suspense>
   );
 }

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const [projects, tasks, bomRequests, procurements] = await Promise.all([
-      tmsProjectStore.list(),
+      tmsProjectStore.list(viewer),
       tmsTaskStore.list(viewer),
       tmsBomRequestStore.list(),
       tmsProcurementStore.list()

@@ -5,6 +5,7 @@ import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './adminExpenses.module.css';
 
 interface UserOption { id: string; username: string; name: string }
 
@@ -187,9 +188,9 @@ export default function AdminExpensesView() {
 
   return (
     <AppShell title="Admin Expenses" subtitle="Add hotel & ticket expenses split across employees">
-      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--mx-ink)' }}>Admin Expenses</h2>
+      <div className={styles.pageWrap}>
+        <div className={styles.headerRow}>
+          <h2 className={styles.headerTitle}>Admin Expenses</h2>
           <button
             type="button"
             className={`${historyStyles.button} ${historyStyles.primary}`}
@@ -200,88 +201,77 @@ export default function AdminExpensesView() {
         </div>
 
         {showForm && (
-          <form onSubmit={handleSubmit} style={{
-            background: 'var(--mx-surface, #fff)', borderRadius: 'var(--mx-radius-sm, 10px)',
-            border: '1px solid var(--mx-border, #e5e7eb)', padding: 20, marginBottom: 24,
-            boxShadow: 'var(--mx-shadow-xs)',
-          }}>
+          <form onSubmit={handleSubmit} className={styles.formCard}>
             {editBatchId && (
-              <div style={{ marginBottom: 12, padding: '8px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: '13px', color: '#92400e', fontWeight: 600 }}>
+              <div className={styles.editingBanner}>
                 Editing entry — changes will update all employee records in this batch
               </div>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginBottom: 16 }}>
+            <div className={styles.fieldsGrid}>
               <div>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--mx-ink-muted)', marginBottom: 4 }}>Expense Type *</label>
-                <select className={calcStyles.formControl} value={type} onChange={(e) => setType(e.target.value)} style={{ width: '100%' }}>
+                <label className={styles.fieldLabel}>Expense Type *</label>
+                <select className={`${calcStyles.formControl} ${styles.fullWidth}`} value={type} onChange={(e) => setType(e.target.value)}>
                   <option value="">Select type…</option>
                   {EXPENSE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--mx-ink-muted)', marginBottom: 4 }}>Date *</label>
-                <input type="date" className={calcStyles.formControl} value={date} onChange={(e) => setDate(e.target.value)} style={{ width: '100%' }} />
+                <label className={styles.fieldLabel}>Date *</label>
+                <input type="date" className={`${calcStyles.formControl} ${styles.fullWidth}`} value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
 
               {isHotel && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--mx-ink-muted)', marginBottom: 4 }}>Location *</label>
-                  <input type="text" className={calcStyles.formControl} placeholder="e.g. Ahmedabad" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%' }} />
+                  <label className={styles.fieldLabel}>Location *</label>
+                  <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Ahmedabad" value={location} onChange={(e) => setLocation(e.target.value)} />
                 </div>
               )}
 
               {isTicket && (
                 <>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--mx-ink-muted)', marginBottom: 4 }}>From *</label>
-                    <input type="text" className={calcStyles.formControl} placeholder="e.g. Ahmedabad" value={fromLocation} onChange={(e) => setFromLocation(e.target.value)} style={{ width: '100%' }} />
+                    <label className={styles.fieldLabel}>From *</label>
+                    <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Ahmedabad" value={fromLocation} onChange={(e) => setFromLocation(e.target.value)} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--mx-ink-muted)', marginBottom: 4 }}>To *</label>
-                    <input type="text" className={calcStyles.formControl} placeholder="e.g. Mumbai" value={toLocation} onChange={(e) => setToLocation(e.target.value)} style={{ width: '100%' }} />
+                    <label className={styles.fieldLabel}>To *</label>
+                    <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Mumbai" value={toLocation} onChange={(e) => setToLocation(e.target.value)} />
                   </div>
                 </>
               )}
 
               <div>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--mx-ink-muted)', marginBottom: 4 }}>Total Amount (₹) *</label>
-                <input type="number" className={calcStyles.formControl} placeholder="e.g. 4000" value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} min="0" step="0.01" style={{ width: '100%' }} />
+                <label className={styles.fieldLabel}>Total Amount (₹) *</label>
+                <input type="number" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. 4000" value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} min="0" step="0.01" />
               </div>
             </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--mx-ink-muted)', marginBottom: 6 }}>
+            <div className={styles.employeesField}>
+              <label className={styles.fieldLabelSpaced}>
                 Select Employees * ({selectedEmployees.length} selected)
               </label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <div className={styles.employeeSearchRow}>
                 <input
                   type="text"
-                  className={calcStyles.formControl}
+                  className={`${calcStyles.formControl} ${styles.employeeSearchInput}`}
                   placeholder="Search employees…"
                   value={empSearch}
                   onChange={(e) => setEmpSearch(e.target.value)}
-                  style={{ maxWidth: 300 }}
                 />
-                <button type="button" className={historyStyles.button} onClick={selectAll} style={{ fontSize: '12px', padding: '5px 12px' }}>Select All</button>
-                <button type="button" className={historyStyles.button} onClick={deselectAll} style={{ fontSize: '12px', padding: '5px 12px' }}>Clear</button>
+                <button type="button" className={`${historyStyles.button} ${styles.smallActionBtn}`} onClick={selectAll}>Select All</button>
+                <button type="button" className={`${historyStyles.button} ${styles.smallActionBtn}`} onClick={deselectAll}>Clear</button>
               </div>
-              <div style={{
-                maxHeight: 200, overflowY: 'auto', border: '1px solid var(--mx-border, #e5e7eb)',
-                borderRadius: 'var(--mx-radius-xs, 6px)', padding: 8,
-                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 4,
-              }}>
+              <div className={styles.employeeListBox}>
                 {filteredUsers.map((u) => (
-                  <label key={u.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', borderRadius: 4,
-                    cursor: 'pointer', fontSize: '13px', color: 'var(--mx-ink)',
+                  <label key={u.id} className={styles.employeeOption} style={{
                     background: selectedEmployees.includes(u.id) ? 'var(--mx-brand-subtle, #eff6ff)' : 'transparent',
                   }}>
                     <input
                       type="checkbox"
                       checked={selectedEmployees.includes(u.id)}
                       onChange={() => toggleEmployee(u.id)}
-                      style={{ accentColor: 'var(--mx-brand, #2563eb)' }}
+                      className={styles.employeeCheckbox}
                     />
                     <span style={{ fontWeight: selectedEmployees.includes(u.id) ? 600 : 400 }}>
                       {u.name || u.username}
@@ -289,21 +279,18 @@ export default function AdminExpensesView() {
                   </label>
                 ))}
                 {filteredUsers.length === 0 && (
-                  <div style={{ padding: 8, color: 'var(--mx-ink-faint)', fontSize: '13px' }}>No employees found</div>
+                  <div className={styles.employeeEmpty}>No employees found</div>
                 )}
               </div>
             </div>
 
             {amt > 0 && splitCount > 0 && (
-              <div style={{
-                padding: '12px 16px', borderRadius: 'var(--mx-radius-xs, 6px)',
-                background: '#f0fdf4', border: '1px solid #bbf7d0', marginBottom: 16, fontSize: '13.5px',
-              }}>
+              <div className={styles.splitPreview}>
                 <strong>Split Preview:</strong> {formatCurrency(amt)} ÷ {splitCount} employee{splitCount > 1 ? 's' : ''} = <strong>{formatCurrency(perPerson)}</strong> per person
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div className={styles.formButtonsRow}>
               <button type="submit" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={saving}>
                 {saving ? (editBatchId ? 'Updating…' : 'Adding…') : (editBatchId ? 'Update Expense' : 'Add Expense')}
               </button>
@@ -315,9 +302,9 @@ export default function AdminExpensesView() {
         )}
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--mx-ink-faint)' }}>Loading…</div>
+          <div className={styles.centerMuted}>Loading…</div>
         ) : entries.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--mx-ink-faint)', fontSize: '14px' }}>
+          <div className={styles.centerMutedSmall}>
             No admin expenses added yet. Click &quot;+ Add Expense&quot; to get started.
           </div>
         ) : (
@@ -338,11 +325,9 @@ export default function AdminExpensesView() {
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.batchId}>
-                    <td style={{ whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</td>
+                    <td className={styles.nowrap}>{formatDate(entry.date)}</td>
                     <td>
-                      <span style={{
-                        display: 'inline-block', padding: '2px 10px', borderRadius: 12,
-                        fontSize: '12px', fontWeight: 600,
+                      <span className={styles.typeBadge} style={{
                         background: entry.description === 'Hotel' ? '#fef3c7' : '#dbeafe',
                         color: entry.description === 'Hotel' ? '#92400e' : '#1e40af',
                       }}>
@@ -352,33 +337,26 @@ export default function AdminExpensesView() {
                     <td>
                       {entry.description === 'Hotel' ? entry.from_location : `${entry.from_location} → ${entry.to_location}`}
                     </td>
-                    <td style={{ fontWeight: 600 }}>{formatCurrency(entry.total_amount)}</td>
+                    <td className={styles.boldCell}>{formatCurrency(entry.total_amount)}</td>
                     <td>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      <div className={styles.employeeBadgesWrap}>
                         {entry.employees.map((emp) => (
-                          <span key={emp.id} style={{
-                            display: 'inline-block', padding: '1px 8px', borderRadius: 10,
-                            fontSize: '11.5px', background: '#f3f4f6', color: '#374151', fontWeight: 500,
-                          }}>
+                          <span key={emp.id} className={styles.employeeBadge}>
                             {emp.name}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td style={{ fontWeight: 600, color: '#16a34a' }}>{formatCurrency(entry.per_person)}</td>
-                    <td style={{ whiteSpace: 'nowrap', fontSize: '12.5px', color: 'var(--mx-ink-muted)' }}>
+                    <td className={styles.perPersonCell}>{formatCurrency(entry.per_person)}</td>
+                    <td className={styles.addedCell}>
                       {formatDate(entry.created_at)}
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
+                      <div className={styles.rowActions}>
                         <button
                           type="button"
                           onClick={() => startEdit(entry)}
-                          style={{
-                            padding: '4px 10px', borderRadius: 6, border: '1px solid var(--mx-brand, #2563eb)',
-                            background: 'transparent', color: 'var(--mx-brand, #2563eb)', fontSize: '12px',
-                            fontWeight: 600, cursor: 'pointer',
-                          }}
+                          className={styles.editRowBtn}
                         >
                           Edit
                         </button>
@@ -386,11 +364,8 @@ export default function AdminExpensesView() {
                           type="button"
                           onClick={() => handleDelete(entry.batchId)}
                           disabled={deleting === entry.batchId}
-                          style={{
-                            padding: '4px 10px', borderRadius: 6, border: '1px solid #dc2626',
-                            background: 'transparent', color: '#dc2626', fontSize: '12px',
-                            fontWeight: 600, cursor: 'pointer', opacity: deleting === entry.batchId ? 0.5 : 1,
-                          }}
+                          className={styles.deleteRowBtn}
+                          style={{ opacity: deleting === entry.batchId ? 0.5 : 1 }}
                         >
                           {deleting === entry.batchId ? '…' : 'Delete'}
                         </button>

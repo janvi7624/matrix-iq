@@ -1,0 +1,7 @@
+/* app/admin/settings/page.tsx — was inline style={{}} objects. */
+
+.maxWidth260 { max-width: 260px; }
+.maxWidth320 { max-width: 320px; }
+.templateBlock { border-top: none; padding-top: 0; margin-top: 0; }
+.templateBlockDivider { border-top: 1px solid #eef0f2; padding-top: 12px; margin-top: 12px; }
+.templateLabel { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }

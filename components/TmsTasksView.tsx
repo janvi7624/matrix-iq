@@ -15,6 +15,14 @@ import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import SubmitButton from './ui/SubmitButton';
+import FilterBar from './ui/FilterBar';
+import ToolbarButton from './ui/ToolbarButton';
+import Table, { TableColumn } from './ui/Table';
 
 const EMPTY_FORM = {
   name: '',
@@ -186,41 +194,59 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
     pending: 'Pending'
   };
 
+  const columns: TableColumn<TmsTaskRecord>[] = [
+    { key: 'name', header: 'Task', render: (t) => t.name },
+    { key: 'project', header: 'Project', render: (t) => t.project_name },
+    { key: 'department', header: 'Department', render: (t) => t.department_name || '-' },
+    { key: 'assignee', header: 'Assignee', render: (t) => t.assignee_name || 'Unassigned' },
+    { key: 'dueDate', header: 'Due Date', render: (t) => formatDate(t.due_date) },
+    { key: 'priority', header: 'Priority', render: (t) => <PriorityBadge tone={TMS_PRIORITY_TONE[t.priority]} label={TMS_PRIORITY_LABEL[t.priority]} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (t) => (
+        <Select auto value={t.status} onChange={(e) => handleStatusChange(t, e.target.value as TmsTaskStatus)}>
+          {(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((s) => (
+            <option key={s} value={s}>{TMS_TASK_STATUS_LABEL[s]}</option>
+          ))}
+        </Select>
+      )
+    },
+    { key: 'actions', header: '', render: (t) => <Link className={historyStyles.button} href={`/tms/tasks/${t.id}`}>View</Link> }
+  ];
+
   return (
     <AppShell title="TMS Tasks" subtitle="Day-by-day task planning and completion — no time tracking.">
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+      <div className={historyStyles.actionRow}>
         <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
           {showForm ? 'Cancel' : '+ New Task'}
         </button>
-        <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
-        <span style={{ width: 1, alignSelf: 'stretch', background: '#e5e7eb' }} />
-        <button type="button" className={historyStyles.button} style={viewMode === 'daily' ? { background: 'var(--mx-brand)', borderColor: 'var(--mx-brand)', color: '#fff' } : undefined} onClick={() => setViewMode('daily')}>
+        <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+        <span className={historyStyles.verticalDivider} />
+        <ToolbarButton primary={viewMode === 'daily'} onClick={() => setViewMode('daily')}>
           Daily View
-        </button>
-        <button type="button" className={historyStyles.button} style={viewMode === 'all' ? { background: 'var(--mx-brand)', borderColor: 'var(--mx-brand)', color: '#fff' } : undefined} onClick={() => setViewMode('all')}>
+        </ToolbarButton>
+        <ToolbarButton primary={viewMode === 'all'} onClick={() => setViewMode('all')}>
           All Tasks
-        </button>
+        </ToolbarButton>
       </div>
 
       {showForm && (
-        <form className={calcStyles.sectionPanel} onSubmit={handleCreate} style={{ marginBottom: 20 }}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Task Name — What needs to be done?</label>
-              <input className={calcStyles.formControl} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Project — Which project is this for?</label>
-              <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
+        <form className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`} onSubmit={handleCreate}>
+          <FieldRow>
+            <Field label="Task Name — What needs to be done?">
+              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+            </Field>
+            <Field label="Project — Which project is this for?">
+              <Select value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
                 <option value="">Select project</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.project_code} — {p.name}</option>
                 ))}
-              </select>
-            </div>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Assign To — Who will do this?</label>
+              </Select>
+            </Field>
+          </FieldRow>
+          <Field label="Assign To — Who will do this?">
             <PersonPicker
               options={users}
               selectedIds={form.assigneeId ? [form.assigneeId] : []}
@@ -229,147 +255,108 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
               roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
               emptyMessage="No matching active Technical Team members found."
             />
-          </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Department</label>
-              <select className={calcStyles.formControl} value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value }))}>
+          </Field>
+          <FieldRow>
+            <Field label="Department">
+              <Select value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value }))}>
                 <option value="">Same as project</option>
                 {tmsDepartments.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Priority</label>
-              <select className={calcStyles.formControl} value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as TmsPriority }))}>
+              </Select>
+            </Field>
+            <Field label="Priority">
+              <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as TmsPriority }))}>
                 {(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => (
                   <option key={p} value={p}>{TMS_PRIORITY_LABEL[p]}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Start date</label>
-              <input type="date" className={calcStyles.formControl} value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Due Date *</label>
-              <input type="date" className={calcStyles.formControl} value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
-            </div>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Description — Explain the work required.</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-          </div>
-          <button type="submit" className={calcStyles.btn} disabled={creating}>
-            {creating ? 'Creating…' : 'Create task'}
-          </button>
+              </Select>
+            </Field>
+            <Field label="Start date">
+              <Input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+            </Field>
+            <Field label="Due Date *">
+              <Input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <Field label="Description — Explain the work required.">
+            <Textarea rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+          </Field>
+          <SubmitButton disabled={creating}>{creating ? 'Creating…' : 'Create task'}</SubmitButton>
         </form>
       )}
 
       {viewMode === 'daily' && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div className={historyStyles.bucketRow}>
           {(Object.keys(bucketLabel) as DailyBucket[]).map((key) => (
-            <button
+            <ToolbarButton
               key={key}
-              type="button"
-              className={historyStyles.button}
-              style={dailyBucket === key ? { background: 'var(--mx-brand)', borderColor: 'var(--mx-brand)', color: '#fff' } : undefined}
+              primary={dailyBucket === key}
               onClick={() => setDailyBucket(key)}
             >
               {bucketLabel[key]} ({dailyBuckets[key].length})
-            </button>
+            </ToolbarButton>
           ))}
         </div>
       )}
 
-      <div className={historyStyles.toolbar}>
-        {viewMode === 'daily' && <input type="date" className={calcStyles.formControl} style={{ width: 'auto' }} value={fDate} onChange={(e) => setFDate(e.target.value)} />}
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fProject} onChange={(e) => setFProject(e.target.value)}>
+      <FilterBar>
+        {viewMode === 'daily' && <Input auto type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} />}
+        <Select auto value={fProject} onChange={(e) => setFProject(e.target.value)}>
           <option value="">All projects</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fDepartment} onChange={(e) => setFDepartment(e.target.value)}>
+        </Select>
+        <Select auto value={fDepartment} onChange={(e) => setFDepartment(e.target.value)}>
           <option value="">All departments</option>
           {TMS_DEPARTMENTS.map((d) => (
             <option key={d} value={d}>{d}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fAssignee} onChange={(e) => setFAssignee(e.target.value)}>
+        </Select>
+        <Select auto value={fAssignee} onChange={(e) => setFAssignee(e.target.value)}>
           <option value="">All assignees</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>{u.name || u.username}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsTaskStatus | '')}>
+        </Select>
+        <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsTaskStatus | '')}>
           <option value="">All statuses</option>
           {(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((s) => (
             <option key={s} value={s}>{TMS_TASK_STATUS_LABEL[s]}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fPriority} onChange={(e) => setFPriority(e.target.value as TmsPriority | '')}>
+        </Select>
+        <Select auto value={fPriority} onChange={(e) => setFPriority(e.target.value as TmsPriority | '')}>
           <option value="">All priorities</option>
           {(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => (
             <option key={p} value={p}>{TMS_PRIORITY_LABEL[p]}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
+        </Select>
+        <Select auto value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
           <option value="due_date">Sort: Due Date</option>
           <option value="priority">Sort: Priority</option>
           <option value="created">Sort: Created</option>
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
       {loading ? (
         <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={7} /></div>
       ) : loadFailed ? (
         <ErrorState message="Could not load TMS tasks — check your connection and try again." onRetry={load} />
-      ) : sortedRows.length === 0 ? (
-        <EmptyState
-          icon={ClipboardList}
-          title={tasks.length === 0 ? 'No Tasks Assigned' : 'No tasks here'}
-          message={tasks.length === 0 ? "You're currently all caught up." : 'Nothing matches this view — try a different bucket or filter.'}
-        />
       ) : (
-        <div className={historyStyles.tableWrap}>
-        <table className={historyStyles.table}>
-          <thead>
-            <tr>
-              <th>Task</th>
-              <th>Project</th>
-              <th>Department</th>
-              <th>Assignee</th>
-              <th>Due Date</th>
-              <th>Priority</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedRows.map((t) => (
-              <tr key={t.id}>
-                <td>{t.name}</td>
-                <td>{t.project_name}</td>
-                <td>{t.department_name || '-'}</td>
-                <td>{t.assignee_name || 'Unassigned'}</td>
-                <td>{formatDate(t.due_date)}</td>
-                <td><PriorityBadge tone={TMS_PRIORITY_TONE[t.priority]} label={TMS_PRIORITY_LABEL[t.priority]} /></td>
-                <td>
-                  <select className={calcStyles.formControl} style={{ width: 'auto' }} value={t.status} onChange={(e) => handleStatusChange(t, e.target.value as TmsTaskStatus)}>
-                    {(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((s) => (
-                      <option key={s} value={s}>{TMS_TASK_STATUS_LABEL[s]}</option>
-                    ))}
-                  </select>
-                </td>
-                <td><Link className={historyStyles.button} href={`/tms/tasks/${t.id}`}>View</Link></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
+        <Table
+          columns={columns}
+          rows={sortedRows}
+          rowKey={(t) => t.id}
+          empty={
+            <EmptyState
+              icon={ClipboardList}
+              title={tasks.length === 0 ? 'No Tasks Assigned' : 'No tasks here'}
+              message={tasks.length === 0 ? "You're currently all caught up." : 'Nothing matches this view — try a different bucket or filter.'}
+            />
+          }
+        />
       )}
     </AppShell>
   );

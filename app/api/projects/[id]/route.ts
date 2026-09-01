@@ -11,7 +11,7 @@ import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { searchQuotations } from '@/lib/quotationStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES } from '@/lib/types';
+import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES, UserRecord } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
@@ -20,6 +20,7 @@ import { resolveVisibilityScope } from '@/lib/departmentScope';
 import { db } from '@/lib/db';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
+import { syncTmsProjectForAssignment } from '@/lib/tmsHandoff';
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const project = await findProjectById(id);
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    if (!viewer.isPrivileged && project.created_by !== viewer.username) {
+    if (!(await canAccessProject(viewer.username, project))) {
       // Allow access if user has a pending handover request for this project
       const pendingHandover = await projectHandoverStore.findPendingForProject(id);
       if (!pendingHandover || pendingHandover.to_user_id !== viewer.userId) {
@@ -131,6 +132,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.clientName === 'string') patch.client_name = body.clientName.trim();
     if (typeof body.company === 'string') patch.company = body.company.trim();
     if (typeof body.contactPerson === 'string') patch.contact_person = body.contactPerson.trim();
+    if (typeof body.altContactPhone === 'string') patch.alt_contact_phone = body.altContactPhone.trim();
     if (typeof body.phone === 'string') patch.phone = body.phone.trim();
     if (typeof body.email === 'string') patch.email = body.email.trim();
     if (typeof body.address === 'string') patch.address = body.address.trim();
@@ -151,7 +153,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
 
-    let newlyAssignedPerson: { id: string; username: string; name: string; email: string } | undefined;
+    let newlyAssignedPerson: UserRecord | undefined;
     if (typeof body.assignedTechnicalPersonId === 'string') {
       const nextId = body.assignedTechnicalPersonId.trim();
       if (nextId !== existing.assigned_technical_person_id) {
@@ -201,6 +203,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         event: 'assigned',
         projectLabel: existing.client_name || existing.company || 'Project'
       });
+      try {
+        await syncTmsProjectForAssignment(updated ?? existing, newlyAssignedPerson, viewer.username);
+      } catch {
+        // Best-effort — the Sales assignment above already succeeded either way.
+      }
     }
 
     // Notify whoever is currently the technical lead when the sales outcome

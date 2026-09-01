@@ -234,7 +234,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
         </div>
         <div className={styles.field}>
           <label className={styles.label}>Volume slab</label>
-          <div className={styles.small} style={{ paddingTop: 10 }}>{AI_SLAB_LABELS[slabIndex]}</div>
+          <div className={`${styles.small} ${styles.smallTopPad}`}>{AI_SLAB_LABELS[slabIndex]}</div>
         </div>
       </div>
 
@@ -261,14 +261,14 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
 
       {billingCycle === 'onetime' && (
         <div className={styles.domainPanel}>
-          <div className={styles.field} style={{ marginBottom: 0 }}>
-            <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className={`${styles.field} ${styles.mb0}`}>
+            <label className={`${styles.label} ${styles.inlineFlexGap8}`}>
               <input type="checkbox" checked={includeAmc} disabled={!canEditPricing} onChange={(e) => setIncludeAmc(e.target.checked)} />
               Include AMC (Annual Maintenance Contract) from Year 2
             </label>
           </div>
           {includeAmc && (
-            <div className={`${styles.row} ${styles.columns}`} style={{ marginTop: 8 }}>
+            <div className={`${styles.row} ${styles.columns} ${styles.mt8}`}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="aiAmcPercent">AMC % per year (of license value)</label>
                 <input
@@ -287,7 +287,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
               </div>
             </div>
           )}
-          <p className={styles.small} style={{ marginTop: 6 }}>
+          <p className={`${styles.small} ${styles.mt6}`}>
             Permanent license — the analytics license is a one-time purchase priced at the current per-camera list rate; no further license fee is billed
             in later years. AMC covers ongoing support/updates from Year 2 onward.
           </p>
@@ -304,12 +304,12 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
               ))}
             </select>
           </div>
-          <p className={styles.small} style={{ marginTop: 8 }}>{selectedBundle.description}</p>
+          <p className={`${styles.small} ${styles.mt8}`}>{selectedBundle.description}</p>
           <p className={styles.small}>
             Includes: {resolveBundleFeatureNames(selectedBundle).join(', ')}
           </p>
           <div className={styles.lineItemRow}>
-            <span style={{ flex: 1 }}>
+            <span className={styles.flexFill}>
               Bundle price at {AI_SLAB_LABELS[slabIndex]}: <strong>{formatMoney(selectedBundle.tiers[slabIndex] / billingDivisor)}{periodUnitSuffix}</strong>
               {' '}(Individual pricing value {formatMoney(selectedBundle.aLaCarteValue)}/cam/yr — save {selectedBundle.savingsPercent}%)
             </span>
@@ -328,10 +328,10 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
                 their combined list price.
               </p>
               <div className={styles.lineItemRow}>
-                <span style={{ flex: 1 }}>
+                <span className={styles.flexFill}>
                   Selected: <strong>{customBundleCount}</strong> analytics
                   {!customBundleQualifies && customBundleCount > 0 && (
-                    <span style={{ color: '#b91c1c' }}> — need {CUSTOM_BUNDLE_MIN_FEATURES - customBundleCount} more to qualify for the bundle discount.</span>
+                    <span className={styles.dangerText}> — need {CUSTOM_BUNDLE_MIN_FEATURES - customBundleCount} more to qualify for the bundle discount.</span>
                   )}
                   {customBundleCount === 0 && <span> — select analytics below to start the bundle.</span>}
                 </span>
@@ -345,7 +345,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
         <div className={styles.field}>
           <label className={styles.label} htmlFor="aiOneTimeCost">One-time implementation &amp; configuration cost (₹)</label>
           <input id="aiOneTimeCost" className={styles.formControl} type="number" step="any" min={0} value={oneTimeCost} onFocus={selectAllOnFocus} onChange={(e) => setOneTimeCost(parseFloat(e.target.value) || 0)} />
-          <div className={styles.small} style={{ marginTop: 6 }}>
+          <div className={`${styles.small} ${styles.mt6}`}>
             Recommended for {AI_SLAB_LABELS[slabIndex]}: {formatMoney(recommendedSetupCost)}{' '}
             <button type="button" className={styles.secondaryButton} onClick={() => setOneTimeCost(recommendedSetupCost)}>
               Use this
@@ -398,7 +398,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
         )}
         {infraCostMode === 'client' && (
           <div className={styles.field}>
-            <div className={styles.small} style={{ paddingTop: 10 }}>Noted on the quote — no charge added.</div>
+            <div className={`${styles.small} ${styles.smallTopPad}`}>Noted on the quote — no charge added.</div>
           </div>
         )}
       </div>
@@ -440,13 +440,12 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
                         <div className={styles.aiFeatureDesc}>{feature.desc}</div>
                       </div>
                       {priceEditable ? (
-                        <div className={styles.aiFeaturePrice} style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={(e) => e.preventDefault()}>
+                        <div className={`${styles.aiFeaturePrice} ${styles.inlineFlexGap6}`} onClick={(e) => e.preventDefault()}>
                           <input
                             type="number"
                             step="any"
                             min={0}
-                            className={styles.formControl}
-                            style={{ width: 100, textAlign: 'right' }}
+                            className={`${styles.formControl} ${styles.priceInputNarrow}`}
                             value={currentRate}
                             onFocus={selectAllOnFocus}
                             onChange={(e) => {
@@ -483,26 +482,26 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
         </div>
       )}
 
-      <details className={styles.domainPanel} style={{ marginTop: 14 }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Sample commercial — worked example ({AI_WORKED_EXAMPLE.cameras} cameras, {AI_WORKED_EXAMPLE.bundleName} bundle)</summary>
-        <div className={styles.small} style={{ marginTop: 8 }}>Fixed reference example — not tied to your current inputs above.</div>
-        <div className={styles.lineItemRow}><span style={{ flex: 1 }}>No. of cameras</span><span>{AI_WORKED_EXAMPLE.cameras}</span></div>
-        <div className={styles.lineItemRow}><span style={{ flex: 1 }}>Bundle selected</span><span>{AI_WORKED_EXAMPLE.bundleName}</span></div>
-        <div className={styles.lineItemRow}><span style={{ flex: 1 }}>Applicable volume slab</span><span>{AI_WORKED_EXAMPLE.slabLabel}</span></div>
-        <div className={styles.lineItemRow}><span style={{ flex: 1 }}>Bundle price (₹/cam/yr)</span><span>{formatMoney(AI_WORKED_EXAMPLE.bundlePricePerCameraYear)}</span></div>
-        <div className={styles.lineItemRow}><span style={{ flex: 1 }}>Annual analytics subscription</span><span>{formatMoney(AI_WORKED_EXAMPLE.annualSubscription)}</span></div>
-        <div className={styles.lineItemRow}><span style={{ flex: 1 }}>One-time setup (61–100)</span><span>{formatMoney(AI_WORKED_EXAMPLE.oneTimeSetup)}</span></div>
-        <div className={styles.lineItemRow}><span style={{ flex: 1 }}>Year-1 total (before GST)</span><span>{formatMoney(AI_WORKED_EXAMPLE.year1TotalBeforeGst)}</span></div>
-        <div className={styles.lineItemRow}><span style={{ flex: 1 }}>GST @ 18%</span><span>{formatMoney(AI_WORKED_EXAMPLE.gstAmount)}</span></div>
-        <div className={styles.lineItemRow}><span style={{ flex: 1 }}><strong>Year-1 total (incl. GST)</strong></span><span><strong>{formatMoney(AI_WORKED_EXAMPLE.year1TotalInclGst)}</strong></span></div>
-        <div className={styles.lineItemRow}><span style={{ flex: 1 }}>Year-2 onward (subscription + optional AMC, before GST)</span><span>{formatMoney(AI_WORKED_EXAMPLE.year2OnwardBeforeGst)}</span></div>
+      <details className={`${styles.domainPanel} ${styles.mt14}`}>
+        <summary className={styles.cursorPointerBold}>Sample commercial — worked example ({AI_WORKED_EXAMPLE.cameras} cameras, {AI_WORKED_EXAMPLE.bundleName} bundle)</summary>
+        <div className={`${styles.small} ${styles.mt8}`}>Fixed reference example — not tied to your current inputs above.</div>
+        <div className={styles.lineItemRow}><span className={styles.flexFill}>No. of cameras</span><span>{AI_WORKED_EXAMPLE.cameras}</span></div>
+        <div className={styles.lineItemRow}><span className={styles.flexFill}>Bundle selected</span><span>{AI_WORKED_EXAMPLE.bundleName}</span></div>
+        <div className={styles.lineItemRow}><span className={styles.flexFill}>Applicable volume slab</span><span>{AI_WORKED_EXAMPLE.slabLabel}</span></div>
+        <div className={styles.lineItemRow}><span className={styles.flexFill}>Bundle price (₹/cam/yr)</span><span>{formatMoney(AI_WORKED_EXAMPLE.bundlePricePerCameraYear)}</span></div>
+        <div className={styles.lineItemRow}><span className={styles.flexFill}>Annual analytics subscription</span><span>{formatMoney(AI_WORKED_EXAMPLE.annualSubscription)}</span></div>
+        <div className={styles.lineItemRow}><span className={styles.flexFill}>One-time setup (61–100)</span><span>{formatMoney(AI_WORKED_EXAMPLE.oneTimeSetup)}</span></div>
+        <div className={styles.lineItemRow}><span className={styles.flexFill}>Year-1 total (before GST)</span><span>{formatMoney(AI_WORKED_EXAMPLE.year1TotalBeforeGst)}</span></div>
+        <div className={styles.lineItemRow}><span className={styles.flexFill}>GST @ 18%</span><span>{formatMoney(AI_WORKED_EXAMPLE.gstAmount)}</span></div>
+        <div className={styles.lineItemRow}><span className={styles.flexFill}><strong>Year-1 total (incl. GST)</strong></span><span><strong>{formatMoney(AI_WORKED_EXAMPLE.year1TotalInclGst)}</strong></span></div>
+        <div className={styles.lineItemRow}><span className={styles.flexFill}>Year-2 onward (subscription + optional AMC, before GST)</span><span>{formatMoney(AI_WORKED_EXAMPLE.year2OnwardBeforeGst)}</span></div>
       </details>
 
-      <details className={styles.domainPanel} style={{ marginTop: 10 }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Sales &amp; quoting guidelines</summary>
-        <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+      <details className={`${styles.domainPanel} ${styles.mt10}`}>
+        <summary className={styles.cursorPointerBold}>Sales &amp; quoting guidelines</summary>
+        <ul className={`${styles.mt8} ${styles.pl18}`}>
           {AI_SALES_GUIDELINES.map((line) => (
-            <li key={line} className={styles.small} style={{ marginBottom: 4 }}>{line}</li>
+            <li key={line} className={`${styles.small} ${styles.mb4}`}>{line}</li>
           ))}
         </ul>
       </details>

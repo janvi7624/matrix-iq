@@ -8,6 +8,7 @@ import {
 import AppShell from './AppShell';
 import { SkeletonRows } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
+import styles from './profileView.module.css';
 
 interface ProfileData {
   name: string;
@@ -20,6 +21,21 @@ interface ProfileData {
   dateOfJoining: string;
   location: string;
 }
+
+type Tone = 'brand' | 'info' | 'success' | 'warning';
+
+const TONE_TEXT: Record<Tone, string> = {
+  brand: styles.toneBrand,
+  info: styles.toneInfo,
+  success: styles.toneSuccess,
+  warning: styles.toneWarning
+};
+const TONE_BG: Record<Tone, string> = {
+  brand: styles.toneBrandBg,
+  info: styles.toneInfoBg,
+  success: styles.toneSuccessBg,
+  warning: styles.toneWarningBg
+};
 
 function formatDate(val: string): string {
   if (!val) return '—';
@@ -51,21 +67,21 @@ export default function ProfileView() {
     ? profile.name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('')
     : '?';
 
-  const infoCards: { icon: typeof User; label: string; value: string; color: string; bg: string }[] = profile
+  const infoCards: { icon: typeof User; label: string; value: string; tone: Tone }[] = profile
     ? [
-        { icon: Hash, label: 'Employee ID', value: profile.employeeId || '—', color: 'var(--mx-brand)', bg: 'var(--mx-brand-subtle)' },
-        { icon: Building2, label: 'Department', value: profile.department || '—', color: 'var(--mx-info)', bg: 'var(--mx-info-subtle)' },
-        { icon: Briefcase, label: 'Designation', value: profile.designation || '—', color: 'var(--mx-success)', bg: 'var(--mx-success-subtle)' },
-        { icon: MapPin, label: 'Location', value: profile.location || '—', color: 'var(--mx-warning)', bg: 'var(--mx-warning-subtle)' }
+        { icon: Hash, label: 'Employee ID', value: profile.employeeId || '—', tone: 'brand' },
+        { icon: Building2, label: 'Department', value: profile.department || '—', tone: 'info' },
+        { icon: Briefcase, label: 'Designation', value: profile.designation || '—', tone: 'success' },
+        { icon: MapPin, label: 'Location', value: profile.location || '—', tone: 'warning' }
       ]
     : [];
 
-  const detailRows: { icon: typeof User; label: string; value: string; color: string }[] = profile
+  const detailRows: { icon: typeof User; label: string; value: string; tone: Tone }[] = profile
     ? [
-        { icon: Phone, label: 'Mobile No', value: profile.phone || '—', color: 'var(--mx-success)' },
-        { icon: Mail, label: 'Email', value: profile.email || '—', color: 'var(--mx-info)' },
-        { icon: Cake, label: 'Birthday', value: formatDate(profile.birthday), color: 'var(--mx-brand)' },
-        { icon: CalendarCheck, label: 'Date of Joining', value: formatDate(profile.dateOfJoining), color: 'var(--mx-warning)' }
+        { icon: Phone, label: 'Mobile No', value: profile.phone || '—', tone: 'success' },
+        { icon: Mail, label: 'Email', value: profile.email || '—', tone: 'info' },
+        { icon: Cake, label: 'Birthday', value: formatDate(profile.birthday), tone: 'brand' },
+        { icon: CalendarCheck, label: 'Date of Joining', value: formatDate(profile.dateOfJoining), tone: 'warning' }
       ]
     : [];
 
@@ -85,33 +101,15 @@ export default function ProfileView() {
       ) : (
         <>
           {/* Hero card with banner */}
-          <div style={{ background: 'var(--mx-surface)', borderRadius: 'var(--mx-radius-xl)', border: '1px solid var(--mx-border)', overflow: 'hidden' }}>
-            <div style={{ height: 120, background: 'linear-gradient(135deg, var(--mx-ink) 0%, #1f2937 60%, var(--mx-brand) 100%)' }} />
+          <div className={styles.heroCard}>
+            <div className={styles.heroBanner} />
 
-            <div style={{ padding: '0 36px 32px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginTop: 20, flexWrap: 'wrap' }}>
-                <div
-                  style={{
-                    width: 80,
-                    height: 80,
-                    borderRadius: 'var(--mx-radius-lg)',
-                    flexShrink: 0,
-                    background: 'linear-gradient(135deg, var(--mx-brand), var(--mx-brand-hover))',
-                    color: '#fff',
-                    fontSize: 28,
-                    fontWeight: 800,
-                    letterSpacing: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: 'var(--mx-shadow-sm)'
-                  }}
-                >
-                  {initials}
-                </div>
+            <div className={styles.heroBody}>
+              <div className={styles.heroTop}>
+                <div className={styles.avatar}>{initials}</div>
                 <div>
-                  <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--mx-ink)', letterSpacing: -0.3 }}>{profile.name || 'Employee'}</h1>
-                  <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--mx-ink-muted)' }}>
+                  <h1 className={styles.nameHeading}>{profile.name || 'Employee'}</h1>
+                  <p className={styles.nameSub}>
                     {profile.designation || ''}
                     {profile.designation && profile.department ? '  ·  ' : ''}
                     {profile.department || ''}
@@ -120,14 +118,14 @@ export default function ProfileView() {
               </div>
 
               {/* Quick info tiles — responsive, not a rigid 4-column grid */}
-              <div className={historyStyles.summaryCardGrid} style={{ marginTop: 28, marginBottom: 0 }}>
-                {infoCards.map(({ icon: Icon, label, value, color, bg }) => (
-                  <div key={label} style={{ padding: '16px 20px', borderRadius: 'var(--mx-radius-md)', background: bg, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                      <Icon size={15} color={color} strokeWidth={2.2} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
+              <div className={`${historyStyles.summaryCardGrid} ${styles.infoGrid}`}>
+                {infoCards.map(({ icon: Icon, label, value, tone }) => (
+                  <div key={label} className={`${styles.infoTile} ${TONE_BG[tone]}`}>
+                    <div className={styles.infoTileHead}>
+                      <Icon size={15} strokeWidth={2.2} className={TONE_TEXT[tone]} />
+                      <span className={`${styles.infoTileLabel} ${TONE_TEXT[tone]}`}>{label}</span>
                     </div>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--mx-ink)' }}>{value}</span>
+                    <span className={styles.infoTileValue}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -135,37 +133,20 @@ export default function ProfileView() {
           </div>
 
           {/* Contact & Personal */}
-          <div style={{ marginTop: 20, background: 'var(--mx-surface)', borderRadius: 'var(--mx-radius-xl)', border: '1px solid var(--mx-border)', padding: '24px 36px 20px' }}>
-            <h2 style={{ margin: '0 0 20px', fontSize: 14, fontWeight: 700, color: 'var(--mx-ink)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Contact & Personal</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0 32px' }}>
-              {detailRows.map(({ icon: Icon, label, value, color }, i) => (
+          <div className={styles.detailCard}>
+            <h2 className={styles.detailHeading}>Contact & Personal</h2>
+            <div className={styles.detailGrid}>
+              {detailRows.map(({ icon: Icon, label, value, tone }, i) => (
                 <div
                   key={label}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 14,
-                    padding: '16px 0',
-                    borderBottom: i < detailRows.length - 2 ? '1px solid var(--mx-border)' : 'none'
-                  }}
+                  className={`${styles.detailRow} ${i >= detailRows.length - 2 ? styles.detailRowNoBorder : ''}`}
                 >
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 'var(--mx-radius-sm)',
-                      background: `${color}14`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}
-                  >
-                    <Icon size={18} color={color} strokeWidth={2} />
+                  <div className={`${styles.detailIcon} ${TONE_BG[tone]}`}>
+                    <Icon size={18} strokeWidth={2} className={TONE_TEXT[tone]} />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: 'var(--mx-ink-faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--mx-ink)', marginTop: 2, wordBreak: 'break-word' }}>{value}</div>
+                  <div className={styles.detailBody}>
+                    <div className={styles.detailLabel}>{label}</div>
+                    <div className={styles.detailValue}>{value}</div>
                   </div>
                 </div>
               ))}

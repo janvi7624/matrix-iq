@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 import { findUserById } from '@/lib/userStore';
+import { resolveIsPrivileged } from '@/lib/permissions';
 import InstallationView from '@/components/InstallationView';
 
 export default async function InstallationPage() {
@@ -12,5 +13,7 @@ export default async function InstallationPage() {
   const user = await findUserById(session.sub);
   if (!user) redirect('/login');
 
-  return <InstallationView currentUser={{ username: user.username, role: user.role }} />;
+  const isPrivileged = await resolveIsPrivileged(user.role);
+
+  return <InstallationView currentUser={{ username: user.username, role: user.role, isPrivileged }} />;
 }

@@ -8,6 +8,7 @@ import { Camera, User, Target, Flame, StickyNote, CheckCircle2, RefreshCw, Image
 import PhoneInput from '@/components/ui/PhoneInput';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './leadCaptureWizard.module.css';
 
 interface LeadForm {
   name: string;
@@ -176,7 +177,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
       <div className={historyStyles.wizardCard}>
         <div className={historyStyles.successPanel}>
           <div className={historyStyles.successIcon}>{successRecord.duplicate ? <RefreshCw size={44} /> : <CheckCircle2 size={44} />}</div>
-          <h2 className={calcStyles.h2} style={{ marginTop: 0, borderLeft: 'none', paddingLeft: 0 }}>
+          <h2 className={`${calcStyles.h2} ${calcStyles.h2NoAccent}`}>
             {successRecord.duplicate ? 'Lead already existed — details merged' : 'Lead saved!'}
           </h2>
           {successRecord.duplicate && (
@@ -187,7 +188,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
           <div className={calcStyles.small}>
             {successRecord.name || successRecord.company}
             {successRecord.priority && (
-              <span className={`${historyStyles.priorityBadge} ${successRecord.priority === 'hot' ? historyStyles.priorityBadgeHot : successRecord.priority === 'warm' ? historyStyles.priorityBadgeWarm : historyStyles.priorityBadgeCool}`} style={{ marginLeft: 8 }}>
+              <span className={`${historyStyles.priorityBadge} ${successRecord.priority === 'hot' ? historyStyles.priorityBadgeHot : successRecord.priority === 'warm' ? historyStyles.priorityBadgeWarm : historyStyles.priorityBadgeCool} ${styles.ml8}`}>
                 {successRecord.priority.toUpperCase()}
               </span>
             )}
@@ -238,8 +239,8 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
               </div>
             ) : (
               <div className={historyStyles.captureChoices}>
-                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => handleImageSelected(e.target.files?.[0])} />
-                <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageSelected(e.target.files?.[0])} />
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className={styles.hiddenInput} onChange={(e) => handleImageSelected(e.target.files?.[0])} />
+                <input ref={galleryInputRef} type="file" accept="image/*" className={styles.hiddenInput} onChange={(e) => handleImageSelected(e.target.files?.[0])} />
 
                 <button type="button" className={historyStyles.captureCard} onClick={() => cameraInputRef.current?.click()}>
                   <div className={historyStyles.captureCardIcon}><Camera size={26} /></div>
@@ -275,7 +276,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
             <div className={historyStyles.wizardCardHint}>{scanNote || 'Correct anything the scan got wrong — every field is editable.'}</div>
             {form.cardImageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={form.cardImageUrl} alt="Business card" style={{ maxHeight: 140, borderRadius: 10, marginBottom: 14, border: '1px solid #e5e7eb' }} />
+              <img src={form.cardImageUrl} alt="Business card" className={styles.cardPreviewImg} />
             )}
             {errors.length > 0 && <div className={historyStyles.loginError}>{errors[0]}</div>}
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -333,8 +334,8 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
               const tile = LEAD_DOMAIN_TILES.find((t) => t.key === domain);
               const TileIcon = tile?.icon;
               return (
-                <div key={domain} style={{ marginTop: 14 }}>
-                  <div className={calcStyles.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div key={domain} className={calcStyles.mt14}>
+                  <div className={`${calcStyles.label} ${calcStyles.inlineFlexGap6}`}>
                     {TileIcon && <TileIcon size={14} />} Which {tile?.label.toLowerCase()}?
                   </div>
                   <div className={historyStyles.pillWrap}>
@@ -370,14 +371,14 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
                     className={`${historyStyles.stageOption} ${form.priority === p ? historyStyles.stageOptionActive : ''}`}
                     onClick={() => setForm((f) => ({ ...f, priority: p }))}
                   >
-                    <strong style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon size={16} /> {meta.label}</strong>
+                    <strong className={styles.inlineFlexGapInline6}><Icon size={16} /> {meta.label}</strong>
                     <span>{meta.hint}</span>
                   </div>
                 );
               })}
             </div>
 
-            <div className={calcStyles.label} style={{ marginTop: 16 }}>Follow-up action</div>
+            <div className={`${calcStyles.label} ${styles.mt16}`}>Follow-up action</div>
             <div className={historyStyles.chipGrid}>
               {LEAD_FOLLOW_UP_ACTIONS.map((a) => (
                 <div
@@ -391,7 +392,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
               ))}
             </div>
 
-            <div className={calcStyles.label} style={{ marginTop: 16 }}>Budget range</div>
+            <div className={`${calcStyles.label} ${styles.mt16}`}>Budget range</div>
             <div className={historyStyles.pillWrap}>
               {LEAD_BUDGET_OPTIONS.map((b) => (
                 <button

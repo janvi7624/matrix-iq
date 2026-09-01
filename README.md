@@ -1,40 +1,49 @@
-<<<<<<< HEAD
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MatrixIQ
+
+MatrixIQ is NANTA TECH LIMITED's internal business platform — an interconnected network linking teams, tasks, and information across CRM, sales/quotations, projects, TMS (technical/engineering task management), HR, and operations.
+
+## Stack
+
+- [Next.js 16](https://nextjs.org) (App Router, `output: 'standalone'`), React 19, TypeScript
+- Sequelize 6 + PostgreSQL (Supabase-hosted)
+- Tailwind v4 + CSS Modules, with a `--mx-*` design-token layer in `app/globals.css`
+- Vitest for unit tests
+
+> **Before making changes**, read [`AGENTS.md`](./AGENTS.md) — this Next.js version has breaking changes vs. typical training data.
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
+cp .env.example .env.local   # fill in ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SESSION_SECRET, DATABASE_URL, etc.
+npm run db:migrate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | Purpose |
+|---|---|
+| `npm run dev` | Start the dev server |
+| `npm run build` | Production build (+ `postbuild` copies static assets into the standalone output) |
+| `npm start` | Run the built standalone server (`node .next/standalone/server.js`) |
+| `npm run lint` | ESLint |
+| `npm test` | Run unit tests once |
+| `npm run test:watch` | Run unit tests in watch mode |
+| `npm run test:coverage` | Run unit tests with coverage |
+| `npm run typecheck` | Type-check `lib/` and `tests/` |
+| `npm run db:migrate` | Run Sequelize migrations |
+| `npm run db:migrate:undo` | Revert the last migration |
+| `npm run db:seed:all` | Run Sequelize seeders |
 
-## Learn More
+## Layout
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-=======
-# QuotationEstim
->>>>>>> b19b7f8708b6ce37810bbdfffbd2f69a6766bc4b
+```
+app/            Routes (App Router) and API route handlers (app/api/**)
+components/     Feature view components; components/ui/ holds shared primitives
+lib/            Business logic, *Store.ts data-access modules, auth/permissions
+db/             Sequelize models, migrations, and config
+tests/          Vitest unit tests
+```

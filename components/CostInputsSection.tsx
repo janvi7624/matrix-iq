@@ -9,12 +9,9 @@ interface CostInputsSectionProps {
   onChange: (patch: Partial<CostInputs>) => void;
   showScaffolding: boolean;
   showInstallFabrication: boolean;
-  // Markup % sets profit margin — locked to Manager/Admin/Super Admin, same
-  // as Discounts and Custom Product price. Everyone else sees it read-only.
-  canEditMarkup: boolean;
 }
 
-export default function CostInputsSection({ costInputs, onChange, showScaffolding, showInstallFabrication, canEditMarkup }: CostInputsSectionProps) {
+export default function CostInputsSection({ costInputs, onChange, showScaffolding, showInstallFabrication }: CostInputsSectionProps) {
   return (
     <>
       {showInstallFabrication && (
@@ -74,22 +71,16 @@ export default function CostInputsSection({ costInputs, onChange, showScaffoldin
           <label className={styles.label} htmlFor="markupPercent">Markup %</label>
           <input
             id="markupPercent"
-            className={canEditMarkup ? styles.formControl : `${styles.formControl} ${styles.formControlLocked}`}
+            className={styles.formControl}
             type="number"
             step="any"
             min={0}
             placeholder="0"
             value={costInputs.markupPercent === 0 ? '' : costInputs.markupPercent}
-            readOnly={!canEditMarkup}
-            tabIndex={canEditMarkup ? undefined : -1}
-            onFocus={canEditMarkup ? selectAllOnFocus : undefined}
-            onChange={canEditMarkup ? (e) => onChange({ markupPercent: parseFloat(e.target.value) || 0 }) : undefined}
+            onFocus={selectAllOnFocus}
+            onChange={(e) => onChange({ markupPercent: parseFloat(e.target.value) || 0 })}
           />
-          <span className={styles.lockedHint}>
-            {canEditMarkup
-              ? 'Extra profit margin added on top of cost — leave at 0 if not applicable.'
-              : 'Only a manager can set the profit margin — ask a manager to adjust this before sending.'}
-          </span>
+          <span className={styles.lockedHint}>Extra profit margin added on top of cost — leave at 0 if not applicable.</span>
         </div>
       </div>
     </>

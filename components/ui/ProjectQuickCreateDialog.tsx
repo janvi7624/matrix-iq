@@ -17,6 +17,7 @@ interface ProjectCreateForm {
   clientName: string;
   company: string;
   contactPerson: string;
+  altContactPhone: string;
   phone: string;
   email: string;
   address: string;
@@ -28,7 +29,7 @@ interface ProjectCreateForm {
 }
 
 const EMPTY_FORM: ProjectCreateForm = {
-  clientName: '', company: '', contactPerson: '', phone: '', email: '', address: '',
+  clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '',
   salesPersonId: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: ''
 };
 
@@ -100,16 +101,12 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
             <form onSubmit={handleSubmit}>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <div className={calcStyles.field}>
-                  <label className={calcStyles.label}>Client name</label>
+                  <label className={calcStyles.label}>Client Representative Name</label>
                   <input className={calcStyles.formControl} value={form.clientName} onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))} />
                 </div>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Company</label>
                   <input className={calcStyles.formControl} value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} />
-                </div>
-                <div className={calcStyles.field}>
-                  <label className={calcStyles.label}>Contact person</label>
-                  <input className={calcStyles.formControl} value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
                 </div>
               </div>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -124,6 +121,16 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Address</label>
                   <input className={calcStyles.formControl} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+                </div>
+              </div>
+              <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Alternate Contact Name (optional)</label>
+                  <input className={calcStyles.formControl} value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
+                </div>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Alternate Contact Phone (optional)</label>
+                  <PhoneInput value={form.altContactPhone} onChange={(v) => setForm((f) => ({ ...f, altContactPhone: v }))} />
                 </div>
               </div>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -159,7 +166,7 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                 <label className={calcStyles.label}>Remarks</label>
                 <textarea className={calcStyles.formControl} rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
               </div>
-              <div className={notifyStyles.confirmActions} style={{ marginTop: 18 }}>
+              <div className={`${notifyStyles.confirmActions} ${notifyStyles.confirmActionsSpaced}`}>
                 <button type="button" className={notifyStyles.confirmCancel} onClick={() => close(null)}>Cancel</button>
                 <button type="submit" className={notifyStyles.confirmOk} disabled={creating}>{creating ? 'Creating...' : 'Create Project'}</button>
               </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { LED_INSTALLATION_RATE_PER_SQFT, ledModels, LedModel } from '@/lib/data/ledModels';
+import { aioModels, AioModel } from '@/lib/data/aioModels';
 import {
   LED_ASPECT_PRESETS,
   LedRedundancyMode,
@@ -15,6 +16,7 @@ import {
   getNearestAspectPreset,
   parseCustomRatio
 } from '@/lib/ledEngineering';
+import { cabinetSizeForPitch, computeCabinetGridOptions, pitchesForCategory, CabinetGridOption } from '@/lib/ledCabinets';
 import { formatMoney } from '@/lib/format';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { CostInputs, DomainResult, LineItem } from '@/lib/types';
@@ -42,6 +44,7 @@ function firstModelForCategory(category: 'indoor' | 'outdoor'): string {
 }
 
 export default function LedEstimator({ active, costInputs, onResultChange, presetModel, overrides }: LedEstimatorProps) {
+  const [ledMode, setLedMode] = useState<'cabinet' | 'aio'>('cabinet');
   const [height, setHeight] = useState(4);
   const [width, setWidth] = useState(6);
   const [unit, setUnit] = useState<LedUnit>('ft');
@@ -53,6 +56,10 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
   const [aspectMode, setAspectMode] = useState<'auto' | 'custom'>('auto');
   const [aspectPreset, setAspectPreset] = useState('16:9');
   const [aspectCustom, setAspectCustom] = useState('16:9');
+  const [pixelPitch, setPixelPitch] = useState<number>(() => pitchesForCategory('indoor')[0]);
+  const [cabinetChoice, setCabinetChoice] = useState<'down' | 'up'>('down');
+  const [aioModelKey, setAioModelKey] = useState<string>(() => Object.keys(aioModels)[0] || '');
+  const [aioQty, setAioQty] = useState(1);
 
   // Admin-added products (Product Catalog) have no entry in the hardcoded
   // ledModels file — union their keys in and merge overrides on top of
@@ -66,6 +73,20 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
     return map;
   }, [modelKeys, overrides]);
 
+  const aioModelKeys = useMemo(() => [...Object.keys(aioModels), ...extraProductKeys('aio', Object.keys(aioModels), overrides)], [overrides]);
+  const effectiveAioModels = useMemo(() => {
+    const map: Record<string, AioModel> = {};
+    aioModelKeys.forEach((key) => {
+      map[key] = applyOverride(aioModels[key] || ({} as AioModel), overrides.get(overrideMapKey('aio', key)), 'details');
+    });
+    return map;
+  }, [aioModelKeys, overrides]);
+
+  useEffect(() => {
+    if (!aioModelKeys.includes(aioModelKey)) setAioModelKey(aioModelKeys[0] || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aioModelKeys]);
+
   useEffect(() => {
     const categoriesToShow = category === 'indoor' ? ['indoor', 'cob'] : [category];
     if (!categoriesToShow.includes(effectiveModels[modelKey]?.category)) {
@@ -74,6 +95,15 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, effectiveModels, modelKeys]);
+
+  // Pixel pitch (for cabinet sizing) is a separate concern from the LED
+  // model's own pitch (used for controller selection, unchanged below) —
+  // reset it to a valid value for the category whenever category changes.
+  useEffect(() => {
+    const valid = pitchesForCategory(category);
+    if (!valid.includes(pixelPitch)) setPixelPitch(valid[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]);
 
   useEffect(() => {
     if (!presetModel || !ledModels[presetModel.modelKey]) return;
@@ -86,6 +116,7 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
   }, [presetModel?.nonce]);
 
   const model = effectiveModels[modelKey];
+  const aioModel = effectiveAioModels[aioModelKey];
   const dimensions = { height, width, unit };
 
   // Preserve physical size when the unit changes — convert the entered
@@ -95,6 +126,28 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
     setWidth(Number(convertLedLength(width, unit, newUnit).toFixed(3)));
     setUnit(newUnit);
   }
+
+  // LED walls are built from fixed-size cabinets — a requested mm size
+  // almost never divides evenly, so this offers the two nearest achievable
+  // whole-cabinet sizes (round every axis down, or round every axis up) for
+  // the rep to choose between, rather than silently picking one. Only
+  // active in "mm" unit mode; every other unit keeps the pre-existing
+  // continuous-area behavior untouched.
+  const cabinetInfo = useMemo(() => {
+    if (unit !== 'mm' || !width || !height) return null;
+    const cabinet = cabinetSizeForPitch(pixelPitch, category);
+    const grid = computeCabinetGridOptions(width, height, cabinet);
+    return { cabinet, grid };
+  }, [unit, width, height, pixelPitch, category]);
+
+  const chosenGrid: CabinetGridOption | null = cabinetInfo ? cabinetInfo.grid[cabinetChoice] : null;
+
+  // Costing (area-based: panel/installation/fabrication) uses the actual
+  // achievable cabinet-grid size once one's chosen; controller/resolution
+  // selection below deliberately keeps using the raw entered dimensions +
+  // the selected model's own pitch — that's an existing, separate subsystem
+  // this change doesn't touch.
+  const effectiveDimensions = chosenGrid ? { height: chosenGrid.actualHeightMm, width: chosenGrid.actualWidthMm, unit: 'mm' as LedUnit } : dimensions;
 
   const aspectSuggestion = useMemo(() => {
     const { widthFt, heightFt } = getLedDimensionsFt(dimensions);
@@ -129,8 +182,25 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
   }, [model, height, width, unit, category, controlMode, redundancy]);
 
   const result = useMemo<DomainResult | null>(() => {
+    if (ledMode === 'aio') {
+      if (!aioModel || !aioModelKey) return null;
+      const qty = Math.max(1, Math.round(aioQty) || 1);
+      const amount = aioModel.price * qty;
+      const lineItems: LineItem[] = [
+        { description: `${aioModelKey} — ${aioModel.resolutionClass} All-In-One LED Display`, qty, rate: aioModel.price, amount, unit: 'Nos' }
+      ];
+      const summary = [
+        { label: 'Series', value: 'AIO (All-In-One)' },
+        { label: 'Size', value: `${aioModel.diagonalInches}"` },
+        { label: 'Resolution', value: aioModel.resolutionClass },
+        { label: 'Unit price', value: formatMoney(aioModel.price) },
+        { label: 'Quantity', value: String(qty) }
+      ];
+      return { label: `Active LED — AIO ${aioModelKey}`, domainKey: 'av', lineItems, subtotal: amount, summary };
+    }
+
     if (!model || !selection) return null;
-    const area = getAreaSqFt(dimensions);
+    const area = getAreaSqFt(effectiveDimensions);
     const selectedPrice = priceTier === 'b2b' ? model.b2bPricePerSqFt : model.b2cPricePerSqFt;
     const panelCost = area * selectedPrice;
     const controllerCost = selection.totalPrice;
@@ -144,6 +214,15 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
     const lineItems: LineItem[] = [
       { description: `${modelKey} LED Screen — ${area.toFixed(2)} sq ft`, qty: area.toFixed(2), rate: selectedPrice, amount: panelCost, unit: 'Sq Ft' }
     ];
+    if (chosenGrid) {
+      lineItems.push({
+        description: `Cabinets — ${chosenGrid.cols}×${chosenGrid.rows} grid (${chosenGrid.cabinetCount} nos, ${cabinetInfo?.cabinet.width}×${cabinetInfo?.cabinet.height}mm each) — actual size ${chosenGrid.actualWidthMm}×${chosenGrid.actualHeightMm}mm`,
+        qty: chosenGrid.cabinetCount,
+        rate: 0,
+        amount: 0,
+        unit: 'Nos'
+      });
+    }
     if (selection.matched) {
       lineItems.push({ description: `Controller — ${selection.name}`, qty: selection.units, rate: selection.unitPrice, amount: controllerCost, unit: 'Nos' });
     } else {
@@ -165,6 +244,7 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
     const summary = [
       { label: 'LED model', value: modelKey },
       { label: 'Price tier', value: priceTier === 'b2b' ? 'B2B (Partner price)' : 'B2C (End-user price)' },
+      ...(chosenGrid ? [{ label: 'Cabinet grid', value: `${chosenGrid.cols}×${chosenGrid.rows} (${chosenGrid.cabinetCount} cabinets, ${cabinetInfo?.cabinet.width}×${cabinetInfo?.cabinet.height}mm each)` }] : []),
       { label: 'Area (sq ft)', value: area.toFixed(2) },
       { label: 'Panel price', value: formatMoney(selectedPrice) },
       { label: 'LED panel cost', value: formatMoney(panelCost) },
@@ -178,22 +258,57 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
       { label: 'Scaffolding cost', value: formatMoney(scaffolding) }
     ];
 
-    return { label: `LED Display — ${modelKey}`, domainKey: 'av', lineItems, subtotal, summary };
+    return { label: `Active LED — ${modelKey}`, domainKey: 'av', lineItems, subtotal, summary };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, selection, modelKey, priceTier, height, width, unit, costInputs]);
+  }, [ledMode, aioModel, aioModelKey, aioQty, model, selection, modelKey, priceTier, height, width, unit, costInputs, chosenGrid]);
 
   useEffect(() => {
     if (active && result) onResultChange(result);
   }, [active, result, onResultChange]);
 
-  if (!model || !selection) return null;
+  if (ledMode === 'aio' ? !aioModel : !model || !selection) return null;
 
-  const spec = selection.spec;
-  const area = getAreaSqFt(dimensions);
+  const spec = selection?.spec;
+  const area = getAreaSqFt(effectiveDimensions);
 
   return (
     <section className={`${styles.sectionPanel} ${active ? '' : styles.hidden}`}>
-      <h2 className={styles.h2}>LED Display Estimator</h2>
+      <h2 className={styles.h2}>Active LED Estimator</h2>
+      <div className={`${styles.row} ${styles.columns}`}>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="ledMode">Series</label>
+          <select id="ledMode" className={styles.formControl} value={ledMode} onChange={(e) => setLedMode(e.target.value as 'cabinet' | 'aio')}>
+            <option value="cabinet">LED Wall (Cabinet Build)</option>
+            <option value="aio">AIO Series (All-In-One)</option>
+          </select>
+        </div>
+      </div>
+
+      {ledMode === 'aio' && aioModel ? (
+        <>
+          <div className={`${styles.row} ${styles.columns}`}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="aioModel">AIO size</label>
+              <select id="aioModel" className={styles.formControl} value={aioModelKey} onChange={(e) => setAioModelKey(e.target.value)}>
+                {aioModelKeys.map((key) => (
+                  <option key={key} value={key}>{key}</option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="aioQty">Quantity</label>
+              <input id="aioQty" className={styles.formControl} type="number" step="1" min={1} value={aioQty} onFocus={selectAllOnFocus} onChange={(e) => setAioQty(Math.max(1, parseInt(e.target.value, 10) || 1))} />
+            </div>
+          </div>
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="aioDetails">Model details</label>
+              <textarea id="aioDetails" className={styles.formControl} rows={4} readOnly value={`${aioModel.details}\nSize: ${aioModel.diagonalInches}"\nResolution: ${aioModel.resolutionClass}\nUnit price: ${formatMoney(aioModel.price)}`} />
+            </div>
+          </div>
+        </>
+      ) : model && selection && spec ? (
+        <>
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledHeight">Height</label>
@@ -239,8 +354,7 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
           <div className={styles.small}>{aspectSuggestion ? aspectSuggestion.text : 'Enter height and width to see an aspect ratio suggestion.'}</div>
           <button
             type="button"
-            className={styles.secondaryButton}
-            style={{ marginTop: 8 }}
+            className={`${styles.secondaryButton} ${styles.mt8}`}
             onClick={() => {
               if (aspectSuggestion) setHeight(Number(aspectSuggestion.suggestedHeight.toFixed(2)));
             }}
@@ -256,6 +370,7 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
             <option value="ft">Feet</option>
             <option value="m">Meters</option>
             <option value="in">Inches</option>
+            <option value="mm">Millimeters (cabinet sizing)</option>
           </select>
         </div>
         <div className={styles.field}>
@@ -266,6 +381,47 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
           </select>
         </div>
       </div>
+      {unit === 'mm' && (
+        <>
+          <div className={`${styles.row} ${styles.columns}`}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="ledPixelPitch">Pixel pitch (mm)</label>
+              <select id="ledPixelPitch" className={styles.formControl} value={pixelPitch} onChange={(e) => setPixelPitch(parseFloat(e.target.value))}>
+                {pitchesForCategory(category).map((p) => (
+                  <option key={p} value={p}>{p} mm</option>
+                ))}
+              </select>
+            </div>
+            {cabinetInfo && (
+              <div className={styles.field}>
+                <div className={styles.small}>Cabinet size for this pitch: {cabinetInfo.cabinet.width}×{cabinetInfo.cabinet.height}mm</div>
+              </div>
+            )}
+          </div>
+          {cabinetInfo && chosenGrid && (
+            <div className={`${styles.row} ${styles.columns}`}>
+              {(['down', 'up'] as const).map((dir) => {
+                const opt = cabinetInfo.grid[dir];
+                return (
+                  <label
+                    key={dir}
+                    className={styles.field}
+                    style={{ border: cabinetChoice === dir ? '2px solid var(--mx-brand)' : '1px solid var(--mx-border)', borderRadius: 8, padding: 10, cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                      <input type="radio" name="cabinetChoice" checked={cabinetChoice === dir} onChange={() => setCabinetChoice(dir)} />
+                      {dir === 'down' ? 'Round down (nearest smaller)' : 'Round up (nearest larger)'}
+                    </div>
+                    <div className={styles.small}>
+                      {opt.cols}×{opt.rows} cabinets ({opt.cabinetCount} nos) — actual size {opt.actualWidthMm}×{opt.actualHeightMm}mm
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
       <div className={`${styles.row} ${styles.columns}`}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="ledModel">LED model</label>
@@ -351,6 +507,8 @@ export default function LedEstimator({ active, costInputs, onResultChange, prese
           />
         </div>
       </div>
+        </>
+      ) : null}
     </section>
   );
 }

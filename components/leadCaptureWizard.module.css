@@ -1,0 +1,7 @@
+/* components/LeadCaptureWizard.tsx — was inline style={{}} objects. */
+
+.ml8 { margin-left: 8px; }
+.hiddenInput { display: none; }
+.cardPreviewImg { max-height: 140px; border-radius: 10px; margin-bottom: 14px; border: 1px solid var(--mx-border); }
+.inlineFlexGapInline6 { display: inline-flex; align-items: center; gap: 6px; }
+.mt16 { margin-top: 16px; }

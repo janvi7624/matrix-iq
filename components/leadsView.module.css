@@ -1,6 +1,52 @@
-/* Lead assignment UI inside components/LeadsView.tsx — the "Assigned To"
-   column, the per-row assignee picker, and the bulk-assign bar.
-   All colour/radius/motion from the --mx-* tokens in app/globals.css. */
+/* components/LeadsView.tsx — the stats row, mode toggle companion styles,
+   badges, and the lead-assignment UI ("Assigned To" column, per-row
+   assignee picker, bulk-assign bar). All colour/radius/motion from the
+   --mx-* tokens in app/globals.css. Stat-tile layout/tone classes live in
+   components/ui/statTile.module.css (shared with components/ui/StatTile.tsx)
+   rather than here. */
+
+/* Copied verbatim from quotationHistory.module.css's .status/.num — kept as
+   their own declarations here so LeadsView doesn't need to import that
+   whole module for two classes. */
+.status {
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+    margin-bottom: 10px;
+}
+.num {
+    font-family: var(--mx-font-mono);
+    font-weight: var(--mx-weight-medium);
+}
+/* Copied verbatim from calculator.module.css's .small — the "View Project"
+   table-cell link's only use of that module. */
+.mutedLink {
+    font-size: 0.92rem;
+    color: #94a3b8;
+}
+/* Copied verbatim from calculator.module.css's .btn — the empty-state
+   "Capture a Lead" action's only use of that module. */
+.primaryBtn {
+    min-height: 48px;
+    padding: 13px 20px;
+    border: none;
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-brand);
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: var(--mx-shadow-sm);
+    transition: background var(--mx-duration-base) var(--mx-ease), transform var(--mx-duration-fast) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+}
+.primaryBtn:hover {
+    background: var(--mx-brand-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--mx-shadow-md);
+}
+.primaryBtn:active {
+    transform: translateY(1px);
+    box-shadow: var(--mx-shadow-xs);
+}
 
 /* ---------- Bulk assign bar ---------- */
 /* Only rendered while at least one row is selected, so it never occupies
@@ -129,31 +175,76 @@
     font-weight: 600;
 }
 
-/* ---------- Stat card ---------- */
-.statBtn {
-    flex: 1;
-    min-width: 120px;
-    text-align: center;
-    cursor: pointer;
-    font: inherit;
-    color: inherit;
-    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
-}
-.statBtn:hover { border-color: var(--mx-brand); box-shadow: var(--mx-shadow-sm); }
-.statActive { border: 1px solid var(--mx-brand) !important; background: var(--mx-brand-subtle); }
-.statValue {
-    font-size: 24px;
-    font-weight: 800;
+/* ---------- Stats row & badges (was inline style={{}} in LeadsView.tsx) ---------- */
+.statsRow {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    font-variant-numeric: tabular-nums;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
 }
-.statWarning { color: var(--mx-warning); }
-.statInfo { color: var(--mx-info); }
+.emptyCell {
+    color: var(--mx-ink-faint);
+    font-size: 12px;
+}
+.sourceBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--mx-text-badge);
+    font-weight: var(--mx-weight-medium);
+    padding: 2px 9px;
+    border-radius: var(--mx-radius-full);
+    color: var(--mx-ink-muted);
+    background: var(--mx-surface-sunken);
+    border: none;
+    cursor: default;
+}
+.sourceBadgeMeta {
+    color: var(--mx-blue-600);
+    background: var(--mx-blue-50);
+    cursor: pointer;
+}
+.interestIcons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.rowActions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.unattendedActive {
+    color: var(--mx-danger);
+}
+.metaGrid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 14px;
+    row-gap: 8px;
+    font-size: var(--mx-text-body);
+    margin-top: 10px;
+}
+.metaLabel {
+    color: var(--mx-ink-faint);
+}
+/* The edit dialog's first field row sits right under the modal title and
+   originally had an extra marginTop:10 inline style on top of .row's own
+   margin-bottom — the later rows didn't have this. */
+.firstRow {
+    margin-top: 10px;
+}
+/* Generic monospace on purpose — the inline style this replaces was
+   'monospace', not --mx-font-mono ('Courier New'), which would change the
+   rendered glyphs. */
+.metaMono {
+    font-family: monospace;
+}
 
 @media (max-width: 768px) {
     .bulkSelect { flex: 1 1 100%; }
     .rowSelect { max-width: none; }
 }
+
+.editIcon { vertical-align: text-bottom; margin-right: 4px; }

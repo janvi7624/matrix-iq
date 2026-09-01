@@ -1,0 +1,19 @@
+/* components/BackOfficeView.tsx — was inline style={{}} objects. Shared
+   panel/table/form chrome still comes from quotationHistory.module.css and
+   calculator.module.css; these are the layout rules unique to this view. */
+
+.detailHeaderRow { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+.itemsHeading { margin-bottom: 8px; margin-top: 12px; }
+.addItemRow { margin-top: 8px; }
+.formRowSpacingTop { margin-top: 12px; }
+.sectionSpacingTop16 { margin-top: 16px; }
+.sectionSpacingTop10 { margin-top: 10px; }
+
+.materialsReturnedCheckbox { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.flagsRow { display: flex; gap: 14px; }
+.accessoriesRow { display: flex; gap: 14px; flex-wrap: wrap; }
+.remarkTagsRow { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+
+.awaitingList { margin-top: 12px; list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.awaitingListItem { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.allDcHeadingSpaced { margin-top: 24px; }

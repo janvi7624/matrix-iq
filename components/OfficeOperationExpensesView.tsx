@@ -7,6 +7,7 @@ import { OfficeOperationExpenseRecord } from '@/lib/types';
 import { exportOfficeOperationExpensesXlsx } from '@/lib/officeOperationExpenseXlsx';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './officeOperationExpenses.module.css';
 
 interface OptionsPayload {
   usecases: string[];
@@ -17,14 +18,6 @@ interface OptionsPayload {
 }
 
 const MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: '12.5px',
-  fontWeight: 600,
-  color: 'var(--mx-ink-muted)',
-  marginBottom: 4
-};
 
 function formatDate(value: string): string {
   if (!value) return '—';
@@ -257,10 +250,10 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
   return (
     <AppShell title="Office Operation Expenses" subtitle="HR/Admin office operating expense register">
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--mx-ink)' }}>Office Operation Expenses</h2>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div className={styles.pageWrap}>
+        <div className={styles.headerRow}>
+          <h2 className={styles.pageTitle}>Office Operation Expenses</h2>
+          <div className={styles.filterRow}>
             <select className={calcStyles.formControl} value={month} onChange={(e) => { setLoading(true); setMonth(Number(e.target.value)); }} aria-label="Month">
               {MONTH_NAMES.slice(1).map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
             </select>
@@ -283,35 +276,27 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         {showForm && (
           <form
             onSubmit={handleSubmit}
-            style={{
-              background: 'var(--mx-surface, #fff)',
-              borderRadius: 'var(--mx-radius-sm, 10px)',
-              border: '1px solid var(--mx-border, #e5e7eb)',
-              padding: 20,
-              marginBottom: 24,
-              boxShadow: 'var(--mx-shadow-xs)'
-            }}
+            className={styles.formCard}
           >
-            <div style={{ marginBottom: 12, fontSize: '13px', color: 'var(--mx-ink-muted)' }}>
+            <div className={styles.editingNote}>
               {editId
                 ? <>Editing Sr No. is fixed — the serial never changes once assigned.</>
                 : <>Sr No. is assigned automatically when you save.</>}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginBottom: 16 }}>
+            <div className={styles.formGrid}>
               <div>
-                <label style={labelStyle}>Date *</label>
-                <input type="date" className={calcStyles.formControl} value={form.date} onChange={(e) => setField('date', e.target.value)} style={{ width: '100%' }} />
+                <label className={styles.fieldLabel}>Date *</label>
+                <input type="date" className={`${calcStyles.formControl} ${styles.fullWidth}`} value={form.date} onChange={(e) => setField('date', e.target.value)} />
               </div>
 
               <div>
-                <label style={labelStyle}>Category *</label>
+                <label className={styles.fieldLabel}>Category *</label>
                 <select
-                  className={calcStyles.formControl}
+                  className={`${calcStyles.formControl} ${styles.fullWidth}`}
                   value={form.usecase}
                   onChange={(e) => { setField('usecase', e.target.value); setField('usecaseDetail', ''); }}
                   disabled={!options}
-                  style={{ width: '100%' }}
                 >
                   <option value="">Select category…</option>
                   {options?.usecases.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -320,8 +305,8 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
               {usecaseSubs && (
                 <div>
-                  <label style={labelStyle}>{form.usecase} — which one? *</label>
-                  <select className={calcStyles.formControl} value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)} style={{ width: '100%' }}>
+                  <label className={styles.fieldLabel}>{form.usecase} — which one? *</label>
+                  <select className={`${calcStyles.formControl} ${styles.fullWidth}`} value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)}>
                     <option value="">Select…</option>
                     {usecaseSubs.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -330,19 +315,18 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
               {usecaseIsFreeText && (
                 <div>
-                  <label style={labelStyle}>Specify category *</label>
+                  <label className={styles.fieldLabel}>Specify usecase *</label>
                   <input type="text" className={calcStyles.formControl} placeholder="e.g. Annual audit" value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)} style={{ width: '100%' }} />
                 </div>
               )}
 
               <div>
-                <label style={labelStyle}>Expense Head *</label>
+                <label className={styles.fieldLabel}>Item Name *</label>
                 <select
-                  className={calcStyles.formControl}
+                  className={`${calcStyles.formControl} ${styles.fullWidth}`}
                   value={form.itemName}
                   onChange={(e) => { setField('itemName', e.target.value); setField('itemSubName', ''); }}
                   disabled={!options}
-                  style={{ width: '100%' }}
                 >
                   <option value="">Select expense head…</option>
                   {options?.items.map((i) => <option key={i} value={i}>{i}</option>)}
@@ -351,7 +335,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
               {!!itemSubs?.length && (
                 <div>
-                  <label style={labelStyle}>Item Name *</label>
+                  <label className={styles.fieldLabel}>{form.itemName} — sub-item *</label>
                   <select className={calcStyles.formControl} value={form.itemSubName} onChange={(e) => setField('itemSubName', e.target.value)} style={{ width: '100%' }}>
                     <option value="">Select…</option>
                     {itemSubs.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -360,28 +344,28 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
               )}
 
               <div>
-                <label style={labelStyle}>Item Qty</label>
-                <input type="number" className={calcStyles.formControl} placeholder="Optional" value={form.itemQty} onChange={(e) => setField('itemQty', e.target.value)} min="0" step="0.01" style={{ width: '100%' }} />
+                <label className={styles.fieldLabel}>Item Qty</label>
+                <input type="number" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="Optional" value={form.itemQty} onChange={(e) => setField('itemQty', e.target.value)} min="0" step="0.01" />
               </div>
 
               <div>
-                <label style={labelStyle}>Amount (₹) *</label>
-                <input type="number" className={calcStyles.formControl} placeholder="e.g. 4800" value={form.amount} onChange={(e) => setField('amount', e.target.value)} min="0" step="0.01" style={{ width: '100%' }} />
+                <label className={styles.fieldLabel}>Amount (₹) *</label>
+                <input type="number" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. 4800" value={form.amount} onChange={(e) => setField('amount', e.target.value)} min="0" step="0.01" />
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
               <div>
-                <label style={labelStyle}>Description</label>
+                <label className={styles.fieldLabel}>Description</label>
                 <textarea className={calcStyles.formControl} rows={2} placeholder="What was purchased or paid for" value={form.description} onChange={(e) => setField('description', e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
               </div>
               <div>
-                <label style={labelStyle}>Remarks</label>
+                <label className={styles.fieldLabel}>Remarks</label>
                 <textarea className={calcStyles.formControl} rows={2} placeholder="Anything worth noting" value={form.remarks} onChange={(e) => setField('remarks', e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div className={styles.formActions}>
               <button type="submit" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={saving}>
                 {saving ? (editId ? 'Updating…' : 'Saving…') : (editId ? 'Update Expense' : 'Save Expense')}
               </button>
@@ -394,25 +378,21 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
         {!loading && records.length > 0 && (
           <div
-            style={{
-              display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
-              padding: '12px 16px', marginBottom: 12,
-              borderRadius: 'var(--mx-radius-xs, 6px)', background: '#f0fdf4', border: '1px solid #bbf7d0'
-            }}
+            className={styles.totalBanner}
           >
-            <div style={{ fontSize: '14px' }}>
+            <div className={styles.totalBannerText}>
               <strong>{MONTH_NAMES[month]} {year} total:</strong>{' '}
-              <strong style={{ color: '#16a34a' }}>{formatCurrency(total)}</strong>
-              <span style={{ color: 'var(--mx-ink-muted)' }}> across {records.length} {records.length === 1 ? 'entry' : 'entries'}</span>
+              <strong className={styles.totalAmount}>{formatCurrency(total)}</strong>
+              <span className={styles.mutedText}> across {records.length} {records.length === 1 ? 'entry' : 'entries'}</span>
             </div>
-            {totalInWords && <div style={{ fontSize: '12.5px', fontStyle: 'italic', color: 'var(--mx-ink-muted)' }}>{totalInWords}</div>}
+            {totalInWords && <div className={styles.totalInWordsText}>{totalInWords}</div>}
           </div>
         )}
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--mx-ink-faint)' }}>Loading…</div>
+          <div className={styles.loadingState}>Loading…</div>
         ) : records.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--mx-ink-faint)', fontSize: '14px' }}>
+          <div className={styles.emptyState}>
             No expenses recorded for {MONTH_NAMES[month]} {year}. Click &quot;+ Add Expense&quot; to add the first entry.
           </div>
         ) : (
@@ -435,8 +415,8 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
               <tbody>
                 {records.map((record) => (
                   <tr key={record.id}>
-                    <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{formatSrNo(record.sr_no)}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{formatDate(record.date)}</td>
+                    <td className={styles.srNoCell}>{formatSrNo(record.sr_no)}</td>
+                    <td className={styles.nowrap}>{formatDate(record.date)}</td>
                     <td>
                       {/* Detail sits inline beside the usecase badge, matching
                           the Expense Head / sub-category pairing below. */}
@@ -477,11 +457,11 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                     <td style={{ maxWidth: 200 }}>{record.remarks || '—'}</td>
                     <td style={{ whiteSpace: 'nowrap', fontSize: '12.5px', color: 'var(--mx-ink-muted)' }}>{record.creator_name || '—'}</td>
                     <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
+                      <div className={styles.rowActions}>
                         <button
                           type="button"
                           onClick={() => startEdit(record)}
-                          style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--mx-brand, #2563eb)', background: 'transparent', color: 'var(--mx-brand, #2563eb)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                          className={styles.editButton}
                         >
                           Edit
                         </button>
@@ -489,7 +469,8 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                           type="button"
                           onClick={() => handleDelete(record)}
                           disabled={deleting === record.id}
-                          style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #dc2626', background: 'transparent', color: '#dc2626', fontSize: '12px', fontWeight: 600, cursor: 'pointer', opacity: deleting === record.id ? 0.5 : 1 }}
+                          className={styles.deleteButton}
+                          style={{ opacity: deleting === record.id ? 0.5 : 1 }}
                         >
                           {deleting === record.id ? '…' : 'Delete'}
                         </button>

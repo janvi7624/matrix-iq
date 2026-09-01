@@ -9,6 +9,7 @@ import { daysSince, needsFollowUp, parseFollowUpNotes } from '@/lib/followUp';
 import { computeEffectiveStatusClient } from '@/lib/quotationStatus';
 import { useConfirm } from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
+import { TableWrap } from './ui/Table';
 import styles from './quotationHistory.module.css';
 
 const STATUS_LABEL: Record<QuotationEffectiveStatus, string> = {
@@ -81,7 +82,7 @@ function VersionHistory({ quotationId }: { quotationId: string }) {
   if (versions.length <= 1) return <div className={styles.small}>No revisions yet — this is the only version.</div>;
 
   return (
-    <table className={styles.table} style={{ marginTop: 10 }}>
+    <table className={styles.versionTable}>
       <thead>
         <tr>
           <th>Version</th>
@@ -107,7 +108,7 @@ function VersionHistory({ quotationId }: { quotationId: string }) {
               <td>{v.revision_reason || '-'}</td>
               <td>{v.products_summary || '-'}</td>
               <td className={styles.amount}>{formatMoney(v.total)}</td>
-              <td style={{ color: delta > 0 ? '#b91c1c' : delta < 0 ? '#15803d' : '#6b7280', fontWeight: 600 }}>
+              <td className={delta > 0 ? styles.deltaPositive : delta < 0 ? styles.deltaNegative : styles.deltaNeutral}>
                 {prev ? `${delta > 0 ? '+' : ''}${formatMoney(delta)}` : '-'}
               </td>
             </tr>
@@ -185,7 +186,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
         <td className={styles.num}>
           {row.quotation_number}
           {row.revision_number > 0 && (
-            <span className={`${styles.rolePill} ${styles.rolePillBackoffice}`} style={{ marginLeft: 6 }}>Rev {row.revision_number}</span>
+            <span className={`${styles.rolePill} ${styles.rolePillBackoffice} ${styles.revisionTag}`}>Rev {row.revision_number}</span>
           )}
         </td>
         <td>{formatDate(row.created_at)}</td>
@@ -202,10 +203,10 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
         <td>
           {onChangeStatus ? (
             <select
+              className={styles.statusSelect}
               value={row.status}
               disabled={statusBusy}
               onChange={(e) => handleStatusChange(e.target.value as QuotationRecord['status'])}
-              style={{ padding: '4px 6px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12.5 }}
             >
               <option value="draft">Draft</option>
               <option value="sent">Sent</option>
@@ -215,7 +216,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
           ) : (
             <span className={`${styles.statusBadge} ${STATUS_CLASS[effectiveStatus]}`}>{STATUS_LABEL[effectiveStatus]}</span>
           )}
-          {effectiveStatus === 'expired' && onChangeStatus && <div style={{ fontSize: 11, color: '#9ca3af' }}>(expired)</div>}
+          {effectiveStatus === 'expired' && onChangeStatus && <div className={styles.expiredNote}>(expired)</div>}
         </td>
         <td>
           {flagged ? (
@@ -229,7 +230,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
           )}
         </td>
         <td>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div className={styles.rowActionsInline}>
             <Link href={`/quotation?reviseId=${row.id}`} className={styles.toggleBtn} title="Create a new version of this quotation">
               Revise
             </Link>
@@ -284,6 +285,7 @@ interface QuotationTableProps {
 
 export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus }: QuotationTableProps) {
   return (
+    <TableWrap>
     <table className={styles.table}>
       <thead>
         <tr>
@@ -323,5 +325,6 @@ export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSale
         )}
       </tbody>
     </table>
+    </TableWrap>
   );
 }

@@ -7,6 +7,7 @@ import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
+import pageStyles from './departmentsPage.module.css';
 
 export default function DepartmentMasterPage() {
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
@@ -149,7 +150,7 @@ export default function DepartmentMasterPage() {
 
   return (
     <AppShell title="Department Master" subtitle="Administration › departments used across user profiles — no code change required.">
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Add department</h2>
+        <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Add department</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           {createError && <div className={historyStyles.loginError}>{createError}</div>}
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -188,7 +189,7 @@ export default function DepartmentMasterPage() {
                 return (
                   <tr key={d.id}>
                     <td>
-                      <div style={{ display: 'flex', gap: 4 }}>
+                      <div className={pageStyles.reorderRow}>
                         <button type="button" className={historyStyles.toggleBtn} disabled={i === 0} onClick={() => move(d.id, -1)}>↑</button>
                         <button type="button" className={historyStyles.toggleBtn} disabled={i === arr.length - 1} onClick={() => move(d.id, 1)}>↓</button>
                       </div>
@@ -202,10 +203,10 @@ export default function DepartmentMasterPage() {
                           <input className={calcStyles.formControl} value={editState.description} onChange={(e) => setEditState({ ...editState, description: e.target.value })} />
                         </td>
                         <td>
-                          <div style={{ maxHeight: 120, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, padding: 6, minWidth: 180 }}>
+                          <div className={pageStyles.managerPickerBox}>
                             {users.length === 0 && <div className={calcStyles.small}>No users available.</div>}
                             {users.map((u) => (
-                              <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, padding: '2px 0' }}>
+                              <label key={u.id} className={pageStyles.managerCheckboxRow}>
                                 <input type="checkbox" checked={editState.managerIds.includes(u.id)} onChange={() => toggleEditManager(u.id)} />
                                 {u.name || u.username}
                               </label>
@@ -214,7 +215,7 @@ export default function DepartmentMasterPage() {
                         </td>
                         <td>{d.status === 'active' ? 'Active' : 'Inactive'}</td>
                         <td>
-                          <div style={{ display: 'flex', gap: 6 }}>
+                          <div className={pageStyles.actionsRow6}>
                             <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveEdit(d.id)}>Save</button>
                             <button type="button" className={historyStyles.button} onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</button>
                           </div>
@@ -224,14 +225,14 @@ export default function DepartmentMasterPage() {
                       <>
                         <td>{d.name}</td>
                         <td>{d.description || '-'}</td>
-                        <td>{d.managerNames.length ? d.managerNames.join(', ') : <span style={{ opacity: 0.55 }}>No manager set</span>}</td>
+                        <td>{d.managerNames.length ? d.managerNames.join(', ') : <span className={pageStyles.mutedNote55}>No manager set</span>}</td>
                         <td>
                           <span className={`${historyStyles.statusPill} ${d.status === 'active' ? historyStyles.statusPillActive : historyStyles.statusPillInactive}`}>
                             {d.status === 'active' ? 'Active' : 'Inactive'}
                           </span>
                         </td>
                         <td>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <div className={historyStyles.rowActionsInline}>
                             <button type="button" className={historyStyles.button} onClick={() => startEdit(d)}>Edit</button>
                             <button type="button" className={historyStyles.button} onClick={() => toggleStatus(d)}>
                               {d.status === 'active' ? 'Deactivate' : 'Activate'}

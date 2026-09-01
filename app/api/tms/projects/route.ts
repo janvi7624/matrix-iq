@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   if (!(await requireTmsAction(viewer, 'tms-projects', 'view'))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
-    const records = await tmsProjectStore.list();
+    const records = await tmsProjectStore.list(viewer);
     return NextResponse.json(records);
   } catch (error) {
     return apiErrorResponse(error);

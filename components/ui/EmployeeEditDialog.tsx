@@ -7,6 +7,7 @@ import PhoneInput from './PhoneInput';
 import notifyStyles from './notify.module.css';
 import calcStyles from '../calculator.module.css';
 import historyStyles from '../quotationHistory.module.css';
+import styles from './employeeEditDialog.module.css';
 
 export interface EmployeeEditPayload {
   name: string;
@@ -89,7 +90,7 @@ export default function EmployeeEditDialog({
         <div className={notifyStyles.confirmTitle} id="employeeEditTitle">
           Edit {user.name || user.username}
         </div>
-        <div className={notifyStyles.confirmMessage} style={{ marginBottom: 18 }}>
+        <div className={`${notifyStyles.confirmMessage} ${notifyStyles.confirmMessageMb18}`}>
           Username <strong>@{user.username}</strong> can&apos;t be changed. Leave the password field blank to keep the current password.
         </div>
 
@@ -133,12 +134,12 @@ export default function EmployeeEditDialog({
                 {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
               </select>
               {form.department && (
-                <label className={calcStyles.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontWeight: 500 }}>
+                <label className={`${calcStyles.label} ${styles.managerCheckboxLabel}`}>
                   <input
                     type="checkbox"
                     checked={form.isDepartmentManager}
                     onChange={(e) => set('isDepartmentManager', e.target.checked)}
-                    style={{ width: 17, height: 17, accentColor: 'var(--mx-brand)' }}
+                    className={styles.managerCheckbox}
                   />
                   Manager of {form.department}
                 </label>
@@ -174,7 +175,7 @@ export default function EmployeeEditDialog({
             </div>
           </div>
 
-          <div className={notifyStyles.confirmActions} style={{ marginTop: 18 }}>
+          <div className={`${notifyStyles.confirmActions} ${notifyStyles.confirmActionsSpaced}`}>
             <button type="button" className={notifyStyles.confirmCancel} onClick={onClose}>Cancel</button>
             <button type="submit" className={notifyStyles.confirmOk} disabled={saving}>
               {saving ? 'Saving…' : 'Save changes'}

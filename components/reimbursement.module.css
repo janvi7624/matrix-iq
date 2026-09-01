@@ -1,0 +1,138 @@
+/* components/ReimbursementView.tsx — was inline style={{}} objects. */
+
+/* StepIndicator */
+.stepIndicatorRoot { display: flex; align-items: center; gap: 0; width: 100%; max-width: 520px; margin: 12px 0; }
+.stepItem { display: flex; align-items: center; flex: 1; }
+.stepItemLast { flex: none; }
+.stepDotCol { display: flex; flex-direction: column; align-items: center; min-width: 56px; }
+.stepDot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; transition: all 0.2s ease; }
+.stepLabel { font-size: 10.5px; margin-top: 4px; white-space: nowrap; }
+.stepConnector { flex: 1; height: 2px; margin: 0 4px; margin-bottom: 18px; transition: background 0.2s ease; }
+
+/* Main tab bar */
+.mainTabBar { display: flex; gap: 0; border-bottom: 2px solid var(--mx-border-strong); margin-bottom: 16px; }
+.mainTabBtn { padding: 10px 24px; font-size: 13.5px; font-weight: 500; cursor: pointer; background: none; border: none; border-bottom: 2px solid transparent; color: var(--mx-ink-muted); margin-bottom: -2px; }
+.mainTabBtnActive { font-weight: 700; border-bottom: 2px solid var(--mx-brand); color: var(--mx-brand); }
+.mainTabBtnBadged { display: inline-flex; align-items: center; gap: 6px; }
+.mainTabBadge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; border-radius: 10px; background: var(--mx-brand); color: var(--mx-surface); font-size: 11px; font-weight: 700; padding: 0 6px; }
+
+/* Toolbar bits */
+.selectMonth { width: 160px; }
+.selectYear { width: 100px; }
+.inlineFlexGap5 { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Sheet status card (My Sheet tab) */
+.sheetStatusCard { margin: 16px 0; padding: 16px 20px; border-radius: var(--mx-radius-sm, 10px); }
+.sheetStatusHeaderRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.sheetCode { font-size: 15px; font-weight: 700; color: var(--mx-ink); margin-bottom: 2px; }
+.sheetMeta { font-size: 12.5px; color: var(--mx-ink-muted); }
+.statusPillLg { display: inline-block; padding: 4px 14px; border-radius: 20px; color: var(--mx-surface); font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+.statusPillSm { padding: 4px 12px; border-radius: 16px; color: var(--mx-surface); font-size: 11.5px; font-weight: 700; }
+.changeRequestNote { margin-top: 8px; padding: 10px 14px; border-radius: var(--mx-radius-xs, 6px); background: var(--mx-red-50); border: 1px solid var(--mx-red-200); font-size: 13px; color: var(--mx-red-800); }
+.submitBtnSm { font-size: 13px; padding: 8px 24px; }
+.submitHint { margin-left: 12px; font-size: 12px; color: var(--mx-ink-faint); }
+.paymentDoneNote { margin-top: 10px; font-size: 13px; color: var(--mx-green-600); font-weight: 600; }
+.h2SpacedTop { margin-top: 16px; }
+
+/* Manager/HR/Accounts decision panels (reused across My Sheet + Pending detail) */
+.decisionPanel { margin-top: 14px; padding: 14px 16px; background: var(--mx-surface); border-radius: var(--mx-radius-xs, 8px); border: 1px solid var(--mx-border-strong); }
+.decisionPanelTitle { font-size: 13.5px; font-weight: 700; color: var(--mx-ink); }
+.decisionPanelMeta { font-size: 12.5px; color: var(--mx-ink-muted); }
+.decisionPanelSubMeta { font-size: 12px; color: var(--mx-ink-faint); }
+.decisionTextarea { margin-bottom: 10px; width: 100%; }
+.decisionActionsRow { display: flex; gap: 8px; }
+.approveBtn { background: var(--mx-green-600); border-color: var(--mx-green-600); }
+.rejectBtn { color: var(--mx-brand); border-color: var(--mx-brand); }
+
+/* Add / Edit entry form */
+.flexGap12 { display: flex; gap: 12px; }
+.vehicleTypeLabelText { font-size: 12px; font-weight: 600; color: var(--mx-gray-700); }
+.vehicleTypeOption { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; padding: 6px 12px; border-radius: var(--mx-radius-sm); transition: all 0.15s ease; }
+.vehicleTypeOptionActive { font-weight: 700; color: var(--mx-brand); border: 2px solid var(--mx-brand); background: var(--mx-brand-subtle); }
+.vehicleTypeOptionInactive { font-weight: 500; color: var(--mx-gray-700); border: 1px solid var(--mx-border); background: var(--mx-surface); }
+.hiddenRadio { display: none; }
+.employeePillsWrap { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.employeePill { display: inline-flex; align-items: center; gap: 4px; }
+.employeePillMe { background: var(--mx-brand-subtle); color: var(--mx-brand); }
+.employeePillOther { background: var(--mx-info-subtle); color: var(--mx-info); }
+.pillRemoveBtn { background: none; border: none; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1; color: inherit; opacity: 0.7; }
+.readonlyInput { background: var(--mx-surface-sunken); cursor: not-allowed; }
+.amountInWordsBox { padding: 8px 12px; background: var(--mx-surface-sunken); border-radius: var(--mx-radius-xs); font-size: 13px; font-style: italic; color: var(--mx-ink-muted); }
+.uploadDropzone { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 16px; border: 2px dashed var(--mx-border-strong); border-radius: var(--mx-radius-sm, 8px); background: var(--mx-surface-sunken); cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
+.uploadDropzoneBusy { cursor: wait; opacity: 0.6; }
+.hiddenFileInput { display: none; }
+.uploadIcon { margin-bottom: 6px; }
+.uploadStatusText { font-size: 13px; font-weight: 600; color: var(--mx-ink-muted); }
+.uploadTitleText { font-size: 13px; font-weight: 600; color: var(--mx-ink); }
+.uploadHintText { font-size: 11.5px; color: var(--mx-ink-faint); margin-top: 2px; }
+.attachmentList { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.attachmentRow { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--mx-surface); border: 1px solid var(--mx-border-strong); border-radius: var(--mx-radius-xs, 6px); }
+.attachmentLink { flex: 1; font-size: 13px; color: var(--mx-info); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachmentRemoveBtn { background: none; border: 1px solid var(--mx-danger); color: var(--mx-danger); cursor: pointer; padding: 2px 8px; border-radius: var(--mx-radius-xs, 4px); font-size: 11px; font-weight: 600; transition: background 0.15s ease; }
+.formSubmitRow { display: flex; gap: 10px; margin-top: 16px; }
+
+/* Records table (My Sheet) */
+.textRight { text-align: right; }
+.textCenter { text-align: center; }
+.dashPlaceholder { opacity: 0.35; }
+.rowIndex { color: var(--mx-ink-faint); font-size: 12px; }
+.dateCell { white-space: nowrap; font-weight: 500; }
+.descCell { max-width: 180px; }
+.tagWrapSm { display: flex; flex-wrap: wrap; gap: 4px; }
+.miniTagInfo { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--mx-info-subtle); color: var(--mx-info); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.miniTagNeutral { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--mx-surface-sunken); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.miniTagNeutralFb { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--mx-surface-sunken, #f3f4f6); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.miniTagBlue { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--mx-blue-100); font-size: 11.5px; font-weight: 600; color: var(--mx-blue-800); white-space: nowrap; }
+.amountStrong { font-weight: 600; }
+.billLink { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; background: var(--mx-info-subtle); color: var(--mx-info); border-radius: var(--mx-radius-xs, 6px); font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; transition: background 0.15s ease; }
+.tableIconBtn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--mx-surface); border: 1px solid var(--mx-border-strong); border-radius: var(--mx-radius-xs, 6px); font-size: 12px; font-weight: 600; color: var(--mx-ink); cursor: pointer; transition: background 0.15s ease; }
+.tableIconBtnDanger { border: 1px solid var(--mx-danger); color: var(--mx-danger); }
+.rowActionsGap6 { display: flex; gap: 6px; }
+.tfootRow { background: var(--mx-surface-sunken); }
+.tfootRowBlue { background: var(--mx-blue-50); }
+.tfootLabel { text-align: right; font-weight: 700; font-size: 13.5px; border-top: 2px solid var(--mx-border-strong); }
+.tfootAmount { font-weight: 700; font-size: 14.5px; border-top: 2px solid var(--mx-border-strong); color: var(--mx-ink); }
+.tfootWords { font-style: italic; font-size: 12px; color: var(--mx-ink-muted); border-top: 2px solid var(--mx-border-strong); }
+.tfootLabelBlue { text-align: right; font-weight: 700; font-size: 13.5px; border-top: 2px solid var(--mx-blue-300); color: var(--mx-blue-800); }
+.tfootAmountBlue { font-weight: 700; font-size: 14.5px; border-top: 2px solid var(--mx-blue-300); color: var(--mx-blue-800); }
+.tfootBorderBlue { border-top: 2px solid var(--mx-blue-300); }
+
+/* Amount inline editing (HR, Pending tab) */
+.inlineFlexGap4 { display: flex; align-items: center; gap: 4px; }
+.amountDisplayRow { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.amountEditInput { width: 90px; padding: 3px 6px; font-size: 12px; border: 1px solid #d1d5db; border-radius: 4px; text-align: right; }
+.saveAmountBtn { padding: 2px 6px; font-size: 11px; background: #16a34a; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+.cancelAmountBtn { padding: 2px 6px; font-size: 11px; background: #e5e7eb; color: #374151; border: none; border-radius: 4px; cursor: pointer; }
+.editAmountIconBtn { background: none; border: none; cursor: pointer; padding: 2px; color: var(--mx-ink-muted, #6b7280); display: inline-flex; }
+
+/* Sheet list cards (Pending / Approved landing lists) */
+.sheetCardList { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.sheetListCard { padding: 14px 18px; border-radius: var(--mx-radius-sm, 10px); border: 1px solid var(--mx-border-strong); background: var(--mx-surface); cursor: pointer; transition: box-shadow 0.15s ease, border-color 0.15s ease; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.sheetCardName { font-size: 14.5px; font-weight: 700; color: var(--mx-ink); margin-bottom: 2px; }
+.sheetCardIdTag { font-weight: 400; font-size: 12.5px; color: var(--mx-ink-faint); margin-left: 8px; }
+.sheetCardSubMeta { font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 2px; }
+.sheetCardRight { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* Sheet detail header (Pending / Approved detail views) */
+.backBtn { display: inline-flex; align-items: center; gap: 5px; margin-bottom: 12px; }
+.sheetDetailCard { padding: 16px 20px; border-radius: var(--mx-radius-sm, 10px); margin-bottom: 16px; }
+.sheetDetailName { font-size: 16px; font-weight: 700; color: var(--mx-ink); }
+.sheetDetailIdTag { font-weight: 400; font-size: 13px; color: var(--mx-ink-faint); margin-left: 8px; }
+.sheetDetailMeta { font-size: 13px; color: var(--mx-ink-muted); margin-top: 2px; }
+.sheetDetailTotal { font-size: 13.5px; font-weight: 600; color: var(--mx-ink); margin-top: 6px; }
+.sheetDetailCompanyPaid { font-size: 12.5px; font-weight: 600; color: var(--mx-blue-800); margin-top: 3px; }
+.sheetDetailActions { display: flex; align-items: center; gap: 8px; }
+.sheetDetailInfoLine { font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 4px; }
+.sheetDetailInfoLineTight { font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 2px; }
+.voucherBtnSm { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 5px 12px; }
+
+/* Company Paid (admin) sub-table */
+.companyPaidWrap { margin-top: 20px; }
+.companyPaidHeader { padding: 10px 16px; border-radius: 8px 8px 0 0; background: var(--mx-blue-100); border: 1px solid var(--mx-blue-300); border-bottom: none; font-size: 13.5px; font-weight: 700; color: var(--mx-blue-800); }
+.companyPaidTableWrap { border-radius: 0 0 8px 8px; }
+.blueHeaderRow { background: var(--mx-blue-50); }
+.zebraBlue { background: var(--mx-blue-50); }
+.zebraWhite { background: var(--mx-surface); }
+.smallMutedRight { text-align: right; font-size: 12px; color: var(--mx-ink-muted); }
+.smallMutedCenter { text-align: center; font-size: 12px; color: var(--mx-ink-muted); }
+.amountBlueStrong { font-weight: 600; color: var(--mx-blue-800); }

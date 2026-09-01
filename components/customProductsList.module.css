@@ -1,0 +1,5 @@
+/* components/CustomProductsList.tsx — was inline style={{}} objects. */
+
+.alignCenter { align-items: center; }
+.flex2 { flex: 2; }
+.productCard { margin-top: 8px; padding: 12px; }

@@ -1,0 +1,19 @@
+/* New rules only — nothing copied from elsewhere. Everything reused (form
+   controls, buttons, toggle, modal chrome) comes from the legacy .module.css
+   files the individual ui/ primitives already wrap. */
+
+.selectAuto {
+    width: auto;
+}
+
+.modalFooter {
+    margin-top: 18px;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    align-items: center;
+    margin-top: 14px;
+}

@@ -35,7 +35,6 @@ export default function SummaryPanel({ activeResult, cartCount, cartSubtotal, cu
       : []),
     ...(customProductsTotal ? [{ label: 'Custom products', value: formatMoney(customProductsTotal) }] : []),
     { label: 'Subtotal', value: formatMoney(totals.subtotal) },
-    { label: 'Markup', value: `${totals.markup}%` },
     ...(totals.discountTotal ? [{ label: 'Discount', value: `− ${formatMoney(totals.discountTotal)}` }] : []),
     { label: 'Total before GST', value: formatMoney(totals.preGstTotal) },
     { label: `GST (${GST_RATE_PERCENT}%)`, value: formatMoney(totals.gstAmount) },
@@ -45,7 +44,7 @@ export default function SummaryPanel({ activeResult, cartCount, cartSubtotal, cu
   return (
     <div className={styles.summaryGrid}>
       {cartCount > 0 && activeResult && (
-        <div className={styles.small} style={{ gridColumn: '1 / -1', marginBottom: 4 }}>
+        <div className={`${styles.small} ${styles.spanAllMb4}`}>
           Currently configuring (preview only — click &quot;Add configured product to quote&quot; to include it):
         </div>
       )}

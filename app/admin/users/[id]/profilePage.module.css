@@ -1,0 +1,21 @@
+/* app/admin/users/[id]/page.tsx — was inline style={{}} objects. */
+
+.infoRow { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f1f2f4; font-size: 13.5px; }
+.infoRowLabel { color: var(--mx-ink-muted); }
+.infoRowValue { font-weight: 600; text-align: right; }
+
+.activityGroupPanel { flex: 1; min-width: 240px; }
+.activityGroupHeader { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.activityGroupTitle { font-weight: 700; font-size: 13.5px; }
+.activityGroupCount { font-weight: 700; color: var(--mx-brand); }
+.loginHistoryTitle { font-weight: 700; font-size: 13.5px; margin-bottom: 8px; }
+.activityItemRow { font-size: 12.5px; padding: 4px 0; border-bottom: 1px solid #f6f7f8; }
+.mutedText { color: var(--mx-ink-faint); }
+
+.topActionsRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+.badgeRow { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+.infoCardsRow { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.infoCard { flex: 1; min-width: 260px; }
+.infoCardTitle { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+.activityGroupsRow { display: flex; gap: 16px; flex-wrap: wrap; }
+.mt16 { margin-top: 16px; }

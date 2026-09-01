@@ -6,10 +6,14 @@ import { needsFollowUp } from '@/lib/followUp';
 import QuotationTable from './QuotationTable';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
-import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import ErrorState from './ui/ErrorState';
+import { TableWrap } from './ui/Table';
+import FilterBar from './ui/FilterBar';
+import Select from './ui/Select';
+import Input from './ui/Input';
+import ToolbarButton, { ToolbarLink } from './ui/ToolbarButton';
 
 const STATUS_OPTIONS: { value: QuotationEffectiveStatus; label: string }[] = [
   { value: 'draft', label: 'Draft' },
@@ -157,7 +161,7 @@ export default function MyQuotationsView() {
 
   return (
     <AppShell title="Existing Quotations" subtitle={subtitle}>
-      <div className={historyStyles.toolbar}>
+      <FilterBar>
         <input
           type="text"
           placeholder="Search by quotation number, client, company, prepared by..."
@@ -168,80 +172,58 @@ export default function MyQuotationsView() {
           }}
         />
         {isPrivileged && (
-          <select
-            className={calcStyles.formControl}
-            style={{ width: 'auto' }}
-            value={fSalesPerson}
-            onChange={(e) => setFSalesPerson(e.target.value)}
-          >
+          <Select auto value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
             <option value="">All sales people</option>
             {salesPeople.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
             ))}
-          </select>
+          </Select>
         )}
-        <select
-          className={calcStyles.formControl}
-          style={{ width: 'auto' }}
-          value={fStatus}
-          onChange={(e) => setFStatus(e.target.value as QuotationEffectiveStatus | '')}
-        >
+        <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as QuotationEffectiveStatus | '')}>
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
             </option>
           ))}
-        </select>
+        </Select>
         <input
           type="text"
           placeholder="Project ID"
           value={fProjectId}
           onChange={(e) => setFProjectId(e.target.value)}
-          style={{ maxWidth: 140 }}
+          className={historyStyles.projectIdInput}
         />
-        <input
-          type="date"
-          className={calcStyles.formControl}
-          style={{ width: 'auto' }}
-          value={fFrom}
-          onChange={(e) => setFFrom(e.target.value)}
-        />
-        <input
-          type="date"
-          className={calcStyles.formControl}
-          style={{ width: 'auto' }}
-          value={fTo}
-          onChange={(e) => setFTo(e.target.value)}
-        />
-        <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => load()}>
+        <Input auto type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
+        <Input auto type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} />
+        <ToolbarButton primary onClick={() => load()}>
           Search
-        </button>
-        <button type="button" className={historyStyles.button} onClick={() => load()}>
+        </ToolbarButton>
+        <ToolbarButton onClick={() => load()}>
           Refresh
-        </button>
+        </ToolbarButton>
         {isPrivileged && (
           <>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, whiteSpace: 'nowrap' }}>
+            <label className={historyStyles.followUpCheckboxLabel}>
               <input type="checkbox" checked={followUpOnly} onChange={(e) => setFollowUpOnly(e.target.checked)} />
               Needs follow-up only
             </label>
-            <a className={historyStyles.button} href="/api/admin/quotations/export.csv">
+            <ToolbarLink href="/api/admin/quotations/export.csv">
               Export CSV
-            </a>
-            <a className={historyStyles.button} href="/api/admin/quotations/export.xlsx">
+            </ToolbarLink>
+            <ToolbarLink href="/api/admin/quotations/export.xlsx">
               Export XLSX
-            </a>
+            </ToolbarLink>
           </>
         )}
-      </div>
+      </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
       {loading ? (
-        <div className={historyStyles.tableWrap}>
+        <TableWrap>
           <SkeletonRows rows={8} columns={12} />
-        </div>
+        </TableWrap>
       ) : loadFailed ? (
         <ErrorState message="Could not load quotations — check your connection and try again." onRetry={load} />
       ) : (

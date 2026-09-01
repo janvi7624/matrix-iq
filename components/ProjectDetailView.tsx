@@ -47,6 +47,7 @@ import { MARKETING_STATUS_LABEL } from '@/lib/marketingRequestHelpers';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './projectDetail.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
@@ -112,13 +113,16 @@ const EMPTY_RESPONSE = { feedback: '', responseType: '' as CustomerResponseRecor
 
 interface ProjectDetailViewProps {
   projectId: string;
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 export default function ProjectDetailView({ projectId, currentUser }: ProjectDetailViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const [data, setData] = useState<DetailResponse | null>(null);
   const [status, setStatus] = useState('Loading...');
   const [tab, setTab] = useState<TabKey>('overview');
@@ -276,7 +280,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // already accepted them. Local draft + explicit Save (not per-keystroke
   // patching) so typing doesn't fire a request per character or fight the
   // reload this component does after every save.
-  const [detailsDraft, setDetailsDraft] = useState({ clientName: '', company: '', contactPerson: '', phone: '', email: '', address: '', source: '' });
+  const [detailsDraft, setDetailsDraft] = useState({ clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '', source: '' });
   const [savingDetails, setSavingDetails] = useState(false);
 
   // Only re-syncs on the initial load / when navigating to a different
@@ -290,6 +294,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       clientName: p.client_name || '',
       company: p.company || '',
       contactPerson: p.contact_person || '',
+      altContactPhone: p.alt_contact_phone || '',
       phone: p.phone || '',
       email: p.email || '',
       address: p.address || '',
@@ -305,6 +310,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       detailsDraft.clientName !== (p.client_name || '') ||
       detailsDraft.company !== (p.company || '') ||
       detailsDraft.contactPerson !== (p.contact_person || '') ||
+      detailsDraft.altContactPhone !== (p.alt_contact_phone || '') ||
       detailsDraft.phone !== (p.phone || '') ||
       detailsDraft.email !== (p.email || '') ||
       detailsDraft.address !== (p.address || '') ||
@@ -319,6 +325,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         clientName: detailsDraft.clientName.trim(),
         company: detailsDraft.company.trim(),
         contactPerson: detailsDraft.contactPerson.trim(),
+        altContactPhone: detailsDraft.altContactPhone.trim(),
         phone: detailsDraft.phone.trim(),
         email: detailsDraft.email.trim(),
         address: detailsDraft.address.trim(),
@@ -559,17 +566,17 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
   return (
     <AppShell title={project.client_name || project.company || `Project ${project.id}`} subtitle={`Project ${project.id} — the central workspace for this deal.`}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div className={styles.topActionsRow}>
           <Link className={historyStyles.button} href="/projects">&larr; All Projects</Link>
           <button type="button" className={historyStyles.button} onClick={handleExportPdf}>Export Timeline PDF</button>
           <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
         </div>
 
         {/* Header summary: name / ID / client / sales person / stage / status / progress% */}
-        <div className={historyStyles.detailPanel} style={{ marginTop: 0 }}>
+        <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
           <div className={historyStyles.projectHeaderTop}>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 800 }}>{project.client_name || project.company || 'Unnamed client'}</div>
+              <div className={styles.clientNameHeading}>{project.client_name || project.company || 'Unnamed client'}</div>
               <div className={historyStyles.projectHeaderMeta}>
                 {/* <span>ID: <strong>{project.id}</strong></span> */}
                 <span>Client: <strong>{project.client_name || '-'}</strong></span>
@@ -602,7 +609,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 idx < currentIdx ? historyStyles.stepDone : idx === currentIdx ? (isOverdue ? historyStyles.stepDelayed : historyStyles.stepCurrent) : '';
               return (
                 <span key={s} className={`${historyStyles.step} ${cls}`}>
-                  {idx < currentIdx ? '✓ ' : idx === currentIdx && isOverdue ? <AlertTriangle size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} /> : ''}
+                  {idx < currentIdx ? '✓ ' : idx === currentIdx && isOverdue ? <AlertTriangle size={14} className={styles.alertIcon} /> : ''}
                   {STAGE_LABEL[s]}
                 </span>
               );
@@ -615,7 +622,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <div className={historyStyles.summaryCard}>
             <div className={historyStyles.summaryCardLabel}>Client Details</div>
             <div className={historyStyles.summaryCardValue}>{project.company || '-'}</div>
-            <div className={calcStyles.small}>{project.contact_person || '-'} · {project.phone || '-'}</div>
+            <div className={calcStyles.small}>{project.client_name || '-'} · {project.phone || '-'}</div>
           </div>
           <div className={historyStyles.summaryCard}>
             <div className={historyStyles.summaryCardLabel}>Sales Team</div>
@@ -642,9 +649,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div className={historyStyles.summaryCardValue}>{lastActivity ? lastActivity.label : '-'}</div>
             <div className={calcStyles.small}>{lastActivity ? formatDateTime(lastActivity.at) : ''}</div>
           </div>
-          <div className={historyStyles.summaryCard} style={{ borderColor: isOverdue ? 'var(--mx-brand)' : undefined }}>
+          <div className={`${historyStyles.summaryCard} ${isOverdue ? styles.followUpCardOverdue : ''}`}>
             <div className={historyStyles.summaryCardLabel}>Next Follow-up</div>
-            <div className={historyStyles.summaryCardValue} style={{ color: isOverdue ? 'var(--mx-danger)' : undefined }}>
+            <div className={`${historyStyles.summaryCardValue} ${isOverdue ? styles.followUpValueOverdue : ''}`}>
               {formatDate(project.next_follow_up_date)}{isOverdue ? ' (overdue)' : ''}
             </div>
           </div>
@@ -719,26 +726,26 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
         {/* Pending handover banner — shown to the recipient */}
         {pendingHandover && pendingHandover.to_username === currentUser.username && (
-          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid var(--mx-amber-500)', background: 'var(--mx-amber-50)', padding: 16, borderRadius: 8 }}>
-            <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--mx-amber-800)' }}>
+          <div className={`${calcStyles.sectionPanel} ${styles.amberPanel}`}>
+            <div className={styles.amberPanelTitle}>
               Handover Request
             </div>
-            <div style={{ fontSize: 14, marginBottom: 12, color: 'var(--mx-amber-900)' }}>
+            <div className={styles.amberPanelBody}>
               <strong>{pendingHandover.from_name || pendingHandover.from_username}</strong> wants to hand over this project to you.
-              {pendingHandover.remarks && <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--mx-amber-100)', borderRadius: 6, fontSize: 13 }}>Remarks: {pendingHandover.remarks}</div>}
+              {pendingHandover.remarks && <div className={styles.amberRemarkNote}>Remarks: {pendingHandover.remarks}</div>}
             </div>
 
             {!showDeclineForm ? (
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className={styles.actionsRow8}>
                 <button
-                  style={{ background: 'var(--mx-green-600)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                  className={styles.acceptBtn}
                   disabled={respondingHandover}
                   onClick={() => respondToHandover(true, '')}
                 >
                   Accept
                 </button>
                 <button
-                  style={{ background: 'var(--mx-brand)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                  className={styles.brandActionBtn}
                   disabled={respondingHandover}
                   onClick={() => setShowDeclineForm(true)}
                 >
@@ -746,19 +753,18 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 </button>
               </div>
             ) : (
-              <div style={{ background: 'var(--mx-surface)', border: '1px solid var(--mx-amber-400)', borderRadius: 8, padding: 14 }}>
-                <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 14, color: 'var(--mx-amber-800)' }}>Reason for declining</div>
+              <div className={styles.declineFormPanel}>
+                <div className={styles.declineFormTitle}>Reason for declining</div>
                 <textarea
-                  className={calcStyles.formControl}
+                  className={`${calcStyles.formControl} ${calcStyles.mb10}`}
                   rows={3}
                   value={declineReason}
                   onChange={(e) => setDeclineReason(e.target.value)}
                   placeholder="Please provide a reason for declining this handover..."
-                  style={{ marginBottom: 10 }}
                 />
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div className={styles.actionsRow8}>
                   <button
-                    style={{ background: 'var(--mx-brand)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                    className={styles.brandActionBtn}
                     disabled={respondingHandover || !declineReason.trim()}
                     onClick={() => {
                       respondToHandover(false, declineReason.trim());
@@ -769,7 +775,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     {respondingHandover ? 'Submitting...' : 'Submit Decline'}
                   </button>
                   <button
-                    style={{ background: 'var(--mx-border)', color: 'var(--mx-gray-700)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}
+                    className={styles.cancelActionBtn}
                     onClick={() => { setShowDeclineForm(false); setDeclineReason(''); }}
                   >
                     Cancel
@@ -782,12 +788,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
         {/* Pending handover info — shown to the sender */}
         {pendingHandover && pendingHandover.from_username === currentUser.username && (
-          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid var(--mx-blue-500)', background: 'var(--mx-blue-50)', padding: 16, borderRadius: 8 }}>
-            <div style={{ fontSize: 14, color: 'var(--mx-blue-800)', marginBottom: 10 }}>
+          <div className={`${calcStyles.sectionPanel} ${styles.bluePanel}`}>
+            <div className={styles.bluePanelBody}>
               Handover request sent to <strong>{pendingHandover.to_name || pendingHandover.to_username}</strong> — waiting for their response.
             </div>
             <button
-              style={{ background: 'var(--mx-brand)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
+              className={styles.cancelRequestBtn}
               disabled={respondingHandover}
               onClick={async () => {
                 const ok = await confirm({ message: 'Cancel this handover request?', danger: true });
@@ -816,9 +822,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
         {/* Handover modal */}
         {showHandover && (
-          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid var(--mx-indigo-500)', padding: 16, borderRadius: 8 }}>
-            <div style={{ fontWeight: 600, marginBottom: 12 }}>Handover Project</div>
-            <div className={calcStyles.field} style={{ marginBottom: 12 }}>
+          <div className={`${calcStyles.sectionPanel} ${styles.indigoPanel}`}>
+            <div className={styles.panelTitle}>Handover Project</div>
+            <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
               <label className={calcStyles.label}>Hand over to</label>
               <select className={calcStyles.formControl} value={handoverToUserId} onChange={(e) => setHandoverToUserId(e.target.value)}>
                 <option value="">-- Select person --</option>
@@ -830,20 +836,20 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   })}
               </select>
             </div>
-            <div className={calcStyles.field} style={{ marginBottom: 12 }}>
+            <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
               <label className={calcStyles.label}>Remarks (optional)</label>
               <textarea className={calcStyles.formControl} rows={3} value={handoverRemarks} onChange={(e) => setHandoverRemarks(e.target.value)} placeholder="Reason for handover..." />
             </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: handoverLogs.length > 0 ? 14 : 0 }}>
+            <div className={handoverLogs.length > 0 ? styles.actionsRow8Mb14 : styles.actionsRow8}>
               <button
-                style={{ background: 'var(--mx-indigo-500)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                className={styles.indigoActionBtn}
                 disabled={submittingHandover || !handoverToUserId}
                 onClick={submitHandover}
               >
                 {submittingHandover ? 'Sending...' : 'Send Request'}
               </button>
               <button
-                style={{ background: 'var(--mx-border)', color: 'var(--mx-gray-700)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}
+                className={styles.cancelActionBtn}
                 onClick={() => { setShowHandover(false); setHandoverToUserId(''); setHandoverRemarks(''); setShowHandoverHistory(false); }}
               >
                 Cancel
@@ -856,35 +862,35 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <button
                   type="button"
                   onClick={() => setShowHandoverHistory((v) => !v)}
-                  style={{ background: 'none', border: 'none', color: 'var(--mx-indigo-500)', cursor: 'pointer', fontSize: 13, fontWeight: 500, padding: 0, textDecoration: 'underline' }}
+                  className={styles.historyToggleBtn}
                 >
                   {showHandoverHistory ? 'Hide History' : `View History (${handoverLogs.length})`}
                 </button>
                 {showHandoverHistory && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                  <div className={styles.historyList}>
                     {handoverLogs.map((log) => {
                       const statusColor = log.status === 'approved' ? 'var(--mx-green-600)' : log.status === 'rejected' ? 'var(--mx-brand)' : log.status === 'cancelled' ? 'var(--mx-ink-muted)' : 'var(--mx-amber-500)';
                       const statusLabel = log.status === 'approved' ? 'Accepted' : log.status === 'rejected' ? 'Declined' : log.status === 'cancelled' ? 'Cancelled' : 'Pending';
                       return (
-                        <div key={log.id} style={{ padding: '10px 14px', background: 'var(--mx-surface-sunken)', borderRadius: 6, border: '1px solid var(--mx-slate-200)', fontSize: 13 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <div key={log.id} className={styles.historyLogCard}>
+                          <div className={styles.historyLogHeader}>
                             <span>
                               <strong>{log.from_name || log.from_username}</strong>
                               {' \u2192 '}
                               <strong>{log.to_name || log.to_username}</strong>
                             </span>
-                            <span style={{ color: statusColor, fontWeight: 600, fontSize: 12, padding: '2px 8px', borderRadius: 4, background: `color-mix(in srgb, ${statusColor} 8.24%, transparent)` }}>
+                            <span className={styles.historyStatusBadge} style={{ color: statusColor, background: `color-mix(in srgb, ${statusColor} 8.24%, transparent)` }}>
                               {statusLabel}
                             </span>
                           </div>
-                          <div style={{ color: 'var(--mx-slate-500)', fontSize: 12 }}>
+                          <div className={styles.historyLogDate}>
                             {new Date(log.created_at).toLocaleString('en-IN')}
                           </div>
                           {log.remarks && (
-                            <div style={{ marginTop: 4, color: 'var(--mx-slate-600)', fontSize: 12 }}>Request remarks: {log.remarks}</div>
+                            <div className={styles.historyLogNote}>Request remarks: {log.remarks}</div>
                           )}
                           {log.response_remarks && (
-                            <div style={{ marginTop: 4, color: log.status === 'rejected' ? 'var(--mx-brand)' : 'var(--mx-slate-600)', fontSize: 12, fontWeight: 500 }}>
+                            <div className={`${styles.historyLogResponseNote} ${log.status === 'rejected' ? styles.historyLogResponseNoteRejected : ''}`}>
                               {log.status === 'rejected' ? 'Decline reason' : 'Response'}: {log.response_remarks}
                             </div>
                           )}
@@ -904,9 +910,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             at nobody real. Only updates the display label (sales_person) —
             actual ownership/visibility transfer stays Handover Project's job. */}
         {showAssignSalesPerson && (
-          <div className={calcStyles.sectionPanel} style={{ marginBottom: 16, borderLeft: '3px solid var(--mx-indigo-500)', padding: 16, borderRadius: 8 }}>
-            <div style={{ fontWeight: 600, marginBottom: 12 }}>Assign Sales Person</div>
-            <div className={calcStyles.field} style={{ marginBottom: 12 }}>
+          <div className={`${calcStyles.sectionPanel} ${styles.indigoPanel}`}>
+            <div className={styles.panelTitle}>Assign Sales Person</div>
+            <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
               <label className={calcStyles.label}>Sales person</label>
               <select className={calcStyles.formControl} value={assignSalesPersonId} onChange={(e) => setAssignSalesPersonId(e.target.value)}>
                 <option value="">-- Select person --</option>
@@ -915,16 +921,16 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 ))}
               </select>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className={styles.actionsRow8}>
               <button
-                style={{ background: 'var(--mx-indigo-500)', color: 'var(--mx-surface)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}
+                className={styles.indigoActionBtn}
                 disabled={submittingSalesPerson || !assignSalesPersonId}
                 onClick={submitAssignSalesPerson}
               >
                 {submittingSalesPerson ? 'Saving...' : 'Save'}
               </button>
               <button
-                style={{ background: 'var(--mx-border)', color: 'var(--mx-gray-700)', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}
+                className={styles.cancelActionBtn}
                 onClick={() => { setShowAssignSalesPerson(false); setAssignSalesPersonId(''); }}
               >
                 Cancel
@@ -943,10 +949,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         </div>
 
         {tab === 'overview' && (
-          <div className={historyStyles.detailPanel} style={{ marginTop: 0 }}>
+          <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Client Name</label>
+                <label className={calcStyles.label}>Client Representative Name</label>
                 {canEdit ? (
                   <input className={calcStyles.formControl} value={detailsDraft.clientName} onChange={(e) => setDetailsDraft((d) => ({ ...d, clientName: e.target.value }))} />
                 ) : <div className={calcStyles.small}>{project.client_name || '-'}</div>}
@@ -956,12 +962,6 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 {canEdit ? (
                   <input className={calcStyles.formControl} value={detailsDraft.company} onChange={(e) => setDetailsDraft((d) => ({ ...d, company: e.target.value }))} />
                 ) : <div className={calcStyles.small}>{project.company || '-'}</div>}
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Contact Person</label>
-                {canEdit ? (
-                  <input className={calcStyles.formControl} value={detailsDraft.contactPerson} onChange={(e) => setDetailsDraft((d) => ({ ...d, contactPerson: e.target.value }))} />
-                ) : <div className={calcStyles.small}>{project.contact_person || '-'}</div>}
               </div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -990,8 +990,22 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 ) : <div className={calcStyles.small}>{project.source || '-'}</div>}
               </div>
             </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Alternate Contact Name (optional)</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.contactPerson} onChange={(e) => setDetailsDraft((d) => ({ ...d, contactPerson: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.contact_person || '-'}</div>}
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Alternate Contact Phone (optional)</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} value={detailsDraft.altContactPhone} onChange={(e) => setDetailsDraft((d) => ({ ...d, altContactPhone: e.target.value }))} />
+                ) : <div className={calcStyles.small}>{project.alt_contact_phone || '-'}</div>}
+              </div>
+            </div>
             {canEdit && detailsDirty && (
-              <div style={{ marginTop: 4, marginBottom: 8 }}>
+              <div className={styles.saveDetailsWrap}>
                 <button type="button" className={calcStyles.btn} disabled={savingDetails} onClick={handleSaveDetails}>
                   {savingDetails ? 'Saving...' : 'Save Details'}
                 </button>
@@ -1064,7 +1078,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 )}
               </div>
             </div>
-            <div className={historyStyles.miniCard} style={{ marginTop: 12 }}>
+            <div className={`${historyStyles.miniCard} ${calcStyles.mt12}`}>
               <div className={historyStyles.miniCardTitle}>Payment</div>
               <div className={historyStyles.miniCardRow}>PO total: ₹{totalPoAmount.toLocaleString('en-IN')}</div>
               <div className={historyStyles.miniCardRow}>Advance received: ₹{totalAdvance.toLocaleString('en-IN')}</div>
@@ -1074,8 +1088,8 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         )}
 
         {tab === 'timeline' && (
-          <div className={historyStyles.detailPanel} style={{ marginTop: 0 }}>
-            <div className={calcStyles.small} style={{ marginBottom: 10 }}>Lead Created → Site Visit → Quotation → Demo → Customer Response → Negotiation → Purchase Order → Installation → Completed</div>
+          <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
+            <div className={`${calcStyles.small} ${calcStyles.mb10}`}>Lead Created → Site Visit → Quotation → Demo → Customer Response → Negotiation → Purchase Order → Installation → Completed</div>
             <div className={historyStyles.stepper}>
               {FORWARD_STAGES.map((s, idx) => {
                 const cls = idx < currentIdx ? historyStyles.stepDone : idx === currentIdx ? (isOverdue ? historyStyles.stepDelayed : historyStyles.stepCurrent) : '';
@@ -1091,7 +1105,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             {quotations.length === 0 ? <div className={historyStyles.miniCardEmpty}>No quotations yet.</div> : quotations.map((q) => (
               <div key={q.id} className={historyStyles.miniCardRow}>{q.quotation_number} — ₹{q.total.toLocaleString('en-IN')}</div>
             ))}
-            <div className={historyStyles.miniCardTitle} style={{ marginTop: 14 }}>Follow-ups ({followUps.length})</div>
+            <div className={`${historyStyles.miniCardTitle} ${calcStyles.mt14}`}>Follow-ups ({followUps.length})</div>
             {followUps.length === 0 ? <div className={historyStyles.miniCardEmpty}>No follow-ups logged yet.</div> : followUps.slice(0, 8).map((f, idx) => (
               <div key={idx} className={historyStyles.miniCardRow}>{formatDateTime(f.at)} — {f.by} ({f.quotationNumber}): {f.note || '(no note)'}</div>
             ))}
@@ -1124,8 +1138,8 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             {responses.length === 0 ? <div className={historyStyles.miniCardEmpty}>No response logged yet.</div> : responses.map((r) => (
               <div key={r.id} className={historyStyles.miniCardRow}>{formatDate(r.created_at)} — {r.response_type ? r.response_type.replace(/_/g, ' ') : 'No decision yet'}</div>
             ))}
-            <form onSubmit={handleAddResponse} style={{ marginTop: 10 }}>
-              <select className={calcStyles.formControl} value={respForm.responseType} onChange={(e) => setRespForm((f) => ({ ...f, responseType: e.target.value as CustomerResponseRecord['response_type'] }))} style={{ marginBottom: 6 }}>
+            <form onSubmit={handleAddResponse} className={calcStyles.mt10}>
+              <select className={`${calcStyles.formControl} ${calcStyles.mb6}`} value={respForm.responseType} onChange={(e) => setRespForm((f) => ({ ...f, responseType: e.target.value as CustomerResponseRecord['response_type'] }))}>
                 <option value="">-- Response type --</option>
                 <option value="interested">Interested</option>
                 <option value="not_interested">Not interested</option>
@@ -1134,7 +1148,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <option value="budget_issue">Budget issue</option>
                 <option value="competitor">Competitor</option>
               </select>
-              <textarea className={calcStyles.formControl} rows={2} placeholder="Feedback" value={respForm.feedback} onChange={(e) => setRespForm((f) => ({ ...f, feedback: e.target.value }))} style={{ marginBottom: 6 }} />
+              <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Feedback" value={respForm.feedback} onChange={(e) => setRespForm((f) => ({ ...f, feedback: e.target.value }))} />
               <button type="submit" className={calcStyles.btn} disabled={busySection === 'response'}>{busySection === 'response' ? 'Saving…' : 'Log response'}</button>
             </form>
           </div>
@@ -1144,22 +1158,22 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <div className={historyStyles.miniCard}>
             <div className={historyStyles.miniCardTitle}>Negotiation history ({negotiations.length})</div>
             {negotiations.length === 0 ? <div className={historyStyles.miniCardEmpty}>No negotiation entries yet.</div> : negotiations.map((n) => (
-              <div key={n.id} className={historyStyles.miniCardRow} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <div key={n.id} className={`${historyStyles.miniCardRow} ${styles.rowBetween}`}>
                 <span>{formatDate(n.discussion_date)} — {n.person}: {n.discussion || n.offer_given || '-'}</span>
                 {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDeleteNegotiation(n.id)}>Delete</button>}
               </div>
             ))}
-            <form onSubmit={handleAddNegotiation} style={{ marginTop: 10 }}>
-              <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 6 }}>
+            <form onSubmit={handleAddNegotiation} className={calcStyles.mt10}>
+              <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb6}`}>
                 <input type="date" className={calcStyles.formControl} value={negForm.discussionDate} onChange={(e) => setNegForm((f) => ({ ...f, discussionDate: e.target.value }))} />
                 <input className={calcStyles.formControl} placeholder="Person" value={negForm.person} onChange={(e) => setNegForm((f) => ({ ...f, person: e.target.value }))} />
               </div>
-              <textarea className={calcStyles.formControl} rows={2} placeholder="Discussion" value={negForm.discussion} onChange={(e) => setNegForm((f) => ({ ...f, discussion: e.target.value }))} style={{ marginBottom: 6 }} />
-              <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 6 }}>
+              <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Discussion" value={negForm.discussion} onChange={(e) => setNegForm((f) => ({ ...f, discussion: e.target.value }))} />
+              <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb6}`}>
                 <input className={calcStyles.formControl} placeholder="Offer given" value={negForm.offerGiven} onChange={(e) => setNegForm((f) => ({ ...f, offerGiven: e.target.value }))} />
                 <input className={calcStyles.formControl} placeholder="Discount" value={negForm.discount} onChange={(e) => setNegForm((f) => ({ ...f, discount: e.target.value }))} />
               </div>
-              <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 6 }}>
+              <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb6}`}>
                 <input type="number" className={calcStyles.formControl} placeholder="Revised price" value={negForm.revisedPrice} onChange={(e) => setNegForm((f) => ({ ...f, revisedPrice: e.target.value }))} />
                 <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} placeholder="Expected closure" value={negForm.expectedClosure} onChange={(e) => setNegForm((f) => ({ ...f, expectedClosure: e.target.value }))} />
               </div>
@@ -1190,21 +1204,21 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <div className={historyStyles.miniCard}>
             <div className={historyStyles.miniCardTitle}>Purchase Orders ({purchaseOrders.length})</div>
             {purchaseOrders.length === 0 ? <div className={historyStyles.miniCardEmpty}>No PO received yet.</div> : purchaseOrders.map((po) => (
-              <div key={po.id} className={historyStyles.miniCardRow} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <div key={po.id} className={`${historyStyles.miniCardRow} ${styles.rowBetween}`}>
                 <span>{po.po_number} — ₹{po.amount.toLocaleString('en-IN')} ({formatDate(po.po_date)})</span>
                 {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDeletePo(po.id)}>Delete</button>}
               </div>
             ))}
-            <form onSubmit={handleAddPo} style={{ marginTop: 10 }}>
-              <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 6 }}>
+            <form onSubmit={handleAddPo} className={calcStyles.mt10}>
+              <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb6}`}>
                 <input className={calcStyles.formControl} placeholder="PO number" value={poForm.poNumber} onChange={(e) => setPoForm((f) => ({ ...f, poNumber: e.target.value }))} />
                 <input type="date" className={calcStyles.formControl} value={poForm.poDate} onChange={(e) => setPoForm((f) => ({ ...f, poDate: e.target.value }))} />
               </div>
-              <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 6 }}>
+              <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb6}`}>
                 <input type="number" className={calcStyles.formControl} placeholder="Amount" value={poForm.amount} onChange={(e) => setPoForm((f) => ({ ...f, amount: e.target.value }))} />
                 <input type="number" className={calcStyles.formControl} placeholder="Advance received" value={poForm.advanceReceived} onChange={(e) => setPoForm((f) => ({ ...f, advanceReceived: e.target.value }))} />
               </div>
-              <input className={calcStyles.formControl} placeholder="Payment terms" value={poForm.paymentTerms} onChange={(e) => setPoForm((f) => ({ ...f, paymentTerms: e.target.value }))} style={{ marginBottom: 6 }} />
+              <input className={`${calcStyles.formControl} ${calcStyles.mb6}`} placeholder="Payment terms" value={poForm.paymentTerms} onChange={(e) => setPoForm((f) => ({ ...f, paymentTerms: e.target.value }))} />
               <button type="submit" className={calcStyles.btn} disabled={busySection === 'po'}>{busySection === 'po' ? 'Saving…' : 'Log PO'}</button>
             </form>
           </div>
@@ -1216,15 +1230,15 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             {installations.length === 0 ? <div className={historyStyles.miniCardEmpty}>Not scheduled yet.</div> : installations.map((inst) => (
               <div key={inst.id} className={historyStyles.miniCardRow}>
                 <div>{formatDate(inst.installation_date)} — {inst.assigned_engineer || 'Unassigned'}</div>
-                <select className={calcStyles.formControl} value={inst.status} onChange={(e) => handleInstallationStatus(inst.id, e.target.value as InstallationRecord['status'])} style={{ marginTop: 4 }}>
+                <select className={`${calcStyles.formControl} ${calcStyles.mt4}`} value={inst.status} onChange={(e) => handleInstallationStatus(inst.id, e.target.value as InstallationRecord['status'])}>
                   <option value="scheduled">Scheduled</option>
                   <option value="in_progress">In Progress</option>
                   <option value="completed">Completed</option>
                 </select>
               </div>
             ))}
-            <form onSubmit={handleAddInstallation} style={{ marginTop: 10 }}>
-              <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 6 }}>
+            <form onSubmit={handleAddInstallation} className={calcStyles.mt10}>
+              <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb6}`}>
                 <input type="date" className={calcStyles.formControl} value={instForm.installationDate} onChange={(e) => setInstForm((f) => ({ ...f, installationDate: e.target.value }))} />
                 <input className={calcStyles.formControl} placeholder="Assigned engineer" value={instForm.assignedEngineer} onChange={(e) => setInstForm((f) => ({ ...f, assignedEngineer: e.target.value }))} />
               </div>
@@ -1239,14 +1253,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             {project.attachments.length === 0 ? <div className={historyStyles.miniCardEmpty}>No attachments yet.</div> : project.attachments.map((url) => (
               <div key={url} className={historyStyles.miniCardRow}><a href={url} target="_blank" rel="noreferrer">{url.split('/').pop()}</a></div>
             ))}
-            <input type="file" multiple disabled={uploadingAttachment} onChange={(e) => handleUploadAttachment(e.target.files)} style={{ marginTop: 10 }} />
+            <input type="file" multiple disabled={uploadingAttachment} onChange={(e) => handleUploadAttachment(e.target.files)} className={calcStyles.mt10} />
             {uploadingAttachment && <div className={calcStyles.small}>Uploading…</div>}
           </div>
         )}
 
         {tab === 'activity' && (
-          <div className={historyStyles.detailPanel} style={{ marginTop: 0 }}>
-            <form onSubmit={handleAddRemark} className={historyStyles.followUpForm} style={{ marginBottom: 14 }}>
+          <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
+            <form onSubmit={handleAddRemark} className={`${historyStyles.followUpForm} ${calcStyles.mb14}`}>
               <input type="text" placeholder="Add a remark to this project's timeline…" value={remarkText} onChange={(e) => setRemarkText(e.target.value)} />
               <button type="submit" disabled={savingRemark}>{savingRemark ? 'Saving…' : 'Add remark'}</button>
             </form>
@@ -1268,8 +1282,8 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             {project.notes.length === 0 ? <div className={historyStyles.miniCardEmpty}>No notes yet.</div> : project.notes.slice().reverse().map((n) => (
               <div key={n.id} className={historyStyles.miniCardRow}>{formatDateTime(n.at)} — {n.by}: {n.text}</div>
             ))}
-            <form onSubmit={handleAddNote} style={{ marginTop: 10 }}>
-              <textarea className={calcStyles.formControl} rows={2} placeholder="Add a note…" value={noteText} onChange={(e) => setNoteText(e.target.value)} style={{ marginBottom: 6 }} />
+            <form onSubmit={handleAddNote} className={calcStyles.mt10}>
+              <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Add a note…" value={noteText} onChange={(e) => setNoteText(e.target.value)} />
               <button type="submit" className={calcStyles.btn} disabled={savingNote}>{savingNote ? 'Saving…' : 'Add note'}</button>
             </form>
           </div>

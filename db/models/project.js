@@ -1,9 +1,15 @@
 module.exports = (sequelize, DataTypes) => {
   const Project = sequelize.define('Project', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
+    // The primary "Client Representative Name" — see lib/types.ts's
+    // ProjectRecord comment.
     client_name: { type: DataTypes.STRING },
     company: { type: DataTypes.STRING },
+    // Optional alternate contact's name (paired with alt_contact_phone
+    // below) — no longer a primary field, kept under its original column
+    // name to avoid a data-moving rename.
     contact_person: { type: DataTypes.STRING },
+    alt_contact_phone: { type: DataTypes.STRING },
     phone: { type: DataTypes.STRING },
     email: { type: DataTypes.STRING },
     address: { type: DataTypes.STRING },
@@ -27,7 +33,11 @@ module.exports = (sequelize, DataTypes) => {
     remarks: { type: DataTypes.TEXT },
     attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     created_by: { type: DataTypes.UUID },
-    assigned_technical_person_id: { type: DataTypes.UUID }
+    assigned_technical_person_id: { type: DataTypes.UUID },
+    // Set the first time a technical person is assigned — see
+    // lib/tmsHandoff.ts. Links this Sales project to the TMS project
+    // auto-created (or kept in sync) for whoever is actually doing the work.
+    tms_project_id: { type: DataTypes.UUID }
   }, {
     tableName: 'projects',
     underscored: true,
@@ -37,6 +47,7 @@ module.exports = (sequelize, DataTypes) => {
   Project.associate = (models) => {
     Project.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
     Project.belongsTo(models.User, { foreignKey: 'assigned_technical_person_id', as: 'assignedTechnicalPersonRef' });
+    Project.belongsTo(models.TmsProject, { foreignKey: 'tms_project_id', as: 'tmsProject' });
     Project.hasMany(models.ProjectNote, { foreignKey: 'project_id', as: 'notes' });
     Project.hasMany(models.ProjectTimelineEvent, { foreignKey: 'project_id', as: 'timeline' });
     Project.hasMany(models.Lead, { foreignKey: 'project_id', as: 'leads' });

@@ -136,8 +136,8 @@ export default function ConferenceEstimator({ active, costInputs, onResultChange
       {accessory && (
         <div className={`${styles.row} ${styles.columns}`}>
           <div className={styles.field}>
-            <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <input type="checkbox" style={{ width: 'auto' }} checked={accessoryChecked} onChange={(e) => setAccessoryChecked(e.target.checked)} />
+            <label className={`${styles.label} ${styles.inlineFlexGap8} ${styles.cursorPointerBold}`}>
+              <input type="checkbox" checked={accessoryChecked} onChange={(e) => setAccessoryChecked(e.target.checked)} />
               <span>{accessory.name}</span>
             </label>
           </div>

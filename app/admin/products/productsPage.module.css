@@ -1,0 +1,7 @@
+/* app/admin/products/page.tsx — was inline style={{}} objects. */
+
+.importRow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.autoWidth { width: auto; }
+.bulkBar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+.width120 { width: 120px; }
+.actionsRow6 { display: flex; gap: 6px; }

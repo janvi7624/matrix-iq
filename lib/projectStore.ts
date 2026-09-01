@@ -7,6 +7,7 @@ const FIELDS = [
   { name: 'client_name' },
   { name: 'company' },
   { name: 'contact_person' },
+  { name: 'alt_contact_phone' },
   { name: 'phone' },
   { name: 'email' },
   { name: 'address' },
@@ -20,7 +21,8 @@ const FIELDS = [
   { name: 'next_follow_up_date', kind: 'nullable' as const },
   { name: 'remarks' },
   { name: 'attachments', kind: 'json' as const },
-  { name: 'assigned_technical_person_id', kind: 'nullable' as const }
+  { name: 'assigned_technical_person_id', kind: 'nullable' as const },
+  { name: 'tms_project_id', kind: 'nullable' as const }
 ];
 
 function isoOrEmpty(value: unknown): string {

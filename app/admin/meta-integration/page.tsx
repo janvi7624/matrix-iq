@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell';
 import styles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
+import pageStyles from './metaIntegrationPage.module.css';
 
 interface CredentialStatus {
   appId: boolean;
@@ -44,11 +45,7 @@ function formatDateTime(iso: string): string {
 function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
   return (
     <span
-      style={{
-        fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--mx-radius-full)',
-        color: ok ? 'var(--mx-success)' : 'var(--mx-ink-faint)',
-        background: ok ? 'var(--mx-success-subtle)' : 'var(--mx-surface-sunken)'
-      }}
+      className={`${pageStyles.statusBadge} ${ok ? pageStyles.statusBadgeOn : pageStyles.statusBadgeOff}`}
     >
       {label}
     </span>
@@ -172,15 +169,15 @@ export default function MetaIntegrationPage() {
       <div className={styles.status}>{status}</div>
       {config && credentials && (
         <>
-          <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Connection Status</h2>
+          <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Connection Status</h2>
           <div className={calcStyles.sectionPanel}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div className={pageStyles.connectionRow}>
               <StatusBadge ok={Boolean(isConnected)} label={isConnected ? 'Connected' : 'Not Connected'} />
-              <span style={{ fontSize: 12.5, color: 'var(--mx-ink-muted)' }}>
+              <span className={pageStyles.credentialNote}>
                 Credentials are read from server environment variables only — never stored in the database, never shown here.
               </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, marginBottom: 14 }}>
+            <div className={pageStyles.credentialsGrid}>
               {([
                 ['META_APP_ID', credentials.appId],
                 ['META_APP_SECRET', credentials.appSecret],
@@ -188,8 +185,8 @@ export default function MetaIntegrationPage() {
                 ['META_PAGE_ID', credentials.pageId],
                 ['META_PAGE_ACCESS_TOKEN', credentials.pageAccessToken]
               ] as [string, boolean][]).map(([label, ok]) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 'var(--mx-radius-sm)', background: 'var(--mx-surface-sunken)', fontSize: 12.5 }}>
-                  <span style={{ fontFamily: 'monospace' }}>{label}</span>
+                <div key={label} className={pageStyles.credentialRow}>
+                  <span className={pageStyles.monoText}>{label}</span>
                   <StatusBadge ok={ok} label={ok ? 'Configured' : 'Not configured'} />
                 </div>
               ))}
@@ -198,10 +195,10 @@ export default function MetaIntegrationPage() {
               {testing ? 'Testing…' : 'Test Connection'}
             </button>
             {testResult && (
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className={pageStyles.testResultsList}>
                 {testResult.checks.map((c) => (
-                  <div key={c.label} style={{ fontSize: 13, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <span style={{ color: c.ok ? 'var(--mx-success)' : 'var(--mx-brand)', fontWeight: 700 }}>{c.ok ? '✓' : '✗'}</span>
+                  <div key={c.label} className={pageStyles.testResultRow}>
+                    <span className={`${pageStyles.testCheckIcon} ${c.ok ? pageStyles.testCheckOk : pageStyles.testCheckFail}`}>{c.ok ? '✓' : '✗'}</span>
                     <span><strong>{c.label}</strong> — {c.detail}</span>
                   </div>
                 ))}
@@ -211,21 +208,21 @@ export default function MetaIntegrationPage() {
 
           <h2 className={calcStyles.h2}>Webhook Health</h2>
           <div className={calcStyles.sectionPanel}>
-            <div className={calcStyles.field} style={{ marginBottom: 12 }}>
+            <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
               <label className={calcStyles.label}>Webhook URL — paste this into Meta Developer Console → Webhooks</label>
               <input className={calcStyles.formControl} value={webhookUrl} readOnly onFocus={(e) => e.target.select()} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, fontSize: 13 }}>
+            <div className={pageStyles.webhookGrid}>
               <div>
-                <div style={{ color: 'var(--mx-ink-faint)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Webhook Status</div>
+                <div className={pageStyles.webhookFieldLabel}>Webhook Status</div>
                 <StatusBadge ok={config.webhookVerified} label={config.webhookVerified ? 'Verified' : 'Not Verified'} />
               </div>
               <div>
-                <div style={{ color: 'var(--mx-ink-faint)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Last Webhook Received</div>
+                <div className={pageStyles.webhookFieldLabel}>Last Webhook Received</div>
                 {formatDateTime(config.lastWebhookReceivedAt)}
               </div>
               <div>
-                <div style={{ color: 'var(--mx-ink-faint)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Last Connection Test</div>
+                <div className={pageStyles.webhookFieldLabel}>Last Connection Test</div>
                 {config.lastConnectionTestAt ? `${config.lastConnectionTestOk ? '✓' : '✗'} ${formatDateTime(config.lastConnectionTestAt)}` : '—'}
               </div>
             </div>
@@ -233,7 +230,7 @@ export default function MetaIntegrationPage() {
 
           <h2 className={calcStyles.h2}>Assignment Rules</h2>
           <div className={calcStyles.sectionPanel}>
-            <div className={calcStyles.field} style={{ maxWidth: 320, marginBottom: 12 }}>
+            <div className={`${calcStyles.field} ${pageStyles.assignModeField}`}>
               <label className={calcStyles.label}>Assignment mode</label>
               <select className={calcStyles.formControl} value={assignmentMode} onChange={(e) => setAssignmentMode(e.target.value as MetaAssignmentMode)}>
                 <option value="fixed">Fixed — all Meta leads go to one person</option>
@@ -242,7 +239,7 @@ export default function MetaIntegrationPage() {
               </select>
             </div>
 
-            <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginBottom: 12 }}>
+            <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb12}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Default department</label>
                 <select className={calcStyles.formControl} value={defaultDepartmentId} onChange={(e) => setDefaultDepartmentId(e.target.value)}>
@@ -264,11 +261,11 @@ export default function MetaIntegrationPage() {
             </div>
 
             {assignmentMode === 'round_robin' && (
-              <div style={{ marginBottom: 12 }}>
+              <div className={calcStyles.mb12}>
                 <label className={calcStyles.label}>Round-robin pool — leads rotate through these people in order</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                <div className={pageStyles.poolWrap}>
                   {users.map((u) => (
-                    <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '5px 10px', borderRadius: 'var(--mx-radius-sm)', background: roundRobinPool.includes(u.id) ? 'var(--mx-brand-subtle)' : 'var(--mx-surface-sunken)', cursor: 'pointer' }}>
+                    <label key={u.id} className={`${pageStyles.poolChip} ${roundRobinPool.includes(u.id) ? pageStyles.poolChipSelected : ''}`}>
                       <input type="checkbox" checked={roundRobinPool.includes(u.id)} onChange={() => toggleRoundRobinUser(u.id)} />
                       {u.name || u.username}
                     </label>
@@ -278,13 +275,13 @@ export default function MetaIntegrationPage() {
             )}
 
             {assignmentMode === 'campaign' && (
-              <div style={{ marginBottom: 12 }}>
+              <div className={calcStyles.mb12}>
                 <label className={calcStyles.label}>Campaign routing — map a Meta Campaign ID to an owner</label>
-                <div className={styles.status} style={{ marginBottom: 8 }}>
+                <div className={`${styles.status} ${calcStyles.mb8}`}>
                   Use the numeric Campaign ID from Meta Ads Manager (visible in the lead&apos;s Meta Information panel once a lead has come through, or in Ads Manager itself) — not the campaign&apos;s display name. A campaign not listed here falls back to the default owner above.
                 </div>
                 {campaignRows.map((row, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <div key={i} className={pageStyles.campaignRow}>
                     <input
                       className={calcStyles.formControl}
                       placeholder="Meta Campaign ID"
@@ -317,17 +314,17 @@ export default function MetaIntegrationPage() {
 
           <h2 className={calcStyles.h2}>Sync Meta Leads</h2>
           <div className={calcStyles.sectionPanel}>
-            <div className={styles.status} style={{ marginBottom: 10 }}>
+            <div className={`${styles.status} ${calcStyles.mb10}`}>
               Recovery/backfill tool — re-processes any Meta lead events that failed or were never picked up (e.g. a temporary outage). Safe to run any time: already-imported leads are never duplicated.
             </div>
-            <div style={{ fontSize: 13, marginBottom: 10 }}>
+            <div className={pageStyles.lastSyncText}>
               <strong>Last Sync:</strong> {formatDateTime(config.lastSuccessfulSyncAt)}
             </div>
             <button type="button" className={calcStyles.btn} disabled={syncing} onClick={handleSyncNow}>
               {syncing ? 'Syncing…' : 'Sync Now'}
             </button>
             {syncResult && (
-              <div style={{ marginTop: 10, fontSize: 13 }}>
+              <div className={pageStyles.syncResultText}>
                 {syncResult.total === 0 ? 'Nothing pending — everything is already up to date.' : `${syncResult.processed} imported/merged, ${syncResult.skipped} already up to date, ${syncResult.failed} failed (of ${syncResult.total} events).`}
               </div>
             )}

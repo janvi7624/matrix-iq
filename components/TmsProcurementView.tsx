@@ -13,6 +13,14 @@ import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import SubmitButton from './ui/SubmitButton';
+import FilterBar from './ui/FilterBar';
+import ToolbarButton from './ui/ToolbarButton';
+import Table, { TableColumn } from './ui/Table';
 
 const EMPTY_FORM = { projectId: '', itemName: '', partNumber: '', quantity: '1', vendor: '', estimatedCost: '', requiredDate: '', remarks: '' };
 
@@ -97,79 +105,79 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
     }
   }
 
+  const columns: TableColumn<TmsProcurementRecord>[] = [
+    { key: 'procurement', header: 'Procurement', cellClassName: historyStyles.num, render: (r) => r.procurement_code },
+    { key: 'project', header: 'Project', render: (r) => r.project_name },
+    { key: 'item', header: 'Item', render: (r) => r.item_name },
+    { key: 'vendor', header: 'Vendor', render: (r) => r.vendor || '-' },
+    { key: 'bomRequest', header: 'BOM Request', render: (r) => r.bom_request_code || '-' },
+    { key: 'purchaseStatus', header: 'Purchase Status', render: (r) => <StatusBadge tone={TMS_PURCHASE_STATUS_TONE[r.purchase_status]} label={TMS_PURCHASE_STATUS_LABEL[r.purchase_status]} /> },
+    { key: 'actions', header: '', render: (r) => <Link className={historyStyles.button} href={`/tms/procurement/${r.id}`}>View</Link> }
+  ];
+
   return (
     <AppShell title="Procurement" subtitle="Purchase and delivery tracking from approved BOM requests.">
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+      <div className={historyStyles.actionRow}>
         <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
           {showForm ? 'Cancel' : '+ New Procurement Entry'}
         </button>
-        <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
+        <ToolbarButton onClick={load}>Refresh</ToolbarButton>
       </div>
 
       {showForm && (
-        <form className={calcStyles.sectionPanel} onSubmit={handleCreate} style={{ marginBottom: 20 }}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Project</label>
-              <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
+        <form className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`} onSubmit={handleCreate}>
+          <FieldRow>
+            <Field label="Project">
+              <Select value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
                 <option value="">Select project</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.project_code} — {p.name}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Item name</label>
-              <input className={calcStyles.formControl} value={form.itemName} onChange={(e) => setForm((f) => ({ ...f, itemName: e.target.value }))} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Part number / Model</label>
-              <input className={calcStyles.formControl} value={form.partNumber} onChange={(e) => setForm((f) => ({ ...f, partNumber: e.target.value }))} />
-            </div>
-          </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Quantity</label>
-              <input type="number" min="1" className={calcStyles.formControl} value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Vendor / OEM</label>
-              <input className={calcStyles.formControl} value={form.vendor} onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Estimated cost</label>
-              <input type="number" min="0" className={calcStyles.formControl} value={form.estimatedCost} onChange={(e) => setForm((f) => ({ ...f, estimatedCost: e.target.value }))} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Required date</label>
-              <input type="date" className={calcStyles.formControl} value={form.requiredDate} onChange={(e) => setForm((f) => ({ ...f, requiredDate: e.target.value }))} />
-            </div>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Remarks</label>
-            <textarea className={calcStyles.formControl} rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
-          </div>
-          <button type="submit" className={calcStyles.btn} disabled={creating}>
-            {creating ? 'Creating…' : 'Create record'}
-          </button>
+              </Select>
+            </Field>
+            <Field label="Item name">
+              <Input value={form.itemName} onChange={(e) => setForm((f) => ({ ...f, itemName: e.target.value }))} required />
+            </Field>
+            <Field label="Part number / Model">
+              <Input value={form.partNumber} onChange={(e) => setForm((f) => ({ ...f, partNumber: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <FieldRow>
+            <Field label="Quantity">
+              <Input type="number" min="1" value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))} />
+            </Field>
+            <Field label="Vendor / OEM">
+              <Input value={form.vendor} onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))} />
+            </Field>
+            <Field label="Estimated cost">
+              <Input type="number" min="0" value={form.estimatedCost} onChange={(e) => setForm((f) => ({ ...f, estimatedCost: e.target.value }))} />
+            </Field>
+            <Field label="Required date">
+              <Input type="date" value={form.requiredDate} onChange={(e) => setForm((f) => ({ ...f, requiredDate: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <Field label="Remarks">
+            <Textarea rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
+          </Field>
+          <SubmitButton disabled={creating}>{creating ? 'Creating…' : 'Create record'}</SubmitButton>
         </form>
       )}
 
-      <div className={historyStyles.toolbar}>
+      <FilterBar>
         <input type="text" placeholder="Search procurement code, item, vendor…" value={fSearch} onChange={(e) => setFSearch(e.target.value)} />
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fProject} onChange={(e) => setFProject(e.target.value)}>
+        <Select auto value={fProject} onChange={(e) => setFProject(e.target.value)}>
           <option value="">All projects</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsPurchaseStatus | '')}>
+        </Select>
+        <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsPurchaseStatus | '')}>
           <option value="">All purchase statuses</option>
           {(Object.keys(TMS_PURCHASE_STATUS_LABEL) as TmsPurchaseStatus[]).map((s) => (
             <option key={s} value={s}>{TMS_PURCHASE_STATUS_LABEL[s]}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
       {loading ? (
@@ -177,44 +185,18 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
       ) : loadFailed ? (
         <ErrorState message="Could not load procurement records — check your connection and try again." onRetry={load} />
       ) : (
-        <table className={historyStyles.table}>
-          <thead>
-            <tr>
-              <th>Procurement</th>
-              <th>Project</th>
-              <th>Item</th>
-              <th>Vendor</th>
-              <th>BOM Request</th>
-              <th>Purchase Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={7}>
-                  <EmptyState
-                    icon={ShoppingCart}
-                    title={records.length === 0 ? 'No procurement records yet' : 'No records match your filters'}
-                    message={records.length === 0 ? 'Approved BOM requests sent to procurement will appear here, or add one manually.' : 'Try clearing a filter or search term.'}
-                  />
-                </td>
-              </tr>
-            ) : (
-              filtered.map((r) => (
-                <tr key={r.id}>
-                  <td className={historyStyles.num}>{r.procurement_code}</td>
-                  <td>{r.project_name}</td>
-                  <td>{r.item_name}</td>
-                  <td>{r.vendor || '-'}</td>
-                  <td>{r.bom_request_code || '-'}</td>
-                  <td><StatusBadge tone={TMS_PURCHASE_STATUS_TONE[r.purchase_status]} label={TMS_PURCHASE_STATUS_LABEL[r.purchase_status]} /></td>
-                  <td><Link className={historyStyles.button} href={`/tms/procurement/${r.id}`}>View</Link></td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <Table
+          columns={columns}
+          rows={filtered}
+          rowKey={(r) => r.id}
+          empty={
+            <EmptyState
+              icon={ShoppingCart}
+              title={records.length === 0 ? 'No procurement records yet' : 'No records match your filters'}
+              message={records.length === 0 ? 'Approved BOM requests sent to procurement will appear here, or add one manually.' : 'Try clearing a filter or search term.'}
+            />
+          }
+        />
       )}
     </AppShell>
   );

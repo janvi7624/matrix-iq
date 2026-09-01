@@ -7,7 +7,10 @@ import AppShell from './AppShell';
 import QuotationTable from './QuotationTable';
 import { useToast } from './ui/ToastProvider';
 import styles from './quotationHistory.module.css';
-import calcStyles from './calculator.module.css';
+import FilterBar from './ui/FilterBar';
+import Select from './ui/Select';
+import Input from './ui/Input';
+import ToolbarButton, { ToolbarLink } from './ui/ToolbarButton';
 
 interface QuotationHistoryViewProps {
   title: string;
@@ -127,7 +130,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
 
   return (
     <AppShell title={title} subtitle={orgWide ? subtitle : 'Every quotation in your department, with a guaranteed-unique quotation number.'}>
-        <div className={styles.toolbar}>
+        <FilterBar>
           <input
             type="text"
             placeholder="Search by quotation number, prepared by, client name, company, or project vertical..."
@@ -137,46 +140,46 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
               if (e.key === 'Enter') loadQuotations();
             }}
           />
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
+          <Select auto value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
             <option value="">All sales people</option>
             {salesPeople.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
-          </select>
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fStatus} onChange={(e) => setFStatus(e.target.value as QuotationEffectiveStatus | '')}>
+          </Select>
+          <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as QuotationEffectiveStatus | '')}>
             <option value="">All statuses</option>
             {STATUS_OPTIONS.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
-          </select>
+          </Select>
           <input
             type="text"
             placeholder="Project ID"
             value={fProjectId}
             onChange={(e) => setFProjectId(e.target.value)}
-            style={{ maxWidth: 140 }}
+            className={styles.projectIdInput}
           />
-          <input type="date" className={calcStyles.formControl} style={{ width: 'auto' }} value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
-          <input type="date" className={calcStyles.formControl} style={{ width: 'auto' }} value={fTo} onChange={(e) => setFTo(e.target.value)} />
-          <button type="button" className={`${styles.button} ${styles.primary}`} onClick={() => loadQuotations()}>
+          <Input auto type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
+          <Input auto type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} />
+          <ToolbarButton primary onClick={() => loadQuotations()}>
             Search
-          </button>
-          <button type="button" className={styles.button} onClick={() => loadQuotations()}>
+          </ToolbarButton>
+          <ToolbarButton onClick={() => loadQuotations()}>
             Refresh
-          </button>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, whiteSpace: 'nowrap' }}>
+          </ToolbarButton>
+          <label className={styles.followUpCheckboxLabel}>
             <input type="checkbox" checked={followUpOnly} onChange={(e) => setFollowUpOnly(e.target.checked)} />
             Needs follow-up only
           </label>
-          <a className={styles.button} href="/api/admin/quotations/export.csv">
+          <ToolbarLink href="/api/admin/quotations/export.csv">
             Export CSV
-          </a>
+          </ToolbarLink>
           {showXlsxExport && (
-            <a className={styles.button} href="/api/admin/quotations/export.xlsx">
+            <ToolbarLink href="/api/admin/quotations/export.xlsx">
               Export XLSX
-            </a>
+            </ToolbarLink>
           )}
-        </div>
+        </FilterBar>
         <div className={styles.status}>{status}</div>
         {loaded && (
           <QuotationTable

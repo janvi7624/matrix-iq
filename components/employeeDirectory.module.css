@@ -444,6 +444,11 @@
     padding-top: 12px;
     border-top: 1px solid var(--mx-border);
 }
+/* The activity panel embedded inside a mobile card's .cardMeta grid spans
+   every column instead of sitting in one cell. */
+.cardMetaFullSpan { grid-column: 1 / -1; }
+/* Loading skeleton wrapper — was inline style={{ padding: 14 }}. */
+.tableWrapPadded { padding: 14px; }
 .cardMetaLabel {
     font-size: 10.5px;
     font-weight: 700;

@@ -142,8 +142,8 @@ function TechnicalApprovalForm({ demoId, onDone }: { demoId: string; onDone: (up
   }
 
   return (
-    <div className={historyStyles.detailPanel} style={{ marginTop: 10 }}>
-      <h3 style={{ marginTop: 0 }}>Technical availability</h3>
+    <div className={`${historyStyles.detailPanel} ${calcStyles.mt10}`}>
+      <h3 className={historyStyles.h3Flush}>Technical availability</h3>
       <div className={`${calcStyles.row} ${calcStyles.columns}`}>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Availability</label>
@@ -200,8 +200,8 @@ function ManagerApprovalForm({ demoId, technicalRoster, onDone }: { demoId: stri
   }
 
   return (
-    <div className={historyStyles.detailPanel} style={{ marginTop: 10 }}>
-      <h3 style={{ marginTop: 0 }}>Manager review</h3>
+    <div className={`${historyStyles.detailPanel} ${calcStyles.mt10}`}>
+      <h3 className={historyStyles.h3Flush}>Manager review</h3>
       <div className={`${calcStyles.row} ${calcStyles.columns}`}>
         <div className={calcStyles.field}>
           <label className={calcStyles.label}>Assign different engineer (optional)</label>
@@ -243,7 +243,7 @@ function DemoRow({
   onApprovalDone
 }: {
   record: DemoScheduleRecord;
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
   technicalRoster: TechnicalRosterEntry[];
   managersByDepartment: Record<string, { id: string; username: string; name: string }[]>;
   onCancel: (id: string) => void;
@@ -253,7 +253,10 @@ function DemoRow({
   onSaveReport: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onApprovalDone: (updated: DemoScheduleRecord) => void;
 }) {
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const isTechnical = currentUser.role === 'engineer' || isPrivileged;
   const isOwner = record.created_by === currentUser.username;
 
@@ -381,7 +384,7 @@ function DemoRow({
           <td colSpan={9}>
            <div className={historyStyles.wideCellPin}>
             {record.demo_objective && (
-              <div className={calcStyles.field} style={{ marginBottom: 8 }}>
+              <div className={`${calcStyles.field} ${calcStyles.mb8}`}>
                 <label className={calcStyles.label}>Demo objective</label>
                 <div className={calcStyles.small}>{record.demo_objective}</div>
               </div>
@@ -389,14 +392,14 @@ function DemoRow({
             {(() => {
               const steps = buildDemoSteps(record);
               return steps ? (
-                <div className={calcStyles.field} style={{ marginBottom: 12 }}>
+                <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
                   <label className={calcStyles.label}>Workflow progress</label>
                   <WorkflowStepper steps={steps} />
                 </div>
               ) : null;
             })()}
             {record.technical_approval.decision && (
-              <div className={calcStyles.field} style={{ marginBottom: 8 }}>
+              <div className={`${calcStyles.field} ${calcStyles.mb8}`}>
                 <label className={calcStyles.label}>Technical approval</label>
                 <div className={calcStyles.small}>
                   {record.technical_approval.decision} by {record.technical_approval.decided_by} — {record.technical_approval.availability || 'n/a'}
@@ -406,7 +409,7 @@ function DemoRow({
               </div>
             )}
             {record.manager_approval.decision && (
-              <div className={calcStyles.field} style={{ marginBottom: 8 }}>
+              <div className={`${calcStyles.field} ${calcStyles.mb8}`}>
                 <label className={calcStyles.label}>Manager approval</label>
                 <div className={calcStyles.small}>
                   {record.manager_approval.decision} by {record.manager_approval.decided_by}
@@ -415,7 +418,7 @@ function DemoRow({
                 </div>
               </div>
             )}
-            <h3 style={{ marginTop: 0 }}>Demo outcome &amp; report</h3>
+            <h3 className={historyStyles.h3Flush}>Demo outcome &amp; report</h3>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Outcome</label>
@@ -483,7 +486,7 @@ function DemoRow({
   );
 }
 
-function DemoScheduleContent({ currentUser }: { currentUser: { username: string; role: UserRole } }) {
+function DemoScheduleContent({ currentUser }: { currentUser: { username: string; role: UserRole; isPrivileged: boolean } }) {
   // TMS accounts (technical-manager/team-lead/engineer/technician) can see
   // this queue but not submit new requests — matches the server-side gate
   // in app/api/demo-schedule/route.ts's POST.
@@ -626,7 +629,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
     <AppShell title="Demo Schedule" subtitle="Request a demo — technical availability, then manager approval, then Back Office handles materials.">
         {canCreate && (
         <>
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Request a demo</h2>
+        <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Request a demo</h2>
         <form className={calcStyles.sectionPanel} onSubmit={(e) => handleCreate(e, true)}>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
@@ -698,7 +701,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             const catalog = getDomainProducts(d);
             if (!catalog.length) {
               return (
-                <div key={d} className={calcStyles.small} style={{ marginBottom: 8 }}>
+                <div key={d} className={`${calcStyles.small} ${calcStyles.mb8}`}>
                   No fixed product catalog for {DOMAIN_DISPLAY_NAME[d]} — describe what's required in Notes below.
                 </div>
               );
@@ -711,15 +714,14 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
                     const tag = `${DOMAIN_DISPLAY_NAME[d]}: ${product}`;
                     const line = form.productsRequired.find((p) => p.product === tag);
                     return (
-                      <label key={tag} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <label key={tag} className={calcStyles.inlineFlexGap6}>
                         <input type="checkbox" checked={!!line} onChange={() => toggleProduct(tag)} />
                         {product}
                         {line && (
                           <input
                             type="number"
                             min={1}
-                            className={calcStyles.formControl}
-                            style={{ width: 56, padding: '2px 6px' }}
+                            className={`${calcStyles.formControl} ${calcStyles.qtyInputMini}`}
                             value={line.quantity}
                             onClick={(e) => e.preventDefault()}
                             onChange={(e) => setProductQty(tag, parseInt(e.target.value, 10) || 1)}
@@ -781,11 +783,11 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             <textarea className={calcStyles.formControl} rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
           </div>
           {form.productDomains.length > 0 && (
-            <div className={calcStyles.small} style={{ marginBottom: 8 }}>
+            <div className={`${calcStyles.small} ${calcStyles.mb8}`}>
               This request will need approval from: {domainLeadLabels(form.productDomains)} (technical), then a manager.
             </div>
           )}
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div className={calcStyles.formActionsRow}>
             <button type="submit" className={calcStyles.btn} disabled={creating}>
               {creating ? 'Sending…' : 'Submit for Technical Approval'}
             </button>
@@ -797,7 +799,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
         </>
       )}
 
-        <div className={historyStyles.toolbar} style={{ marginTop: 24 }}>
+        <div className={`${historyStyles.toolbar} ${historyStyles.toolbarSpaced}`}>
           <button type="button" className={historyStyles.button} onClick={load}>
             Refresh
           </button>
@@ -851,7 +853,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   );
 }
 
-export default function DemoScheduleView({ currentUser }: { currentUser: { username: string; role: UserRole } }) {
+export default function DemoScheduleView({ currentUser }: { currentUser: { username: string; role: UserRole; isPrivileged: boolean } }) {
   return (
     <Suspense fallback={<AppShell title="Demo Schedule" subtitle="Request and approve product demos.">{null}</AppShell>}>
       <DemoScheduleContent currentUser={currentUser} />

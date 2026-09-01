@@ -1,0 +1,19 @@
+/* components/TmsGuideModal.tsx — was inline style={{}} objects. Modal chrome
+   itself now comes from components/ui/Modal (notify.module.css). */
+
+.intro { font-size: 13.5px; color: var(--mx-ink-muted); margin-top: 6px; }
+
+.stepsGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 16px 0; }
+.stepCard { display: flex; gap: 10px; padding: 12px; border-radius: var(--mx-radius-md); background: var(--mx-surface-sunken); }
+.stepIcon { flex-shrink: 0; margin-top: 1px; }
+.stepTitle { font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
+.stepBody { font-size: 12.5px; color: var(--mx-ink-muted); }
+
+/* Modifier applied alongside calculator.module.css's .h2 (kept for its
+   border-left accent, font-weight, color, and top margin) — only overrides
+   size and bottom spacing for this smaller in-modal heading. */
+.sectionHeadingCompact { font-size: 13px; margin-bottom: 8px; }
+.stepsList { margin: 0; padding-left: 20px; font-size: 13px; color: var(--mx-ink-muted); display: flex; flex-direction: column; gap: 4px; }
+
+.dontShowLabel { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 16px; }
+.actionsSpaced { margin-top: 14px; }

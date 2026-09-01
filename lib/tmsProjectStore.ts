@@ -1,6 +1,7 @@
-import { Model } from 'sequelize';
+import { Model, Op } from 'sequelize';
 import { TmsProjectRecord } from './types';
 import { db, isUuid } from './db';
+import { isTmsManagerTier, TmsViewer } from './tmsAccess';
 
 const FIELDS = [
   { name: 'project_code' },
@@ -80,13 +81,34 @@ async function toRecords(rows: Model[]): Promise<TmsProjectRecord[]> {
   return rows.map((row) => toRecord(row, teamNameMap));
 }
 
-// Row-level visibility: no filter beyond the module/action gate already
-// checked at the route level (app/api/tms/projects/route.ts) — every viewer
-// who can view tms-projects sees the full flat pool (they're meant to
-// collaborate cross-functionally across the 4 technical departments). See
-// the TMS plan doc §3.5/§0.2 for why this differs from Tasks.
-async function list(): Promise<TmsProjectRecord[]> {
-  const rows = await db.TmsProject.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
+// Row-level visibility, 3 tiers: superadmin/admin see every project across
+// every department; technical-manager/team-lead see their own department's
+// projects only; engineer/technician see only projects they created, manage,
+// or are a team member on.
+async function list(viewer: TmsViewer): Promise<TmsProjectRecord[]> {
+  if (viewer.isPrivileged) {
+    const rows = await db.TmsProject.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
+    return toRecords(rows);
+  }
+
+  if (isTmsManagerTier(viewer)) {
+    if (!viewer.departmentId) return [];
+    const rows = await db.TmsProject.findAll({
+      where: { department_id: viewer.departmentId } as never,
+      include: ALL_INCLUDES,
+      order: [['created_at', 'DESC']]
+    });
+    return toRecords(rows);
+  }
+
+  const ownId = viewer.userId || '00000000-0000-0000-0000-000000000000';
+  const rows = await db.TmsProject.findAll({
+    where: {
+      [Op.or]: [{ project_manager_id: ownId }, { created_by: ownId }, { team_member_ids: { [Op.contains]: [ownId] } }]
+    } as never,
+    include: ALL_INCLUDES,
+    order: [['created_at', 'DESC']]
+  });
   return toRecords(rows);
 }
 

@@ -1,0 +1,58 @@
+/* components/TmsDashboardView.tsx — was entirely inline style={{}} objects.
+   Shared summary/KPI/table/form chrome still comes from dashboard.module.css,
+   quotationHistory.module.css, and calculator.module.css; these are the
+   layout/spacing/tone rules unique to this view. */
+
+.headerRow { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.greeting { font-size: 20px; font-weight: 700; color: var(--mx-ink); }
+.guideLink { background: none; border: none; color: var(--mx-brand); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 0; }
+
+.sectionIntro { margin: 0 0 10px; }
+
+.summaryCardAlertWarning { background: var(--mx-warning-subtle); }
+.summaryCardAlertDanger { background: var(--mx-danger-subtle); }
+
+.nextActionPanel { margin-top: 16px; margin-bottom: 20px; }
+.nextActionPanelAlert { border-left: 3px solid var(--mx-brand); }
+.nextActionPanelOk { border-left: 3px solid var(--mx-success); }
+.nextActionLabel { font-size: 12px; font-weight: 700; color: var(--mx-ink-faint); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
+.nextActionRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.nextActionTitleRow { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.nextActionTitle { font-weight: 700; font-size: 14.5px; }
+.nextActionMeta { font-size: 12.5px; color: var(--mx-ink-muted); }
+.nextActionAllClear { display: flex; align-items: center; gap: 8px; color: var(--mx-success); font-weight: 600; }
+
+.tableSpacer { margin-bottom: 20px; }
+.taskList { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+
+.panelSpaced { margin-bottom: 20px; }
+.panelSpacedLg { margin-bottom: 24px; }
+
+.clickableRow { cursor: pointer; }
+.rowHighlight { font-weight: var(--mx-weight-medium); }
+.overdueCount { color: var(--mx-danger); font-weight: var(--mx-weight-semibold); }
+
+/* ---------- TaskRow ---------- */
+.taskRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    text-decoration: none;
+    padding: 10px 14px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+}
+.taskRowOverdue { border-left: 3px solid var(--mx-danger); }
+.taskRowDueToday { border-left: 3px solid var(--mx-warning); }
+.taskRowUpcoming { border-left: 3px solid var(--mx-info); }
+.taskRowMain { min-width: 0; }
+.taskRowTitleLine { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.taskRowBadge { font-size: 10.5px; font-weight: 700; padding: 1px 8px; border-radius: var(--mx-radius-full); letter-spacing: 0.3px; }
+.taskRowBadgeOverdue { color: var(--mx-danger); background: var(--mx-danger-subtle); }
+.taskRowBadgeDueToday { color: var(--mx-warning); background: var(--mx-warning-subtle); }
+.taskRowBadgeUpcoming { color: var(--mx-info); background: var(--mx-info-subtle); }
+.taskRowName { font-weight: 600; font-size: 13.5px; color: var(--mx-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.taskRowProject { font-size: 12px; color: var(--mx-ink-muted); }
+.taskRowDue { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--mx-ink-muted); flex-shrink: 0; }

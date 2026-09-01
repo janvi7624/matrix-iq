@@ -6,6 +6,7 @@ import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
+import styles from './hrDashboard.module.css';
 
 interface CelebrationEntry {
   name: string;
@@ -26,82 +27,52 @@ function formatDateShort(val: string): string {
 
 function DaysLabel({ days }: { days: number }) {
   if (days === 0) {
-    return (
-      <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--mx-brand)', padding: '2px 10px', borderRadius: 'var(--mx-radius-full)' }}>
-        Today
-      </span>
-    );
+    return <span className={`${styles.daysLabel} ${styles.daysLabelToday}`}>Today</span>;
   }
   if (days === 1) {
-    return (
-      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--mx-warning)', background: 'var(--mx-warning-subtle)', padding: '2px 10px', borderRadius: 'var(--mx-radius-full)' }}>
-        Tomorrow
-      </span>
-    );
+    return <span className={`${styles.daysLabel} ${styles.daysLabelTomorrow}`}>Tomorrow</span>;
   }
-  return (
-    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--mx-ink-muted)', background: 'var(--mx-surface-sunken)', padding: '2px 10px', borderRadius: 'var(--mx-radius-full)' }}>
-      in {days} days
-    </span>
-  );
+  return <span className={`${styles.daysLabel} ${styles.daysLabelFuture}`}>in {days} days</span>;
 }
 
 function CelebrationEmptyState({ icon: Icon, message }: { icon: typeof Cake; message: string }) {
   return (
-    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--mx-ink-faint)' }}>
-      <Icon size={32} strokeWidth={1.5} style={{ marginBottom: 10, opacity: 0.5 }} />
-      <p style={{ margin: 0, fontSize: 14 }}>{message}</p>
+    <div className={styles.celebrationEmpty}>
+      <Icon size={32} strokeWidth={1.5} className={styles.celebrationEmptyIcon} />
+      <p className={styles.celebrationEmptyText}>{message}</p>
     </div>
   );
 }
 
+const TONE_CLASS = { brand: styles.toneBrand, info: styles.toneInfo } as const;
+
 function CelebrationCard({ entry, type }: { entry: CelebrationEntry; type: 'birthday' | 'anniversary' }) {
   const isBirthday = type === 'birthday';
-  const accent = isBirthday ? 'var(--mx-brand)' : 'var(--mx-info)';
-  const accentBg = isBirthday ? 'var(--mx-brand-subtle)' : 'var(--mx-info-subtle)';
+  const tone = isBirthday ? 'brand' : 'info';
+  const toneClass = TONE_CLASS[tone];
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        padding: '14px 20px',
-        borderBottom: '1px solid var(--mx-border)',
-        background: entry.isToday ? accentBg : 'transparent'
-      }}
-    >
-      <div
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 'var(--mx-radius-md)',
-          flexShrink: 0,
-          background: accentBg,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        {isBirthday ? <Cake size={20} color={accent} strokeWidth={2} /> : <Award size={20} color={accent} strokeWidth={2} />}
+    <div className={`${styles.celebrationCard} ${toneClass} ${entry.isToday ? styles.celebrationCardToday : ''}`}>
+      <div className={styles.celebrationIcon}>
+        {isBirthday ? <Cake size={20} color="var(--tone-color)" strokeWidth={2} /> : <Award size={20} color="var(--tone-color)" strokeWidth={2} />}
       </div>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--mx-ink)' }}>{entry.name}</span>
-          {entry.isToday && <PartyPopper size={14} color={accent} />}
+      <div className={styles.celebrationBody}>
+        <div className={styles.celebrationNameRow}>
+          <span className={styles.celebrationName}>{entry.name}</span>
+          {entry.isToday && <PartyPopper size={14} color="var(--tone-color)" />}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--mx-ink-muted)', marginTop: 2 }}>
+        <div className={styles.celebrationMeta}>
           {entry.designation ? `${entry.designation} · ` : ''}
           {entry.department || '—'}
           {entry.employeeId ? ` · ${entry.employeeId}` : ''}
         </div>
       </div>
 
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--mx-ink)', marginBottom: 4 }}>
+      <div className={styles.celebrationDateWrap}>
+        <div className={styles.celebrationDate}>
           {formatDateShort(entry.date)}
-          {entry.years ? <span style={{ fontSize: 11, color: 'var(--mx-ink-faint)', fontWeight: 500 }}> · {entry.years}yr</span> : null}
+          {entry.years ? <span className={styles.celebrationYears}> · {entry.years}yr</span> : null}
         </div>
         <DaysLabel days={entry.daysAway} />
       </div>
@@ -116,17 +87,16 @@ interface StatCardProps {
   tone: 'brand' | 'info' | 'warning' | 'success';
 }
 
+const STAT_TONE_CLASS = { brand: styles.toneBrand, info: styles.toneInfo, warning: styles.toneWarning, success: styles.toneSuccess } as const;
+
 function StatCard({ icon: Icon, label, value, tone }: StatCardProps) {
   return (
-    <div
-      className={historyStyles.summaryCard}
-      style={{ background: `var(--mx-${tone}-subtle)`, border: '1px solid var(--mx-border)' }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <Icon size={16} color={`var(--mx-${tone})`} strokeWidth={2.2} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: `var(--mx-${tone})`, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
+    <div className={`${historyStyles.summaryCard} ${styles.statCard} ${STAT_TONE_CLASS[tone]}`}>
+      <div className={styles.statCardHead}>
+        <Icon size={16} color="var(--tone-color)" strokeWidth={2.2} />
+        <span className={styles.statCardLabel}>{label}</span>
       </div>
-      <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--mx-ink)' }}>{value}</span>
+      <span className={styles.statCardValue}>{value}</span>
     </div>
   );
 }
@@ -188,33 +158,12 @@ export default function HrDashboardView() {
           {/* Responsive two-panel layout — collapses to one column below
               ~680px instead of a hard-coded 1fr/1fr grid that would squeeze
               both panels illegibly on mobile/tablet. */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-            <div style={{ background: 'var(--mx-surface)', borderRadius: 'var(--mx-radius-xl)', border: '1px solid var(--mx-border)', overflow: 'hidden' }}>
-              <div
-                style={{
-                  padding: '16px 20px',
-                  borderBottom: '1px solid var(--mx-border)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  background: 'var(--mx-brand-subtle)'
-                }}
-              >
-                <Cake size={18} color="var(--mx-brand)" strokeWidth={2.2} />
-                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--mx-ink)' }}>Upcoming Birthdays</h2>
-                <span
-                  style={{
-                    marginLeft: 'auto',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: 'var(--mx-brand)',
-                    background: 'var(--mx-surface)',
-                    padding: '2px 10px',
-                    borderRadius: 'var(--mx-radius-full)'
-                  }}
-                >
-                  {birthdays.length}
-                </span>
+          <div className={styles.panelGrid}>
+            <div className={styles.panel}>
+              <div className={`${styles.panelHeader} ${styles.toneBrand}`}>
+                <Cake size={18} color="var(--tone-color)" strokeWidth={2.2} />
+                <h2 className={styles.panelTitle}>Upcoming Birthdays</h2>
+                <span className={styles.panelCount}>{birthdays.length}</span>
               </div>
               {birthdays.length === 0 ? (
                 <CelebrationEmptyState icon={Cake} message="No upcoming birthdays in the next 30 days" />
@@ -223,32 +172,11 @@ export default function HrDashboardView() {
               )}
             </div>
 
-            <div style={{ background: 'var(--mx-surface)', borderRadius: 'var(--mx-radius-xl)', border: '1px solid var(--mx-border)', overflow: 'hidden' }}>
-              <div
-                style={{
-                  padding: '16px 20px',
-                  borderBottom: '1px solid var(--mx-border)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  background: 'var(--mx-info-subtle)'
-                }}
-              >
-                <Award size={18} color="var(--mx-info)" strokeWidth={2.2} />
-                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--mx-ink)' }}>Work Anniversaries</h2>
-                <span
-                  style={{
-                    marginLeft: 'auto',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: 'var(--mx-info)',
-                    background: 'var(--mx-surface)',
-                    padding: '2px 10px',
-                    borderRadius: 'var(--mx-radius-full)'
-                  }}
-                >
-                  {anniversaries.length}
-                </span>
+            <div className={styles.panel}>
+              <div className={`${styles.panelHeader} ${styles.toneInfo}`}>
+                <Award size={18} color="var(--tone-color)" strokeWidth={2.2} />
+                <h2 className={styles.panelTitle}>Work Anniversaries</h2>
+                <span className={styles.panelCount}>{anniversaries.length}</span>
               </div>
               {anniversaries.length === 0 ? (
                 <CelebrationEmptyState icon={Award} message="No upcoming work anniversaries in the next 30 days" />

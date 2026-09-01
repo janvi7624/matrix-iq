@@ -3,6 +3,7 @@
 import { CartItem } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import styles from './calculator.module.css';
+import cartStyles from './cartList.module.css';
 
 interface CartListProps {
   items: CartItem[];
@@ -22,9 +23,9 @@ export default function CartList({ items, onAdd, onRemove, onChangeRemark, hasAc
         <label className={styles.label}>Products in this quote</label>
         <div>
           {items.map((item) => (
-            <div key={item.id} style={{ marginBottom: 8 }}>
+            <div key={item.id} className={styles.mb8}>
               <div className={styles.lineItemRow}>
-                <span style={{ flex: 1 }}>{item.label}</span>
+                <span className={styles.flexFill}>{item.label}</span>
                 <span>{formatMoney(item.subtotal)}</span>
                 <button type="button" className={styles.removeItemBtn} title="Remove product" onClick={() => onRemove(item.id)}>
                   ×
@@ -42,9 +43,8 @@ export default function CartList({ items, onAdd, onRemove, onChangeRemark, hasAc
         </div>
         <button
           type="button"
-          className={hasActiveProduct ? styles.btn : styles.secondaryButton}
+          className={`${hasActiveProduct ? styles.btn : styles.secondaryButton} ${cartStyles.fullWidthBtn}`}
           onClick={onAdd}
-          style={{ width: '100%' }}
         >
           Add This Product to the Quote
         </button>

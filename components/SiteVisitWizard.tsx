@@ -14,6 +14,7 @@ import { useToast } from './ui/ToastProvider';
 import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './siteVisitWizard.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 
 export interface SiteVisitWizardForm {
@@ -96,14 +97,22 @@ function ImageUploader({ imageUrls, onChange }: { imageUrls: string[]; onChange:
     <div className={calcStyles.field}>
       <label className={calcStyles.label}>Photos (optional)</label>
       <label className={calcStyles.fileUpload}>
-        <input type="file" accept="image/*" multiple disabled={uploading} onChange={(e) => handleFiles(e.target.files)} style={{ display: 'none' }} />
+        <input type="file" accept="image/*" multiple disabled={uploading} onChange={(e) => handleFiles(e.target.files)} className={styles.hiddenInput} />
         {uploading ? 'Uploading…' : '+ Add Photos'}
       </label>
       {imageUrls.length > 0 && (
         <div className={historyStyles.imageStrip}>
           {imageUrls.map((url) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={url} src={url} alt="Site visit" onClick={() => onChange(imageUrls.filter((u) => u !== url))} title="Click to remove" />
+            <button
+              key={url}
+              type="button"
+              className={historyStyles.imageStripRemoveBtn}
+              aria-label="Remove this photo"
+              onClick={() => onChange(imageUrls.filter((u) => u !== url))}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" />
+            </button>
           ))}
         </div>
       )}
@@ -231,24 +240,24 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
       <div className={historyStyles.wizardCard}>
         <div className={historyStyles.successPanel}>
           <div className={historyStyles.successIcon}><CheckCircle2 size={48} /></div>
-          <h2 className={calcStyles.h2} style={{ marginTop: 0, borderLeft: 'none', paddingLeft: 0 }}>Site visit saved!</h2>
+          <h2 className={`${calcStyles.h2} ${calcStyles.h2NoAccent}`}>Site visit saved!</h2>
           <div className={calcStyles.small}>
             {successRecord.company_name} — {successRecord.project_id ? `linked to project ${successRecord.project_id}` : 'no project linked'}
           </div>
           <div className={historyStyles.successActions}>
             <Link className={historyStyles.bigBtn} href={`/quotation${successRecord.project_id ? `?projectId=${successRecord.project_id}` : ''}`}>
-              <FileText size={16} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />Create Quotation
+              <FileText size={16} className={styles.iconInline6} />Create Quotation
             </Link>
             <Link className={historyStyles.bigBtn} href={`/demo-schedule${successRecord.project_id ? `?projectId=${successRecord.project_id}` : ''}`}>
-              <Monitor size={16} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />Schedule Demo
+              <Monitor size={16} className={styles.iconInline6} />Schedule Demo
             </Link>
             {successRecord.project_id && (
               <Link className={historyStyles.bigBtnGhost} href={`/projects/${successRecord.project_id}`}>
-                <Clock size={16} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />View Timeline
+                <Clock size={16} className={styles.iconInline6} />View Timeline
               </Link>
             )}
           </div>
-          <div style={{ marginTop: 24 }}>
+          <div className={styles.mt24}>
             <button type="button" className={historyStyles.bigBtnGhost} onClick={handleRegisterAnother}>
               + Register Another Visit
             </button>
@@ -312,7 +321,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
                 <div className={historyStyles.suggestionBox}>
                   {suggestions.map((c) => (
                     <button key={c} type="button" className={historyStyles.suggestionItem} onClick={() => applySuggestion(c)}>
-                      <Search size={14} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />{c} — use this existing client
+                      <Search size={14} className={styles.iconInline6} />{c} — use this existing client
                     </button>
                   ))}
                 </div>
@@ -320,12 +329,12 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
             </div>
             {historySummary && (
               <div className={historyStyles.historyCard}>
-                <ClipboardList size={14} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />{historySummary.visitCount} previous visit{historySummary.visitCount === 1 ? '' : 's'} on file.
+                <ClipboardList size={14} className={styles.iconInline6} />{historySummary.visitCount} previous visit{historySummary.visitCount === 1 ? '' : 's'} on file.
                 {historySummary.lastQuotation && ` Last quotation: ${historySummary.lastQuotation.quotation_number} (₹${historySummary.lastQuotation.total.toLocaleString('en-IN')}).`}
                 {historySummary.lastDemo && ` Previous demo: ${new Date(historySummary.lastDemo.scheduled_at).toLocaleDateString('en-IN')} (${historySummary.lastDemo.status}).`}
               </div>
             )}
-            <div className={`${calcStyles.row} ${calcStyles.columns}`} style={{ marginTop: 16 }}>
+            <div className={`${calcStyles.row} ${calcStyles.columns} ${styles.mt16}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Contact person</label>
                 <input className={calcStyles.formControl} value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
@@ -394,7 +403,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
                 <div className={calcStyles.small}>No fixed catalog for {DOMAIN_DISPLAY_NAME[form.category]} — describe it in the technical brief below.</div>
               )
             )}
-            <div className={calcStyles.field} style={{ marginTop: 12 }}>
+            <div className={`${calcStyles.field} ${calcStyles.mt12}`}>
               <label className={calcStyles.label}>Technical brief</label>
               <textarea className={calcStyles.formControl} rows={3} value={form.visitDetails} onChange={(e) => setForm((f) => ({ ...f, visitDetails: e.target.value }))} />
             </div>
@@ -463,7 +472,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
               <div className={historyStyles.reviewRow}><strong>Action plan:</strong> {form.actionPlan || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Stage:</strong> {form.stage ? STAGE_LABEL[form.stage] : '-'}</div>
             </div>
-            <div className={calcStyles.small} style={{ marginTop: 12 }}>
+            <div className={`${calcStyles.small} ${calcStyles.mt12}`}>
               This visit will be linked to project {form.projectId}.
             </div>
           </>

@@ -10,8 +10,13 @@ import AppShell from './AppShell';
 import dashboardStyles from './dashboard.module.css';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './tmsDashboard.module.css';
 import ErrorState from './ui/ErrorState';
 import EmptyState from './ui/EmptyState';
+import { TableWrap } from './ui/Table';
+import FilterBar from './ui/FilterBar';
+import Select from './ui/Select';
+import Input from './ui/Input';
 import TmsGuideModal, { useTmsGuideAutoShow } from './TmsGuideModal';
 
 interface DashboardResponse {
@@ -43,30 +48,24 @@ function formatShortDate(iso: string): string {
   }
 }
 
-const TASK_ROW_TONE: Record<'overdue' | 'due_today' | 'upcoming', { color: string; bg: string }> = {
-  overdue: { color: 'var(--mx-danger)', bg: 'var(--mx-danger-subtle)' },
-  due_today: { color: 'var(--mx-warning)', bg: 'var(--mx-warning-subtle)' },
-  upcoming: { color: 'var(--mx-info)', bg: 'var(--mx-info-subtle)' }
+const TASK_ROW_CLASS: Record<'overdue' | 'due_today' | 'upcoming', { row: string; badge: string }> = {
+  overdue: { row: styles.taskRowOverdue, badge: styles.taskRowBadgeOverdue },
+  due_today: { row: styles.taskRowDueToday, badge: styles.taskRowBadgeDueToday },
+  upcoming: { row: styles.taskRowUpcoming, badge: styles.taskRowBadgeUpcoming }
 };
 
 function TaskRow({ task, tone, label }: { task: TmsTaskRecord; tone: 'overdue' | 'due_today' | 'upcoming'; label: string }) {
-  const t = TASK_ROW_TONE[tone];
+  const t = TASK_ROW_CLASS[tone];
   return (
-    <Link
-      href={`/tms/tasks/${task.id}`}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, textDecoration: 'none',
-        padding: '10px 14px', borderRadius: 'var(--mx-radius-md)', background: 'var(--mx-surface)', border: '1px solid var(--mx-border)', borderLeft: `3px solid ${t.color}`
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: t.color, background: t.bg, padding: '1px 8px', borderRadius: 'var(--mx-radius-full)', letterSpacing: 0.3 }}>{label}</span>
-          <span style={{ fontWeight: 600, fontSize: 13.5, color: 'var(--mx-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
+    <Link href={`/tms/tasks/${task.id}`} className={`${styles.taskRow} ${t.row}`}>
+      <div className={styles.taskRowMain}>
+        <div className={styles.taskRowTitleLine}>
+          <span className={`${styles.taskRowBadge} ${t.badge}`}>{label}</span>
+          <span className={styles.taskRowName}>{task.name}</span>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--mx-ink-muted)' }}>Project: {task.project_name}</div>
+        <div className={styles.taskRowProject}>Project: {task.project_name}</div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--mx-ink-muted)', flexShrink: 0 }}>
+      <div className={styles.taskRowDue}>
         <Clock size={12} /> {tone === 'due_today' ? 'Today' : formatShortDate(task.due_date)}
       </div>
     </Link>
@@ -277,13 +276,13 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
 
   return (
     <AppShell title="TMS Dashboard" subtitle="Project, task, BOM, and procurement overview for the Technical Team.">
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--mx-ink)' }}>{greeting()}, {currentUser.name || currentUser.username}</div>
-        <button type="button" onClick={() => setShowGuide(true)} style={{ background: 'none', border: 'none', color: 'var(--mx-brand)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+      <div className={styles.headerRow}>
+        <div className={styles.greeting}>{greeting()}, {currentUser.name || currentUser.username}</div>
+        <button type="button" onClick={() => setShowGuide(true)} className={styles.guideLink}>
           How TMS Works
         </button>
       </div>
-      <div className={calcStyles.h2} style={{ marginTop: 0, marginBottom: 10 }}>Your Technical Work</div>
+      <div className={`${calcStyles.h2} ${styles.sectionIntro}`}>Your Technical Work</div>
       {(autoShowGuide || showGuide) && (
         <TmsGuideModal
           onClose={() => {
@@ -301,11 +300,11 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={historyStyles.summaryCardLabel}>My Tasks</div>
           <div className={historyStyles.summaryCardValue}>{myWorkStats.myTasks}</div>
         </div>
-        <div className={historyStyles.summaryCard} style={myWorkStats.dueToday ? { background: 'var(--mx-warning-subtle)' } : undefined}>
+        <div className={`${historyStyles.summaryCard} ${myWorkStats.dueToday ? styles.summaryCardAlertWarning : ''}`}>
           <div className={historyStyles.summaryCardLabel}>Due Today</div>
           <div className={historyStyles.summaryCardValue}>{myWorkStats.dueToday}</div>
         </div>
-        <div className={historyStyles.summaryCard} style={myWorkStats.overdue ? { background: 'var(--mx-danger-subtle)' } : undefined}>
+        <div className={`${historyStyles.summaryCard} ${myWorkStats.overdue ? styles.summaryCardAlertDanger : ''}`}>
           <div className={historyStyles.summaryCardLabel}>Overdue</div>
           <div className={historyStyles.summaryCardValue}>{myWorkStats.overdue}</div>
         </div>
@@ -315,23 +314,23 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
         </div>
       </div>
 
-      <div className={calcStyles.sectionPanel} style={{ marginTop: 16, marginBottom: 20, borderLeft: nextAction ? '3px solid var(--mx-brand)' : '3px solid var(--mx-success)' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--mx-ink-faint)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>Next Action</div>
+      <div className={`${calcStyles.sectionPanel} ${styles.nextActionPanel} ${nextAction ? styles.nextActionPanelAlert : styles.nextActionPanelOk}`}>
+        <div className={styles.nextActionLabel}>Next Action</div>
         {nextAction ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div className={styles.nextActionRow}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+              <div className={styles.nextActionTitleRow}>
                 <AlertTriangle size={15} color={myTaskBuckets.overdue[0] === nextAction ? 'var(--mx-danger)' : 'var(--mx-warning)'} />
-                <span style={{ fontWeight: 700, fontSize: 14.5 }}>{nextAction.name}</span>
+                <span className={styles.nextActionTitle}>{nextAction.name}</span>
               </div>
-              <div style={{ fontSize: 12.5, color: 'var(--mx-ink-muted)' }}>
+              <div className={styles.nextActionMeta}>
                 {nextAction.project_name} · {myTaskBuckets.overdue[0] === nextAction ? `Overdue — was due ${nextAction.due_date}` : 'Due today'}
               </div>
             </div>
             <Link className={calcStyles.btn} href={`/tms/tasks/${nextAction.id}`}>Open Task</Link>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mx-success)', fontWeight: 600 }}>
+          <div className={styles.nextActionAllClear}>
             <CheckCircle2 size={18} /> You&apos;re all caught up. No overdue or due-today tasks.
           </div>
         )}
@@ -341,7 +340,7 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
       {myProjects.length === 0 ? (
         <EmptyState icon={FolderKanban} title="No Projects Assigned" message="Projects assigned to you will appear here. You currently have no active technical projects." />
       ) : (
-        <div className={historyStyles.tableWrap} style={{ marginBottom: 20 }}>
+        <TableWrap className={styles.tableSpacer}>
           <table className={historyStyles.table}>
             <thead><tr><th>Project</th><th>Role</th><th>Progress</th><th></th></tr></thead>
             <tbody>
@@ -358,14 +357,14 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
               ))}
             </tbody>
           </table>
-        </div>
+        </TableWrap>
       )}
 
       <div className={dashboardStyles.sectionHeading}>My Tasks</div>
       {myTasks.length === 0 ? (
         <EmptyState icon={ListChecks} title="No Tasks Assigned" message="You're currently all caught up." />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+        <div className={styles.taskList}>
           {myTaskBuckets.overdue.map((t) => (
             <TaskRow key={t.id} task={t} tone="overdue" label="OVERDUE" />
           ))}
@@ -400,59 +399,59 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
             </div>
           </div>
           {teamWorkload.length > 0 && (
-            <div className={calcStyles.sectionPanel} style={{ marginBottom: 20 }}>
-              <div className={calcStyles.h2} style={{ marginTop: 0 }}>Team Workload</div>
-              <div className={historyStyles.tableWrap}>
+            <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced}`}>
+              <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Team Workload</div>
+              <TableWrap>
                 <table className={historyStyles.table}>
                   <thead><tr><th>Engineer</th><th>Projects</th><th>Tasks</th><th>Overdue</th></tr></thead>
                   <tbody>
                     {teamWorkload.map((w) => (
                       <tr
                         key={w.id}
-                        style={{ cursor: 'pointer' }}
+                        className={styles.clickableRow}
                         onClick={() => setFAssignee((v) => (v === w.id ? '' : w.id))}
                       >
-                        <td style={{ fontWeight: fAssignee === w.id ? 700 : 400 }}>{w.name}</td>
+                        <td className={fAssignee === w.id ? styles.rowHighlight : undefined}>{w.name}</td>
                         <td>{w.projectCount}</td>
                         <td>{w.tasks}</td>
-                        <td style={w.overdue ? { color: 'var(--mx-danger)', fontWeight: 700 } : undefined}>{w.overdue}</td>
+                        <td className={w.overdue ? styles.overdueCount : undefined}>{w.overdue}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             </div>
           )}
         </>
       )}
 
-      <div className={historyStyles.toolbar}>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fDepartment} onChange={(e) => { setFDepartment(e.target.value); setFProject(''); }}>
+      <FilterBar>
+        <Select auto value={fDepartment} onChange={(e) => { setFDepartment(e.target.value); setFProject(''); }}>
           <option value="">All departments</option>
           {TMS_DEPARTMENTS.map((d) => (
             <option key={d} value={d}>{d}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fProject} onChange={(e) => setFProject(e.target.value)}>
+        </Select>
+        <Select auto value={fProject} onChange={(e) => setFProject(e.target.value)}>
           <option value="">All projects</option>
           {(data?.projects || []).filter((p) => !fDepartment || p.department_name === fDepartment).map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
-        </select>
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fAssignee} onChange={(e) => setFAssignee(e.target.value)}>
+        </Select>
+        <Select auto value={fAssignee} onChange={(e) => setFAssignee(e.target.value)}>
           <option value="">All assignees</option>
           {assignees.map(([id, name]) => (
             <option key={id} value={id}>{name}</option>
           ))}
-        </select>
-        <input type="date" className={calcStyles.formControl} style={{ width: 'auto' }} value={fDate} onChange={(e) => setFDate(e.target.value)} />
-        <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fTaskStatus} onChange={(e) => setFTaskStatus(e.target.value as TmsTaskStatus | '')}>
+        </Select>
+        <Input auto type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} />
+        <Select auto value={fTaskStatus} onChange={(e) => setFTaskStatus(e.target.value as TmsTaskStatus | '')}>
           <option value="">All task statuses</option>
           {(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((s) => (
             <option key={s} value={s}>{TMS_TASK_STATUS_LABEL[s]}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
 
       <div className={dashboardStyles.sectionHeading}>Project Overview</div>
       <div className={dashboardStyles.kpiGrid}>
@@ -498,8 +497,8 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
         </div>
       </div>
       {taskStats.byAssignee.length > 0 && (
-        <div className={calcStyles.sectionPanel} style={{ marginBottom: 24 }}>
-          <div className={calcStyles.h2} style={{ marginTop: 0 }}>Tasks by Assignee</div>
+        <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedLg}`}>
+          <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Tasks by Assignee</div>
           <table className={historyStyles.table}>
             <thead><tr><th>Assignee</th><th>Tasks</th></tr></thead>
             <tbody>

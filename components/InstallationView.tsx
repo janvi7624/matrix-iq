@@ -9,6 +9,14 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import SubmitButton from './ui/SubmitButton';
+import FilterBar from './ui/FilterBar';
+import ToolbarButton from './ui/ToolbarButton';
+import { TableWrap } from './ui/Table';
 
 const EMPTY_FORM = { projectId: '', installationDate: '', assignedEngineer: '' };
 
@@ -68,22 +76,19 @@ function InstallationRow({
       {expanded && (
         <tr className={historyStyles.detailsRow}>
           <td colSpan={6}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Status</label>
-              <select className={calcStyles.formControl} value={statusValue} onChange={(e) => setStatusValue(e.target.value as InstallationRecord['status'])}>
+            <Field label="Status">
+              <Select value={statusValue} onChange={(e) => setStatusValue(e.target.value as InstallationRecord['status'])}>
                 {(Object.keys(STATUS_LABEL) as InstallationRecord['status'][]).map((s) => (
                   <option key={s} value={s}>{STATUS_LABEL[s]}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Completion report</label>
-              <textarea className={calcStyles.formControl} rows={2} value={report} onChange={(e) => setReport(e.target.value)} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Client signature (typed name)</label>
-              <input className={calcStyles.formControl} value={signature} onChange={(e) => setSignature(e.target.value)} />
-            </div>
+              </Select>
+            </Field>
+            <Field label="Completion report">
+              <Textarea rows={2} value={report} onChange={(e) => setReport(e.target.value)} />
+            </Field>
+            <Field label="Client signature (typed name)">
+              <Input value={signature} onChange={(e) => setSignature(e.target.value)} />
+            </Field>
             <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleSave}>
               {busy ? 'Saving…' : 'Save update'}
             </button>
@@ -95,11 +100,14 @@ function InstallationRow({
 }
 
 interface InstallationViewProps {
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 export default function InstallationView({ currentUser }: InstallationViewProps) {
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const [records, setRecords] = useState<InstallationRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -187,39 +195,35 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
 
   return (
     <AppShell title="Installation" subtitle="Schedule installs, assign an engineer, and close out with a completion report.">
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Schedule an installation</h2>
+        <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Schedule an installation</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Project *</label>
-              <select className={calcStyles.formControl} value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
+          <FieldRow>
+            <Field label="Project *">
+              <Select value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
                 <option value="">-- Select project --</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.id} — {p.company || p.client_name}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Installation date *</label>
-              <input type="date" className={calcStyles.formControl} value={form.installationDate} onChange={(e) => setForm((f) => ({ ...f, installationDate: e.target.value }))} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Assigned engineer</label>
-              <input className={calcStyles.formControl} value={form.assignedEngineer} onChange={(e) => setForm((f) => ({ ...f, assignedEngineer: e.target.value }))} />
-            </div>
-          </div>
-          <button type="submit" className={calcStyles.btn} disabled={creating}>
-            {creating ? 'Saving…' : 'Schedule installation'}
-          </button>
+              </Select>
+            </Field>
+            <Field label="Installation date *">
+              <Input type="date" value={form.installationDate} onChange={(e) => setForm((f) => ({ ...f, installationDate: e.target.value }))} required />
+            </Field>
+            <Field label="Assigned engineer">
+              <Input value={form.assignedEngineer} onChange={(e) => setForm((f) => ({ ...f, assignedEngineer: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <SubmitButton disabled={creating}>{creating ? 'Saving…' : 'Schedule installation'}</SubmitButton>
         </form>
 
-        <div className={historyStyles.toolbar} style={{ marginTop: 24 }}>
-          <button type="button" className={historyStyles.button} onClick={handleExportPdf}>Export PDF</button>
-          <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
-          <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
-        </div>
+        <FilterBar className={historyStyles.toolbarSpaced}>
+          <ToolbarButton onClick={handleExportPdf}>Export PDF</ToolbarButton>
+          <ToolbarButton onClick={() => window.print()}>Print</ToolbarButton>
+          <ToolbarButton onClick={load}>Refresh</ToolbarButton>
+        </FilterBar>
         <div className={historyStyles.status}>{status}</div>
         {loaded && (
+          <TableWrap>
           <table className={historyStyles.table}>
             <thead>
               <tr>
@@ -241,6 +245,7 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
               )}
             </tbody>
           </table>
+          </TableWrap>
         )}
     </AppShell>
   );

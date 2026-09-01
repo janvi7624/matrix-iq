@@ -6,22 +6,32 @@ import { useSearchParams } from 'next/navigation';
 import { DomainKey, LeadPriority, LeadRecord, LeadSource, UserRole } from '@/lib/types';
 import { LEAD_DOMAIN_TILES, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
-import { AlertTriangle, Flame, Contact, Share2, UserPlus, UserCheck } from 'lucide-react';
+import { AlertTriangle, Flame, Contact, Share2, UserPlus, UserCheck, Pencil } from 'lucide-react';
 import AppShell from './AppShell';
 import LeadCaptureWizard from './LeadCaptureWizard';
 import LeadBulkImportWizard from './LeadBulkImportWizard';
-import historyStyles from './quotationHistory.module.css';
-import calcStyles from './calculator.module.css';
-import notifyStyles from './ui/notify.module.css';
-import assignStyles from './leadAssignment.module.css';
+import PhoneInput from './ui/PhoneInput';
+import leadStyles from './leadsView.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
+import StatTile from './ui/StatTile';
+import SegmentedToggle, { SegmentedButton, SegmentedOption } from './ui/SegmentedToggle';
+import FilterBar from './ui/FilterBar';
+import Select from './ui/Select';
+import ToolbarButton, { ToolbarLink, DeleteButton } from './ui/ToolbarButton';
+import Table, { TableColumn, TableWrap } from './ui/Table';
+import Pagination from './ui/Pagination';
+import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Textarea from './ui/Textarea';
+import PriorityBadge from './ui/PriorityBadge';
 
 interface LeadsViewProps {
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 interface Assignee {
@@ -39,6 +49,13 @@ const PAGE_SIZE = 20;
 const FILTER_UNASSIGNED = '@unassigned';
 const FILTER_MINE = '@mine';
 
+type Mode = 'capture' | 'list' | 'bulk';
+const MODE_OPTIONS: SegmentedOption<Mode>[] = [
+  { value: 'capture', label: '+ Add Inquiry' },
+  { value: 'bulk', label: 'Import Leads / Inquiries' },
+  { value: 'list', label: 'All Leads' }
+];
+
 function formatDateTime(iso: string): string {
   if (!iso) return '-';
   try {
@@ -46,13 +63,6 @@ function formatDateTime(iso: string): string {
   } catch {
     return iso;
   }
-}
-
-function PriorityBadge({ priority }: { priority: LeadPriority }) {
-  if (!priority) return <span style={{ color: '#9ca3af', fontSize: 12 }}>-</span>;
-  const cls = priority === 'hot' ? historyStyles.priorityBadgeHot : priority === 'warm' ? historyStyles.priorityBadgeWarm : historyStyles.priorityBadgeCool;
-  const Icon = LEAD_PRIORITY_META[priority].icon;
-  return <span className={`${historyStyles.priorityBadge} ${cls}`}><Icon size={12} /> {priority.toUpperCase()}</span>;
 }
 
 const SOURCE_LABEL: Record<LeadSource, string> = {
@@ -69,18 +79,9 @@ function metaPlatformLabel(platform: string): string {
 function SourceBadge({ lead, onClick }: { lead: LeadRecord; onClick?: () => void }) {
   const isMeta = lead.source === 'meta_lead_ads';
   const label = SOURCE_LABEL[lead.source] || 'Manual';
+  const classes = [leadStyles.sourceBadge, isMeta ? leadStyles.sourceBadgeMeta : ''].filter(Boolean).join(' ');
   return (
-    <button
-      type="button"
-      onClick={isMeta ? onClick : undefined}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 600,
-        padding: '2px 9px', borderRadius: 'var(--mx-radius-full)',
-        color: isMeta ? 'var(--mx-blue-600)' : 'var(--mx-ink-muted)',
-        background: isMeta ? 'var(--mx-blue-50)' : 'var(--mx-surface-sunken)',
-        border: 'none', cursor: isMeta ? 'pointer' : 'default'
-      }}
-    >
+    <button type="button" onClick={isMeta ? onClick : undefined} className={classes}>
       {isMeta && <Share2 size={11} />}
       {label}
     </button>
@@ -92,7 +93,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const confirm = useConfirm();
   const searchParams = useSearchParams();
   const startUnattended = searchParams.get('filter') === 'unattended';
-  const [mode, setMode] = useState<'capture' | 'list' | 'bulk'>(startUnattended ? 'list' : 'capture');
+  const [mode, setMode] = useState<Mode>(startUnattended ? 'list' : 'capture');
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [loading, setLoading] = useState(true);
@@ -107,6 +108,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [page, setPage] = useState(1);
   const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number; unassigned: number; assignedToMe: number } | null>(null);
   const [metaInfoLead, setMetaInfoLead] = useState<LeadRecord | null>(null);
+  const [editingLead, setEditingLead] = useState<LeadRecord | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', company: '', designation: '', mobile: '', email: '', city: '', budget: '', priority: '' as LeadPriority, notes: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // ── Assignment ──────────────────────────────────────────────────────────
   // `assignees` non-empty is also the "this viewer may assign" signal:
@@ -297,11 +301,6 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     });
   }
 
-  // Name/Company/Designation/Mobile/Email/Interests/Priority/Source/
-  // Assigned To/Captured By/Date/actions = 12, +1 for the selection
-  // checkbox column when the viewer can assign leads.
-  const columnCount = canAssign ? 13 : 12;
-
   async function handleSubmitLead(form: {
     name: string; mobile: string; email: string; designation: string; company: string; city: string; cardImageUrl: string;
     interests: DomainKey[]; subInterests: string[]; priority: LeadPriority; followUpActions: string[]; budget: string; notes: string;
@@ -364,89 +363,217 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     loadStats();
   }
 
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  function openEditLead(lead: LeadRecord) {
+    setEditForm({
+      name: lead.name,
+      company: lead.company,
+      designation: lead.designation,
+      mobile: lead.mobile,
+      email: lead.email,
+      city: lead.city,
+      budget: lead.budget,
+      priority: lead.priority,
+      notes: lead.notes
+    });
+    setEditingLead(lead);
+  }
+
+  async function handleSaveEdit() {
+    if (!editingLead) return;
+    setSavingEdit(true);
+    try {
+      const response = await fetch(`/api/leads/${editingLead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(body?.error || 'Could not save changes.');
+        return;
+      }
+      const updated: LeadRecord = await response.json();
+      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      toast.success('Lead updated.');
+      setEditingLead(null);
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
+
+  const columns: TableColumn<LeadRecord>[] = [];
+  if (canAssign) {
+    columns.push({
+      key: 'select',
+      header: (
+        <input
+          type="checkbox"
+          className={leadStyles.checkbox}
+          checked={allOnPageSelected}
+          onChange={togglePageSelection}
+          aria-label={allOnPageSelected ? 'Deselect all leads on this page' : 'Select all leads on this page'}
+        />
+      ),
+      headerClassName: leadStyles.checkCell,
+      cellClassName: leadStyles.checkCell,
+      render: (l) => (
+        <input
+          type="checkbox"
+          className={leadStyles.checkbox}
+          checked={selectedIds.has(l.id)}
+          onChange={() => toggleRowSelection(l.id)}
+          aria-label={`Select lead ${l.name || l.company || l.id}`}
+        />
+      )
+    });
+  }
+  columns.push(
+    { key: 'name', header: 'Name', render: (l) => l.name || '-' },
+    { key: 'company', header: 'Company', render: (l) => l.company || '-' },
+    { key: 'designation', header: 'Designation', render: (l) => l.designation || '-' },
+    { key: 'mobile', header: 'Mobile', cellClassName: leadStyles.num, render: (l) => l.mobile || '-' },
+    { key: 'email', header: 'Email', render: (l) => l.email || '-' },
+    {
+      key: 'interests',
+      header: 'Interests',
+      render: (l) =>
+        l.interests.length > 0 ? (
+          <div className={leadStyles.interestIcons}>
+            {l.interests.map((d) => {
+              const tile = LEAD_DOMAIN_TILES.find((t) => t.key === d);
+              const Icon = tile?.icon;
+              return Icon ? <Icon key={d} size={14} /> : <span key={d}>{d}</span>;
+            })}
+          </div>
+        ) : (
+          '-'
+        )
+    },
+    {
+      key: 'priority',
+      header: 'Priority',
+      render: (l) => {
+        if (!l.priority) return <span className={leadStyles.emptyCell}>-</span>;
+        const Icon = LEAD_PRIORITY_META[l.priority].icon;
+        return <PriorityBadge tone={l.priority} icon={<Icon size={12} />} label={l.priority.toUpperCase()} />;
+      }
+    },
+    { key: 'source', header: 'Source', render: (l) => <SourceBadge lead={l} onClick={() => setMetaInfoLead(l)} /> },
+    {
+      key: 'assignedTo',
+      header: 'Assigned To',
+      cellClassName: leadStyles.assigneeCell,
+      render: (l) =>
+        canAssign ? (
+          <select
+            className={`${leadStyles.rowSelect} ${!l.assigned_to_id ? leadStyles.rowSelectUnassigned : ''}`}
+            value={l.assigned_to_id || ''}
+            disabled={assigningId === l.id}
+            onChange={(e) => handleRowAssign(l.id, e.target.value)}
+            aria-label={`Assign lead ${l.name || l.company || l.id} to`}
+          >
+            <option value="">Unassigned</option>
+            {(assignees || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {/* Keeps the current assignee selectable even if they've since
+                moved out of the assignable set (department change,
+                deactivation) — otherwise the select would silently show
+                "Unassigned" for a lead that is in fact assigned. */}
+            {l.assigned_to_id && !(assignees || []).some((a) => a.id === l.assigned_to_id) && (
+              <option value={l.assigned_to_id}>{l.assigned_to_name || l.assigned_to} (inactive)</option>
+            )}
+          </select>
+        ) : l.assigned_to ? (
+          <>
+            <span className={leadStyles.assigneeName}>
+              {l.assigned_to_name || l.assigned_to}
+              {l.assigned_to === currentUser.username && <span className={leadStyles.assigneeMine}>You</span>}
+            </span>
+            {l.assigned_by && <span className={leadStyles.assigneeMeta}>by {l.assigned_by}</span>}
+          </>
+        ) : (
+          <span className={leadStyles.unassignedPill}>Unassigned</span>
+        )
+    },
+    { key: 'capturedBy', header: 'Captured By', render: (l) => l.created_by },
+    { key: 'date', header: 'Date', render: (l) => formatDateTime(l.created_at) },
+    {
+      key: 'actions',
+      header: '',
+      render: (l) => (
+        <div className={leadStyles.rowActions}>
+          <ToolbarButton onClick={() => openEditLead(l)} aria-label={`Edit lead ${l.name || l.company || l.id}`}>
+            <Pencil size={12} className={leadStyles.editIcon} /> Edit
+          </ToolbarButton>
+          {!l.project_id ? (
+            <ToolbarButton onClick={() => handleConvertToProject(l.id)}>To Project</ToolbarButton>
+          ) : (
+            <Link href={`/projects/${l.project_id}`} className={leadStyles.mutedLink}>View Project</Link>
+          )}
+          {isPrivileged && <DeleteButton onClick={() => handleDelete(l)}>Delete</DeleteButton>}
+        </div>
+      )
+    }
+  );
 
   return (
     <AppShell title="Lead Capture / Inquiry" subtitle="Scan a business card, bulk-import from CSV or photos, qualify the lead, and follow up — all in one flow.">
         {stats && (
-          <div className={calcStyles.row} style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
-            <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{stats.total}</div>
-              <div className={calcStyles.small}>Total Leads</div>
-            </div>
-            <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#15803d' }}>{stats.today}</div>
-              <div className={calcStyles.small}>Captured Today</div>
-            </div>
-            <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{stats.hot} <Flame size={20} /></div>
-              <div className={calcStyles.small}>Hot Leads</div>
-            </div>
-            <button
-              type="button"
-              className={calcStyles.sectionPanel}
-              style={{ flex: 1, minWidth: 120, textAlign: 'center', cursor: 'pointer', border: sourceFilter === 'meta_lead_ads' ? '1px solid var(--mx-blue-600)' : undefined }}
-              onClick={() => { setMode('list'); setSourceFilter((v) => (v === 'meta_lead_ads' ? '' : 'meta_lead_ads')); }}
-            >
-              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--mx-blue-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Share2 size={18} /> {stats.metaTotal}</div>
-              <div className={calcStyles.small}>Meta Leads</div>
-            </button>
-            <button
-              type="button"
-              className={calcStyles.sectionPanel}
-              style={{ flex: 1, minWidth: 120, textAlign: 'center', cursor: 'pointer', border: unattendedOnly ? '1px solid #dc2626' : undefined }}
-              onClick={() => { setMode('list'); setUnattendedOnly(true); }}
-            >
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#b91c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><AlertTriangle size={20} /> {stats.unattended}</div>
-              <div className={calcStyles.small}>Unattended</div>
-            </button>
+          <div className={leadStyles.statsRow}>
+            <StatTile value={stats.total} label="Total Leads" />
+            <StatTile value={stats.today} label="Captured Today" tone="success" />
+            <StatTile value={stats.hot} label="Hot Leads" tone="danger" icon={<Flame size={20} />} iconPosition="after" />
             {/* A sales manager's actual queue: what has come in and still
                 needs routing to a rep. One tap filters the list to it. */}
+            <StatTile
+              value={stats.metaTotal}
+              label="Meta Leads"
+              tone="accent"
+              icon={<Share2 size={18} />}
+              onClick={() => { setMode('list'); setSourceFilter((v) => (v === 'meta_lead_ads' ? '' : 'meta_lead_ads')); }}
+              active={sourceFilter === 'meta_lead_ads'}
+            />
+            <StatTile
+              value={stats.unattended}
+              label="Unattended"
+              tone="danger"
+              icon={<AlertTriangle size={20} />}
+              onClick={() => { setMode('list'); setUnattendedOnly(true); }}
+              active={unattendedOnly}
+            />
             {canAssign && (
-              <button
-                type="button"
-                className={`${calcStyles.sectionPanel} ${assignStyles.statBtn} ${assigneeFilter === FILTER_UNASSIGNED ? assignStyles.statActive : ''}`}
+              <StatTile
+                value={stats.unassigned}
+                label="To Assign"
+                tone="warning"
+                icon={<UserPlus size={20} />}
                 onClick={() => { setMode('list'); setAssigneeFilter(FILTER_UNASSIGNED); }}
-                aria-pressed={assigneeFilter === FILTER_UNASSIGNED}
-              >
-                <div className={`${assignStyles.statValue} ${assignStyles.statWarning}`}><UserPlus size={20} /> {stats.unassigned}</div>
-                <div className={calcStyles.small}>To Assign</div>
-              </button>
+                active={assigneeFilter === FILTER_UNASSIGNED}
+                ariaPressed={assigneeFilter === FILTER_UNASSIGNED}
+              />
             )}
             {/* Reps get the mirror image — what has been routed to them. */}
             {stats.assignedToMe > 0 && (
-              <button
-                type="button"
-                className={`${calcStyles.sectionPanel} ${assignStyles.statBtn} ${assigneeFilter === FILTER_MINE ? assignStyles.statActive : ''}`}
+              <StatTile
+                value={stats.assignedToMe}
+                label="Assigned To Me"
+                tone="info"
+                icon={<UserCheck size={20} />}
                 onClick={() => { setMode('list'); setAssigneeFilter(FILTER_MINE); }}
-                aria-pressed={assigneeFilter === FILTER_MINE}
-              >
-                <div className={`${assignStyles.statValue} ${assignStyles.statInfo}`}><UserCheck size={20} /> {stats.assignedToMe}</div>
-                <div className={calcStyles.small}>Assigned To Me</div>
-              </button>
+                active={assigneeFilter === FILTER_MINE}
+                ariaPressed={assigneeFilter === FILTER_MINE}
+              />
             )}
           </div>
         )}
 
-        <div className={historyStyles.modeToggle}>
-          <button type="button" className={`${historyStyles.modeToggleBtn} ${mode === 'capture' ? historyStyles.modeToggleBtnActive : ''}`} onClick={() => setMode('capture')}>
-            + Add Inquiry
-          </button>
-          <button
-            type="button"
-            className={`${historyStyles.modeToggleBtn} ${mode === 'bulk' ? historyStyles.modeToggleBtnActive : ''}`}
-            onClick={() => setMode('bulk')}
-          >
-            Import Leads / Inquiries
-          </button>
-          <button
-            type="button"
-            className={`${historyStyles.modeToggleBtn} ${mode === 'list' ? historyStyles.modeToggleBtnActive : ''}`}
-            onClick={showAllLeads}
-          >
-            All Leads
-          </button>
-        </div>
+        <SegmentedToggle options={MODE_OPTIONS} value={mode} onChange={(v) => (v === 'list' ? showAllLeads() : setMode(v))} />
 
         {mode === 'capture' && (
           <LeadCaptureWizard creating={creating} onSubmit={handleSubmitLead} onConvertToProject={handleConvertToProject} onViewAllLeads={showAllLeads} />
@@ -463,63 +590,56 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
         {mode === 'list' && (
           <>
-            <div className={historyStyles.toolbar}>
+            <FilterBar>
               <input type="text" placeholder="Search name, company, city, email, mobile..." value={q} onChange={(e) => setQ(e.target.value)} />
-              <select className={calcStyles.formControl} style={{ width: 'auto' }} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as LeadPriority | '')}>
+              <Select auto value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as LeadPriority | '')}>
                 <option value="">All priorities</option>
                 <option value="hot">Hot</option>
                 <option value="warm">Warm</option>
                 <option value="cool">Cold</option>
-              </select>
-              <select className={calcStyles.formControl} style={{ width: 'auto' }} value={interestFilter} onChange={(e) => setInterestFilter(e.target.value as DomainKey | '')}>
+              </Select>
+              <Select auto value={interestFilter} onChange={(e) => setInterestFilter(e.target.value as DomainKey | '')}>
                 <option value="">All interests</option>
                 {LEAD_DOMAIN_TILES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
-              <select className={calcStyles.formControl} style={{ width: 'auto' }} value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as LeadSource | '')}>
+              </Select>
+              <Select auto value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as LeadSource | '')}>
                 <option value="">All sources</option>
                 <option value="meta_lead_ads">Meta Lead Ads</option>
                 <option value="manual">Manual</option>
                 <option value="business_card">Business Card</option>
                 <option value="csv_import">CSV Import</option>
-              </select>
-              <select
-                className={calcStyles.formControl}
-                style={{ width: 'auto' }}
-                value={assigneeFilter}
-                onChange={(e) => setAssigneeFilter(e.target.value)}
-                aria-label="Filter by assignee"
-              >
+              </Select>
+              <Select auto value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} aria-label="Filter by assignee">
                 <option value="">All assignees</option>
                 <option value={FILTER_UNASSIGNED}>Unassigned</option>
                 <option value={FILTER_MINE}>Assigned to me</option>
                 {(assignees || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-              <select className={calcStyles.formControl} style={{ width: 'auto' }} value={sortBy} onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}>
+              </Select>
+              <Select auto value={sortBy} onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'name')}>
                 <option value="newest">Newest first</option>
                 <option value="oldest">Oldest first</option>
                 <option value="name">Name (A-Z)</option>
-              </select>
-              <button
-                type="button"
-                className={`${historyStyles.modeToggleBtn} ${unattendedOnly ? historyStyles.modeToggleBtnActive : ''}`}
-                style={unattendedOnly ? { color: '#b91c1c', borderColor: '#dc2626' } : undefined}
+              </Select>
+              <SegmentedButton
+                active={unattendedOnly}
+                className={unattendedOnly ? leadStyles.unattendedActive : undefined}
                 onClick={() => setUnattendedOnly((v) => !v)}
               >
                 Unattended only
-              </button>
-              <button type="button" className={historyStyles.button} onClick={loadLeads}>Refresh</button>
-              <a className={historyStyles.button} href="/api/leads/export.csv">Export CSV</a>
-              <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
-            </div>
-            {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
+              </SegmentedButton>
+              <ToolbarButton onClick={loadLeads}>Refresh</ToolbarButton>
+              <ToolbarLink href="/api/leads/export.csv">Export CSV</ToolbarLink>
+              <ToolbarButton onClick={() => window.print()}>Print</ToolbarButton>
+            </FilterBar>
+            {!loading && !loadFailed && <div className={leadStyles.status}>{status}</div>}
 
             {canAssign && selectedVisibleIds.length > 0 && (
-              <div className={assignStyles.bulkBar}>
-                <span className={assignStyles.bulkCount}>
+              <div className={leadStyles.bulkBar}>
+                <span className={leadStyles.bulkCount}>
                   {selectedVisibleIds.length} lead{selectedVisibleIds.length === 1 ? '' : 's'} selected
                 </span>
                 <select
-                  className={assignStyles.bulkSelect}
+                  className={leadStyles.bulkSelect}
                   value={bulkAssigneeId}
                   onChange={(e) => setBulkAssigneeId(e.target.value)}
                   aria-label="Assign selected leads to"
@@ -529,172 +649,113 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                     <option key={a.id} value={a.id}>{a.name}{a.designation ? ` · ${a.designation}` : ''}</option>
                   ))}
                 </select>
-                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={handleBulkAssign} disabled={bulkBusy}>
+                <ToolbarButton primary onClick={handleBulkAssign} disabled={bulkBusy}>
                   {bulkBusy ? 'Assigning…' : bulkAssigneeId ? 'Assign' : 'Unassign'}
-                </button>
-                <button type="button" className={assignStyles.linkBtn} onClick={() => setSelectedIds(new Set())}>
+                </ToolbarButton>
+                <button type="button" className={leadStyles.linkBtn} onClick={() => setSelectedIds(new Set())}>
                   Clear selection
                 </button>
               </div>
             )}
 
             {loading ? (
-              <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={9} /></div>
+              <TableWrap><SkeletonRows rows={8} columns={9} /></TableWrap>
             ) : loadFailed ? (
               <ErrorState message="Could not load leads — check your connection and try again." onRetry={loadLeads} />
             ) : (
-            <div className={historyStyles.tableWrap}>
-              <table className={historyStyles.table}>
-                <thead>
-                  <tr>
-                    {canAssign && (
-                      <th className={assignStyles.checkCell}>
-                        <input
-                          type="checkbox"
-                          className={assignStyles.checkbox}
-                          checked={allOnPageSelected}
-                          onChange={togglePageSelection}
-                          aria-label={allOnPageSelected ? 'Deselect all leads on this page' : 'Select all leads on this page'}
-                        />
-                      </th>
-                    )}
-                    <th>Name</th>
-                    <th>Company</th>
-                    <th>Designation</th>
-                    <th>Mobile</th>
-                    <th>Email</th>
-                    <th>Interests</th>
-                    <th>Priority</th>
-                    <th>Source</th>
-                    <th>Assigned To</th>
-                    <th>Captured By</th>
-                    <th>Date</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.map((l) => (
-                    <tr key={l.id} className={selectedIds.has(l.id) ? assignStyles.rowSelected : ''}>
-                      {canAssign && (
-                        <td className={assignStyles.checkCell}>
-                          <input
-                            type="checkbox"
-                            className={assignStyles.checkbox}
-                            checked={selectedIds.has(l.id)}
-                            onChange={() => toggleRowSelection(l.id)}
-                            aria-label={`Select lead ${l.name || l.company || l.id}`}
-                          />
-                        </td>
-                      )}
-                      <td>{l.name || '-'}</td>
-                      <td>{l.company || '-'}</td>
-                      <td>{l.designation || '-'}</td>
-                      <td className={historyStyles.num}>{l.mobile || '-'}</td>
-                      <td>{l.email || '-'}</td>
-                      <td>
-                        {l.interests.length > 0 ? (
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                            {l.interests.map((d) => {
-                              const tile = LEAD_DOMAIN_TILES.find((t) => t.key === d);
-                              const Icon = tile?.icon;
-                              return Icon ? <Icon key={d} size={14} /> : <span key={d}>{d}</span>;
-                            })}
-                          </div>
-                        ) : '-'}
-                      </td>
-                      <td><PriorityBadge priority={l.priority} /></td>
-                      <td><SourceBadge lead={l} onClick={() => setMetaInfoLead(l)} /></td>
-                      {/* A manager gets a picker (assigning one lead shouldn't
-                          need a dialog); everyone else gets the read-only fact. */}
-                      <td className={assignStyles.assigneeCell}>
-                        {canAssign ? (
-                          <select
-                            className={`${assignStyles.rowSelect} ${!l.assigned_to_id ? assignStyles.rowSelectUnassigned : ''}`}
-                            value={l.assigned_to_id || ''}
-                            disabled={assigningId === l.id}
-                            onChange={(e) => handleRowAssign(l.id, e.target.value)}
-                            aria-label={`Assign lead ${l.name || l.company || l.id} to`}
-                          >
-                            <option value="">Unassigned</option>
-                            {(assignees || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                            {/* Keeps the current assignee selectable even if
-                                they've since moved out of the assignable set
-                                (department change, deactivation) — otherwise the
-                                select would silently show "Unassigned" for a
-                                lead that is in fact assigned. */}
-                            {l.assigned_to_id && !(assignees || []).some((a) => a.id === l.assigned_to_id) && (
-                              <option value={l.assigned_to_id}>{l.assigned_to_name || l.assigned_to} (inactive)</option>
-                            )}
-                          </select>
-                        ) : l.assigned_to ? (
-                          <>
-                            <span className={assignStyles.assigneeName}>
-                              {l.assigned_to_name || l.assigned_to}
-                              {l.assigned_to === currentUser.username && <span className={assignStyles.assigneeMine}>You</span>}
-                            </span>
-                            {l.assigned_by && <span className={assignStyles.assigneeMeta}>by {l.assigned_by}</span>}
-                          </>
-                        ) : (
-                          <span className={assignStyles.unassignedPill}>Unassigned</span>
-                        )}
-                      </td>
-                      <td>{l.created_by}</td>
-                      <td>{formatDateTime(l.created_at)}</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {!l.project_id ? (
-                            <button type="button" className={historyStyles.button} onClick={() => handleConvertToProject(l.id)}>To Project</button>
-                          ) : (
-                            <Link href={`/projects/${l.project_id}`} className={calcStyles.small}>View Project</Link>
-                          )}
-                          {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(l)}>Delete</button>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {pageRows.length === 0 && (
-                    <tr><td colSpan={columnCount}>
-                      <EmptyState
-                        icon={Contact}
-                        title={leads.length === 0 ? 'No leads captured yet' : 'No leads match your filters'}
-                        message={leads.length === 0 ? 'Scan a business card to capture your first lead.' : 'Try clearing a filter or search term.'}
-                        action={leads.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setMode('capture')}>Capture a Lead</button> : undefined}
-                      />
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+              <Table
+                columns={columns}
+                rows={pageRows}
+                rowKey={(l) => l.id}
+                rowClassName={(l) => (selectedIds.has(l.id) ? leadStyles.rowSelected : undefined)}
+                empty={
+                  <EmptyState
+                    icon={Contact}
+                    title={leads.length === 0 ? 'No leads captured yet' : 'No leads match your filters'}
+                    message={leads.length === 0 ? 'Scan a business card to capture your first lead.' : 'Try clearing a filter or search term.'}
+                    action={leads.length === 0 ? <button type="button" className={leadStyles.primaryBtn} onClick={() => setMode('capture')}>Capture a Lead</button> : undefined}
+                  />
+                }
+              />
             )}
 
-            {totalPages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center', marginTop: 14 }}>
-                <button type="button" className={historyStyles.button} disabled={page === 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
-                <span className={calcStyles.small}>Page {page} of {totalPages}</span>
-                <button type="button" className={historyStyles.button} disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>Next →</button>
-              </div>
-            )}
+            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
           </>
         )}
 
         {metaInfoLead && (
-          <div className={notifyStyles.overlay} role="presentation" onClick={() => setMetaInfoLead(null)}>
-            <div className={notifyStyles.wideCard} role="dialog" aria-modal="true" aria-label="Meta Information" onClick={(e) => e.stopPropagation()}>
-              <div className={notifyStyles.confirmTitle}>Meta Information</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 14, rowGap: 8, fontSize: 13.5, marginTop: 10 }}>
-                <span style={{ color: 'var(--mx-ink-faint)' }}>Platform</span><span>{metaPlatformLabel(metaInfoLead.meta_platform)}</span>
-                <span style={{ color: 'var(--mx-ink-faint)' }}>Campaign</span><span>{metaInfoLead.meta_campaign_name || '—'}</span>
-                <span style={{ color: 'var(--mx-ink-faint)' }}>Ad Set</span><span>{metaInfoLead.meta_adset_name || '—'}</span>
-                <span style={{ color: 'var(--mx-ink-faint)' }}>Ad</span><span>{metaInfoLead.meta_ad_name || '—'}</span>
-                <span style={{ color: 'var(--mx-ink-faint)' }}>Form</span><span>{metaInfoLead.meta_form_name || '—'}</span>
-                <span style={{ color: 'var(--mx-ink-faint)' }}>Meta Lead ID</span><span style={{ fontFamily: 'monospace' }}>{metaInfoLead.meta_lead_id || '—'}</span>
-                <span style={{ color: 'var(--mx-ink-faint)' }}>Received</span><span>{formatDateTime(metaInfoLead.meta_created_at)}</span>
-              </div>
-              <div className={notifyStyles.confirmActions} style={{ marginTop: 18 }}>
-                <button type="button" className={notifyStyles.confirmOk} onClick={() => setMetaInfoLead(null)}>Close</button>
-              </div>
+          <Modal
+            title="Meta Information"
+            ariaLabel="Meta Information"
+            size="wide"
+            onClose={() => setMetaInfoLead(null)}
+            footer={<ModalOkButton onClick={() => setMetaInfoLead(null)}>Close</ModalOkButton>}
+          >
+            <div className={leadStyles.metaGrid}>
+              <span className={leadStyles.metaLabel}>Platform</span><span>{metaPlatformLabel(metaInfoLead.meta_platform)}</span>
+              <span className={leadStyles.metaLabel}>Campaign</span><span>{metaInfoLead.meta_campaign_name || '—'}</span>
+              <span className={leadStyles.metaLabel}>Ad Set</span><span>{metaInfoLead.meta_adset_name || '—'}</span>
+              <span className={leadStyles.metaLabel}>Ad</span><span>{metaInfoLead.meta_ad_name || '—'}</span>
+              <span className={leadStyles.metaLabel}>Form</span><span>{metaInfoLead.meta_form_name || '—'}</span>
+              <span className={leadStyles.metaLabel}>Meta Lead ID</span><span className={leadStyles.metaMono}>{metaInfoLead.meta_lead_id || '—'}</span>
+              <span className={leadStyles.metaLabel}>Received</span><span>{formatDateTime(metaInfoLead.meta_created_at)}</span>
             </div>
-          </div>
+          </Modal>
+        )}
+
+        {editingLead && (
+          <Modal
+            title="Edit Lead"
+            ariaLabel="Edit Lead"
+            size="wide"
+            dismissible={!savingEdit}
+            onClose={() => setEditingLead(null)}
+            footer={
+              <>
+                <ModalCancelButton disabled={savingEdit} onClick={() => setEditingLead(null)}>Cancel</ModalCancelButton>
+                <ModalOkButton disabled={savingEdit} onClick={handleSaveEdit}>{savingEdit ? 'Saving…' : 'Save Changes'}</ModalOkButton>
+              </>
+            }
+          >
+            <FieldRow className={leadStyles.firstRow}>
+              <Field label="Name">
+                <Input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
+              </Field>
+              <Field label="Company">
+                <Input value={editForm.company} onChange={(e) => setEditForm((f) => ({ ...f, company: e.target.value }))} />
+              </Field>
+              <Field label="Designation">
+                <Input value={editForm.designation} onChange={(e) => setEditForm((f) => ({ ...f, designation: e.target.value }))} />
+              </Field>
+            </FieldRow>
+            <FieldRow>
+              <Field label="Mobile">
+                <PhoneInput value={editForm.mobile} onChange={(v) => setEditForm((f) => ({ ...f, mobile: v }))} />
+              </Field>
+              <Field label="Email">
+                <Input type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} />
+              </Field>
+              <Field label="City">
+                <Input value={editForm.city} onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))} />
+              </Field>
+            </FieldRow>
+            <FieldRow>
+              <Field label="Budget">
+                <Input value={editForm.budget} onChange={(e) => setEditForm((f) => ({ ...f, budget: e.target.value }))} />
+              </Field>
+              <Field label="Priority">
+                <Select value={editForm.priority} onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value as LeadPriority }))}>
+                  <option value="">Unrated</option>
+                  <option value="hot">{LEAD_PRIORITY_META.hot.label}</option>
+                  <option value="warm">{LEAD_PRIORITY_META.warm.label}</option>
+                  <option value="cool">{LEAD_PRIORITY_META.cool.label}</option>
+                </Select>
+              </Field>
+            </FieldRow>
+            <Field label="Notes">
+              <Textarea rows={3} value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} />
+            </Field>
+          </Modal>
         )}
     </AppShell>
   );

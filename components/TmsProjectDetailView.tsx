@@ -13,6 +13,12 @@ import PriorityBadge from './ui/PriorityBadge';
 import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useToast } from './ui/ToastProvider';
 import EmptyState from './ui/EmptyState';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import ToolbarButton from './ui/ToolbarButton';
+import styles from './tmsDetail.module.css';
 
 // The real pipeline every TMS project moves through (tms_projects.status —
 // see lib/tmsLabels.ts's TMS_PROJECT_STATUS_LABEL for the source of truth).
@@ -25,36 +31,28 @@ function ProjectWorkflowStepper({ status }: { status: TmsProjectStatus }) {
   const isSideState = status === 'on_hold' || status === 'cancelled';
   const activeIndex = isSideState ? -1 : PROJECT_PIPELINE.indexOf(status);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0, margin: '4px 0 16px' }}>
+    <div className={styles.pipelineRow}>
       {PROJECT_PIPELINE.map((step, i) => {
         const done = !isSideState && i < activeIndex;
         const current = !isSideState && i === activeIndex;
         return (
-          <div key={step} style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 84 }}>
-              <div
-                style={{
-                  width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11.5, fontWeight: 700,
-                  background: done ? 'var(--mx-success)' : current ? 'var(--mx-brand)' : 'var(--mx-surface-sunken)',
-                  color: done || current ? '#fff' : 'var(--mx-ink-faint)',
-                  border: current ? '2px solid var(--mx-brand-hover)' : '1px solid var(--mx-border)'
-                }}
-              >
+          <div key={step} className={styles.pipelineItem}>
+            <div className={styles.pipelineStep}>
+              <div className={`${styles.pipelineCircle} ${done ? styles.pipelineCircleDone : current ? styles.pipelineCircleCurrent : ''}`}>
                 {done ? <Check size={13} /> : i + 1}
               </div>
-              <span style={{ fontSize: 11, fontWeight: current ? 700 : 500, color: current ? 'var(--mx-ink)' : 'var(--mx-ink-muted)', textAlign: 'center' }}>
+              <span className={`${styles.pipelineLabel} ${current ? styles.pipelineLabelCurrent : ''}`}>
                 {TMS_PROJECT_STATUS_LABEL[step]}
               </span>
             </div>
             {i < PROJECT_PIPELINE.length - 1 && (
-              <div style={{ width: 32, height: 2, background: done ? 'var(--mx-success)' : 'var(--mx-border)', marginBottom: 16 }} />
+              <div className={`${styles.pipelineConnector} ${done ? styles.pipelineConnectorDone : ''}`} />
             )}
           </div>
         );
       })}
       {isSideState && (
-        <span style={{ marginLeft: 12, marginBottom: 16 }}>
+        <span className={styles.pipelineSideBadge}>
           <StatusBadge tone={TMS_PROJECT_STATUS_TONE[status]} label={`Currently: ${TMS_PROJECT_STATUS_LABEL[status]}`} />
         </span>
       )}
@@ -228,7 +226,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
 
   return (
     <AppShell title={project.name} subtitle={`${project.project_code} · ${project.department_name}`} showBackLink>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className={styles.headerRow}>
         <StatusBadge tone={TMS_PROJECT_STATUS_TONE[project.status]} label={TMS_PROJECT_STATUS_LABEL[project.status]} />
         <PriorityBadge tone={TMS_PRIORITY_TONE[project.priority]} label={TMS_PRIORITY_LABEL[project.priority]} />
         <Link className={historyStyles.button} href="/tms/projects">Back to Projects</Link>
@@ -239,47 +237,41 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
       </div>
 
       {editing && editForm && (
-        <div className={calcStyles.sectionPanel} style={{ marginBottom: 18 }}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Status</label>
-              <select className={calcStyles.formControl} value={editForm.status} onChange={(e) => setEditForm((f) => f && { ...f, status: e.target.value as TmsProjectStatus })}>
+        <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced18}`}>
+          <FieldRow>
+            <Field label="Status">
+              <Select value={editForm.status} onChange={(e) => setEditForm((f) => f && { ...f, status: e.target.value as TmsProjectStatus })}>
                 {(Object.keys(TMS_PROJECT_STATUS_LABEL) as TmsProjectStatus[]).map((s) => (
                   <option key={s} value={s}>{TMS_PROJECT_STATUS_LABEL[s]}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Priority</label>
-              <select className={calcStyles.formControl} value={editForm.priority} onChange={(e) => setEditForm((f) => f && { ...f, priority: e.target.value as TmsPriority })}>
+              </Select>
+            </Field>
+            <Field label="Priority">
+              <Select value={editForm.priority} onChange={(e) => setEditForm((f) => f && { ...f, priority: e.target.value as TmsPriority })}>
                 {(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => (
                   <option key={p} value={p}>{TMS_PRIORITY_LABEL[p]}</option>
                 ))}
-              </select>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Progress %</label>
-              <input type="number" min="0" max="100" className={calcStyles.formControl} value={editForm.progressPercent} onChange={(e) => setEditForm((f) => f && { ...f, progressPercent: Number(e.target.value) })} />
-            </div>
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Notes / Remarks</label>
-            <textarea className={calcStyles.formControl} rows={2} value={editForm.remarks} onChange={(e) => setEditForm((f) => f && { ...f, remarks: e.target.value })} />
-          </div>
+              </Select>
+            </Field>
+            <Field label="Progress %">
+              <Input type="number" min="0" max="100" value={editForm.progressPercent} onChange={(e) => setEditForm((f) => f && { ...f, progressPercent: Number(e.target.value) })} />
+            </Field>
+          </FieldRow>
+          <Field label="Notes / Remarks">
+            <Textarea rows={2} value={editForm.remarks} onChange={(e) => setEditForm((f) => f && { ...f, remarks: e.target.value })} />
+          </Field>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div className={styles.tabRow}>
         {TABS.map((t) => (
-          <button
+          <ToolbarButton
             key={t.key}
-            type="button"
-            className={historyStyles.button}
-            style={tab === t.key ? { background: 'var(--mx-brand)', borderColor: 'var(--mx-brand)', color: '#fff' } : undefined}
+            primary={tab === t.key}
             onClick={() => setTab(t.key)}
           >
             {t.label}
-          </button>
+          </ToolbarButton>
         ))}
       </div>
 
@@ -301,13 +293,13 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
               <div><strong>Budget:</strong> {formatCurrency(project.budget)}</div>
               <div><strong>Progress:</strong> {project.progress_percent}%</div>
             </div>
-            <div style={{ marginTop: 12 }}><strong>Description:</strong> {project.description || '-'}</div>
-            <div style={{ marginTop: 12 }}><strong>Notes / Remarks:</strong> {project.remarks || '-'}</div>
+            <div className={styles.infoRow}><strong>Description:</strong> {project.description || '-'}</div>
+            <div className={styles.infoRow}><strong>Notes / Remarks:</strong> {project.remarks || '-'}</div>
           </div>
 
-          <div className={calcStyles.sectionPanel} style={{ marginTop: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: editingTeam ? 12 : 0 }}>
-              <div className={calcStyles.h2} style={{ margin: 0 }}>Assigned Engineers</div>
+          <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop16}`}>
+            <div className={`${styles.teamHeaderRow} ${editingTeam ? styles.teamHeaderRowEditing : ''}`}>
+              <div className={`${calcStyles.h2} ${calcStyles.h2Reset}`}>Assigned Engineers</div>
               {!editingTeam && (
                 <button type="button" className={historyStyles.button} onClick={startEditTeam}>
                   {project.team_member_ids.length ? 'Edit' : '+ Assign Engineer'}
@@ -325,7 +317,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                   roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
                   emptyMessage="No matching active Technical Team members found."
                 />
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
                   <button type="button" className={calcStyles.btn} onClick={saveTeam} disabled={savingTeam}>
                     {savingTeam ? 'Saving…' : 'Save'}
                   </button>
@@ -333,11 +325,11 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                 </div>
               </>
             ) : project.team_member_ids.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--mx-ink-muted)' }}>No engineers assigned yet.</div>
+              <div className={styles.mutedText13}>No engineers assigned yet.</div>
             ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <div className={styles.pillRow}>
                 {project.team_member_names.map((name) => (
-                  <span key={name} style={{ fontSize: 12.5, fontWeight: 600, padding: '5px 12px', borderRadius: 'var(--mx-radius-full)', background: 'var(--mx-brand-subtle)', color: 'var(--mx-brand-hover)' }}>
+                  <span key={name} className={styles.namePill}>
                     {name}
                   </span>
                 ))}
@@ -430,7 +422,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           {project.attachments.length === 0 ? (
             <EmptyState icon={Paperclip} title="No attachments yet" message="Upload project documents above." />
           ) : (
-            <ul style={{ marginTop: 12 }}>
+            <ul className={styles.attachmentList}>
               {project.attachments.map((url) => (
                 <li key={url}>
                   <a href={url} target="_blank" rel="noreferrer">{url.split('/').pop()}</a>

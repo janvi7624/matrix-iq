@@ -69,9 +69,16 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: 'map-pin', href: '/site-visits', section: 'Sales', order: 4, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'leads', label: 'Lead Capture / Inquiry', desc: 'Scan a business card at an event, or bulk-import from CSV or multiple photos, and qualify each lead on the spot.', icon: 'contact', href: '/leads', section: 'Sales', order: 6, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: 'monitor', href: '/demo-schedule', section: 'Sales', order: 7, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
-  { key: 'hr-dashboard', label: 'HR Dashboard', desc: 'Upcoming birthdays and work anniversaries.', icon: 'cake', href: '/hr-dashboard', section: 'HR', order: 0, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
-  { key: 'reimbursement', label: 'Reimbursement', desc: 'Submit and track expense reimbursement bills.', icon: 'receipt-indian-rupee', href: '/reimbursement', section: 'HR', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  // Read-only directory derived from Projects (+ their Quotations) —
+  // deliberately visible to the same broad audience as the rest of Sales,
+  // not narrowed to admins, per the request that it be visible to everyone.
+  { key: 'client-master', label: 'Client Master', desc: "Every client across your projects, their contact details, and who's handling which product for them.", icon: 'users', href: '/clients', section: 'Sales', order: 8, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  // Visible to every TMS role too (not just ALL_ROLES) — HR Dashboard,
+  // Travel Schedule, and Reimbursement apply to technical-manager/team-lead/
+  // technician accounts just as much as everyone else.
+  { key: 'hr-dashboard', label: 'HR Dashboard', desc: 'Upcoming birthdays and work anniversaries.', icon: 'cake', href: '/hr-dashboard', section: 'HR', order: 0, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  { key: 'reimbursement', label: 'Reimbursement', desc: 'Submit and track expense reimbursement bills.', icon: 'receipt-indian-rupee', href: '/reimbursement', section: 'HR', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'admin-expenses', label: 'Admin Expenses', desc: 'Add hotel & ticket expenses split across employees (admin only).', icon: 'briefcase', href: '/admin-expenses', section: 'HR', order: 3, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
   // HR + Admin + Super Admin — see HR_RESTRICTED_KEYS above, which is what
   // actually keeps the generic 'manager' role out (this list alone wouldn't).
@@ -251,6 +258,14 @@ const RESECTIONED_TO_HR_KEYS = new Set(['travel-schedule']);
 const OLD_SECTION_FOR_HR = 'Sales';
 const NEW_SECTION_FOR_HR = 'HR';
 
+// HR section widened to every TMS role too — HR Dashboard, Travel Schedule,
+// and Reimbursement previously stopped at ALL_ROLES, so technical-manager/
+// team-lead/technician accounts couldn't see the HR section at all. Literal
+// snapshot of ALL_ROLES (not `= ALL_ROLES`), same don't-clobber-an-admin-edit
+// guard as every reconciliation above.
+const OLD_ALL_ROLES_SNAPSHOT: UserRole[] = ['superadmin', 'admin', 'manager', 'engineer', 'backoffice', 'user', 'marketing', 'accounts', 'hr'];
+const HR_SECTION_TMS_ACCESS_KEYS = new Set(['hr-dashboard', 'travel-schedule', 'reimbursement']);
+
 function sameRoles(a: UserRole[], b: UserRole[]): boolean {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
@@ -322,6 +337,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_SALES_ROLES_NO_HR)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (RESECTIONED_TO_HR_KEYS.has(key) && plain.section === OLD_SECTION_FOR_HR) { attrs.section = NEW_SECTION_FOR_HR; attrs.order = 1; }
     if (HR_RESTRICTED_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_HR_MODULE_ROLES_NO_ADMIN)) attrs.visibleToRoles = HR_MODULE_ROLES;
+    if (HR_SECTION_TMS_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_SNAPSHOT)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }

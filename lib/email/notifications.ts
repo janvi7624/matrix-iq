@@ -15,8 +15,30 @@ import { renderMarketingRequestLifecycleEmail, MarketingRequestLifecycleEmailDat
 import { renderFieldOpsLifecycleEmail, FieldOpsLifecycleEmailData } from './templates/fieldOpsLifecycle';
 import { renderReimbursementLifecycleEmail, ReimbursementLifecycleEmailData } from './templates/reimbursementLifecycle';
 
+// APP_URL must be this app's absolute public origin (e.g.
+// https://app.example.com, see .env.example) — every link embedded in an
+// outgoing email (login, project, task, quotation, ...) is built from it.
+// A missing/blank APP_URL used to fail silently: callers fell back to a bare
+// relative path like "/projects/<id>", which has no meaning inside an email
+// — there is no "current page" for a mail client to resolve a relative href
+// against, so the link either does nothing or resolves against the wrong
+// origin entirely and 404s there. That produced exactly this symptom: a
+// real, well-formed email whose "View Project" button 404s on click. Since
+// this function never throws (see the file header — a notification failure
+// must never break the feature that triggered it), the fallback behavior is
+// unchanged; what changes is that a misconfigured deployment now logs a
+// loud, unmistakable server-side error the first time it happens, instead of
+// only surfacing when a user reports a broken link days later.
+let warnedMissingAppUrl = false;
 function resolveAppUrl(): string {
-  return process.env.APP_URL?.replace(/\/+$/, '') || '';
+  const value = process.env.APP_URL?.replace(/\/+$/, '') || '';
+  if (!value && !warnedMissingAppUrl) {
+    warnedMissingAppUrl = true;
+    console.error(
+      '[email] APP_URL is not set. Every link in outgoing emails (login, project, task, quotation, ...) will be a relative path and will not resolve correctly when clicked from an email client. Set APP_URL to this deployment\'s public origin (e.g. https://matrix-iq.nantatech.com) in the server environment — see .env.example.'
+    );
+  }
+  return value;
 }
 
 function resolveLoginUrl(): string {

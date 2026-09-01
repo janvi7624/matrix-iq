@@ -7,6 +7,7 @@ import { parseCsv } from '@/lib/csv';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './leadBulkImportWizard.module.css';
 
 // Bulk lead import — two entry paths (CSV, multiple business-card photos)
 // that both converge on the same preview -> review -> commit flow against
@@ -59,14 +60,14 @@ const TARGET_FIELD_OPTIONS: { key: TargetField; label: string }[] = [
 // Alias -> target field, matched after stripping everything but letters/digits.
 // cardImageUrl is deliberately excluded — CSV rows never carry a card image.
 const FIELD_ALIASES: Record<Exclude<TargetField, 'skip' | 'cardImageUrl'>, string[]> = {
-  name: ['name', 'fullname', 'contactname', 'leadname'],
-  company: ['company', 'companyname', 'organisation', 'organization', 'firm', 'businessname'],
+  name: ['name', 'fullname', 'contactname', 'leadname', 'clientname', 'customername', 'personname', 'contactperson', 'client', 'customer'],
+  company: ['company', 'companyname', 'organisation', 'organization', 'firm', 'businessname', 'firmname', 'clientcompany', 'accountname', 'enterprise', 'organisationname', 'organizationname'],
   designation: ['designation', 'title', 'jobtitle', 'role', 'position'],
-  mobile: ['mobile', 'phone', 'contact', 'contactnumber', 'mobilenumber', 'phonenumber', 'cell'],
-  email: ['email', 'emailid', 'mail', 'emailaddress'],
-  city: ['city', 'location', 'town'],
-  budget: ['budget'],
-  notes: ['remarks', 'notes', 'comment', 'comments', 'address', 'website', 'url', 'source']
+  mobile: ['mobile', 'phone', 'contact', 'contactnumber', 'mobilenumber', 'phonenumber', 'cell', 'mobileno', 'contactno', 'whatsapp', 'whatsappnumber', 'telephone'],
+  email: ['email', 'emailid', 'mail', 'emailaddress', 'emailidid'],
+  city: ['city', 'location', 'town', 'place'],
+  budget: ['budget', 'value', 'dealvalue', 'estimatedvalue'],
+  notes: ['remarks', 'notes', 'comment', 'comments', 'address', 'website', 'url', 'source', 'description']
 };
 
 function normalizeHeader(h: string): string {
@@ -120,12 +121,26 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
   // CSV path
   // ---------------------------------------------------------------------
 
-  async function handleCsvSelected(file: File | undefined) {
-    if (!file) return;
-    const text = await file.text();
-    const rows = parseCsv(text);
+  // Modern .xlsx/.xlsm are ZIP archives — first 4 bytes "PK\x03\x04" (or,
+  // rarely, one of the other PK-prefixed empty/spanned-archive signatures).
+  // Legacy "Excel 97-2003" .xls is a completely different container (OLE
+  // Compound File Binary Format), signature D0 CF 11 E0 A1 B1 1A E1.
+  // Sniffing the actual bytes instead of trusting the file's name/extension
+  // catches the real-world case that caused garbled "PK...[Content_Types].xml"
+  // column headers: someone selecting (or the OS file picker allowing) a
+  // genuine Excel workbook into the "Import CSV" flow, whether it's actually
+  // named .csv or not.
+  async function looksLikeXlsx(file: File): Promise<boolean> {
+    if (/\.xlsx?$|\.xlsm$/i.test(file.name)) return true;
+    const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+    const isZip = head[0] === 0x50 && head[1] === 0x4b && (head[2] === 0x03 || head[2] === 0x05 || head[2] === 0x07);
+    const isOle = head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0 && head[4] === 0xa1 && head[5] === 0xb1 && head[6] === 0x1a && head[7] === 0xe1;
+    return isZip || isOle;
+  }
+
+  function applyParsedRows(rows: string[][]) {
     if (rows.length < 2) {
-      toast.error('That CSV has no data rows.');
+      toast.error('That file has no data rows.');
       return;
     }
     const [headerRow, ...dataRows] = rows;
@@ -136,6 +151,31 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
     setColumnMapping(guessed);
     setImportType('csv');
     setScreen('csv-map');
+  }
+
+  async function handleCsvSelected(file: File | undefined) {
+    if (!file) return;
+    if (await looksLikeXlsx(file)) {
+      setBusy(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch('/api/leads/bulk-import/parse-xlsx', { method: 'POST', body: formData });
+        const body = await response.json().catch(() => null);
+        if (!response.ok || !body) {
+          toast.error(body?.error || 'Could not read that Excel file.');
+          return;
+        }
+        applyParsedRows([body.headers, ...body.rows]);
+      } catch {
+        toast.error('Could not read that Excel file.');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    const text = await file.text();
+    applyParsedRows(parseCsv(text));
   }
 
   function buildRowsFromCsvMapping(): { row: BulkRowDraft; sourceLabel: string }[] {
@@ -154,7 +194,13 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
     });
   }
 
+  const hasNameOrCompanyMapped = Object.values(columnMapping).some((t) => t === 'name' || t === 'company');
+
   async function handleConfirmMapping() {
+    if (!hasNameOrCompanyMapped) {
+      toast.error('Map at least one column to Name or Company — every row needs one or the other.');
+      return;
+    }
     const mapped = buildRowsFromCsvMapping();
     await runPreview(mapped, 'csv');
   }
@@ -310,26 +356,26 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
         <>
           <h2 className={historyStyles.wizardCardTitle}><Upload size={20} /> Import Leads / Inquiries</h2>
           <div className={historyStyles.wizardCardHint}>Bring in many leads at once from a spreadsheet, or from a batch of business-card photos.</div>
-          <div className={calcStyles.row} style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
-            <button type="button" className={calcStyles.sectionPanel} style={{ flex: '1 1 220px', cursor: 'pointer', textAlign: 'left' }} onClick={() => csvFileInputRef.current?.click()}>
-              <FileSpreadsheet size={22} style={{ color: 'var(--mx-brand)' }} />
-              <div style={{ fontWeight: 700, marginTop: 8 }}>Import CSV</div>
-              <div className={calcStyles.small}>Upload a spreadsheet of leads — you'll map your columns to MatrixIQ's fields next.</div>
+          <div className={`${calcStyles.row} ${styles.choiceRow}`}>
+            <button type="button" className={`${calcStyles.sectionPanel} ${styles.choiceCard}`} disabled={busy} onClick={() => csvFileInputRef.current?.click()}>
+              <FileSpreadsheet size={22} className={styles.brandIcon} />
+              <div className={styles.choiceCardTitle}>{busy ? 'Reading file…' : 'Import CSV / Excel'}</div>
+              <div className={calcStyles.small}>Upload a CSV or Excel (.xlsx) spreadsheet of leads — column mapping to MatrixIQ&apos;s fields comes next.</div>
             </button>
-            <button type="button" className={calcStyles.sectionPanel} style={{ flex: '1 1 220px', cursor: 'pointer', textAlign: 'left' }} onClick={() => imageFileInputRef.current?.click()}>
-              <Images size={22} style={{ color: 'var(--mx-brand)' }} />
-              <div style={{ fontWeight: 700, marginTop: 8 }}>Import Multiple Images</div>
+            <button type="button" className={`${calcStyles.sectionPanel} ${styles.choiceCard}`} onClick={() => imageFileInputRef.current?.click()}>
+              <Images size={22} className={styles.brandIcon} />
+              <div className={styles.choiceCardTitle}>Import Multiple Images</div>
               <div className={calcStyles.small}>Select several business-card photos — each one is scanned automatically.</div>
             </button>
           </div>
-          <div style={{ marginTop: 16 }}>
+          <div className={styles.topActions}>
             <a className={historyStyles.button} href="/api/leads/bulk-import/template.csv">
-              <Download size={14} style={{ marginRight: 4 }} /> Download Sample CSV
+              <Download size={14} className={styles.iconMarginRight} /> Download Sample CSV
             </a>
-            <button type="button" className={historyStyles.button} style={{ marginLeft: 8 }} onClick={onCancel}>Cancel</button>
+            <button type="button" className={`${historyStyles.button} ${styles.cancelBtnSpaced}`} onClick={onCancel}>Cancel</button>
           </div>
-          <input ref={csvFileInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={(e) => handleCsvSelected(e.target.files?.[0])} />
-          <input ref={imageFileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => handleImagesSelected(e.target.files)} />
+          <input ref={csvFileInputRef} type="file" accept=".csv,.xlsx,.xls" className={styles.hiddenInput} onChange={(e) => handleCsvSelected(e.target.files?.[0])} />
+          <input ref={imageFileInputRef} type="file" accept="image/*" multiple className={styles.hiddenInput} onChange={(e) => handleImagesSelected(e.target.files)} />
         </>
       )}
 
@@ -337,7 +383,13 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
         <>
           <h2 className={historyStyles.wizardCardTitle}><FileSpreadsheet size={20} /> Map CSV Columns</h2>
           <div className={historyStyles.wizardCardHint}>{csvDataRows.length} record{csvDataRows.length === 1 ? '' : 's'} found. Confirm which column maps to which field — we've guessed based on your headers.</div>
-          <table className={historyStyles.table} style={{ marginTop: 12 }}>
+          {!hasNameOrCompanyMapped && (
+            <div className={styles.mappingWarning}>
+              <AlertTriangle size={16} />
+              None of your columns are mapped to Name or Company yet — set at least one below, or every row will be rejected as invalid.
+            </div>
+          )}
+          <table className={`${historyStyles.table} ${styles.mappingTable}`}>
             <thead>
               <tr>
                 <th>CSV Column</th>
@@ -348,7 +400,7 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
             <tbody>
               {csvHeaders.map((header, i) => (
                 <tr key={header + i}>
-                  <td style={{ fontWeight: 600 }}>{header}</td>
+                  <td className={styles.headerCell}>{header}</td>
                   <td className={calcStyles.small}>{csvDataRows[0]?.[i] || '-'}</td>
                   <td>
                     <select
@@ -365,8 +417,8 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
               ))}
             </tbody>
           </table>
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleConfirmMapping}>{busy ? 'Validating...' : 'Preview Records'}</button>
+          <div className={styles.actionsRow16}>
+            <button type="button" className={calcStyles.btn} disabled={busy || !hasNameOrCompanyMapped} onClick={handleConfirmMapping}>{busy ? 'Validating...' : 'Preview Records'}</button>
             <button type="button" className={historyStyles.button} onClick={reset}>Back</button>
           </div>
         </>
@@ -376,13 +428,13 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
         <>
           <h2 className={historyStyles.wizardCardTitle}><Images size={20} /> Processing Images</h2>
           <div className={historyStyles.wizardCardHint}>Scanning each card — this runs in your browser and can take a few seconds per image.</div>
-          <div style={{ marginTop: 12 }}>
+          <div className={styles.jobList}>
             {imageJobs.map((job, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--mx-border)' }}>
-                {job.status === 'ready' && <CheckCircle2 size={16} style={{ color: 'var(--mx-success)' }} />}
-                {job.status === 'error' && <XCircle size={16} style={{ color: 'var(--mx-danger)' }} />}
-                {(job.status === 'pending' || job.status === 'processing') && <AlertTriangle size={16} style={{ color: 'var(--mx-ink-faint)' }} />}
-                <span style={{ flex: 1 }}>{job.file.name}</span>
+              <div key={i} className={styles.jobRow}>
+                {job.status === 'ready' && <CheckCircle2 size={16} className={styles.successColor} />}
+                {job.status === 'error' && <XCircle size={16} className={calcStyles.dangerText} />}
+                {(job.status === 'pending' || job.status === 'processing') && <AlertTriangle size={16} className={styles.mutedColor} />}
+                <span className={styles.jobFileName}>{job.file.name}</span>
                 <span className={calcStyles.small}>
                   {job.status === 'pending' && 'Waiting...'}
                   {job.status === 'processing' && 'Processing...'}
@@ -392,7 +444,7 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <div className={styles.actionsRow16}>
             <button
               type="button"
               className={calcStyles.btn}
@@ -409,21 +461,21 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
       {screen === 'review' && (
         <>
           <h2 className={historyStyles.wizardCardTitle}><CheckCircle2 size={20} /> Preview &amp; Confirm</h2>
-          <div className={calcStyles.row} style={{ display: 'flex', gap: 12, marginTop: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-            <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 800 }}>{summaryCounts.total}</div>
+          <div className={`${calcStyles.row} ${styles.summaryRow}`}>
+            <div className={`${calcStyles.sectionPanel} ${styles.summaryTile}`}>
+              <div className={styles.summaryTileValue}>{summaryCounts.total}</div>
               <div className={calcStyles.small}>Total Records</div>
             </div>
-            <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-success)' }}>{summaryCounts.valid}</div>
+            <div className={`${calcStyles.sectionPanel} ${styles.summaryTile}`}>
+              <div className={styles.summaryTileValueSuccess}>{summaryCounts.valid}</div>
               <div className={calcStyles.small}>Valid</div>
             </div>
-            <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-warning)' }}>{summaryCounts.duplicates}</div>
+            <div className={`${calcStyles.sectionPanel} ${styles.summaryTile}`}>
+              <div className={styles.summaryTileValueWarning}>{summaryCounts.duplicates}</div>
               <div className={calcStyles.small}>Duplicates</div>
             </div>
-            <div className={calcStyles.sectionPanel} style={{ flex: 1, minWidth: 100, textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--mx-danger)' }}>{summaryCounts.invalid}</div>
+            <div className={`${calcStyles.sectionPanel} ${styles.summaryTile}`}>
+              <div className={styles.summaryTileValueDanger}>{summaryCounts.invalid}</div>
               <div className={calcStyles.small}>Invalid</div>
             </div>
           </div>
@@ -452,14 +504,14 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
                     <td>{r.row.mobile || '-'}</td>
                     <td>{r.row.email || '-'}</td>
                     <td>
-                      {r.status === 'valid' && <span className={historyStyles.statusBadge} style={{ background: 'var(--mx-success-subtle, #dcfce7)', color: 'var(--mx-success)' }}>Ready</span>}
+                      {r.status === 'valid' && <span className={`${historyStyles.statusBadge} ${styles.statusBadgeValid}`}>Ready</span>}
                       {r.status === 'duplicate' && (
-                        <span title={r.reason} className={historyStyles.statusBadge} style={{ background: 'var(--mx-warning-subtle, #fef3c7)', color: 'var(--mx-warning)' }}>
+                        <span title={r.reason} className={`${historyStyles.statusBadge} ${styles.statusBadgeDuplicate}`}>
                           Duplicate — will merge into {r.existingLead?.name || r.existingLead?.company || 'existing lead'}
                         </span>
                       )}
                       {r.status === 'invalid' && (
-                        <span title={r.reason} className={historyStyles.statusBadge} style={{ background: 'var(--mx-danger-subtle, #fee2e2)', color: 'var(--mx-danger)' }}>
+                        <span title={r.reason} className={`${historyStyles.statusBadge} ${styles.statusBadgeInvalid}`}>
                           {r.reason || 'Invalid'}
                         </span>
                       )}
@@ -469,7 +521,7 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
               </tbody>
             </table>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <div className={styles.actionsRow16}>
             <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleCommit}>
               {busy ? 'Importing...' : `Import ${previewRows.filter((r) => r.selected && r.status !== 'invalid').length} Record(s)`}
             </button>
@@ -481,7 +533,7 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
       {screen === 'done' && commitSummary && (
         <div className={historyStyles.successPanel}>
           <div className={historyStyles.successIcon}><CheckCircle2 size={48} /></div>
-          <h2 className={calcStyles.h2} style={{ marginTop: 0, borderLeft: 'none', paddingLeft: 0 }}>Import Complete</h2>
+          <h2 className={`${calcStyles.h2} ${calcStyles.h2NoAccent}`}>Import Complete</h2>
           <div className={calcStyles.small}>
             {commitSummary.created} new lead{commitSummary.created === 1 ? '' : 's'} created
             {commitSummary.merged > 0 && `, ${commitSummary.merged} merged into existing lead${commitSummary.merged === 1 ? '' : 's'}`}

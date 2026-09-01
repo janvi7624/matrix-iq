@@ -8,6 +8,7 @@ import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { usePrompt } from '@/components/ui/PromptDialog';
+import pageStyles from './rolesPage.module.css';
 
 const PERMISSION_ACTIONS: { key: ModulePermissionAction; label: string }[] = [
   { key: 'view', label: 'View' },
@@ -232,7 +233,7 @@ export default function RoleManagementPage() {
 
   return (
     <AppShell title="Role Management" subtitle="Administration › create roles and configure what each one can see and do — no code required.">
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Add role</h2>
+        <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Add role</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           {createError && <div className={historyStyles.loginError}>{createError}</div>}
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -245,7 +246,7 @@ export default function RoleManagementPage() {
               <input id="roleDesc" className={calcStyles.formControl} type="text" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, marginBottom: 12 }}>
+          <label className={pageStyles.privilegedCheckboxLabel}>
             <input type="checkbox" checked={isPrivileged} onChange={(e) => setIsPrivileged(e.target.checked)} />
             Privileged (reaches the Administration area and sees org-wide records, not just their own)
           </label>
@@ -269,7 +270,7 @@ export default function RoleManagementPage() {
               {roles.map((r) => {
                 const isEditing = editingId === r.id;
                 return (
-                  <tr key={r.id} style={{ background: selectedId === r.id ? '#fef2f2' : undefined }}>
+                  <tr key={r.id} className={selectedId === r.id ? pageStyles.selectedRowHighlight : undefined}>
                     {isEditing && editState ? (
                       <>
                         <td>
@@ -279,7 +280,7 @@ export default function RoleManagementPage() {
                           <input className={calcStyles.formControl} value={editState.description} onChange={(e) => setEditState({ ...editState, description: e.target.value })} />
                         </td>
                         <td colSpan={2}>
-                          <div style={{ display: 'flex', gap: 6 }}>
+                          <div className={pageStyles.actionsRow6}>
                             <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveEdit(r.id)}>Save</button>
                             <button type="button" className={historyStyles.button} onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</button>
                           </div>
@@ -289,7 +290,7 @@ export default function RoleManagementPage() {
                       <>
                         <td>
                           {r.label}
-                          {r.isSystem && <span className={`${historyStyles.rolePill} ${historyStyles.rolePillBackoffice}`} style={{ marginLeft: 6 }}>Built-in</span>}
+                          {r.isSystem && <span className={`${historyStyles.rolePill} ${historyStyles.rolePillBackoffice} ${pageStyles.ml6}`}>Built-in</span>}
                         </td>
                         <td>{r.description || '-'}</td>
                         <td>
@@ -304,7 +305,7 @@ export default function RoleManagementPage() {
                     )}
                     {!isEditing && (
                       <td>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <div className={historyStyles.rowActionsInline}>
                           <button type="button" className={historyStyles.button} onClick={() => setSelectedId(r.id === selectedId ? null : r.id)}>
                             {selectedId === r.id ? 'Hide permissions' : 'Configure permissions'}
                           </button>
@@ -325,27 +326,27 @@ export default function RoleManagementPage() {
         </div>
 
         {selectedRole && (
-          <div style={{ marginTop: 24 }}>
+          <div className={pageStyles.mt24}>
             <h2 className={calcStyles.h2}>Permissions for &ldquo;{selectedRole.label}&rdquo;</h2>
-            <div className={historyStyles.status} style={{ marginBottom: 12 }}>
+            <div className={`${historyStyles.status} ${calcStyles.mb12}`}>
               Changes save immediately. Actions left unchecked here fall back to the role&apos;s Privileged flag above for modules that don&apos;t have an explicit permission set yet.
             </div>
 
             <div className={historyStyles.permToolbar}>
               <button type="button" className={historyStyles.button} onClick={() => setCollapsedGroups(new Set())}>Expand All</button>
               <button type="button" className={historyStyles.button} onClick={() => setCollapsedGroups(new Set(modulesBySection.keys()))}>Collapse All</button>
-              <span style={{ width: 1, alignSelf: 'stretch', background: '#e5e7eb' }} />
+              <span className={pageStyles.toolbarDivider} />
               <button type="button" className={historyStyles.button} onClick={() => setAllPermissions(selectedRole, true)}>Select All Permissions</button>
               <button type="button" className={historyStyles.button} onClick={() => setAllPermissions(selectedRole, false)}>Clear All Permissions</button>
             </div>
 
-            <div className={calcStyles.sectionPanel} style={{ marginBottom: 18 }}>
-              <div className={historyStyles.navGroupLabel} style={{ marginTop: 0 }}>Global capabilities</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div className={`${calcStyles.sectionPanel} ${pageStyles.globalCapsPanel}`}>
+              <div className={`${historyStyles.navGroupLabel} ${calcStyles.h2Flush}`}>Global capabilities</div>
+              <div className={pageStyles.capsWrap}>
                 {GLOBAL_CAPABILITIES.map((cap) => (
-                  <label key={cap.key} className={historyStyles.permRowSelectLabel} style={{ padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: 10 }} title={cap.hint}>
+                  <label key={cap.key} className={`${historyStyles.permRowSelectLabel} ${pageStyles.capChip}`} title={cap.hint}>
                     <input type="checkbox" checked={selectedRole.permissions[cap.key]} onChange={() => toggleGlobalCapability(selectedRole, cap.key)} />
-                    <span style={{ fontSize: 13.5, fontWeight: 600 }}>{cap.label}</span>
+                    <span className={pageStyles.capLabelText}>{cap.label}</span>
                   </label>
                 ))}
               </div>

@@ -8,6 +8,7 @@ import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
+import pageStyles from './productCatalogPage.module.css';
 
 // Rendered tabs, in registry order, minus conference-accessory — that one
 // nests under "AV — Conferencing" as a sub-table instead of its own tab
@@ -94,13 +95,12 @@ function CatalogRow({ productKey, base, hasBase, override, catalog, onSave, onRe
       {catalog.priceFields.map((f) =>
         f.arrayLabels ? (
           <td key={f.key}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div className={pageStyles.tierColumn}>
               {f.arrayLabels.map((label, i) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ fontSize: 10, color: '#6b7280', width: 78, flexShrink: 0 }}>{label}</span>
+                <div key={label} className={pageStyles.tierRow}>
+                  <span className={pageStyles.tierLabel}>{label}</span>
                   <input
-                    className={calcStyles.formControl}
-                    style={{ width: 90 }}
+                    className={`${calcStyles.formControl} ${pageStyles.tierInput}`}
                     type="number"
                     step="any"
                     value={values[`${f.key}.${i}`]}
@@ -113,8 +113,7 @@ function CatalogRow({ productKey, base, hasBase, override, catalog, onSave, onRe
         ) : (
           <td key={f.key}>
             <input
-              className={calcStyles.formControl}
-              style={{ width: 110 }}
+              className={`${calcStyles.formControl} ${pageStyles.priceInput}`}
               type="number"
               step="any"
               value={values[f.key]}
@@ -127,7 +126,7 @@ function CatalogRow({ productKey, base, hasBase, override, catalog, onSave, onRe
         <span className={`${historyStyles.rolePill} ${override ? historyStyles.rolePillBackoffice : ''}`}>{!hasBase ? 'Admin-added' : override ? 'Overridden' : 'Default'}</span>
       </td>
       <td>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div className={pageStyles.actionsRow6}>
           <button type="button" className={historyStyles.button} disabled={saving} onClick={handleSave}>{saving ? 'Saving…' : 'Save'}</button>
           {override && (
             <button type="button" className={historyStyles.deleteBtn} onClick={() => onReset(override.id)}>{hasBase ? 'Reset' : 'Delete'}</button>
@@ -223,9 +222,9 @@ function NewProductForm({ catalog, existingKeys, conferenceKeys, onCreate, onDon
   }
 
   return (
-    <div className={historyStyles.tableWrap} style={{ padding: 16, marginBottom: 16 }}>
+    <div className={`${historyStyles.tableWrap} ${pageStyles.newProductPanel}`}>
       {catalog.keySource === 'parent-conference' ? (
-        <div className={calcStyles.field} style={{ maxWidth: 320 }}>
+        <div className={`${calcStyles.field} ${pageStyles.maxWidth320}`}>
           <label className={calcStyles.label}>Attach to camera</label>
           <select className={calcStyles.formControl} value={parentKey} onChange={(e) => setParentKey(e.target.value)}>
             {conferenceKeys.map((key) => (
@@ -235,23 +234,23 @@ function NewProductForm({ catalog, existingKeys, conferenceKeys, onCreate, onDon
         </div>
       ) : (
         !keyFromDerivedField && (
-          <div className={calcStyles.field} style={{ maxWidth: 320 }}>
+          <div className={`${calcStyles.field} ${pageStyles.maxWidth320}`}>
             <label className={calcStyles.label}>Product Key (SKU / model code)</label>
             <input className={calcStyles.formControl} value={productKey} onChange={(e) => setProductKey(e.target.value)} placeholder="e.g. T10" />
           </div>
         )
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginTop: 10 }}>
+      <div className={pageStyles.fieldsGrid}>
         {catalog.createFields.map((f) => {
           if (f.type === 'tiers') {
             return (
               <div key={f.key} className={calcStyles.field}>
                 <label className={calcStyles.label}>{f.label}</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <div className={pageStyles.tierColumn}>
                   {AI_SLAB_LABELS.map((slabLabel, i) => (
-                    <div key={slabLabel} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 10, color: '#6b7280', width: 78, flexShrink: 0 }}>{slabLabel}</span>
+                    <div key={slabLabel} className={pageStyles.tierRow}>
+                      <span className={pageStyles.tierLabel}>{slabLabel}</span>
                       <input
                         className={calcStyles.formControl}
                         type="number"
@@ -286,7 +285,7 @@ function NewProductForm({ catalog, existingKeys, conferenceKeys, onCreate, onDon
           if (f.type === 'boolean') {
             return (
               <div key={f.key} className={calcStyles.field}>
-                <label className={calcStyles.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label className={`${calcStyles.label} ${calcStyles.inlineFlexGap8}`}>
                   <input type="checkbox" checked={values[f.key] === 'true'} onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.checked ? 'true' : 'false' }))} />
                   {f.label}
                 </label>
@@ -308,9 +307,9 @@ function NewProductForm({ catalog, existingKeys, conferenceKeys, onCreate, onDon
         })}
       </div>
 
-      {error && <div className={historyStyles.loginError} style={{ marginTop: 10 }}>{error}</div>}
+      {error && <div className={`${historyStyles.loginError} ${calcStyles.mt10}`}>{error}</div>}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+      <div className={pageStyles.createActionsRow}>
         <button type="button" className={historyStyles.button} disabled={saving} onClick={handleSubmit}>{saving ? 'Creating…' : 'Create Product'}</button>
         <button type="button" className={historyStyles.button} onClick={onDone}>Cancel</button>
       </div>
@@ -432,7 +431,7 @@ export default function ProductCatalogPage() {
 
   function renderAddSection(catalog: CatalogDef) {
     return (
-      <div style={{ marginTop: 10 }}>
+      <div className={calcStyles.mt10}>
         {addingTo === catalog.id ? (
           <NewProductForm
             catalog={catalog}
@@ -460,8 +459,7 @@ export default function ProductCatalogPage() {
 
         <div className={historyStyles.toolbar}>
           <select
-            className={calcStyles.formControl}
-            style={{ maxWidth: 320 }}
+            className={`${calcStyles.formControl} ${pageStyles.maxWidth320}`}
             value={activeId}
             onChange={(e) => {
               setActiveId(e.target.value);
@@ -472,7 +470,7 @@ export default function ProductCatalogPage() {
               <option key={c.id} value={c.id}>{c.label}</option>
             ))}
           </select>
-          <input className={calcStyles.formControl} style={{ maxWidth: 260 }} placeholder="Search by key or name…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className={`${calcStyles.formControl} ${pageStyles.maxWidth260}`} placeholder="Search by key or name…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
 
         <h2 className={calcStyles.h2}>{activeCatalog.label}</h2>
@@ -481,7 +479,7 @@ export default function ProductCatalogPage() {
 
         {activeId === 'conference' && (
           <>
-            <h2 className={calcStyles.h2} style={{ marginTop: 24 }}>{CONFERENCE_ACCESSORY.label}</h2>
+            <h2 className={`${calcStyles.h2} ${pageStyles.mt24}`}>{CONFERENCE_ACCESSORY.label}</h2>
             {renderCatalogTable(CONFERENCE_ACCESSORY)}
             {renderAddSection(CONFERENCE_ACCESSORY)}
           </>

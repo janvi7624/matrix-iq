@@ -18,10 +18,11 @@ import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './siteVisitsView.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 
 interface SiteVisitsViewProps {
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 const EMPTY_UPDATE_FORM = { teamTechnical: [] as string[], teamSales: [] as string[], projectDetails: '', ongoingActivities: '' };
@@ -111,9 +112,9 @@ function SiteVisitDetail({
 
   return (
     <div className={historyStyles.detailPanel}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+      <div className={styles.headerRow}>
         <div>
-          <h2 className={calcStyles.h2} style={{ margin: 0 }}>
+          <h2 className={`${calcStyles.h2} ${calcStyles.h2Reset}`}>
             {visit.company_name}
           </h2>
           <div className={calcStyles.small}>
@@ -177,7 +178,7 @@ function SiteVisitDetail({
         </div>
       )}
 
-      <hr style={{ margin: '18px 0', border: 'none', borderTop: '1px solid #e5e7eb' }} />
+      <hr className={styles.hrDivider} />
 
       <div className={`${calcStyles.row} ${calcStyles.columns}`}>
         <div className={calcStyles.field}>
@@ -201,9 +202,9 @@ function SiteVisitDetail({
         {busy ? 'Saving…' : 'Save details'}
       </button>
 
-      <hr style={{ margin: '18px 0', border: 'none', borderTop: '1px solid #e5e7eb' }} />
+      <hr className={styles.hrDivider} />
 
-      <h3 style={{ marginTop: 0 }}>Project updates</h3>
+      <h3 className={historyStyles.h3Flush}>Project updates</h3>
       <div className={historyStyles.timeline}>
         {visit.updates.length === 0 && <div className={calcStyles.small}>No updates logged yet.</div>}
         {visit.updates
@@ -255,7 +256,7 @@ function SiteVisitDetail({
             onChange={(e) => setUpdateForm((f) => ({ ...f, ongoingActivities: e.target.value }))}
           />
         </div>
-        <div className={calcStyles.small} style={{ marginBottom: 8 }}>
+        <div className={`${calcStyles.small} ${calcStyles.mb8}`}>
           Date of updation is recorded automatically: {formatDateTime(new Date().toISOString())}
         </div>
         <button type="submit" className={calcStyles.btn} disabled={addingUpdate}>
@@ -270,7 +271,10 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const searchParams = useSearchParams();
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const [visits, setVisits] = useState<SiteVisitRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [loading, setLoading] = useState(true);
@@ -383,8 +387,8 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
           <SiteVisitWizard visits={visits} prefillProjectId={prefillProjectId} creating={creating} onSubmit={handleWizardSubmit} />
         )}
 
-        <div className={historyStyles.toolbar} style={{ marginTop: 24 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5 }}>
+        <div className={`${historyStyles.toolbar} ${historyStyles.toolbarSpaced}`}>
+          <label className={styles.checkboxLabelInline}>
             <input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />
             Open visits only
           </label>
@@ -437,7 +441,7 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
                     <td>{v.status === 'open' ? 'Open' : 'Closed'}</td>
                     <td>{isReminderDue(v) ? <span className={historyStyles.reminderBadge}>Reminder due</span> : <span className={historyStyles.followUpOk}>-</span>}</td>
                     <td>{v.created_by}</td>
-                    <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <td className={historyStyles.rowActionsInline}>
                       <button type="button" className={historyStyles.button} onClick={() => setOpenId(v.id)}>
                         Open
                       </button>

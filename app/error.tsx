@@ -12,7 +12,7 @@ export default function Error({ error, unstable_retry }: { error: Error & { dige
   }, [error]);
 
   return (
-    <div className={styles.body} style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className={`${styles.body} ${styles.fullPageColumn}`}>
       <header className={styles.header}>
         <div className={styles.headerBrand}>
           <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
@@ -22,12 +22,12 @@ export default function Error({ error, unstable_retry }: { error: Error & { dige
           </div>
         </div>
       </header>
-      <main className={styles.main} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 12 }}>
-        <div style={{ fontSize: 64, fontWeight: 800, color: '#dc2626' }}>500</div>
-        <h2 style={{ margin: 0 }}>Something went wrong</h2>
-        <p style={{ color: '#6b7280', maxWidth: 420 }}>An unexpected error occurred. You can try again, or head back to the dashboard.</p>
-        {error.digest && <p style={{ color: '#9ca3af', fontSize: 12 }}>Reference: {error.digest}</p>}
-        <div style={{ display: 'flex', gap: 10 }}>
+      <main className={`${styles.main} ${styles.centeredMain}`}>
+        <div className={styles.errorCode}>500</div>
+        <h2 className={styles.errorHeading}>Something went wrong</h2>
+        <p className={styles.errorBody}>An unexpected error occurred. You can try again, or head back to the dashboard.</p>
+        {error.digest && <p className={styles.errorReference}>Reference: {error.digest}</p>}
+        <div className={styles.errorActionsRow}>
           <button type="button" className={`${styles.button} ${styles.primary}`} onClick={() => unstable_retry()}>
             Try again
           </button>

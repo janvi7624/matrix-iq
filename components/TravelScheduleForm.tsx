@@ -3,6 +3,7 @@
 import { MODE_OF_TRAVEL_OPTIONS, PURPOSE_OPTIONS, isKnownPurpose } from '@/lib/travelOptions';
 import { TravelCoTraveller } from '@/lib/types';
 import calcStyles from './calculator.module.css';
+import styles from './travelScheduleForm.module.css';
 
 // Flat slice of a host form's state that this shared block owns — both
 // components/TravelScheduleView.tsx's create form and
@@ -128,13 +129,13 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
         </div>
       )}
 
-      <div className={calcStyles.field} style={{ marginTop: 12 }}>
+      <div className={`${calcStyles.field} ${calcStyles.mt12}`}>
         <label className={calcStyles.label}>Add Co-Traveller</label>
         {value.coTravellers.map((c, i) => (
-          <div key={i} className={calcStyles.sectionPanel} style={{ marginTop: 8, padding: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <strong style={{ fontSize: '0.85rem' }}>Co-traveller {i + 1}</strong>
-              <button type="button" onClick={() => removeCoTraveller(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mx-danger, #dc2626)', fontSize: '0.85rem' }}>
+          <div key={i} className={`${calcStyles.sectionPanel} ${styles.coTravellerCard}`}>
+            <div className={styles.rowBetweenMb6}>
+              <strong className={styles.smallLabel}>Co-traveller {i + 1}</strong>
+              <button type="button" onClick={() => removeCoTraveller(i)} className={styles.removeLinkBtn}>
                 Remove
               </button>
             </div>
@@ -148,7 +149,7 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
                 <input className={calcStyles.formControl} value={c.contact} onChange={(e) => updateCoTraveller(i, { contact: e.target.value })} />
               </div>
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', margin: '8px 0' }}>
+            <label className={styles.checkboxLabelSpaced}>
               <input type="checkbox" onChange={(e) => applySameAsAbove(i, e.target.checked)} />
               Same as Above
             </label>
@@ -168,14 +169,14 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
             </div>
           </div>
         ))}
-        <button type="button" className={calcStyles.secondaryButton} style={{ marginTop: 8 }} onClick={addCoTraveller}>
+        <button type="button" className={`${calcStyles.secondaryButton} ${calcStyles.mt8}`} onClick={addCoTraveller}>
           + Add Co-traveller
         </button>
       </div>
 
-      <div className={calcStyles.sectionPanel} style={{ marginTop: 16, padding: 12 }}>
-        <h4 className={calcStyles.label} style={{ marginTop: 0, marginBottom: 8, fontSize: '0.9rem' }}>Hotel Accommodation</h4>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', marginBottom: 8 }}>
+      <div className={`${calcStyles.sectionPanel} ${styles.subPanel}`}>
+        <h4 className={`${calcStyles.label} ${styles.subPanelHeading}`}>Hotel Accommodation</h4>
+        <label className={styles.checkboxLabelMb8}>
           <input type="checkbox" checked={value.hotelRequired} onChange={(e) => onChange({ hotelRequired: e.target.checked })} />
           Accommodation Required
         </label>
@@ -205,7 +206,7 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
                 <input type="date" className={calcStyles.formControl} value={value.hotelCheckOutDate} onChange={(e) => onChange({ hotelCheckOutDate: e.target.value })} required />
               </div>
             </div>
-            {nights > 0 && <div style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: 8 }}>{nights} night{nights === 1 ? '' : 's'}</div>}
+            {nights > 0 && <div className={styles.nightsNote}>{nights} night{nights === 1 ? '' : 's'}</div>}
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Guests</label>
               <input type="number" min={1} className={calcStyles.formControl} value={value.hotelGuests} onChange={(e) => onChange({ hotelGuests: e.target.value })} />
@@ -218,9 +219,9 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
         )}
       </div>
 
-      <div className={calcStyles.sectionPanel} style={{ marginTop: 16, padding: 12 }}>
-        <h4 className={calcStyles.label} style={{ marginTop: 0, marginBottom: 8, fontSize: '0.9rem' }}>Advance Request</h4>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', marginBottom: 8 }}>
+      <div className={`${calcStyles.sectionPanel} ${styles.subPanel}`}>
+        <h4 className={`${calcStyles.label} ${styles.subPanelHeading}`}>Advance Request</h4>
+        <label className={styles.checkboxLabelMb8}>
           <input type="checkbox" checked={value.advanceRequired} onChange={(e) => onChange({ advanceRequired: e.target.checked })} />
           Advance Required
         </label>

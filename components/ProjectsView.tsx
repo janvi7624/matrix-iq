@@ -16,11 +16,20 @@ import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
+import { Field, FieldRow } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import SubmitButton from './ui/SubmitButton';
+import FilterBar from './ui/FilterBar';
+import ToolbarButton from './ui/ToolbarButton';
+import Table, { TableColumn } from './ui/Table';
 
 const EMPTY_FORM = {
   clientName: '',
   company: '',
   contactPerson: '',
+  altContactPhone: '',
   phone: '',
   email: '',
   address: '',
@@ -53,13 +62,16 @@ function formatDateTime(iso: string): string {
 }
 
 interface ProjectsViewProps {
-  currentUser: { username: string; role: UserRole };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
 export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
+  // Role Management's isPrivileged flag, resolved server-side — NOT
+  // re-derived from role name, since an admin can toggle a role's
+  // privileged status independently of what the role is called.
+  const isPrivileged = currentUser.isPrivileged;
   const isSuperAdmin = currentUser.role === 'superadmin';
   const isTechnical = currentUser.role === 'engineer';
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -172,125 +184,167 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     );
   }
 
+  const columns: TableColumn<ProjectRecord>[] = [
+    {
+      key: 'client',
+      header: 'Client',
+      render: (p) => (
+        <>
+          {p.client_name || p.company || '-'}
+          {p.company && p.client_name ? ` (${p.company})` : ''}
+        </>
+      )
+    },
+    { key: 'salesPerson', header: 'Sales Person', render: (p) => p.sales_person },
+    { key: 'stage', header: 'Stage', render: (p) => STAGE_LABEL[p.stage] },
+    { key: 'status', header: 'Status', render: (p) => STATUS_LABEL[p.status] },
+    { key: 'updated', header: 'Last Updated', render: (p) => formatDateTime(p.updated_at) },
+    { key: 'nextFollowUp', header: 'Next Follow-up', render: (p) => formatDate(p.next_follow_up_date) },
+    {
+      key: 'progress',
+      header: 'Progress',
+      render: (p) => (
+        <>
+          <div className={historyStyles.progressTrack}>
+            <div
+              className={`${historyStyles.progressFill} ${p.status === 'lost' ? historyStyles.progressFillLost : ''}`}
+              style={{ width: `${p.status === 'lost' ? 100 : stageProgressPercent(p.stage)}%` }}
+            />
+          </div>
+          <div className={historyStyles.progressLabel}>{p.status === 'lost' ? 'Closed Lost' : `${stageProgressPercent(p.stage)}%`}</div>
+        </>
+      )
+    },
+    {
+      key: 'actions',
+      header: '',
+      cellClassName: historyStyles.rowActionsInline,
+      render: (p) => (
+        <>
+          <Link className={historyStyles.button} href={`/projects/${p.id}`}>
+            View
+          </Link>
+          {isSuperAdmin && (
+            <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(p.id)}>
+              Delete
+            </button>
+          )}
+        </>
+      )
+    }
+  ];
+
   return (
     <AppShell title="Project Dashboard" subtitle="Every sales project, site visit to close, in one pipeline.">
-        <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+        <div className={historyStyles.actionRow}>
           {!isTechnical && (
             <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
               {showForm ? 'Cancel' : '+ New Project'}
             </button>
           )}
-          <button type="button" className={historyStyles.button} onClick={handleExportPdf}>
+          <ToolbarButton onClick={handleExportPdf}>
             Export PDF
-          </button>
-          <button type="button" className={historyStyles.button} onClick={() => window.print()}>
+          </ToolbarButton>
+          <ToolbarButton onClick={() => window.print()}>
             Print
-          </button>
-          <button type="button" className={historyStyles.button} onClick={load}>
+          </ToolbarButton>
+          <ToolbarButton onClick={load}>
             Refresh
-          </button>
+          </ToolbarButton>
         </div>
 
         {showForm && (
-          <form className={calcStyles.sectionPanel} onSubmit={handleCreate} style={{ marginBottom: 20 }}>
-            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Client name</label>
-                <input className={calcStyles.formControl} value={form.clientName} onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))} />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Company</label>
-                <input className={calcStyles.formControl} value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Contact person</label>
-                <input className={calcStyles.formControl} value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
-              </div>
-            </div>
-            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Phone</label>
+          <form className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`} onSubmit={handleCreate}>
+            <FieldRow>
+              <Field label="Client Representative Name">
+                <Input value={form.clientName} onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))} />
+              </Field>
+              <Field label="Company">
+                <Input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} />
+              </Field>
+            </FieldRow>
+            <FieldRow>
+              <Field label="Phone">
                 <PhoneInput value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Email</label>
-                <input type="email" className={calcStyles.formControl} value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Address</label>
-                <input className={calcStyles.formControl} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
-              </div>
-            </div>
-            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              </Field>
+              <Field label="Email">
+                <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+              </Field>
+              <Field label="Address">
+                <Input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+              </Field>
+            </FieldRow>
+            <FieldRow>
+              <Field label="Alternate Contact Name (optional)">
+                <Input value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
+              </Field>
+              <Field label="Alternate Contact Phone (optional)">
+                <PhoneInput value={form.altContactPhone} onChange={(v) => setForm((f) => ({ ...f, altContactPhone: v }))} />
+              </Field>
+            </FieldRow>
+            <FieldRow>
               {isPrivileged && (
-                <div className={calcStyles.field}>
-                  <label className={calcStyles.label}>Sales person</label>
-                  <select className={calcStyles.formControl} value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
+                <Field label="Sales person">
+                  <Select value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
                     <option value="">Defaults to you</option>
                     {assignableUsers.map((u) => (
                       <option key={u.id} value={u.id}>{u.name || u.username}</option>
                     ))}
-                  </select>
-                </div>
+                  </Select>
+                </Field>
               )}
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Source</label>
-                <input className={calcStyles.formControl} placeholder="Referral, website, cold call…" value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))} />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Priority</label>
-                <select className={calcStyles.formControl} value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as ProjectPriority }))}>
+              <Field label="Source">
+                <Input placeholder="Referral, website, cold call…" value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))} />
+              </Field>
+              <Field label="Priority">
+                <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as ProjectPriority }))}>
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
-                </select>
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Expected closing date</label>
-                <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={form.expectedClosingDate} onChange={(e) => setForm((f) => ({ ...f, expectedClosingDate: e.target.value }))} />
-              </div>
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Remarks</label>
-              <textarea className={calcStyles.formControl} rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
-            </div>
-            <button type="submit" className={calcStyles.btn} disabled={creating}>
-              {creating ? 'Creating…' : 'Create project'}
-            </button>
+                </Select>
+              </Field>
+              <Field label="Expected closing date">
+                <Input type="date" min={todayDateInputValue()} value={form.expectedClosingDate} onChange={(e) => setForm((f) => ({ ...f, expectedClosingDate: e.target.value }))} />
+              </Field>
+            </FieldRow>
+            <Field label="Remarks">
+              <Textarea rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
+            </Field>
+            <SubmitButton disabled={creating}>{creating ? 'Creating…' : 'Create project'}</SubmitButton>
           </form>
         )}
 
-        <div className={historyStyles.toolbar}>
+        <FilterBar>
           <input type="text" placeholder="Search client, company, project ID…" value={fSearch} onChange={(e) => setFSearch(e.target.value)} />
           {isPrivileged && (
-            <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
+            <Select auto value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
               <option value="">All sales people</option>
               {salesPeople.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
-            </select>
+            </Select>
           )}
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fStage} onChange={(e) => setFStage(e.target.value as ProjectStage | '')}>
+          <Select auto value={fStage} onChange={(e) => setFStage(e.target.value as ProjectStage | '')}>
             <option value="">All stages</option>
             {FORWARD_STAGES.concat('closed_lost').map((s) => (
               <option key={s} value={s}>{STAGE_LABEL[s]}</option>
             ))}
-          </select>
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fStatus} onChange={(e) => setFStatus(e.target.value as ProjectStatus | '')}>
+          </Select>
+          <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as ProjectStatus | '')}>
             <option value="">All statuses</option>
             {(Object.keys(STATUS_LABEL) as ProjectStatus[]).map((s) => (
               <option key={s} value={s}>{STATUS_LABEL[s]}</option>
             ))}
-          </select>
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={fPriority} onChange={(e) => setFPriority(e.target.value as ProjectPriority | '')}>
+          </Select>
+          <Select auto value={fPriority} onChange={(e) => setFPriority(e.target.value as ProjectPriority | '')}>
             <option value="">All priorities</option>
             {(Object.keys(PRIORITY_LABEL) as ProjectPriority[]).map((p) => (
               <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>
             ))}
-          </select>
-          <input type="date" className={calcStyles.formControl} style={{ width: 'auto' }} value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
-          <input type="date" className={calcStyles.formControl} style={{ width: 'auto' }} value={fTo} onChange={(e) => setFTo(e.target.value)} />
-        </div>
+          </Select>
+          <Input auto type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
+          <Input auto type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} />
+        </FilterBar>
         {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
         {loading ? (
@@ -299,69 +353,19 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
         ) : (
         loaded && (
-          <div className={historyStyles.tableWrap}>
-          <table className={historyStyles.table}>
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Sales Person</th>
-                <th>Stage</th>
-                <th>Status</th>
-                <th>Last Updated</th>
-                <th>Next Follow-up</th>
-                <th>Progress</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={8}>
-                    <EmptyState
-                      icon={FolderKanban}
-                      title={projects.length === 0 ? (isTechnical ? 'No projects assigned to you yet' : 'No projects yet') : 'No projects match your filters'}
-                      message={projects.length === 0 ? (isTechnical ? "You'll see a project here once someone assigns you as its technical lead." : 'Create your first project to start tracking it through the pipeline.') : 'Try clearing a filter or search term.'}
-                      action={projects.length === 0 && !isTechnical ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>+ New Project</button> : undefined}
-                    />
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      {p.client_name || p.company || '-'}
-                      {p.company && p.client_name ? ` (${p.company})` : ''}
-                    </td>
-                    <td>{p.sales_person}</td>
-                    <td>{STAGE_LABEL[p.stage]}</td>
-                    <td>{STATUS_LABEL[p.status]}</td>
-                    <td>{formatDateTime(p.updated_at)}</td>
-                    <td>{formatDate(p.next_follow_up_date)}</td>
-                    <td>
-                      <div className={historyStyles.progressTrack}>
-                        <div
-                          className={`${historyStyles.progressFill} ${p.status === 'lost' ? historyStyles.progressFillLost : ''}`}
-                          style={{ width: `${p.status === 'lost' ? 100 : stageProgressPercent(p.stage)}%` }}
-                        />
-                      </div>
-                      <div className={historyStyles.progressLabel}>{p.status === 'lost' ? 'Closed Lost' : `${stageProgressPercent(p.stage)}%`}</div>
-                    </td>
-                    <td style={{ display: 'flex', gap: 6 }}>
-                      <Link className={historyStyles.button} href={`/projects/${p.id}`}>
-                        View
-                      </Link>
-                      {isSuperAdmin && (
-                        <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(p.id)}>
-                          Delete
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-          </div>
+          <Table
+            columns={columns}
+            rows={filtered}
+            rowKey={(p) => p.id}
+            empty={
+              <EmptyState
+                icon={FolderKanban}
+                title={projects.length === 0 ? (isTechnical ? 'No projects assigned to you yet' : 'No projects yet') : 'No projects match your filters'}
+                message={projects.length === 0 ? (isTechnical ? "You'll see a project here once someone assigns you as its technical lead." : 'Create your first project to start tracking it through the pipeline.') : 'Try clearing a filter or search term.'}
+                action={projects.length === 0 && !isTechnical ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>+ New Project</button> : undefined}
+              />
+            }
+          />
         )
         )}
     </AppShell>

@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 import { findUserById } from '@/lib/userStore';
+import { resolveIsPrivileged } from '@/lib/permissions';
 import DemoScheduleView from '@/components/DemoScheduleView';
 
 export default async function DemoSchedulePage() {
@@ -12,5 +13,7 @@ export default async function DemoSchedulePage() {
   const user = await findUserById(session.sub);
   if (!user) redirect('/login');
 
-  return <DemoScheduleView currentUser={{ username: user.username, role: user.role }} />;
+  const isPrivileged = await resolveIsPrivileged(user.role);
+
+  return <DemoScheduleView currentUser={{ username: user.username, role: user.role, isPrivileged }} />;
 }

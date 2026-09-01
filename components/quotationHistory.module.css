@@ -20,6 +20,8 @@
     display: flex;
     align-items: center;
     gap: 14px;
+    text-decoration: none;
+    color: inherit;
 }
 .headerLogo {
     height: 38px;
@@ -267,6 +269,18 @@
     object-fit: cover;
     border-radius: 8px;
     border: 1px solid #e5e7eb;
+}
+/* Wraps an .imageStrip img that acts as a "click to remove" control — a
+   bare <button> reset so the image inside renders identically to a plain
+   <img>, but the control is keyboard-focusable/operable and has a real
+   accessible name (unlike an onClick on the <img> itself, which is neither). */
+.imageStripRemoveBtn {
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    display: inline-block;
+    line-height: 0;
 }
 .timeline {
     display: flex;
@@ -598,6 +612,25 @@
     border-color: var(--mx-brand);
     box-shadow: 0 0 0 3px var(--mx-brand-subtle);
 }
+.loginPasswordWrap { position: relative; display: flex; }
+.loginPasswordWrap input { width: 100%; padding-right: 38px; }
+.loginPasswordToggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+    border-radius: 6px;
+}
+.loginPasswordToggle:hover { color: var(--mx-ink); background: var(--mx-surface-hover, rgba(0, 0, 0, 0.05)); }
 .loginError { color: #b91c1c; font-size: 13px; margin-bottom: 12px; }
 .loginSubmit {
     width: 100%;
@@ -1154,3 +1187,62 @@
 .rowMenuItemDanger { color: var(--mx-danger); }
 .rowMenuItemDanger:hover { background: var(--mx-danger-subtle); }
 .notifItemTime { font-size: 10.5px; color: var(--mx-ink-faint); margin-top: 4px; }
+
+/* Quotation History / Table — was inline style={{}} on QuotationTable.tsx */
+.deltaPositive { color: var(--mx-danger); font-weight: var(--mx-weight-medium); }
+.deltaNegative { color: var(--mx-success); font-weight: var(--mx-weight-medium); }
+.deltaNeutral { color: var(--mx-ink-muted); font-weight: var(--mx-weight-medium); }
+.revisionTag { margin-left: 6px; }
+.statusSelect { padding: 4px 6px; border-radius: var(--mx-radius-xs); border: 1px solid var(--mx-border-strong); font-size: var(--mx-text-meta); }
+.expiredNote { font-size: 11px; color: var(--mx-ink-faint); }
+.rowActionsInline { display: flex; gap: 6px; flex-wrap: wrap; }
+.versionTable { composes: table; margin-top: 10px; }
+.projectIdInput { max-width: 140px; }
+.followUpCheckboxLabel { display: flex; align-items: center; gap: 6px; font-size: var(--mx-text-body); white-space: nowrap; }
+/* Was inline style={{ marginTop: 24 }} on a .toolbar in several simple
+   record-list views (Negotiation, Customer Response, PO, Installation) that
+   sit right below a "log a new entry" form. */
+.toolbarSpaced { margin-top: 24px; }
+
+/* Client Master — was inline style={{}} */
+.clientName { font-weight: var(--mx-weight-medium); }
+.contactLine:not(:last-child) { margin-bottom: 4px; }
+.altContactLine { opacity: 0.75; }
+.productHandlerList { display: flex; flex-wrap: wrap; gap: 6px; }
+.productHandlerBadge { white-space: nowrap; }
+.actionRow { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+/* Audit Log's entity-type filter — deliberately lighter-weight than
+   .formControl (no min-height/font-size bump), matching what was previously
+   a bare inline-styled <select>. */
+.plainSelect { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--mx-border-strong); }
+/* TMS Tab Access — role-group header row. Was inline #f8f9fb, one shade off
+   the existing --mx-surface-sunken (#f8fafc); snapped onto that token rather
+   than adding a near-duplicate gray. */
+.permGroupRow { background: var(--mx-surface-sunken); }
+.verticalDivider { width: 1px; align-self: stretch; background: var(--mx-border); }
+.bucketRow { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+
+/* Detail-panel spacing modifiers — reused across Back Office, and any other
+   view built on the shared .detailPanel/.reviewGrid/.actionBar classes. */
+.detailPanelFlush { margin-top: 0; }
+.reviewGridSpaced { margin-bottom: 12px; }
+.actionBarTight { margin: 12px 0; }
+.h3Flush { margin-top: 0; }
+.inlineCheckboxRow { display: flex; gap: 6px; align-items: center; }
+.pillButton { border-radius: 999px; padding: 6px 12px; border: 1px solid var(--mx-border-strong); }
+
+/* app/not-found.tsx and app/error.tsx — was inline style={{}} objects. */
+.fullPageColumn { min-height: 100vh; display: flex; flex-direction: column; }
+.centeredMain { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; }
+.errorCode { font-size: 64px; font-weight: 800; color: var(--mx-brand); }
+.errorHeading { margin: 0; }
+.errorBody { color: var(--mx-ink-muted); max-width: 420px; }
+.errorReference { color: var(--mx-ink-faint); font-size: 12px; }
+.errorActionsRow { display: flex; gap: 10px; }
+
+/* components/QuotationTable.tsx's VersionHistory used `styles.small` (this
+   module) pre-existing from before this session — but `.small` was never
+   actually defined here (only in calculator.module.css, which this file
+   doesn't import), so the loading/error/empty states silently rendered
+   unstyled. Added to match calculator.module.css's `.small` exactly. */
+.small { font-size: 0.92rem; color: #94a3b8; }

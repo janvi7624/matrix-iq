@@ -8,6 +8,7 @@ import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
+import pageStyles from './productsPage.module.css';
 
 interface ProductForm {
   name: string;
@@ -198,7 +199,7 @@ export default function ProductMasterPage() {
 
   return (
     <AppShell title="Product Master" subtitle="Administration › products available to pick from in every quotation's Custom Products list.">
-        <h2 className={calcStyles.h2} style={{ marginTop: 0 }}>Add product</h2>
+        <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Add product</h2>
         <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
           {createError && <div className={historyStyles.loginError}>{createError}</div>}
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -262,7 +263,7 @@ export default function ProductMasterPage() {
 
         <h2 className={calcStyles.h2}>Import / Export</h2>
         <div className={calcStyles.sectionPanel}>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className={pageStyles.importRow}>
             <input ref={fileInputRef} type="file" accept=".csv,.xlsx" onChange={handleImport} disabled={importing} />
             <a className={historyStyles.button} href="/api/admin/products/export.csv">Export CSV</a>
             <a className={historyStyles.button} href="/api/admin/products/export.xlsx">Export XLSX</a>
@@ -276,11 +277,11 @@ export default function ProductMasterPage() {
         <h2 className={calcStyles.h2}>Products</h2>
         <div className={historyStyles.toolbar}>
           <input type="text" placeholder="Search name, SKU, brand..." value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()} />
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+          <select className={`${calcStyles.formControl} ${pageStyles.autoWidth}`} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
             <option value="">All categories</option>
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select className={calcStyles.formControl} style={{ width: 'auto' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ProductStatus | '')}>
+          <select className={`${calcStyles.formControl} ${pageStyles.autoWidth}`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ProductStatus | '')}>
             <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -290,17 +291,17 @@ export default function ProductMasterPage() {
         <div className={historyStyles.status}>{status}</div>
 
         {selected.size > 0 && (
-          <div className={calcStyles.sectionPanel} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+          <div className={`${calcStyles.sectionPanel} ${pageStyles.bulkBar}`}>
             <strong>{selected.size} selected —</strong>
-            <select className={calcStyles.formControl} style={{ width: 'auto' }} value={bulkField} onChange={(e) => setBulkField(e.target.value as 'basePrice' | 'sellingPrice')}>
+            <select className={`${calcStyles.formControl} ${pageStyles.autoWidth}`} value={bulkField} onChange={(e) => setBulkField(e.target.value as 'basePrice' | 'sellingPrice')}>
               <option value="sellingPrice">Selling Price</option>
               <option value="basePrice">Base Price</option>
             </select>
-            <select className={calcStyles.formControl} style={{ width: 'auto' }} value={bulkMode} onChange={(e) => setBulkMode(e.target.value as 'percent' | 'flat')}>
+            <select className={`${calcStyles.formControl} ${pageStyles.autoWidth}`} value={bulkMode} onChange={(e) => setBulkMode(e.target.value as 'percent' | 'flat')}>
               <option value="percent">Adjust by %</option>
               <option value="flat">Set to fixed amount</option>
             </select>
-            <input className={calcStyles.formControl} style={{ width: 120 }} type="number" value={bulkValue === 0 ? '' : bulkValue} onFocus={selectAllOnFocusIfZero} onChange={(e) => setBulkValue(parseFloat(e.target.value) || 0)} placeholder={bulkMode === 'percent' ? '+/- %' : 'Amount'} />
+            <input className={`${calcStyles.formControl} ${pageStyles.width120}`} type="number" value={bulkValue === 0 ? '' : bulkValue} onFocus={selectAllOnFocusIfZero} onChange={(e) => setBulkValue(parseFloat(e.target.value) || 0)} placeholder={bulkMode === 'percent' ? '+/- %' : 'Amount'} />
             <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={handleBulkUpdate}>Apply Bulk Update</button>
             <button type="button" className={historyStyles.button} onClick={() => setSelected(new Set())}>Clear selection</button>
           </div>
@@ -346,7 +347,7 @@ export default function ProductMasterPage() {
                           </select>
                         </td>
                         <td>
-                          <div style={{ display: 'flex', gap: 6 }}>
+                          <div className={pageStyles.actionsRow6}>
                             <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveEdit(p.id)}>Save</button>
                             <button type="button" className={historyStyles.button} onClick={() => { setEditingId(null); setEditState(null); }}>Cancel</button>
                           </div>
@@ -368,7 +369,7 @@ export default function ProductMasterPage() {
                           </span>
                         </td>
                         <td>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <div className={historyStyles.rowActionsInline}>
                             <button type="button" className={historyStyles.button} onClick={() => startEdit(p)}>Edit</button>
                             <button type="button" className={historyStyles.button} onClick={() => handleDuplicate(p)}>Duplicate</button>
                             <button type="button" className={historyStyles.button} onClick={() => toggleStatus(p)}>{p.status === 'active' ? 'Deactivate' : 'Activate'}</button>

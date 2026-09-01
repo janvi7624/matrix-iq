@@ -23,20 +23,34 @@ export type { TmsModuleKey } from './tmsConstants';
 
 export interface TmsViewer extends ViewerContext {
   department: string;
+  // Department row id, for row-level filtering against TmsProject.department_id
+  // (a real FK) — the plain `department` name above is only good for display
+  // and for module-visibility's TMS_DEPARTMENTS name match.
+  departmentId: string;
   // Real user id — needed to compare against raw FK columns like
   // TmsTaskRecord.assignee_id (created_by fields are resolved usernames by
   // convention, but assignee_id etc. stay raw ids — see the TMS stores).
   userId: string;
 }
 
-// Resolves the viewer, their department, AND their user id in one call —
-// every app/api/tms/** route starts here instead of the plain
-// getViewerContext(), since both are needed for the gates below.
+// Resolves the viewer, their department (name + id), AND their user id in
+// one call — every app/api/tms/** route starts here instead of the plain
+// getViewerContext(), since all of these are needed for the gates below.
 export async function getTmsViewer(request: NextRequest): Promise<TmsViewer | null> {
   const viewer = await getViewerContext(request);
   if (!viewer) return null;
   const user = await findUserByUsername(viewer.username);
-  return { ...viewer, department: user?.department ?? '', userId: user?.id ?? '' };
+  const deptRow = user?.department ? await db.Department.findOne({ where: { name: user.department } as never, attributes: ['id'] }) : null;
+  return { ...viewer, department: user?.department ?? '', departmentId: deptRow ? (deptRow.get('id') as string) : '', userId: user?.id ?? '' };
+}
+
+// Manager-tier TMS roles — sees their department's whole project pool, not
+// just their own. Matches the same two roles
+// components/TmsDashboardView.tsx's MANAGER_TIER_ROLES already treats as
+// manager-tier client-side (that set also includes admin/superadmin, handled
+// separately via viewer.isPrivileged wherever this is used).
+export function isTmsManagerTier(viewer: TmsViewer): boolean {
+  return viewer.role === 'technical-manager' || viewer.role === 'team-lead';
 }
 
 // Combined gate: module enabled + role-visible + department-visible (or

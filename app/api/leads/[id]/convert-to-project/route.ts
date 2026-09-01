@@ -48,6 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       client_name: lead.name,
       company: lead.company,
       contact_person: lead.name,
+      alt_contact_phone: '',
       phone: lead.mobile,
       email: lead.email,
       address: lead.city,
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       attachments: [],
       assigned_technical_person_id: '',
       assigned_technical_person_name: '',
+      tms_project_id: '',
       timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created from a captured lead', remarks: noteParts.join(' | ') }],
       updated_at: now
     };

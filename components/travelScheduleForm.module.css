@@ -1,0 +1,12 @@
+/* components/TravelScheduleForm.tsx — was inline style={{}} objects. */
+
+.coTravellerCard { margin-top: 8px; padding: 12px; }
+.rowBetweenMb6 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.smallLabel { font-size: 0.85rem; }
+.removeLinkBtn { background: none; border: none; cursor: pointer; color: var(--mx-danger, #dc2626); font-size: 0.85rem; }
+.checkboxLabelSpaced { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; margin: 8px 0; }
+
+.subPanel { margin-top: 16px; padding: 12px; }
+.subPanelHeading { margin-top: 0; margin-bottom: 8px; font-size: 0.9rem; }
+.checkboxLabelMb8 { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; margin-bottom: 8px; }
+.nightsNote { font-size: 0.8rem; opacity: 0.7; margin-bottom: 8px; }

@@ -11,6 +11,7 @@ import TravelScheduleForm, { EMPTY_TRAVEL_EXTRA_FIELDS, travelExtraFieldsToPaylo
 import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './travelScheduleView.module.css';
 
 interface UserOption {
   id: string;
@@ -36,7 +37,6 @@ interface TravelScheduleViewProps {
 }
 
 export default function TravelScheduleView({ currentUser }: TravelScheduleViewProps) {
-  const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.role === 'manager';
   const toast = useToast();
   const [records, setRecords] = useState<TravelScheduleRecord[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -101,7 +101,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
 
       {showForm && (
         <>
-          <h2 className={calcStyles.h2} style={{ marginTop: 16 }}>New Travel Request</h2>
+          <h2 className={`${calcStyles.h2} ${styles.mt16}`}>New Travel Request</h2>
           <form className={calcStyles.sectionPanel} onSubmit={handleCreate}>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
@@ -113,7 +113,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
                 <input className={calcStyles.formControl} value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} required />
               </div>
             </div>
-            <h3 className={calcStyles.label} style={{ marginTop: 12, marginBottom: 4, fontSize: '0.85rem', opacity: 0.7 }}>When do you need to reach the destination?</h3>
+            <h3 className={`${calcStyles.label} ${styles.subHeading}`}>When do you need to reach the destination?</h3>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Arrival Date *</label>
@@ -124,7 +124,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
                 <input type="time" className={calcStyles.formControl} value={form.requiredArrivalTime} onChange={(e) => setForm((f) => ({ ...f, requiredArrivalTime: e.target.value }))} />
               </div>
             </div>
-            <h3 className={calcStyles.label} style={{ marginTop: 12, marginBottom: 4, fontSize: '0.85rem', opacity: 0.7 }}>When do you want to leave the destination?</h3>
+            <h3 className={`${calcStyles.label} ${styles.subHeading}`}>When do you want to leave the destination?</h3>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Departure Date</label>
@@ -155,7 +155,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
               requesterDestination={form.destination}
               requesterTravelDate={form.startDate}
             />
-            <div className={calcStyles.field} style={{ marginTop: 12 }}>
+            <div className={`${calcStyles.field} ${calcStyles.mt12}`}>
               <label className={calcStyles.label}>Travel Companions</label>
               <select
                 className={calcStyles.formControl}
@@ -173,13 +173,13 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
                 ))}
               </select>
               {form.companionIds.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                <div className={styles.companionPillRow}>
                   {form.companionIds.map((id) => {
                     const user = users.find((u) => u.id === id);
                     return (
-                      <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 12, background: 'var(--mx-surface-alt, #e5e7eb)', fontSize: '0.85rem' }}>
+                      <span key={id} className={styles.pillEditable}>
                         {user?.name || user?.username || id}
-                        <button type="button" onClick={() => setForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, opacity: 0.6 }}>&times;</button>
+                        <button type="button" onClick={() => setForm((f) => ({ ...f, companionIds: f.companionIds.filter((c) => c !== id) }))} className={styles.pillRemoveBtn}>&times;</button>
                       </span>
                     );
                   })}
@@ -218,7 +218,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
             ) : (
               records.map((r) => (
                 <tr key={r.id}>
-                  <td><Link href={`/travel-schedule/${r.id}`} style={{ color: 'var(--mx-brand)', textDecoration: 'none' }}>{r.request_code || '-'}</Link></td>
+                  <td><Link href={`/travel-schedule/${r.id}`} className={styles.brandLink}>{r.request_code || '-'}</Link></td>
                   <td>
                     {formatDate(r.start_date)}
                     {r.end_date && r.end_date !== r.start_date ? ` - ${formatDate(r.end_date)}` : ''}
@@ -233,7 +233,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
                     />
                   </td>
                   <td>{r.created_by}</td>
-                  <td>{r.companion_names && r.companion_names.length > 0 ? r.companion_names.join(', ') : <span style={{ opacity: 0.4 }}>-</span>}</td>
+                  <td>{r.companion_names && r.companion_names.length > 0 ? r.companion_names.join(', ') : <span className={styles.mutedDash}>-</span>}</td>
                   <td>
                     {r.ticket_documents && r.ticket_documents.length > 0 ? (
                       r.ticket_documents.map((url, i) => {
@@ -244,13 +244,13 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
                         const to = (r.destination || '').replace(/[^a-zA-Z0-9]/g, '');
                         const fileName = `${project || 'NoProject'}_${person}_${from}_${to}_Ticket${r.ticket_documents.length > 1 ? i + 1 : ''}.${ext}`;
                         return (
-                          <a key={url} href={url} target="_blank" rel="noreferrer" download={fileName} style={{ color: 'var(--mx-brand)', textDecoration: 'none', marginRight: 6 }}>
+                          <a key={url} href={url} target="_blank" rel="noreferrer" download={fileName} className={styles.brandLinkSpaced}>
                             {r.ticket_documents.length === 1 ? 'Download' : `Ticket ${i + 1}`}
                           </a>
                         );
                       })
                     ) : (
-                      <span style={{ opacity: 0.4 }}>-</span>
+                      <span className={styles.mutedDash}>-</span>
                     )}
                   </td>
                   <td>
