@@ -315,13 +315,13 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
               {usecaseIsFreeText && (
                 <div>
-                  <label className={styles.fieldLabel}>Specify usecase *</label>
+                  <label className={styles.fieldLabel}>Specify category *</label>
                   <input type="text" className={calcStyles.formControl} placeholder="e.g. Annual audit" value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)} style={{ width: '100%' }} />
                 </div>
               )}
 
               <div>
-                <label className={styles.fieldLabel}>Item Name *</label>
+                <label className={styles.fieldLabel}>Expense Head *</label>
                 <select
                   className={`${calcStyles.formControl} ${styles.fullWidth}`}
                   value={form.itemName}
@@ -335,7 +335,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
               {!!itemSubs?.length && (
                 <div>
-                  <label className={styles.fieldLabel}>{form.itemName} — sub-item *</label>
+                  <label className={styles.fieldLabel}>Item Name *</label>
                   <select className={calcStyles.formControl} value={form.itemSubName} onChange={(e) => setField('itemSubName', e.target.value)} style={{ width: '100%' }}>
                     <option value="">Select…</option>
                     {itemSubs.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -404,9 +404,10 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                   <th>Date</th>
                   <th>Category</th>
                   <th>Expense Head</th>
-                  <th>Item</th>
                   <th style={{ textAlign: 'right' }}>Qty</th>
                   <th style={{ textAlign: 'right' }}>Amount</th>
+                  <th>Description</th>
+                  <th>Remarks</th>
                   <th>Entered By</th>
                   <th>Actions</th>
                 </tr>
@@ -417,21 +418,43 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                     <td className={styles.srNoCell}>{formatSrNo(record.sr_no)}</td>
                     <td className={styles.nowrap}>{formatDate(record.date)}</td>
                     <td>
-                      <span style={{ display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: '12px', fontWeight: 600, background: '#dbeafe', color: '#1e40af' }}>
-                        {record.usecase}
-                      </span>
-                      {record.usecase_detail && (
-                        <div style={{ marginTop: 3, fontSize: '12px', color: 'var(--mx-ink-muted)' }}>{record.usecase_detail}</div>
-                      )}
+                      {/* Detail sits inline beside the usecase badge, matching
+                          the Expense Head / sub-category pairing below. */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: '12px', fontWeight: 600, background: '#dbeafe', color: '#1e40af', whiteSpace: 'nowrap' }}>
+                          {record.usecase}
+                        </span>
+                        {record.usecase_detail && (
+                          <span style={{
+                            display: 'inline-block', padding: '1px 8px', borderRadius: 10,
+                            fontSize: '11.5px', background: '#f3f4f6', color: '#374151', fontWeight: 500,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {record.usecase_detail}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
-                      {record.item_name}
-                      {record.item_sub_name && (
-                        <div style={{ marginTop: 3, fontSize: '12px', color: 'var(--mx-ink-muted)' }}>{record.item_sub_name}</div>
-                      )}
+                      {/* Sub-category sits inline beside the head rather than
+                          stacked under it, so the pair reads as one value. */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span>{record.item_name}</span>
+                        {record.item_sub_name && (
+                          <span style={{
+                            display: 'inline-block', padding: '1px 8px', borderRadius: 10,
+                            fontSize: '11.5px', background: '#f3f4f6', color: '#374151', fontWeight: 500,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {record.item_sub_name}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{record.item_qty ?? '—'}</td>
                     <td style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(record.amount)}</td>
+                    <td style={{ maxWidth: 220 }}>{record.description || '—'}</td>
+                    <td style={{ maxWidth: 200 }}>{record.remarks || '—'}</td>
                     <td style={{ whiteSpace: 'nowrap', fontSize: '12.5px', color: 'var(--mx-ink-muted)' }}>{record.creator_name || '—'}</td>
                     <td>
                       <div className={styles.rowActions}>
