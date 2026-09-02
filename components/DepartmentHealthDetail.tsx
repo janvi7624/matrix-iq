@@ -81,6 +81,7 @@ export default function DepartmentHealthDetail({ department, onClose }: { depart
         role="dialog"
         aria-modal="true"
         aria-labelledby="deptHealthTitle"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.head}>

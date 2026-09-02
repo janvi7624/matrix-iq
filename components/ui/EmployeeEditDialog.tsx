@@ -85,6 +85,7 @@ export default function EmployeeEditDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="employeeEditTitle"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className={notifyStyles.confirmTitle} id="employeeEditTitle">

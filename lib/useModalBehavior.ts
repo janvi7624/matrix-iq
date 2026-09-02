@@ -17,6 +17,10 @@ export function useModalBehavior(onClose: () => void): RefObject<HTMLDivElement 
 
   useEffect(() => {
     restoreFocusRef.current = document.activeElement as HTMLElement | null;
+    const focusable = cardRef.current?.querySelector<HTMLElement>(
+      'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+    );
+    (focusable ?? cardRef.current)?.focus();
     return () => restoreFocusRef.current?.focus?.();
   }, []);
 

@@ -35,6 +35,7 @@ export default function Modal({ title, ariaLabel, onClose, children, footer, siz
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.confirmTitle}>{title}</div>
