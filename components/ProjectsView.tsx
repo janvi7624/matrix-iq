@@ -217,7 +217,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         <>
           <div className={historyStyles.progressTrack}>
             <div
-              className={`${historyStyles.progressFill} ${p.status === 'lost' ? historyStyles.progressFillLost : p.status === 'won' ? historyStyles.progressFillWon : ''}`}
+              className={`${historyStyles.progressFill} ${p.status === 'lost' ? historyStyles.progressFillLost : p.status === 'won' ? historyStyles.progressFillWon : historyStyles.progressFillActive}`}
               style={{ width: `${p.status === 'lost' || p.status === 'won' ? 100 : stageProgressPercent(p.stage)}%` }}
             />
           </div>

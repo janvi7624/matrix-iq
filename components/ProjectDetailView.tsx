@@ -604,7 +604,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         <h2 className={calcStyles.h2}>Project Progress</h2>
         <div className={historyStyles.progressTrack}>
           <div
-            className={`${historyStyles.progressFill} ${project.status === 'lost' ? historyStyles.progressFillLost : project.status === 'won' ? historyStyles.progressFillWon : ''}`}
+            className={`${historyStyles.progressFill} ${project.status === 'lost' ? historyStyles.progressFillLost : project.status === 'won' ? historyStyles.progressFillWon : historyStyles.progressFillActive}`}
             style={{ width: `${progressPercent}%` }}
           />
         </div>
