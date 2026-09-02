@@ -16,6 +16,7 @@ import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
+import StatusBadge from './ui/StatusBadge';
 import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
 import Select from './ui/Select';
@@ -197,7 +198,16 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     },
     { key: 'salesPerson', header: 'Sales Person', render: (p) => p.sales_person },
     { key: 'stage', header: 'Stage', render: (p) => STAGE_LABEL[p.stage] },
-    { key: 'status', header: 'Status', render: (p) => STATUS_LABEL[p.status] },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (p) =>
+        p.status === 'won' || p.status === 'lost' ? (
+          <StatusBadge tone={p.status} label={p.status === 'lost' ? 'Closed Lost' : STATUS_LABEL[p.status]} />
+        ) : (
+          STATUS_LABEL[p.status]
+        )
+    },
     { key: 'updated', header: 'Last Updated', render: (p) => formatDateTime(p.updated_at) },
     { key: 'nextFollowUp', header: 'Next Follow-up', render: (p) => formatDate(p.next_follow_up_date) },
     {
@@ -207,11 +217,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         <>
           <div className={historyStyles.progressTrack}>
             <div
-              className={`${historyStyles.progressFill} ${p.status === 'lost' ? historyStyles.progressFillLost : ''}`}
-              style={{ width: `${p.status === 'lost' ? 100 : stageProgressPercent(p.stage)}%` }}
+              className={`${historyStyles.progressFill} ${p.status === 'lost' ? historyStyles.progressFillLost : p.status === 'won' ? historyStyles.progressFillWon : ''}`}
+              style={{ width: `${p.status === 'lost' || p.status === 'won' ? 100 : stageProgressPercent(p.stage)}%` }}
             />
           </div>
-          <div className={historyStyles.progressLabel}>{p.status === 'lost' ? 'Closed Lost' : `${stageProgressPercent(p.stage)}%`}</div>
+          <div className={historyStyles.progressLabel}>
+            {p.status === 'lost' ? 'Closed Lost' : p.status === 'won' ? 'Won' : `${stageProgressPercent(p.stage)}%`}
+          </div>
         </>
       )
     },

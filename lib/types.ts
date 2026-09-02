@@ -802,6 +802,11 @@ export interface NotificationRecord {
   entity_type: string;
   entity_id: string;
   is_read: boolean;
+  // Resolved server-side (lib/notificationResolver.ts) — always a real,
+  // navigable destination. Notifications whose entity_type/entity_id don't
+  // resolve to one (unrecognized type, or the referenced record no longer
+  // exists) are filtered out of the list before it ever reaches the client.
+  href: string;
 }
 
 export type InstallationStatus = 'scheduled' | 'in_progress' | 'completed';

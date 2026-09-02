@@ -50,6 +50,11 @@
   /* Semantic — one hue per meaning, used consistently for status/badges/alerts */
   --mx-success: #15803d;
   --mx-success-subtle: rgba(21, 128, 61, 0.12);
+  /* Brighter than --mx-success — reserved for a "Won" deal/project outcome,
+     which calls for a more celebratory green than the muted default success
+     tone used for routine confirmations. */
+  --mx-won: #16a34a;
+  --mx-won-subtle: rgba(22, 163, 74, 0.14);
   --mx-warning: #b45309;
   --mx-warning-subtle: rgba(180, 83, 9, 0.14);
   --mx-danger: #b91c1c;

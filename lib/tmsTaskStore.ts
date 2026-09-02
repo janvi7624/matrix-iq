@@ -75,6 +75,18 @@ async function list(viewer: TmsViewer): Promise<TmsTaskRecord[]> {
   return rows.map(toRecord);
 }
 
+// For an arbitrary target person (not the calling viewer) — e.g. the Person
+// Performance Dashboard drill-down, where the caller has already authorized
+// itself to view that person's data via resolveVisibilityScope. Unlike
+// list(viewer), this deliberately does not also match created_by: a task
+// someone merely created for someone else isn't "their" task the way an
+// assignment is.
+async function listForAssignee(userId: string): Promise<TmsTaskRecord[]> {
+  if (!isUuid(userId)) return [];
+  const rows = await db.TmsTask.findAll({ where: { assignee_id: userId } as never, include: ALL_INCLUDES, order: [['due_date', 'ASC']] });
+  return rows.map(toRecord);
+}
+
 async function findById(id: string): Promise<TmsTaskRecord | undefined> {
   if (!isUuid(id)) return undefined;
   const row = await db.TmsTask.findByPk(id, { include: ALL_INCLUDES });
@@ -128,4 +140,4 @@ async function remove(id: string, viewerIsPrivilegedOrManages: boolean): Promise
   return true;
 }
 
-export const tmsTaskStore = { list, readAll, findById, create, update, remove };
+export const tmsTaskStore = { list, readAll, listForAssignee, findById, create, update, remove };

@@ -11,7 +11,7 @@ export interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  size?: 'default' | 'wide';
+  size?: 'default' | 'wide' | 'full';
   /** When false, Escape/overlay-click are disabled — e.g. while a save is in flight. */
   dismissible?: boolean;
 }
@@ -31,7 +31,7 @@ export default function Modal({ title, ariaLabel, onClose, children, footer, siz
     <div className={styles.overlay} role="presentation" onClick={() => dismissible && onClose()}>
       <div
         ref={cardRef}
-        className={size === 'wide' ? styles.wideCard : styles.confirmCard}
+        className={size === 'full' ? styles.fullCard : size === 'wide' ? styles.wideCard : styles.confirmCard}
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}

@@ -51,6 +51,7 @@ import styles from './projectDetail.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import StatusBadge from './ui/StatusBadge';
 
 interface DetailResponse {
   project: ProjectRecord;
@@ -582,7 +583,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <span>Client: <strong>{project.client_name || '-'}</strong></span>
                 <span>Sales Person: <strong>{project.sales_person}</strong></span>
                 <span>Stage: <strong>{STAGE_LABEL[project.stage]}</strong></span>
-                <span>Status: <strong>{STATUS_LABEL[project.status]}</strong></span>
+                <span>
+                  Status:{' '}
+                  {project.status === 'won' || project.status === 'lost' ? (
+                    <StatusBadge tone={project.status} label={project.status === 'lost' ? 'Closed Lost' : STATUS_LABEL[project.status]} />
+                  ) : (
+                    <strong>{STATUS_LABEL[project.status]}</strong>
+                  )}
+                </span>
               </div>
             </div>
             <div className={historyStyles.projectProgressRing}>
@@ -596,7 +604,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         <h2 className={calcStyles.h2}>Project Progress</h2>
         <div className={historyStyles.progressTrack}>
           <div
-            className={`${historyStyles.progressFill} ${project.status === 'lost' ? historyStyles.progressFillLost : ''}`}
+            className={`${historyStyles.progressFill} ${project.status === 'lost' ? historyStyles.progressFillLost : project.status === 'won' ? historyStyles.progressFillWon : ''}`}
             style={{ width: `${progressPercent}%` }}
           />
         </div>

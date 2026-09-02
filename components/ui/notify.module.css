@@ -74,6 +74,18 @@
     padding: 26px 24px;
     box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
 }
+/* Full-size variant for a real dashboard's worth of content (e.g. the Person
+   Performance Dashboard) — not a form, a whole read-only report, so it earns
+   more of the viewport than .wideCard's form-dialog width. */
+.fullCard {
+    width: min(1080px, 96vw);
+    max-height: min(90vh, 860px);
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 20px;
+    padding: 26px 28px;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
 .confirmTitle { font-size: 1.15rem; font-weight: 800; color: #111827; margin-bottom: 8px; }
 .confirmMessage { font-size: 14.5px; color: #4b5563; line-height: 1.55; margin-bottom: 22px; }
 .confirmMessageMb18 { margin-bottom: 18px; }

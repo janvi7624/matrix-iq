@@ -11,7 +11,10 @@ function isoOrEmpty(value: unknown): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
-function toRecord(row: Model): NotificationRecord {
+// href is resolved separately (lib/notificationResolver.ts) — it depends on
+// whether the referenced record still exists, which this store has no
+// reason to know about.
+function toRecord(row: Model): Omit<NotificationRecord, 'href'> {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
   return {
     id: plain.id as string,
@@ -59,7 +62,7 @@ export async function notifyUsers(usernames: string[], input: NotifyInput): Prom
   }
 }
 
-export async function listForUser(username: string, limit = 30): Promise<NotificationRecord[]> {
+export async function listForUser(username: string, limit = 30): Promise<Omit<NotificationRecord, 'href'>[]> {
   const user = await db.User.findOne({ where: { username } as never });
   if (!user) return [];
   const rows = await db.Notification.findAll({ where: { userId: user.get('id') } as never, order: [['createdAt', 'DESC']], limit });

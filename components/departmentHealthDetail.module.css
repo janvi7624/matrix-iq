@@ -266,6 +266,28 @@
     line-height: 1.5;
 }
 
+/* Wraps a .member row in a Link (Person Performance Dashboard's project
+   list) without it reading as a normal blue hyperlink. */
+.memberLink { display: block; text-decoration: none; color: inherit; }
+.memberLink:hover .member { border-color: var(--mx-brand); }
+
+/* Person Performance Dashboard header — name + role/department subtitle
+   passed as Modal's `title`, and the button that opens the modal from a
+   department member row. */
+.personTrigger {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    border-radius: var(--mx-radius-md);
+}
+.personTrigger:hover .member { border-color: var(--mx-brand); }
+.personTrigger:focus-visible { outline: 2px solid var(--mx-brand); outline-offset: 2px; }
+.personSubtitle { font-size: 13px; font-weight: 500; color: var(--mx-ink-muted); margin-top: 2px; }
+
 @media (max-width: 560px) {
     .scoreBlock { flex-direction: column; align-items: flex-start; gap: 8px; }
     .scoreValue { font-size: 2.2rem; }

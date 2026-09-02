@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Info, X } from 'lucide-react';
 import { useModalBehavior } from '@/lib/useModalBehavior';
+import { ProjectRecord } from '@/lib/types';
+import { STAGE_LABEL } from '@/lib/projectStages';
 import { BAND_COLOR, BAND_TEXT, type HealthBand } from './ui/HealthGauge';
 import ErrorState from './ui/ErrorState';
 import { SkeletonRows } from './ui/Skeleton';
+import StatusBadge from './ui/StatusBadge';
+import PersonPerformanceDashboard from './PersonPerformanceDashboard';
 import notifyStyles from './ui/notify.module.css';
 import styles from './departmentHealthDetail.module.css';
 
@@ -47,11 +52,25 @@ function initialsOf(name: string, fallback: string): string {
   return source.split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 }
 
-export default function DepartmentHealthDetail({ department, onClose }: { department: string; onClose: () => void }) {
+interface DepartmentHealthDetailProps {
+  department: string;
+  onClose: () => void;
+  // Only used in the self-only (normal user) view, to list the viewer's own
+  // projects for the "Performance Pipeline → Projects → Project dashboard"
+  // drill-down — already fetched and scoped by app/api/dashboard/route.ts,
+  // so this needs no API call of its own.
+  myProjects?: ProjectRecord[];
+}
+
+export default function DepartmentHealthDetail({ department, onClose, myProjects = [] }: DepartmentHealthDetailProps) {
   const cardRef = useModalBehavior(onClose);
   const [data, setData] = useState<DepartmentHealthResponse | null>(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  // Manager drill-down: which team member's full dashboard is open, by
+  // username (null = none). Not used in the self-only view — that flow goes
+  // straight to the viewer's own projects instead (see myProjects above).
+  const [openPerson, setOpenPerson] = useState<{ username: string; name: string; designation: string; score: number | null; metrics: MetricRow[] } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +93,12 @@ export default function DepartmentHealthDetail({ department, onClose }: { depart
   const color = data ? BAND_COLOR[data.band] : BAND_COLOR.na;
 
   return (
+    // A Fragment, not a nested div — PersonPerformanceDashboard below must be
+    // a sibling of the overlay, not a descendant of it. Its own Modal renders
+    // a separate backdrop with its own onClose; nesting it inside this
+    // overlay's onClick={onClose} div would let a click on the person
+    // dashboard's backdrop bubble up and close this department dialog too.
+    <>
     <div className={notifyStyles.overlay} role="presentation" onClick={onClose}>
       <div
         ref={cardRef}
@@ -178,8 +203,8 @@ export default function DepartmentHealthDetail({ department, onClose }: { depart
                 {data.members.map((m) => {
                   const scored = m.score !== null;
                   const memberColor = scored ? BAND_COLOR[bandOf(m.score as number, data.thresholds)] : BAND_COLOR.na;
-                  return (
-                    <li key={m.id} className={styles.member}>
+                  const row = (
+                    <div className={styles.member}>
                       <span className={styles.memberAvatar} style={scored ? { background: memberColor } : undefined}>
                         {initialsOf(m.name, m.username)}
                       </span>
@@ -213,10 +238,60 @@ export default function DepartmentHealthDetail({ department, onClose }: { depart
                           </div>
                         )}
                       </div>
+                    </div>
+                  );
+                  // The manager flow (not self-only) drills down from a team
+                  // member into their full performance dashboard; the
+                  // self-only view already IS the viewer's own row, so there's
+                  // nothing further to drill into here (see the "Your
+                  // Projects" section below instead).
+                  return (
+                    <li key={m.id}>
+                      {data.selfOnly ? (
+                        row
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.personTrigger}
+                          onClick={() => setOpenPerson({ username: m.username, name: m.name || m.username, designation: m.designation, score: m.score, metrics: m.metrics })}
+                        >
+                          {row}
+                        </button>
+                      )}
                     </li>
                   );
                 })}
               </ul>
+            )}
+
+            {data.selfOnly && (
+              <>
+                <h3 className={styles.sectionTitle}>Your Projects ({myProjects.length})</h3>
+                {myProjects.length === 0 ? (
+                  <p className={styles.emptyNote}>No projects assigned to you yet.</p>
+                ) : (
+                  <ul className={styles.memberList}>
+                    {myProjects.map((p) => (
+                      <li key={p.id}>
+                        <Link href={`/projects/${p.id}`} className={styles.memberLink}>
+                          <div className={styles.member}>
+                            <div className={styles.memberBody}>
+                              <div className={styles.memberTop}>
+                                <span className={styles.memberName}>{p.client_name || p.company || `Project ${p.id}`}</span>
+                                {p.status === 'won' || p.status === 'lost' ? (
+                                  <StatusBadge tone={p.status} label={p.status === 'lost' ? 'Closed Lost' : 'Won'} />
+                                ) : (
+                                  <span className={styles.memberDesignation}>{STAGE_LABEL[p.stage]}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
 
             {/* An explicit note, because "No data" next to a name reads as a
@@ -231,5 +306,18 @@ export default function DepartmentHealthDetail({ department, onClose }: { depart
         )}
       </div>
     </div>
+
+      {openPerson && (
+        <PersonPerformanceDashboard
+          username={openPerson.username}
+          name={openPerson.name}
+          department={department}
+          designation={openPerson.designation}
+          score={openPerson.score}
+          metrics={openPerson.metrics}
+          onClose={() => setOpenPerson(null)}
+        />
+      )}
+    </>
   );
 }

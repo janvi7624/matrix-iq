@@ -348,6 +348,8 @@
 .statusRejected { background: var(--mx-danger-subtle); color: var(--mx-danger); }
 .statusDone { background: var(--mx-info-subtle); color: var(--mx-info); }
 .statusCancelled { background: rgba(107, 114, 128, 0.14); color: var(--mx-ink-muted); }
+.statusWon { background: var(--mx-won-subtle); color: var(--mx-won); }
+.statusLost { background: var(--mx-danger-subtle); color: var(--mx-danger); }
 
 .progressTrack {
     width: 100%;
@@ -363,7 +365,8 @@
     border-radius: var(--mx-radius-full);
     transition: width var(--mx-duration-slow) var(--mx-ease);
 }
-.progressFillLost { background: var(--mx-ink-faint); }
+.progressFillLost { background: var(--mx-danger); }
+.progressFillWon { background: var(--mx-won); }
 .progressLabel { font-size: 11px; color: var(--mx-ink-muted); margin-top: 3px; }
 
 .stepper {
@@ -386,7 +389,8 @@
 .stepDone { background: var(--mx-success-subtle); color: var(--mx-success); }
 .stepCurrent { background: var(--mx-info-subtle); color: var(--mx-info); }
 .stepDelayed { background: var(--mx-danger-subtle); color: var(--mx-danger); }
-.stepLost { background: rgba(107, 114, 128, 0.16); color: var(--mx-ink); }
+.stepLost { background: var(--mx-danger-subtle); color: var(--mx-danger); }
+.stepWon { background: var(--mx-won-subtle); color: var(--mx-won); }
 
 .cardGrid {
     display: grid;

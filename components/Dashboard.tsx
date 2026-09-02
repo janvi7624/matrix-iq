@@ -422,7 +422,16 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       )}
 
       {openHealthDepartment && (
-        <DepartmentHealthDetail department={openHealthDepartment} onClose={() => setOpenHealthDepartment(null)} />
+        <DepartmentHealthDetail
+          department={openHealthDepartment}
+          onClose={() => setOpenHealthDepartment(null)}
+          // Only rendered by DepartmentHealthDetail in its self-only branch
+          // (a non-privileged, non-department-manager viewer), where
+          // allProjects — already scoped by /api/dashboard's
+          // projectStore.listLight to exactly what this viewer may see — IS
+          // exactly "my projects" by construction, no extra filtering needed.
+          myProjects={allProjects || []}
+        />
       )}
 
       <div className={styles.recentGrid}>
