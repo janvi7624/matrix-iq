@@ -12,7 +12,11 @@ export function computeQuotationPrefix(domains: DomainKey[]): string {
   const unique = new Set(domains);
   if (unique.size > 1) return 'COMBO';
   const only = [...unique][0];
-  return (only && DOMAIN_QUOTE_PREFIX[only]) || 'NT';
+  // 'NT' is already the leading company code (see formatQuotationNumber) — a
+  // quotation with no single recognized domain yet (e.g. a fresh draft
+  // before any product is added, or a custom-product-only quotation) used to
+  // fall back to 'NT' here too, producing a redundant "NT-NT-..." number.
+  return (only && DOMAIN_QUOTE_PREFIX[only]) || 'GEN';
 }
 
 function pad(value: number, length: number): string {
