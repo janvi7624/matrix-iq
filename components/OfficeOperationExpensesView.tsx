@@ -43,7 +43,7 @@ const emptyForm = {
   usecase: '',
   usecaseDetail: '',
   itemName: '',
-  itemSubName: '',
+  itemSubNames: [] as string[],
   itemQty: '',
   amount: '',
   description: '',
@@ -75,6 +75,16 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
   const setField = useCallback(<K extends keyof typeof emptyForm>(key: K, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  // Sub-items are multi-select, so this toggles one value in or out of the list.
+  const toggleSubItem = useCallback((value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      itemSubNames: prev.itemSubNames.includes(value)
+        ? prev.itemSubNames.filter((v) => v !== value)
+        : [...prev.itemSubNames, value]
+    }));
   }, []);
 
   // Which second-level fields the current selections call for. Driven entirely
@@ -136,7 +146,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
       usecase: record.usecase,
       usecaseDetail: record.usecase_detail,
       itemName: record.item_name,
-      itemSubName: record.item_sub_name,
+      itemSubNames: record.item_sub_names,
       // null must reopen as an empty field, not the string "null".
       itemQty: record.item_qty === null ? '' : String(record.item_qty),
       amount: String(record.amount),
@@ -173,7 +183,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     if (usecaseSubs && !form.usecaseDetail) { toast.error(`Select which ${form.usecase.toLowerCase()} this is`); return; }
     if (usecaseIsFreeText && !form.usecaseDetail.trim()) { toast.error('Describe the category'); return; }
     if (!form.itemName) { toast.error('Select an expense head'); return; }
-    if (itemSubs?.length && !form.itemSubName) { toast.error(`Select an Item Name for ${form.itemName}`); return; }
+    if (itemSubs?.length && !form.itemSubNames.length) { toast.error(form.itemName === 'Department' ? 'Select at least one department' : `Select at least one Item Name for ${form.itemName}`); return; }
     // Qty is optional — only complain when something was typed and it's not a
     // usable number.
     if (form.itemQty.trim() && !(Number(form.itemQty) > 0)) { toast.error('Item Qty must be greater than zero'); return; }
@@ -186,7 +196,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         usecase: form.usecase,
         usecaseDetail: usecaseSubs || usecaseIsFreeText ? form.usecaseDetail : '',
         itemName: form.itemName,
-        itemSubName: itemSubs?.length ? form.itemSubName : '',
+        itemSubNames: itemSubs?.length ? form.itemSubNames : [],
         // Empty string, not 0 — the server reads '' as "not specified" and
         // stores NULL, whereas 0 would fail its positive-number check.
         itemQty: form.itemQty.trim(),
@@ -209,7 +219,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         return;
       }
 
-      toast.success(editId ? 'Expense updated' : `Expense saved as Sr No. ${formatSrNo(data.sr_no)}`);
+      toast.success(editId ? 'Expense updated' : 'Expense saved');
       resetForm();
       setShowForm(false);
 
@@ -325,7 +335,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                 <select
                   className={`${calcStyles.formControl} ${styles.fullWidth}`}
                   value={form.itemName}
-                  onChange={(e) => { setField('itemName', e.target.value); setField('itemSubName', ''); }}
+                  onChange={(e) => { setField('itemName', e.target.value); setForm((prev) => ({ ...prev, itemSubNames: [] })); }}
                   disabled={!options}
                 >
                   <option value="">Select expense head…</option>
@@ -334,12 +344,40 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
               </div>
 
               {!!itemSubs?.length && (
-                <div>
-                  <label className={styles.fieldLabel}>{form.itemName} — sub-item *</label>
-                  <select className={calcStyles.formControl} value={form.itemSubName} onChange={(e) => setField('itemSubName', e.target.value)} style={{ width: '100%' }}>
-                    <option value="">Select…</option>
-                    {itemSubs.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label className={styles.fieldLabel}>
+                    {form.itemName === 'Department' ? 'Departments' : `${form.itemName} — Item Names`} *
+                    {form.itemSubNames.length > 0 && ` · ${form.itemSubNames.length} selected`}
+                  </label>
+                  {/* Multi-select: one entry can cover several sub-items, e.g. a
+                      single pantry bill for milk, sugar and lemon. */}
+                  <div style={{
+                    display: 'flex', flexWrap: 'wrap', gap: 6, padding: 10,
+                    border: '1px solid var(--mx-border, #e5e7eb)', borderRadius: 'var(--mx-radius-xs, 6px)',
+                    background: 'var(--mx-surface, #fff)', maxHeight: 190, overflowY: 'auto'
+                  }}>
+                    {itemSubs.map((sub) => {
+                      const on = form.itemSubNames.includes(sub);
+                      return (
+                        <label key={sub} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                          padding: '4px 10px', borderRadius: 14, fontSize: '13px', userSelect: 'none',
+                          border: `1px solid ${on ? 'var(--mx-brand, #2563eb)' : 'var(--mx-border, #e5e7eb)'}`,
+                          background: on ? 'var(--mx-brand-subtle, #eff6ff)' : 'transparent',
+                          color: on ? 'var(--mx-brand, #2563eb)' : 'var(--mx-ink)',
+                          fontWeight: on ? 600 : 400
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() => toggleSubItem(sub)}
+                            style={{ accentColor: 'var(--mx-brand, #2563eb)', margin: 0 }}
+                          />
+                          {sub}
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -440,15 +478,15 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                           stacked under it, so the pair reads as one value. */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span>{record.item_name}</span>
-                        {record.item_sub_name && (
-                          <span style={{
+                        {record.item_sub_names.map((sub) => (
+                          <span key={sub} style={{
                             display: 'inline-block', padding: '1px 8px', borderRadius: 10,
                             fontSize: '11.5px', background: '#f3f4f6', color: '#374151', fontWeight: 500,
                             whiteSpace: 'nowrap'
                           }}>
-                            {record.item_sub_name}
+                            {sub}
                           </span>
-                        )}
+                        ))}
                       </div>
                     </td>
                     <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{record.item_qty ?? '—'}</td>

@@ -26,7 +26,11 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
   const usecase = str(body.usecase);
   const usecaseDetail = str(body.usecaseDetail);
   const itemName = str(body.itemName);
-  const itemSubName = str(body.itemSubName);
+  // Several sub-items may be picked on one entry. Duplicates are collapsed and
+  // blanks dropped so the stored array is exactly what was chosen.
+  const itemSubNames = Array.isArray(body.itemSubNames)
+    ? [...new Set(body.itemSubNames.map((v: unknown) => str(v)).filter(Boolean))]
+    : [];
   // Both free-text and optional — no length/content rules beyond trimming.
   const description = str(body.description);
   const remarks = str(body.remarks);
@@ -65,7 +69,7 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
     return { error: 'Describe the category' };
   }
 
-  const subNameError = await validateItemSubName(itemName, itemSubName);
+  const subNameError = await validateItemSubNames(itemName, itemSubNames);
   if (subNameError) return { error: subNameError };
 
   return {
@@ -74,7 +78,7 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
       usecase,
       usecase_detail: usecaseHasDetail ? usecaseDetail : '',
       item_name: itemName,
-      item_sub_name: itemSubName,
+      item_sub_names: itemSubNames,
       item_qty: itemQty,
       amount,
       description,
@@ -88,18 +92,21 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
 // synchronous checks above. Every other item reads ITEM_SUB_OPTIONS; an item
 // with no entry there (Water Jug, Porter, Courier and Postage, Miscellaneous,
 // Electricity, Internet, CUG) has no sub-categories and so accepts an empty
-// item_sub_name.
-async function validateItemSubName(itemName: string, itemSubName: string): Promise<string | null> {
+// selection.
+//
+// Several values may be chosen, so every one of them is checked — a single bad
+// entry in an otherwise valid list is still rejected.
+async function validateItemSubNames(itemName: string, itemSubNames: string[]): Promise<string | null> {
   if (itemName === ITEM_FROM_DEPARTMENT_MASTER) {
-    if (!itemSubName) return 'Select a department';
+    if (!itemSubNames.length) return 'Select at least one department';
     const departments = await listActiveDepartments();
-    if (!departments.some((d) => d.name === itemSubName)) return `"${itemSubName}" is not an active department`;
-    return null;
+    const invalid = itemSubNames.find((n) => !departments.some((d) => d.name === n));
+    return invalid ? `"${invalid}" is not an active department` : null;
   }
 
   const subs = ITEM_SUB_OPTIONS[itemName];
   if (!subs?.length) return null;
-  if (!itemSubName) return `Select an Item Name for ${itemName}`;
-  if (!subs.includes(itemSubName)) return `"${itemSubName}" is not a valid Item Name for ${itemName}`;
-  return null;
+  if (!itemSubNames.length) return `Select at least one Item Name for ${itemName}`;
+  const invalid = itemSubNames.find((n) => !subs.includes(n));
+  return invalid ? `"${invalid}" is not a valid Item Name for ${itemName}` : null;
 }

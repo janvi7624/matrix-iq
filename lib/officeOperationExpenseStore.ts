@@ -11,12 +11,19 @@ function isoOrEmpty(value: unknown): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
-function toRecord(row: Model): OfficeOperationExpenseRecord {
+// `position` is the row's place in the date-ordered register, and it is what
+// becomes the visible Sr No. The stored sr_no column is NOT shown: it comes
+// from a global Postgres sequence, so it keeps counting across months and
+// leaves gaps wherever a row was deleted (0002, 0003, 0007…). What HR wants on
+// the register is a plain running number, so the serial is derived from
+// position at read time and the stored column is kept only as the stable
+// creation-order tiebreaker for rows sharing a date.
+function toRecord(row: Model, position?: number): OfficeOperationExpenseRecord {
   const p = row.get({ plain: true }) as Record<string, unknown>;
   const creatorObj = p.creator as Record<string, unknown> | undefined;
   return {
     id: p.id as string,
-    sr_no: Number(p.sr_no) || 0,
+    sr_no: position ?? (Number(p.sr_no) || 0),
     // `underscored: true` snake-cases the COLUMN but leaves the model
     // attribute as createdAt/updatedAt, so `.get({ plain: true })` keys these
     // in camelCase — reading p.created_at here silently yielded '' on every
@@ -30,7 +37,7 @@ function toRecord(row: Model): OfficeOperationExpenseRecord {
     usecase: (p.usecase as string) ?? '',
     usecase_detail: (p.usecase_detail as string) ?? '',
     item_name: (p.item_name as string) ?? '',
-    item_sub_name: (p.item_sub_name as string) ?? '',
+    item_sub_names: (p.item_sub_names as string[]) ?? [],
     // Preserved as null rather than coerced to 0 — "not specified" and "zero"
     // are different things, and Number(null) would quietly report 0.
     item_qty: p.item_qty === null || p.item_qty === undefined ? null : Number(p.item_qty),
@@ -47,7 +54,7 @@ export interface OfficeOperationExpenseInput {
   usecase: string;
   usecase_detail: string;
   item_name: string;
-  item_sub_name: string;
+  item_sub_names: string[];
   item_qty: number | null;
   amount: number;
   description: string;
@@ -58,7 +65,7 @@ export interface OfficeOperationExpenseInput {
 // `created_by`, and the timestamps are absent on purpose — the serial is
 // DB-assigned and permanent, and attribution shouldn't be rewritable from a
 // PATCH body (same allow-list approach as lib/reimbursementStore.ts's update).
-const EDITABLE_FIELDS = ['date', 'usecase', 'usecase_detail', 'item_name', 'item_sub_name', 'item_qty', 'amount', 'description', 'remarks'];
+const EDITABLE_FIELDS = ['date', 'usecase', 'usecase_detail', 'item_name', 'item_sub_names', 'item_qty', 'amount', 'description', 'remarks'];
 
 // This module is HR-only (see lib/officeOperationExpenseAccess.ts), so there's
 // no own-records-vs-everyone scoping to apply the way the org-wide modules
@@ -73,9 +80,13 @@ async function list(year: number, month: number): Promise<OfficeOperationExpense
   const rows = await db.OfficeOperationExpense.findAll({
     where: { date: { [Op.gte]: startDate, [Op.lt]: endDate } } as never,
     include: INCLUDE_CREATOR as never,
+    // Date first, then creation order for entries sharing a date, so the
+    // numbering below is stable and reproducible.
     order: [['date', 'ASC'], ['sr_no', 'ASC']]
   });
-  return rows.map(toRecord);
+  // 1, 2, 3 … down the month, with no gaps — renumbering itself whenever an
+  // entry is added or removed.
+  return rows.map((row, i) => toRecord(row, i + 1));
 }
 
 async function findById(id: string): Promise<OfficeOperationExpenseRecord | null> {
@@ -98,7 +109,7 @@ async function create(viewerUsername: string, data: OfficeOperationExpenseInput)
     usecase: data.usecase,
     usecase_detail: data.usecase_detail,
     item_name: data.item_name,
-    item_sub_name: data.item_sub_name,
+    item_sub_names: data.item_sub_names,
     item_qty: data.item_qty,
     amount: data.amount,
     description: data.description,
