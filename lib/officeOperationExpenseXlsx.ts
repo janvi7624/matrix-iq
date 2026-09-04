@@ -57,7 +57,7 @@ const COLUMNS: ColumnDef[] = [
   // though no current usecase can produce one.
   { header: 'Category', width: 16, wrap: true, value: (r) => (r.usecase_detail ? `${r.usecase} — ${r.usecase_detail}` : r.usecase) },
   { header: 'Expense Head', width: 26, wrap: true, value: (r) => r.item_name },
-  { header: 'Item Name', width: 22, wrap: true, value: (r) => r.item_sub_name },
+  { header: 'Item Name', width: 22, wrap: true, value: (r) => r.item_sub_names.join(', ') },
   // No numFmt: a '0.##' mask makes Excel render a whole number as "300." with
   // a trailing decimal point. General formatting shows 300 and 2.5 correctly.
   { header: 'Qty', width: 8, center: true, value: (r) => r.item_qty ?? '' },
@@ -181,12 +181,17 @@ export async function exportOfficeOperationExpensesXlsx(data: {
     ['Department', DEPARTMENT, 'Total Entries', String(data.records.length)],
     ['Prepared By', data.preparedBy || '', 'Approved By', APPROVED_BY]
   ];
+  // The label spans the first TWO columns. Column A is sized for the narrow
+  // "Sr No." data column, which is too tight for "Voucher No." / "Prepared By"
+  // — merging gives the labels room without widening the table underneath.
+  const LABEL_END = Math.min(2, MID - 1) || 1;
   for (const [leftLabel, leftVal, rightLabel, rightVal] of headerRows) {
     const row = ws.getRow(r);
     row.height = 20;
+    merge(r, 1, LABEL_END);
     setCell(row, 1, leftLabel, { font: BOLD, fill: YELLOW });
-    merge(r, 2, MID);
-    setCell(row, 2, leftVal, { fill: WHITE });
+    merge(r, LABEL_END + 1, MID);
+    setCell(row, LABEL_END + 1, leftVal, { fill: WHITE });
     setCell(row, MID + 1, rightLabel, { font: BOLD, fill: YELLOW, alignment: { horizontal: 'right', vertical: 'middle' } });
     merge(r, MID + 2, LAST_COL);
     setCell(row, MID + 2, rightVal, { fill: WHITE });

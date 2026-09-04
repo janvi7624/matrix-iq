@@ -62,19 +62,19 @@ export const OFFICE_EXPENSE_ITEMS = [
 // one list rather than repeating it — edit here and both stay in step.
 const GODOWN_SUB_OPTIONS = ['Rent', 'Maintenance', 'Tax', 'Water', 'Tea', 'Mobile Bill', 'Light Bill'];
 
-// Per-item sub-item lists. An item present here renders a required sub-item
-// dropdown in the form and is validated server-side against these exact
-// values; an item ABSENT here renders no sub-field at all and accepts an empty
-// item_sub_name (Water Jug, Porter, Courier and Postage, Miscellaneous,
-// Electricity, Internet and CUG are all intentionally in that group — no
-// sub-categories were defined for them).
+// Per-item sub-item lists. An item present here renders a required MULTI-select
+// in the form — several sub-items can belong to one entry — and every chosen
+// value is validated server-side against this exact list; an item ABSENT here
+// renders no sub-field at all and accepts an empty selection (Water Jug,
+// Porter, Courier and Postage, Miscellaneous, Electricity, Internet and CUG are
+// all intentionally in that group — no sub-categories were defined for them).
 //
 // 'Department' is listed for completeness but its values are replaced at
 // request time with live Department Master data — see
 // ITEM_FROM_DEPARTMENT_MASTER below and the /options route.
 export const ITEM_SUB_OPTIONS: Record<string, string[]> = {
   'Stationary and Printing': ['Xerox', 'Color Print', 'Stationery Items', 'Other'],
-  Pantry: ['Milk', 'Tea Powder', 'Coffee Powder', 'Sugar', 'Ginger', 'Phudino', 'Green Tea', 'Snacks', 'Lunch', 'Dinner', 'Coffee', 'Grocery', 'Other'],
+  Pantry: ['Milk', 'Tea Powder', 'Coffee Powder', 'Sugar', 'Ginger', 'Lemon', 'Phudino', 'Green Tea', 'Snacks', 'Lunch', 'Dinner', 'Coffee', 'Grocery', 'Other'],
   Tempo: ['Fastag', 'Insurance', 'Tax', 'CNG', 'Petrol'],
   'IT Materials': ['Laptop', 'Mouse', 'Chargers', 'Repair', 'Keyboards', 'Other'],
   Salary: ['Sweeper', 'Keshav Kaka', 'Papa', 'Other'],

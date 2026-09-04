@@ -1438,10 +1438,10 @@ export interface OfficeOperationExpenseRecord {
   // The head of expense — a value from OFFICE_EXPENSE_ITEMS. Labelled
   // "Expense Head" in the UI and the Excel voucher.
   item_name: string;
-  // Sub-level of `item_name` — the department for 'Department', or (once the
-  // per-item sub-item lists are supplied) the chosen sub-item. See
+  // Sub-level of `item_name` — the departments for 'Department', or the chosen
+  // sub-items. Several may be selected on one entry. See
   // lib/officeOperationExpenseOptions.ts.
-  item_sub_name: string;
+  item_sub_names: string[];
   // Optional — null when no quantity was entered (e.g. an electricity bill),
   // which is deliberately distinct from a quantity of 1.
   item_qty: number | null;
