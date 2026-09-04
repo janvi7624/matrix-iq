@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { UserRole, ReimbursementRecord, ReimbursementSheetRecord, ReimbursementSheetStatus } from '@/lib/types';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import AppShell from './AppShell';
+import ReimbursementBulkAddForm from './ReimbursementBulkAddForm';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -104,6 +105,7 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showBulkForm, setShowBulkForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -459,8 +461,13 @@ export default function ReimbursementView({ currentUser }: Props) {
           {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
         {canEdit && (
-          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => { setShowForm((v) => !v); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM, employeeIds: myUserId ? [myUserId] : [] }); } }}>
+          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => { setShowForm((v) => !v); setShowBulkForm(false); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM, employeeIds: myUserId ? [myUserId] : [] }); } }}>
             {showForm ? 'Cancel' : '+ Add Entry'}
+          </button>
+        )}
+        {canEdit && (
+          <button type="button" className={historyStyles.button} onClick={() => { setShowBulkForm((v) => !v); setShowForm(false); cancelForm(); }}>
+            {showBulkForm ? 'Cancel' : '+ Add Multiple'}
           </button>
         )}
         <button type="button" className={historyStyles.button} onClick={() => { fetchRecords(); fetchSheet(); }}>Refresh</button>
@@ -818,6 +825,17 @@ export default function ReimbursementView({ currentUser }: Props) {
             </div>
           </form>
         </>
+      )}
+
+      {showBulkForm && canEdit && (
+        <ReimbursementBulkAddForm
+          users={users}
+          myUserId={myUserId}
+          dateMin={dateMin}
+          dateMax={dateMax}
+          onClose={() => setShowBulkForm(false)}
+          onSaved={() => { fetchRecords(); fetchSheet(); }}
+        />
       )}
 
       {/* Monthly sheet */}
