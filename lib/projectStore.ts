@@ -1,4 +1,4 @@
-import { Model, Op } from 'sequelize';
+import { Model, Op, Transaction } from 'sequelize';
 import { ProjectNote, ProjectRecord, ProjectStage, ProjectTimelineEvent } from './types';
 import { db, isUuid, sequelize } from './db';
 import { resolveVisibilityScope } from './departmentScope';
@@ -269,6 +269,23 @@ export const projectStore = {
   update,
   remove
 };
+
+// Direct write of the sales-owner fields (created_by/sales_person) — the
+// same fields the project-handover-approval flow already writes directly
+// for the same reason: `update()`'s FIELDS whitelist deliberately excludes
+// `created_by` (capture history, not a reassignable "current owner"). Used
+// by the Employee Exit bulk-reassignment flow, which passes its own
+// transaction so this participates in the same atomic commit as every other
+// entity being reassigned.
+export async function reassignProjectOwner(id: string, newOwnerId: string, options?: { transaction?: Transaction }): Promise<void> {
+  if (!isUuid(id) || !isUuid(newOwnerId)) return;
+  const newOwner = await db.User.findByPk(newOwnerId, { attributes: ['id', 'username'], transaction: options?.transaction });
+  if (!newOwner) return;
+  await db.Project.update(
+    { created_by: newOwnerId, sales_person: newOwner.get('username') as string },
+    { where: { id } as never, transaction: options?.transaction }
+  );
+}
 
 export async function findProjectById(id: string): Promise<ProjectRecord | undefined> {
   if (!isUuid(id)) return undefined;

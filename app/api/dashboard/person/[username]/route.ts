@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { resolveVisibilityScope } from '@/lib/departmentScope';
 import { buildPerformanceReview } from '@/lib/performanceReview';
+import { canManageTargets } from '@/lib/targetAccess';
+import { currentPeriodSnapshot } from '@/lib/salesAchievement';
 import { apiErrorResponse } from '@/lib/apiError';
 import { db } from '@/lib/db';
 
@@ -23,10 +25,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { username } = await params;
 
+    const target = await db.User.findOne({ where: { username } as never, attributes: ['id'] });
+    const targetId = target ? (target.get('id') as string) : '';
+
     const scope = await resolveVisibilityScope(viewer.username);
     if (!scope.seesOrgWide) {
-      const target = await db.User.findOne({ where: { username } as never, attributes: ['id'] });
-      const targetId = target ? (target.get('id') as string) : '';
       if (!targetId || !(scope.scopedUserIds ?? []).includes(targetId)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
@@ -34,7 +37,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const review = await buildPerformanceReview(username);
     if (!review) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    return NextResponse.json(review);
+
+    // Target vs Achievement — only surfaced to a viewer who can actually
+    // manage targets (a normal employee viewing their own dashboard, or any
+    // viewer without target access, gets nothing new here).
+    const withTarget: typeof review & { target?: Awaited<ReturnType<typeof currentPeriodSnapshot>> } = review;
+    if (targetId && (await canManageTargets(viewer))) {
+      withTarget.target = await currentPeriodSnapshot(targetId);
+    }
+
+    return NextResponse.json(withTarget);
   } catch (error) {
     return apiErrorResponse(error);
   }

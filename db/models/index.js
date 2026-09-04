@@ -56,7 +56,8 @@ const modelDefiners = [
   require('./reimbursementSheet.js'),
   require('./officeOperationExpense.js'),
   require('./metaIntegrationConfig.js'),
-  require('./metaWebhookEvent.js')
+  require('./metaWebhookEvent.js'),
+  require('./salesTarget.js')
 ];
 
 const db = {};

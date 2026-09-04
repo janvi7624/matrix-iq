@@ -1,6 +1,6 @@
 import styles from '../quotationHistory.module.css';
 
-export type StatusTone = 'pending' | 'confirmed' | 'rejected' | 'done' | 'cancelled' | 'won' | 'lost';
+export type StatusTone = 'pending' | 'confirmed' | 'rejected' | 'done' | 'cancelled' | 'won' | 'lost' | 'exceeded' | 'on_track' | 'at_risk' | 'not_started';
 
 const TONE_CLASS: Record<StatusTone, string> = {
   pending: styles.statusPending,
@@ -9,7 +9,11 @@ const TONE_CLASS: Record<StatusTone, string> = {
   done: styles.statusDone,
   cancelled: styles.statusCancelled,
   won: styles.statusWon,
-  lost: styles.statusLost
+  lost: styles.statusLost,
+  exceeded: styles.statusExceeded,
+  on_track: styles.statusOnTrack,
+  at_risk: styles.statusAtRisk,
+  not_started: styles.statusNotStarted
 };
 
 // Thin wrapper around the existing .statusBadge CSS (already used

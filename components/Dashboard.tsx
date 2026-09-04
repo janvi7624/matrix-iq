@@ -463,7 +463,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
             {recentQuotations === null && <div className={styles.recentEmpty}>Loading…</div>}
             {recentQuotations?.length === 0 && <div className={styles.recentEmpty}>No quotations yet.</div>}
             {recentQuotations?.map((q) => (
-              <Link key={q.id} href="/my-quotations" className={styles.recentRow}>
+              <Link key={q.id} href={`/my-quotations?highlight=${q.id}`} className={styles.recentRow}>
                 <div className={styles.recentRowMain}>
                   <div className={styles.recentRowTitle}>{q.quotation_number}</div>
                   <div className={styles.recentRowMeta}>{q.client_company || q.client_name || 'No client name'}</div>

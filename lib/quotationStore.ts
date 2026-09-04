@@ -1,4 +1,4 @@
-import { Model, Op, QueryTypes } from 'sequelize';
+import { Model, Op, QueryTypes, Transaction } from 'sequelize';
 import { QuotationEffectiveStatus, QuotationRecord, QuotationStatus } from './types';
 import { computeQuotationPrefix, formatQuotationNumber } from './quotationNumber';
 import { DomainKey } from './types';
@@ -237,6 +237,15 @@ export async function logQuotationFollowUp(id: string, by: string, note: string)
   await db.QuotationFollowUp.create({ quotation_id: id, note, created_by: creator ? creator.get('id') : null } as never);
   await row.update({ last_follow_up_at: now } as never);
   return (await findQuotationById(id)) ?? null;
+}
+
+// Direct write of the owner field — Quotation has no generic update(id,
+// patch) at all today (only updateQuotationStatus), so this is additive, not
+// a change to any existing whitelist. Used by the Employee Exit bulk-
+// reassignment flow, which passes its own transaction.
+export async function reassignQuotationOwner(id: string, newOwnerId: string, options?: { transaction?: Transaction }): Promise<void> {
+  if (!isUuid(id) || !isUuid(newOwnerId)) return;
+  await db.Quotation.update({ created_by: newOwnerId } as never, { where: { id } as never, transaction: options?.transaction });
 }
 
 export async function findQuotationById(id: string): Promise<QuotationRecord | undefined> {

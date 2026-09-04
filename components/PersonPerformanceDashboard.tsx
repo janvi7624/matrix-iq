@@ -3,11 +3,20 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Modal, { ModalOkButton } from './ui/Modal';
-import StatusBadge from './ui/StatusBadge';
+import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import ErrorState from './ui/ErrorState';
 import { SkeletonRows } from './ui/Skeleton';
 import { STAGE_LABEL } from '@/lib/projectStages';
+import { formatMoney } from '@/lib/format';
 import styles from './departmentHealthDetail.module.css';
+
+const TARGET_STATUS_LABEL: Record<string, string> = {
+  not_started: 'Not Started',
+  on_track: 'On Track',
+  at_risk: 'At Risk',
+  achieved: 'Achieved',
+  exceeded: 'Exceeded'
+};
 
 interface MetricRow { label: string; value: string; }
 
@@ -24,6 +33,10 @@ interface PersonReview {
   projectsList: { id: string; label: string; stage: string; status: string }[];
   tasks: { total: number; completed: number; pending: number };
   followUps: { pending: number; completed: number; overdue: number };
+  // Only present when the viewer can manage targets (lib/targetAccess.ts's
+  // canManageTargets) — absent entirely for a normal employee viewing their
+  // own dashboard, or a viewer without target access.
+  target?: { periodType: string; displayPeriod: string; targetAmount: number; achievedAmount: number; achievementPercent: number; status: string } | null;
 }
 
 interface PersonPerformanceDashboardProps {
@@ -94,6 +107,30 @@ export default function PersonPerformanceDashboard({ username, name, department,
                     <div className={styles.totalLabel}>{m.label}</div>
                   </div>
                 ))}
+              </div>
+            </>
+          )}
+
+          {data.target && (
+            <>
+              <h3 className={styles.sectionTitle}>Target vs Achievement — {data.target.displayPeriod}</h3>
+              <div className={styles.totalsGrid}>
+                <div className={styles.totalCard}>
+                  <div className={styles.totalValue}>{formatMoney(data.target.targetAmount)}</div>
+                  <div className={styles.totalLabel}>Target</div>
+                </div>
+                <div className={styles.totalCard}>
+                  <div className={styles.totalValue}>{formatMoney(data.target.achievedAmount)}</div>
+                  <div className={styles.totalLabel}>Achieved</div>
+                </div>
+                <div className={styles.totalCard}>
+                  <div className={styles.totalValue}>{data.target.achievementPercent}%</div>
+                  <div className={styles.totalLabel}>Achievement</div>
+                </div>
+                <div className={styles.totalCard}>
+                  <StatusBadge tone={data.target.status === 'achieved' ? 'won' : (data.target.status as StatusTone)} label={TARGET_STATUS_LABEL[data.target.status] || data.target.status} />
+                  <div className={styles.totalLabel}>Status</div>
+                </div>
               </div>
             </>
           )}

@@ -89,6 +89,12 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'role-management', label: 'Role Management', desc: 'What each role can see and do across the platform.', icon: 'shield', href: '/admin/roles', section: 'Administration', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'department-master', label: 'Department Master', desc: 'Departments used across user profiles.', icon: 'building', href: '/admin/departments', section: 'Administration', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'performance-review', label: 'Performance Review', desc: 'A full performance dashboard for one employee at a time — CRM, sales, projects, and activity history.', icon: 'bar-chart', href: '/admin/performance-review', section: 'Reports', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  // Sales/GEM-Sales department managers without a globally-privileged role
+  // pass canManageTargets (lib/targetAccess.ts) at the page/API level even
+  // though they won't see this nav tile (visibleToRoles has no "manages
+  // department X" predicate) — same known gap as performance-review/
+  // user-management above, not silently different here.
+  { key: 'targets', label: 'Target Details', desc: 'Sales targets vs achievement, by employee and period.', icon: 'target', href: '/targets', section: 'Reports', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'analytics', label: 'Analytics', desc: 'Quotation, project, and pipeline performance at a glance.', icon: 'trending-up', href: '/analytics', section: 'Reports', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'audit-log', label: 'Audit Log', desc: 'Every status-changing action across the Back Office workflow.', icon: 'clock', href: '/admin/audit-log', section: 'Administration', order: 4, enabled: true, isCustom: false, visibleToRoles: ['superadmin'] },
   { key: 'product-master', label: 'Product Master', desc: 'Manage the product catalog used across quotations.', icon: 'tag', href: '/admin/products', section: 'Administration', order: 5, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -96,6 +102,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'app-settings', label: 'Application Settings', desc: 'Company details, tax, terms, and numbering.', icon: 'settings', href: '/admin/settings', section: 'Administration', order: 7, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'module-manager', label: 'Module Manager', desc: 'Enable, disable, rename, and reorder every module.', icon: 'puzzle', href: '/admin/modules', section: 'Administration', order: 8, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'custom-modules', label: 'Custom Module Builder', desc: 'Create new business modules without writing code.', icon: 'wrench', href: '/admin/custom-modules', section: 'Administration', order: 9, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'employee-exit', label: 'Employee Exit', desc: "Reassign a departing employee's projects, tasks, leads, and quotations.", icon: 'log-out', href: '/employee-exit', section: 'Administration', order: 11, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   // Narrower than PRIVILEGED_ROLES (excludes 'manager') — Meta credentials
   // and lead-routing rules are Admin/Super Admin only, same restriction
   // 'audit-log' already uses. See lib/metaConfig.ts.

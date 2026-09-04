@@ -145,7 +145,8 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   'receipt-indian-rupee': ReceiptIndianRupee,
   cake: Cake,
   users: Users,
-  'share-2': Share2
+  'share-2': Share2,
+  'log-out': LogOut
 };
 
 export const MODULE_ICON_OPTIONS = Object.keys(MODULE_ICON_REGISTRY);

@@ -1,5 +1,10 @@
+import { Suspense } from 'react';
 import MyQuotationsView from '@/components/MyQuotationsView';
 
 export default function MyQuotationsPage() {
-  return <MyQuotationsView />;
+  return (
+    <Suspense fallback={null}>
+      <MyQuotationsView />
+    </Suspense>
+  );
 }

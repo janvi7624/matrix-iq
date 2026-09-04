@@ -17,7 +17,7 @@ interface EntityResolver {
   exists: (entityId: string) => Promise<boolean>;
 }
 
-const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead'] as const;
+const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation'] as const;
 
 async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: string): Promise<boolean> {
   if (!isUuid(entityId)) return false;
@@ -39,7 +39,11 @@ const RESOLVERS: Record<string, EntityResolver> = {
   tms_procurement: { href: (id) => `/tms/procurement/${id}`, exists: (id) => existsIn('TmsProcurement', id) },
   tms_task: { href: (id) => `/tms/tasks/${id}`, exists: (id) => existsIn('TmsTask', id) },
   travel_schedule: { href: (id) => `/travel-schedule/${id}`, exists: (id) => existsIn('TravelSchedule', id) },
-  lead: { href: () => '/leads', exists: (id) => existsIn('Lead', id) }
+  lead: { href: () => '/leads', exists: (id) => existsIn('Lead', id) },
+  // Reuses the highlight-and-auto-expand row on My Quotations rather than a
+  // dedicated per-quotation page (none exists) — see components/
+  // MyQuotationsView.tsx / QuotationTable.tsx.
+  quotation: { href: (id) => `/my-quotations?highlight=${id}`, exists: (id) => existsIn('Quotation', id) }
 };
 
 // Resolves each notification's real destination and drops any that don't

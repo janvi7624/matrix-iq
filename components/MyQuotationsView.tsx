@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { needsFollowUp } from '@/lib/followUp';
 import QuotationTable from './QuotationTable';
@@ -32,6 +33,11 @@ interface CurrentViewer {
 const ORG_WIDE_ROLES = new Set(['superadmin', 'admin']);
 
 export default function MyQuotationsView() {
+  // Set when arriving from a "view this quotation" link elsewhere (e.g. the
+  // Dashboard's Recent Quotations card) — passed straight through to
+  // QuotationTable so it can auto-expand and scroll to that one row instead
+  // of making the visitor hunt for it in the list.
+  const highlightId = useSearchParams().get('highlight') || '';
   const [viewer, setViewer] = useState<CurrentViewer | null>(null);
   const [rows, setRows] = useState<QuotationRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
@@ -234,6 +240,7 @@ export default function MyQuotationsView() {
             onDelete={canDelete ? handleDelete : undefined}
             onLogFollowUp={handleLogFollowUp}
             onChangeStatus={handleChangeStatus}
+            highlightId={highlightId}
           />
         )
       )}

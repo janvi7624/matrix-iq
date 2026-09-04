@@ -140,6 +140,7 @@
 .navGroupLabel:first-child { margin-top: 4px; }
 .num { font-family: 'Courier New', monospace; font-weight: 600; }
 .amount { font-family: 'Courier New', monospace; text-align: right; white-space: nowrap; }
+.rowHighlighted > td { background: var(--mx-info-subtle); box-shadow: inset 3px 0 0 var(--mx-info); }
 .detailsRow td { background: #fbfbfc; }
 .detailsRow pre {
     margin: 0;
@@ -350,6 +351,10 @@
 .statusCancelled { background: rgba(107, 114, 128, 0.14); color: var(--mx-ink-muted); }
 .statusWon { background: var(--mx-won-subtle); color: var(--mx-won); }
 .statusLost { background: var(--mx-danger-subtle); color: var(--mx-danger); }
+.statusExceeded { background: var(--mx-won-subtle); color: var(--mx-won); }
+.statusOnTrack { background: var(--mx-info-subtle); color: var(--mx-info); }
+.statusAtRisk { background: var(--mx-warning-subtle); color: var(--mx-warning); }
+.statusNotStarted { background: rgba(107, 114, 128, 0.14); color: var(--mx-ink-muted); }
 
 .progressTrack {
     width: 100%;

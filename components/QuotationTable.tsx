@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { FileText } from 'lucide-react';
 import { LineItem, ProductGroup, QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
@@ -125,17 +125,26 @@ interface QuotationRowProps {
   onLogFollowUp: (id: string, note: string) => Promise<void>;
   showSalesPerson?: boolean;
   onChangeStatus?: (id: string, status: QuotationRecord['status']) => Promise<void>;
+  highlight?: boolean;
 }
 
-function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus }: QuotationRowProps) {
+function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus, highlight }: QuotationRowProps) {
   const confirm = useConfirm();
-  const [expanded, setExpanded] = useState(false);
+  // Arriving highlighted (from Dashboard's Recent Quotations) starts this row
+  // already expanded, so the visitor sees its detail immediately rather than
+  // having to find and open it themselves.
+  const [expanded, setExpanded] = useState(!!highlight);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const flagged = needsFollowUp(row);
   const notes = parseFollowUpNotes(row.follow_up_notes_json);
   const effectiveStatus = computeEffectiveStatusClient(row);
+  const rowRef = useRef<HTMLTableRowElement>(null);
+
+  useEffect(() => {
+    if (highlight) rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlight]);
 
   async function handleStatusChange(next: QuotationRecord['status']) {
     if (!onChangeStatus) return;
@@ -177,7 +186,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
 
   return (
     <>
-      <tr>
+      <tr ref={rowRef} className={highlight ? styles.rowHighlighted : undefined}>
         <td>
           <button type="button" className={styles.toggleBtn} onClick={() => setExpanded((v) => !v)}>
             {expanded ? '−' : '+'}
@@ -281,9 +290,10 @@ interface QuotationTableProps {
   onLogFollowUp: (id: string, note: string) => Promise<void>;
   showSalesPerson?: boolean;
   onChangeStatus?: (id: string, status: QuotationRecord['status']) => Promise<void>;
+  highlightId?: string;
 }
 
-export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus }: QuotationTableProps) {
+export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus, highlightId }: QuotationTableProps) {
   return (
     <TableWrap>
     <table className={styles.table}>
@@ -320,6 +330,7 @@ export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSale
               onLogFollowUp={onLogFollowUp}
               showSalesPerson={showSalesPerson}
               onChangeStatus={onChangeStatus}
+              highlight={!!highlightId && row.id === highlightId}
             />
           ))
         )}
