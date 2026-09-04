@@ -49,7 +49,8 @@ export async function listSalesTeamRoster(viewerUsername: string): Promise<Sales
   const rows = await db.User.findAll({
     where: where as never,
     include: [{ model: db.Department, as: 'departmentRef', attributes: ['name'] }],
-    attributes: ['id', 'username', 'name', 'designation']
+    attributes: ['id', 'username', 'name', 'designation'],
+    order: [['name', 'ASC']]
   });
   return rows.map((r) => {
     const p = r.get({ plain: true }) as Record<string, unknown>;
