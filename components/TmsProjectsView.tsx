@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Layers } from 'lucide-react';
-import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsProjectStatus, UserRole } from '@/lib/types';
+import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsProjectStatus, TmsProjectType, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS } from '@/lib/tmsConstants';
 import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_ROLE_LABEL } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
@@ -31,6 +31,8 @@ const EMPTY_FORM = {
   clientContact: '',
   description: '',
   departmentId: '',
+  projectType: 'department' as TmsProjectType,
+  departmentIds: [] as string[],
   projectManagerId: '',
   teamMemberIds: [] as string[],
   startDate: '',
@@ -69,6 +71,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   const [fDepartment, setFDepartment] = useState('');
   const [fStatus, setFStatus] = useState<TmsProjectStatus | ''>('');
   const [fPriority, setFPriority] = useState<TmsPriority | ''>('');
+  const [fProjectType, setFProjectType] = useState<TmsProjectType | ''>('');
   const [fSearch, setFSearch] = useState('');
 
   const tmsDepartments = useMemo(() => departments.filter((d) => (TMS_DEPARTMENTS as readonly string[]).includes(d.name)), [departments]);
@@ -100,13 +103,14 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
     return projects.filter((p) => {
-      if (fDepartment && p.department_name !== fDepartment) return false;
+      if (fDepartment && !(p.department_names.length ? p.department_names : [p.department_name]).includes(fDepartment)) return false;
       if (fStatus && p.status !== fStatus) return false;
       if (fPriority && p.priority !== fPriority) return false;
+      if (fProjectType && p.project_type !== fProjectType) return false;
       if (q && ![p.project_code, p.name, p.client_name].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [projects, fDepartment, fStatus, fPriority, fSearch]);
+  }, [projects, fDepartment, fStatus, fPriority, fProjectType, fSearch]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -116,6 +120,10 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     }
     if (!form.departmentId) {
       toast.error('Department is required.');
+      return;
+    }
+    if (form.projectType === 'combined' && new Set([form.departmentId, ...form.departmentIds]).size < 2) {
+      toast.error('Select at least 2 departments for a combined project.');
       return;
     }
     setCreating(true);
@@ -143,7 +151,11 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   const columns: TableColumn<TmsProjectRecord>[] = [
     { key: 'project', header: 'Project', cellClassName: historyStyles.num, render: (p) => <>{p.project_code}<div>{p.name}</div></> },
     { key: 'client', header: 'Client', render: (p) => p.client_name || '-' },
-    { key: 'department', header: 'Department', render: (p) => p.department_name },
+    {
+      key: 'department',
+      header: 'Department',
+      render: (p) => (p.project_type === 'combined' && p.department_names.length ? p.department_names.join(', ') : p.department_name)
+    },
     { key: 'manager', header: 'Manager', render: (p) => p.project_manager_name || '-' },
     { key: 'engineers', header: 'Engineers', render: (p) => (p.team_member_names.length ? p.team_member_names.join(', ') : '-') },
     { key: 'status', header: 'Status', render: (p) => <StatusBadge tone={TMS_PROJECT_STATUS_TONE[p.status]} label={TMS_PROJECT_STATUS_LABEL[p.status]} /> },
@@ -189,6 +201,41 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
                 ))}
               </Select>
             </Field>
+            <Field label="Project Type">
+              <Select
+                value={form.projectType}
+                onChange={(e) => setForm((f) => ({ ...f, projectType: e.target.value as TmsProjectType, departmentIds: e.target.value === 'department' ? [] : f.departmentIds }))}
+              >
+                <option value="department">Department Project</option>
+                <option value="combined">Combined Project</option>
+              </Select>
+            </Field>
+          </FieldRow>
+          {form.projectType === 'combined' && (
+            <Field label="Other Departments Involved">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                {tmsDepartments.filter((d) => d.id !== form.departmentId).map((d) => {
+                  const checked = form.departmentIds.includes(d.id);
+                  return (
+                    <label key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            departmentIds: e.target.checked ? [...f.departmentIds, d.id] : f.departmentIds.filter((id) => id !== d.id)
+                          }))
+                        }
+                      />
+                      {d.name}
+                    </label>
+                  );
+                })}
+              </div>
+            </Field>
+          )}
+          <FieldRow>
             <Field label="Project Manager / Technical Manager">
               <Select value={form.projectManagerId} onChange={(e) => setForm((f) => ({ ...f, projectManagerId: e.target.value }))}>
                 <option value="">Unassigned</option>
@@ -264,6 +311,11 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
           {(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => (
             <option key={p} value={p}>{TMS_PRIORITY_LABEL[p]}</option>
           ))}
+        </Select>
+        <Select auto value={fProjectType} onChange={(e) => setFProjectType(e.target.value as TmsProjectType | '')}>
+          <option value="">All project types</option>
+          <option value="department">Department Project</option>
+          <option value="combined">Combined Project</option>
         </Select>
       </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}

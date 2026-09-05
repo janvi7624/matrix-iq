@@ -225,6 +225,25 @@ export default function ApplicationSettingsPage() {
               </div>
             </div>
 
+            <h2 className={calcStyles.h2}>Reimbursement Settings</h2>
+            <div className={calcStyles.sectionPanel}>
+              <div className={`${calcStyles.field} ${pageStyles.maxWidth320}`}>
+                <label className={calcStyles.label}>Submission deadline (day of month)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  className={calcStyles.formControl}
+                  value={config.reimbursementDeadlineDay ?? ''}
+                  placeholder="No deadline"
+                  onChange={(e) => set('reimbursementDeadlineDay', e.target.value === '' ? null : Number(e.target.value))}
+                />
+              </div>
+              <div className={styles.status}>
+                Employees can submit a reimbursement sheet through this day of each month. Leave blank for no deadline — sheets can be submitted anytime. HR managers and admins can extend a specific month&apos;s deadline from the Reimbursement page itself without changing this default.
+              </div>
+            </div>
+
             <h2 className={calcStyles.h2}>Notification Templates</h2>
             <div className={calcStyles.sectionPanel}>
               <div className={styles.status}>

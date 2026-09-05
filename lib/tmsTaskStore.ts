@@ -1,7 +1,10 @@
 import { Model, Op } from 'sequelize';
-import { TmsTaskRecord } from './types';
+import { TmsTaskRecord, TmsTaskStatus, TmsTaskUpdateRecord } from './types';
 import { db, isUuid } from './db';
 import { canManageAllTmsTasks, TmsViewer } from './tmsAccess';
+import { EngineerTaskAction } from './tmsLabels';
+
+export type { EngineerTaskAction };
 
 const FIELDS = [
   { name: 'project_id' },
@@ -11,6 +14,7 @@ const FIELDS = [
   { name: 'description' },
   { name: 'priority' },
   { name: 'status' },
+  { name: 'progress_percent', kind: 'number' as const },
   { name: 'start_date', kind: 'nullable' as const },
   { name: 'due_date', kind: 'nullable' as const },
   { name: 'completion_date', kind: 'nullable' as const },
@@ -25,6 +29,7 @@ function isoOrEmpty(value: unknown): string {
 
 function toAttr(value: unknown, kind: string): unknown {
   if (kind === 'nullable') return value === '' || value === undefined ? null : value;
+  if (kind === 'number') return value === '' || value === undefined || value === null ? null : value;
   return value;
 }
 
@@ -48,6 +53,7 @@ function toRecord(row: Model): TmsTaskRecord {
   for (const { name, kind = 'string' } of FIELDS) {
     const raw = plain[name];
     if (kind === 'nullable') record[name] = raw ?? '';
+    else if (kind === 'number') record[name] = raw === null || raw === undefined ? 0 : Number(raw);
     else if (kind === 'json') record[name] = raw ?? [];
     else record[name] = raw ?? '';
   }
@@ -138,6 +144,137 @@ async function remove(id: string, viewerIsPrivilegedOrManages: boolean): Promise
   if (!row) return false;
   await row.destroy();
   return true;
+}
+
+// Shared by both app/api/tms/tasks/[id]/route.ts (manager PATCH) and
+// app/api/tms/tasks/[id]/update/route.ts (engineer action) — a task's own
+// record has no owner/department scope check beyond the module gate; this is
+// the one shared re-derivation of "own or can-manage-all".
+export async function canAccessTask(viewer: TmsViewer, task: { assignee_id: string; created_by: string }): Promise<boolean> {
+  if (await canManageAllTmsTasks(viewer)) return true;
+  // created_by is a resolved username (see toRecord above); assignee_id
+  // stays the raw FK, hence comparing against viewer.userId, not viewer.username.
+  return task.created_by === viewer.username || task.assignee_id === viewer.userId;
+}
+
+const ACTION_STATUS: Record<EngineerTaskAction, TmsTaskStatus> = {
+  start: 'in_progress',
+  progress: 'in_progress',
+  blocked: 'blocked',
+  ready_for_review: 'ready_for_review',
+  reopen: 'in_progress'
+};
+
+// Valid FROM -> TO transitions for a non-manager-tier actor (engineer/
+// technician working their own task) — manager-tier/privileged callers
+// bypass this entirely via the existing generic PATCH route, which keeps
+// today's unrestricted behavior unchanged. 'progress' doesn't change status
+// at all (just logs a progress update while staying in_progress).
+const VALID_TRANSITIONS: Record<TmsTaskStatus, EngineerTaskAction[]> = {
+  to_do: ['start'],
+  in_progress: ['progress', 'blocked', 'ready_for_review'],
+  blocked: ['reopen'],
+  ready_for_review: [],
+  on_hold: [],
+  completed: [],
+  cancelled: []
+};
+
+export function isValidEngineerTransition(currentStatus: TmsTaskStatus, action: EngineerTaskAction): boolean {
+  return (VALID_TRANSITIONS[currentStatus] || []).includes(action);
+}
+
+// The generic PATCH route (app/api/tms/tasks/[id]/route.ts) is reachable by
+// a task's own assignee too (canAccessTask grants edit to assignee/creator,
+// not just manager-tier) — so a raw `{status: 'completed'}` PATCH would
+// otherwise let an engineer bypass every transition rule above entirely.
+// This re-derives the same allowed FROM->TO edges directly from
+// VALID_TRANSITIONS (via each action's resulting status) for that route to
+// gate non-manager-tier status changes with, without duplicating the map.
+export function isValidNonManagerStatusChange(from: TmsTaskStatus, to: TmsTaskStatus): boolean {
+  if (from === to) return true;
+  return (VALID_TRANSITIONS[from] || []).some((action) => ACTION_STATUS[action] === to);
+}
+
+export function statusForEngineerAction(action: EngineerTaskAction): TmsTaskStatus {
+  return ACTION_STATUS[action];
+}
+
+function toUpdateRecord(row: Model): TmsTaskUpdateRecord {
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  const updatedBy = plain.updatedBy as { username?: string; name?: string } | null;
+  return {
+    id: plain.id as string,
+    taskId: plain.task_id as string,
+    progressPercent: Number(plain.progress_percent) || 0,
+    statusAtUpdate: plain.status_at_update as TmsTaskStatus,
+    remark: (plain.remark as string) ?? '',
+    attachments: Array.isArray(plain.attachments) ? (plain.attachments as string[]) : [],
+    updatedByName: updatedBy?.name ?? updatedBy?.username ?? '',
+    updatedByUsername: updatedBy?.username ?? '',
+    createdAt: isoOrEmpty(plain.created_at)
+  };
+}
+
+export async function listTaskUpdates(taskId: string): Promise<TmsTaskUpdateRecord[]> {
+  if (!isUuid(taskId)) return [];
+  const rows = await db.TmsTaskUpdate.findAll({
+    where: { task_id: taskId } as never,
+    include: [{ model: db.User, as: 'updatedBy', attributes: ['id', 'username', 'name'] }],
+    order: [['created_at', 'DESC']]
+  });
+  return rows.map(toUpdateRecord);
+}
+
+export interface RecordTaskUpdateInput {
+  taskId: string;
+  status: TmsTaskStatus;
+  progressPercent?: number;
+  remark: string;
+  updatedByUserId: string;
+}
+
+// Inserts the immutable update-history row and patches the task's live
+// status/progress together — this, not the generic update() above, is what
+// app/api/tms/tasks/[id]/update/route.ts calls, so every engineer action
+// always leaves a trail.
+export async function recordTaskUpdate(input: RecordTaskUpdateInput): Promise<TmsTaskRecord | null> {
+  const clampedProgress = input.progressPercent === undefined ? undefined : Math.max(0, Math.min(100, input.progressPercent));
+  await db.TmsTaskUpdate.create({
+    task_id: input.taskId,
+    progress_percent: clampedProgress ?? 0,
+    status_at_update: input.status,
+    remark: input.remark || '',
+    updated_by: input.updatedByUserId
+  } as never);
+
+  const patch: Record<string, unknown> = { status: input.status };
+  if (clampedProgress !== undefined) patch.progress_percent = clampedProgress;
+  return update(input.taskId, patch as Partial<TmsTaskRecord>);
+}
+
+export interface RecentTaskUpdate extends TmsTaskUpdateRecord {
+  taskName: string;
+}
+
+// For the Person Dashboard's "recent activity" — joins across every task
+// this person is assigned to, not just one task's own history (that's
+// listTaskUpdates above).
+export async function listRecentTaskUpdatesForAssignee(userId: string, limit = 10): Promise<RecentTaskUpdate[]> {
+  if (!isUuid(userId)) return [];
+  const rows = await db.TmsTaskUpdate.findAll({
+    include: [
+      { model: db.User, as: 'updatedBy', attributes: ['id', 'username', 'name'] },
+      { model: db.TmsTask, as: 'task', attributes: ['id', 'name'], where: { assignee_id: userId } as never, required: true }
+    ],
+    order: [['created_at', 'DESC']],
+    limit
+  });
+  return rows.map((row) => {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    const task = plain.task as { name?: string } | null;
+    return { ...toUpdateRecord(row), taskName: task?.name ?? '' };
+  });
 }
 
 export const tmsTaskStore = { list, readAll, listForAssignee, findById, create, update, remove };

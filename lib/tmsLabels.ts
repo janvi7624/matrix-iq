@@ -31,14 +31,20 @@ export const TMS_TASK_STATUS_LABEL: Record<TmsTaskStatus, string> = {
   in_progress: 'In Progress',
   on_hold: 'On Hold',
   completed: 'Completed',
-  cancelled: 'Cancelled'
+  cancelled: 'Cancelled',
+  blocked: 'Blocked',
+  ready_for_review: 'Ready for Review'
 };
+// Blocked/Ready for Review reuse the existing at_risk (amber)/on_track
+// (blue) tones from StatusBadge rather than adding new CSS.
 export const TMS_TASK_STATUS_TONE: Record<TmsTaskStatus, StatusTone> = {
   to_do: 'pending',
   in_progress: 'confirmed',
   on_hold: 'pending',
   completed: 'done',
-  cancelled: 'cancelled'
+  cancelled: 'cancelled',
+  blocked: 'at_risk',
+  ready_for_review: 'on_track'
 };
 
 export const TMS_BOM_STATUS_LABEL: Record<TmsBomRequestStatus, string> = {
@@ -158,6 +164,20 @@ export function taskAssignedNotification(taskName: string, projectName: string, 
     body: `"${taskName}"\nProject: ${projectName}\nAssigned by: ${assignerName}\nPriority: ${TMS_PRIORITY_LABEL[priority]}\nDue: ${formatTmsDueDate(dueDate)}`
   };
 }
+
+// The engineer-facing task-action vocabulary (POST /api/tms/tasks/[id]/update)
+// — shared between the server store (lib/tmsTaskStore.ts, which re-exports
+// this rather than redeclaring it) and 'use client' views, since this file
+// has no fs/db imports and is safe in the browser.
+export type EngineerTaskAction = 'start' | 'progress' | 'blocked' | 'ready_for_review' | 'reopen';
+
+export const TMS_TASK_ACTION_LABEL: Record<EngineerTaskAction, string> = {
+  start: 'Start Task',
+  progress: 'Log Progress',
+  blocked: 'Mark Blocked',
+  ready_for_review: 'Submit for Review',
+  reopen: 'Resume'
+};
 
 export const TMS_ROLE_LABEL: Record<string, string> = {
   'technical-manager': 'Technical Manager',

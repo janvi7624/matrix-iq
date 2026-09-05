@@ -15,8 +15,17 @@ module.exports = (sequelize, DataTypes) => {
     start_date: { type: DataTypes.DATEONLY },
     estimated_close_date: { type: DataTypes.DATEONLY },
     actual_close_date: { type: DataTypes.DATEONLY },
+    // Controlled-extension deadline (see tms_project_deadline_extensions) —
+    // deliberately separate from estimated_close_date/actual_close_date,
+    // which already drive unrelated existing behavior.
+    deadline: { type: DataTypes.DATEONLY },
     budget: { type: DataTypes.DECIMAL(14, 2) },
     status: { type: DataTypes.ENUM('planning', 'not_started', 'in_progress', 'on_hold', 'completed', 'cancelled'), allowNull: false, defaultValue: 'planning' },
+    // 'department' = single owning department (department_id). 'combined' =
+    // multiple departments, real membership in tms_project_departments;
+    // department_id still holds the primary/owning one for every existing
+    // single-department caller.
+    project_type: { type: DataTypes.ENUM('department', 'combined'), allowNull: false, defaultValue: 'department' },
     priority: { type: DataTypes.ENUM('low', 'medium', 'high'), allowNull: false, defaultValue: 'medium' },
     progress_percent: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     remarks: { type: DataTypes.TEXT },
@@ -35,6 +44,8 @@ module.exports = (sequelize, DataTypes) => {
     TmsProject.hasMany(models.TmsTask, { foreignKey: 'project_id', as: 'tasks' });
     TmsProject.hasMany(models.TmsBomRequest, { foreignKey: 'project_id', as: 'bomRequests' });
     TmsProject.hasMany(models.TmsProcurement, { foreignKey: 'project_id', as: 'procurements' });
+    TmsProject.hasMany(models.TmsProjectDeadlineExtension, { foreignKey: 'tms_project_id', as: 'deadlineExtensions' });
+    TmsProject.belongsToMany(models.Department, { through: models.TmsProjectDepartment, foreignKey: 'tms_project_id', otherKey: 'department_id', as: 'departments' });
   };
 
   return TmsProject;

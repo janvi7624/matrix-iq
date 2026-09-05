@@ -7,7 +7,10 @@ module.exports = (sequelize, DataTypes) => {
     department_id: { type: DataTypes.UUID },
     description: { type: DataTypes.TEXT },
     priority: { type: DataTypes.ENUM('low', 'medium', 'high'), allowNull: false, defaultValue: 'medium' },
-    status: { type: DataTypes.ENUM('to_do', 'in_progress', 'on_hold', 'completed', 'cancelled'), allowNull: false, defaultValue: 'to_do' },
+    status: { type: DataTypes.ENUM('to_do', 'in_progress', 'on_hold', 'completed', 'cancelled', 'blocked', 'ready_for_review'), allowNull: false, defaultValue: 'to_do' },
+    // Live per-task progress — rolls up into TmsProject's task-derived
+    // progress (see lib/tmsProjectStore.ts's computeTaskDerivedProgress).
+    progress_percent: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     start_date: { type: DataTypes.DATEONLY },
     due_date: { type: DataTypes.DATEONLY },
     // Set automatically when status transitions into/out of 'completed' —
@@ -28,6 +31,7 @@ module.exports = (sequelize, DataTypes) => {
     TmsTask.belongsTo(models.User, { foreignKey: 'assignee_id', as: 'assignee' });
     TmsTask.belongsTo(models.Department, { foreignKey: 'department_id', as: 'department' });
     TmsTask.belongsTo(models.TmsProject, { foreignKey: 'project_id', as: 'project' });
+    TmsTask.hasMany(models.TmsTaskUpdate, { foreignKey: 'task_id', as: 'updates' });
   };
 
   return TmsTask;

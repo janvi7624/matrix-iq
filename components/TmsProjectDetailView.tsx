@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FileText, Layers, Paperclip, ShoppingCart, Check } from 'lucide-react';
-import { TmsBomRequestRecord, TmsPriority, TmsProcurementRecord, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
+import { TmsBomRequestRecord, TmsDeadlineExtensionRecord, TmsPriority, TmsProcurementRecord, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
@@ -18,6 +18,12 @@ import Input from './ui/Input';
 import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import ToolbarButton from './ui/ToolbarButton';
+import TmsDeadlineExtendModal from './TmsDeadlineExtendModal';
+import ActivityTimeline from './ui/ActivityTimeline';
+import { TMS_MANAGER_TIER_ROLES } from '@/lib/tmsConstants';
+import { classifyDeadline, DEADLINE_BUCKET_BAND, DEADLINE_BUCKET_LABEL } from '@/lib/deadlineBuckets';
+import { BAND_COLOR } from './ui/HealthGauge';
+import { AuditLogEntry } from '@/lib/types';
 import styles from './tmsDetail.module.css';
 
 // The real pipeline every TMS project moves through (tms_projects.status —
@@ -65,6 +71,9 @@ interface DetailResponse {
   tasks: TmsTaskRecord[];
   bomRequests: TmsBomRequestRecord[];
   procurements: TmsProcurementRecord[];
+  deadlineExtensions: TmsDeadlineExtensionRecord[];
+  activity: AuditLogEntry[];
+  taskDerivedProgress: number | null;
 }
 
 const TABS = [
@@ -72,6 +81,9 @@ const TABS = [
   { key: 'tasks', label: 'Tasks' },
   { key: 'bom', label: 'BOM Requests' },
   { key: 'procurement', label: 'Procurement' },
+  { key: 'team', label: 'Team' },
+  { key: 'deadline', label: 'Deadline History' },
+  { key: 'activity', label: 'Activity' },
   { key: 'attachments', label: 'Attachments' }
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
@@ -95,9 +107,10 @@ interface TmsProjectDetailViewProps {
 }
 
 export default function TmsProjectDetailView({ projectId, currentUser }: TmsProjectDetailViewProps) {
-  void currentUser;
+  const canExtendDeadline = TMS_MANAGER_TIER_ROLES.has(currentUser.role);
   const toast = useToast();
   const [data, setData] = useState<DetailResponse | null>(null);
+  const [showExtendDeadline, setShowExtendDeadline] = useState(false);
   const [status, setStatus] = useState('Loading...');
   const [tab, setTab] = useState<TabKey>('overview');
   const [uploading, setUploading] = useState(false);
@@ -222,19 +235,40 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
     );
   }
 
-  const { project, tasks, bomRequests, procurements } = data;
+  const { project, tasks, bomRequests, procurements, deadlineExtensions, activity, taskDerivedProgress } = data;
+  const deadlineBucket = classifyDeadline(project.deadline, project.status === 'completed');
+  const deadlineBand = DEADLINE_BUCKET_BAND[deadlineBucket];
 
   return (
-    <AppShell title={project.name} subtitle={`${project.project_code} · ${project.department_name}`} showBackLink>
+    <AppShell
+      title={project.name}
+      subtitle={`${project.project_code} · ${project.project_type === 'combined' && project.department_names.length ? project.department_names.join(', ') : project.department_name}`}
+      showBackLink
+    >
       <div className={styles.headerRow}>
         <StatusBadge tone={TMS_PROJECT_STATUS_TONE[project.status]} label={TMS_PROJECT_STATUS_LABEL[project.status]} />
         <PriorityBadge tone={TMS_PRIORITY_TONE[project.priority]} label={TMS_PRIORITY_LABEL[project.priority]} />
+        {deadlineBand !== 'na' && (
+          <span style={{ color: BAND_COLOR[deadlineBand], fontSize: 13, fontWeight: 600 }}>● {DEADLINE_BUCKET_LABEL[deadlineBucket]}</span>
+        )}
         <Link className={historyStyles.button} href="/tms/projects">Back to Projects</Link>
+        {canExtendDeadline && (
+          <button type="button" className={historyStyles.button} onClick={() => setShowExtendDeadline(true)}>Extend Deadline</button>
+        )}
         <button type="button" className={historyStyles.button} onClick={editing ? saveEdit : startEdit} disabled={saving}>
           {editing ? (saving ? 'Saving…' : 'Save changes') : 'Edit'}
         </button>
         {editing && <button type="button" className={historyStyles.button} onClick={() => setEditing(false)}>Cancel</button>}
       </div>
+
+      {showExtendDeadline && (
+        <TmsDeadlineExtendModal
+          projectId={projectId}
+          currentDeadline={project.deadline}
+          onClose={() => setShowExtendDeadline(false)}
+          onExtended={load}
+        />
+      )}
 
       {editing && editForm && (
         <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced18}`}>
@@ -288,13 +322,26 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
               <div><strong>Start date:</strong> {formatDate(project.start_date)}</div>
               <div><strong>Estimated close:</strong> {formatDate(project.estimated_close_date)}</div>
               <div><strong>Actual close:</strong> {formatDate(project.actual_close_date)}</div>
+              <div><strong>Deadline:</strong> {formatDate(project.deadline)}</div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div><strong>Budget:</strong> {formatCurrency(project.budget)}</div>
-              <div><strong>Progress:</strong> {project.progress_percent}%</div>
+              <div><strong>Progress (manual):</strong> {project.progress_percent}%</div>
+              {taskDerivedProgress !== null && <div><strong>Progress (from tasks):</strong> {taskDerivedProgress}%</div>}
             </div>
             <div className={styles.infoRow}><strong>Description:</strong> {project.description || '-'}</div>
             <div className={styles.infoRow}><strong>Notes / Remarks:</strong> {project.remarks || '-'}</div>
+          </div>
+
+          <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop16}`}>
+            <div className={`${calcStyles.h2} ${calcStyles.h2Reset}`}>BOQ &amp; Procurement</div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div><strong>BOQ Requests:</strong> {bomRequests.length}</div>
+              <div><strong>Pending:</strong> {bomRequests.filter((b) => b.status === 'draft' || b.status === 'submitted' || b.status === 'under_review').length}</div>
+              <div><strong>Approved:</strong> {bomRequests.filter((b) => b.status === 'approved' || b.status === 'admin_approved' || b.status === 'finance_approved').length}</div>
+              <div><strong>Procurement Items:</strong> {procurements.length}</div>
+              <div><strong>Completed:</strong> {bomRequests.filter((b) => b.status === 'completed' || b.status === 'received').length}</div>
+            </div>
           </div>
 
           <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop16}`}>
@@ -407,6 +454,56 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
                   <td>{p.vendor || '-'}</td>
                   <td><StatusBadge tone={TMS_PURCHASE_STATUS_TONE[p.purchase_status]} label={TMS_PURCHASE_STATUS_LABEL[p.purchase_status]} /></td>
                   <td><Link className={historyStyles.button} href={`/tms/procurement/${p.id}`}>View</Link></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )
+      )}
+
+      {tab === 'team' && (
+        <div className={calcStyles.sectionPanel}>
+          <div className={styles.infoRow}><strong>Project Manager:</strong> {project.project_manager_name || 'Unassigned'}</div>
+          <div className={`${calcStyles.h2} ${calcStyles.mt10}`}>Assigned Engineers</div>
+          {project.team_member_names.length === 0 ? (
+            <div className={styles.mutedText13}>No engineers assigned yet.</div>
+          ) : (
+            <div className={styles.pillRow}>
+              {project.team_member_names.map((name) => (
+                <span key={name} className={styles.namePill}>{name}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'activity' && (
+        <div className={calcStyles.sectionPanel}>
+          <ActivityTimeline
+            entries={activity.map((a) => ({ id: a.id, label: a.action, by: a.by, at: a.at }))}
+            empty="No activity recorded for this project yet."
+          />
+        </div>
+      )}
+
+      {tab === 'deadline' && (
+        deadlineExtensions.length === 0 ? (
+          <EmptyState icon={FileText} title="No deadline extensions yet" message="Extensions to this project's deadline will appear here." />
+        ) : (
+          <div className={historyStyles.tableWrap}>
+          <table className={historyStyles.table}>
+            <thead>
+              <tr><th>Previous Deadline</th><th>New Deadline</th><th>Remark</th><th>Extended By</th><th>Date</th></tr>
+            </thead>
+            <tbody>
+              {deadlineExtensions.map((ext) => (
+                <tr key={ext.id}>
+                  <td>{formatDate(ext.previousDeadline)}</td>
+                  <td>{formatDate(ext.newDeadline)}</td>
+                  <td>{ext.remark}</td>
+                  <td>{ext.extendedByName || '-'}</td>
+                  <td>{formatDate(ext.createdAt.slice(0, 10))}</td>
                 </tr>
               ))}
             </tbody>

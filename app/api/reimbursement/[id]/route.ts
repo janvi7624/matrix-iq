@@ -52,6 +52,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (body.date !== undefined) patch.date = body.date;
   if (body.description !== undefined) patch.description = typeof body.description === 'string' ? body.description.trim() : '';
   if (body.employeeIds !== undefined) patch.employee_ids = Array.isArray(body.employeeIds) ? body.employeeIds.filter((v: unknown) => typeof v === 'string') : [];
+  if (body.guestNames !== undefined) patch.guest_names = Array.isArray(body.guestNames) ? body.guestNames.filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0).map((v: string) => v.trim()) : [];
   if (body.fromLocation !== undefined) patch.from_location = typeof body.fromLocation === 'string' ? body.fromLocation.trim() : '';
   if (body.toLocation !== undefined) patch.to_location = typeof body.toLocation === 'string' ? body.toLocation.trim() : '';
   if (body.kilometers !== undefined) patch.kilometers = Number(body.kilometers) || 0;

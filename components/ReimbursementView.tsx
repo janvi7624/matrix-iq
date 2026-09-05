@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { UserRole, ReimbursementRecord, ReimbursementSheetRecord, ReimbursementSheetStatus } from '@/lib/types';
+import { UserRole, ReimbursementRecord, ReimbursementSheetRecord, ReimbursementSheetStatus, ReimbursementDeadlineInfo } from '@/lib/types';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import AppShell from './AppShell';
 import ReimbursementBulkAddForm from './ReimbursementBulkAddForm';
@@ -28,6 +28,7 @@ const MODE_OPTIONS = ['Cash', 'UPI', 'Bank Transfer', 'Credit Card', 'Debit Card
 
 const EMPTY_FORM = {
   date: '', description: '', descriptionType: '' as string, employeeIds: [] as string[],
+  guestNames: [] as string[],
   fromLocation: '', toLocation: '', kilometers: '',
   amount: '', modeOfPayment: '', attachmentUrls: [] as string[],
   vehicleType: '' as string,
@@ -107,6 +108,7 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [showBulkForm, setShowBulkForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [guestNameInput, setGuestNameInput] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -142,6 +144,11 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [editingAmountValue, setEditingAmountValue] = useState('');
   const [editingAmountLoading, setEditingAmountLoading] = useState(false);
 
+  const [deadlineInfo, setDeadlineInfo] = useState<ReimbursementDeadlineInfo | null>(null);
+  const [extendDay, setExtendDay] = useState('');
+  const [extendingDeadline, setExtendingDeadline] = useState(false);
+  const [showExtendForm, setShowExtendForm] = useState(false);
+
   // Role Management's isPrivileged flag, resolved server-side — NOT
   // re-derived from role name, since an admin can toggle a role's
   // privileged status independently of what the role is called.
@@ -176,6 +183,44 @@ export default function ReimbursementView({ currentUser }: Props) {
   }, [year, month]);
 
   useEffect(() => { fetchRecords(); fetchSheet(); }, [fetchRecords, fetchSheet]);
+
+  const fetchDeadline = useCallback(() => {
+    fetch('/api/reimbursement/deadline')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setDeadlineInfo(data); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => { fetchDeadline(); }, [fetchDeadline]);
+
+  async function handleExtendDeadline() {
+    const day = Number(extendDay);
+    if (!Number.isFinite(day) || day < 1 || day > 31) {
+      toast.error('Enter a valid day of month (1-31).');
+      return;
+    }
+    setExtendingDeadline(true);
+    try {
+      const response = await fetch('/api/reimbursement/deadline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ day })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast.error(data?.error || 'Could not extend the deadline.');
+        return;
+      }
+      setDeadlineInfo(data);
+      setShowExtendForm(false);
+      setExtendDay('');
+      toast.success(`Deadline extended to day ${data.day} of this month.`);
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setExtendingDeadline(false);
+    }
+  }
 
   useEffect(() => {
     fetch('/api/users/lite').then((r) => r.ok ? r.json() : []).then((data) => setUsers(Array.isArray(data) ? data : []));
@@ -313,6 +358,7 @@ export default function ReimbursementView({ currentUser }: Props) {
         date: form.date,
         description: fullDescription,
         employeeIds: form.employeeIds,
+        guestNames: form.guestNames,
         fromLocation: form.fromLocation,
         toLocation: form.toLocation,
         kilometers: Number(form.kilometers) || 0,
@@ -330,6 +376,7 @@ export default function ReimbursementView({ currentUser }: Props) {
       setForm({ ...EMPTY_FORM });
       setEditId(null);
       setShowForm(false);
+      setGuestNameInput('');
       fetchRecords();
       fetchSheet();
     } finally {
@@ -349,6 +396,7 @@ export default function ReimbursementView({ currentUser }: Props) {
       descriptionType: descType,
       description: descType && descType !== 'Other' ? '' : rec.description,
       employeeIds: rec.employee_ids,
+      guestNames: rec.guest_names,
       fromLocation: rec.from_location,
       toLocation: rec.to_location,
       kilometers: rec.kilometers ? String(rec.kilometers) : '',
@@ -359,6 +407,15 @@ export default function ReimbursementView({ currentUser }: Props) {
     });
     setEditId(rec.id);
     setShowForm(true);
+    setGuestNameInput('');
+  }
+
+  function addGuest() {
+    const name = guestNameInput.trim();
+    if (!name) return;
+    if (form.guestNames.some((g) => g.toLowerCase() === name.toLowerCase())) { setGuestNameInput(''); return; }
+    setForm((f) => ({ ...f, guestNames: [...f.guestNames, name] }));
+    setGuestNameInput('');
   }
 
   async function handleDelete(id: string) {
@@ -373,6 +430,7 @@ export default function ReimbursementView({ currentUser }: Props) {
     setForm({ ...EMPTY_FORM });
     setEditId(null);
     setShowForm(false);
+    setGuestNameInput('');
   }
 
   async function downloadVoucher(sheetId: string) {
@@ -452,6 +510,38 @@ export default function ReimbursementView({ currentUser }: Props) {
 
       {tab === 'my' && (
         <>
+      {deadlineInfo && (
+        <div className={historyStyles.status} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+          <span>
+            {deadlineInfo.day === null
+              ? 'No submission deadline is currently set for this month.'
+              : `Submission deadline this month: day ${deadlineInfo.day}${deadlineInfo.extended ? ` (extended${deadlineInfo.extendedByName ? ` by ${deadlineInfo.extendedByName}` : ''})` : ''}.`}
+          </span>
+          {deadlineInfo.canExtend && !showExtendForm && (
+            <button type="button" className={historyStyles.button} onClick={() => { setShowExtendForm(true); setExtendDay(deadlineInfo.day ? String(deadlineInfo.day) : ''); }}>
+              Extend this month&apos;s deadline
+            </button>
+          )}
+          {deadlineInfo.canExtend && showExtendForm && (
+            <>
+              <input
+                type="number"
+                min={1}
+                max={31}
+                className={calcStyles.formControl}
+                style={{ width: 90 }}
+                placeholder="Day"
+                value={extendDay}
+                onChange={(e) => setExtendDay(e.target.value)}
+              />
+              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={extendingDeadline} onClick={handleExtendDeadline}>
+                {extendingDeadline ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" className={historyStyles.button} onClick={() => { setShowExtendForm(false); setExtendDay(''); }}>Cancel</button>
+            </>
+          )}
+        </div>
+      )}
       {/* Toolbar */}
       <div className={historyStyles.toolbar}>
         <select className={`${calcStyles.formControl} ${styles.selectMonth}`} value={month} onChange={(e) => { setMonth(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); }}>
@@ -461,7 +551,7 @@ export default function ReimbursementView({ currentUser }: Props) {
           {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
         {canEdit && (
-          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => { setShowForm((v) => !v); setShowBulkForm(false); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM, employeeIds: myUserId ? [myUserId] : [] }); } }}>
+          <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => { setShowForm((v) => !v); setShowBulkForm(false); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM, employeeIds: myUserId ? [myUserId] : [] }); setGuestNameInput(''); } }}>
             {showForm ? 'Cancel' : '+ Add Entry'}
           </button>
         )}
@@ -698,7 +788,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Employee(s) *</label>
-              {form.employeeIds.length > 0 && (
+              {(form.employeeIds.length > 0 || form.guestNames.length > 0) && (
                 <div className={styles.employeePillsWrap}>
                   {form.employeeIds.map((id) => {
                     const user = users.find((u) => u.id === id);
@@ -712,6 +802,12 @@ export default function ReimbursementView({ currentUser }: Props) {
                       </span>
                     );
                   })}
+                  {form.guestNames.map((name, idx) => (
+                    <span key={`guest-${idx}`} className={`${historyStyles.rolePill} ${styles.employeePill} ${styles.employeePillOther}`}>
+                      {name} (Guest)
+                      <button type="button" onClick={() => setForm((f) => ({ ...f, guestNames: f.guestNames.filter((_, i) => i !== idx) }))} className={styles.pillRemoveBtn}>&times;</button>
+                    </span>
+                  ))}
                 </div>
               )}
               <select
@@ -727,6 +823,17 @@ export default function ReimbursementView({ currentUser }: Props) {
                   <option key={u.id} value={u.id}>{u.name || u.username}</option>
                 ))}
               </select>
+              <div className={`${calcStyles.inlineFlexGap8} ${calcStyles.mt6}`}>
+                <input
+                  type="text"
+                  className={calcStyles.formControl}
+                  value={guestNameInput}
+                  onChange={(e) => setGuestNameInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGuest(); } }}
+                  placeholder="Other — type a guest's name (not an app user)"
+                />
+                <button type="button" className={historyStyles.button} onClick={addGuest}>Add</button>
+              </div>
             </div>
 
             {TRAVEL_DESCRIPTIONS.has(form.descriptionType) && (

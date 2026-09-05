@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
       date,
       description,
       employee_ids: Array.isArray(body.employeeIds) ? body.employeeIds.filter((v: unknown) => typeof v === 'string') : [],
+      guest_names: Array.isArray(body.guestNames) ? body.guestNames.filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0).map((v: string) => v.trim()) : [],
       from_location: typeof body.fromLocation === 'string' ? body.fromLocation.trim() : '',
       to_location: typeof body.toLocation === 'string' ? body.toLocation.trim() : '',
       kilometers: Number(body.kilometers) || 0,

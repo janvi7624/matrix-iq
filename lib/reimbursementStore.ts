@@ -5,6 +5,7 @@ import { db, isUuid } from './db';
 function toRecord(row: Model, companionMap?: Map<string, string>): ReimbursementRecord {
   const p = row.get({ plain: true }) as Record<string, unknown>;
   const employeeIds: string[] = (p.employee_ids as string[]) ?? [];
+  const guestNames: string[] = (p.guest_names as string[]) ?? [];
   const creatorObj = p.creator as Record<string, unknown> | undefined;
   return {
     id: p.id as string,
@@ -14,7 +15,8 @@ function toRecord(row: Model, companionMap?: Map<string, string>): Reimbursement
     date: p.date ? String(p.date) : '',
     description: (p.description as string) ?? '',
     employee_ids: employeeIds,
-    employee_names: companionMap ? employeeIds.map((id) => companionMap.get(id) || id) : [],
+    employee_names: companionMap ? employeeIds.map((id) => companionMap.get(id) || id).concat(guestNames.map((n) => `${n} (Guest)`)) : [],
+    guest_names: guestNames,
     from_location: (p.from_location as string) ?? '',
     to_location: (p.to_location as string) ?? '',
     kilometers: Number(p.kilometers) || 0,
@@ -34,14 +36,15 @@ const INCLUDE_CREATOR = [{ model: db.User, as: 'creator', attributes: ['id', 'us
 async function resolveEmployeeNames(records: ReimbursementRecord[]): Promise<void> {
   const allIds = new Set<string>();
   records.forEach((r) => r.employee_ids.forEach((id) => allIds.add(id)));
-  if (!allIds.size) return;
-  const users = await db.User.findAll({ where: { id: [...allIds] } as never, attributes: ['id', 'name', 'username'] });
   const map = new Map<string, string>();
-  users.forEach((u) => {
-    const p = u.get({ plain: true }) as Record<string, unknown>;
-    map.set(p.id as string, (p.name as string) || (p.username as string) || (p.id as string));
-  });
-  records.forEach((r) => { r.employee_names = r.employee_ids.map((id) => map.get(id) || id); });
+  if (allIds.size) {
+    const users = await db.User.findAll({ where: { id: [...allIds] } as never, attributes: ['id', 'name', 'username'] });
+    users.forEach((u) => {
+      const p = u.get({ plain: true }) as Record<string, unknown>;
+      map.set(p.id as string, (p.name as string) || (p.username as string) || (p.id as string));
+    });
+  }
+  records.forEach((r) => { r.employee_names = r.employee_ids.map((id) => map.get(id) || id).concat(r.guest_names.map((n) => `${n} (Guest)`)); });
 }
 
 async function list(viewerUsername: string, isPrivileged: boolean, year: number, month: number): Promise<ReimbursementRecord[]> {
@@ -81,7 +84,7 @@ async function findById(id: string): Promise<ReimbursementRecord | null> {
 }
 
 async function create(viewerUsername: string, data: {
-  date: string; description: string; employee_ids: string[];
+  date: string; description: string; employee_ids: string[]; guest_names: string[];
   from_location: string; to_location: string; kilometers: number;
   amount: number; mode_of_payment: string; amount_in_words: string;
   attachment_urls: string[];
@@ -95,6 +98,7 @@ async function create(viewerUsername: string, data: {
     date: data.date,
     description: data.description,
     employee_ids: data.employee_ids,
+    guest_names: data.guest_names,
     from_location: data.from_location,
     to_location: data.to_location,
     kilometers: data.kilometers || null,
@@ -118,7 +122,7 @@ async function update(id: string, patch: Record<string, unknown>): Promise<Reimb
   const row = await db.Reimbursement.findByPk(id);
   if (!row) return null;
 
-  const allowed = ['date', 'description', 'employee_ids', 'from_location', 'to_location', 'kilometers', 'amount', 'mode_of_payment', 'amount_in_words', 'attachment_urls'];
+  const allowed = ['date', 'description', 'employee_ids', 'guest_names', 'from_location', 'to_location', 'kilometers', 'amount', 'mode_of_payment', 'amount_in_words', 'attachment_urls'];
   const attrs: Record<string, unknown> = {};
   for (const key of allowed) {
     if (patch[key] !== undefined) attrs[key] = patch[key];

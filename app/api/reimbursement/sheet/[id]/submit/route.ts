@@ -8,6 +8,8 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { listDepartmentManagers } from '@/lib/departmentStore';
 import { findUserByUsername, findUsersByUsernames } from '@/lib/userStore';
 import { sendReimbursementLifecycleEmail } from '@/lib/email/notifications';
+import { getEffectiveDeadline } from '@/lib/reimbursementDeadlineStore';
+import { ordinalDay } from '@/lib/format';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -31,8 +33,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const today = new Date();
     const dayOfMonth = today.getDate();
-    if (dayOfMonth > 5) {
-      return NextResponse.json({ error: 'Reimbursement sheets can only be submitted between the 1st and 5th of the month' }, { status: 400 });
+    const deadline = await getEffectiveDeadline(today.getFullYear(), today.getMonth() + 1);
+    if (deadline.day !== null && dayOfMonth > deadline.day) {
+      const extendedNote = deadline.extended ? ` (extended${deadline.extendedByName ? ` by ${deadline.extendedByName}` : ''})` : '';
+      return NextResponse.json({ error: `Reimbursement sheets can only be submitted through the ${ordinalDay(deadline.day)} of the month${extendedNote}.` }, { status: 400 });
     }
 
     const updated = await reimbursementSheetStore.submit(id);

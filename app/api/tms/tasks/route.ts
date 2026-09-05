@@ -10,6 +10,7 @@ import { TmsPriority, TmsTaskRecord } from '@/lib/types';
 import { taskAssignedNotification } from '@/lib/tmsLabels';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
+import { notifyIfCrossDepartmentAssignment } from '@/lib/tmsCrossDepartment';
 
 const VALID_PRIORITY: TmsPriority[] = ['low', 'medium', 'high'];
 
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
     description: typeof body.description === 'string' ? body.description.trim() : '',
     priority: VALID_PRIORITY.includes(body.priority) ? body.priority : 'medium',
     status: 'to_do',
+    progress_percent: 0,
     start_date: typeof body.startDate === 'string' ? body.startDate : '',
     due_date: typeof body.dueDate === 'string' ? body.dueDate : '',
     completion_date: '',
@@ -89,6 +91,15 @@ export async function POST(request: NextRequest) {
             detail: created.due_date ? `Due: ${created.due_date}` : undefined
           });
         }
+        await notifyIfCrossDepartmentAssignment({
+          project,
+          assignee: { username: assignee.username, name: assignee.name, department: assignee.department },
+          taskName: name,
+          taskId: created.id,
+          assignerName: viewer.name,
+          assignerUsername: viewer.username,
+          dueDate: created.due_date
+        });
       }
     }
 

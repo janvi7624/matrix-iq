@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { canManageAllTmsTasks, getTmsViewer, requireTmsAction } from '@/lib/tmsAccess';
-import { tmsTaskStore } from '@/lib/tmsTaskStore';
+import { canAccessTask, isValidNonManagerStatusChange, tmsTaskStore } from '@/lib/tmsTaskStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendTaskLifecycleEmail } from '@/lib/email/notifications';
@@ -9,21 +9,11 @@ import { TmsPriority, TmsTaskRecord, TmsTaskStatus } from '@/lib/types';
 import { taskAssignedNotification } from '@/lib/tmsLabels';
 import { logAudit, listAuditLog } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
+import { tmsProjectStore } from '@/lib/tmsProjectStore';
+import { notifyIfCrossDepartmentAssignment } from '@/lib/tmsCrossDepartment';
 
-const VALID_STATUS: TmsTaskStatus[] = ['to_do', 'in_progress', 'on_hold', 'completed', 'cancelled'];
+const VALID_STATUS: TmsTaskStatus[] = ['to_do', 'in_progress', 'on_hold', 'completed', 'cancelled', 'blocked', 'ready_for_review'];
 const VALID_PRIORITY: TmsPriority[] = ['low', 'medium', 'high'];
-
-// A task's own record has no owner/department scope check beyond the module
-// gate — the own-tasks-only restriction is already applied inside
-// tmsTaskStore.list(); a direct single-record fetch by id still respects it
-// by re-deriving the same "own or can-manage-all" rule here.
-async function canAccessTask(viewer: Awaited<ReturnType<typeof getTmsViewer>>, task: { assignee_id: string; created_by: string }): Promise<boolean> {
-  if (!viewer) return false;
-  if (await canManageAllTmsTasks(viewer)) return true;
-  // created_by is a resolved username (see tmsTaskStore's toRecord); assignee_id
-  // stays the raw FK, hence comparing against viewer.userId, not viewer.username.
-  return task.created_by === viewer.username || task.assignee_id === viewer.userId;
-}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getTmsViewer(request);
@@ -72,7 +62,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim();
     if (typeof body.description === 'string') patch.description = body.description.trim();
     if (VALID_PRIORITY.includes(body.priority)) patch.priority = body.priority;
-    if (VALID_STATUS.includes(body.status)) patch.status = body.status;
+    if (VALID_STATUS.includes(body.status)) {
+      // A task's own assignee/creator reaches this same route (canAccessTask
+      // grants them 'edit', not just manager-tier) — without this check they
+      // could set status: 'completed' directly, bypassing every transition
+      // rule the dedicated engineer endpoint enforces.
+      if (!(await canManageAllTmsTasks(viewer)) && !isValidNonManagerStatusChange(existing.status, body.status)) {
+        return NextResponse.json({ error: `Cannot change status from "${existing.status}" to "${body.status}" directly — use the task update actions instead` }, { status: 400 });
+      }
+      patch.status = body.status;
+    }
     if (typeof body.startDate === 'string') patch.start_date = body.startDate;
     if (typeof body.dueDate === 'string') patch.due_date = body.dueDate;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
@@ -111,6 +110,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             event: 'assigned',
             taskName: existing.name,
             projectName: existing.project_name
+          });
+        }
+        const project = await tmsProjectStore.findById(existing.project_id);
+        if (project) {
+          await notifyIfCrossDepartmentAssignment({
+            project,
+            assignee: { username: assignee.username, name: assignee.name, department: assignee.department },
+            taskName: patch.name || existing.name,
+            taskId: id,
+            assignerName: viewer.name,
+            assignerUsername: viewer.username,
+            dueDate: patch.due_date !== undefined ? patch.due_date : existing.due_date
           });
         }
       }

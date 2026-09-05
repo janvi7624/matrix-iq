@@ -17,3 +17,10 @@ export function formatNumberPdf(value: number | string | undefined): string {
 export function slugify(text: string): string {
   return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
+
+// "1st", "2nd", "3rd", "4th"... with the 11th/12th/13th exception (all "th",
+// not "st"/"nd"/"rd", despite ending in 1/2/3).
+export function ordinalDay(day: number): string {
+  const suffix = ['th', 'st', 'nd', 'rd'][day % 10 > 3 || Math.floor(day / 10) === 1 ? 0 : day % 10];
+  return `${day}${suffix}`;
+}

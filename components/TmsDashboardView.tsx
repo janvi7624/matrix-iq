@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AlertTriangle, CheckCircle2, Clock, FolderKanban, ListChecks } from 'lucide-react';
 import { TmsBomRequestRecord, TmsProcurementRecord, TmsProjectRecord, TmsTaskRecord, TmsTaskStatus, UserRole } from '@/lib/types';
-import { TMS_DEPARTMENTS } from '@/lib/tmsConstants';
-import { TMS_TASK_STATUS_LABEL, todayIso } from '@/lib/tmsLabels';
+import { TMS_DEPARTMENTS, TMS_MANAGER_TIER_ROLES } from '@/lib/tmsConstants';
+import { TMS_BOM_STATUS_LABEL, TMS_TASK_STATUS_LABEL, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import dashboardStyles from './dashboard.module.css';
 import historyStyles from './quotationHistory.module.css';
@@ -18,6 +19,7 @@ import FilterBar from './ui/FilterBar';
 import Select from './ui/Select';
 import Input from './ui/Input';
 import TmsGuideModal, { useTmsGuideAutoShow } from './TmsGuideModal';
+import TmsPersonDashboard from './TmsPersonDashboard';
 
 interface DashboardResponse {
   projects: TmsProjectRecord[];
@@ -29,8 +31,6 @@ interface DashboardResponse {
 interface TmsDashboardViewProps {
   currentUser: { id: string; username: string; name: string; role: UserRole };
 }
-
-const MANAGER_TIER_ROLES = new Set<UserRole>(['technical-manager', 'team-lead', 'admin', 'superadmin']);
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -73,11 +73,12 @@ function TaskRow({ task, tone, label }: { task: TmsTaskRecord; tone: 'overdue' |
 }
 
 export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps) {
-  const isManagerTier = MANAGER_TIER_ROLES.has(currentUser.role);
+  const isManagerTier = TMS_MANAGER_TIER_ROLES.has(currentUser.role);
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [autoShowGuide, dismissAutoGuide] = useTmsGuideAutoShow();
   const [showGuide, setShowGuide] = useState(false);
+  const [openPersonId, setOpenPersonId] = useState<string | null>(null);
 
   const [fDepartment, setFDepartment] = useState('');
   const [fProject, setFProject] = useState('');
@@ -167,7 +168,8 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
       myTasks: myTasks.length,
       dueToday: myTasks.filter((t) => activeTask(t) && t.due_date === date).length,
       overdue: myTasks.filter((t) => activeTask(t) && t.due_date && t.due_date < date).length,
-      completedThisWeek: myTasks.filter((t) => t.completion_date && t.completion_date >= weekAgo && t.completion_date <= date).length
+      completedThisWeek: myTasks.filter((t) => t.completion_date && t.completion_date >= weekAgo && t.completion_date <= date).length,
+      myProgress: myTasks.length ? Math.round((myTasks.filter((t) => t.status === 'completed').length / myTasks.length) * 100) : null
     };
   }, [myProjects, myTasks]);
 
@@ -221,6 +223,27 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
     const overdueTasks = data.tasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled' && t.due_date && t.due_date < date);
     return { engineers: teamWorkload.length, activeProjects: activeProjects.length, pendingTasks: pendingTasks.length, overdueTasks: overdueTasks.length };
   }, [isManagerTier, data, teamWorkload]);
+
+  // Technical dashboard charts (manager-tier only) — built from the SAME
+  // already-fetched/filtered task/bomRequests arrays as the KPI tiles above,
+  // no separate API call.
+  const taskDistributionChart = useMemo(() => {
+    if (!isManagerTier) return [];
+    const counts = new Map<TmsTaskStatus, number>();
+    tasks.forEach((t) => counts.set(t.status, (counts.get(t.status) || 0) + 1));
+    return (Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[])
+      .map((s) => ({ name: TMS_TASK_STATUS_LABEL[s], count: counts.get(s) || 0 }))
+      .filter((row) => row.count > 0);
+  }, [isManagerTier, tasks]);
+
+  const bomPipelineChart = useMemo(() => {
+    if (!isManagerTier) return [];
+    const counts = new Map<string, number>();
+    bomRequests.forEach((b) => counts.set(b.status, (counts.get(b.status) || 0) + 1));
+    return Object.keys(TMS_BOM_STATUS_LABEL)
+      .map((s) => ({ name: TMS_BOM_STATUS_LABEL[s as keyof typeof TMS_BOM_STATUS_LABEL], count: counts.get(s) || 0 }))
+      .filter((row) => row.count > 0);
+  }, [isManagerTier, bomRequests]);
 
   const projectStats = useMemo(() => {
     const date = fDate || todayIso();
@@ -312,6 +335,12 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={historyStyles.summaryCardLabel}>Completed This Week</div>
           <div className={historyStyles.summaryCardValue}>{myWorkStats.completedThisWeek}</div>
         </div>
+        {myWorkStats.myProgress !== null && (
+          <div className={historyStyles.summaryCard}>
+            <div className={historyStyles.summaryCardLabel}>My Progress</div>
+            <div className={historyStyles.summaryCardValue}>{myWorkStats.myProgress}%</div>
+          </div>
+        )}
       </div>
 
       <div className={`${calcStyles.sectionPanel} ${styles.nextActionPanel} ${nextAction ? styles.nextActionPanelAlert : styles.nextActionPanelOk}`}>
@@ -398,12 +427,43 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
               <div className={dashboardStyles.kpiLabel}>Overdue Tasks</div>
             </div>
           </div>
+          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+            {taskDistributionChart.length > 0 && (
+              <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced}`}>
+                <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Task Distribution</div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={taskDistributionChart}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="var(--mx-info)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {bomPipelineChart.length > 0 && (
+              <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced}`}>
+                <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>BOQ Pipeline</div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={bomPipelineChart}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={60} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="var(--mx-success)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
           {teamWorkload.length > 0 && (
             <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced}`}>
               <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Team Workload</div>
               <TableWrap>
                 <table className={historyStyles.table}>
-                  <thead><tr><th>Engineer</th><th>Projects</th><th>Tasks</th><th>Overdue</th></tr></thead>
+                  <thead><tr><th>Engineer</th><th>Projects</th><th>Tasks</th><th>Overdue</th><th></th></tr></thead>
                   <tbody>
                     {teamWorkload.map((w) => (
                       <tr
@@ -415,6 +475,18 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
                         <td>{w.projectCount}</td>
                         <td>{w.tasks}</td>
                         <td className={w.overdue ? styles.overdueCount : undefined}>{w.overdue}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className={historyStyles.button}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenPersonId(w.id);
+                            }}
+                          >
+                            Profile
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -545,6 +617,8 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={dashboardStyles.kpiLabel}>Awaiting Delivery</div>
         </div>
       </div>
+
+      {openPersonId && <TmsPersonDashboard userId={openPersonId} onClose={() => setOpenPersonId(null)} />}
     </AppShell>
   );
 }

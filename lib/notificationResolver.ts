@@ -17,7 +17,7 @@ interface EntityResolver {
   exists: (entityId: string) => Promise<boolean>;
 }
 
-const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation'] as const;
+const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation'] as const;
 
 async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: string): Promise<boolean> {
   if (!isUuid(entityId)) return false;
@@ -35,6 +35,7 @@ const RESOLVERS: Record<string, EntityResolver> = {
   marketing_request: { href: () => '/marketing-requests', exists: (id) => existsIn('MarketingRequest', id) },
   project: { href: (id) => `/projects/${id}`, exists: (id) => existsIn('Project', id) },
   reimbursement_sheet: { href: () => '/reimbursement', exists: (id) => existsIn('ReimbursementSheet', id) },
+  tms_project: { href: (id) => `/tms/projects/${id}`, exists: (id) => existsIn('TmsProject', id) },
   tms_bom_request: { href: (id) => `/tms/bom-requests/${id}`, exists: (id) => existsIn('TmsBomRequest', id) },
   tms_procurement: { href: (id) => `/tms/procurement/${id}`, exists: (id) => existsIn('TmsProcurement', id) },
   tms_task: { href: (id) => `/tms/tasks/${id}`, exists: (id) => existsIn('TmsTask', id) },

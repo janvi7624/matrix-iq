@@ -54,6 +54,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   marketingOwnerUsername: '',
   bomFinanceApproverId: '',
   bomFinanceApproverUsername: '',
+  // Preserves the exact previous hardcoded "1st-5th" submission window
+  // (app/api/reimbursement/sheet/[id]/submit/route.ts) until an admin
+  // deliberately changes or clears it.
+  reimbursementDeadlineDay: 5,
   notificationTemplates: [
     { key: 'demo_approval_pending', label: 'Demo Approval Pending', subject: 'Demo request awaiting your approval', body: 'Hi {{name}}, a demo request for {{client}} is awaiting your approval.' },
     { key: 'dc_generated', label: 'Delivery Challan Generated', subject: 'DC {{dcNumber}} generated', body: 'Delivery Challan {{dcNumber}} has been generated for {{client}}.' },
@@ -101,6 +105,7 @@ function toRecord(row: Model): AppConfig {
     marketingOwnerUsername: (plain.marketingOwner as { username?: string } | null)?.username ?? '',
     bomFinanceApproverId: (plain.bomFinanceApproverId as string) ?? '',
     bomFinanceApproverUsername: (plain.bomFinanceApprover as { username?: string } | null)?.username ?? '',
+    reimbursementDeadlineDay: plain.reimbursementDeadlineDay === null || plain.reimbursementDeadlineDay === undefined ? null : Number(plain.reimbursementDeadlineDay),
     updated_at: isoOrEmpty(plain.updatedAt),
     updated_by: (plain.updater as { username?: string } | null)?.username ?? ''
   };
@@ -181,6 +186,13 @@ export async function updateAppConfig(patch: Partial<AppConfig>, updatedBy: stri
   }
   if (attrs.bomFinanceApproverId !== undefined) {
     (attrs as Record<string, unknown>).bomFinanceApproverId = attrs.bomFinanceApproverId || null;
+  }
+  // Unlike defaultTaxPercent, a blank/invalid value here means "no
+  // deadline" (null), not 0 — 0 would be a nonsensical "due before the
+  // month starts" cutoff.
+  if (attrs.reimbursementDeadlineDay !== undefined) {
+    const n = Number(attrs.reimbursementDeadlineDay);
+    attrs.reimbursementDeadlineDay = attrs.reimbursementDeadlineDay === null || !n || n < 1 ? null : Math.min(31, Math.round(n));
   }
   await row.update({ ...attrs, updatedBy: updater ? updater.get('id') : null } as never);
   invalidateCache(APP_CONFIG_CACHE_KEY);

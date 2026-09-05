@@ -433,6 +433,7 @@ export interface ReimbursementRecord {
   description: string;
   employee_ids: string[];
   employee_names: string[];
+  guest_names: string[];
   from_location: string;
   to_location: string;
   kilometers: number;
@@ -485,6 +486,22 @@ export interface ReimbursementSheetRecord {
   total_amount: number;
   total_in_words: string;
   entry_count: number;
+}
+
+// The effective submission-window cutoff for one (year, month) — either the
+// admin-configured global default (AppConfig.reimbursementDeadlineDay) or a
+// one-off extension for that specific period. See lib/reimbursementDeadlineStore.ts.
+export interface ReimbursementDeadlineInfo {
+  year: number;
+  month: number;
+  day: number | null; // null = no deadline enforced
+  extended: boolean;
+  extendedByName: string;
+  // Server-computed for the requesting viewer (HR department manager, or
+  // admin/superadmin) — the client uses this to decide whether to show the
+  // "Extend" control at all, rather than duplicating the HR-membership
+  // check itself.
+  canExtend: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -945,6 +962,11 @@ export interface AppConfig {
   // (username).
   bomFinanceApproverId: string;
   bomFinanceApproverUsername: string;
+  // Day-of-month by which a Reimbursement sheet must be submitted — set in
+  // Application Settings > Reimbursement Settings. null = no deadline
+  // enforced. A specific month's deadline can be extended past this without
+  // changing the global default — see lib/reimbursementDeadlineStore.ts.
+  reimbursementDeadlineDay: number | null;
   updated_at: string;
   updated_by: string;
 }
@@ -1266,6 +1288,7 @@ export interface RoleRecord {
 
 export type TmsProjectStatus = 'planning' | 'not_started' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
 export type TmsPriority = 'low' | 'medium' | 'high';
+export type TmsProjectType = 'department' | 'combined';
 
 export interface TmsProjectRecord {
   id: string;
@@ -1276,8 +1299,15 @@ export interface TmsProjectRecord {
   client_name: string;
   client_contact: string;
   description: string;
+  // "Primary/owning" department — unchanged meaning, still the single value
+  // every pre-existing single-department caller keys off. For the full set
+  // of departments a project touches (1 for 'department', 2+ for
+  // 'combined'), use department_ids/department_names below.
   department_id: string;
   department_name: string;
+  project_type: TmsProjectType;
+  department_ids: string[];
+  department_names: string[];
   project_manager_id: string;
   project_manager_name: string;
   team_member_ids: string[];
@@ -1285,6 +1315,7 @@ export interface TmsProjectRecord {
   start_date: string;
   estimated_close_date: string;
   actual_close_date: string;
+  deadline: string;
   budget: number;
   status: TmsProjectStatus;
   priority: TmsPriority;
@@ -1294,7 +1325,21 @@ export interface TmsProjectRecord {
   updated_at: string;
 }
 
-export type TmsTaskStatus = 'to_do' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
+export interface TmsDeadlineExtensionRecord {
+  id: string;
+  tmsProjectId: string;
+  previousDeadline: string;
+  newDeadline: string;
+  remark: string;
+  attachments: string[];
+  extendedByName: string;
+  extendedByUsername: string;
+  createdAt: string;
+}
+
+// blocked/ready_for_review are the two engineer-workflow additions — see
+// lib/tmsTaskStore.ts's VALID_TRANSITIONS for who may move between which.
+export type TmsTaskStatus = 'to_do' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled' | 'blocked' | 'ready_for_review';
 
 export interface TmsTaskRecord {
   id: string;
@@ -1310,12 +1355,25 @@ export interface TmsTaskRecord {
   description: string;
   priority: TmsPriority;
   status: TmsTaskStatus;
+  progress_percent: number;
   start_date: string;
   due_date: string;
   completion_date: string;
   remarks: string;
   attachments: string[];
   updated_at: string;
+}
+
+export interface TmsTaskUpdateRecord {
+  id: string;
+  taskId: string;
+  progressPercent: number;
+  statusAtUpdate: TmsTaskStatus;
+  remark: string;
+  attachments: string[];
+  updatedByName: string;
+  updatedByUsername: string;
+  createdAt: string;
 }
 
 // Full chain: draft -> submitted -> approved (Technical Manager) ->

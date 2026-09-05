@@ -55,7 +55,9 @@ export const OFFICE_EXPENSE_ITEMS = [
   'HR',
   'Department',
   'Godown 30',
-  'Godown 31'
+  'Godown 31',
+  'Tea',
+  'Flowers'
 ] as const;
 
 // Godown 30 and Godown 31 are two premises billed the same way, so they share

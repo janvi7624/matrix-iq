@@ -75,6 +75,17 @@ export async function canManageAllTmsTasks(viewer: TmsViewer): Promise<boolean> 
   return isModuleActionAllowed(viewer, 'tms-tasks', 'manage');
 }
 
+// Project -> Extend Deadline is deliberately gated by role tier alone (a
+// small dedicated function, matching this file's isAdministrationManager/
+// isAccountsManager pattern) rather than a new entry in the shared,
+// cross-module ModulePermissionAction type — keeps the Tab Access matrix and
+// every other module untouched. Engineers/Technicians (no manager tier,
+// never isPrivileged) can never extend a deadline, even if they otherwise
+// hold 'edit' on tms-projects.
+export function canExtendTmsDeadline(viewer: TmsViewer): boolean {
+  return viewer.isPrivileged || isTmsManagerTier(viewer);
+}
+
 // Who reviews/approves BOM Requests + gets notified of new submissions —
 // resolved from the ROLE (Technical Manager), not Department.managerIds (a
 // different, pre-existing "who manages department X" concept serving

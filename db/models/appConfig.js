@@ -34,6 +34,11 @@ module.exports = (sequelize, DataTypes) => {
     // Application Settings rather than hardcoded, so it survives the person
     // changing).
     bomFinanceApproverId: { type: DataTypes.UUID },
+    // Day-of-month by which a Reimbursement sheet must be submitted — null
+    // means no deadline enforced. See db/models/reimbursementDeadlineExtension.js
+    // for the per-month override that can push a specific period's cutoff
+    // past this default without changing it.
+    reimbursementDeadlineDay: { type: DataTypes.INTEGER },
     updatedBy: { type: DataTypes.UUID }
   }, {
     tableName: 'app_config',

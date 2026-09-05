@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTmsViewer, requireTmsAction, TMS_DEPARTMENTS } from '@/lib/tmsAccess';
-import { tmsProjectStore } from '@/lib/tmsProjectStore';
+import { canAccessTmsProjectRow, computeTaskDerivedProgress, tmsProjectStore } from '@/lib/tmsProjectStore';
 import { tmsTaskStore } from '@/lib/tmsTaskStore';
 import { tmsBomRequestStore } from '@/lib/tmsBomRequestStore';
 import { tmsProcurementStore } from '@/lib/tmsProcurementStore';
@@ -9,6 +9,8 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { TmsPriority, TmsProjectRecord, TmsProjectStatus } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
+import { listForProject as listDeadlineExtensions } from '@/lib/tmsDeadlineExtensionStore';
+import { listAuditLog } from '@/lib/auditLogStore';
 
 const VALID_STATUS: TmsProjectStatus[] = ['planning', 'not_started', 'in_progress', 'on_hold', 'completed', 'cancelled'];
 const VALID_PRIORITY: TmsPriority[] = ['low', 'medium', 'high'];
@@ -27,14 +29,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const project = await tmsProjectStore.findById(id);
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    if (!canAccessTmsProjectRow(viewer, project)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    const [tasks, bomRequests, procurements] = await Promise.all([tmsTaskStore.readAll(), tmsBomRequestStore.list(), tmsProcurementStore.list()]);
+    const [tasks, bomRequests, procurements, deadlineExtensions, activity, taskDerivedProgress] = await Promise.all([
+      tmsTaskStore.readAll(),
+      tmsBomRequestStore.list(),
+      tmsProcurementStore.list(),
+      listDeadlineExtensions(id),
+      listAuditLog('tms_project', id),
+      computeTaskDerivedProgress(id)
+    ]);
 
     return NextResponse.json({
       project,
       tasks: tasks.filter((t) => t.project_id === id),
       bomRequests: bomRequests.filter((b) => b.project_id === id),
-      procurements: procurements.filter((p) => p.project_id === id)
+      procurements: procurements.filter((p) => p.project_id === id),
+      deadlineExtensions,
+      activity,
+      taskDerivedProgress
     });
   } catch (error) {
     return apiErrorResponse(error);
@@ -53,6 +66,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const existing = await tmsProjectStore.findById(id);
     if (!existing) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    if (!canAccessTmsProjectRow(viewer, existing)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     if (body.action === 'addAttachment') {
       const urls = toStringArray(body.urls);
@@ -90,6 +104,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.department_id = department.id;
     }
 
+    if (body.projectType === 'department' || body.projectType === 'combined') {
+      patch.project_type = body.projectType;
+    }
+    if (Array.isArray(body.departmentIds)) {
+      const requestedIds = toStringArray(body.departmentIds);
+      const resolvedDepartments = await Promise.all(requestedIds.map((did) => findDepartmentById(did)));
+      const validIds = resolvedDepartments
+        .filter((d): d is NonNullable<typeof d> => !!d && TMS_DEPARTMENTS.includes(d.name as (typeof TMS_DEPARTMENTS)[number]))
+        .map((d) => d.id);
+      const effectiveType = patch.project_type || existing.project_type;
+      if (effectiveType === 'combined' && validIds.length < 2) {
+        return NextResponse.json({ error: 'A combined project needs at least 2 valid technical departments' }, { status: 400 });
+      }
+      if (effectiveType === 'department' && validIds.length !== 1) {
+        return NextResponse.json({ error: 'A department project needs exactly 1 department' }, { status: 400 });
+      }
+      patch.department_ids = validIds;
+      if (!patch.department_id) patch.department_id = validIds[0];
+    }
+
     const updated = await tmsProjectStore.update(id, patch);
 
     // Use the POST-patch manager: if this same request also reassigned
@@ -125,6 +159,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const { id } = await params;
   try {
+    const existing = await tmsProjectStore.findById(id);
+    if (!existing) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    if (!canAccessTmsProjectRow(viewer, existing)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
     const result = await tmsProjectStore.remove(id, allowed);
     if (!result.ok) {
       const status = result.reason === 'Project not found' ? 404 : 400;

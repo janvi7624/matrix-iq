@@ -5,6 +5,7 @@ module.exports = (sequelize, DataTypes) => {
     date: { type: DataTypes.DATEONLY, allowNull: false },
     description: { type: DataTypes.TEXT },
     employee_ids: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    guest_names: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     from_location: { type: DataTypes.STRING },
     to_location: { type: DataTypes.STRING },
     kilometers: { type: DataTypes.DECIMAL(10, 2) },
