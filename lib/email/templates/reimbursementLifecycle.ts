@@ -3,6 +3,7 @@ import { escapeHtml, renderButton, renderEmailShell, renderInfoBox, RenderedEmai
 
 export type ReimbursementEvent =
   | 'submitted'
+  | 'submitted_by_manager'
   | 'manager_approved'
   | 'manager_change_requested'
   | 'hr_approved'
@@ -28,6 +29,11 @@ const EVENT_COPY: Record<ReimbursementEvent, { subject: (emp: string, period: st
   submitted: {
     subject: (emp, period) => `Reimbursement Approval Needed — ${emp} (${period})`,
     intro: (emp, period, amount) => `${emp} has submitted their reimbursement sheet for ${period} totaling ${amount}. Please review and take action.`,
+    accentColor: '#d97706',
+  },
+  submitted_by_manager: {
+    subject: (emp, period) => `Reimbursement Approval Needed — ${emp} (${period})`,
+    intro: (emp, period, amount) => `${emp} (a department manager) has submitted their reimbursement sheet for ${period} totaling ${amount}. Since they have no manager of their own to review it, it has been routed directly to HR for review.`,
     accentColor: '#d97706',
   },
   manager_approved: {

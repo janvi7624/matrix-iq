@@ -162,6 +162,22 @@ async function submit(id: string): Promise<ReimbursementSheetRecord | null> {
   return fetchWithTotals(row);
 }
 
+// draft → manager_approved, skipping manager review entirely — for a sheet
+// created by a department manager themselves. Manager fields stay null (no
+// human manager actually reviewed it) rather than recording a fabricated
+// self-approval; the UI's "Approved by Manager: ..." line only renders when
+// manager_name is set, so this correctly shows nothing for that stage.
+async function submitDirectToHr(id: string): Promise<ReimbursementSheetRecord | null> {
+  const row = await db.ReimbursementSheet.findByPk(id);
+  if (!row) return null;
+  const p = row.get({ plain: true }) as Record<string, unknown>;
+  const allowed: ReimbursementSheetStatus[] = ['draft', 'manager_change_requested', 'hr_change_requested'];
+  if (!allowed.includes(p.status as ReimbursementSheetStatus)) return null;
+
+  await row.update({ status: 'manager_approved', change_request_remarks: null, change_requested_by: null } as never);
+  return fetchWithTotals(row);
+}
+
 // submitted → manager_approved | manager_change_requested
 async function managerDecide(
   id: string,
@@ -264,6 +280,7 @@ export const reimbursementSheetStore = {
   listForReviewer,
   listActedOn,
   submit,
+  submitDirectToHr,
   managerDecide,
   hrDecide,
   accountsComplete,

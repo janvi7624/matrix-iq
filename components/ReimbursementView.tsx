@@ -11,7 +11,7 @@ import calcStyles from './calculator.module.css';
 import styles from './reimbursement.module.css';
 
 interface Props {
-  currentUser: { username: string; role: UserRole; isPrivileged: boolean };
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean; isReviewer: boolean };
 }
 
 interface UserOption { id: string; username: string; name: string }
@@ -43,6 +43,15 @@ const STATUS_CONFIG: Record<ReimbursementSheetStatus, { label: string; color: st
   hr_change_requested:       { label: 'Changes Requested (HR)',   color: 'var(--mx-brand)', bg: 'var(--mx-red-50)', step: 2 },
   payment_done:              { label: 'Payment Completed',        color: 'var(--mx-green-600)', bg: 'var(--mx-green-50)', step: 4 },
 };
+
+// A department manager's own sheet skips manager review entirely (routed
+// straight to HR — see the submit route) and lands on "manager_approved"
+// with no manager_name recorded. "Manager Approved" would misleadingly
+// imply someone reviewed it, so relabel that specific case.
+function statusLabel(cfg: { label: string }, status: ReimbursementSheetStatus, managerName: string | null | undefined): string {
+  if (status === 'manager_approved' && !managerName) return 'Sent to HR';
+  return cfg.label;
+}
 
 const STEPS = ['Employee', 'Manager', 'HR', 'Accounts'];
 
@@ -153,6 +162,16 @@ export default function ReimbursementView({ currentUser }: Props) {
   // re-derived from role name, since an admin can toggle a role's
   // privileged status independently of what the role is called.
   const isPrivileged = currentUser.isPrivileged;
+  // Eligible to review sheets (Pending/Approved tabs) — admin/superadmin, OR
+  // a department manager (any department, incl. HR/Accounts), resolved
+  // server-side with the SAME listDepartmentManagers() check the backend
+  // (/api/reimbursement/sheet/pending) already uses. Deliberately broader
+  // than isPrivileged: a plain department manager (e.g. a technical-manager)
+  // is not "privileged" (no /admin/* access) but must still see reimbursement
+  // sheets awaiting their approval — gating these tabs behind isPrivileged
+  // hid them from every non-admin manager even though the API already
+  // scoped the data correctly for them.
+  const isReviewer = currentUser.isReviewer;
   const isHr = currentUser.role === 'hr';
   const canSeeAdminEntries = ['superadmin', 'admin', 'hr', 'accounts'].includes(currentUser.role);
   const myUserId = useMemo(() => users.find((u) => u.username === currentUser.username)?.id || '', [users, currentUser.username]);
@@ -234,8 +253,8 @@ export default function ReimbursementView({ currentUser }: Props) {
       .finally(() => setPendingLoading(false));
   }, []);
 
-  useEffect(() => { if (isPrivileged) fetchPending(); }, [fetchPending, isPrivileged]);
-  useEffect(() => { if (isPrivileged && tab === 'pending') fetchPending(); }, [tab, fetchPending, isPrivileged]);
+  useEffect(() => { if (isReviewer) fetchPending(); }, [fetchPending, isReviewer]);
+  useEffect(() => { if (isReviewer && tab === 'pending') fetchPending(); }, [tab, fetchPending, isReviewer]);
 
   function openPendingSheet(s: ReimbursementSheetRecord) {
     setSelectedPending(s);
@@ -491,7 +510,7 @@ export default function ReimbursementView({ currentUser }: Props) {
         <button type="button" onClick={() => { setTab('my'); setSelectedPending(null); }} className={`${styles.mainTabBtn} ${tab === 'my' ? styles.mainTabBtnActive : ''}`}>
           My Sheet
         </button>
-        {isPrivileged && (
+        {isReviewer && (
           <button type="button" onClick={() => setTab('pending')} className={`${styles.mainTabBtn} ${styles.mainTabBtnBadged} ${tab === 'pending' ? styles.mainTabBtnActive : ''}`}>
             Pending Approvals
             {pendingSheets.length > 0 && (
@@ -501,7 +520,7 @@ export default function ReimbursementView({ currentUser }: Props) {
             )}
           </button>
         )}
-        {isPrivileged && (
+        {isReviewer && (
           <button type="button" onClick={() => setTab('approved')} className={`${styles.mainTabBtn} ${tab === 'approved' ? styles.mainTabBtnActive : ''}`}>
             Approved
           </button>
@@ -584,7 +603,7 @@ export default function ReimbursementView({ currentUser }: Props) {
               </div>
             </div>
             <span className={styles.statusPillLg} style={{ background: statusCfg.color }}>
-              {statusCfg.label}
+              {statusLabel(statusCfg, sheetStatus, sheet.manager_name)}
             </span>
           </div>
 
@@ -1034,7 +1053,7 @@ export default function ReimbursementView({ currentUser }: Props) {
       )}
 
       {/* Pending Approvals Tab */}
-      {isPrivileged && tab === 'pending' && (
+      {isReviewer && tab === 'pending' && (
         <>
           <div className={historyStyles.toolbar}>
             <button type="button" className={historyStyles.button} onClick={fetchPending}>Refresh</button>
@@ -1074,7 +1093,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                         </div>
                         <div className={styles.sheetCardRight}>
                           <span className={styles.statusPillSm} style={{ background: cfg.color }}>
-                            {cfg.label}
+                            {statusLabel(cfg, s.status, s.manager_name)}
                           </span>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mx-ink-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
                         </div>
@@ -1130,7 +1149,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                           Download Voucher
                         </button>
                         <span className={styles.statusPillLg} style={{ background: cfg.color }}>
-                          {cfg.label}
+                          {statusLabel(cfg, sp.status, sp.manager_name)}
                         </span>
                       </div>
                     </div>
@@ -1376,7 +1395,7 @@ export default function ReimbursementView({ currentUser }: Props) {
       )}
 
       {/* Approved Tab */}
-      {isPrivileged && tab === 'approved' && (
+      {isReviewer && tab === 'approved' && (
         <>
           <div className={historyStyles.toolbar}>
             <button type="button" className={historyStyles.button} onClick={fetchApproved}>Refresh</button>
@@ -1416,7 +1435,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                         </div>
                         <div className={styles.sheetCardRight}>
                           <span className={styles.statusPillSm} style={{ background: cfg.color }}>
-                            {cfg.label}
+                            {statusLabel(cfg, s.status, s.manager_name)}
                           </span>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mx-ink-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
                         </div>
@@ -1470,7 +1489,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                           Download Voucher
                         </button>
                         <span className={styles.statusPillLg} style={{ background: cfg.color }}>
-                          {cfg.label}
+                          {statusLabel(cfg, sa.status, sa.manager_name)}
                         </span>
                       </div>
                     </div>

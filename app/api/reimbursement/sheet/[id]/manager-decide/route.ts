@@ -5,7 +5,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
-import { listDepartmentManagers } from '@/lib/departmentStore';
+import { listDepartmentManagers, findHrManagers } from '@/lib/departmentStore';
 import { findUserByUsername, findUsersByUsernames } from '@/lib/userStore';
 import { sendReimbursementLifecycleEmail } from '@/lib/email/notifications';
 
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     if (decision === 'manager_approved') {
-      const hrManagers = allManagers['HR'] || [];
+      const hrManagers = findHrManagers(allManagers);
       if (hrManagers.length) {
         await notifyUsers(hrManagers.map((m) => m.username), {
           title: 'Reimbursement sheet needs HR review',

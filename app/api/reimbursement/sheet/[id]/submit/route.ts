@@ -5,7 +5,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
-import { listDepartmentManagers } from '@/lib/departmentStore';
+import { listDepartmentManagers, findHrManagers } from '@/lib/departmentStore';
 import { findUserByUsername, findUsersByUsernames } from '@/lib/userStore';
 import { sendReimbursementLifecycleEmail } from '@/lib/email/notifications';
 import { getEffectiveDeadline } from '@/lib/reimbursementDeadlineStore';
@@ -39,6 +39,49 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: `Reimbursement sheets can only be submitted through the ${ordinalDay(deadline.day)} of the month${extendedNote}.` }, { status: 400 });
     }
 
+    const allManagers = await listDepartmentManagers();
+    // A department manager has nobody above them in their own department to
+    // approve their sheet — route it straight to HR instead of notifying
+    // them to approve their own submission (see the "all managers'
+    // reimbursement will directly go to HR" requirement).
+    const submitterIsManager = Object.values(allManagers).some((managers) => managers.some((m) => m.username === viewer.username));
+
+    const monthName = reimbursementSheetStore.MONTH_NAMES[existing.month] || '';
+    const totalStr = `₹${existing.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+    if (submitterIsManager) {
+      const updated = await reimbursementSheetStore.submitDirectToHr(id);
+
+      await logAudit({
+        by: viewer.username, role: viewer.role, entityType: 'reimbursement_sheet', entityId: id,
+        action: 'submit_direct_to_hr', previousStatus: existing.status, newStatus: 'manager_approved',
+        ip: getClientIp(request),
+      });
+
+      const hrManagers = findHrManagers(allManagers);
+      if (hrManagers.length) {
+        await notifyUsers(hrManagers.map((m) => m.username), {
+          title: 'Reimbursement sheet needs HR review',
+          body: `${viewer.name} (a department manager) submitted their reimbursement sheet for ${monthName} ${existing.year} (${existing.sheet_code}) — routed directly to HR — ${totalStr}`,
+          type: 'reimbursement_hr_review',
+          entityType: 'reimbursement_sheet',
+          entityId: id,
+        });
+
+        const hrUsers = await findUsersByUsernames(hrManagers.map((m) => m.username));
+        for (const hu of hrUsers) {
+          sendReimbursementLifecycleEmail({
+            email: hu.email, name: hu.name || hu.username, event: 'submitted_by_manager',
+            employeeName: existing.creator_name, employeeId: existing.creator_employee_id,
+            department: existing.creator_department, sheetCode: existing.sheet_code,
+            month: monthName, year: existing.year, totalAmount: totalStr,
+          });
+        }
+      }
+
+      return NextResponse.json(updated);
+    }
+
     const updated = await reimbursementSheetStore.submit(id);
 
     await logAudit({
@@ -49,10 +92,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const user = await findUserByUsername(viewer.username);
     const creatorDept = user?.department || '';
-    const allManagers = await listDepartmentManagers();
     const managers = creatorDept ? (allManagers[creatorDept] || []) : [];
-    const monthName = reimbursementSheetStore.MONTH_NAMES[existing.month] || '';
-    const totalStr = `₹${existing.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
     if (managers.length) {
       await notifyUsers(managers.map((m) => m.username), {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { getEffectiveDeadline, extendDeadline } from '@/lib/reimbursementDeadlineStore';
-import { listDepartmentManagers } from '@/lib/departmentStore';
+import { listDepartmentManagers, findHrManagers } from '@/lib/departmentStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -12,7 +12,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 async function resolveCanExtend(viewerUsername: string, viewerRole: string): Promise<boolean> {
   if (viewerRole === 'admin' || viewerRole === 'superadmin') return true;
   const allManagers = await listDepartmentManagers();
-  return (allManagers['HR'] || []).some((m) => m.username === viewerUsername);
+  return findHrManagers(allManagers).some((m) => m.username === viewerUsername);
 }
 
 // GET — the effective submission deadline for the current month, visible to

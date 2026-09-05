@@ -204,6 +204,22 @@ export async function listDepartmentManagers(): Promise<Record<string, { id: str
   return result;
 }
 
+// Several flows (reimbursement + travel-schedule HR review, HR module
+// access) need to resolve "the HR department" specifically, but department
+// names are admin-configurable free text (see Department Master) — an exact
+// `allManagers['HR']` lookup silently returns nothing the moment someone
+// renames it to e.g. "HR & Admin" (confirmed: that's this instance's actual
+// current name). Match by a leading "HR" word instead of an exact literal so
+// a reasonable rename doesn't quietly break every HR notification.
+export function findHrManagers(allManagers: Record<string, { id: string; username: string; name: string }[]>): { id: string; username: string; name: string }[] {
+  const hrKey = Object.keys(allManagers).find((k) => /^hr\b/i.test(k.trim()));
+  return hrKey ? allManagers[hrKey] : [];
+}
+
+export function isHrDepartmentName(name: string): boolean {
+  return /^hr\b/i.test(name.trim());
+}
+
 export async function reorderDepartments(orderedIds: string[]): Promise<void> {
   await Promise.all(orderedIds.map((id, i) => db.Department.update({ order: i + 1 } as never, { where: { id } as never })));
   invalidateCache(DEPARTMENTS_CACHE_KEY);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { reimbursementSheetStore } from '@/lib/reimbursementSheetStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { listDepartmentManagers } from '@/lib/departmentStore';
+import { listDepartmentManagers, isHrDepartmentName } from '@/lib/departmentStore';
 import { findUserByUsername } from '@/lib/userStore';
 
 export async function GET(request: NextRequest) {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       .filter(([, managers]) => managers.some((m) => m.username === viewer.username))
       .map(([dept]) => dept);
 
-    const isHrManager = managedDepts.includes('HR');
+    const isHrManager = managedDepts.some(isHrDepartmentName);
     const isAccountsManager = managedDepts.includes('Accounts') || managedDepts.includes('Finance');
     const isDeptManager = managedDepts.length > 0;
 
