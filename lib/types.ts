@@ -1543,8 +1543,10 @@ export interface GeneralTaskRecord {
   department_name: string;
   assignee_id: string;
   assignee_name: string;
+  assignee_username: string;
   reviewer_id: string;
   reviewer_name: string;
+  reviewer_username: string;
   priority: GeneralTaskPriority;
   status: GeneralTaskStatus;
   requires_review: boolean;

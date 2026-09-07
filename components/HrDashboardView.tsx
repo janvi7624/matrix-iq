@@ -1,12 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Cake, Award, PartyPopper, CalendarDays } from 'lucide-react';
+import Link from 'next/link';
+import { Cake, Award, PartyPopper, CalendarDays, AlertTriangle } from 'lucide-react';
 import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
+import calcStyles from './calculator.module.css';
 import styles from './hrDashboard.module.css';
+
+interface HrOpsDashboard {
+  summary: { totalToday: number; completed: number; pending: number; inProgress: number; submittedForReview: number; overdue: number; dueToday: number; upcoming: number; reworkRequired: number };
+  workload: { id: string; name: string; assigned: number; completed: number; pending: number; overdue: number; completionPercent: number }[];
+  alerts: {
+    overdue: { id: string; title: string; assignee: string; deadline: string }[];
+    pendingReview: { id: string; title: string; assignee: string }[];
+    dueToday: { id: string; title: string; assignee: string }[];
+    reworkRequired: { id: string; title: string; assignee: string }[];
+  };
+}
 
 interface CelebrationEntry {
   name: string;
@@ -107,6 +120,17 @@ export default function HrDashboardView() {
   const [anniversaries, setAnniversaries] = useState<CelebrationEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  // null = not authorized for the HR operational module (or still loading) —
+  // this section is deliberately absent for the many non-HR roles that also
+  // view this shared celebrations dashboard (Sales, TMS, etc.).
+  const [ops, setOps] = useState<HrOpsDashboard | null>(null);
+
+  useEffect(() => {
+    fetch('/api/hr/dashboard')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setOps(data))
+      .catch(() => setOps(null));
+  }, []);
 
   function load() {
     setLoading(true);
@@ -185,6 +209,79 @@ export default function HrDashboardView() {
               )}
             </div>
           </div>
+
+          {ops && (
+            <>
+              <h2 className={calcStyles.h2} style={{ marginTop: 24 }}>Today&apos;s HR Status</h2>
+              <div className={historyStyles.summaryCardGrid}>
+                <div className={historyStyles.summaryCard}><div className={historyStyles.summaryCardLabel}>Total Today</div><div className={historyStyles.summaryCardValue}>{ops.summary.totalToday}</div></div>
+                <div className={historyStyles.summaryCard}><div className={historyStyles.summaryCardLabel}>Pending</div><div className={historyStyles.summaryCardValue}>{ops.summary.pending}</div></div>
+                <div className={historyStyles.summaryCard}><div className={historyStyles.summaryCardLabel}>In Progress</div><div className={historyStyles.summaryCardValue}>{ops.summary.inProgress}</div></div>
+                <div className={historyStyles.summaryCard}><div className={historyStyles.summaryCardLabel}>Submitted for Review</div><div className={historyStyles.summaryCardValue}>{ops.summary.submittedForReview}</div></div>
+                <div className={historyStyles.summaryCard}><div className={historyStyles.summaryCardLabel}>Rework Required</div><div className={historyStyles.summaryCardValue}>{ops.summary.reworkRequired}</div></div>
+                <div className={historyStyles.summaryCard}><div className={historyStyles.summaryCardLabel}>Due Today</div><div className={historyStyles.summaryCardValue}>{ops.summary.dueToday}</div></div>
+                <div className={historyStyles.summaryCard} style={ops.summary.overdue ? { borderColor: 'var(--mx-danger)' } : undefined}><div className={historyStyles.summaryCardLabel}>Overdue</div><div className={historyStyles.summaryCardValue}>{ops.summary.overdue}</div></div>
+                <div className={historyStyles.summaryCard}><div className={historyStyles.summaryCardLabel}>Completed</div><div className={historyStyles.summaryCardValue}>{ops.summary.completed}</div></div>
+              </div>
+
+              <h2 className={calcStyles.h2} style={{ marginTop: 24 }}>Management Alerts</h2>
+              <div className={calcStyles.sectionPanel}>
+                {ops.alerts.overdue.length === 0 && ops.alerts.pendingReview.length === 0 && ops.alerts.reworkRequired.length === 0 && ops.alerts.dueToday.length === 0 ? (
+                  <div className={styles.celebrationEmpty}>No exceptions right now — everything is on track.</div>
+                ) : (
+                  <>
+                    {ops.alerts.overdue.map((a) => (
+                      <div key={`ov-${a.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', color: 'var(--mx-danger)' }}>
+                        <AlertTriangle size={14} /> Overdue: <Link href={`/my-tasks/${a.id}`}>{a.title}</Link> ({a.assignee}, was due {a.deadline})
+                      </div>
+                    ))}
+                    {ops.alerts.reworkRequired.map((a) => (
+                      <div key={`rw-${a.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', color: 'var(--mx-danger)' }}>
+                        <AlertTriangle size={14} /> Rework Required: <Link href={`/my-tasks/${a.id}`}>{a.title}</Link> ({a.assignee})
+                      </div>
+                    ))}
+                    {ops.alerts.pendingReview.map((a) => (
+                      <div key={`pr-${a.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', color: 'var(--mx-warning)' }}>
+                        Pending Review: <Link href={`/my-tasks/${a.id}`}>{a.title}</Link> ({a.assignee})
+                      </div>
+                    ))}
+                    {ops.alerts.dueToday.map((a) => (
+                      <div key={`dt-${a.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', color: 'var(--mx-warning)' }}>
+                        Due Today: <Link href={`/my-tasks/${a.id}`}>{a.title}</Link> ({a.assignee})
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+
+              {ops.workload.length > 0 && (
+                <>
+                  <h2 className={calcStyles.h2} style={{ marginTop: 24 }}>HR Workload</h2>
+                  <div className={historyStyles.tableWrap}>
+                    <table className={historyStyles.table}>
+                      <thead><tr><th>Employee</th><th>Assigned</th><th>Completed</th><th>Pending</th><th>Overdue</th><th>Completion %</th></tr></thead>
+                      <tbody>
+                        {ops.workload.map((w) => (
+                          <tr key={w.id}>
+                            <td>{w.name}</td>
+                            <td>{w.assigned}</td>
+                            <td>{w.completed}</td>
+                            <td>{w.pending}</td>
+                            <td style={w.overdue ? { color: 'var(--mx-danger)', fontWeight: 600 } : undefined}>{w.overdue}</td>
+                            <td>{w.completionPercent}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              <div style={{ marginTop: 16 }}>
+                <Link className={historyStyles.button} href="/hr/tasks">Open HR Tasks</Link>
+              </div>
+            </>
+          )}
         </>
       )}
     </AppShell>

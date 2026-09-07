@@ -61,7 +61,14 @@ const modelDefiners = [
   require('./officeOperationExpense.js'),
   require('./metaIntegrationConfig.js'),
   require('./metaWebhookEvent.js'),
-  require('./salesTarget.js')
+  require('./salesTarget.js'),
+  require('./hrTaskCategory.js'),
+  require('./hrRecurringTaskTemplate.js'),
+  require('./generalTask.js'),
+  require('./generalTaskUpdate.js'),
+  require('./generalTaskDeadlineChange.js'),
+  require('./attendanceRecord.js'),
+  require('./leaveRequest.js')
 ];
 
 const db = {};

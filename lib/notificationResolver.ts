@@ -17,7 +17,7 @@ interface EntityResolver {
   exists: (entityId: string) => Promise<boolean>;
 }
 
-const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation'] as const;
+const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest'] as const;
 
 async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: string): Promise<boolean> {
   if (!isUuid(entityId)) return false;
@@ -44,7 +44,12 @@ const RESOLVERS: Record<string, EntityResolver> = {
   // Reuses the highlight-and-auto-expand row on My Quotations rather than a
   // dedicated per-quotation page (none exists) — see components/
   // MyQuotationsView.tsx / QuotationTable.tsx.
-  quotation: { href: (id) => `/my-quotations?highlight=${id}`, exists: (id) => existsIn('Quotation', id) }
+  quotation: { href: (id) => `/my-quotations?highlight=${id}`, exists: (id) => existsIn('Quotation', id) },
+  // One universal detail page for a GeneralTask regardless of source_module
+  // (admin- or hr-assigned) — authorization inside the page decides what the
+  // viewer (assignee, reviewer, creator, or manager) may see/do.
+  general_task: { href: (id) => `/my-tasks/${id}`, exists: (id) => existsIn('GeneralTask', id) },
+  leave_request: { href: () => '/hr/leave', exists: (id) => existsIn('LeaveRequest', id) }
 };
 
 // Resolves each notification's real destination and drops any that don't

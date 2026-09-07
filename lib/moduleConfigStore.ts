@@ -45,7 +45,7 @@ const TMS_DEPARTMENTS = ['Robotics', 'AI', 'AV', 'Marketing'];
 // the list. Listing the key here routes it through HR_MODULE_ROLES instead of
 // viewer.isPrivileged.
 const HR_MODULE_ROLES: UserRole[] = ['hr', 'superadmin', 'admin'];
-const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses']);
+const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-tasks', 'hr-employees', 'hr-attendance', 'hr-leave', 'hr-reports', 'hr-settings']);
 
 // TMS accounts also need a handful of Sales-section modules (their project
 // dashboard is tied to Project.assigned_technical_person_id, and they work
@@ -83,6 +83,20 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // HR + Admin + Super Admin — see HR_RESTRICTED_KEYS above, which is what
   // actually keeps the generic 'manager' role out (this list alone wouldn't).
   { key: 'office-operation-expenses', label: 'Office Operation Expenses', desc: 'HR/Admin office operating spend — office, electricity, guest, director, salary, and pantry expenses.', icon: 'receipt-indian-rupee', href: '/office-operation-expenses', section: 'HR', order: 4, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  // HR operational task engine — HR_RESTRICTED_KEYS keeps these HR + Admin +
+  // Super Admin only (not every department's generic 'manager' role).
+  { key: 'hr-tasks', label: 'HR Tasks', desc: 'Daily tasks, assignment, submission, and review for the HR team.', icon: 'clipboard-list', href: '/hr/tasks', section: 'HR', order: 5, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-employees', label: 'Employees', desc: 'Active employee directory.', icon: 'users', href: '/hr/employees', section: 'HR', order: 6, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-attendance', label: 'Attendance', desc: 'Daily presence register.', icon: 'calendar-check', href: '/hr/attendance', section: 'HR', order: 7, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-leave', label: 'Leave', desc: 'Leave requests and approvals.', icon: 'calendar-off', href: '/hr/leave', section: 'HR', order: 8, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-reports', label: 'HR Reports', desc: 'Daily task, monthly performance, and employee work reports.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-settings', label: 'HR Settings', desc: 'Task categories and recurring task templates.', icon: 'settings', href: '/hr/settings', section: 'HR', order: 10, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
+  { key: 'my-tasks', label: 'My Tasks', desc: 'Tasks assigned to you, from any module.', icon: 'check-square', href: '/my-tasks', section: 'Workspace', order: 0, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  // Universal self-service: apply for leave + (if you manage a department)
+  // approve your own team's requests. Distinct from hr-leave, which is HR's
+  // org-wide oversight list (HR + Admin + Super Admin only).
+  { key: 'leave', label: 'Leave', desc: 'Apply for leave and track your requests.', icon: 'calendar-off', href: '/leave', section: 'Workspace', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'backoffice', label: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', icon: 'package', href: '/backoffice', section: 'Operations', order: 1, enabled: true, isCustom: false, visibleToRoles: ['backoffice', 'admin', 'superadmin', 'manager'] },
   { key: 'marketing-requests', label: 'Marketing Requests', desc: 'Request marketing support — brochures, banners, social posts, and more — and track delivery timelines.', icon: 'megaphone', href: '/marketing-requests', section: 'Marketing', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: 'user', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -103,6 +117,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'module-manager', label: 'Module Manager', desc: 'Enable, disable, rename, and reorder every module.', icon: 'puzzle', href: '/admin/modules', section: 'Administration', order: 8, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'custom-modules', label: 'Custom Module Builder', desc: 'Create new business modules without writing code.', icon: 'wrench', href: '/admin/custom-modules', section: 'Administration', order: 9, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'employee-exit', label: 'Employee Exit', desc: "Reassign a departing employee's projects, tasks, leads, and quotations.", icon: 'log-out', href: '/employee-exit', section: 'Administration', order: 11, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'admin-task-assignment', label: 'Assign Task', desc: 'Assign a task to any employee in any department.', icon: 'send', href: '/admin/task-assignment', section: 'Administration', order: 12, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   // Narrower than PRIVILEGED_ROLES (excludes 'manager') — Meta credentials
   // and lead-routing rules are Admin/Super Admin only, same restriction
   // 'audit-log' already uses. See lib/metaConfig.ts.
