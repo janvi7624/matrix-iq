@@ -355,6 +355,14 @@ export interface TravelScheduleRecord {
   linked_client: string;
   project_id: string;
   project_name: string;
+  // Full list — a single trip can cover multiple projects at the
+  // destination. project_id/project_name above stay in sync with the first
+  // entry for back-compat (e.g. the ticket-filename helper).
+  project_ids: string[];
+  project_names: string[];
+  // Free-text, optional — the employee's own suggested flight/train/cab for
+  // accounts to consider when booking. Never required.
+  travel_suggestion: string;
   // Stage 2: Department Manager
   manager_id: string;
   manager_name: string;
@@ -799,7 +807,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request';
   entity_id: string;
   action: string;
   previous_status: string;
@@ -1506,4 +1514,130 @@ export interface OfficeOperationExpenseRecord {
   amount: number;
   description: string;
   remarks: string;
+}
+
+// ---------------------------------------------------------------------------
+// General Task engine — the shared, department-agnostic task/assignment/
+// submission/review workflow used by BOTH the Admin "assign to Department ->
+// Employee" flow and the HR operational module (lib/generalTaskStore.ts).
+// Deliberately separate from TmsTaskRecord, which stays bound to TmsProject
+// and the 4 TMS-only departments.
+// ---------------------------------------------------------------------------
+
+export type GeneralTaskSourceModule = 'admin' | 'hr';
+export type GeneralTaskPriority = 'low' | 'medium' | 'high' | 'critical';
+// pending -> in_progress -> under_review -> approved (review path), or
+// pending -> in_progress -> completed (requires_review=false path).
+// under_review -> rework_required -> in_progress -> under_review (loop) is
+// also valid. rejected/cancelled/approved/completed are terminal.
+export type GeneralTaskStatus = 'pending' | 'in_progress' | 'under_review' | 'rework_required' | 'approved' | 'rejected' | 'cancelled' | 'completed';
+
+export interface GeneralTaskRecord {
+  id: string;
+  source_module: GeneralTaskSourceModule;
+  created_at: string;
+  created_by: string; // username
+  title: string;
+  description: string;
+  department_id: string;
+  department_name: string;
+  assignee_id: string;
+  assignee_name: string;
+  reviewer_id: string;
+  reviewer_name: string;
+  priority: GeneralTaskPriority;
+  status: GeneralTaskStatus;
+  requires_review: boolean;
+  category: string;
+  project_id: string;
+  project_name: string;
+  start_date: string;
+  deadline: string;
+  remarks: string;
+  attachments: string[];
+  recurrence_template_id: string;
+  recurrence_period_key: string;
+  updated_at: string;
+}
+
+export interface GeneralTaskUpdateRecord {
+  id: string;
+  taskId: string;
+  statusAtUpdate: GeneralTaskStatus;
+  workSummary: string;
+  remarks: string;
+  attachments: string[];
+  updatedByName: string;
+  updatedByUsername: string;
+  createdAt: string;
+}
+
+export interface GeneralTaskDeadlineChangeRecord {
+  id: string;
+  taskId: string;
+  previousDeadline: string;
+  newDeadline: string;
+  remark: string;
+  changedByName: string;
+  changedByUsername: string;
+  createdAt: string;
+}
+
+export interface HrTaskCategoryRecord {
+  id: string;
+  name: string;
+  active: boolean;
+  order: number;
+}
+
+export type HrRecurrenceType = 'daily' | 'weekly' | 'monthly';
+
+export interface HrRecurringTaskTemplateRecord {
+  id: string;
+  title: string;
+  description: string;
+  department_id: string;
+  department_name: string;
+  assignee_id: string;
+  assignee_name: string;
+  category_id: string;
+  category_name: string;
+  priority: GeneralTaskPriority;
+  requires_review: boolean;
+  recurrence_type: HrRecurrenceType;
+  recurrence_config: { weekday?: number; dayOfMonth?: number };
+  active: boolean;
+  created_by: string;
+  created_at: string;
+}
+
+export type AttendanceStatus = 'present' | 'absent' | 'half_day' | 'on_leave' | 'holiday' | 'wfh';
+
+export interface AttendanceRecordEntry {
+  id: string;
+  user_id: string;
+  user_name: string;
+  date: string;
+  status: AttendanceStatus;
+  marked_by_name: string;
+  remarks: string;
+}
+
+export type LeaveType = 'casual' | 'sick' | 'earned' | 'unpaid' | 'other';
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface LeaveRequestRecord {
+  id: string;
+  user_id: string;
+  user_name: string;
+  leave_type: LeaveType;
+  start_date: string;
+  end_date: string;
+  days: number;
+  reason: string;
+  status: LeaveStatus;
+  approved_by_name: string;
+  approved_at: string;
+  remarks: string;
+  created_at: string;
 }

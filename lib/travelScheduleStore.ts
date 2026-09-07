@@ -60,6 +60,8 @@ const FIELDS = [
   { name: 'mode_of_travel' },
   { name: 'linked_client' },
   { name: 'project_id', kind: 'nullable' as const },
+  { name: 'project_ids', kind: 'json' as const },
+  { name: 'travel_suggestion' },
   { name: 'manager_id', kind: 'nullable' as const },
   { name: 'manager_action_at', kind: 'date' as const },
   { name: 'manager_remarks' },
@@ -125,7 +127,8 @@ function toRecord(row: Model): TravelScheduleRecord {
     admin_reviewer_name: (plain.adminReviewer as { name?: string } | null)?.name ?? '',
     accounts_handler_name: (plain.accountsHandler as { name?: string } | null)?.name ?? '',
     hr_final_verifier_name: (plain.hrFinalVerifier as { name?: string } | null)?.name ?? '',
-    companion_names: []
+    companion_names: [],
+    project_names: []
   };
   for (const { name, kind = 'string' } of FIELDS) {
     const raw = plain[name];
@@ -159,6 +162,26 @@ async function resolveCompanionNames(records: TravelScheduleRecord[]): Promise<v
   }
 }
 
+async function resolveProjectNames(records: TravelScheduleRecord[]): Promise<void> {
+  const allIds = new Set<string>();
+  for (const r of records) {
+    if (Array.isArray(r.project_ids)) r.project_ids.forEach((id) => allIds.add(id));
+  }
+  if (allIds.size === 0) return;
+  const { Op } = await import('sequelize');
+  const projects = await db.Project.findAll({ where: { id: { [Op.in]: [...allIds] } } as never, attributes: ['id', 'client_name', 'company'] });
+  const nameMap = new Map<string, string>();
+  for (const p of projects) {
+    const plain = p.get({ plain: true }) as { id: string; client_name?: string; company?: string };
+    nameMap.set(plain.id, plain.client_name ? `${plain.client_name}${plain.company ? ` (${plain.company})` : ''}` : plain.id);
+  }
+  for (const r of records) {
+    if (Array.isArray(r.project_ids)) {
+      (r as unknown as Record<string, unknown>).project_names = r.project_ids.map((id) => nameMap.get(id) || id);
+    }
+  }
+}
+
 async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promise<TravelScheduleRecord[]> {
   let where: Record<string | symbol, unknown> = {};
   if (!viewerIsPrivileged) {
@@ -175,6 +198,7 @@ async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promis
   const rows = await db.TravelSchedule.findAll({ where: where as never, include: allIncludes(), order: [['created_at', 'DESC']] });
   const records = rows.map(toRecord);
   await resolveCompanionNames(records);
+  await resolveProjectNames(records);
   return records;
 }
 
@@ -184,12 +208,26 @@ async function findById(id: string): Promise<TravelScheduleRecord | undefined> {
   if (!row) return undefined;
   const record = toRecord(row);
   await resolveCompanionNames([record]);
+  await resolveProjectNames([record]);
   return record;
+}
+
+// Keeps the legacy singular project_id in sync with project_ids[0] — the
+// authoritative source once set — so any caller that only ever populates
+// project_ids (rather than remembering to also set project_id) still gets a
+// consistent record. Mutates in place; called by both create() and update()
+// so this can't drift between the two API routes that reach them.
+function syncLegacyProjectId(attrs: Record<string, unknown>): void {
+  if ('project_ids' in attrs) {
+    const ids = Array.isArray(attrs.project_ids) ? (attrs.project_ids as string[]) : [];
+    attrs.project_id = ids[0] || null;
+  }
 }
 
 async function create(record: TravelScheduleRecord): Promise<TravelScheduleRecord> {
   const attrs: Record<string, unknown> = {};
   for (const { name, kind = 'string' } of FIELDS) attrs[name] = toAttr((record as unknown as Record<string, unknown>)[name], kind);
+  syncLegacyProjectId(attrs);
   const creator = await db.User.findOne({ where: { username: record.created_by } as never });
   attrs.created_by = creator ? creator.get('id') : null;
   attrs.request_code = await nextTravelRequestCode();
@@ -209,6 +247,7 @@ async function update(id: string, patch: Partial<TravelScheduleRecord>): Promise
   for (const { name, kind = 'string' } of FIELDS) {
     if (name in patchObj) attrs[name] = toAttr(patchObj[name], kind);
   }
+  syncLegacyProjectId(attrs);
   await row.update(attrs as never);
   const withAssoc = await db.TravelSchedule.findByPk(id, { include: allIncludes() });
   return toRecord(withAssoc as Model);

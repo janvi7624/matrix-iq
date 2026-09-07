@@ -1,99 +1,22 @@
-'use client';
+// A CDN sitting in front of this app (Hostinger's hcdn) caches statically
+// prerendered HTML per exact URL for up to a year (Cache-Control:
+// s-maxage=31536000) — fine for content that never changes, but this page's
+// HTML embeds references to content-hashed build chunk filenames that DO
+// change on every deploy. A cached copy from before a deploy points at
+// chunks that no longer exist after it, so the browser's JS never loads and
+// the page renders blank (reproduced: /login?next=%2F served stale HTML
+// referencing pre-redeploy chunk hashes). Forcing this route dynamic
+// (server-rendered per request, not prerendered at build time) means the
+// CDN can no longer cache a single "forever" copy of it, closing that gap —
+// verified: Cache-Control changes from `s-maxage=31536000` to `private,
+// no-cache, no-store, max-age=0, must-revalidate`. Route segment config like
+// `dynamic` only works from a Server Component, so the actual page — a
+// 'use client' component, since it uses useSearchParams()/useState — lives
+// in LoginPageClient instead of directly in this file.
+export const dynamic = 'force-dynamic';
 
-import { FormEvent, Suspense, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import Image from 'next/image';
-import { Eye, EyeOff } from 'lucide-react';
-import styles from '@/components/quotationHistory.module.css';
-import { BRAND } from '@/lib/branding';
-
-function LoginForm() {
-  const searchParams = useSearchParams();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    setError('');
-    setBusy(true);
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        setError(body?.error || 'Invalid username or password.');
-        return;
-      }
-      // Hard navigation, not router.push()+refresh() — a client-side push
-      // here is an RSC fetch, and if proxy.ts's mustChangePassword gate
-      // redirects it (temp-password accounts get sent to /change-password
-      // instead of `next`), the redirected request still carries RSC
-      // headers, so the server returns raw flight-payload text instead of
-      // rendered HTML. A full navigation always gets real HTML back.
-      const next = searchParams.get('next') || '/';
-      window.location.href = next;
-    } catch {
-      setError('Could not reach the login API.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className={styles.loginWrap}>
-      <form className={styles.loginCard} onSubmit={handleSubmit}>
-        <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={96} height={96} className={styles.loginLogo} unoptimized />
-        <h1>{BRAND.appName}</h1>
-        <span className={styles.sub}>
-          {BRAND.tagline}
-          <br />
-          Sign in with your username and password to continue.
-        </span>
-        {error && <div className={styles.loginError}>{error}</div>}
-        <div className={styles.loginField}>
-          <label htmlFor="loginUsername">Username</label>
-          <input id="loginUsername" type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
-        </div>
-        <div className={styles.loginField}>
-          <label htmlFor="loginPassword">Password</label>
-          <div className={styles.loginPasswordWrap}>
-            <input
-              id="loginPassword"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <button
-              type="button"
-              className={styles.loginPasswordToggle}
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              tabIndex={-1}
-            >
-              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-            </button>
-          </div>
-        </div>
-        <button type="submit" className={styles.loginSubmit} disabled={busy}>
-          {busy ? 'Signing in...' : 'Sign in'}
-        </button>
-      </form>
-    </div>
-  );
-}
+import LoginPageClient from './LoginPageClient';
 
 export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className={styles.loginWrap} />}>
-      <LoginForm />
-    </Suspense>
-  );
+  return <LoginPageClient />;
 }

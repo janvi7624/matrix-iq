@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { TravelScheduleRecord, UserRole } from '@/lib/types';
+import { ProjectRecord, TravelScheduleRecord, UserRole } from '@/lib/types';
 import { TRAVEL_STATUS_LABEL, TRAVEL_STATUS_TONE, travelPendingLabel } from '@/lib/travelLabels';
 import AppShell from './AppShell';
 import StatusBadge from './ui/StatusBadge';
@@ -22,10 +22,14 @@ interface UserOption {
 const EMPTY_FORM = {
   origin: '', destination: '', startDate: '', endDate: '',
   requiredArrivalTime: '', expectedDepartureTime: '',
-  linkedClient: '', projectId: '',
+  linkedClient: '', projectIds: [] as string[],
   companionIds: [] as string[],
   ...EMPTY_TRAVEL_EXTRA_FIELDS
 };
+
+function projectLabel(p: ProjectRecord): string {
+  return `${p.client_name || ''}${p.company ? ` — ${p.company}` : ''}`;
+}
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -40,6 +44,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
   const toast = useToast();
   const [records, setRecords] = useState<TravelScheduleRecord[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
   const [form, setForm] = useState(EMPTY_FORM);
@@ -63,6 +68,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
   useEffect(() => {
     load();
     fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
+    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
   }, []);
 
   async function handleCreate(e: FormEvent) {
@@ -137,10 +143,32 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Project</label>
+                <label className={calcStyles.label}>Project(s)</label>
+                {form.projectIds.length > 0 && (
+                  <div className={styles.companionPillRow}>
+                    {form.projectIds.map((id) => {
+                      const project = projects.find((p) => p.id === id);
+                      return (
+                        <span key={id} className={styles.pillEditable}>
+                          {project ? projectLabel(project) : id}
+                          <button type="button" onClick={() => setForm((f) => ({ ...f, projectIds: f.projectIds.filter((c) => c !== id) }))} className={styles.pillRemoveBtn}>&times;</button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
                 <ProjectSelect
-                  value={form.projectId}
-                  onChange={(projectId, project) => setForm((f) => ({ ...f, projectId, linkedClient: project?.company || project?.client_name || f.linkedClient }))}
+                  value=""
+                  placeholder="— Add a project to visit —"
+                  onChange={(projectId, project) => {
+                    if (!projectId || form.projectIds.includes(projectId)) return;
+                    if (project) setProjects((prev) => (prev.some((p) => p.id === project.id) ? prev : [project, ...prev]));
+                    setForm((f) => ({
+                      ...f,
+                      projectIds: [...f.projectIds, projectId],
+                      linkedClient: f.projectIds.length === 0 ? (project?.company || project?.client_name || f.linkedClient) : f.linkedClient
+                    }));
+                  }}
                 />
               </div>
               <div className={calcStyles.field}>

@@ -15,7 +15,16 @@ module.exports = (sequelize, DataTypes) => {
     purpose_other: { type: DataTypes.STRING },
     mode_of_travel: { type: DataTypes.STRING },
     linked_client: { type: DataTypes.STRING },
+    // Legacy single project — kept for back-compat (e.g. the ticket-filename
+    // helper, the belongsTo association below); every write also keeps it
+    // in sync with project_ids[0]. project_ids is the authoritative field —
+    // a single trip can cover multiple projects at the destination (e.g. a
+    // sales person visiting several Jaipur projects on one trip).
     project_id: { type: DataTypes.UUID },
+    project_ids: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // Free-text, optional — the employee's own preferred flight/train/cab
+    // for accounts to consider when actually booking. Never required.
+    travel_suggestion: { type: DataTypes.TEXT },
     // Stage 2: Department Manager
     manager_id: { type: DataTypes.UUID },
     manager_action_at: { type: DataTypes.DATE },

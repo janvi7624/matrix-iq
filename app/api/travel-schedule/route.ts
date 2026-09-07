@@ -29,6 +29,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Destination and start date are required' }, { status: 400 });
   }
 
+  const projectIds: string[] = Array.isArray(body.projectIds)
+    ? body.projectIds.filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0)
+    : (typeof body.projectId === 'string' && body.projectId ? [body.projectId] : []);
+
   const record: TravelScheduleRecord = {
     id: `${Date.now()}`,
     created_at: new Date().toISOString(),
@@ -45,8 +49,11 @@ export async function POST(request: NextRequest) {
     purpose_other: typeof body.purposeOther === 'string' ? body.purposeOther.trim() : '',
     mode_of_travel: typeof body.modeOfTravel === 'string' ? body.modeOfTravel.trim() : '',
     linked_client: typeof body.linkedClient === 'string' ? body.linkedClient.trim() : '',
-    project_id: typeof body.projectId === 'string' ? body.projectId : '',
+    project_id: projectIds[0] || '',
     project_name: '',
+    project_ids: projectIds,
+    project_names: [],
+    travel_suggestion: typeof body.travelSuggestion === 'string' ? body.travelSuggestion.trim() : '',
     manager_id: '', manager_name: '', manager_action_at: '', manager_remarks: '',
     hr_reviewer_id: '', hr_reviewer_name: '', hr_reviewed_at: '', hr_remarks: '',
     hr_documents: [], estimated_cost: 0,

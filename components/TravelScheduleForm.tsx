@@ -16,6 +16,7 @@ export interface TravelExtraFieldsValue {
   purpose: string;
   purposeOther: string;
   modeOfTravel: string;
+  travelSuggestion: string;
   coTravellers: TravelCoTraveller[];
   hotelRequired: boolean;
   hotelPreferredArea: string;
@@ -34,6 +35,7 @@ export const EMPTY_TRAVEL_EXTRA_FIELDS: TravelExtraFieldsValue = {
   purpose: '',
   purposeOther: '',
   modeOfTravel: '',
+  travelSuggestion: '',
   coTravellers: [],
   hotelRequired: false,
   hotelPreferredArea: '',
@@ -128,6 +130,16 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
           />
         </div>
       )}
+
+      <div className={calcStyles.field}>
+        <label className={calcStyles.label}>Suggest a Flight / Train / Cab (optional)</label>
+        <input
+          className={calcStyles.formControl}
+          placeholder="e.g. IndiGo 6E-234, morning departure — Accounts will consider this when booking"
+          value={value.travelSuggestion}
+          onChange={(e) => onChange({ travelSuggestion: e.target.value })}
+        />
+      </div>
 
       <div className={`${calcStyles.field} ${calcStyles.mt12}`}>
         <label className={calcStyles.label}>Add Co-Traveller</label>
@@ -248,6 +260,7 @@ export function travelExtraFieldsFromRecord(record: {
   purpose: string;
   purpose_other: string;
   mode_of_travel: string;
+  travel_suggestion: string;
   co_travellers: TravelCoTraveller[];
   hotel_accommodation: { required: boolean; preferredArea: string; suggestedHotel: string; location: string; checkInDate: string; checkOutDate: string; numberOfGuests: number; additionalRequirement: string } | null;
   advance_request: { required: boolean; requestedAmount: number; remark: string } | null;
@@ -258,6 +271,7 @@ export function travelExtraFieldsFromRecord(record: {
     purpose: record.purpose || '',
     purposeOther: record.purpose_other || '',
     modeOfTravel: record.mode_of_travel || '',
+    travelSuggestion: record.travel_suggestion || '',
     coTravellers: Array.isArray(record.co_travellers) ? record.co_travellers.map((c) => ({ ...c })) : [],
     hotelRequired: hotel?.required || false,
     hotelPreferredArea: hotel?.preferredArea || '',
@@ -280,6 +294,7 @@ export function travelExtraFieldsToPayload(value: TravelExtraFieldsValue) {
     purpose: value.purpose,
     purposeOther: value.purposeOther,
     modeOfTravel: value.modeOfTravel,
+    travelSuggestion: value.travelSuggestion,
     coTravellers: value.coTravellers,
     hotelAccommodation: {
       required: value.hotelRequired,

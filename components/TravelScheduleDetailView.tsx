@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AuditLogEntry, TravelScheduleRecord, TravelScheduleStatus, UserRole } from '@/lib/types';
+import { AuditLogEntry, ProjectRecord, TravelScheduleRecord, TravelScheduleStatus, UserRole } from '@/lib/types';
 import { TRAVEL_STATUS_LABEL, TRAVEL_STATUS_TONE, travelPendingLabel } from '@/lib/travelLabels';
 import AppShell from './AppShell';
 import StatusBadge from './ui/StatusBadge';
@@ -33,9 +33,13 @@ function formatCurrency(value: number): string {
   return value ? `₹${value.toLocaleString('en-IN')}` : '-';
 }
 
+function projectLabel(p: ProjectRecord): string {
+  return `${p.client_name || ''}${p.company ? ` — ${p.company}` : ''}`;
+}
+
 function friendlyDocName(url: string, record: TravelScheduleRecord, docType: string): string {
   const ext = url.split('.').pop() || '';
-  const project = (record.project_name || '').replace(/[^a-zA-Z0-9]/g, '');
+  const project = (record.project_names?.[0] || record.project_name || '').replace(/[^a-zA-Z0-9]/g, '');
   const person = (record.created_by || '').replace(/[^a-zA-Z0-9.]/g, '');
   const from = (record.origin || '').replace(/[^a-zA-Z0-9]/g, '');
   const to = (record.destination || '').replace(/[^a-zA-Z0-9]/g, '');
@@ -125,8 +129,9 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
   const [uploading, setUploading] = useState(false);
   const [departmentManagers, setDepartmentManagers] = useState<Record<string, { username: string }[]>>({});
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ origin: '', destination: '', startDate: '', endDate: '', requiredArrivalTime: '', expectedDepartureTime: '', linkedClient: '', projectId: '', companionIds: [] as string[], ...EMPTY_TRAVEL_EXTRA_FIELDS });
+  const [editForm, setEditForm] = useState({ origin: '', destination: '', startDate: '', endDate: '', requiredArrivalTime: '', expectedDepartureTime: '', linkedClient: '', projectIds: [] as string[], companionIds: [] as string[], ...EMPTY_TRAVEL_EXTRA_FIELDS });
   const [allUsers, setAllUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+  const [allProjects, setAllProjects] = useState<ProjectRecord[]>([]);
   const [saving, setSaving] = useState(false);
   const [activePanel, setActivePanel] = useState<ActionPanel>(null);
   const [actionRemarks, setActionRemarks] = useState('');
@@ -152,6 +157,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
       .then(setDepartmentManagers)
       .catch(() => setDepartmentManagers({}));
     fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setAllUsers).catch(() => setAllUsers([]));
+    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setAllProjects).catch(() => setAllProjects([]));
   }, []);
 
   async function load() {
@@ -292,7 +298,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
       startDate: record.start_date, endDate: record.end_date,
       requiredArrivalTime: record.required_arrival_time, expectedDepartureTime: record.expected_departure_time,
       linkedClient: record.linked_client,
-      projectId: record.project_id,
+      projectIds: Array.isArray(record.project_ids) ? [...record.project_ids] : [],
       companionIds: Array.isArray(record.companion_ids) ? [...record.companion_ids] : [],
       ...travelExtraFieldsFromRecord(record)
     });
@@ -555,10 +561,32 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
               </div>
               <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mt12}`}>
                 <div className={calcStyles.field}>
-                  <label className={calcStyles.label}>Project</label>
+                  <label className={calcStyles.label}>Project(s)</label>
+                  {editForm.projectIds.length > 0 && (
+                    <div className={styles.companionPillRow}>
+                      {editForm.projectIds.map((id) => {
+                        const project = allProjects.find((p) => p.id === id);
+                        return (
+                          <span key={id} className={styles.pillEditable}>
+                            {project ? projectLabel(project) : id}
+                            <button type="button" onClick={() => setEditForm((f) => ({ ...f, projectIds: f.projectIds.filter((c) => c !== id) }))} className={styles.pillRemoveBtn}>&times;</button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                   <ProjectSelect
-                    value={editForm.projectId}
-                    onChange={(projectId, project) => setEditForm((f) => ({ ...f, projectId, linkedClient: project?.company || project?.client_name || f.linkedClient }))}
+                    value=""
+                    placeholder="— Add a project to visit —"
+                    onChange={(projectId, project) => {
+                      if (!projectId || editForm.projectIds.includes(projectId)) return;
+                      if (project) setAllProjects((prev) => (prev.some((p) => p.id === project.id) ? prev : [project, ...prev]));
+                      setEditForm((f) => ({
+                        ...f,
+                        projectIds: [...f.projectIds, projectId],
+                        linkedClient: f.projectIds.length === 0 ? (project?.company || project?.client_name || f.linkedClient) : f.linkedClient
+                      }));
+                    }}
                   />
                 </div>
                 <div className={calcStyles.field}>
@@ -634,13 +662,25 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
               <div className={`${calcStyles.sectionPanel} ${styles.panelTop16}`}>
                 <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Project & Purpose</h3>
                 <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-                  <div><strong>Project:</strong> {record.project_name || '-'}</div>
+                  <div>
+                    <strong>{record.project_names && record.project_names.length > 1 ? 'Projects:' : 'Project:'}</strong>{' '}
+                    {record.project_names && record.project_names.length > 0 ? (
+                      <span className={styles.inlinePillGroup}>
+                        {record.project_names.map((name, i) => (
+                          <span key={i} className={styles.pillBase}>{name}</span>
+                        ))}
+                      </span>
+                    ) : '-'}
+                  </div>
                   <div><strong>Linked Client:</strong> {record.linked_client || '-'}</div>
                 </div>
                 <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mt8}`}>
                   <div><strong>Purpose:</strong> {record.purpose || '-'}{record.purpose === 'Others' && record.purpose_other ? ` — ${record.purpose_other}` : ''}</div>
                   <div><strong>Mode of Travel:</strong> {record.mode_of_travel || '-'}</div>
                 </div>
+                {record.travel_suggestion && (
+                  <div className={calcStyles.mt8}><strong>Employee&apos;s Suggestion:</strong> {record.travel_suggestion}</div>
+                )}
                 <div className={calcStyles.mt8}><strong>Requested By:</strong> {record.created_by} on {formatDate(record.created_at)}</div>
                 {record.companion_names && record.companion_names.length > 0 && (
                   <div className={calcStyles.mt8}>

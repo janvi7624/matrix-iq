@@ -48,7 +48,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (typeof body.purposeOther === 'string') patch.purpose_other = body.purposeOther.trim();
     if (typeof body.modeOfTravel === 'string') patch.mode_of_travel = body.modeOfTravel.trim();
     if (typeof body.linkedClient === 'string') patch.linked_client = body.linkedClient.trim();
-    if (typeof body.projectId === 'string') patch.project_id = body.projectId;
+    if (Array.isArray(body.projectIds)) {
+      const projectIds = body.projectIds.filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0);
+      patch.project_ids = projectIds;
+      patch.project_id = projectIds[0] || '';
+    } else if (typeof body.projectId === 'string') {
+      patch.project_id = body.projectId;
+    }
+    if (typeof body.travelSuggestion === 'string') patch.travel_suggestion = body.travelSuggestion.trim();
     if (Array.isArray(body.companionIds)) patch.companion_ids = body.companionIds.filter((v: unknown) => typeof v === 'string');
     if (body.coTravellers !== undefined) patch.co_travellers = sanitizeCoTravellers(body.coTravellers);
     if (body.hotelAccommodation !== undefined) patch.hotel_accommodation = sanitizeHotelAccommodation(body.hotelAccommodation);
