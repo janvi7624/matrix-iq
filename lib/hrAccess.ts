@@ -7,6 +7,11 @@ import { listDepartmentManagers, findHrManagers } from './departmentStore';
 // HR module keys — all gated via HR_RESTRICTED_KEYS in moduleConfigStore.ts
 // (HR + Admin + Super Admin only, not the generic isPrivileged bypass every
 // department 'manager' account otherwise gets).
+// hr-attendance/hr-leave are retired module keys (see moduleConfigStore.ts's
+// RETIRED_KEYS) — kept here so the still-present-but-now-unreachable
+// app/hr/attendance and app/hr/leave pages (redirected away by
+// requireHrPage once the key no longer resolves) keep type-checking rather
+// than being force-deleted along with the module removal.
 export const HR_MODULE_KEYS = ['hr-tasks', 'hr-employees', 'hr-attendance', 'hr-leave', 'hr-reports', 'hr-settings'] as const;
 export type HrModuleKey = (typeof HR_MODULE_KEYS)[number];
 

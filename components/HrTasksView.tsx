@@ -87,7 +87,15 @@ export default function HrTasksView({ currentUser }: HrTasksViewProps) {
       const [tasksRes, deptRes, catRes] = await Promise.all([fetch('/api/hr/tasks'), fetch('/api/departments'), fetch('/api/hr/categories')]);
       if (!tasksRes.ok) throw new Error(String(tasksRes.status));
       setTasks(await tasksRes.json());
-      if (deptRes.ok) setDepartments(await deptRes.json());
+      if (deptRes.ok) {
+        const allDepts: DepartmentRecord[] = await deptRes.json();
+        setDepartments(allDepts);
+        // HR Tasks only ever assigns within HR's own department — not a
+        // cross-department tool (that's Assign Task, admin-only) — so this
+        // is set once and never exposed as a choice in the form.
+        const hrDept = allDepts.find((d) => /^hr\b/i.test(d.name.trim()));
+        if (hrDept) setForm((f) => ({ ...f, departmentId: hrDept.id }));
+      }
       if (catRes.ok) setCategories(await catRes.json());
     } catch {
       setLoadFailed(true);
@@ -131,8 +139,7 @@ export default function HrTasksView({ currentUser }: HrTasksViewProps) {
         const body = await response.json().catch(() => null);
         throw new Error(body?.error || String(response.status));
       }
-      setForm(EMPTY_FORM);
-      setEmployees([]);
+      setForm((f) => ({ ...EMPTY_FORM, departmentId: f.departmentId }));
       await load();
       setTab('mine');
       toast.success('HR task assigned.');
@@ -193,12 +200,10 @@ export default function HrTasksView({ currentUser }: HrTasksViewProps) {
           <form className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`} onSubmit={handleCreate}>
             <FieldRow>
               <Field label="Department">
-                <Select value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value, assigneeId: '' }))} required>
-                  <option value="">Select department</option>
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </Select>
+                {/* HR Tasks only ever assigns within HR's own department —
+                    not a choice, so there's nothing to pick here. Cross-
+                    department assignment is Assign Task (admin-only). */}
+                <Input value={departments.find((d) => d.id === form.departmentId)?.name || 'HR'} readOnly disabled />
               </Field>
               <Field label="Employee">
                 <Select value={form.assigneeId} onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))} required disabled={!form.departmentId || loadingEmployees}>

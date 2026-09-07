@@ -4,9 +4,16 @@ import { FormEvent, Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Eye, EyeOff } from 'lucide-react';
-import styles from '@/components/quotationHistory.module.css';
+import visualStyles from '@/components/auth/matrixLoginVisual.module.css';
+import MatrixLoginVisual from '@/components/auth/MatrixLoginVisual';
 import { BRAND } from '@/lib/branding';
 
+// The form's fields/ids/validation/error handling/auth call are untouched
+// from the original pre-redesign version — only the surrounding shell (now
+// a full-page animated background with this card floating centered and
+// transparent on top of it, instead of a side-by-side split) and the class
+// names feeding its transparent/glassmorphic look are new. See
+// components/auth/MatrixLoginVisual.tsx for the animated background.
 function LoginForm() {
   const searchParams = useSearchParams();
   const [username, setUsername] = useState('');
@@ -46,53 +53,56 @@ function LoginForm() {
   }
 
   return (
-    <div className={styles.loginWrap}>
-      <form className={styles.loginCard} onSubmit={handleSubmit}>
-        <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={96} height={96} className={styles.loginLogo} unoptimized />
-        <h1>{BRAND.appName}</h1>
-        <span className={styles.sub}>
-          {BRAND.tagline}
-          <br />
-          Sign in with your username and password to continue.
-        </span>
-        {error && <div className={styles.loginError}>{error}</div>}
-        <div className={styles.loginField}>
-          <label htmlFor="loginUsername">Username</label>
-          <input id="loginUsername" type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
-        </div>
-        <div className={styles.loginField}>
-          <label htmlFor="loginPassword">Password</label>
-          <div className={styles.loginPasswordWrap}>
-            <input
-              id="loginPassword"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <button
-              type="button"
-              className={styles.loginPasswordToggle}
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              tabIndex={-1}
-            >
-              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-            </button>
+    <div className={visualStyles.pageRoot}>
+      <MatrixLoginVisual />
+      <div className={visualStyles.centerWrap}>
+        <form className={visualStyles.formCard} onSubmit={handleSubmit}>
+          <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={96} height={96} className={visualStyles.formLogo} unoptimized />
+          <h1>{BRAND.appName}</h1>
+          <span className={visualStyles.formSub}>
+            {BRAND.tagline}
+            <br />
+            Sign in with your username and password to continue.
+          </span>
+          {error && <div className={visualStyles.formError}>{error}</div>}
+          <div className={visualStyles.formField}>
+            <label htmlFor="loginUsername">Username</label>
+            <input id="loginUsername" type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
           </div>
-        </div>
-        <button type="submit" className={styles.loginSubmit} disabled={busy}>
-          {busy ? 'Signing in...' : 'Sign in'}
-        </button>
-      </form>
+          <div className={visualStyles.formField}>
+            <label htmlFor="loginPassword">Password</label>
+            <div className={visualStyles.formPasswordWrap}>
+              <input
+                id="loginPassword"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className={visualStyles.formPasswordToggle}
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
+          </div>
+          <button type="submit" className={visualStyles.formSubmit} disabled={busy}>
+            {busy ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
 
 export default function LoginPageClient() {
   return (
-    <Suspense fallback={<div className={styles.loginWrap} />}>
+    <Suspense fallback={<div className={visualStyles.pageRoot} />}>
       <LoginForm />
     </Suspense>
   );

@@ -1,0 +1,353 @@
+/* Full-page interactive 3D Nanta mark background + a centered, transparent
+   (glassmorphic) login card floating on top of it. Every reactive value
+   (tilt, color lerp, spotlight position, canvas particles) is written
+   directly to refs from one requestAnimationFrame loop in
+   MatrixLoginVisual.tsx — never per-frame React state — so this stylesheet
+   sets up the *idle* look and a handful of pure-CSS ambient keyframes; the
+   interactive values simply override these defaults at runtime. */
+
+.pageRoot {
+  position: relative;
+  min-height: 100vh;
+}
+
+/* The animated mark fills the entire viewport now, not a side column — the
+   form floats on top of it (see .centerWrap) rather than sitting beside it. */
+.visualSide {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(120% 90% at 50% 45%, #161d2c 0%, #0d1220 55%, #090c14 100%);
+  cursor: default;
+  z-index: 0;
+}
+
+/* Extremely subtle grid texture beneath the canvas mesh — technology feel
+   without an image asset. */
+.visualSide::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(circle at 50% 50%, black 0%, transparent 78%);
+  pointer-events: none;
+}
+
+/* ---- Layer 0: wireframe topography + bubble particles ---- */
+.meshCanvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ---- Layer 1: department nodes + connector lines + background marks ---- */
+.nodesLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.nodesGroup {
+  opacity: 0.45;
+}
+.connectorLine {
+  stroke: rgba(200, 100, 90, 0.5);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 2 3;
+}
+.nodeDot {
+  fill: rgba(255, 90, 80, 0.7);
+}
+
+.nodeLabels {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.nodeLabel {
+  position: absolute;
+  transform: translate(-50%, -50%) translateY(-14px);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(203, 175, 170, 0.55);
+  white-space: nowrap;
+}
+
+.backgroundMarks {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.bgMark {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  animation: bgMarkDrift 14s ease-in-out infinite;
+  /* Same dim/muted recipe as the idle centerpiece (see markFilter() in the
+     component) baked in as a static filter — these never react to the
+     cursor, only drift. */
+  filter: brightness(0.42) saturate(0.5) sepia(0.45) contrast(0.9);
+}
+@keyframes bgMarkDrift {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0) rotate(0deg); }
+  50% { transform: translate(-50%, -50%) translateY(calc(-1 * var(--drift, 10px))) rotate(var(--rot, 10deg)); }
+}
+
+/* ---- Layer 2: dim + spotlight ---- */
+.dimOverlay {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.spotlight {
+  position: absolute;
+  width: 640px;
+  height: 640px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0%, rgba(255, 0, 0, 0.1) 35%, transparent 70%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ---- Layer 3: the centerpiece mark ---- */
+/* Deliberately much larger than the login card floating in front of it —
+   the mark is meant to dominate the page and bleed out well past the
+   card's edges on every side, not sit tucked behind it. */
+.stage {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(1150px, 94vw);
+  aspect-ratio: 1 / 1;
+  perspective: 1000px;
+}
+
+.logoGlow {
+  position: absolute;
+  width: 50%;
+  height: 50%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 0, 0, 0.6) 0%, rgba(229, 0, 0, 0.2) 55%, transparent 75%);
+  filter: blur(18px);
+  opacity: 0.25;
+  will-change: opacity, filter, transform;
+}
+
+.markGroup {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.markImg {
+  width: min(860px, 84vw);
+  height: auto;
+  filter: brightness(0.5) saturate(0.5) sepia(0.4) contrast(0.9);
+  opacity: 0.55;
+  will-change: filter, opacity;
+}
+
+.caption {
+  position: absolute;
+  bottom: 28px;
+  left: 32px;
+  z-index: 4;
+  color: #f8fafc;
+  pointer-events: none;
+}
+.captionTitle {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+}
+.captionSub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* ---- The login card — floats centered over the full-page animation,
+   deliberately not a solid card: a translucent, blurred (glassmorphic)
+   panel so the mark/glow behind it keeps showing through, per the request
+   to keep the card transparent instead of an opaque white box. ---- */
+.centerWrap {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: none;
+}
+
+.formCard {
+  position: relative;
+  width: min(380px, 90vw);
+  background: rgba(15, 18, 28, 0.38);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  box-shadow: 0 24px 70px -20px rgba(0, 0, 0, 0.65);
+  padding: 32px 30px;
+  pointer-events: auto;
+}
+
+.formLogo {
+  display: block;
+  height: 88px;
+  width: auto;
+  margin: 0 auto 18px;
+  border-radius: 16px;
+  background: #fff;
+  padding: 10px;
+}
+
+.formCard h1 {
+  font-size: 19px;
+  margin: 0 0 4px;
+  font-weight: 900;
+  color: #fff;
+  text-align: center;
+}
+.formSub {
+  display: block;
+  margin-bottom: 22px;
+  text-align: center;
+  font-size: 12.5px;
+  color: rgba(226, 232, 240, 0.7);
+}
+.formField { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.formField label { font-size: 13px; color: rgba(226, 232, 240, 0.85); font-weight: 600; }
+.formField input {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  font-size: 14px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.formField input::placeholder { color: rgba(255, 255, 255, 0.38); }
+.formField input:focus {
+  outline: none;
+  border-color: #ff3b30;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.2);
+}
+/* Chrome/Edge autofill paints its own opaque white background by default,
+   which would otherwise defeat the whole "transparent" card — this keeps
+   autofilled fields visually consistent with the rest of the form. */
+.formField input:-webkit-autofill,
+.formField input:-webkit-autofill:hover,
+.formField input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  -webkit-box-shadow: 0 0 0px 1000px rgba(40, 30, 30, 0.6) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.formPasswordWrap { position: relative; display: flex; }
+.formPasswordWrap input { width: 100%; padding-right: 38px; }
+.formPasswordToggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.formPasswordToggle:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
+
+.formError {
+  color: #ff8a80;
+  font-size: 13px;
+  margin-bottom: 12px;
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.formSubmit {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #ff0000;
+  background: #ff0000;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.formSubmit:disabled { opacity: 0.6; cursor: default; }
+
+@media (max-width: 1080px) {
+  .stage { width: min(700px, 88vw); }
+  .markImg { width: min(520px, 80vw); }
+  .caption { bottom: 16px; left: 20px; }
+  .nodeLabel { font-size: 8px; }
+}
+
+@media (max-width: 480px) {
+  .caption { display: none; }
+  .stage { width: min(480px, 92vw); }
+  .markImg { width: min(360px, 84vw); }
+  .nodeLabels { display: none; }
+  .formCard { padding: 26px 22px; }
+}
+
+/* Reduced motion: static mesh (drawn once, see the component), static
+   background marks (no drift keyframe), static muted centerpiece — no
+   spotlight (never rendered), no dimming, no glow pulsing, no
+   tilt/parallax/particles at all. A plain CSS hover still nudges the
+   centerpiece to full brightness/saturation so there's *some* feedback,
+   just none of it motion. */
+@media (prefers-reduced-motion: reduce) {
+  .bgMark { animation: none; }
+  .markGroup { transform: none !important; }
+  .markImg { filter: brightness(0.5) saturate(0.5) sepia(0.4) contrast(0.9) !important; opacity: 0.6 !important; }
+  .logoGlow { opacity: 0.2 !important; filter: blur(20px) !important; transform: none !important; }
+  .visualSide:hover .markImg {
+    filter: brightness(1.08) saturate(1.35) sepia(0) contrast(1.05) drop-shadow(0 0 30px rgba(255, 0, 0, 0.7)) !important;
+    opacity: 1 !important;
+    transition: filter 0.2s ease, opacity 0.2s ease;
+  }
+  .visualSide:hover .logoGlow { opacity: 0.55 !important; transition: opacity 0.2s ease; }
+}

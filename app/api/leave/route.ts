@@ -5,6 +5,7 @@ import { resolveVisibilityScope } from '@/lib/departmentScope';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
+import { isModuleAccessAllowed } from '@/lib/moduleConfigStore';
 import { LeaveType } from '@/lib/types';
 
 const VALID_TYPE: LeaveType[] = ['casual', 'sick', 'earned', 'unpaid', 'other'];
@@ -14,6 +15,7 @@ const VALID_TYPE: LeaveType[] = ['casual', 'sick', 'earned', 'unpaid', 'other'];
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isModuleAccessAllowed('leave', viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   try {
     const mine = await list({ userIds: [viewer.userId] });
     const scope = await resolveVisibilityScope(viewer.username);
@@ -29,6 +31,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isModuleAccessAllowed('leave', viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json().catch(() => null);
   if (!body || !VALID_TYPE.includes(body.leaveType) || typeof body.startDate !== 'string' || typeof body.endDate !== 'string') {

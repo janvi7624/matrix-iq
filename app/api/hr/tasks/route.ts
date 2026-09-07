@@ -3,7 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { requireHrModule, isHrManager } from '@/lib/hrAccess';
 import { generalTaskStore } from '@/lib/generalTaskStore';
 import { employeeBelongsToDepartment } from '@/lib/departmentEmployeeStore';
-import { findDepartmentById } from '@/lib/departmentStore';
+import { findDepartmentById, findHrDepartment } from '@/lib/departmentStore';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { logAudit } from '@/lib/auditLogStore';
@@ -49,6 +49,16 @@ export async function POST(request: NextRequest) {
 
   const department = await findDepartmentById(departmentId);
   if (!department) return NextResponse.json({ error: 'Selected department not found' }, { status: 400 });
+
+  // HR Tasks is HR's own department's task tool, not a general cross-
+  // department assignment feature — that's Assign Task (see
+  // app/api/admin/task-assignment/route.ts), which stays privileged-only.
+  // Re-checked here regardless of what the form sent, same as the
+  // department/employee membership check right below.
+  const hrDepartment = await findHrDepartment();
+  if (!hrDepartment || departmentId !== hrDepartment.id) {
+    return NextResponse.json({ error: 'HR tasks can only be assigned within the HR department' }, { status: 403 });
+  }
 
   const belongs = await employeeBelongsToDepartment(assigneeId, departmentId);
   if (!belongs) return NextResponse.json({ error: 'The selected employee is not an active member of the selected department' }, { status: 400 });

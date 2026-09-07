@@ -220,6 +220,14 @@ export function isHrDepartmentName(name: string): boolean {
   return /^hr\b/i.test(name.trim());
 }
 
+// The actual Department record matching isHrDepartmentName — e.g. HR Tasks'
+// own assignment feature needs the department's id, not just its managers,
+// to keep an HR user from assigning work to any department but their own.
+export async function findHrDepartment(): Promise<DepartmentRecord | undefined> {
+  const departments = await listActiveDepartments();
+  return departments.find((d) => isHrDepartmentName(d.name));
+}
+
 export async function reorderDepartments(orderedIds: string[]): Promise<void> {
   await Promise.all(orderedIds.map((id, i) => db.Department.update({ order: i + 1 } as never, { where: { id } as never })));
   invalidateCache(DEPARTMENTS_CACHE_KEY);

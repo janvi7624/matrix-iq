@@ -8,12 +8,14 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
+import { isModuleAccessAllowed } from '@/lib/moduleConfigStore';
 
 // Approve/reject (manager of the requester's department, HR manager, or
 // privileged) or cancel (the requester themself, only while still pending).
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isModuleAccessAllowed('leave', viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
   const body = await request.json().catch(() => null);
