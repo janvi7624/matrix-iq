@@ -1,0 +1,124 @@
+/* Task Planner (components/TaskPlannerView.tsx) — its own layout on top of
+   the app's existing chrome (quotationHistory.module.css/calculator.module.css
+   still provide buttons/panels/forms; this file only adds what's genuinely
+   new: the KPI bar, Board columns/cards, filter chips, and group headers). */
+
+.kpiBar {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+@media (max-width: 1100px) { .kpiBar { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 560px) { .kpiBar { grid-template-columns: repeat(2, 1fr); } }
+
+.kpiCard {
+  background: var(--mx-surface);
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-md);
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.kpiCard:hover { border-color: var(--mx-brand); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08); }
+.kpiCardActive { border-color: var(--mx-brand); background: var(--mx-brand-subtle); }
+.kpiValue { font-size: 20px; font-weight: 700; color: var(--mx-ink); line-height: 1.1; }
+.kpiLabel { font-size: 11.5px; color: var(--mx-ink-muted); margin-top: 2px; white-space: nowrap; }
+.kpiValueDanger { color: var(--mx-danger); }
+.kpiValueWarning { color: var(--mx-warning); }
+
+.toolRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.viewTabs { display: flex; gap: 6px; }
+
+.chipRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--mx-brand-subtle); color: var(--mx-brand-hover);
+  border-radius: var(--mx-radius-full); padding: 4px 10px; font-size: 12.5px; font-weight: 600;
+}
+.chipRemove { border: none; background: transparent; color: inherit; cursor: pointer; padding: 0; display: flex; }
+.clearAll { font-size: 12.5px; color: var(--mx-ink-muted); background: none; border: none; cursor: pointer; text-decoration: underline; }
+
+.groupHeader { font-size: 13px; font-weight: 700; color: var(--mx-ink); text-transform: uppercase; letter-spacing: 0.02em; margin: 18px 0 8px; }
+.groupHeader:first-child { margin-top: 4px; }
+
+.board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.boardColumn { flex: 0 0 260px; background: var(--mx-surface-sunken); border-radius: var(--mx-radius-md); padding: 10px; display: flex; flex-direction: column; min-height: 120px; }
+.boardColumnDragOver { outline: 2px dashed var(--mx-brand); outline-offset: -2px; }
+.boardColumnHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 0 2px; }
+.boardColumnTitle { font-size: 12.5px; font-weight: 700; color: var(--mx-ink); }
+.boardColumnCount { font-size: 11.5px; color: var(--mx-ink-muted); background: var(--mx-surface); border-radius: var(--mx-radius-full); padding: 1px 8px; }
+.boardCards { display: flex; flex-direction: column; gap: 8px; }
+
+.card {
+  background: var(--mx-surface); border: 1px solid var(--mx-border); border-radius: var(--mx-radius-md);
+  padding: 10px; cursor: grab; display: flex; flex-direction: column; gap: 6px;
+}
+.card:active { cursor: grabbing; }
+.cardDragging { opacity: 0.5; }
+.cardTitle { font-size: 13px; font-weight: 600; color: var(--mx-ink); }
+.cardMetaRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; color: var(--mx-ink-muted); }
+.cardOverdue { color: var(--mx-danger); font-weight: 700; }
+.cardLabels { display: flex; flex-wrap: wrap; gap: 4px; }
+.cardLabel { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: var(--mx-radius-full); background: var(--mx-brand-subtle); color: var(--mx-brand-hover); }
+
+.emptyBoardCol { font-size: 12px; color: var(--mx-ink-faint); padding: 12px 4px; text-align: center; }
+
+.assignModeOption { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+
+.checklistRow { display: flex; align-items: center; gap: 8px; }
+.employeeChipList { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+.moreOptionsToggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--mx-brand); background: none; border: none; cursor: pointer;
+  padding: 10px 0; text-align: left; font-weight: 700;
+  border-top: 1px solid var(--mx-border); margin-top: 4px; width: 100%;
+}
+.moreOptionsChevron { transition: transform 0.15s ease; }
+.moreOptionsChevronOpen { transform: rotate(180deg); }
+.confirmPreview { background: var(--mx-surface-sunken); border-radius: var(--mx-radius-sm); padding: 10px; font-size: 13px; margin: 8px 0; }
+
+/* --- Quick Create form layout --- */
+.formSection {
+  background: var(--mx-surface-sunken);
+  border-radius: var(--mx-radius-md);
+  padding: 14px;
+  margin: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.formSectionTitle {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--mx-ink-muted);
+}
+
+.segmented {
+  display: inline-flex;
+  background: var(--mx-surface-sunken);
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-full);
+  padding: 3px;
+  gap: 2px;
+}
+.segmentBtn {
+  border: none;
+  background: transparent;
+  color: var(--mx-ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 18px;
+  border-radius: var(--mx-radius-full);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.segmentBtn:hover { color: var(--mx-ink); }
+.segmentBtnActive {
+  background: var(--mx-surface);
+  color: var(--mx-brand);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.assignHint { font-size: 12.5px; color: var(--mx-ink-muted); background: var(--mx-surface); border: 1px solid var(--mx-border); border-radius: var(--mx-radius-sm); padding: 8px 10px; }

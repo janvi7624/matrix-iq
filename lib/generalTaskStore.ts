@@ -1,7 +1,8 @@
-import { Model, Op } from 'sequelize';
+import { Model, Op, Transaction } from 'sequelize';
 import { db, isUuid } from './db';
 import { ViewerContext } from './viewerContext';
 import { resolveVisibilityScope } from './departmentScope';
+import { departmentsManagedBy } from './departmentStore';
 import { GeneralTaskPriority, GeneralTaskRecord, GeneralTaskStatus, GeneralTaskUpdateRecord, GeneralTaskSourceModule } from './types';
 
 const FIELDS = [
@@ -16,10 +17,12 @@ const FIELDS = [
   { name: 'requires_review', kind: 'bool' as const },
   { name: 'category', kind: 'nullable' as const },
   { name: 'project_id', kind: 'nullable' as const },
+  { name: 'tms_project_id', kind: 'nullable' as const },
   { name: 'start_date', kind: 'nullable' as const },
   { name: 'deadline' },
   { name: 'remarks' },
-  { name: 'attachments', kind: 'json' as const }
+  { name: 'attachments', kind: 'json' as const },
+  { name: 'labels', kind: 'json' as const }
 ];
 
 function isoOrEmpty(value: unknown): string {
@@ -32,7 +35,8 @@ const ALL_INCLUDES = [
   { model: db.User, as: 'assignee', attributes: ['id', 'username', 'name'] },
   { model: db.User, as: 'reviewer', attributes: ['id', 'username', 'name'] },
   { model: db.Department, as: 'department', attributes: ['id', 'name'] },
-  { model: db.Project, as: 'project', attributes: ['id', 'client_name', 'company'] }
+  { model: db.Project, as: 'project', attributes: ['id', 'client_name', 'company'] },
+  { model: db.TmsProject, as: 'tmsProject', attributes: ['id', 'name'] }
 ];
 
 function toRecord(row: Model): GeneralTaskRecord {
@@ -40,6 +44,7 @@ function toRecord(row: Model): GeneralTaskRecord {
   const assignee = plain.assignee as { name?: string; username?: string } | null;
   const reviewer = plain.reviewer as { name?: string; username?: string } | null;
   const project = plain.project as { client_name?: string; company?: string } | null;
+  const tmsProject = plain.tmsProject as { name?: string } | null;
   const record: Record<string, unknown> = {
     id: plain.id,
     created_at: isoOrEmpty(plain.createdAt),
@@ -50,6 +55,7 @@ function toRecord(row: Model): GeneralTaskRecord {
     reviewer_name: reviewer?.name ?? '',
     reviewer_username: reviewer?.username ?? '',
     project_name: project ? project.client_name || project.company || '' : '',
+    tms_project_name: tmsProject?.name ?? '',
     updated_at: isoOrEmpty(plain.updatedAt),
     recurrence_template_id: (plain.recurrence_template_id as string) ?? '',
     recurrence_period_key: (plain.recurrence_period_key as string) ?? ''
@@ -74,7 +80,17 @@ async function list(viewer: ViewerContext, filters: { sourceModule?: GeneralTask
   if (filters.sourceModule) where.source_module = filters.sourceModule;
   if (!scope.seesOrgWide) {
     const ids = scope.scopedUserIds ?? [];
-    where[Op.or as unknown as string] = [{ assignee_id: { [Op.in]: ids } }, { created_by: { [Op.in]: ids } }];
+    const or: Record<string, unknown>[] = [{ assignee_id: { [Op.in]: ids } }, { created_by: { [Op.in]: ids } }];
+    // An unassigned ("Leave Unassigned") task has no assignee_id to match
+    // against scopedUserIds above, so without this branch it would be
+    // invisible to every manager of its own department except whoever
+    // created it. Managed department ids come from the same
+    // departmentsManagedBy() the [id] routes already use for 'team' tasks.
+    const managedDepartments = await departmentsManagedBy(viewer.username);
+    if (managedDepartments.length) {
+      or.push({ assignee_id: { [Op.is]: null }, department_id: { [Op.in]: managedDepartments.map((d) => d.id) } });
+    }
+    where[Op.or as unknown as string] = or;
   }
   const rows = await db.GeneralTask.findAll({ where: where as never, include: ALL_INCLUDES, order: [['deadline', 'ASC']] });
   return rows.map(toRecord);
@@ -100,9 +116,21 @@ async function findById(id: string): Promise<GeneralTaskRecord | undefined> {
 // [id] route MUST call this before returning/mutating a task (this is the
 // exact class of bug that had to be fixed after the fact in the TMS work —
 // built in from the start here instead).
+// An unassigned task (assignee_id '') has nothing for scopedUserIds to match
+// against, so both functions below fall back to this: is the viewer a
+// manager of the task's OWN department? Reused by canAccessGeneralTaskRow
+// and canManageGeneralTask — an unassigned department task must stay
+// visible AND manageable (so it can actually be assigned) to that
+// department's managers, matching the branch list() already applies.
+async function managesTasksDepartment(viewer: ViewerContext, departmentId: string): Promise<boolean> {
+  if (!departmentId) return false;
+  const managed = await departmentsManagedBy(viewer.username);
+  return managed.some((d) => d.id === departmentId);
+}
+
 export async function canAccessGeneralTaskRow(
   viewer: ViewerContext,
-  task: Pick<GeneralTaskRecord, 'assignee_id' | 'created_by' | 'reviewer_id'>,
+  task: Pick<GeneralTaskRecord, 'assignee_id' | 'created_by' | 'reviewer_id' | 'department_id'>,
   scope?: Awaited<ReturnType<typeof resolveVisibilityScope>>
 ): Promise<boolean> {
   const resolvedScope = scope ?? (await resolveVisibilityScope(viewer.username));
@@ -110,21 +138,26 @@ export async function canAccessGeneralTaskRow(
   if (task.created_by === viewer.username) return true;
   if (task.reviewer_id === viewer.userId) return true;
   const ids = resolvedScope.scopedUserIds ?? [];
-  return ids.includes(task.assignee_id);
+  if (task.assignee_id && ids.includes(task.assignee_id)) return true;
+  if (!task.assignee_id && (await managesTasksDepartment(viewer, task.department_id))) return true;
+  return false;
 }
 
 // Broader than canAccessGeneralTaskRow: "may this viewer manage this task's
 // workflow" (edit fields, reassign, extend deadline, cancel) — the task's
 // own creator, its reviewer, a manager of the ASSIGNEE's department
 // (explicitly excluding the assignee themself, who only gets the narrower
-// assignee-action endpoint), or a privileged/org-wide viewer.
-export async function canManageGeneralTask(viewer: ViewerContext, task: Pick<GeneralTaskRecord, 'assignee_id' | 'created_by' | 'reviewer_id'>): Promise<boolean> {
+// assignee-action endpoint), a manager of an unassigned task's own
+// department (so it can actually be assigned), or a privileged/org-wide
+// viewer.
+export async function canManageGeneralTask(viewer: ViewerContext, task: Pick<GeneralTaskRecord, 'assignee_id' | 'created_by' | 'reviewer_id' | 'department_id'>): Promise<boolean> {
   if (viewer.isPrivileged) return true;
   if (task.created_by === viewer.username) return true;
   if (task.reviewer_id === viewer.userId) return true;
   const scope = await resolveVisibilityScope(viewer.username);
   if (scope.seesOrgWide) return true;
-  if (viewer.userId !== task.assignee_id && (scope.scopedUserIds ?? []).includes(task.assignee_id)) return true;
+  if (task.assignee_id && viewer.userId !== task.assignee_id && (scope.scopedUserIds ?? []).includes(task.assignee_id)) return true;
+  if (!task.assignee_id && (await managesTasksDepartment(viewer, task.department_id))) return true;
   return false;
 }
 
@@ -133,28 +166,36 @@ async function create(input: {
   title: string;
   description: string;
   departmentId: string;
-  assigneeId: string;
+  // Optional — omit (or leave empty) for the "Leave Unassigned" assignment
+  // mode. See list() above for how an unassigned task stays visible to its
+  // department's managers.
+  assigneeId?: string;
   reviewerId?: string;
   priority: GeneralTaskPriority;
   requiresReview: boolean;
   category?: string;
   projectId?: string;
+  tmsProjectId?: string;
   startDate?: string;
   deadline: string;
   remarks?: string;
   attachments?: string[];
+  labels?: string[];
   createdByUsername: string;
   recurrenceTemplateId?: string;
   recurrencePeriodKey?: string;
+  // Lets bulk assignment (department-wide / selected-employees) wrap every
+  // created row in one atomic transaction — see app/api/admin/task-assignment.
+  transaction?: Transaction;
 }): Promise<GeneralTaskRecord> {
-  const creator = await db.User.findOne({ where: { username: input.createdByUsername } as never, attributes: ['id'] });
+  const creator = await db.User.findOne({ where: { username: input.createdByUsername } as never, attributes: ['id'], transaction: input.transaction });
   const row = await db.GeneralTask.create(
     {
       source_module: input.sourceModule,
       title: input.title,
       description: input.description || '',
       department_id: input.departmentId,
-      assignee_id: input.assigneeId,
+      assignee_id: input.assigneeId || null,
       reviewer_id: input.reviewerId || (creator ? creator.get('id') : null),
       created_by: creator ? creator.get('id') : null,
       priority: input.priority,
@@ -162,15 +203,18 @@ async function create(input: {
       requires_review: input.requiresReview,
       category: input.category || null,
       project_id: input.projectId || null,
+      tms_project_id: input.tmsProjectId || null,
       start_date: input.startDate || null,
       deadline: input.deadline,
       remarks: input.remarks || '',
       attachments: input.attachments || [],
+      labels: input.labels || [],
       recurrence_template_id: input.recurrenceTemplateId || null,
       recurrence_period_key: input.recurrencePeriodKey || null
-    } as never
+    } as never,
+    { transaction: input.transaction }
   );
-  const withAssoc = await db.GeneralTask.findByPk(row.get('id') as string, { include: ALL_INCLUDES });
+  const withAssoc = await db.GeneralTask.findByPk(row.get('id') as string, { include: ALL_INCLUDES, transaction: input.transaction });
   return toRecord(withAssoc as Model);
 }
 

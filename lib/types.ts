@@ -710,7 +710,7 @@ export interface ProjectRecord {
 
 // ---------------------------------------------------------------------------
 // Client Master — a read-only directory aggregated from Projects (+ their
-// Quotations) at request time, see app/api/clients/route.ts. There is no
+// Quotations) at request time, see lib/clientMasterStore.ts. There is no
 // underlying `clients` table; these shapes exist purely as the API's
 // response contract.
 // ---------------------------------------------------------------------------
@@ -723,9 +723,34 @@ export interface ClientContact {
   projectId: string;
 }
 
+// A real person, resolved from Project.created_by (the "creator"
+// association) — not the free-text sales_person string. Used for both
+// "Whose Client" and Product Handler attribution.
+export interface ClientOwner {
+  id: string;
+  username: string;
+  name: string;
+}
+
 export interface ClientProductHandler {
   product: string;
   handledBy: string;
+  handledByUsername: string;
+}
+
+// One project's summary for the Projects popover/drawer — deliberately no
+// "project name" field: this app's Project model has no such column (a
+// project IS the client engagement, not a separately-named thing), so
+// there's nothing honest to show beyond its real status/stage/dates/owner.
+export interface ClientProject {
+  id: string;
+  status: ProjectStatus;
+  stage: ProjectStage;
+  priority: ProjectPriority;
+  createdAt: string;
+  expectedClosingDate: string;
+  ownerName: string;
+  ownerUsername: string;
 }
 
 export interface ClientSummary {
@@ -733,8 +758,13 @@ export interface ClientSummary {
   displayName: string;
   contacts: ClientContact[];
   productHandlers: ClientProductHandler[];
+  projects: ClientProject[];
   projectCount: number;
   statusCounts: Record<string, number>;
+  owners: ClientOwner[];
+  remarks: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1553,10 +1583,13 @@ export interface GeneralTaskRecord {
   category: string;
   project_id: string;
   project_name: string;
+  tms_project_id: string;
+  tms_project_name: string;
   start_date: string;
   deadline: string;
   remarks: string;
   attachments: string[];
+  labels: string[];
   recurrence_template_id: string;
   recurrence_period_key: string;
   updated_at: string;

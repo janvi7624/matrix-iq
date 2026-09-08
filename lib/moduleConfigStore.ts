@@ -135,7 +135,12 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'module-manager', label: 'Module Manager', desc: 'Enable, disable, rename, and reorder every module.', icon: 'puzzle', href: '/admin/modules', section: 'Administration', order: 8, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'custom-modules', label: 'Custom Module Builder', desc: 'Create new business modules without writing code.', icon: 'wrench', href: '/admin/custom-modules', section: 'Administration', order: 9, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'employee-exit', label: 'Employee Exit', desc: "Reassign a departing employee's projects, tasks, leads, and quotations.", icon: 'log-out', href: '/employee-exit', section: 'Administration', order: 11, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'admin-task-assignment', label: 'Assign Task', desc: 'Assign a task to any employee in any department.', icon: 'send', href: '/admin/task-assignment', section: 'Administration', order: 12, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  // Upgraded from "Assign Task" into the full Task Planner (Board/List/
+  // Calendar/People/Reports) — key stays 'admin-task-assignment' on purpose
+  // (see the TASK_PLANNER_MIGRATION_KEY reconciliation below): every
+  // isModuleActionAllowed(viewer, 'admin-task-assignment', ...) call site and
+  // any Module Manager customization of this row survive the rename.
+  { key: 'admin-task-assignment', label: 'Task Planner', desc: 'Plan, assign and track work across departments and employees.', icon: 'kanban-square', href: '/admin/task-planner', section: 'Administration', order: 12, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   // Narrower than PRIVILEGED_ROLES (excludes 'manager') — Meta credentials
   // and lead-routing rules are Admin/Super Admin only, same restriction
   // 'audit-log' already uses. See lib/metaConfig.ts.
@@ -306,6 +311,17 @@ const NEW_SECTION_FOR_HR = 'HR';
 const OLD_ALL_ROLES_SNAPSHOT: UserRole[] = ['superadmin', 'admin', 'manager', 'engineer', 'backoffice', 'user', 'marketing', 'accounts', 'hr'];
 const HR_SECTION_TMS_ACCESS_KEYS = new Set(['hr-dashboard', 'travel-schedule', 'reimbursement']);
 
+// "Assign Task" upgraded in-place into "Task Planner" — same key, so this
+// only rewrites label/href/icon/desc, and only if the row still holds every
+// one of the exact old defaults (an admin who already renamed/re-iconed this
+// tile via Module Manager keeps their own edit, same guard as every
+// reconciliation above).
+const TASK_PLANNER_KEY = 'admin-task-assignment';
+const OLD_TASK_PLANNER_LABEL = 'Assign Task';
+const OLD_TASK_PLANNER_HREF = '/admin/task-assignment';
+const OLD_TASK_PLANNER_ICON = 'send';
+const OLD_TASK_PLANNER_DESC = 'Assign a task to any employee in any department.';
+
 function sameRoles(a: UserRole[], b: UserRole[]): boolean {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
@@ -379,6 +395,10 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (HR_RESTRICTED_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_HR_MODULE_ROLES_NO_ADMIN)) attrs.visibleToRoles = HR_MODULE_ROLES;
     if (HR_SECTION_TMS_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_SNAPSHOT)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
+    if (key === TASK_PLANNER_KEY && plain.label === OLD_TASK_PLANNER_LABEL) attrs.label = 'Task Planner';
+    if (key === TASK_PLANNER_KEY && plain.href === OLD_TASK_PLANNER_HREF) attrs.href = '/admin/task-planner';
+    if (key === TASK_PLANNER_KEY && plain.icon === OLD_TASK_PLANNER_ICON) attrs.icon = 'kanban-square';
+    if (key === TASK_PLANNER_KEY && plain.desc === OLD_TASK_PLANNER_DESC) attrs.desc = 'Plan, assign and track work across departments and employees.';
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }
 

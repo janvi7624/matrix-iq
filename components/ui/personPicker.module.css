@@ -12,7 +12,7 @@
 .searchIcon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--mx-ink-faint); }
 .searchInput { padding-left: 32px; }
 
-.resultsList { max-height: 220px; overflow-y: auto; border: 1px solid var(--mx-border); border-radius: var(--mx-radius-sm); }
+.resultsList { composes: mx-nice-scroll from global; max-height: 220px; overflow-y: auto; border: 1px solid var(--mx-border); border-radius: var(--mx-radius-sm); }
 .emptyMessage { padding: 16px 12px; text-align: center; font-size: 13px; color: var(--mx-ink-faint); }
 
 .resultRow {

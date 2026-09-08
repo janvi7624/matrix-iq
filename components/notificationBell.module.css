@@ -7,7 +7,7 @@
   border-radius: 999px; font-size: 10px; line-height: 16px; min-width: 16px; height: 16px;
   text-align: center; padding: 0 3px; font-weight: 700;
 }
-.notifPanelPosition { position: absolute; right: 0; top: 110%; width: 340px; max-height: 420px; overflow-y: auto; z-index: 50; }
+.notifPanelPosition { composes: mx-nice-scroll from global; position: absolute; right: 0; top: 110%; width: 340px; max-height: 420px; overflow-y: auto; z-index: 50; }
 .notifTitleText { font-size: 13.5px; }
 .emptyTitle { font-weight: 700; margin-bottom: 4px; }
 .emptyBody { font-weight: 400; }

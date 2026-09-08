@@ -79,6 +79,7 @@
 }
 
 .results {
+    composes: mx-nice-scroll from global;
     overflow-y: auto;
     padding: 8px;
 }

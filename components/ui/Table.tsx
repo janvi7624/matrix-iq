@@ -15,6 +15,11 @@ export interface TableProps<T> {
   rowKey: (row: T) => string;
   rowClassName?: (row: T) => string | undefined;
   empty?: ReactNode;
+  // Optional — every existing consumer keeps working unchanged without it.
+  // Cell content that needs its own click behavior (a popover trigger, an
+  // action button) should call stopPropagation() so it doesn't also fire
+  // the row click.
+  onRowClick?: (row: T) => void;
 }
 
 // Wraps the existing .tableWrap/.table CSS (quotationHistory.module.css)
@@ -25,7 +30,7 @@ export function TableWrap({ children, className }: { children: ReactNode; classN
   return <div className={classes}>{children}</div>;
 }
 
-export default function Table<T>({ columns, rows, rowKey, rowClassName, empty }: TableProps<T>) {
+export default function Table<T>({ columns, rows, rowKey, rowClassName, empty, onRowClick }: TableProps<T>) {
   return (
     <TableWrap>
       <table className={styles.table}>
@@ -38,7 +43,12 @@ export default function Table<T>({ columns, rows, rowKey, rowClassName, empty }:
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={rowKey(row)} className={rowClassName?.(row)}>
+            <tr
+              key={rowKey(row)}
+              className={rowClassName?.(row)}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              style={onRowClick ? { cursor: 'pointer' } : undefined}
+            >
               {columns.map((col) => (
                 <td key={col.key} className={col.cellClassName}>{col.render(row)}</td>
               ))}

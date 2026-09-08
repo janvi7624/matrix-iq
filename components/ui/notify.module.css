@@ -66,6 +66,7 @@
 /* Wider variant of .confirmCard for dialogs that hold a real form (e.g. the
    Project quick-create modal) instead of a one-line confirm/prompt message. */
 .wideCard {
+    composes: mx-nice-scroll from global;
     width: min(640px, 100%);
     max-height: min(85vh, 720px);
     overflow-y: auto;
@@ -78,6 +79,7 @@
    Performance Dashboard) — not a form, a whole read-only report, so it earns
    more of the viewport than .wideCard's form-dialog width. */
 .fullCard {
+    composes: mx-nice-scroll from global;
     width: min(1080px, 96vw);
     max-height: min(90vh, 860px);
     overflow-y: auto;

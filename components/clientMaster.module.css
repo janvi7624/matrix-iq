@@ -1,0 +1,113 @@
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ownershipToggleRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+.columnMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  background: var(--mx-surface);
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-sm);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+
+.columnMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--mx-ink);
+  cursor: pointer;
+}
+
+.ownershipPanel {
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface);
+  padding: 8px 4px;
+  margin-bottom: 12px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.ownershipRow {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--mx-ink);
+  border-radius: var(--mx-radius-sm);
+}
+.ownershipRow:hover { background: var(--mx-surface-sunken, #f3f4f6); }
+
+.ownershipCount { font-weight: 700; color: var(--mx-ink-muted); }
+
+.primaryName { font-weight: 600; color: var(--mx-ink); }
+
+/* Desktop table vs. mobile card list — same technique as
+   components/employeeDirectory.module.css: both render in the DOM, CSS
+   toggles visibility so there's no JS breakpoint/hydration mismatch risk. */
+.desktopOnly { display: block; }
+.cardList { display: none; flex-direction: column; gap: 10px; }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface);
+  padding: 12px 14px;
+  cursor: pointer;
+}
+.cardCompany { font-weight: 700; color: var(--mx-ink); }
+.cardMetaRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--mx-ink-muted);
+  margin-top: 4px;
+}
+
+.drawerBody { display: flex; flex-direction: column; gap: 16px; }
+.drawerSection { border-bottom: 1px solid var(--mx-border); padding-bottom: 12px; }
+.drawerSection:last-child { border-bottom: none; }
+.drawerSectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mx-ink-muted);
+  margin-bottom: 6px;
+}
+.drawerActions { display: flex; gap: 8px; }
+
+@media (max-width: 768px) {
+  .desktopOnly { display: none; }
+  .cardList { display: flex; }
+  .statRow { grid-template-columns: repeat(2, 1fr); }
+}
