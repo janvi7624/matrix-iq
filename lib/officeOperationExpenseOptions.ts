@@ -56,7 +56,6 @@ export const OFFICE_EXPENSE_ITEMS = [
   'Department',
   'Godown 30',
   'Godown 31',
-  'Tea',
   'Flowers'
 ] as const;
 
@@ -76,7 +75,7 @@ const GODOWN_SUB_OPTIONS = ['Rent', 'Maintenance', 'Tax', 'Water', 'Tea', 'Mobil
 // ITEM_FROM_DEPARTMENT_MASTER below and the /options route.
 export const ITEM_SUB_OPTIONS: Record<string, string[]> = {
   'Stationary and Printing': ['Xerox', 'Color Print', 'Stationery Items', 'Other'],
-  Pantry: ['Milk', 'Tea Powder', 'Coffee Powder', 'Sugar', 'Ginger', 'Lemon', 'Phudino', 'Green Tea', 'Snacks', 'Lunch', 'Dinner', 'Coffee', 'Grocery', 'Other'],
+  Pantry: ['Milk', 'Tea', 'Tea Powder', 'Coffee Powder', 'Sugar', 'Ginger', 'Lemon', 'Phudino', 'Green Tea', 'Snacks', 'Lunch', 'Dinner', 'Coffee', 'Grocery', 'Other'],
   Tempo: ['Fastag', 'Insurance', 'Tax', 'CNG', 'Petrol'],
   'IT Materials': ['Laptop', 'Mouse', 'Chargers', 'Repair', 'Keyboards', 'Other'],
   Salary: ['Sweeper', 'Keshav Kaka', 'Papa', 'Other'],
