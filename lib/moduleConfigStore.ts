@@ -2,7 +2,7 @@ import { Model } from 'sequelize';
 import { ModuleConfigRecord, UserRole } from './types';
 import { db, isUuid } from './db';
 import { cached, invalidateCache } from './memoCache';
-import { TMS_ROLE_KEYS } from './tmsConstants';
+import { TMS_ROLE_KEYS, TMS_DEPARTMENTS } from './tmsConstants';
 
 // listModuleConfigs() (and its seed/reconcile pass) used to run in full on
 // every module-gated request — proxy.ts's own comment already flagged this
@@ -19,7 +19,7 @@ const MODULES_CACHE_TTL_MS = 30_000;
 const ALL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'engineer', 'backoffice', 'user', 'marketing', 'accounts', 'hr'];
 const PRIVILEGED_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 
-// TMS (Technical Management System) — Robotics/AI/AV/Marketing-only, see
+// TMS (Technical Management System) — Robotics/AI/AV/R&D-only, see
 // lib/tmsAccess.ts. Only Admin/Super Admin get automatic oversight here —
 // deliberately NOT the generic 'manager' role (PRIVILEGED_ROLES), which
 // would otherwise let a Sales/HR/Accounts/... manager see TMS too, since
@@ -32,7 +32,11 @@ const PRIVILEGED_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 const TMS_OVERSIGHT_ROLES: UserRole[] = ['superadmin', 'admin'];
 const TMS_ALL_ROLES: UserRole[] = [...TMS_OVERSIGHT_ROLES, 'technical-manager', 'team-lead', 'engineer', 'technician'];
 const TMS_MANAGER_ONLY_ROLES: UserRole[] = [...TMS_OVERSIGHT_ROLES, 'technical-manager'];
-const TMS_DEPARTMENTS = ['Robotics', 'AI', 'AV', 'Marketing'];
+// visibleToDepartments wants a mutable string[]; TMS_DEPARTMENTS is a
+// `readonly` const tuple (shared with client-safe tmsConstants.ts consumers
+// that rely on it staying a literal tuple), so spread into a plain array
+// here rather than loosening the shared constant's type.
+const TMS_DEPARTMENT_LIST: string[] = [...TMS_DEPARTMENTS];
 
 // HR-scoped modules — the HR/Admin department's own records. Admin and Super
 // Admin keep oversight, but the generic 'manager' role is deliberately NOT
@@ -46,6 +50,16 @@ const TMS_DEPARTMENTS = ['Robotics', 'AI', 'AV', 'Marketing'];
 // viewer.isPrivileged.
 const HR_MODULE_ROLES: UserRole[] = ['hr', 'superadmin', 'admin'];
 const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-tasks', 'hr-employees', 'hr-reports', 'hr-settings']);
+
+// Keys that need "is this viewer a recognized manager of ANY department"
+// instead of a static role list — HR/TMS above can hard-code a role set
+// because HR and TMS each map onto one fixed role family; a cross-department
+// manager check has no such fixed role to key off (Department.managerIds
+// membership is independent of role — 'technical-manager', a plain 'user',
+// or a legacy 'manager' account can all be a department's manager), so the
+// caller resolves it (see lib/departmentStore.ts's isUserADepartmentManager)
+// and passes it in as viewer.isDepartmentManager.
+const MANAGER_GATED_KEYS = new Set(['team-tasks']);
 
 // TMS accounts also need a handful of Sales-section modules (their project
 // dashboard is tied to Project.assigned_technical_person_id, and they work
@@ -91,6 +105,16 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'hr-settings', label: 'HR Settings', desc: 'Task categories and recurring task templates.', icon: 'settings', href: '/hr/settings', section: 'HR', order: 10, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
   { key: 'my-tasks', label: 'My Tasks', desc: 'Tasks assigned to you, from any module.', icon: 'check-square', href: '/my-tasks', section: 'Workspace', order: 0, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  // Generalizes HR Tasks' "manager assigns only within their own department"
+  // pattern to every department, not just HR — a recognized manager of ANY
+  // department (Department.managerIds, not tied to any one role — technical
+  // managers, Sales/Accounts/etc. managers are never all one shared role) can
+  // assign work within their own department here. visibleToRoles is
+  // deliberately ALL_ROLES: the real gate is MANAGER_GATED_KEYS below, which
+  // requires isPrivileged or actual department-manager membership regardless
+  // of role, since no static role list can express "manager of some
+  // department" the way it can for a single fixed role like HR's.
+  { key: 'team-tasks', label: 'Team Tasks', desc: 'Assign and track tasks within your own department.', icon: 'clipboard-list', href: '/team-tasks', section: 'Workspace', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'backoffice', label: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', icon: 'package', href: '/backoffice', section: 'Operations', order: 1, enabled: true, isCustom: false, visibleToRoles: ['backoffice', 'admin', 'superadmin', 'manager'] },
   { key: 'marketing-requests', label: 'Marketing Requests', desc: 'Request marketing support — brochures, banners, social posts, and more — and track delivery timelines.', icon: 'megaphone', href: '/marketing-requests', section: 'Marketing', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: 'user', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -117,17 +141,17 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // 'audit-log' already uses. See lib/metaConfig.ts.
   { key: 'meta-lead-integration', label: 'Meta Lead Integration', desc: 'Connect Facebook & Instagram Lead Ads to Lead Capture / Inquiry.', icon: 'share-2', href: '/admin/meta-integration', section: 'Administration', order: 10, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
 
-  // TMS (Technical Management System) — Robotics/AI/AV/Marketing-only, see
+  // TMS (Technical Management System) — Robotics/AI/AV/R&D-only, see
   // lib/tmsAccess.ts. visibleToRoles covers the 4 TMS roles + privileged
   // roles (who bypass the department gate below); visibleToDepartments is
   // the department gate itself, checked by departmentAllowsModule().
-  { key: 'tms-dashboard', label: 'TMS Dashboard', desc: 'Project, task, BOM, and procurement overview for the Technical Team.', icon: 'layout-dashboard', href: '/tms', section: 'TMS', order: 1, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENTS },
-  { key: 'tms-projects', label: 'Projects', desc: 'Technical execution projects — team, budget, status, and progress.', icon: 'layers', href: '/tms/projects', section: 'TMS', order: 2, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENTS },
-  { key: 'tms-tasks', label: 'Tasks', desc: 'Day-by-day task tracking with a Daily Task View.', icon: 'clipboard-list', href: '/tms/tasks', section: 'TMS', order: 3, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENTS },
-  { key: 'tms-bom-requests', label: 'BOM Request', desc: 'Bill of materials requests, review, and approval.', icon: 'list', href: '/tms/bom-requests', section: 'TMS', order: 4, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENTS },
-  { key: 'tms-procurement', label: 'Procurement', desc: 'Purchase and delivery tracking from approved BOM requests.', icon: 'shopping-cart', href: '/tms/procurement', section: 'TMS', order: 5, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES.filter((r) => r !== 'technician'), visibleToDepartments: TMS_DEPARTMENTS },
-  { key: 'tms-users', label: 'Users', desc: 'Manage technical team accounts, department, role, and project access.', icon: 'user', href: '/tms/users', section: 'TMS', order: 6, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENTS },
-  { key: 'tms-tab-access', label: 'Tab Access', desc: 'Configure which TMS roles can view, create, edit, delete, approve, or manage each TMS tab.', icon: 'shield', href: '/tms/tab-access', section: 'TMS', order: 7, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENTS }
+  { key: 'tms-dashboard', label: 'TMS Dashboard', desc: 'Project, task, BOM, and procurement overview for the Technical Team.', icon: 'layout-dashboard', href: '/tms', section: 'TMS', order: 1, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
+  { key: 'tms-projects', label: 'Projects', desc: 'Technical execution projects — team, budget, status, and progress.', icon: 'layers', href: '/tms/projects', section: 'TMS', order: 2, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
+  { key: 'tms-tasks', label: 'Tasks', desc: 'Day-by-day task tracking with a Daily Task View.', icon: 'clipboard-list', href: '/tms/tasks', section: 'TMS', order: 3, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
+  { key: 'tms-bom-requests', label: 'BOM Request', desc: 'Bill of materials requests, review, and approval.', icon: 'list', href: '/tms/bom-requests', section: 'TMS', order: 4, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
+  { key: 'tms-procurement', label: 'Procurement', desc: 'Purchase and delivery tracking from approved BOM requests.', icon: 'shopping-cart', href: '/tms/procurement', section: 'TMS', order: 5, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES.filter((r) => r !== 'technician'), visibleToDepartments: TMS_DEPARTMENT_LIST },
+  { key: 'tms-users', label: 'Users', desc: 'Manage technical team accounts, department, role, and project access.', icon: 'user', href: '/tms/users', section: 'TMS', order: 6, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
+  { key: 'tms-tab-access', label: 'Tab Access', desc: 'Configure which TMS roles can view, create, edit, delete, approve, or manage each TMS tab.', icon: 'shield', href: '/tms/tab-access', section: 'TMS', order: 7, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST }
 ];
 
 // Icon values above changed from free-typed emoji to curated icon keys
@@ -379,10 +403,29 @@ export async function listModuleConfigs(): Promise<ModuleConfigRecord[]> {
 // `department` is optional so every pre-Section-TMS call site keeps
 // compiling — it only matters for modules that actually set
 // visibleToDepartments (departmentAllowsModule short-circuits true for every
-// other module regardless).
-export async function listVisibleModules(viewer: { role: UserRole; isPrivileged: boolean; department?: string | null }): Promise<ModuleConfigRecord[]> {
+// other module regardless). `isDepartmentManager` is the same kind of
+// optional add-on for MANAGER_GATED_KEYS (team-tasks) — the caller resolves
+// it once (isUserADepartmentManager) and passes it in, since this function
+// itself has no viewer username to look it up with.
+export async function listVisibleModules(viewer: {
+  role: UserRole;
+  isPrivileged: boolean;
+  department?: string | null;
+  isDepartmentManager?: boolean;
+}): Promise<ModuleConfigRecord[]> {
   const all = await listModuleConfigs();
-  return all.filter((m) => m.enabled && m.visibleToRoles.includes(viewer.role) && departmentAllowsModule(m, viewer.department, viewer.isPrivileged));
+  return all.filter((m) => {
+    if (!m.enabled) return false;
+    // MANAGER_GATED_KEYS bypasses the role-list check entirely — a
+    // department manager can hold ANY role (technical-manager, engineer,
+    // plain 'user', legacy 'manager', ...; there's no one shared role a
+    // static visibleToRoles list could name), so falling through to
+    // m.visibleToRoles.includes(viewer.role) below would wrongly exclude a
+    // real manager whose role just isn't in the generic ALL_ROLES set —
+    // exactly the 'technical-manager' gap this module exists to fix.
+    if (MANAGER_GATED_KEYS.has(m.key)) return (viewer.isPrivileged || !!viewer.isDepartmentManager) && departmentAllowsModule(m, viewer.department, true);
+    return m.visibleToRoles.includes(viewer.role) && departmentAllowsModule(m, viewer.department, viewer.isPrivileged);
+  });
 }
 
 // Real access control for a module's record/page API — the single source of
@@ -394,10 +437,23 @@ export async function listVisibleModules(viewer: { role: UserRole; isPrivileged:
 // enabled module restricted to certain roles only blocks non-privileged
 // viewers — so a role that isn't supposed to see a module can't reach its
 // data by hitting the API directly even if they know the URL.
-export async function isModuleAccessAllowed(key: string, viewer: { role: UserRole; isPrivileged: boolean; department?: string | null }): Promise<boolean> {
+export async function isModuleAccessAllowed(
+  key: string,
+  viewer: { role: UserRole; isPrivileged: boolean; department?: string | null; isDepartmentManager?: boolean }
+): Promise<boolean> {
   const all = await listModuleConfigs();
   const config = all.find((m) => m.key === key);
   if (!config || !config.enabled) return false;
+
+  // MANAGER_GATED_KEYS bypasses the role-list check entirely, same reasoning
+  // as listVisibleModules above — a department manager can hold any role, so
+  // the `return config.visibleToRoles.includes(viewer.role)` fallback below
+  // would wrongly reject a real manager whose role isn't in ALL_ROLES (e.g.
+  // 'technical-manager').
+  if (MANAGER_GATED_KEYS.has(key)) {
+    if (!(viewer.isPrivileged || viewer.isDepartmentManager)) return false;
+    return departmentAllowsModule(config, viewer.department, true);
+  }
 
   // TMS and HR-restricted keys don't get the generic isPrivileged bypass —
   // that flag is true for every 'manager' account (Sales, HR, Accounts, ...),

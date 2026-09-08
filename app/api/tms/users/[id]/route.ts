@@ -25,7 +25,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Role must be one of Technical Manager, Team Lead, Engineer, or Technician' }, { status: 400 });
     }
     if (body.department !== undefined && !TMS_DEPARTMENTS.includes(body.department)) {
-      return NextResponse.json({ error: 'Department must be one of Robotics, AI, AV, or Marketing' }, { status: 400 });
+      return NextResponse.json({ error: 'Department must be one of Robotics, AI, AV, or R&D' }, { status: 400 });
     }
 
     const updated = await updateUser(id, {

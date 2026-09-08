@@ -10,7 +10,7 @@ import { getAppConfig } from './appConfigStore';
 import { listDepartmentManagers } from './departmentStore';
 
 // TMS (Technical Management System) — a self-contained module gated on BOTH
-// department (Robotics/AI/AV/Marketing) and role/action permission. See the
+// department (Robotics/AI/AV/R&D) and role/action permission. See the
 // TMS plan doc for the full design; this file is the one chokepoint every
 // app/api/tms/** route and app/tms/**/page.tsx (via lib/tmsPageGuard.ts)
 // resolves access through, so "can see it" and "can call its API" can never

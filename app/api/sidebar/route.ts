@@ -29,10 +29,15 @@ export async function GET(request: NextRequest) {
     const isBackOffice = viewer.role === 'backoffice' || isPrivileged;
     const isManagerTier = viewer.role === 'manager' || viewer.role === 'admin' || viewer.role === 'superadmin';
 
-    const user = await findUserNameAndDeptByUsername(viewer.username);
+    // Fetched together up front: listVisibleModules (below) needs deptManagers
+    // resolved into a boolean BEFORE it's called (team-tasks visibility), and
+    // the travel-schedule badge logic further down already needed deptManagers
+    // anyway — resolving it here once avoids fetching it a second time there.
+    const [user, deptManagers] = await Promise.all([findUserNameAndDeptByUsername(viewer.username), listDepartmentManagers()]);
+    const isDeptManager = Object.values(deptManagers).some((list) => list.some((m) => m.username === viewer.username));
 
     const [modules, leadStats, isMarketingReviewer, demosForBadge, backOfficeCounts] = await Promise.all([
-      listVisibleModules({ role: viewer.role, isPrivileged: viewer.isPrivileged, department: user?.department }),
+      listVisibleModules({ role: viewer.role, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager }),
       computeLeadStats(viewer.username, viewer.isPrivileged),
       isMarketingManager(viewer),
       viewer.role === 'engineer' || isManagerTier ? demoScheduleStore.list(viewer.username, viewer.isPrivileged) : Promise.resolve(null),
@@ -48,10 +53,9 @@ export async function GET(request: NextRequest) {
     // and deptManagers don't depend on anything from the first batch — all
     // three are independent of each other, so they run together instead of as
     // three more sequential round trips on an endpoint that fires on every page.
-    const [marketingRecords, travelRecords, deptManagers] = await Promise.all([
+    const [marketingRecords, travelRecords] = await Promise.all([
       marketingRequestStore.list(viewer.username, isMarketingReviewer),
-      travelScheduleStore.list(viewer.username, isPrivileged),
-      listDepartmentManagers()
+      travelScheduleStore.list(viewer.username, isPrivileged)
     ]);
     // Sums two different concerns into one nav badge — a reviewer's approval
     // backlog, and anyone's own requests crossing into due-today/overdue —

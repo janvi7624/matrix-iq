@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { canAccessGeneralTaskRow, canManageGeneralTask, generalTaskStore, listTaskUpdates, isValidAssigneeTransition } from '@/lib/generalTaskStore';
 import { isHrManager } from '@/lib/hrAccess';
+import { departmentsManagedBy } from '@/lib/departmentStore';
 import { listForTask as listDeadlineChanges } from '@/lib/generalTaskDeadlineStore';
 import { listAuditLog, logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
@@ -28,7 +29,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ]);
 
     const isAssignee = task.assignee_id === viewer.userId;
-    const isReviewer = task.reviewer_id === viewer.userId || (task.source_module === 'hr' && (await isHrManager(viewer)));
+    // The extra OR here (beyond the task's own recorded reviewer_id) lets ANY
+    // manager of the relevant department review the submission, not just
+    // whichever manager happened to create it — same reasoning as HR's
+    // isHrManager check, generalized to every department for 'team' tasks.
+    const isReviewer =
+      task.reviewer_id === viewer.userId ||
+      (task.source_module === 'hr' && (await isHrManager(viewer))) ||
+      (task.source_module === 'team' && (await departmentsManagedBy(viewer.username)).some((d) => d.id === task.department_id));
     const permissions = {
       isAssignee,
       canAct: isAssignee && isValidAssigneeTransition(task.status, 'start'),

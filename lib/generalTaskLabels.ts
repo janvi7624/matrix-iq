@@ -4,7 +4,9 @@
 
 import { StatusTone } from '@/components/ui/StatusBadge';
 import { PriorityTone } from '@/components/ui/PriorityBadge';
-import { GeneralTaskPriority, GeneralTaskStatus } from './types';
+import { GeneralTaskPriority, GeneralTaskSourceModule, GeneralTaskStatus } from './types';
+
+export const GENERAL_TASK_SOURCE_LABEL: Record<GeneralTaskSourceModule, string> = { admin: 'Admin', hr: 'HR', team: 'Team' };
 
 export const GENERAL_TASK_PRIORITY_LABEL: Record<GeneralTaskPriority, string> = { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' };
 export const GENERAL_TASK_PRIORITY_TONE: Record<GeneralTaskPriority, PriorityTone> = { low: 'cool', medium: 'info', high: 'warm', critical: 'warm' };

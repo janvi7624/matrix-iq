@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ListChecks } from 'lucide-react';
 import { GeneralTaskPriority, GeneralTaskRecord, GeneralTaskStatus } from '@/lib/types';
-import { GENERAL_TASK_PRIORITY_LABEL, GENERAL_TASK_PRIORITY_TONE, GENERAL_TASK_STATUS_LABEL, GENERAL_TASK_STATUS_TONE, todayIso } from '@/lib/generalTaskLabels';
+import { GENERAL_TASK_PRIORITY_LABEL, GENERAL_TASK_PRIORITY_TONE, GENERAL_TASK_SOURCE_LABEL, GENERAL_TASK_STATUS_LABEL, GENERAL_TASK_STATUS_TONE, todayIso } from '@/lib/generalTaskLabels';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import StatusBadge from './ui/StatusBadge';
@@ -72,7 +72,7 @@ export default function MyTasksView({ currentUser }: MyTasksViewProps) {
 
   const columns: TableColumn<GeneralTaskRecord>[] = [
     { key: 'title', header: 'Task', render: (t) => t.title },
-    { key: 'source', header: 'From', render: (t) => (t.source_module === 'admin' ? 'Admin' : 'HR') },
+    { key: 'source', header: 'From', render: (t) => GENERAL_TASK_SOURCE_LABEL[t.source_module] },
     { key: 'department', header: 'Department', render: (t) => t.department_name },
     { key: 'assignedBy', header: 'Assigned By', render: (t) => t.created_by },
     { key: 'priority', header: 'Priority', render: (t) => <PriorityBadge tone={GENERAL_TASK_PRIORITY_TONE[t.priority]} label={GENERAL_TASK_PRIORITY_LABEL[t.priority]} /> },

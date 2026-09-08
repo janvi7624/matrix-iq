@@ -99,7 +99,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.departmentId === 'string' && body.departmentId.trim()) {
       const department = await findDepartmentById(body.departmentId.trim());
       if (!department || !TMS_DEPARTMENTS.includes(department.name as (typeof TMS_DEPARTMENTS)[number])) {
-        return NextResponse.json({ error: 'A valid technical department (Robotics, AI, AV, or Marketing) is required' }, { status: 400 });
+        return NextResponse.json({ error: 'A valid technical department (Robotics, AI, AV, or R&D) is required' }, { status: 400 });
       }
       patch.department_id = department.id;
     }

@@ -239,6 +239,14 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
   const deadlineBucket = classifyDeadline(project.deadline, project.status === 'completed');
   const deadlineBand = DEADLINE_BUCKET_BAND[deadlineBucket];
 
+  // Assigned Engineers must only offer people from this project's own
+  // department(s) — department_names covers both a single-department and a
+  // combined project uniformly, so there's nothing project_type-specific to
+  // branch on here (unlike the create form, which still has to build that
+  // set live as the user picks departments).
+  const projectDepartmentNames = new Set(project.department_names.length ? project.department_names : [project.department_name]);
+  const scopedAssignableUsers = assignableUsers.filter((u) => projectDepartmentNames.has(u.department));
+
   return (
     <AppShell
       title={project.name}
@@ -356,13 +364,13 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             {editingTeam ? (
               <>
                 <PersonPicker
-                  options={assignableUsers}
+                  options={scopedAssignableUsers}
                   selectedIds={teamEditIds}
                   onChange={setTeamEditIds}
                   multiple
                   placeholder="Search engineer…"
                   roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
-                  emptyMessage="No matching active Technical Team members found."
+                  emptyMessage="No matching active Technical Team members found in this project's department."
                 />
                 <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
                   <button type="button" className={calcStyles.btn} onClick={saveTeam} disabled={savingTeam}>

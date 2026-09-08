@@ -1284,7 +1284,7 @@ export interface RoleRecord {
 
 // ---------------------------------------------------------------------------
 // TMS (Technical Management System) — a self-contained module for the
-// Robotics/AI/AV/Marketing departments (see lib/tmsAccess.ts for the
+// Robotics/AI/AV/R&D departments (see lib/tmsAccess.ts for the
 // department + role gate, lib/tmsProjectStore.ts etc. for the stores). A
 // TmsProjectRecord is a TECHNICAL EXECUTION project (team, budget, status
 // Planning/Not Started/In Progress/On Hold/Completed/Cancelled) — a
@@ -1524,7 +1524,7 @@ export interface OfficeOperationExpenseRecord {
 // and the 4 TMS-only departments.
 // ---------------------------------------------------------------------------
 
-export type GeneralTaskSourceModule = 'admin' | 'hr';
+export type GeneralTaskSourceModule = 'admin' | 'hr' | 'team';
 export type GeneralTaskPriority = 'low' | 'medium' | 'high' | 'critical';
 // pending -> in_progress -> under_review -> approved (review path), or
 // pending -> in_progress -> completed (requires_review=false path).

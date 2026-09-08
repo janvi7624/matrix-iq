@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AuditLogEntry, GeneralTaskDeadlineChangeRecord, GeneralTaskRecord, GeneralTaskUpdateRecord } from '@/lib/types';
-import { GENERAL_TASK_PRIORITY_LABEL, GENERAL_TASK_PRIORITY_TONE, GENERAL_TASK_STATUS_LABEL, GENERAL_TASK_STATUS_TONE } from '@/lib/generalTaskLabels';
+import { GENERAL_TASK_PRIORITY_LABEL, GENERAL_TASK_PRIORITY_TONE, GENERAL_TASK_SOURCE_LABEL, GENERAL_TASK_STATUS_LABEL, GENERAL_TASK_STATUS_TONE } from '@/lib/generalTaskLabels';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -241,7 +241,7 @@ export default function MyTaskDetailView({ taskId, currentUser }: MyTaskDetailVi
   const { task, updates, deadlineChanges, activity, permissions } = data;
 
   return (
-    <AppShell title={task.title} subtitle={`${task.source_module === 'admin' ? 'Admin' : 'HR'} task · ${task.department_name}`} showBackLink>
+    <AppShell title={task.title} subtitle={`${GENERAL_TASK_SOURCE_LABEL[task.source_module]} task · ${task.department_name}`} showBackLink>
       <div className={styles.headerRow}>
         <StatusBadge tone={GENERAL_TASK_STATUS_TONE[task.status]} label={GENERAL_TASK_STATUS_LABEL[task.status]} />
         <PriorityBadge tone={GENERAL_TASK_PRIORITY_TONE[task.priority]} label={GENERAL_TASK_PRIORITY_LABEL[task.priority]} />

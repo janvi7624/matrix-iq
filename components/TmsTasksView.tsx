@@ -84,6 +84,36 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
     [departments]
   );
 
+  // "Assign To" must only offer people from the task's own department — by
+  // default that's the selected project's department (department_names
+  // covers combined projects too), unless the Department field below
+  // explicitly overrides it. Resolved before that field's own JSX so both
+  // "Assign To" (which comes first) and "Department" agree on the same
+  // effective department.
+  const effectiveTaskDepartmentNames = useMemo(() => {
+    if (form.departmentId) {
+      const dept = tmsDepartments.find((d) => d.id === form.departmentId);
+      return dept ? new Set([dept.name]) : new Set<string>();
+    }
+    const project = projects.find((p) => p.id === form.projectId);
+    if (!project) return new Set<string>();
+    return new Set(project.department_names.length ? project.department_names : [project.department_name]);
+  }, [form.departmentId, form.projectId, tmsDepartments, projects]);
+
+  const scopedUsers = useMemo(
+    () => users.filter((u) => effectiveTaskDepartmentNames.has(u.department)),
+    [users, effectiveTaskDepartmentNames]
+  );
+
+  // Same cleanup reasoning as TmsProjectsView.tsx: if the effective
+  // department changes (project swapped, or the override changed), drop a
+  // previously picked assignee who's no longer in scope.
+  useEffect(() => {
+    if (!form.assigneeId) return;
+    if (scopedUsers.some((u) => u.id === form.assigneeId)) return;
+    setForm((f) => ({ ...f, assigneeId: '' }));
+  }, [scopedUsers, form.assigneeId]);
+
   async function load() {
     setStatus('Loading...');
     setLoading(true);
@@ -251,12 +281,16 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
           </FieldRow>
           <Field label="Assign To — Who will do this?">
             <PersonPicker
-              options={users}
+              options={scopedUsers}
               selectedIds={form.assigneeId ? [form.assigneeId] : []}
               onChange={(ids) => setForm((f) => ({ ...f, assigneeId: ids[0] || '' }))}
               placeholder="Search engineer…"
               roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
-              emptyMessage="No matching active Technical Team members found."
+              emptyMessage={
+                effectiveTaskDepartmentNames.size
+                  ? 'No matching active Technical Team members found in this department.'
+                  : 'Select a project (or department below) first.'
+              }
             />
           </Field>
           <FieldRow>

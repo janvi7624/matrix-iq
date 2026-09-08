@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const sourceModuleParam = request.nextUrl.searchParams.get('sourceModule');
-  const sourceModule: GeneralTaskSourceModule | undefined = sourceModuleParam === 'admin' || sourceModuleParam === 'hr' ? sourceModuleParam : undefined;
+  const sourceModule: GeneralTaskSourceModule | undefined =
+    sourceModuleParam === 'admin' || sourceModuleParam === 'hr' || sourceModuleParam === 'team' ? sourceModuleParam : undefined;
 
   try {
     const tasks = await generalTaskStore.list(viewer, { sourceModule });

@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Role must be one of Technical Manager, Team Lead, Engineer, or Technician' }, { status: 400 });
   }
   if (!TMS_DEPARTMENTS.includes(body.department)) {
-    return NextResponse.json({ error: 'Department must be one of Robotics, AI, AV, or Marketing' }, { status: 400 });
+    return NextResponse.json({ error: 'Department must be one of Robotics, AI, AV, or R&D' }, { status: 400 });
   }
 
   try {

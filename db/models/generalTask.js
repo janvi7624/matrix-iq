@@ -1,7 +1,7 @@
 module.exports = (sequelize, DataTypes) => {
   const GeneralTask = sequelize.define('GeneralTask', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
-    source_module: { type: DataTypes.ENUM('admin', 'hr'), allowNull: false },
+    source_module: { type: DataTypes.ENUM('admin', 'hr', 'team'), allowNull: false },
     title: { type: DataTypes.STRING, allowNull: false },
     description: { type: DataTypes.TEXT },
     department_id: { type: DataTypes.UUID, allowNull: false },

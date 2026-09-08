@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { canManageGeneralTask, generalTaskStore, recordTaskUpdate } from '@/lib/generalTaskStore';
 import { isHrManager } from '@/lib/hrAccess';
+import { departmentsManagedBy } from '@/lib/departmentStore';
 import { findUserById } from '@/lib/userStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { notifyUsers } from '@/lib/notificationStore';
@@ -15,7 +16,8 @@ const ACTION_STATUS: Record<ReviewAction, string> = { approve: 'approved', rewor
 const ACTION_LABEL: Record<ReviewAction, string> = { approve: 'Approved', rework: 'Rework Required', reject: 'Rejected' };
 
 // Only meaningful from 'under_review'. Authorized reviewer = the task's own
-// reviewer_id, an HR manager (for hr-sourced tasks), or anyone
+// reviewer_id, an HR manager (for hr-sourced tasks), a manager of the
+// relevant department (for team-sourced tasks), or anyone
 // canManageGeneralTask already authorizes (creator/department-manager/
 // privileged) — reused rather than a parallel check.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -39,7 +41,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const isReviewer = task.reviewer_id === viewer.userId;
     const isHr = task.source_module === 'hr' && (await isHrManager(viewer));
-    if (!isReviewer && !isHr && !(await canManageGeneralTask(viewer, task))) {
+    const isTeamDeptManager = task.source_module === 'team' && (await departmentsManagedBy(viewer.username)).some((d) => d.id === task.department_id);
+    if (!isReviewer && !isHr && !isTeamDeptManager && !(await canManageGeneralTask(viewer, task))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

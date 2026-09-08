@@ -76,6 +76,31 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
 
   const tmsDepartments = useMemo(() => departments.filter((d) => (TMS_DEPARTMENTS as readonly string[]).includes(d.name)), [departments]);
 
+  // Project Manager / Assign Technical Person must only offer people who
+  // actually belong to the department(s) this project is for — not every
+  // TMS-wide user — same reasoning as the "Other Departments Involved"
+  // checkboxes right above only ever needing the department in question.
+  const scopedDepartmentNames = useMemo(() => {
+    const ids = form.projectType === 'combined' ? [form.departmentId, ...form.departmentIds] : [form.departmentId];
+    return new Set(tmsDepartments.filter((d) => ids.includes(d.id)).map((d) => d.name));
+  }, [form.departmentId, form.departmentIds, form.projectType, tmsDepartments]);
+
+  const scopedUsers = useMemo(() => users.filter((u) => scopedDepartmentNames.has(u.department)), [users, scopedDepartmentNames]);
+
+  // If the department selection changes (or narrows), drop any previously
+  // picked manager/team members who are no longer in the newly-scoped
+  // department(s) — otherwise a leftover selection from a different
+  // department could silently ride along into the submitted project.
+  useEffect(() => {
+    const validIds = new Set(scopedUsers.map((u) => u.id));
+    setForm((f) => {
+      const nextManager = validIds.has(f.projectManagerId) ? f.projectManagerId : '';
+      const nextTeam = f.teamMemberIds.filter((id) => validIds.has(id));
+      if (nextManager === f.projectManagerId && nextTeam.length === f.teamMemberIds.length) return f;
+      return { ...f, projectManagerId: nextManager, teamMemberIds: nextTeam };
+    });
+  }, [scopedUsers]);
+
   async function load() {
     setStatus('Loading...');
     setLoading(true);
@@ -237,9 +262,9 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
           )}
           <FieldRow>
             <Field label="Project Manager / Technical Manager">
-              <Select value={form.projectManagerId} onChange={(e) => setForm((f) => ({ ...f, projectManagerId: e.target.value }))}>
-                <option value="">Unassigned</option>
-                {users.map((u) => (
+              <Select value={form.projectManagerId} onChange={(e) => setForm((f) => ({ ...f, projectManagerId: e.target.value }))} disabled={!form.departmentId}>
+                <option value="">{form.departmentId ? 'Unassigned' : 'Select a department first'}</option>
+                {scopedUsers.map((u) => (
                   <option key={u.id} value={u.id}>{u.name || u.username}</option>
                 ))}
               </Select>
@@ -247,13 +272,13 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
           </FieldRow>
           <Field label={`Assign Technical Person${form.teamMemberIds.length ? ` (${form.teamMemberIds.length} selected)` : ''}`}>
             <PersonPicker
-              options={users}
+              options={scopedUsers}
               selectedIds={form.teamMemberIds}
               onChange={(ids) => setForm((f) => ({ ...f, teamMemberIds: ids }))}
               multiple
               placeholder="Search engineer…"
               roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
-              emptyMessage="No matching active Technical Team members found."
+              emptyMessage={form.departmentId ? 'No matching active Technical Team members found in this department.' : 'Select a department first.'}
             />
           </Field>
           <FieldRow>

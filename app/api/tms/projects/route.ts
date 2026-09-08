@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   const departmentId = typeof body.departmentId === 'string' ? body.departmentId.trim() : '';
   const department = departmentId ? await findDepartmentById(departmentId) : undefined;
   if (!department || !TMS_DEPARTMENTS.includes(department.name as (typeof TMS_DEPARTMENTS)[number])) {
-    return NextResponse.json({ error: 'A valid technical department (Robotics, AI, AV, or Marketing) is required' }, { status: 400 });
+    return NextResponse.json({ error: 'A valid technical department (Robotics, AI, AV, or R&D) is required' }, { status: 400 });
   }
 
   const projectType: TmsProjectType = body.projectType === 'combined' ? 'combined' : 'department';

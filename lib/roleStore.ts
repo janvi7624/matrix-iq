@@ -44,7 +44,7 @@ const TECHNICIAN_MODULES: RolePermissions['modules'] = {
 };
 
 const TMS_SEED_ROLES: { key: string; label: string; description: string; isSystem: boolean; isPrivileged: boolean; status: 'active'; order: number; permissions: RolePermissions }[] = [
-  { key: 'technical-manager', label: 'Technical Manager', description: 'Full TMS rights — manages Projects, Tasks, BOM approvals, Procurement, technical Users, and Tab Access for Robotics/AI/AV/Marketing.', isSystem: true, isPrivileged: false, status: 'active', order: 7, permissions: { modules: TECHNICAL_MANAGER_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } },
+  { key: 'technical-manager', label: 'Technical Manager', description: 'Full TMS rights — manages Projects, Tasks, BOM approvals, Procurement, technical Users, and Tab Access for Robotics/AI/AV/R&D.', isSystem: true, isPrivileged: false, status: 'active', order: 7, permissions: { modules: TECHNICAL_MANAGER_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } },
   { key: 'team-lead', label: 'Team Lead', description: 'Full Task management, BOM creation, view-only on Projects/Procurement, within TMS.', isSystem: true, isPrivileged: false, status: 'active', order: 8, permissions: { modules: TEAM_LEAD_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } },
   // Merged with the old standalone 'technical' role (Sept 2026) — one role
   // for technical staff instead of two: TMS rights below (own-tasks

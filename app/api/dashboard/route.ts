@@ -46,7 +46,11 @@ export async function GET(request: NextRequest) {
     const isBackOffice = viewer.role === 'backoffice' || viewer.isPrivileged;
     const isManagerTier = viewer.role === 'manager' || viewer.role === 'admin' || viewer.role === 'superadmin';
 
-    const user = await findUserNameAndDeptByUsername(viewer.username);
+    // isDeptManager resolved up front — needed both for canSeeQueue below and
+    // for listVisibleModules's team-tasks visibility, and this way it's only
+    // looked up once instead of twice.
+    const [user, isDeptManager] = await Promise.all([findUserNameAndDeptByUsername(viewer.username), isUserADepartmentManager(viewer.username)]);
+    const canSeeQueue = viewer.isPrivileged || viewer.role === 'engineer' || viewer.role === 'backoffice' || isDeptManager;
 
     // canSeeQueue also gates backOfficeKpis below — isBackOffice (backoffice
     // role or privileged) always implies canSeeQueue, so demosForQueue is
@@ -64,15 +68,11 @@ export async function GET(request: NextRequest) {
       backOfficeDcs,
       marketingRecords
     ] = await Promise.all([
-      listVisibleModules({ role: viewer.role, isPrivileged: viewer.isPrivileged, department: user?.department }),
+      listVisibleModules({ role: viewer.role, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager }),
       projectStore.listLight(viewer.username, viewer.isPrivileged),
       siteVisitStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, viewer.isPrivileged),
-      (async () => {
-        const canSeeQueue =
-          viewer.isPrivileged || viewer.role === 'engineer' || viewer.role === 'backoffice' || (await isUserADepartmentManager(viewer.username));
-        return demoScheduleStore.list(viewer.username, canSeeQueue);
-      })(),
+      demoScheduleStore.list(viewer.username, canSeeQueue),
       computeLeadStats(viewer.username, viewer.isPrivileged),
       listTechnicalRoster(),
       listDepartmentManagers(),
