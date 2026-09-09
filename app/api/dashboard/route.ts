@@ -181,7 +181,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Rendered as the "Recent Quotations" 5-item card
-    const recentQuotationsTrimmed = [...quotationsForViewer].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 5);
+    const recentQuotationsTrimmed = [...quotationsForViewer].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 3);
 
     return NextResponse.json({
       modules,

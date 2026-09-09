@@ -4,6 +4,7 @@ import { FormEvent, createContext, useCallback, useContext, useEffect, useState 
 import { ProjectPriority, ProjectRecord } from '@/lib/types';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import PhoneInput from './PhoneInput';
+import ProjectSourceField from './ProjectSourceField';
 import { useToast } from './ToastProvider';
 import notifyStyles from './notify.module.css';
 import calcStyles from '../calculator.module.css';
@@ -71,6 +72,10 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
     e.preventDefault();
     if (!form.clientName.trim() && !form.company.trim()) {
       toast.error('Client name or company is required.');
+      return;
+    }
+    if (!form.source.trim()) {
+      toast.error('Source is required.');
       return;
     }
     setCreating(true);
@@ -144,8 +149,8 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                   </select>
                 </div>
                 <div className={calcStyles.field}>
-                  <label className={calcStyles.label}>Source</label>
-                  <input className={calcStyles.formControl} placeholder="Referral, website, cold call…" value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))} />
+                  <label className={calcStyles.label}>Source *</label>
+                  <ProjectSourceField required value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))} />
                 </div>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Priority</label>

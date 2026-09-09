@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { appendProjectTimeline, findProjectById, projectStore } from '@/lib/projectStore';
+import { appendProjectTimeline, canAccessProject, findProjectById, projectStore, resolveProjectDeadlineTier } from '@/lib/projectStore';
+import { listForProject as listDeadlineExtensions } from '@/lib/projectDeadlineExtensionStore';
 import { siteVisitStore } from '@/lib/siteVisitStore';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { customerResponseStore } from '@/lib/customerResponseStore';
@@ -16,8 +17,6 @@ import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
-import { resolveVisibilityScope } from '@/lib/departmentScope';
-import { db } from '@/lib/db';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { syncTmsProjectForAssignment } from '@/lib/tmsHandoff';
@@ -30,20 +29,6 @@ function toStringArray(value: unknown): string[] {
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
 const VALID_STATUS: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost'];
 
-// Single-project access — mirrors projectStore's own list-visibility rule
-// (created it, assigned to it, or it belongs to a department this viewer
-// manages) rather than the old creator-or-privileged-only check, so a
-// department manager can open a team member's project directly by id, but
-// nobody can reach another department's project just by knowing its id.
-async function canAccessProject(viewerUsername: string, project: { created_by: string; assigned_technical_person_id: string }): Promise<boolean> {
-  const scope = await resolveVisibilityScope(viewerUsername);
-  if (scope.seesOrgWide) return true;
-  const ids = scope.scopedUserIds ?? [];
-  if (project.assigned_technical_person_id && ids.includes(project.assigned_technical_person_id)) return true;
-  if (!project.created_by) return false;
-  const creator = await db.User.findOne({ where: { username: project.created_by } as never, attributes: ['id'] });
-  return creator ? ids.includes(creator.get('id') as string) : false;
-}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -61,7 +46,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests] = await Promise.all([
+    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests, deadlineExtensions, deadlineTier] = await Promise.all([
       siteVisitStore.list(viewer.username, true),
       demoScheduleStore.list(viewer.username, true),
       customerResponseStore.list(viewer.username, true),
@@ -70,7 +55,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       installationStore.list(viewer.username, true),
       deliveryChallanStore.list(viewer.username, true),
       searchQuotations(),
-      marketingRequestStore.list(viewer.username, true)
+      marketingRequestStore.list(viewer.username, true),
+      listDeadlineExtensions(id),
+      resolveProjectDeadlineTier(viewer)
     ]);
 
     return NextResponse.json({
@@ -83,7 +70,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       installations: installations.filter((r) => r.project_id === id),
       deliveryChallans: deliveryChallans.filter((r) => r.project_id === id),
       quotations: quotations.filter((r) => r.project_id === id),
-      marketingRequests: marketingRequests.filter((r) => r.project_id === id)
+      marketingRequests: marketingRequests.filter((r) => r.project_id === id),
+      deadlineExtensions,
+      deadlineTier
     });
   } catch (error) {
     return apiErrorResponse(error);
@@ -136,7 +125,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.phone === 'string') patch.phone = body.phone.trim();
     if (typeof body.email === 'string') patch.email = body.email.trim();
     if (typeof body.address === 'string') patch.address = body.address.trim();
-    if (typeof body.source === 'string') patch.source = body.source.trim();
+    if (typeof body.source === 'string') {
+      const source = body.source.trim();
+      if (!source) return NextResponse.json({ error: 'Source is required' }, { status: 400 });
+      patch.source = source;
+    }
     // Resolved from an actual user id (the UI offers a picker, not free
     // text) so a typo/case mismatch can never silently mislabel this field
     // — see the salesPersonId handling in POST above for the fuller story.
@@ -148,7 +141,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if (VALID_PRIORITY.includes(body.priority)) patch.priority = body.priority;
     if (VALID_STATUS.includes(body.status)) patch.status = body.status;
-    if (typeof body.expectedClosingDate === 'string') patch.expected_closing_date = body.expectedClosingDate;
+    // expectedClosingDate deliberately NOT accepted here anymore — it's the
+    // project's "deadline" now, and every change to it must go through
+    // POST /api/projects/[id]/extend-deadline so a reason + mandatory remark
+    // is always captured (previously this silently overwrote it with zero
+    // history). next_follow_up_date is a plain reminder date, unaffected.
     if (typeof body.nextFollowUpDate === 'string') patch.next_follow_up_date = body.nextFollowUpDate;
     if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();

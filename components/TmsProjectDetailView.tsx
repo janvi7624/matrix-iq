@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FileText, Layers, Paperclip, ShoppingCart, Check } from 'lucide-react';
-import { TmsBomRequestRecord, TmsDeadlineExtensionRecord, TmsPriority, TmsProcurementRecord, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
+import { DeadlineExtensionReason, DeadlineExtensionStatus, TmsBomRequestRecord, TmsDeadlineExtensionRecord, TmsPriority, TmsProcurementRecord, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
-import StatusBadge from './ui/StatusBadge';
+import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import PriorityBadge from './ui/PriorityBadge';
 import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useToast } from './ui/ToastProvider';
@@ -25,6 +25,20 @@ import { classifyDeadline, DEADLINE_BUCKET_BAND, DEADLINE_BUCKET_LABEL } from '@
 import { BAND_COLOR } from './ui/HealthGauge';
 import { AuditLogEntry } from '@/lib/types';
 import styles from './tmsDetail.module.css';
+
+const EXTENSION_STATUS_LABEL: Record<DeadlineExtensionStatus, string> = {
+  pending_manager: 'Pending Manager Approval',
+  pending_admin: 'Pending Admin Approval',
+  approved: 'Approved',
+  rejected: 'Rejected'
+};
+const EXTENSION_STATUS_TONE: Record<DeadlineExtensionStatus, StatusTone> = {
+  pending_manager: 'pending',
+  pending_admin: 'pending',
+  approved: 'confirmed',
+  rejected: 'rejected'
+};
+const EXTENSION_REASON_LABEL: Record<DeadlineExtensionReason, string> = { user_end: 'From User End', client_end: 'From Client End' };
 
 // The real pipeline every TMS project moves through (tms_projects.status —
 // see lib/tmsLabels.ts's TMS_PROJECT_STATUS_LABEL for the source of truth).
@@ -107,7 +121,13 @@ interface TmsProjectDetailViewProps {
 }
 
 export default function TmsProjectDetailView({ projectId, currentUser }: TmsProjectDetailViewProps) {
-  const canExtendDeadline = TMS_MANAGER_TIER_ROLES.has(currentUser.role);
+  // Anyone who can open the project can now REQUEST an extension — the
+  // tiered approval chain (see lib/tmsAccess.ts's resolveTmsDeadlineTier)
+  // decides what happens next, not a hard "Manager/Admin only" block.
+  // Client-side only, for showing the right Approve/Reject controls — the
+  // server re-resolves this independently and is the real authority.
+  const isAdminTier = currentUser.role === 'admin' || currentUser.role === 'superadmin';
+  const isManagerTier = TMS_MANAGER_TIER_ROLES.has(currentUser.role) && !isAdminTier;
   const toast = useToast();
   const [data, setData] = useState<DetailResponse | null>(null);
   const [showExtendDeadline, setShowExtendDeadline] = useState(false);
@@ -121,6 +141,9 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
   const [editingTeam, setEditingTeam] = useState(false);
   const [teamEditIds, setTeamEditIds] = useState<string[]>([]);
   const [savingTeam, setSavingTeam] = useState(false);
+  const [decidingExtension, setDecidingExtension] = useState<{ id: string; decision: 'approve' | 'reject' } | null>(null);
+  const [decisionRemark, setDecisionRemark] = useState('');
+  const [deciding, setDeciding] = useState(false);
 
   useEffect(() => {
     fetch('/api/tms/assignable-users')
@@ -150,6 +173,34 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  async function handleDecideExtension() {
+    if (!decidingExtension) return;
+    if (decidingExtension.decision === 'reject' && !decisionRemark.trim()) {
+      toast.error('A remark is required to reject this request.');
+      return;
+    }
+    setDeciding(true);
+    try {
+      const response = await fetch(`/api/tms/deadline-extensions/${decidingExtension.id}/decide`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: decidingExtension.decision, decisionRemark: decisionRemark.trim() })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || String(response.status));
+      }
+      toast.success(decidingExtension.decision === 'approve' ? 'Extension approved.' : 'Extension rejected.');
+      setDecidingExtension(null);
+      setDecisionRemark('');
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not record this decision.');
+    } finally {
+      setDeciding(false);
+    }
+  }
 
   async function handleUpload(files: FileList | null) {
     if (!files || !files.length || !data) return;
@@ -260,9 +311,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           <span style={{ color: BAND_COLOR[deadlineBand], fontSize: 13, fontWeight: 600 }}>● {DEADLINE_BUCKET_LABEL[deadlineBucket]}</span>
         )}
         <Link className={historyStyles.button} href="/tms/projects">Back to Projects</Link>
-        {canExtendDeadline && (
-          <button type="button" className={historyStyles.button} onClick={() => setShowExtendDeadline(true)}>Extend Deadline</button>
-        )}
+        <button type="button" className={historyStyles.button} onClick={() => setShowExtendDeadline(true)}>Extend Deadline</button>
         <button type="button" className={historyStyles.button} onClick={editing ? saveEdit : startEdit} disabled={saving}>
           {editing ? (saving ? 'Saving…' : 'Save changes') : 'Edit'}
         </button>
@@ -502,22 +551,54 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
-              <tr><th>Previous Deadline</th><th>New Deadline</th><th>Remark</th><th>Extended By</th><th>Date</th></tr>
+              <tr><th>Previous Deadline</th><th>New Deadline</th><th>Reason</th><th>Remark</th><th>Status</th><th>Requested By</th><th>Date</th><th></th></tr>
             </thead>
             <tbody>
-              {deadlineExtensions.map((ext) => (
-                <tr key={ext.id}>
-                  <td>{formatDate(ext.previousDeadline)}</td>
-                  <td>{formatDate(ext.newDeadline)}</td>
-                  <td>{ext.remark}</td>
-                  <td>{ext.extendedByName || '-'}</td>
-                  <td>{formatDate(ext.createdAt.slice(0, 10))}</td>
-                </tr>
-              ))}
+              {deadlineExtensions.map((ext) => {
+                const canDecide = ext.status === 'pending_manager' ? isManagerTier || isAdminTier : ext.status === 'pending_admin' ? isAdminTier : false;
+                return (
+                  <tr key={ext.id}>
+                    <td>{formatDate(ext.previousDeadline)}</td>
+                    <td>{formatDate(ext.newDeadline)}</td>
+                    <td>{EXTENSION_REASON_LABEL[ext.reason]}</td>
+                    <td>
+                      {ext.remark}
+                      {ext.decisionRemark && <div className={styles.mutedText13}>Decision note: {ext.decisionRemark}</div>}
+                    </td>
+                    <td><StatusBadge tone={EXTENSION_STATUS_TONE[ext.status]} label={EXTENSION_STATUS_LABEL[ext.status]} /></td>
+                    <td>{ext.extendedByName || '-'}</td>
+                    <td>{formatDate(ext.createdAt.slice(0, 10))}</td>
+                    <td>
+                      {canDecide && (
+                        <div className={styles.actionButtonsRow}>
+                          <button type="button" className={calcStyles.btn} onClick={() => { setDecidingExtension({ id: ext.id, decision: 'approve' }); setDecisionRemark(''); }}>Approve</button>
+                          <ToolbarButton onClick={() => { setDecidingExtension({ id: ext.id, decision: 'reject' }); setDecisionRemark(''); }}>Reject</ToolbarButton>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           </div>
         )
+      )}
+
+      {decidingExtension && (
+        <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
+          <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>{decidingExtension.decision === 'approve' ? 'Approve' : 'Reject'} Deadline Extension</div>
+          <Textarea
+            rows={2}
+            placeholder={decidingExtension.decision === 'approve' ? 'Remark (optional)' : 'Remark (required)'}
+            value={decisionRemark}
+            onChange={(e) => setDecisionRemark(e.target.value)}
+          />
+          <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
+            <button type="button" className={calcStyles.btn} disabled={deciding} onClick={handleDecideExtension}>{deciding ? 'Saving…' : 'Confirm'}</button>
+            <ToolbarButton disabled={deciding} onClick={() => setDecidingExtension(null)}>Cancel</ToolbarButton>
+          </div>
+        </div>
       )}
 
       {tab === 'attachments' && (

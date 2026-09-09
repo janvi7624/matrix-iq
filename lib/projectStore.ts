@@ -2,6 +2,7 @@ import { Model, Op, QueryTypes, Transaction } from 'sequelize';
 import { ProjectNote, ProjectRecord, ProjectStage, ProjectTimelineEvent } from './types';
 import { db, isUuid, sequelize } from './db';
 import { resolveVisibilityScope } from './departmentScope';
+import { isUserADepartmentManager } from './departmentStore';
 
 const FIELDS = [
   { name: 'client_name' },
@@ -277,6 +278,38 @@ export async function listLastRemarks(projectIds: string[]): Promise<Record<stri
     result[row.project_id] = { remark: row.remarks, at: isoOrEmpty(row.at), by: row.by ?? '' };
   }
   return result;
+}
+
+// Single-project access — mirrors projectStore's own list-visibility rule
+// (created it, assigned to it, or it belongs to a department this viewer
+// manages) rather than the old creator-or-privileged-only check, so a
+// department manager can open a team member's project directly by id, but
+// nobody can reach another department's project just by knowing its id.
+// Moved here (from app/api/projects/[id]/route.ts) so the new deadline-
+// extension routes can reuse it too instead of re-implementing it.
+export async function canAccessProject(viewerUsername: string, project: { created_by: string; assigned_technical_person_id: string }): Promise<boolean> {
+  const scope = await resolveVisibilityScope(viewerUsername);
+  if (scope.seesOrgWide) return true;
+  const ids = scope.scopedUserIds ?? [];
+  if (project.assigned_technical_person_id && ids.includes(project.assigned_technical_person_id)) return true;
+  if (!project.created_by) return false;
+  const creator = await db.User.findOne({ where: { username: project.created_by } as never, attributes: ['id'] });
+  return creator ? ids.includes(creator.get('id') as string) : false;
+}
+
+// The 3-tier approval chain a Sales Project deadline-extension REQUEST
+// climbs — mirrors lib/tmsAccess.ts's resolveTmsDeadlineTier exactly, just
+// with Sales' own manager concept: the generic 'manager' role, OR a real
+// department manager (isUserADepartmentManager — same helper Team Tasks
+// already uses), since "manager" here isn't one fixed role the way TMS's
+// technical-manager/team-lead pair is. NOTE: viewer.isPrivileged is true for
+// role 'manager' too (see PRIVILEGED_ROLES), so admin-tier must be checked
+// by exact role name first, not by isPrivileged alone.
+export async function resolveProjectDeadlineTier(viewer: { username: string; role: string; isPrivileged: boolean }): Promise<'plain' | 'manager' | 'admin'> {
+  if (viewer.role === 'superadmin' || viewer.role === 'admin') return 'admin';
+  if (viewer.role === 'manager') return 'manager';
+  if (await isUserADepartmentManager(viewer.username)) return 'manager';
+  return 'plain';
 }
 
 // list/listLight keep accepting viewerIsPrivileged for call-site

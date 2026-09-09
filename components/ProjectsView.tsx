@@ -25,6 +25,7 @@ import SubmitButton from './ui/SubmitButton';
 import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import ProjectSourceField from './ui/ProjectSourceField';
 
 const EMPTY_FORM = {
   clientName: '',
@@ -96,6 +97,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   }, []);
 
   const [fSalesPerson, setFSalesPerson] = useState('');
+  const [fSource, setFSource] = useState('');
   const [fStage, setFStage] = useState<ProjectStage | ''>('');
   const [fStatus, setFStatus] = useState<ProjectStatus | ''>('');
   const [fPriority, setFPriority] = useState<ProjectPriority | ''>('');
@@ -127,11 +129,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   }, []);
 
   const salesPeople = useMemo(() => Array.from(new Set(projects.map((p) => p.sales_person).filter(Boolean))).sort(), [projects]);
+  const sources = useMemo(() => Array.from(new Set(projects.map((p) => p.source).filter(Boolean))).sort(), [projects]);
 
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
     return projects.filter((p) => {
       if (fSalesPerson && p.sales_person !== fSalesPerson) return false;
+      if (fSource && p.source !== fSource) return false;
       if (fStage && p.stage !== fStage) return false;
       if (fStatus && p.status !== fStatus) return false;
       if (fPriority && p.priority !== fPriority) return false;
@@ -140,12 +144,16 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       if (q && ![p.id, p.client_name, p.company, p.contact_person].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [projects, fSalesPerson, fStage, fStatus, fPriority, fFrom, fTo, fSearch]);
+  }, [projects, fSalesPerson, fSource, fStage, fStatus, fPriority, fFrom, fTo, fSearch]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!form.clientName.trim() && !form.company.trim()) {
       toast.error('Client name or company is required.');
+      return;
+    }
+    if (!form.source.trim()) {
+      toast.error('Source is required.');
       return;
     }
     setCreating(true);
@@ -180,8 +188,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   function handleExportPdf() {
     exportListToPdf(
       'Project Dashboard',
-      ['Client', 'Company', 'Sales Person', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
-      filtered.map((p) => [p.client_name, p.company, p.sales_person, STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
+      ['Client', 'Company', 'Sales Person', 'Source', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
+      filtered.map((p) => [p.client_name, p.company, p.sales_person, p.source || '-', STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
       `projects-${new Date().toISOString().slice(0, 10)}.pdf`
     );
   }
@@ -198,6 +206,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       )
     },
     { key: 'salesPerson', header: 'Sales Person', render: (p) => p.sales_person },
+    { key: 'source', header: 'Source', render: (p) => p.source || '-' },
     { key: 'stage', header: 'Stage', render: (p) => STAGE_LABEL[p.stage] },
     {
       key: 'status',
@@ -319,8 +328,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                   </Select>
                 </Field>
               )}
-              <Field label="Source">
-                <Input placeholder="Referral, website, cold call…" value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))} />
+              <Field label="Source *">
+                <ProjectSourceField required value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))} />
               </Field>
               <Field label="Priority">
                 <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as ProjectPriority }))}>
@@ -360,6 +369,12 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               ))}
             </Select>
           )}
+          <Select auto value={fSource} onChange={(e) => setFSource(e.target.value)}>
+            <option value="">All sources</option>
+            {sources.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </Select>
           <Select auto value={fStage} onChange={(e) => setFStage(e.target.value as ProjectStage | '')}>
             <option value="">All stages</option>
             {FORWARD_STAGES.concat('closed_lost').map((s) => (

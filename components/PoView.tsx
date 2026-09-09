@@ -16,6 +16,8 @@ import SubmitButton from './ui/SubmitButton';
 import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import StatusBadge from './ui/StatusBadge';
+import { getPoPaymentStatus } from '@/lib/poPaymentStatus';
 
 const EMPTY_FORM = { projectId: '', poNumber: '', poDate: '', amount: '', advanceReceived: '', paymentTerms: '', attachmentUrl: '' };
 
@@ -121,8 +123,8 @@ export default function PoView({ currentUser }: PoViewProps) {
   function handleExportPdf() {
     exportListToPdf(
       'Purchase Orders',
-      ['Project', 'PO Number', 'PO Date', 'Amount', 'Advance Received', 'Balance', 'Payment Terms'],
-      records.map((r) => [r.project_id, r.po_number, formatDate(r.po_date), r.amount, r.advance_received, Math.max(0, r.amount - r.advance_received), r.payment_terms]),
+      ['Project', 'PO Number', 'PO Date', 'Amount', 'Advance Received', 'Balance', 'Payment Terms', 'Payment Status'],
+      records.map((r) => [r.project_id, r.po_number, formatDate(r.po_date), r.amount, r.advance_received, Math.max(0, r.amount - r.advance_received), r.payment_terms, getPoPaymentStatus(r).label]),
       `purchase-orders-${new Date().toISOString().slice(0, 10)}.pdf`
     );
   }
@@ -135,6 +137,11 @@ export default function PoView({ currentUser }: PoViewProps) {
     { key: 'advance', header: 'Advance', cellClassName: historyStyles.amount, render: (r) => r.advance_received.toLocaleString('en-IN') },
     { key: 'balance', header: 'Balance', cellClassName: historyStyles.amount, render: (r) => Math.max(0, r.amount - r.advance_received).toLocaleString('en-IN') },
     { key: 'paymentTerms', header: 'Payment Terms', render: (r) => r.payment_terms || '-' },
+    {
+      key: 'paymentStatus',
+      header: 'Payment Status',
+      render: (r) => { const s = getPoPaymentStatus(r); return <StatusBadge tone={s.tone} label={s.label} />; }
+    },
     { key: 'attachment', header: 'Attachment', render: (r) => (r.attachment_url ? <a href={r.attachment_url} target="_blank" rel="noreferrer">View</a> : '-') },
     {
       key: 'actions',

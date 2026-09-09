@@ -44,6 +44,7 @@ import { STAGE_LABEL as VISIT_STAGE_LABEL } from '@/lib/siteVisitReminder';
 import { parseFollowUpNotes } from '@/lib/followUp';
 import { exportListToPdf } from '@/lib/exportPdf';
 import { MARKETING_STATUS_LABEL } from '@/lib/marketingRequestHelpers';
+import { getPoPaymentStatus } from '@/lib/poPaymentStatus';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -52,6 +53,7 @@ import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import StatusBadge from './ui/StatusBadge';
+import ProjectSourceField from './ui/ProjectSourceField';
 
 interface DetailResponse {
   project: ProjectRecord;
@@ -320,6 +322,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   }, [detailsDraft, data?.project]);
 
   async function handleSaveDetails() {
+    if (!detailsDraft.source.trim()) {
+      toast.error('Source is required.');
+      return;
+    }
     setSavingDetails(true);
     try {
       await patchProject({
@@ -992,9 +998,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 ) : <div className={calcStyles.small}>{project.address || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Source</label>
+                <label className={calcStyles.label}>Source *</label>
                 {canEdit ? (
-                  <input className={calcStyles.formControl} value={detailsDraft.source} onChange={(e) => setDetailsDraft((d) => ({ ...d, source: e.target.value }))} />
+                  <ProjectSourceField required value={detailsDraft.source} onChange={(v) => setDetailsDraft((d) => ({ ...d, source: v }))} />
                 ) : <div className={calcStyles.small}>{project.source || '-'}</div>}
               </div>
             </div>
@@ -1102,7 +1108,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               </div>
             </div>
             <div className={`${historyStyles.miniCard} ${calcStyles.mt12}`}>
-              <div className={historyStyles.miniCardTitle}>Payment</div>
+              <div className={`${historyStyles.miniCardTitle} ${styles.rowBetween}`}>
+                Payment
+                {(() => { const s = getPoPaymentStatus({ amount: totalPoAmount, advance_received: totalAdvance }); return <StatusBadge tone={s.tone} label={s.label} />; })()}
+              </div>
               <div className={historyStyles.miniCardRow}>PO total: ₹{totalPoAmount.toLocaleString('en-IN')}</div>
               <div className={historyStyles.miniCardRow}>Advance received: ₹{totalAdvance.toLocaleString('en-IN')}</div>
               <div className={historyStyles.miniCardRow}>Balance due: ₹{Math.max(0, totalPoAmount - totalAdvance).toLocaleString('en-IN')}</div>
@@ -1234,15 +1243,23 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         {tab === 'po' && (
           <div className={historyStyles.miniCard}>
             <div className={historyStyles.miniCardTitle}>Purchase Orders ({purchaseOrders.length})</div>
-            {purchaseOrders.length === 0 ? <div className={historyStyles.miniCardEmpty}>No PO received yet.</div> : purchaseOrders.map((po) => (
-              <div key={po.id} className={`${historyStyles.miniCardRow} ${styles.rowBetween}`}>
-                <span>
-                  {po.po_number} — ₹{po.amount.toLocaleString('en-IN')} ({formatDate(po.po_date)})
-                  {po.remarks && <div className={calcStyles.small}>Remark: {po.remarks}</div>}
-                </span>
-                {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDeletePo(po.id)}>Delete</button>}
-              </div>
-            ))}
+            {purchaseOrders.length === 0 ? <div className={historyStyles.miniCardEmpty}>No PO received yet.</div> : purchaseOrders.map((po) => {
+              const paymentStatus = getPoPaymentStatus(po);
+              return (
+                <div key={po.id} className={`${historyStyles.miniCardRow} ${styles.rowBetween}`}>
+                  <span>
+                    {po.po_number} — ₹{po.amount.toLocaleString('en-IN')} ({formatDate(po.po_date)})
+                    {po.advance_received > 0 && <div className={calcStyles.small}>Advance received: ₹{po.advance_received.toLocaleString('en-IN')}</div>}
+                    {po.payment_terms && <div className={calcStyles.small}>Terms: {po.payment_terms}</div>}
+                    {po.remarks && <div className={calcStyles.small}>Remark: {po.remarks}</div>}
+                  </span>
+                  <span className={styles.rowBetween}>
+                    <StatusBadge tone={paymentStatus.tone} label={paymentStatus.label} />
+                    {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDeletePo(po.id)}>Delete</button>}
+                  </span>
+                </div>
+              );
+            })}
             <form onSubmit={handleAddPo} className={calcStyles.mt10}>
               <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb6}`}>
                 <input className={calcStyles.formControl} placeholder="PO number" value={poForm.poNumber} onChange={(e) => setPoForm((f) => ({ ...f, poNumber: e.target.value }))} />

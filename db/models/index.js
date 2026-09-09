@@ -17,6 +17,7 @@ const modelDefiners = [
   require('./project.js'),
   require('./projectNote.js'),
   require('./projectTimelineEvent.js'),
+  require('./projectDeadlineExtension.js'),
   require('./lead.js'),
   require('./siteVisit.js'),
   require('./siteVisitUpdate.js'),

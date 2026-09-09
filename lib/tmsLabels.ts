@@ -17,12 +17,17 @@ export const TMS_PROJECT_STATUS_LABEL: Record<TmsProjectStatus, string> = {
   completed: 'Completed',
   cancelled: 'Cancelled'
 };
+// In Progress reads as "actively moving" (blue) and Completed reads as
+// "done well" (green) — the conventional project-management color pairing
+// (Jira/Linear/Asana-style), swapped from the plain confirmed/done pairing
+// used elsewhere in TMS (tasks/BOM/procurement keep their own existing
+// tones — this is scoped to the Projects status badge specifically).
 export const TMS_PROJECT_STATUS_TONE: Record<TmsProjectStatus, StatusTone> = {
   planning: 'pending',
-  not_started: 'pending',
-  in_progress: 'confirmed',
-  on_hold: 'pending',
-  completed: 'done',
+  not_started: 'not_started',
+  in_progress: 'on_track',
+  on_hold: 'at_risk',
+  completed: 'confirmed',
   cancelled: 'cancelled'
 };
 

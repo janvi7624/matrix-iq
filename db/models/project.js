@@ -54,6 +54,7 @@ module.exports = (sequelize, DataTypes) => {
     Project.belongsTo(models.TmsProject, { foreignKey: 'tms_project_id', as: 'tmsProject' });
     Project.hasMany(models.ProjectNote, { foreignKey: 'project_id', as: 'notes' });
     Project.hasMany(models.ProjectTimelineEvent, { foreignKey: 'project_id', as: 'timeline' });
+    Project.hasMany(models.ProjectDeadlineExtension, { foreignKey: 'project_id', as: 'deadlineExtensions' });
     Project.hasMany(models.Lead, { foreignKey: 'project_id', as: 'leads' });
     Project.hasMany(models.SiteVisit, { foreignKey: 'project_id', as: 'siteVisits' });
     Project.hasMany(models.Quotation, { foreignKey: 'project_id', as: 'quotations' });

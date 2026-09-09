@@ -1381,15 +1381,43 @@ export interface TmsProjectRecord {
   updated_at: string;
 }
 
+export type DeadlineExtensionReason = 'user_end' | 'client_end';
+export type DeadlineExtensionStatus = 'pending_manager' | 'pending_admin' | 'approved' | 'rejected';
+
 export interface TmsDeadlineExtensionRecord {
   id: string;
   tmsProjectId: string;
   previousDeadline: string;
   newDeadline: string;
+  reason: DeadlineExtensionReason;
   remark: string;
   attachments: string[];
+  status: DeadlineExtensionStatus;
   extendedByName: string;
   extendedByUsername: string;
+  approvedByName: string;
+  approvedByUsername: string;
+  approvedAt: string;
+  decisionRemark: string;
+  createdAt: string;
+}
+
+// Sales Project's equivalent of the above (extends expected_closing_date) —
+// same shape, no attachments field (never asked for on this side).
+export interface ProjectDeadlineExtensionRecord {
+  id: string;
+  projectId: string;
+  previousDeadline: string;
+  newDeadline: string;
+  reason: DeadlineExtensionReason;
+  remark: string;
+  status: DeadlineExtensionStatus;
+  requestedByName: string;
+  requestedByUsername: string;
+  approvedByName: string;
+  approvedByUsername: string;
+  approvedAt: string;
+  decisionRemark: string;
   createdAt: string;
 }
 

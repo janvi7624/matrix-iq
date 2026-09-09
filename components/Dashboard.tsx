@@ -14,7 +14,13 @@ import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
 import { sectionIconFor, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON } from '@/lib/icons';
+import Drawer from './ui/Drawer';
 import styles from './dashboard.module.css';
+
+// How many rows the Dashboard panel itself shows before collapsing the rest
+// behind "View All" — keeps the panel a fixed, small size at login instead
+// of growing tall whenever several things need attention at once.
+const ATTENTION_COMPACT_LIMIT = 3;
 
 interface DashboardProps {
   currentUser: { id: string; username: string; name: string; role: UserRole; department?: string; isPrivileged: boolean };
@@ -164,7 +170,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       .catch(() => setHealth(null));
   }, []);
 
-  const recentProjects = useMemo(() => (allProjects ? [...allProjects].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 5) : null), [allProjects]);
+  const recentProjects = useMemo(() => (allProjects ? [...allProjects].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 3) : null), [allProjects]);
 
   // Departments the viewer manages — drives "Demos awaiting your approval"
   // and is purely a lib/departmentStore.ts Department.managerIds
@@ -265,7 +271,10 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         tone: 'urgent'
       });
     }
-    return items;
+    // Urgent items surface first regardless of push order above, so the
+    // compact (sliced) view on the Dashboard itself always shows the most
+    // pressing items rather than whatever happened to be pushed earliest.
+    return items.sort((a, b) => (a.tone === b.tone ? 0 : a.tone === 'urgent' ? -1 : 1));
   }, [
     isPrivileged,
     followUpCount,
@@ -283,6 +292,10 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     pendingHandovers,
     travelPendingCount
   ]);
+
+  const [showAllAttention, setShowAllAttention] = useState(false);
+  const visibleAttentionItems = attentionItems.slice(0, ATTENTION_COMPACT_LIMIT);
+  const hiddenAttentionCount = attentionItems.length - visibleAttentionItems.length;
 
   // Only declare "you're all caught up" once every signal this role
   // actually receives has resolved — otherwise a still-loading dashboard
@@ -302,34 +315,84 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         <Link href="/quotation" className={styles.primaryCta}>+ New Quotation</Link>
       </div>
 
-      <div className={styles.attentionPanel}>
-        <div className={styles.attentionHead}>Needs Your Attention</div>
-        {attentionItems.length > 0 ? (
-          <div className={styles.attentionList}>
-            {attentionItems.map((item) => {
-              const ItemIcon = ATTENTION_ICON[item.key];
-              return (
-                <Link key={item.key} href={item.href} className={`${styles.attentionRow} ${item.tone === 'urgent' ? styles.attentionUrgent : ''}`}>
-                  <span className={styles.attentionIcon}>{ItemIcon && <ItemIcon size={15} />}</span>
-                  <span className={styles.attentionLabel}>{item.label}</span>
-                  <span className={styles.attentionCount}>{item.count}</span>
-                  <span className={styles.attentionArrow}>→</span>
-                </Link>
-              );
-            })}
+      <div className={styles.topGrid}>
+        <div className={`${styles.attentionPanel} ${styles.topGridHighlight}`}>
+          <div className={styles.attentionHead}>Needs Your Attention</div>
+          {attentionItems.length > 0 ? (
+            <>
+              <div className={styles.attentionList}>
+                {visibleAttentionItems.map((item) => (
+                  <AttentionRow key={item.key} item={item} />
+                ))}
+              </div>
+              {hiddenAttentionCount > 0 && (
+                <button type="button" className={styles.attentionViewAll} onClick={() => setShowAllAttention(true)}>
+                  View All ({attentionItems.length})
+                </button>
+              )}
+            </>
+          ) : (
+            <div className={styles.attentionEmpty}>
+              {attentionLoading ? (
+                'Checking…'
+              ) : (
+                <span className={styles.attentionAllCaughtUp}>
+                  <ALL_CAUGHT_UP_ICON size={16} /> You&apos;re all caught up.
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className={styles.recentCard}>
+          <div className={styles.recentCardHead}>
+            <h3>Recent Projects</h3>
+            <Link href="/projects">View all →</Link>
           </div>
-        ) : (
-          <div className={styles.attentionEmpty}>
-            {attentionLoading ? (
-              'Checking…'
-            ) : (
-              <span className={styles.attentionAllCaughtUp}>
-                <ALL_CAUGHT_UP_ICON size={16} /> You&apos;re all caught up.
-              </span>
-            )}
+          <div className={styles.recentList}>
+            {recentProjects === null && <div className={styles.recentEmpty}>Loading…</div>}
+            {recentProjects?.length === 0 && <div className={styles.recentEmpty}>No projects yet.</div>}
+            {recentProjects?.map((p) => (
+              <Link key={p.id} href={`/projects/${p.id}`} className={styles.recentRow}>
+                <div className={styles.recentRowMain}>
+                  <div className={styles.recentRowTitle}>{p.client_name || p.company || `Project ${p.id}`}</div>
+                  <div className={styles.recentRowMeta}>{PROJECT_STAGE_LABEL[p.stage] || p.stage}</div>
+                </div>
+              </Link>
+            ))}
           </div>
-        )}
+        </div>
+
+        <div className={styles.recentCard}>
+          <div className={styles.recentCardHead}>
+            <h3>Recent Quotations</h3>
+            <Link href="/my-quotations">View all →</Link>
+          </div>
+          <div className={styles.recentList}>
+            {recentQuotations === null && <div className={styles.recentEmpty}>Loading…</div>}
+            {recentQuotations?.length === 0 && <div className={styles.recentEmpty}>No quotations yet.</div>}
+            {recentQuotations?.map((q) => (
+              <Link key={q.id} href={`/my-quotations?highlight=${q.id}`} className={styles.recentRow}>
+                <div className={styles.recentRowMain}>
+                  <div className={styles.recentRowTitle}>{q.quotation_number}</div>
+                  <div className={styles.recentRowMeta}>{q.client_company || q.client_name || 'No client name'}</div>
+                </div>
+                <div className={styles.recentRowAmount}>{formatMoney(q.total)}</div>
+              </Link>
+            ))}
+          </div>
+        </div>
       </div>
+
+      {showAllAttention && (
+        <Drawer title="Needs Your Attention" ariaLabel="Everything needing your attention" onClose={() => setShowAllAttention(false)}>
+          <div className={styles.attentionList}>
+            {attentionItems.map((item) => (
+              <AttentionRow key={item.key} item={item} onNavigate={() => setShowAllAttention(false)} />
+            ))}
+          </div>
+        </Drawer>
+      )}
 
       {(myAssignedProjects.length > 0 || myAssignedDemos.length > 0) && (
         <div className={styles.recentGrid}>
@@ -434,47 +497,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         />
       )}
 
-      <div className={styles.recentGrid}>
-        <div className={styles.recentCard}>
-          <div className={styles.recentCardHead}>
-            <h3>Recent Projects</h3>
-            <Link href="/projects">View all →</Link>
-          </div>
-          <div className={styles.recentList}>
-            {recentProjects === null && <div className={styles.recentEmpty}>Loading…</div>}
-            {recentProjects?.length === 0 && <div className={styles.recentEmpty}>No projects yet.</div>}
-            {recentProjects?.map((p) => (
-              <Link key={p.id} href={`/projects/${p.id}`} className={styles.recentRow}>
-                <div className={styles.recentRowMain}>
-                  <div className={styles.recentRowTitle}>{p.client_name || p.company || `Project ${p.id}`}</div>
-                  <div className={styles.recentRowMeta}>{PROJECT_STAGE_LABEL[p.stage] || p.stage}</div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        <div className={styles.recentCard}>
-          <div className={styles.recentCardHead}>
-            <h3>Recent Quotations</h3>
-            <Link href="/my-quotations">View all →</Link>
-          </div>
-          <div className={styles.recentList}>
-            {recentQuotations === null && <div className={styles.recentEmpty}>Loading…</div>}
-            {recentQuotations?.length === 0 && <div className={styles.recentEmpty}>No quotations yet.</div>}
-            {recentQuotations?.map((q) => (
-              <Link key={q.id} href={`/my-quotations?highlight=${q.id}`} className={styles.recentRow}>
-                <div className={styles.recentRowMain}>
-                  <div className={styles.recentRowTitle}>{q.quotation_number}</div>
-                  <div className={styles.recentRowMeta}>{q.client_company || q.client_name || 'No client name'}</div>
-                </div>
-                <div className={styles.recentRowAmount}>{formatMoney(q.total)}</div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
-
       <div className={styles.kpiGrid}>
         <Link href="/analytics" className={styles.kpiCard}>
           <div className={styles.kpiValue}><ANALYTICS_ICON size={22} /></div>
@@ -506,5 +528,20 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         );
       })}
     </AppShell>
+  );
+}
+
+// Shared between the compact panel and the "View All" drawer so the two
+// never visually drift apart. `onNavigate` closes the drawer on click —
+// harmless when rendered in the compact panel, which never passes it.
+function AttentionRow({ item, onNavigate }: { item: AttentionItem; onNavigate?: () => void }) {
+  const ItemIcon = ATTENTION_ICON[item.key];
+  return (
+    <Link href={item.href} className={`${styles.attentionRow} ${item.tone === 'urgent' ? styles.attentionUrgent : ''}`} onClick={onNavigate}>
+      <span className={styles.attentionIcon}>{ItemIcon && <ItemIcon size={15} />}</span>
+      <span className={styles.attentionLabel}>{item.label}</span>
+      <span className={styles.attentionCount}>{item.count}</span>
+      <span className={styles.attentionArrow}>→</span>
+    </Link>
   );
 }

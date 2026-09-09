@@ -92,6 +92,19 @@ export async function findUserById(id: string): Promise<UserRecord | undefined> 
   return row ? toUserRecord(row) : undefined;
 }
 
+// Every active Admin/Super Admin — used to notify whoever can decide a
+// 'pending_admin' deadline-extension request (TMS Projects and Sales
+// Projects both), same join-to-Role pattern as lib/tmsAccess.ts's
+// findTechnicalManagers/findTmsManagerTierUsers.
+export async function findAdminUsers(): Promise<{ id: string; username: string; name: string }[]> {
+  const rows = await db.User.findAll({
+    include: [{ model: db.Role, as: 'role', where: { key: ['admin', 'superadmin'] } as never, attributes: [] }],
+    where: { status: 'active' } as never,
+    attributes: ['id', 'username', 'name']
+  });
+  return rows.map((r) => ({ id: r.get('id') as string, username: r.get('username') as string, name: r.get('name') as string }));
+}
+
 // The per-request "does this account still exist and is it still active"
 // check (lib/viewerContext.ts) only ever reads `.status` — findUserById's
 // role+department joins are wasted work on what is the single most-called

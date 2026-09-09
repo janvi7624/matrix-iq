@@ -56,6 +56,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Client name or company is required' }, { status: 400 });
   }
 
+  const source = typeof body.source === 'string' ? body.source.trim() : '';
+  if (!source) {
+    return NextResponse.json({ error: 'Source is required' }, { status: 400 });
+  }
+
   const closingProbabilityPercent = parseClosingProbability(body.closingProbabilityPercent);
   if (closingProbabilityPercent === undefined) {
     return NextResponse.json({ error: 'Closing probability must be a whole number between 0 and 100' }, { status: 400 });
@@ -88,7 +93,7 @@ export async function POST(request: NextRequest) {
     email: typeof body.email === 'string' ? body.email.trim() : '',
     address: typeof body.address === 'string' ? body.address.trim() : '',
     sales_person: salesPerson,
-    source: typeof body.source === 'string' ? body.source.trim() : '',
+    source,
     status: 'active',
     stage: 'cold_call',
     cold_call_responded: '',

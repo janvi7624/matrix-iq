@@ -75,15 +75,29 @@ export async function canManageAllTmsTasks(viewer: TmsViewer): Promise<boolean> 
   return isModuleActionAllowed(viewer, 'tms-tasks', 'manage');
 }
 
-// Project -> Extend Deadline is deliberately gated by role tier alone (a
-// small dedicated function, matching this file's isAdministrationManager/
-// isAccountsManager pattern) rather than a new entry in the shared,
-// cross-module ModulePermissionAction type — keeps the Tab Access matrix and
-// every other module untouched. Engineers/Technicians (no manager tier,
-// never isPrivileged) can never extend a deadline, even if they otherwise
-// hold 'edit' on tms-projects.
-export function canExtendTmsDeadline(viewer: TmsViewer): boolean {
-  return viewer.isPrivileged || isTmsManagerTier(viewer);
+// The 3-tier approval chain a deadline-extension REQUEST climbs: a plain
+// engineer/technician's request needs Manager approval; a Manager's own
+// request needs Admin approval (they can't approve themselves); an Admin's
+// request is final. See lib/tmsDeadlineExtensionStore.ts's requestExtension/
+// decideExtension for how this tier feeds the actual workflow.
+export function resolveTmsDeadlineTier(viewer: TmsViewer): 'plain' | 'manager' | 'admin' {
+  if (viewer.isPrivileged) return 'admin';
+  if (isTmsManagerTier(viewer)) return 'manager';
+  return 'plain';
+}
+
+// Both manager-tier roles (technical-manager AND team-lead — isTmsManagerTier
+// treats them as equivalent) — used to notify whoever can decide a
+// 'pending_manager' deadline-extension request. Deliberately broader than
+// findTechnicalManagers() below, which is scoped to BOM approval's one
+// specific role.
+export async function findTmsManagerTierUsers(): Promise<{ id: string; username: string; name: string }[]> {
+  const rows = await db.User.findAll({
+    include: [{ model: db.Role, as: 'role', where: { key: ['technical-manager', 'team-lead'] } as never, attributes: [] }],
+    where: { status: 'active' } as never,
+    attributes: ['id', 'username', 'name']
+  });
+  return rows.map((r) => ({ id: r.get('id') as string, username: r.get('username') as string, name: r.get('name') as string }));
 }
 
 // Who reviews/approves BOM Requests + gets notified of new submissions —
