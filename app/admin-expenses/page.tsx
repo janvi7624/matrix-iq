@@ -4,7 +4,7 @@ import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 import { findUserById } from '@/lib/userStore';
 import AdminExpensesView from '@/components/AdminExpensesView';
 
-const ALLOWED_ROLES = new Set(['superadmin', 'admin']);
+const ALLOWED_ROLES = new Set(['superadmin', 'admin', 'hr']);
 
 export default async function AdminExpensesPage() {
   const cookieStore = await cookies();

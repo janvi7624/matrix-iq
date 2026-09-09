@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import { apiErrorResponse } from '@/lib/apiError';
 
-const ALLOWED_ROLES = new Set(['superadmin', 'admin']);
+const ALLOWED_ROLES = new Set(['superadmin', 'admin', 'hr']);
 
 async function assertAdmin(request: NextRequest) {
   const viewer = await getViewerContext(request);

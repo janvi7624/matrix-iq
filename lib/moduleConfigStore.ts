@@ -93,7 +93,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'hr-dashboard', label: 'HR Dashboard', desc: 'Upcoming birthdays and work anniversaries.', icon: 'cake', href: '/hr-dashboard', section: 'HR', order: 0, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'reimbursement', label: 'Reimbursement', desc: 'Submit and track expense reimbursement bills.', icon: 'receipt-indian-rupee', href: '/reimbursement', section: 'HR', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
-  { key: 'admin-expenses', label: 'Admin Expenses', desc: 'Add hotel & ticket expenses split across employees (admin only).', icon: 'briefcase', href: '/admin-expenses', section: 'HR', order: 3, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
+  { key: 'admin-expenses', label: 'Admin Expenses', desc: 'Add hotel & ticket expenses split across employees.', icon: 'briefcase', href: '/admin-expenses', section: 'HR', order: 3, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin', 'hr'] },
   // HR + Admin + Super Admin — see HR_RESTRICTED_KEYS above, which is what
   // actually keeps the generic 'manager' role out (this list alone wouldn't).
   { key: 'office-operation-expenses', label: 'Office Operation Expenses', desc: 'HR/Admin office operating spend — office, electricity, guest, director, salary, and pantry expenses.', icon: 'receipt-indian-rupee', href: '/office-operation-expenses', section: 'HR', order: 4, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
@@ -303,6 +303,13 @@ const RESECTIONED_TO_HR_KEYS = new Set(['travel-schedule']);
 const OLD_SECTION_FOR_HR = 'Sales';
 const NEW_SECTION_FOR_HR = 'HR';
 
+// Admin Expenses widened from Super Admin + Admin to also include HR (an HR
+// staff member reported being unable to open it — it's HR-section data
+// entered on employees' behalf, so HR should have always had it). Same
+// don't-clobber-an-admin-edit guard as every reconciliation above.
+const OLD_ADMIN_EXPENSES_ROLES: UserRole[] = ['superadmin', 'admin'];
+const NEW_ADMIN_EXPENSES_ROLES: UserRole[] = ['superadmin', 'admin', 'hr'];
+
 // HR section widened to every TMS role too — HR Dashboard, Travel Schedule,
 // and Reimbursement previously stopped at ALL_ROLES, so technical-manager/
 // team-lead/technician accounts couldn't see the HR section at all. Literal
@@ -399,6 +406,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (key === TASK_PLANNER_KEY && plain.href === OLD_TASK_PLANNER_HREF) attrs.href = '/admin/task-planner';
     if (key === TASK_PLANNER_KEY && plain.icon === OLD_TASK_PLANNER_ICON) attrs.icon = 'kanban-square';
     if (key === TASK_PLANNER_KEY && plain.desc === OLD_TASK_PLANNER_DESC) attrs.desc = 'Plan, assign and track work across departments and employees.';
+    if (key === 'admin-expenses' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ADMIN_EXPENSES_ROLES)) attrs.visibleToRoles = NEW_ADMIN_EXPENSES_ROLES;
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }
 
