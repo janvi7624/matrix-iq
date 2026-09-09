@@ -22,12 +22,15 @@ import {
 } from 'lucide-react';
 import {
   CustomerResponseRecord,
+  DeadlineExtensionReason,
+  DeadlineExtensionStatus,
   DeliveryChallanRecord,
   DemoScheduleRecord,
   InstallationRecord,
   MarketingRequestRecord,
   NegotiationRecord,
   PoRecord,
+  ProjectDeadlineExtensionRecord,
   ProjectPriority,
   ProjectRecord,
   ProjectStage,
@@ -52,7 +55,8 @@ import styles from './projectDetail.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
-import StatusBadge from './ui/StatusBadge';
+import StatusBadge, { StatusTone } from './ui/StatusBadge';
+import ProjectDeadlineExtendModal from './ProjectDeadlineExtendModal';
 import ProjectSourceField from './ui/ProjectSourceField';
 
 interface DetailResponse {
@@ -66,6 +70,8 @@ interface DetailResponse {
   installations: InstallationRecord[];
   deliveryChallans: DeliveryChallanRecord[];
   marketingRequests: MarketingRequestRecord[];
+  deadlineExtensions: ProjectDeadlineExtensionRecord[];
+  deadlineTier: 'plain' | 'manager' | 'admin';
 }
 
 const STATUS_LABEL: Record<ProjectStatus, string> = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost' };
@@ -85,8 +91,23 @@ const TABS = [
   { key: 'installation', label: 'Installation' },
   { key: 'documents', label: 'Documents' },
   { key: 'activity', label: 'Activity Logs' },
-  { key: 'notes', label: 'Notes' }
+  { key: 'notes', label: 'Notes' },
+  { key: 'deadline', label: 'Deadline History' }
 ] as const;
+
+const EXTENSION_STATUS_LABEL: Record<DeadlineExtensionStatus, string> = {
+  pending_manager: 'Pending Manager Approval',
+  pending_admin: 'Pending Admin Approval',
+  approved: 'Approved',
+  rejected: 'Rejected'
+};
+const EXTENSION_STATUS_TONE: Record<DeadlineExtensionStatus, StatusTone> = {
+  pending_manager: 'pending',
+  pending_admin: 'pending',
+  approved: 'confirmed',
+  rejected: 'rejected'
+};
+const EXTENSION_REASON_LABEL: Record<DeadlineExtensionReason, string> = { user_end: 'From User End', client_end: 'From Client End' };
 type TabKey = (typeof TABS)[number]['key'];
 
 const DC_STATUS_LABEL: Record<DeliveryChallanRecord['status'], string> = { prepared: 'Prepared', dispatched: 'Dispatched', returned: 'Returned', closed: 'Closed' };
@@ -132,6 +153,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [remarkText, setRemarkText] = useState('');
   const [savingRemark, setSavingRemark] = useState(false);
+  const [showExtendDeadline, setShowExtendDeadline] = useState(false);
+  const [decidingExtension, setDecidingExtension] = useState<{ id: string; decision: 'approve' | 'reject' } | null>(null);
+  const [decisionRemark, setDecisionRemark] = useState('');
+  const [deciding, setDeciding] = useState(false);
 
   const [negForm, setNegForm] = useState(EMPTY_NEGOTIATION);
   const [poForm, setPoForm] = useState(EMPTY_PO);
@@ -358,6 +383,34 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     }
   }
 
+  async function handleDecideExtension() {
+    if (!decidingExtension) return;
+    if (decidingExtension.decision === 'reject' && !decisionRemark.trim()) {
+      toast.error('A remark is required to reject this request.');
+      return;
+    }
+    setDeciding(true);
+    try {
+      const response = await fetch(`/api/projects/deadline-extensions/${decidingExtension.id}/decide`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: decidingExtension.decision, decisionRemark: decisionRemark.trim() })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || String(response.status));
+      }
+      toast.success(decidingExtension.decision === 'approve' ? 'Extension approved.' : 'Extension rejected.');
+      setDecidingExtension(null);
+      setDecisionRemark('');
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not record this decision.');
+    } finally {
+      setDeciding(false);
+    }
+  }
+
   async function handleAddNote(e: FormEvent) {
     e.preventDefault();
     if (!noteText.trim()) return;
@@ -555,7 +608,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   }
   if (!data) return null;
 
-  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests } = data;
+  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests, deadlineExtensions, deadlineTier } = data;
   const currentIdx = FORWARD_STAGES.indexOf(project.stage);
   const isClosed = project.stage === 'closed_lost' || project.status === 'lost' || project.stage === 'completed';
   const isOverdue = !isClosed && !!project.next_follow_up_date && project.next_follow_up_date < new Date().toISOString().slice(0, 10);
@@ -1063,10 +1116,13 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Expected closing date</label>
-                {canEdit ? (
-                  <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={project.expected_closing_date} onChange={(e) => patchProject({ expectedClosingDate: e.target.value })} />
-                ) : <div className={calcStyles.small}>{formatDate(project.expected_closing_date)}</div>}
+                <label className={calcStyles.label}>Expected closing date (deadline)</label>
+                <div className={calcStyles.small}>{formatDate(project.expected_closing_date)}</div>
+                {canEdit && (
+                  <button type="button" className={`${historyStyles.button} ${calcStyles.mt4}`} onClick={() => setShowExtendDeadline(true)}>
+                    Extend Deadline
+                  </button>
+                )}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Next follow-up date</label>
@@ -1341,6 +1397,71 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <button type="submit" className={calcStyles.btn} disabled={savingNote}>{savingNote ? 'Saving…' : 'Add note'}</button>
             </form>
           </div>
+        )}
+
+        {tab === 'deadline' && (
+          deadlineExtensions.length === 0 ? (
+            <div className={historyStyles.miniCardEmpty}>No deadline extensions yet. Extensions to this project&apos;s expected closing date will appear here.</div>
+          ) : (
+            <div className={historyStyles.tableWrap}>
+              <table className={historyStyles.table}>
+                <thead>
+                  <tr><th>Previous Deadline</th><th>New Deadline</th><th>Reason</th><th>Remark</th><th>Status</th><th>Requested By</th><th>Date</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {deadlineExtensions.map((ext) => {
+                    const canDecide = ext.status === 'pending_manager' ? deadlineTier === 'manager' || deadlineTier === 'admin' : ext.status === 'pending_admin' ? deadlineTier === 'admin' : false;
+                    return (
+                      <tr key={ext.id}>
+                        <td>{formatDate(ext.previousDeadline)}</td>
+                        <td>{formatDate(ext.newDeadline)}</td>
+                        <td>{EXTENSION_REASON_LABEL[ext.reason]}</td>
+                        <td>
+                          {ext.remark}
+                          {ext.decisionRemark && <div className={calcStyles.small}>Decision note: {ext.decisionRemark}</div>}
+                        </td>
+                        <td><StatusBadge tone={EXTENSION_STATUS_TONE[ext.status]} label={EXTENSION_STATUS_LABEL[ext.status]} /></td>
+                        <td>{ext.requestedByName || '-'}</td>
+                        <td>{formatDate(ext.createdAt.slice(0, 10))}</td>
+                        <td>
+                          {canDecide && (
+                            <div className={historyStyles.rowActionsInline}>
+                              <button type="button" className={calcStyles.btn} onClick={() => { setDecidingExtension({ id: ext.id, decision: 'approve' }); setDecisionRemark(''); }}>Approve</button>
+                              <button type="button" className={historyStyles.button} onClick={() => { setDecidingExtension({ id: ext.id, decision: 'reject' }); setDecisionRemark(''); }}>Reject</button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+
+        {decidingExtension && (
+          <div className={`${calcStyles.sectionPanel} ${calcStyles.mt10}`}>
+            <div className={calcStyles.label}>{decidingExtension.decision === 'approve' ? 'Approve' : 'Reject'} Deadline Extension</div>
+            <textarea
+              className={`${calcStyles.formControl} ${calcStyles.mb6}`}
+              rows={2}
+              placeholder={decidingExtension.decision === 'approve' ? 'Remark (optional)' : 'Remark (required)'}
+              value={decisionRemark}
+              onChange={(e) => setDecisionRemark(e.target.value)}
+            />
+            <button type="button" className={calcStyles.btn} disabled={deciding} onClick={handleDecideExtension}>{deciding ? 'Saving…' : 'Confirm'}</button>{' '}
+            <button type="button" className={historyStyles.button} disabled={deciding} onClick={() => setDecidingExtension(null)}>Cancel</button>
+          </div>
+        )}
+
+        {showExtendDeadline && (
+          <ProjectDeadlineExtendModal
+            projectId={projectId}
+            currentDeadline={project.expected_closing_date}
+            onClose={() => setShowExtendDeadline(false)}
+            onExtended={load}
+          />
         )}
     </AppShell>
   );

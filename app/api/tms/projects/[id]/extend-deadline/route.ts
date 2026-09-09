@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTmsViewer, requireTmsAction, resolveTmsDeadlineTier, findTmsManagerTierUsers } from '@/lib/tmsAccess';
+import { getTmsViewer, requireTmsModule, resolveTmsDeadlineTier, findTmsManagerTierUsers } from '@/lib/tmsAccess';
 import { canAccessTmsProjectRow, tmsProjectStore } from '@/lib/tmsProjectStore';
 import { requestExtension, InvalidDeadlineExtensionError } from '@/lib/tmsDeadlineExtensionStore';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -16,16 +16,18 @@ function isValidDateString(value: unknown): value is string {
 
 const VALID_REASONS: DeadlineExtensionReason[] = ['user_end', 'client_end'];
 
-// Anyone with basic edit access to the project may now REQUEST an
-// extension — the old "Manager/Admin only" hard block is gone, replaced by
-// a tiered approval chain (see lib/tmsAccess.ts's resolveTmsDeadlineTier):
-// a plain engineer/technician's request needs Manager approval, a
-// Manager's needs Admin approval, and an Admin's request applies
-// immediately, exactly like before for that one tier.
+// Anyone who can already open this project (module-visible + row access,
+// via canAccessTmsProjectRow below — NOT the stricter 'edit' action, which
+// a plain engineer/technician never holds) may now REQUEST an extension —
+// the old "Manager/Admin only" hard block is gone, replaced by a tiered
+// approval chain (see lib/tmsAccess.ts's resolveTmsDeadlineTier): a plain
+// engineer/technician's request needs Manager approval, a Manager's needs
+// Admin approval, and an Admin's request applies immediately, exactly like
+// before for that one tier.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getTmsViewer(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await requireTmsAction(viewer, 'tms-projects', 'edit'))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!(await requireTmsModule(viewer, 'tms-projects'))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
   const body = await request.json().catch(() => null);

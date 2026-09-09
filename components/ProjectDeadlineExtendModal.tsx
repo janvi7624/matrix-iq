@@ -1,0 +1,119 @@
+'use client';
+
+import { useState } from 'react';
+import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
+import { Field } from './ui/Field';
+import Input from './ui/Input';
+import Select from './ui/Select';
+import Textarea from './ui/Textarea';
+import { useToast } from './ui/ToastProvider';
+import { DeadlineExtensionReason } from '@/lib/types';
+
+// Sales Project's equivalent of components/TmsDeadlineExtendModal.tsx — same
+// shape, posts to the Sales-specific endpoint. Kept as its own component
+// (not a shared generic one) since the two sides have different record
+// types and endpoints — matches this codebase's per-module-duplication
+// convention (negotiation/po/installation forms are separate too).
+function formatDate(iso: string): string {
+  if (!iso) return 'Not set';
+  try {
+    return new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return iso;
+  }
+}
+
+function dayAfter(iso: string): string {
+  if (!iso) return new Date().toISOString().slice(0, 10);
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+interface ProjectDeadlineExtendModalProps {
+  projectId: string;
+  currentDeadline: string;
+  onClose: () => void;
+  onExtended: () => void;
+}
+
+export default function ProjectDeadlineExtendModal({ projectId, currentDeadline, onClose, onExtended }: ProjectDeadlineExtendModalProps) {
+  const toast = useToast();
+  const [newDeadline, setNewDeadline] = useState('');
+  const [reason, setReason] = useState<DeadlineExtensionReason>('user_end');
+  const [remark, setRemark] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const minDate = dayAfter(currentDeadline);
+
+  async function handleSave() {
+    const trimmedRemark = remark.trim();
+    if (!trimmedRemark) {
+      setError('A remark is required.');
+      return;
+    }
+    if (!newDeadline || newDeadline <= (currentDeadline || '')) {
+      setError('The new deadline must be later than the current deadline.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/projects/${projectId}/extend-deadline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newDeadline, reason, remark: trimmedRemark })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || String(response.status));
+      }
+      const { extension } = await response.json();
+      toast.success(
+        extension?.status === 'approved'
+          ? 'Deadline extended.'
+          : `Extension requested — awaiting ${extension?.status === 'pending_admin' ? 'Admin' : 'Manager'} approval.`
+      );
+      onExtended();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not extend the deadline.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Extend Deadline"
+      ariaLabel="Extend project deadline"
+      onClose={onClose}
+      size="wide"
+      dismissible={!saving}
+      footer={
+        <>
+          <ModalCancelButton onClick={onClose} disabled={saving}>Cancel</ModalCancelButton>
+          <ModalOkButton onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Extend Deadline'}</ModalOkButton>
+        </>
+      }
+    >
+      <Field label="Current Deadline">
+        <Input value={formatDate(currentDeadline)} readOnly disabled />
+      </Field>
+      <Field label="New Deadline">
+        <Input type="date" min={minDate} value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)} />
+      </Field>
+      <Field label="Reason">
+        <Select value={reason} onChange={(e) => setReason(e.target.value as DeadlineExtensionReason)}>
+          <option value="user_end">From User End</option>
+          <option value="client_end">From Client End</option>
+        </Select>
+      </Field>
+      <Field label="Remark (required)">
+        <Textarea rows={3} value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="Why is this deadline being extended?" />
+      </Field>
+      {error && <div style={{ color: 'var(--mx-danger)', fontSize: 13, marginTop: 8 }}>{error}</div>}
+    </Modal>
+  );
+}
