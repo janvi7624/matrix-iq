@@ -31,6 +31,10 @@ module.exports = (sequelize, DataTypes) => {
     expected_closing_date: { type: DataTypes.DATEONLY },
     next_follow_up_date: { type: DataTypes.DATEONLY },
     remarks: { type: DataTypes.TEXT },
+    // The sales person's own gut-feel estimate (0-100) of the chance this
+    // project closes — set at creation, editable later. Null = no estimate
+    // given. See lib/projectStore.ts's FIELDS (kind 'nullable').
+    closing_probability_percent: { type: DataTypes.INTEGER },
     attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     created_by: { type: DataTypes.UUID },
     assigned_technical_person_id: { type: DataTypes.UUID },

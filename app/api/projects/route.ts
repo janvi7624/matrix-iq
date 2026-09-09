@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { projectStore } from '@/lib/projectStore';
+import { listLastRemarks, projectStore } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectPriority, ProjectRecord } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
@@ -8,13 +8,30 @@ import { syncTmsProjectForAssignment } from '@/lib/tmsHandoff';
 
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
 
+// '' (not given) is valid — only reject an actual out-of-range/non-integer
+// value. Accepts a number OR a numeric string (the New Project form's plain
+// <input type="number"> value round-trips as a string through JSON, same as
+// every other form field on this page). Returns undefined for "invalid",
+// '' for "blank/unset".
+function parseClosingProbability(value: unknown): number | '' | undefined {
+  if (value === '' || value === undefined || value === null) return '';
+  const num = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+  if (!Number.isInteger(num) || num < 0 || num > 100) return undefined;
+  return num;
+}
+
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const records = await projectStore.listLight(viewer.username, viewer.isPrivileged);
-    return NextResponse.json(records);
+    const lastRemarks = await listLastRemarks(records.map((r) => r.id));
+    const withRemarks = records.map((r) => {
+      const last = lastRemarks[r.id];
+      return last ? { ...r, last_remark: last.remark, last_remark_at: last.at, last_remark_by: last.by } : r;
+    });
+    return NextResponse.json(withRemarks);
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -37,6 +54,11 @@ export async function POST(request: NextRequest) {
   const company = typeof body.company === 'string' ? body.company.trim() : '';
   if (!clientName && !company) {
     return NextResponse.json({ error: 'Client name or company is required' }, { status: 400 });
+  }
+
+  const closingProbabilityPercent = parseClosingProbability(body.closingProbabilityPercent);
+  if (closingProbabilityPercent === undefined) {
+    return NextResponse.json({ error: 'Closing probability must be a whole number between 0 and 100' }, { status: 400 });
   }
 
   const now = new Date().toISOString();
@@ -74,13 +96,17 @@ export async function POST(request: NextRequest) {
     expected_closing_date: typeof body.expectedClosingDate === 'string' ? body.expectedClosingDate : '',
     next_follow_up_date: typeof body.nextFollowUpDate === 'string' ? body.nextFollowUpDate : '',
     remarks: typeof body.remarks === 'string' ? body.remarks.trim() : '',
+    closing_probability_percent: closingProbabilityPercent,
     notes: [],
     attachments: [],
     assigned_technical_person_id: assignedTechnicalPerson ? assignedTechnicalPerson.id : '',
     assigned_technical_person_name: assignedTechnicalPerson ? assignedTechnicalPerson.name : '',
     tms_project_id: '',
     timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created', remarks: '' }],
-    updated_at: now
+    updated_at: now,
+    last_remark: '',
+    last_remark_at: '',
+    last_remark_by: ''
   };
 
   try {

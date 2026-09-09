@@ -8,5 +8,6 @@ export const installationStore = createRecordStore<InstallationRecord>(db.Instal
   { name: 'assigned_engineer' },
   { name: 'status' },
   { name: 'completion_report' },
-  { name: 'client_signature' }
+  { name: 'client_signature' },
+  { name: 'remarks' }
 ]);

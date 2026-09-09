@@ -152,6 +152,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.nextFollowUpDate === 'string') patch.next_follow_up_date = body.nextFollowUpDate;
     if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
+    if ('closingProbabilityPercent' in body) {
+      const raw = body.closingProbabilityPercent;
+      const isBlank = raw === '' || raw === null || raw === undefined;
+      const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+      if (!isBlank && (!Number.isInteger(num) || num < 0 || num > 100)) {
+        return NextResponse.json({ error: 'Closing probability must be a whole number between 0 and 100' }, { status: 400 });
+      }
+      patch.closing_probability_percent = isBlank ? '' : num;
+    }
 
     let newlyAssignedPerson: UserRecord | undefined;
     if (typeof body.assignedTechnicalPersonId === 'string') {

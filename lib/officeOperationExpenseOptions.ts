@@ -25,7 +25,7 @@ export const OFFICE_EXPENSE_USECASES = [
 // Second level of `usecase`, for usecases that need one. Deliberately EMPTY:
 // 'Salary' used to offer Sweeper Salary / Office Boy here, but that duplicated
 // what the Expense Head already says (item 'Salary' with its own sub-items
-// Sweeper / Keshav Kaka / Papa), so the same fact was being entered twice.
+// Sweeper / Papa), so the same fact was being entered twice.
 //
 // A usecase absent from this map renders no sub-field at all, so adding an
 // entry here is the only change needed to bring one back.
@@ -78,7 +78,7 @@ export const ITEM_SUB_OPTIONS: Record<string, string[]> = {
   Pantry: ['Milk', 'Tea', 'Tea Powder', 'Coffee Powder', 'Sugar', 'Ginger', 'Lemon', 'Phudino', 'Green Tea', 'Snacks', 'Lunch', 'Dinner', 'Coffee', 'Grocery', 'Other'],
   Tempo: ['Fastag', 'Insurance', 'Tax', 'CNG', 'Petrol'],
   'IT Materials': ['Laptop', 'Mouse', 'Chargers', 'Repair', 'Keyboards', 'Other'],
-  Salary: ['Sweeper', 'Keshav Kaka', 'Papa', 'Other'],
+  Salary: ['Sweeper', 'Parin', 'Papa', 'Other'],
   Legal: ['Stamp Duty', 'Notary', 'Bank', 'Other'],
   HR: ['Birthday Card', 'Appreciation Card & Amount', 'Yearly Anniversary Card', 'Gift Voucher', 'T-Shirt', 'Festival Celebration', 'Training'],
   'Godown 30': GODOWN_SUB_OPTIONS,

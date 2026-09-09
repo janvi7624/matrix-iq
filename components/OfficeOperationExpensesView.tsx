@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell from './AppShell';
+import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
 import { OfficeOperationExpenseRecord } from '@/lib/types';
 import { exportOfficeOperationExpensesXlsx } from '@/lib/officeOperationExpenseXlsx';
@@ -284,10 +285,14 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         </div>
 
         {showForm && (
-          <form
-            onSubmit={handleSubmit}
-            className={styles.formCard}
+          <Modal
+            title={editId ? 'Edit Expense' : 'Add Expense'}
+            ariaLabel={editId ? 'Edit Expense' : 'Add Expense'}
+            onClose={() => { resetForm(); setShowForm(false); }}
+            size="wide"
+            dismissible={!saving}
           >
+            <form onSubmit={handleSubmit}>
             <div className={styles.editingNote}>
               {editId
                 ? <>Editing Sr No. is fixed — the serial never changes once assigned.</>
@@ -411,7 +416,8 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                 Cancel
               </button>
             </div>
-          </form>
+            </form>
+          </Modal>
         )}
 
         {!loading && records.length > 0 && (

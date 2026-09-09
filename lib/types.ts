@@ -214,6 +214,7 @@ export interface SiteVisitUpdateEntry {
   team_sales: string[];
   project_details: string;
   ongoing_activities: string;
+  remarks: string;
 }
 
 export interface SiteVisitRecord {
@@ -238,6 +239,7 @@ export interface SiteVisitRecord {
   reminder_date: string;
   stage: VisitStage | '';
   status: 'open' | 'closed';
+  remarks: string;
   updates: SiteVisitUpdateEntry[];
   updated_at: string;
 }
@@ -697,6 +699,11 @@ export interface ProjectRecord {
   expected_closing_date: string;
   next_follow_up_date: string;
   remarks: string;
+  // The sales person's own gut-feel estimate (0-100) of the chance this
+  // project closes — set at creation, editable later from Overview. ''
+  // means no estimate has been given (never 0 by default — 0% is a real,
+  // deliberate estimate, not "unset").
+  closing_probability_percent: number | '';
   notes: ProjectNote[];
   attachments: string[];
   timeline: ProjectTimelineEvent[];
@@ -706,6 +713,14 @@ export interface ProjectRecord {
   // See lib/tmsHandoff.ts — links to the TMS project auto-created/kept in
   // sync when assigned_technical_person_id is set.
   tms_project_id: string;
+  // Resolved display-only fields, populated ONLY by the Dashboard list read
+  // path (GET /api/projects -> listLastRemarks) — the most recent Activity
+  // Log entry that actually has a remark (stage-change-only entries with no
+  // remark text are skipped). Empty everywhere else (e.g. project detail
+  // fetch), same convention as assigned_technical_person_name.
+  last_remark: string;
+  last_remark_at: string;
+  last_remark_by: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -815,6 +830,7 @@ export interface NegotiationRecord {
   discount: string;
   revised_price: number;
   expected_closure: string;
+  remarks: string;
 }
 
 export interface PoRecord {
@@ -828,6 +844,7 @@ export interface PoRecord {
   attachment_url: string;
   advance_received: number;
   payment_terms: string;
+  remarks: string;
 }
 
 // Append-only record of every status-changing action across the Back Office
@@ -876,6 +893,7 @@ export interface InstallationRecord {
   status: InstallationStatus;
   completion_report: string;
   client_signature: string;
+  remarks: string;
 }
 
 // ---------------------------------------------------------------------------

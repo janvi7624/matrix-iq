@@ -10,7 +10,8 @@ module.exports = (sequelize, DataTypes) => {
     team_technical: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     team_sales: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     project_details: { type: DataTypes.TEXT },
-    ongoing_activities: { type: DataTypes.TEXT }
+    ongoing_activities: { type: DataTypes.TEXT },
+    remarks: { type: DataTypes.TEXT }
   }, {
     tableName: 'site_visit_updates',
     underscored: true,

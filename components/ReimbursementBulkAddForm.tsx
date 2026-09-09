@@ -8,7 +8,7 @@ import styles from './reimbursement.module.css';
 
 interface UserOption { id: string; username: string; name: string }
 
-const DESCRIPTION_OPTIONS = ['Lunch', 'Dinner', 'Snacks', 'Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Hotel', 'Other'];
+const DESCRIPTION_OPTIONS = ['Lunch', 'Dinner', 'Snacks', 'Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Hotel', 'Parking Fees', 'Other'];
 const TRAVEL_DESCRIPTIONS = new Set(['Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket']);
 const VEHICLE_RATE: Record<string, number> = { '2 Wheeler': 4, '4 Wheeler': 8, 'Cab': 0 };
 const MODE_OPTIONS = ['Cash', 'UPI', 'Bank Transfer', 'Credit Card', 'Debit Card', 'Cheque', 'Other'];

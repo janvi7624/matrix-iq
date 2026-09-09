@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { ClientProject, ClientSummary, ProjectPriority, ProjectStatus, UserRole } from '@/lib/types';
@@ -15,6 +15,10 @@ import ErrorState from './ui/ErrorState';
 import FilterBar from './ui/FilterBar';
 import Select from './ui/Select';
 import Input from './ui/Input';
+import PhoneInput from './ui/PhoneInput';
+import { Field, FieldRow } from './ui/Field';
+import SubmitButton from './ui/SubmitButton';
+import { useToast } from './ui/ToastProvider';
 import Table, { TableColumn } from './ui/Table';
 import StatTile from './ui/StatTile';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
@@ -26,6 +30,8 @@ import Pagination from './ui/Pagination';
 interface ClientMasterViewProps {
   currentUser: { username: string; role: UserRole };
 }
+
+const EMPTY_ADD_FORM = { clientName: '', company: '', phone: '', email: '', address: '' };
 
 const PAGE_SIZE = 20;
 
@@ -80,10 +86,18 @@ function isLikelyEmail(v: string): boolean {
 }
 
 export default function ClientMasterView({ currentUser }: ClientMasterViewProps) {
-  void currentUser;
+  const toast = useToast();
+  // Engineer accounts can't originate Sales projects (see app/api/projects
+  // POST's own guard) — Client Master's "manual entry" creates one under the
+  // hood, so it's hidden for the same accounts that can't use "+ New
+  // Project" on the Project Dashboard either.
+  const canAddManually = currentUser.role !== 'engineer';
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState(EMPTY_ADD_FORM);
+  const [adding, setAdding] = useState(false);
 
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -147,6 +161,41 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       setLoadFailed(true);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Client Master is a read-only directory derived entirely from Project
+  // records (see lib/clientMasterStore.ts) — there's no separate clients
+  // table to insert into. "Manual entry" is a lightweight shortcut that
+  // creates a minimal Project under the hood (reusing the exact same
+  // POST /api/projects endpoint, validation, and visibility as the Project
+  // Dashboard's own "+ New Project"), which then appears here automatically
+  // through the normal aggregation — never a second, parallel client store.
+  async function handleAddClient(e: FormEvent) {
+    e.preventDefault();
+    if (!addForm.clientName.trim() && !addForm.company.trim()) {
+      toast.error('Client name or company is required.');
+      return;
+    }
+    setAdding(true);
+    try {
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addForm)
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || String(response.status));
+      }
+      setAddForm(EMPTY_ADD_FORM);
+      setShowAddForm(false);
+      await load();
+      toast.success('Client added.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not add this client.');
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -394,6 +443,9 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       </div>
 
       <div className={styles.ownershipToggleRow}>
+        {canAddManually && (
+          <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button>
+        )}
         <button type="button" className={historyStyles.button} onClick={() => setShowOwnership((v) => !v)}>
           {showOwnership ? 'Hide' : 'Show'} Client Ownership {showOwnership ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
@@ -485,7 +537,8 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
                 <EmptyState
                   icon={Users}
                   title={clients.length === 0 ? 'No clients yet' : 'No clients match your search'}
-                  message={clients.length === 0 ? 'Clients appear here automatically once projects are created.' : 'Try a different search or filter.'}
+                  message={clients.length === 0 ? 'Clients appear here automatically once projects are created — or add one manually below.' : 'Try a different search or filter.'}
+                  action={clients.length === 0 && canAddManually ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
                 />
               }
             />
@@ -496,7 +549,8 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
               <EmptyState
                 icon={Users}
                 title={clients.length === 0 ? 'No clients yet' : 'No clients match your search'}
-                message={clients.length === 0 ? 'Clients appear here automatically once projects are created.' : 'Try a different search or filter.'}
+                message={clients.length === 0 ? 'Clients appear here automatically once projects are created — or add one manually below.' : 'Try a different search or filter.'}
+                action={clients.length === 0 && canAddManually ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
               />
             ) : (
               pageRows.map((c) => {
@@ -526,6 +580,34 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       {drawerClient && (
         <Drawer title={drawerClient.displayName} ariaLabel={`${drawerClient.displayName} details`} onClose={() => setDrawerKey(null)}>
           <ClientDetailDrawerBody client={drawerClient} />
+        </Drawer>
+      )}
+
+      {showAddForm && (
+        <Drawer title="Add Client" ariaLabel="Add a client manually" onClose={() => setShowAddForm(false)}>
+          <form onSubmit={handleAddClient}>
+            <Field label="Client Name">
+              <Input value={addForm.clientName} onChange={(e) => setAddForm((f) => ({ ...f, clientName: e.target.value }))} autoFocus />
+            </Field>
+            <Field label="Company">
+              <Input value={addForm.company} onChange={(e) => setAddForm((f) => ({ ...f, company: e.target.value }))} />
+            </Field>
+            <FieldRow>
+              <Field label="Phone">
+                <PhoneInput value={addForm.phone} onChange={(v) => setAddForm((f) => ({ ...f, phone: v }))} />
+              </Field>
+              <Field label="Email">
+                <Input type="email" value={addForm.email} onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} />
+              </Field>
+            </FieldRow>
+            <Field label="Address">
+              <Input value={addForm.address} onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))} />
+            </Field>
+            <div className={calcStyles.small} style={{ marginBottom: 12 }}>
+              This creates a new project record for this client, owned by you — the same as starting one from the Project Dashboard, just quicker for adding a client to the directory.
+            </div>
+            <SubmitButton disabled={adding}>{adding ? 'Adding…' : 'Add Client'}</SubmitButton>
+          </form>
         </Drawer>
       )}
     </AppShell>

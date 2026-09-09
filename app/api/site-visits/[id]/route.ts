@@ -46,7 +46,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         team_technical: toStringArray(body.teamTechnical),
         team_sales: toStringArray(body.teamSales),
         project_details: projectDetails,
-        ongoing_activities: ongoingActivities
+        ongoing_activities: ongoingActivities,
+        remarks: typeof body.remarks === 'string' ? body.remarks.trim() : ''
       };
       patch.updates = [...existing.updates, entry];
     } else {
@@ -67,6 +68,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (typeof body.reminderDate === 'string') patch.reminder_date = body.reminderDate;
       if (VALID_STAGES.includes(body.stage)) patch.stage = body.stage as VisitStage | '';
       if (body.status === 'open' || body.status === 'closed') patch.status = body.status;
+      if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
     }
 
     const updated = await siteVisitStore.update(id, patch);

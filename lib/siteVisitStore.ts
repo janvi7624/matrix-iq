@@ -21,7 +21,8 @@ const FIELDS = [
   { name: 'action_plan' },
   { name: 'reminder_date', kind: 'nullable' as const },
   { name: 'stage', kind: 'nullable' as const },
-  { name: 'status' }
+  { name: 'status' },
+  { name: 'remarks' }
 ];
 
 function isoOrEmpty(value: unknown): string {
@@ -42,7 +43,8 @@ function updateEntryToRow(entry: SiteVisitUpdateEntry, siteVisitId: string) {
     team_technical: entry.team_technical,
     team_sales: entry.team_sales,
     project_details: entry.project_details,
-    ongoing_activities: entry.ongoing_activities
+    ongoing_activities: entry.ongoing_activities,
+    remarks: entry.remarks
   };
 }
 
@@ -57,7 +59,8 @@ function rowToUpdateEntry(plain: Record<string, unknown>): SiteVisitUpdateEntry 
     team_technical: (plain.team_technical as string[]) ?? [],
     team_sales: (plain.team_sales as string[]) ?? [],
     project_details: (plain.project_details as string) ?? '',
-    ongoing_activities: (plain.ongoing_activities as string) ?? ''
+    ongoing_activities: (plain.ongoing_activities as string) ?? '',
+    remarks: (plain.remarks as string) ?? ''
   };
 }
 

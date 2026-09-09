@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
       reminder_date: typeof body.reminderDate === 'string' ? body.reminderDate : '',
       stage,
       status: 'open',
+      remarks: typeof body.remarks === 'string' ? body.remarks.trim() : '',
       updates: [],
       updated_at: now
     };

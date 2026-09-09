@@ -35,6 +35,7 @@ export interface SiteVisitWizardForm {
   actionPlan: string;
   reminderDate: string;
   stage: VisitStage | '';
+  remarks: string;
 }
 
 function emptyForm(prefillProjectId: string): SiteVisitWizardForm {
@@ -55,7 +56,8 @@ function emptyForm(prefillProjectId: string): SiteVisitWizardForm {
     teamSales: [],
     actionPlan: '',
     reminderDate: '',
-    stage: ''
+    stage: '',
+    remarks: ''
   };
 }
 
@@ -451,6 +453,10 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
                 ))}
               </div>
             </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Remarks (optional)</label>
+              <textarea className={calcStyles.formControl} rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
+            </div>
           </>
         )}
 
@@ -471,6 +477,7 @@ export default function SiteVisitWizard({ visits, prefillProjectId, creating, on
               <div className={historyStyles.reviewRow}><strong>Team:</strong> {[...form.teamTechnical, ...form.teamSales].join(', ') || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Action plan:</strong> {form.actionPlan || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Stage:</strong> {form.stage ? STAGE_LABEL[form.stage] : '-'}</div>
+              <div className={historyStyles.reviewRow}><strong>Remarks:</strong> {form.remarks || '-'}</div>
             </div>
             <div className={`${calcStyles.small} ${calcStyles.mt12}`}>
               This visit will be linked to project {form.projectId}.

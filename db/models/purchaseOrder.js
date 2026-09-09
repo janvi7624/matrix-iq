@@ -9,7 +9,8 @@ module.exports = (sequelize, DataTypes) => {
     amount: { type: DataTypes.DECIMAL(14, 2), allowNull: false, defaultValue: 0 },
     attachment_url: { type: DataTypes.STRING },
     advance_received: { type: DataTypes.DECIMAL(14, 2), allowNull: false, defaultValue: 0 },
-    payment_terms: { type: DataTypes.TEXT }
+    payment_terms: { type: DataTypes.TEXT },
+    remarks: { type: DataTypes.TEXT }
   }, {
     tableName: 'purchase_orders',
     underscored: true,

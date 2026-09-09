@@ -1,4 +1,4 @@
-import { Model, Op, Transaction } from 'sequelize';
+import { Model, Op, QueryTypes, Transaction } from 'sequelize';
 import { ProjectNote, ProjectRecord, ProjectStage, ProjectTimelineEvent } from './types';
 import { db, isUuid, sequelize } from './db';
 import { resolveVisibilityScope } from './departmentScope';
@@ -20,6 +20,7 @@ const FIELDS = [
   { name: 'expected_closing_date', kind: 'nullable' as const },
   { name: 'next_follow_up_date', kind: 'nullable' as const },
   { name: 'remarks' },
+  { name: 'closing_probability_percent', kind: 'nullable' as const },
   { name: 'attachments', kind: 'json' as const },
   { name: 'assigned_technical_person_id', kind: 'nullable' as const },
   { name: 'tms_project_id', kind: 'nullable' as const }
@@ -83,7 +84,13 @@ function toRecord(row: Model): ProjectRecord {
     updated_at: isoOrEmpty(plain.updatedAt),
     assigned_technical_person_name: (plain.assignedTechnicalPersonRef as { name?: string } | null)?.name ?? '',
     notes: ((plain.notes as Record<string, unknown>[]) ?? []).map(rowToNote).sort((a, b) => (a.at < b.at ? -1 : 1)),
-    timeline: ((plain.timeline as Record<string, unknown>[]) ?? []).map(rowToTimelineEvent).sort((a, b) => (a.at < b.at ? -1 : 1))
+    timeline: ((plain.timeline as Record<string, unknown>[]) ?? []).map(rowToTimelineEvent).sort((a, b) => (a.at < b.at ? -1 : 1)),
+    // Populated only by the Dashboard read path (see listLastRemarks below,
+    // merged in by the GET /api/projects route) — every other caller of
+    // toRecord() gets these empty, same as any other resolved display field.
+    last_remark: '',
+    last_remark_at: '',
+    last_remark_by: ''
   };
   for (const { name, kind = 'string' } of FIELDS) {
     const raw = plain[name];
@@ -245,6 +252,31 @@ function normalizeProject(project: ProjectRecord): ProjectRecord {
     timeline: project.timeline ?? [],
     source: project.source ?? ''
   };
+}
+
+// The most recent Activity Log entry that actually HAS a remark, per
+// project — backs the Project Dashboard's "Last Remark" column. One
+// DISTINCT ON query for the whole dashboard rather than joining the full
+// (potentially long) timeline onto every row in listLight(), which the
+// comment above readAllLight() already flags as deliberately excluded there
+// for performance.
+export async function listLastRemarks(projectIds: string[]): Promise<Record<string, { remark: string; at: string; by: string }>> {
+  const ids = projectIds.filter(isUuid);
+  if (!ids.length) return {};
+
+  const rows = (await sequelize.query(
+    `SELECT DISTINCT ON (project_id) project_id, remarks, at, "by"
+     FROM project_timeline_events
+     WHERE project_id IN (:ids) AND remarks IS NOT NULL AND remarks <> ''
+     ORDER BY project_id, at DESC`,
+    { replacements: { ids }, type: QueryTypes.SELECT }
+  )) as { project_id: string; remarks: string; at: Date; by: string }[];
+
+  const result: Record<string, { remark: string; at: string; by: string }> = {};
+  for (const row of rows) {
+    result[row.project_id] = { remark: row.remarks, at: isoOrEmpty(row.at), by: row.by ?? '' };
+  }
+  return result;
 }
 
 // list/listLight keep accepting viewerIsPrivileged for call-site

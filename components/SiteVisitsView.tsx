@@ -25,7 +25,7 @@ interface SiteVisitsViewProps {
   currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
-const EMPTY_UPDATE_FORM = { teamTechnical: [] as string[], teamSales: [] as string[], projectDetails: '', ongoingActivities: '' };
+const EMPTY_UPDATE_FORM = { teamTechnical: [] as string[], teamSales: [] as string[], projectDetails: '', ongoingActivities: '', remarks: '' };
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -82,6 +82,7 @@ function SiteVisitDetail({
   const [reminderDate, setReminderDate] = useState(visit.reminder_date);
   const [stage, setStage] = useState(visit.stage);
   const [status, setStatus] = useState(visit.status);
+  const [remarks, setRemarks] = useState(visit.remarks);
   const [busy, setBusy] = useState(false);
   const [updateForm, setUpdateForm] = useState(EMPTY_UPDATE_FORM);
   const [addingUpdate, setAddingUpdate] = useState(false);
@@ -89,7 +90,7 @@ function SiteVisitDetail({
   async function handleSaveDetails() {
     setBusy(true);
     try {
-      await onPatch(visit.id, { actionPlan, reminderDate, stage, status });
+      await onPatch(visit.id, { actionPlan, reminderDate, stage, status, remarks });
     } finally {
       setBusy(false);
     }
@@ -198,6 +199,10 @@ function SiteVisitDetail({
           <option value="closed">Closed</option>
         </select>
       </div>
+      <div className={calcStyles.field}>
+        <label className={calcStyles.label}>Remarks (optional)</label>
+        <textarea className={calcStyles.formControl} rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+      </div>
       <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleSaveDetails}>
         {busy ? 'Saving…' : 'Save details'}
       </button>
@@ -218,6 +223,7 @@ function SiteVisitDetail({
               </div>
               {u.project_details && <div><strong>Project details:</strong> {u.project_details}</div>}
               {u.ongoing_activities && <div><strong>Ongoing activities:</strong> {u.ongoing_activities}</div>}
+              {u.remarks && <div><strong>Remark:</strong> {u.remarks}</div>}
             </div>
           ))}
       </div>
@@ -254,6 +260,15 @@ function SiteVisitDetail({
             rows={2}
             value={updateForm.ongoingActivities}
             onChange={(e) => setUpdateForm((f) => ({ ...f, ongoingActivities: e.target.value }))}
+          />
+        </div>
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Remarks (optional)</label>
+          <textarea
+            className={calcStyles.formControl}
+            rows={2}
+            value={updateForm.remarks}
+            onChange={(e) => setUpdateForm((f) => ({ ...f, remarks: e.target.value }))}
           />
         </div>
         <div className={`${calcStyles.small} ${calcStyles.mb8}`}>

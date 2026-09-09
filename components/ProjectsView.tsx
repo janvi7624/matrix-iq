@@ -38,7 +38,8 @@ const EMPTY_FORM = {
   source: '',
   priority: 'medium' as ProjectPriority,
   expectedClosingDate: '',
-  remarks: ''
+  remarks: '',
+  closingProbabilityPercent: ''
 };
 
 const STATUS_LABEL: Record<ProjectStatus, string> = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost' };
@@ -179,8 +180,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   function handleExportPdf() {
     exportListToPdf(
       'Project Dashboard',
-      ['Client', 'Company', 'Sales Person', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up'],
-      filtered.map((p) => [p.client_name, p.company, p.sales_person, STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date)]),
+      ['Client', 'Company', 'Sales Person', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
+      filtered.map((p) => [p.client_name, p.company, p.sales_person, STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
       `projects-${new Date().toISOString().slice(0, 10)}.pdf`
     );
   }
@@ -210,6 +211,19 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     },
     { key: 'updated', header: 'Last Updated', render: (p) => formatDateTime(p.updated_at) },
     { key: 'nextFollowUp', header: 'Next Follow-up', render: (p) => formatDate(p.next_follow_up_date) },
+    { key: 'closingProbability', header: 'Closing %', render: (p) => (p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`) },
+    {
+      key: 'lastRemark',
+      header: 'Last Remark',
+      render: (p) =>
+        p.last_remark ? (
+          <span title={`${p.last_remark} — ${p.last_remark_by}, ${formatDateTime(p.last_remark_at)}`} className={historyStyles.truncateCell}>
+            {p.last_remark}
+          </span>
+        ) : (
+          <span className={historyStyles.mutedInline}>No remarks yet</span>
+        )
+    },
     {
       key: 'progress',
       header: 'Progress',
@@ -318,6 +332,16 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               <Field label="Expected closing date">
                 <Input type="date" min={todayDateInputValue()} value={form.expectedClosingDate} onChange={(e) => setForm((f) => ({ ...f, expectedClosingDate: e.target.value }))} />
               </Field>
+              <Field label="Closing Probability % (optional)">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="Your estimate, e.g. 70"
+                  value={form.closingProbabilityPercent}
+                  onChange={(e) => setForm((f) => ({ ...f, closingProbabilityPercent: e.target.value }))}
+                />
+              </Field>
             </FieldRow>
             <Field label="Remarks">
               <Textarea rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
@@ -360,7 +384,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
         {loading ? (
-          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={9} /></div>
+          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={11} /></div>
         ) : loadFailed ? (
           <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
         ) : (

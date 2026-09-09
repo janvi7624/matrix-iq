@@ -7,7 +7,8 @@ module.exports = (sequelize, DataTypes) => {
     assigned_engineer: { type: DataTypes.STRING },
     status: { type: DataTypes.ENUM('scheduled', 'in_progress', 'completed'), allowNull: false, defaultValue: 'scheduled' },
     completion_report: { type: DataTypes.TEXT },
-    client_signature: { type: DataTypes.STRING }
+    client_signature: { type: DataTypes.STRING },
+    remarks: { type: DataTypes.TEXT }
   }, {
     tableName: 'installations',
     underscored: true,

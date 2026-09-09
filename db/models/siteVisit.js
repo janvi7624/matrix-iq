@@ -20,7 +20,8 @@ module.exports = (sequelize, DataTypes) => {
     action_plan: { type: DataTypes.TEXT },
     reminder_date: { type: DataTypes.DATEONLY },
     stage: { type: DataTypes.ENUM('hot', 'warm', 'cold') },
-    status: { type: DataTypes.ENUM('open', 'closed'), allowNull: false, defaultValue: 'open' }
+    status: { type: DataTypes.ENUM('open', 'closed'), allowNull: false, defaultValue: 'open' },
+    remarks: { type: DataTypes.TEXT }
   }, {
     tableName: 'site_visits',
     underscored: true,

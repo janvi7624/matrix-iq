@@ -47,7 +47,8 @@ export async function POST(request: NextRequest) {
     assigned_engineer: typeof body.assignedEngineer === 'string' ? body.assignedEngineer.trim() : '',
     status: 'scheduled',
     completion_report: '',
-    client_signature: ''
+    client_signature: '',
+    remarks: typeof body.remarks === 'string' ? body.remarks.trim() : ''
   };
 
   try {

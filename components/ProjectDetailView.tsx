@@ -107,9 +107,9 @@ function formatDateTime(iso: string): string {
   }
 }
 
-const EMPTY_NEGOTIATION = { discussionDate: '', person: '', discussion: '', offerGiven: '', discount: '', revisedPrice: '', expectedClosure: '' };
-const EMPTY_PO = { poNumber: '', poDate: '', amount: '', advanceReceived: '', paymentTerms: '' };
-const EMPTY_INSTALLATION = { installationDate: '', assignedEngineer: '' };
+const EMPTY_NEGOTIATION = { discussionDate: '', person: '', discussion: '', offerGiven: '', discount: '', revisedPrice: '', expectedClosure: '', remarks: '' };
+const EMPTY_PO = { poNumber: '', poDate: '', amount: '', advanceReceived: '', paymentTerms: '', remarks: '' };
+const EMPTY_INSTALLATION = { installationDate: '', assignedEngineer: '', remarks: '' };
 const EMPTY_RESPONSE = { feedback: '', responseType: '' as CustomerResponseRecord['response_type'], expectedDecisionDate: '', remarks: '' };
 
 interface ProjectDetailViewProps {
@@ -1085,6 +1085,21 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   <div className={calcStyles.small}>{project.assigned_technical_person_name || 'Unassigned'}</div>
                 )}
               </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Closing Probability % (your estimate)</label>
+                {canEdit ? (
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    className={calcStyles.formControl}
+                    value={project.closing_probability_percent}
+                    onChange={(e) => patchProject({ closingProbabilityPercent: e.target.value === '' ? '' : Number(e.target.value) })}
+                  />
+                ) : (
+                  <div className={calcStyles.small}>{project.closing_probability_percent === '' ? '-' : `${project.closing_probability_percent}%`}</div>
+                )}
+              </div>
             </div>
             <div className={`${historyStyles.miniCard} ${calcStyles.mt12}`}>
               <div className={historyStyles.miniCardTitle}>Payment</div>
@@ -1144,7 +1159,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <div className={historyStyles.miniCard}>
             <div className={historyStyles.miniCardTitle}>Customer Response ({responses.length})</div>
             {responses.length === 0 ? <div className={historyStyles.miniCardEmpty}>No response logged yet.</div> : responses.map((r) => (
-              <div key={r.id} className={historyStyles.miniCardRow}>{formatDate(r.created_at)} — {r.response_type ? r.response_type.replace(/_/g, ' ') : 'No decision yet'}</div>
+              <div key={r.id} className={historyStyles.miniCardRow}>
+                <div>{formatDate(r.created_at)} — {r.response_type ? r.response_type.replace(/_/g, ' ') : 'No decision yet'}</div>
+                {r.remarks && <div className={calcStyles.small}>Remark: {r.remarks}</div>}
+              </div>
             ))}
             <form onSubmit={handleAddResponse} className={calcStyles.mt10}>
               <select className={`${calcStyles.formControl} ${calcStyles.mb6}`} value={respForm.responseType} onChange={(e) => setRespForm((f) => ({ ...f, responseType: e.target.value as CustomerResponseRecord['response_type'] }))}>
@@ -1157,6 +1175,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <option value="competitor">Competitor</option>
               </select>
               <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Feedback" value={respForm.feedback} onChange={(e) => setRespForm((f) => ({ ...f, feedback: e.target.value }))} />
+              <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Remarks (optional)" value={respForm.remarks} onChange={(e) => setRespForm((f) => ({ ...f, remarks: e.target.value }))} />
               <button type="submit" className={calcStyles.btn} disabled={busySection === 'response'}>{busySection === 'response' ? 'Saving…' : 'Log response'}</button>
             </form>
           </div>
@@ -1167,7 +1186,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div className={historyStyles.miniCardTitle}>Negotiation history ({negotiations.length})</div>
             {negotiations.length === 0 ? <div className={historyStyles.miniCardEmpty}>No negotiation entries yet.</div> : negotiations.map((n) => (
               <div key={n.id} className={`${historyStyles.miniCardRow} ${styles.rowBetween}`}>
-                <span>{formatDate(n.discussion_date)} — {n.person}: {n.discussion || n.offer_given || '-'}</span>
+                <span>
+                  {formatDate(n.discussion_date)} — {n.person}: {n.discussion || n.offer_given || '-'}
+                  {n.remarks && <div className={calcStyles.small}>Remark: {n.remarks}</div>}
+                </span>
                 {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDeleteNegotiation(n.id)}>Delete</button>}
               </div>
             ))}
@@ -1185,6 +1207,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <input type="number" className={calcStyles.formControl} placeholder="Revised price" value={negForm.revisedPrice} onChange={(e) => setNegForm((f) => ({ ...f, revisedPrice: e.target.value }))} />
                 <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} placeholder="Expected closure" value={negForm.expectedClosure} onChange={(e) => setNegForm((f) => ({ ...f, expectedClosure: e.target.value }))} />
               </div>
+              <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Remarks (optional)" value={negForm.remarks} onChange={(e) => setNegForm((f) => ({ ...f, remarks: e.target.value }))} />
               <button type="submit" className={calcStyles.btn} disabled={busySection === 'negotiation'}>{busySection === 'negotiation' ? 'Saving…' : 'Log discussion'}</button>
             </form>
           </div>
@@ -1213,7 +1236,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div className={historyStyles.miniCardTitle}>Purchase Orders ({purchaseOrders.length})</div>
             {purchaseOrders.length === 0 ? <div className={historyStyles.miniCardEmpty}>No PO received yet.</div> : purchaseOrders.map((po) => (
               <div key={po.id} className={`${historyStyles.miniCardRow} ${styles.rowBetween}`}>
-                <span>{po.po_number} — ₹{po.amount.toLocaleString('en-IN')} ({formatDate(po.po_date)})</span>
+                <span>
+                  {po.po_number} — ₹{po.amount.toLocaleString('en-IN')} ({formatDate(po.po_date)})
+                  {po.remarks && <div className={calcStyles.small}>Remark: {po.remarks}</div>}
+                </span>
                 {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDeletePo(po.id)}>Delete</button>}
               </div>
             ))}
@@ -1227,6 +1253,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <input type="number" className={calcStyles.formControl} placeholder="Advance received" value={poForm.advanceReceived} onChange={(e) => setPoForm((f) => ({ ...f, advanceReceived: e.target.value }))} />
               </div>
               <input className={`${calcStyles.formControl} ${calcStyles.mb6}`} placeholder="Payment terms" value={poForm.paymentTerms} onChange={(e) => setPoForm((f) => ({ ...f, paymentTerms: e.target.value }))} />
+              <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Remarks (optional)" value={poForm.remarks} onChange={(e) => setPoForm((f) => ({ ...f, remarks: e.target.value }))} />
               <button type="submit" className={calcStyles.btn} disabled={busySection === 'po'}>{busySection === 'po' ? 'Saving…' : 'Log PO'}</button>
             </form>
           </div>
@@ -1238,6 +1265,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             {installations.length === 0 ? <div className={historyStyles.miniCardEmpty}>Not scheduled yet.</div> : installations.map((inst) => (
               <div key={inst.id} className={historyStyles.miniCardRow}>
                 <div>{formatDate(inst.installation_date)} — {inst.assigned_engineer || 'Unassigned'}</div>
+                {inst.remarks && <div className={calcStyles.small}>Remark: {inst.remarks}</div>}
                 <select className={`${calcStyles.formControl} ${calcStyles.mt4}`} value={inst.status} onChange={(e) => handleInstallationStatus(inst.id, e.target.value as InstallationRecord['status'])}>
                   <option value="scheduled">Scheduled</option>
                   <option value="in_progress">In Progress</option>
@@ -1250,6 +1278,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <input type="date" className={calcStyles.formControl} value={instForm.installationDate} onChange={(e) => setInstForm((f) => ({ ...f, installationDate: e.target.value }))} />
                 <input className={calcStyles.formControl} placeholder="Assigned engineer" value={instForm.assignedEngineer} onChange={(e) => setInstForm((f) => ({ ...f, assignedEngineer: e.target.value }))} />
               </div>
+              <textarea className={`${calcStyles.formControl} ${calcStyles.mb6}`} rows={2} placeholder="Remarks (optional)" value={instForm.remarks} onChange={(e) => setInstForm((f) => ({ ...f, remarks: e.target.value }))} />
               <button type="submit" className={calcStyles.btn} disabled={busySection === 'installation'}>{busySection === 'installation' ? 'Saving…' : 'Schedule installation'}</button>
             </form>
           </div>

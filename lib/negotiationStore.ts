@@ -10,5 +10,6 @@ export const negotiationStore = createRecordStore<NegotiationRecord>(db.Negotiat
   { name: 'offer_given' },
   { name: 'discount' },
   { name: 'revised_price', kind: 'number' },
-  { name: 'expected_closure', kind: 'nullable' }
+  { name: 'expected_closure', kind: 'nullable' },
+  { name: 'remarks' }
 ]);

@@ -47,7 +47,8 @@ export async function POST(request: NextRequest) {
     offer_given: typeof body.offerGiven === 'string' ? body.offerGiven.trim() : '',
     discount: typeof body.discount === 'string' ? body.discount.trim() : '',
     revised_price: Number(body.revisedPrice) || 0,
-    expected_closure: typeof body.expectedClosure === 'string' ? body.expectedClosure : ''
+    expected_closure: typeof body.expectedClosure === 'string' ? body.expectedClosure : '',
+    remarks: typeof body.remarks === 'string' ? body.remarks.trim() : ''
   };
 
   try {

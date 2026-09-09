@@ -61,13 +61,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       expected_closing_date: '',
       next_follow_up_date: '',
       remarks: noteParts.join(' | '),
+      closing_probability_percent: '',
       notes: [],
       attachments: [],
       assigned_technical_person_id: '',
       assigned_technical_person_name: '',
       tms_project_id: '',
       timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created from a captured lead', remarks: noteParts.join(' | ') }],
-      updated_at: now
+      updated_at: now,
+      last_remark: '',
+      last_remark_at: '',
+      last_remark_by: ''
     };
     const createdProject = await projectStore.create(project);
     const updatedLead = await leadStore.update(id, { project_id: createdProject.id, updated_at: now });

@@ -48,7 +48,8 @@ export async function POST(request: NextRequest) {
     amount: Number(body.amount) || 0,
     attachment_url: typeof body.attachmentUrl === 'string' ? body.attachmentUrl : '',
     advance_received: Number(body.advanceReceived) || 0,
-    payment_terms: typeof body.paymentTerms === 'string' ? body.paymentTerms.trim() : ''
+    payment_terms: typeof body.paymentTerms === 'string' ? body.paymentTerms.trim() : '',
+    remarks: typeof body.remarks === 'string' ? body.remarks.trim() : ''
   };
 
   try {

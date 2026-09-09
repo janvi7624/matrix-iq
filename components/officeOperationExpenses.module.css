@@ -36,15 +36,6 @@
   margin-bottom: 4px;
 }
 
-.formCard {
-  background: var(--mx-surface, #fff);
-  border-radius: var(--mx-radius-sm, 10px);
-  border: 1px solid var(--mx-border, #e5e7eb);
-  padding: 20px;
-  margin-bottom: 24px;
-  box-shadow: var(--mx-shadow-xs);
-}
-
 .editingNote {
   margin-bottom: 12px;
   font-size: 13px;

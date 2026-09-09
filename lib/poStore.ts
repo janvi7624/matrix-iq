@@ -9,5 +9,6 @@ export const poStore = createRecordStore<PoRecord>(db.PurchaseOrder, [
   { name: 'amount', kind: 'number' },
   { name: 'attachment_url' },
   { name: 'advance_received', kind: 'number' },
-  { name: 'payment_terms' }
+  { name: 'payment_terms' },
+  { name: 'remarks' }
 ]);

@@ -9,7 +9,8 @@ module.exports = (sequelize, DataTypes) => {
     offer_given: { type: DataTypes.TEXT },
     discount: { type: DataTypes.STRING },
     revised_price: { type: DataTypes.DECIMAL(14, 2), allowNull: false, defaultValue: 0 },
-    expected_closure: { type: DataTypes.DATEONLY }
+    expected_closure: { type: DataTypes.DATEONLY },
+    remarks: { type: DataTypes.TEXT }
   }, {
     tableName: 'negotiations',
     underscored: true,

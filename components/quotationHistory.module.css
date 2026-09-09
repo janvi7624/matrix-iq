@@ -101,6 +101,8 @@
 .dangerButton { composes: button; background: var(--mx-surface); border-color: var(--mx-danger); color: var(--mx-danger); }
 .dangerButton:hover { background: var(--mx-danger-subtle); border-color: var(--mx-danger); }
 .status { font-size: 13px; color: var(--mx-ink-muted); margin-bottom: 10px; }
+.truncateCell { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; cursor: help; }
+.mutedInline { color: var(--mx-ink-faint); font-size: 12.5px; font-style: italic; }
 .table { width: 100%; border-collapse: collapse; background: var(--mx-surface); border-radius: var(--mx-radius-sm); overflow: hidden; box-shadow: var(--mx-shadow-xs); }
 .table th, .table td { text-align: left; padding: 10px 12px; font-size: 13.5px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
 .table th { background: #f9fafb; font-weight: 600; color: #374151; position: sticky; top: 0; }
