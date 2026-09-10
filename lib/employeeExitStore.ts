@@ -24,7 +24,10 @@ export interface ExitWorkItem {
 }
 
 export interface WorkSummary {
-  projects: ExitWorkItem[];
+  // Remark/address — a manager reassigning a project couldn't tell what it
+  // actually was beyond a bare name; both already exist on Project, just
+  // weren't surfaced here.
+  projects: (ExitWorkItem & { remarks: string; address: string })[];
   tasks: ExitWorkItem[];
   leads: ExitWorkItem[];
   quotations: (ExitWorkItem & { total: number })[];
@@ -36,7 +39,7 @@ export async function getAssignedWorkSummary(userId: string): Promise<WorkSummar
   const [projectRows, taskRows, leadRows, quotationRows] = await Promise.all([
     db.Project.findAll({
       where: { created_by: userId, status: { [Op.notIn]: ['won', 'lost'] } } as never,
-      attributes: ['id', 'client_name', 'company', 'status', 'stage']
+      attributes: ['id', 'client_name', 'company', 'status', 'stage', 'remarks', 'address']
     }),
     db.TmsTask.findAll({
       where: { assignee_id: userId, status: { [Op.notIn]: ['completed', 'cancelled'] } } as never,
@@ -56,7 +59,13 @@ export async function getAssignedWorkSummary(userId: string): Promise<WorkSummar
   return {
     projects: projectRows.map((r) => {
       const p = r.get({ plain: true }) as Record<string, unknown>;
-      return { id: p.id as string, label: (p.client_name as string) || (p.company as string) || `Project ${p.id}`, status: p.status as string };
+      return {
+        id: p.id as string,
+        label: (p.client_name as string) || (p.company as string) || `Project ${p.id}`,
+        status: p.status as string,
+        remarks: (p.remarks as string) || '',
+        address: (p.address as string) || ''
+      };
     }),
     tasks: taskRows.map((r) => {
       const p = r.get({ plain: true }) as Record<string, unknown>;

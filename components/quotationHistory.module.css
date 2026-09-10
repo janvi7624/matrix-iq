@@ -743,6 +743,10 @@
 .chipBtnActive .chipLabel { color: #b91c1c; font-weight: 700; }
 
 .priorityBadge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--mx-radius-full); font-size: 11px; font-weight: 700; white-space: nowrap; }
+/* Closing Probability % — background/color come from lib/projectStages.ts's
+   closingProbabilityStyle() (a 5-step gradient by value), this class is only
+   the shared pill shape. */
+.closingBadge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: var(--mx-radius-full); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .priorityBadgeHot { background: var(--mx-danger-subtle); color: var(--mx-danger); }
 .priorityBadgeWarm { background: var(--mx-warning-subtle); color: var(--mx-warning); }
 .priorityBadgeInfo { background: var(--mx-info-subtle); color: var(--mx-info); }

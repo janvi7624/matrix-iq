@@ -13,6 +13,69 @@ async function assertAdmin(request: NextRequest) {
   return viewer;
 }
 
+interface ResolvedExpenseFields {
+  description: string;
+  from: string;
+  to: string;
+  resolvedDate: string;
+  // Hotel's check-out, or a return flight's return date — every other
+  // type/leg leaves this null. Same column, dual meaning depending on
+  // `description`, same as the client's AdminEntry.check_out_date.
+  checkOut: string | null;
+}
+
+// Shared by POST and PUT — was duplicated verbatim between them before,
+// which is exactly the kind of thing that drifts when one gets a fix/new
+// type and the other doesn't.
+function resolveExpenseFields(body: Record<string, unknown>): ResolvedExpenseFields | { error: string } {
+  const { type, date, checkInDate, checkOutDate, location, fromLocation, toLocation, otherType } = body;
+
+  if (type === 'Hotel') {
+    const from = typeof location === 'string' ? location.trim() : '';
+    if (!from) return { error: 'Location is required for Hotel' };
+    if (!checkInDate || !checkOutDate) return { error: 'Check-in and check-out dates are required for Hotel' };
+    if (checkOutDate <= checkInDate) return { error: 'Check-out date must be after check-in date' };
+    return { description: 'Hotel', from, to: '', resolvedDate: checkInDate as string, checkOut: checkOutDate as string };
+  }
+
+  if (type === 'Bus Ticket' || type === 'Train Ticket' || type === 'Flight Ticket') {
+    const from = typeof fromLocation === 'string' ? fromLocation.trim() : '';
+    const to = typeof toLocation === 'string' ? toLocation.trim() : '';
+    if (!from || !to) return { error: 'From and To are required for ticket booking' };
+    if (!date) return { error: 'Travel date is required' };
+    // Return-trip flights only — Bus/Train stay one-way, no return leg was
+    // asked for on those. Same-day return IS allowed (unlike Hotel's
+    // checkout-must-be-after-checkin rule) since a same-day round trip is
+    // the whole point of this field.
+    let checkOut: string | null = null;
+    if (type === 'Flight Ticket' && checkOutDate) {
+      if (checkOutDate < date) return { error: 'Return date cannot be before the departure date' };
+      checkOut = checkOutDate as string;
+    }
+    return { description: type as string, from, to, resolvedDate: date as string, checkOut };
+  }
+
+  if (type === 'Visa Expense') {
+    const from = typeof location === 'string' ? location.trim() : '';
+    if (!date) return { error: 'Date is required' };
+    return { description: 'Visa Expense', from, to: '', resolvedDate: date as string, checkOut: null };
+  }
+
+  if (type === 'Other Expense') {
+    // A free-typed expense type not covered by the fixed list — the typed
+    // name itself becomes `description` (same column the fixed types store
+    // their own literal name in), and location is optional here (an "other"
+    // expense might not have one, e.g. a courier fee).
+    const description = typeof otherType === 'string' ? otherType.trim() : '';
+    if (!description) return { error: 'Please specify the expense type' };
+    const from = typeof location === 'string' ? location.trim() : '';
+    if (!date) return { error: 'Date is required' };
+    return { description, from, to: '', resolvedDate: date as string, checkOut: null };
+  }
+
+  return { error: 'Invalid type' };
+}
+
 export async function GET(request: NextRequest) {
   const admin = await assertAdmin(request);
   if (!admin) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
@@ -65,7 +128,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
-  const { type, date, checkInDate, checkOutDate, location, fromLocation, toLocation, otherType, employeeIds, totalAmount, attachmentUrls } = body;
+  const { type, employeeIds, totalAmount, attachmentUrls } = body;
 
   if (!type || !Array.isArray(employeeIds) || !employeeIds.length || !totalAmount) {
     return NextResponse.json({ error: 'Type, date, employees, and total amount are required' }, { status: 400 });
@@ -74,43 +137,9 @@ export async function POST(request: NextRequest) {
   const amt = Number(totalAmount);
   if (!amt || amt <= 0) return NextResponse.json({ error: 'Amount must be greater than zero' }, { status: 400 });
 
-  let description = '';
-  let from = '';
-  let to = '';
-  // Hotel is a stay (a date RANGE) — `date` below holds check-in,
-  // `checkOut` holds check-out; every other type is a single travel date,
-  // checkOut stays null.
-  let resolvedDate = '';
-  let checkOut: string | null = null;
-
-  if (type === 'Hotel') {
-    description = 'Hotel';
-    from = typeof location === 'string' ? location.trim() : '';
-    if (!from) return NextResponse.json({ error: 'Location is required for Hotel' }, { status: 400 });
-    if (!checkInDate || !checkOutDate) return NextResponse.json({ error: 'Check-in and check-out dates are required for Hotel' }, { status: 400 });
-    if (checkOutDate <= checkInDate) return NextResponse.json({ error: 'Check-out date must be after check-in date' }, { status: 400 });
-    resolvedDate = checkInDate;
-    checkOut = checkOutDate;
-  } else if (['Bus Ticket', 'Train Ticket', 'Flight Ticket'].includes(type)) {
-    description = type;
-    from = typeof fromLocation === 'string' ? fromLocation.trim() : '';
-    to = typeof toLocation === 'string' ? toLocation.trim() : '';
-    if (!from || !to) return NextResponse.json({ error: 'From and To are required for ticket booking' }, { status: 400 });
-    if (!date) return NextResponse.json({ error: 'Travel date is required' }, { status: 400 });
-    resolvedDate = date;
-  } else if (type === 'Other') {
-    // A free-typed expense type not covered by the fixed list — the typed
-    // name itself becomes `description` (same column the fixed types store
-    // their own literal name in), and location is optional here (an "other"
-    // expense might not have one, e.g. a courier fee).
-    description = typeof otherType === 'string' ? otherType.trim() : '';
-    if (!description) return NextResponse.json({ error: 'Please specify the expense type' }, { status: 400 });
-    from = typeof location === 'string' ? location.trim() : '';
-    if (!date) return NextResponse.json({ error: 'Date is required' }, { status: 400 });
-    resolvedDate = date;
-  } else {
-    return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
-  }
+  const resolved = resolveExpenseFields(body);
+  if ('error' in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
+  const { description, from, to, resolvedDate, checkOut } = resolved;
 
   const splitCount = employeeIds.length;
   const perPerson = Math.round((amt / splitCount) * 100) / 100;
@@ -160,7 +189,7 @@ export async function PUT(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
-  const { batchId, type, date, checkInDate, checkOutDate, location, fromLocation, toLocation, otherType, employeeIds, totalAmount } = body;
+  const { batchId, type, employeeIds, totalAmount } = body;
   if (!batchId) return NextResponse.json({ error: 'batchId is required' }, { status: 400 });
 
   if (!type || !Array.isArray(employeeIds) || !employeeIds.length || !totalAmount) {
@@ -170,36 +199,9 @@ export async function PUT(request: NextRequest) {
   const amt = Number(totalAmount);
   if (!amt || amt <= 0) return NextResponse.json({ error: 'Amount must be greater than zero' }, { status: 400 });
 
-  let description = '';
-  let from = '';
-  let to = '';
-  let resolvedDate = '';
-  let checkOut: string | null = null;
-
-  if (type === 'Hotel') {
-    description = 'Hotel';
-    from = typeof location === 'string' ? location.trim() : '';
-    if (!from) return NextResponse.json({ error: 'Location is required for Hotel' }, { status: 400 });
-    if (!checkInDate || !checkOutDate) return NextResponse.json({ error: 'Check-in and check-out dates are required for Hotel' }, { status: 400 });
-    if (checkOutDate <= checkInDate) return NextResponse.json({ error: 'Check-out date must be after check-in date' }, { status: 400 });
-    resolvedDate = checkInDate;
-    checkOut = checkOutDate;
-  } else if (['Bus Ticket', 'Train Ticket', 'Flight Ticket'].includes(type)) {
-    description = type;
-    from = typeof fromLocation === 'string' ? fromLocation.trim() : '';
-    to = typeof toLocation === 'string' ? toLocation.trim() : '';
-    if (!from || !to) return NextResponse.json({ error: 'From and To are required for ticket booking' }, { status: 400 });
-    if (!date) return NextResponse.json({ error: 'Travel date is required' }, { status: 400 });
-    resolvedDate = date;
-  } else if (type === 'Other') {
-    description = typeof otherType === 'string' ? otherType.trim() : '';
-    if (!description) return NextResponse.json({ error: 'Please specify the expense type' }, { status: 400 });
-    from = typeof location === 'string' ? location.trim() : '';
-    if (!date) return NextResponse.json({ error: 'Date is required' }, { status: 400 });
-    resolvedDate = date;
-  } else {
-    return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
-  }
+  const resolved = resolveExpenseFields(body);
+  if ('error' in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
+  const { description, from, to, resolvedDate, checkOut } = resolved;
 
   const splitCount = employeeIds.length;
   const perPerson = Math.round((amt / splitCount) * 100) / 100;

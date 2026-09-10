@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { FolderKanban } from 'lucide-react';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
-import { FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
+import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { exportListToPdf } from '@/lib/exportPdf';
 import AppShell from './AppShell';
@@ -220,7 +220,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     },
     { key: 'updated', header: 'Last Updated', render: (p) => formatDateTime(p.updated_at) },
     { key: 'nextFollowUp', header: 'Next Follow-up', render: (p) => formatDate(p.next_follow_up_date) },
-    { key: 'closingProbability', header: 'Closing %', render: (p) => (p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`) },
+    {
+      key: 'closingProbability',
+      header: 'Closing %',
+      render: (p) => {
+        const tone = closingProbabilityStyle(p.closing_probability_percent);
+        return tone ? <span className={historyStyles.closingBadge} style={tone}>{p.closing_probability_percent}%</span> : '-';
+      }
+    },
     {
       key: 'lastRemark',
       header: 'Last Remark',

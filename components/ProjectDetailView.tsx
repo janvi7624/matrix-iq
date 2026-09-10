@@ -40,7 +40,7 @@ import {
   UserRole,
   ProjectHandoverRecord
 } from '@/lib/types';
-import { FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
+import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as VISIT_STAGE_LABEL } from '@/lib/siteVisitReminder';
@@ -1158,8 +1158,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     value={project.closing_probability_percent}
                     onChange={(e) => patchProject({ closingProbabilityPercent: e.target.value === '' ? '' : Number(e.target.value) })}
                   />
+                ) : project.closing_probability_percent === '' ? (
+                  <div className={calcStyles.small}>-</div>
                 ) : (
-                  <div className={calcStyles.small}>{project.closing_probability_percent === '' ? '-' : `${project.closing_probability_percent}%`}</div>
+                  <span className={historyStyles.closingBadge} style={closingProbabilityStyle(project.closing_probability_percent) || undefined}>
+                    {project.closing_probability_percent}%
+                  </span>
                 )}
               </div>
             </div>

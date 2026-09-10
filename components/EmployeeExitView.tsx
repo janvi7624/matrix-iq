@@ -35,10 +35,15 @@ interface QuotationItem extends WorkItem {
   total: number;
 }
 
+interface ProjectItem extends WorkItem {
+  remarks: string;
+  address: string;
+}
+
 interface ExitSummary {
   employee: { id: string; username: string; name: string; department: string; designation: string };
   eligibleReplacements: Candidate[];
-  projects: WorkItem[];
+  projects: ProjectItem[];
   tasks: WorkItem[];
   leads: WorkItem[];
   quotations: QuotationItem[];
@@ -201,6 +206,16 @@ export default function EmployeeExitView() {
                   ) : (
                     row.label
                   )
+              },
+              {
+                key: 'remark',
+                header: 'Remark',
+                render: (row: WorkItem) => (row as ProjectItem).remarks || '—'
+              },
+              {
+                key: 'address',
+                header: 'Address',
+                render: (row: WorkItem) => (row as ProjectItem).address || '—'
               },
               {
                 key: 'amount',

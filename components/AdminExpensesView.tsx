@@ -23,21 +23,32 @@ interface AdminEntry {
   created_at: string;
 }
 
-// Whole nights between two DATEONLY ('YYYY-MM-DD') strings — used for the
-// "N night(s)" hint so the split amount's per-night context is obvious at a
-// glance, not just a bare date range.
-function nightsBetween(checkIn: string, checkOut: string): number {
-  if (!checkIn || !checkOut) return 0;
-  const ms = new Date(checkOut + 'T00:00:00').getTime() - new Date(checkIn + 'T00:00:00').getTime();
+// Whole days between two DATEONLY ('YYYY-MM-DD') strings — used both for
+// Hotel's "N night(s)" hint and a return flight's "same-day return" /
+// "returns after N day(s)" hint, so either date-range's split amount has
+// obvious context instead of just a bare range.
+function daysBetween(start: string, end: string): number {
+  if (!start || !end) return 0;
+  const ms = new Date(end + 'T00:00:00').getTime() - new Date(start + 'T00:00:00').getTime();
   return Math.max(0, Math.round(ms / 86400000));
 }
 
-const EXPENSE_TYPES = ['Hotel', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Other'];
-// Everything except 'Other' itself — used to tell "this row's description IS
-// one of the fixed types" from "this row's description is actually a custom
-// label someone typed under Other" (the DB just stores whatever was typed as
-// `description`, there's no separate is_other flag).
-const KNOWN_TYPES = EXPENSE_TYPES.filter((t) => t !== 'Other');
+// Hotel says "nights stayed"; a return flight says "same-day return" or how
+// many days later it comes back — same underlying day-diff, different words
+// depending on which type of date range this is.
+function dateRangeHint(description: string, days: number): string {
+  if (description === 'Hotel') return `${days} night${days === 1 ? '' : 's'}`;
+  if (days === 0) return 'Same-day return';
+  return `Returns after ${days} day${days === 1 ? '' : 's'}`;
+}
+
+const EXPENSE_TYPES = ['Hotel', 'Visa Expense', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Other Expense'];
+// Everything except 'Other Expense' itself — used to tell "this row's
+// description IS one of the fixed types" from "this row's description is
+// actually a custom label someone typed under Other Expense" (the DB just
+// stores whatever was typed as `description`, there's no separate is_other
+// flag).
+const KNOWN_TYPES = EXPENSE_TYPES.filter((t) => t !== 'Other Expense');
 
 function formatDate(iso: string): string {
   if (!iso) return '—';
@@ -69,11 +80,19 @@ export default function AdminExpensesView() {
   const [totalAmount, setTotalAmount] = useState('');
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
   const [empSearch, setEmpSearch] = useState('');
+  // 'return' reuses the same checkOutDate state/column Hotel already uses
+  // for check-out — here it means "return date" instead. Only meaningful
+  // when type is Flight Ticket; Bus/Train stay one-way only, per the ask.
+  const [flightTripType, setFlightTripType] = useState<'one_way' | 'return'>('one_way');
 
   const isTicket = type === 'Bus Ticket' || type === 'Train Ticket' || type === 'Flight Ticket';
+  const isFlight = type === 'Flight Ticket';
   const isHotel = type === 'Hotel';
-  const isOther = type === 'Other';
-  const nights = isHotel ? nightsBetween(checkInDate, checkOutDate) : 0;
+  const isVisa = type === 'Visa Expense';
+  const isOther = type === 'Other Expense';
+  const isReturnFlight = isFlight && flightTripType === 'return';
+  const nights = isHotel ? daysBetween(checkInDate, checkOutDate) : 0;
+  const returnGapDays = isReturnFlight ? daysBetween(date, checkOutDate) : 0;
 
   const amt = Number(totalAmount) || 0;
   const splitCount = selectedEmployees.length;
@@ -117,6 +136,7 @@ export default function AdminExpensesView() {
     setSelectedEmployees([]);
     setEmpSearch('');
     setEditBatchId(null);
+    setFlightTripType('one_way');
   }
 
   function toggleEmployee(id: string) {
@@ -134,7 +154,7 @@ export default function AdminExpensesView() {
   function startEdit(entry: AdminEntry) {
     setEditBatchId(entry.batchId);
     const known = KNOWN_TYPES.includes(entry.description);
-    setType(known ? entry.description : 'Other');
+    setType(known ? entry.description : 'Other Expense');
     setOtherType(known ? '' : entry.description);
     setTotalAmount(String(entry.total_amount));
     setSelectedEmployees(entry.employees.map((e) => e.id));
@@ -145,13 +165,26 @@ export default function AdminExpensesView() {
       setLocation(entry.from_location);
       setFromLocation('');
       setToLocation('');
+      setFlightTripType('one_way');
     } else {
       setDate(entry.date);
       setCheckInDate('');
-      setCheckOutDate('');
-      setLocation(known ? '' : entry.from_location);
       setFromLocation(entry.from_location);
       setToLocation(entry.to_location);
+      // Visa Expense stores its optional "Details" note in from_location,
+      // same column an unrecognized/custom "Other Expense" type's note
+      // lives in — everything else (ticket "From") isn't shown via
+      // `location` so it stays blank there.
+      setLocation(entry.description === 'Visa Expense' || !known ? entry.from_location : '');
+      // A return-trip Flight Ticket has its return date in the same
+      // check_out_date column Hotel uses for check-out.
+      if (entry.description === 'Flight Ticket' && entry.check_out_date) {
+        setFlightTripType('return');
+        setCheckOutDate(entry.check_out_date);
+      } else {
+        setFlightTripType('one_way');
+        setCheckOutDate('');
+      }
     }
     setEmpSearch('');
     setShowForm(true);
@@ -181,6 +214,12 @@ export default function AdminExpensesView() {
       if (!date) { toast.error('Select date'); return; }
       if (isTicket && (!fromLocation.trim() || !toLocation.trim())) { toast.error('Enter From and To for ticket'); return; }
       if (isOther && !otherType.trim()) { toast.error('Specify the expense type'); return; }
+      if (isReturnFlight) {
+        if (!checkOutDate) { toast.error('Select a return date'); return; }
+        // Same-day return IS allowed here (unlike Hotel's checkout-after-
+        // checkin rule) — that's the whole point of this field.
+        if (checkOutDate < date) { toast.error('Return date cannot be before the departure date'); return; }
+      }
     }
     if (!totalAmount || amt <= 0) { toast.error('Enter valid amount'); return; }
     if (!selectedEmployees.length) { toast.error('Select at least one employee'); return; }
@@ -192,8 +231,8 @@ export default function AdminExpensesView() {
         otherType: isOther ? otherType.trim() : undefined,
         date: isHotel ? undefined : date,
         checkInDate: isHotel ? checkInDate : undefined,
-        checkOutDate: isHotel ? checkOutDate : undefined,
-        location: isHotel ? location : (isOther ? location.trim() : undefined),
+        checkOutDate: isHotel ? checkOutDate : (isReturnFlight ? checkOutDate : undefined),
+        location: isHotel ? location : ((isOther || isVisa) ? location.trim() : undefined),
         fromLocation: isTicket ? fromLocation : undefined,
         toLocation: isTicket ? toLocation : undefined,
         totalAmount: amt,
@@ -271,7 +310,7 @@ export default function AdminExpensesView() {
                       min={checkInDate || undefined}
                       onChange={(e) => setCheckOutDate(e.target.value)}
                     />
-                    {nights > 0 && <div className={styles.fieldHint}>{nights} night{nights > 1 ? 's' : ''}</div>}
+                    {nights > 0 && <div className={styles.fieldHint}>{dateRangeHint('Hotel', nights)}</div>}
                   </div>
                   <div>
                     <label className={styles.fieldLabel}>Location *</label>
@@ -298,11 +337,46 @@ export default function AdminExpensesView() {
                 </>
               )}
 
+              {isFlight && (
+                <div>
+                  <label className={styles.fieldLabel}>Trip Type *</label>
+                  <select
+                    className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                    value={flightTripType}
+                    onChange={(e) => setFlightTripType(e.target.value as 'one_way' | 'return')}
+                  >
+                    <option value="one_way">One-Way</option>
+                    <option value="return">Return</option>
+                  </select>
+                </div>
+              )}
+
+              {isReturnFlight && (
+                <div>
+                  <label className={styles.fieldLabel}>Return Date *</label>
+                  <input
+                    type="date"
+                    className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                    value={checkOutDate}
+                    min={date || undefined}
+                    onChange={(e) => setCheckOutDate(e.target.value)}
+                  />
+                  {checkOutDate && <div className={styles.fieldHint}>{dateRangeHint('Flight Ticket', returnGapDays)}</div>}
+                </div>
+              )}
+
+              {isVisa && (
+                <div>
+                  <label className={styles.fieldLabel}>Details (optional)</label>
+                  <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. US Visa, UK Visa Renewal" value={location} onChange={(e) => setLocation(e.target.value)} />
+                </div>
+              )}
+
               {isOther && (
                 <>
                   <div>
                     <label className={styles.fieldLabel}>Specify Type *</label>
-                    <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Taxi, Visa Fees, Courier" value={otherType} onChange={(e) => setOtherType(e.target.value)} />
+                    <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Taxi, Courier, Parking" value={otherType} onChange={(e) => setOtherType(e.target.value)} />
                   </div>
                   <div>
                     <label className={styles.fieldLabel}>Location / Details (optional)</label>
@@ -396,10 +470,13 @@ export default function AdminExpensesView() {
                 {entries.map((entry) => (
                   <tr key={entry.batchId}>
                     <td className={styles.nowrap}>
-                      {entry.description === 'Hotel' && entry.check_out_date ? (
+                      {/* Any type can carry a check_out_date now (Hotel's
+                          own check-out, or a return flight's return date) —
+                          both get the same range + day-count treatment. */}
+                      {entry.check_out_date ? (
                         <>
                           {formatDate(entry.date)} → {formatDate(entry.check_out_date)}
-                          <div className={styles.fieldHint}>{nightsBetween(entry.date, entry.check_out_date)} night{nightsBetween(entry.date, entry.check_out_date) > 1 ? 's' : ''}</div>
+                          <div className={styles.fieldHint}>{dateRangeHint(entry.description, daysBetween(entry.date, entry.check_out_date))}</div>
                         </>
                       ) : (
                         formatDate(entry.date)
@@ -407,8 +484,8 @@ export default function AdminExpensesView() {
                     </td>
                     <td>
                       <span className={styles.typeBadge} style={{
-                        background: entry.description === 'Hotel' ? '#fef3c7' : '#dbeafe',
-                        color: entry.description === 'Hotel' ? '#92400e' : '#1e40af',
+                        background: entry.description === 'Hotel' ? '#fef3c7' : entry.description === 'Visa Expense' ? '#ede9fe' : '#dbeafe',
+                        color: entry.description === 'Hotel' ? '#92400e' : entry.description === 'Visa Expense' ? '#5b21b6' : '#1e40af',
                       }}>
                         {entry.description}
                       </span>
