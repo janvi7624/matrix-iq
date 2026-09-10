@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         grouped.set(key, {
           batchId: key,
           date: rec.date,
+          check_out_date: rec.check_out_date || '',
           description: rec.description,
           from_location: rec.from_location || '',
           to_location: rec.to_location || '',
@@ -64,9 +65,9 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
-  const { type, date, location, fromLocation, toLocation, employeeIds, totalAmount, attachmentUrls } = body;
+  const { type, date, checkInDate, checkOutDate, location, fromLocation, toLocation, otherType, employeeIds, totalAmount, attachmentUrls } = body;
 
-  if (!type || !date || !Array.isArray(employeeIds) || !employeeIds.length || !totalAmount) {
+  if (!type || !Array.isArray(employeeIds) || !employeeIds.length || !totalAmount) {
     return NextResponse.json({ error: 'Type, date, employees, and total amount are required' }, { status: 400 });
   }
 
@@ -76,16 +77,37 @@ export async function POST(request: NextRequest) {
   let description = '';
   let from = '';
   let to = '';
+  // Hotel is a stay (a date RANGE) — `date` below holds check-in,
+  // `checkOut` holds check-out; every other type is a single travel date,
+  // checkOut stays null.
+  let resolvedDate = '';
+  let checkOut: string | null = null;
 
   if (type === 'Hotel') {
     description = 'Hotel';
     from = typeof location === 'string' ? location.trim() : '';
     if (!from) return NextResponse.json({ error: 'Location is required for Hotel' }, { status: 400 });
+    if (!checkInDate || !checkOutDate) return NextResponse.json({ error: 'Check-in and check-out dates are required for Hotel' }, { status: 400 });
+    if (checkOutDate <= checkInDate) return NextResponse.json({ error: 'Check-out date must be after check-in date' }, { status: 400 });
+    resolvedDate = checkInDate;
+    checkOut = checkOutDate;
   } else if (['Bus Ticket', 'Train Ticket', 'Flight Ticket'].includes(type)) {
     description = type;
     from = typeof fromLocation === 'string' ? fromLocation.trim() : '';
     to = typeof toLocation === 'string' ? toLocation.trim() : '';
     if (!from || !to) return NextResponse.json({ error: 'From and To are required for ticket booking' }, { status: 400 });
+    if (!date) return NextResponse.json({ error: 'Travel date is required' }, { status: 400 });
+    resolvedDate = date;
+  } else if (type === 'Other') {
+    // A free-typed expense type not covered by the fixed list — the typed
+    // name itself becomes `description` (same column the fixed types store
+    // their own literal name in), and location is optional here (an "other"
+    // expense might not have one, e.g. a courier fee).
+    description = typeof otherType === 'string' ? otherType.trim() : '';
+    if (!description) return NextResponse.json({ error: 'Please specify the expense type' }, { status: 400 });
+    from = typeof location === 'string' ? location.trim() : '';
+    if (!date) return NextResponse.json({ error: 'Date is required' }, { status: 400 });
+    resolvedDate = date;
   } else {
     return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
   }
@@ -101,7 +123,8 @@ export async function POST(request: NextRequest) {
       // Find which user this is to get their ID for created_by
       const row = await db.Reimbursement.create({
         created_by: empId,
-        date,
+        date: resolvedDate,
+        check_out_date: checkOut,
         description,
         employee_ids: [empId],
         from_location: from,
@@ -137,10 +160,10 @@ export async function PUT(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
-  const { batchId, type, date, location, fromLocation, toLocation, employeeIds, totalAmount } = body;
+  const { batchId, type, date, checkInDate, checkOutDate, location, fromLocation, toLocation, otherType, employeeIds, totalAmount } = body;
   if (!batchId) return NextResponse.json({ error: 'batchId is required' }, { status: 400 });
 
-  if (!type || !date || !Array.isArray(employeeIds) || !employeeIds.length || !totalAmount) {
+  if (!type || !Array.isArray(employeeIds) || !employeeIds.length || !totalAmount) {
     return NextResponse.json({ error: 'Type, date, employees, and total amount are required' }, { status: 400 });
   }
 
@@ -150,16 +173,30 @@ export async function PUT(request: NextRequest) {
   let description = '';
   let from = '';
   let to = '';
+  let resolvedDate = '';
+  let checkOut: string | null = null;
 
   if (type === 'Hotel') {
     description = 'Hotel';
     from = typeof location === 'string' ? location.trim() : '';
     if (!from) return NextResponse.json({ error: 'Location is required for Hotel' }, { status: 400 });
+    if (!checkInDate || !checkOutDate) return NextResponse.json({ error: 'Check-in and check-out dates are required for Hotel' }, { status: 400 });
+    if (checkOutDate <= checkInDate) return NextResponse.json({ error: 'Check-out date must be after check-in date' }, { status: 400 });
+    resolvedDate = checkInDate;
+    checkOut = checkOutDate;
   } else if (['Bus Ticket', 'Train Ticket', 'Flight Ticket'].includes(type)) {
     description = type;
     from = typeof fromLocation === 'string' ? fromLocation.trim() : '';
     to = typeof toLocation === 'string' ? toLocation.trim() : '';
     if (!from || !to) return NextResponse.json({ error: 'From and To are required for ticket booking' }, { status: 400 });
+    if (!date) return NextResponse.json({ error: 'Travel date is required' }, { status: 400 });
+    resolvedDate = date;
+  } else if (type === 'Other') {
+    description = typeof otherType === 'string' ? otherType.trim() : '';
+    if (!description) return NextResponse.json({ error: 'Please specify the expense type' }, { status: 400 });
+    from = typeof location === 'string' ? location.trim() : '';
+    if (!date) return NextResponse.json({ error: 'Date is required' }, { status: 400 });
+    resolvedDate = date;
   } else {
     return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
   }
@@ -175,7 +212,8 @@ export async function PUT(request: NextRequest) {
     for (const empId of employeeIds) {
       await db.Reimbursement.create({
         created_by: empId,
-        date,
+        date: resolvedDate,
+        check_out_date: checkOut,
         description,
         employee_ids: [empId],
         from_location: from,

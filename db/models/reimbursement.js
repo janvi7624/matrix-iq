@@ -3,6 +3,11 @@ module.exports = (sequelize, DataTypes) => {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
     created_by: { type: DataTypes.UUID, allowNull: false },
     date: { type: DataTypes.DATEONLY, allowNull: false },
+    // Only set for an admin-entry Hotel booking (is_admin_entry &&
+    // description === 'Hotel') — `date` above is that booking's check-in.
+    // Null for every normal employee reimbursement and every ticket-type
+    // admin entry, which only ever have the one date.
+    check_out_date: { type: DataTypes.DATEONLY },
     description: { type: DataTypes.TEXT },
     employee_ids: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     guest_names: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },

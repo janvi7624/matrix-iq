@@ -12,6 +12,7 @@ interface UserOption { id: string; username: string; name: string }
 interface AdminEntry {
   batchId: string;
   date: string;
+  check_out_date: string;
   description: string;
   from_location: string;
   to_location: string;
@@ -22,7 +23,21 @@ interface AdminEntry {
   created_at: string;
 }
 
-const EXPENSE_TYPES = ['Hotel', 'Bus Ticket', 'Train Ticket', 'Flight Ticket'];
+// Whole nights between two DATEONLY ('YYYY-MM-DD') strings — used for the
+// "N night(s)" hint so the split amount's per-night context is obvious at a
+// glance, not just a bare date range.
+function nightsBetween(checkIn: string, checkOut: string): number {
+  if (!checkIn || !checkOut) return 0;
+  const ms = new Date(checkOut + 'T00:00:00').getTime() - new Date(checkIn + 'T00:00:00').getTime();
+  return Math.max(0, Math.round(ms / 86400000));
+}
+
+const EXPENSE_TYPES = ['Hotel', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Other'];
+// Everything except 'Other' itself — used to tell "this row's description IS
+// one of the fixed types" from "this row's description is actually a custom
+// label someone typed under Other" (the DB just stores whatever was typed as
+// `description`, there's no separate is_other flag).
+const KNOWN_TYPES = EXPENSE_TYPES.filter((t) => t !== 'Other');
 
 function formatDate(iso: string): string {
   if (!iso) return '—';
@@ -45,15 +60,20 @@ export default function AdminExpensesView() {
   const [editBatchId, setEditBatchId] = useState<string | null>(null);
   const [type, setType] = useState('');
   const [date, setDate] = useState('');
+  const [checkInDate, setCheckInDate] = useState('');
+  const [checkOutDate, setCheckOutDate] = useState('');
   const [location, setLocation] = useState('');
   const [fromLocation, setFromLocation] = useState('');
   const [toLocation, setToLocation] = useState('');
+  const [otherType, setOtherType] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
   const [empSearch, setEmpSearch] = useState('');
 
   const isTicket = type === 'Bus Ticket' || type === 'Train Ticket' || type === 'Flight Ticket';
   const isHotel = type === 'Hotel';
+  const isOther = type === 'Other';
+  const nights = isHotel ? nightsBetween(checkInDate, checkOutDate) : 0;
 
   const amt = Number(totalAmount) || 0;
   const splitCount = selectedEmployees.length;
@@ -87,9 +107,12 @@ export default function AdminExpensesView() {
   function resetForm() {
     setType('');
     setDate('');
+    setCheckInDate('');
+    setCheckOutDate('');
     setLocation('');
     setFromLocation('');
     setToLocation('');
+    setOtherType('');
     setTotalAmount('');
     setSelectedEmployees([]);
     setEmpSearch('');
@@ -110,16 +133,23 @@ export default function AdminExpensesView() {
 
   function startEdit(entry: AdminEntry) {
     setEditBatchId(entry.batchId);
-    setType(entry.description);
-    setDate(entry.date);
+    const known = KNOWN_TYPES.includes(entry.description);
+    setType(known ? entry.description : 'Other');
+    setOtherType(known ? '' : entry.description);
     setTotalAmount(String(entry.total_amount));
     setSelectedEmployees(entry.employees.map((e) => e.id));
     if (entry.description === 'Hotel') {
+      setDate('');
+      setCheckInDate(entry.date);
+      setCheckOutDate(entry.check_out_date);
       setLocation(entry.from_location);
       setFromLocation('');
       setToLocation('');
     } else {
-      setLocation('');
+      setDate(entry.date);
+      setCheckInDate('');
+      setCheckOutDate('');
+      setLocation(known ? '' : entry.from_location);
       setFromLocation(entry.from_location);
       setToLocation(entry.to_location);
     }
@@ -143,17 +173,27 @@ export default function AdminExpensesView() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!type) { toast.error('Select expense type'); return; }
-    if (!date) { toast.error('Select date'); return; }
-    if (isHotel && !location.trim()) { toast.error('Enter location for hotel'); return; }
-    if (isTicket && (!fromLocation.trim() || !toLocation.trim())) { toast.error('Enter From and To for ticket'); return; }
+    if (isHotel) {
+      if (!checkInDate || !checkOutDate) { toast.error('Select check-in and check-out dates'); return; }
+      if (checkOutDate <= checkInDate) { toast.error('Check-out date must be after check-in date'); return; }
+      if (!location.trim()) { toast.error('Enter location for hotel'); return; }
+    } else {
+      if (!date) { toast.error('Select date'); return; }
+      if (isTicket && (!fromLocation.trim() || !toLocation.trim())) { toast.error('Enter From and To for ticket'); return; }
+      if (isOther && !otherType.trim()) { toast.error('Specify the expense type'); return; }
+    }
     if (!totalAmount || amt <= 0) { toast.error('Enter valid amount'); return; }
     if (!selectedEmployees.length) { toast.error('Select at least one employee'); return; }
 
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
-        type, date,
-        location: isHotel ? location : undefined,
+        type,
+        otherType: isOther ? otherType.trim() : undefined,
+        date: isHotel ? undefined : date,
+        checkInDate: isHotel ? checkInDate : undefined,
+        checkOutDate: isHotel ? checkOutDate : undefined,
+        location: isHotel ? location : (isOther ? location.trim() : undefined),
         fromLocation: isTicket ? fromLocation : undefined,
         toLocation: isTicket ? toLocation : undefined,
         totalAmount: amt,
@@ -216,15 +256,32 @@ export default function AdminExpensesView() {
                 </select>
               </div>
 
-              <div>
-                <label className={styles.fieldLabel}>Date *</label>
-                <input type="date" className={`${calcStyles.formControl} ${styles.fullWidth}`} value={date} onChange={(e) => setDate(e.target.value)} />
-              </div>
-
-              {isHotel && (
+              {isHotel ? (
+                <>
+                  <div>
+                    <label className={styles.fieldLabel}>Check-in Date *</label>
+                    <input type="date" className={`${calcStyles.formControl} ${styles.fullWidth}`} value={checkInDate} onChange={(e) => setCheckInDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={styles.fieldLabel}>Check-out Date *</label>
+                    <input
+                      type="date"
+                      className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                      value={checkOutDate}
+                      min={checkInDate || undefined}
+                      onChange={(e) => setCheckOutDate(e.target.value)}
+                    />
+                    {nights > 0 && <div className={styles.fieldHint}>{nights} night{nights > 1 ? 's' : ''}</div>}
+                  </div>
+                  <div>
+                    <label className={styles.fieldLabel}>Location *</label>
+                    <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Ahmedabad" value={location} onChange={(e) => setLocation(e.target.value)} />
+                  </div>
+                </>
+              ) : (
                 <div>
-                  <label className={styles.fieldLabel}>Location *</label>
-                  <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Ahmedabad" value={location} onChange={(e) => setLocation(e.target.value)} />
+                  <label className={styles.fieldLabel}>{isTicket ? 'Travel Date *' : 'Date *'}</label>
+                  <input type="date" className={`${calcStyles.formControl} ${styles.fullWidth}`} value={date} onChange={(e) => setDate(e.target.value)} />
                 </div>
               )}
 
@@ -237,6 +294,19 @@ export default function AdminExpensesView() {
                   <div>
                     <label className={styles.fieldLabel}>To *</label>
                     <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Mumbai" value={toLocation} onChange={(e) => setToLocation(e.target.value)} />
+                  </div>
+                </>
+              )}
+
+              {isOther && (
+                <>
+                  <div>
+                    <label className={styles.fieldLabel}>Specify Type *</label>
+                    <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Taxi, Visa Fees, Courier" value={otherType} onChange={(e) => setOtherType(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={styles.fieldLabel}>Location / Details (optional)</label>
+                    <input type="text" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. Ahmedabad" value={location} onChange={(e) => setLocation(e.target.value)} />
                   </div>
                 </>
               )}
@@ -325,7 +395,16 @@ export default function AdminExpensesView() {
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.batchId}>
-                    <td className={styles.nowrap}>{formatDate(entry.date)}</td>
+                    <td className={styles.nowrap}>
+                      {entry.description === 'Hotel' && entry.check_out_date ? (
+                        <>
+                          {formatDate(entry.date)} → {formatDate(entry.check_out_date)}
+                          <div className={styles.fieldHint}>{nightsBetween(entry.date, entry.check_out_date)} night{nightsBetween(entry.date, entry.check_out_date) > 1 ? 's' : ''}</div>
+                        </>
+                      ) : (
+                        formatDate(entry.date)
+                      )}
+                    </td>
                     <td>
                       <span className={styles.typeBadge} style={{
                         background: entry.description === 'Hotel' ? '#fef3c7' : '#dbeafe',
@@ -335,7 +414,7 @@ export default function AdminExpensesView() {
                       </span>
                     </td>
                     <td>
-                      {entry.description === 'Hotel' ? entry.from_location : `${entry.from_location} → ${entry.to_location}`}
+                      {entry.to_location ? `${entry.from_location} → ${entry.to_location}` : (entry.from_location || '—')}
                     </td>
                     <td className={styles.boldCell}>{formatCurrency(entry.total_amount)}</td>
                     <td>
