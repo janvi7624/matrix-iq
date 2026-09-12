@@ -14,6 +14,8 @@ import { renderProcurementLifecycleEmail, ProcurementLifecycleEmailData } from '
 import { renderMarketingRequestLifecycleEmail, MarketingRequestLifecycleEmailData } from './templates/marketingRequestLifecycle';
 import { renderFieldOpsLifecycleEmail, FieldOpsLifecycleEmailData } from './templates/fieldOpsLifecycle';
 import { renderReimbursementLifecycleEmail, ReimbursementLifecycleEmailData } from './templates/reimbursementLifecycle';
+import { renderCelebrationEmail, CelebrationEmailData } from './templates/celebration';
+import { renderAdminExpenseNoticeEmail, AdminExpenseNoticeEmailData } from './templates/adminExpenseNotice';
 
 // APP_URL must be this app's absolute public origin (e.g.
 // https://app.example.com, see .env.example) — every link embedded in an
@@ -212,5 +214,33 @@ export async function sendReimbursementLifecycleEmail(
     await sendEmail({ to: data.email, subject, html, text });
   } catch (error) {
     console.error(`[email] Reimbursement lifecycle event "${data.event}" processed successfully but the notification email could not be sent:`, error instanceof Error ? error.message : error);
+  }
+}
+
+export async function sendCelebrationEmail(data: { email: string } & CelebrationEmailData): Promise<void> {
+  if (!data.email) return;
+
+  try {
+    const { subject, html, text } = renderCelebrationEmail(data);
+    await sendEmail({ to: data.email, subject, html, text });
+  } catch (error) {
+    console.error(
+      `[email] Celebration (${data.type}/${data.audience}) for "${data.celebrantName}" could not be sent to ${data.email}:`,
+      error instanceof Error ? error.message : error
+    );
+  }
+}
+
+export async function sendAdminExpenseNoticeEmail(data: { email: string } & AdminExpenseNoticeEmailData): Promise<void> {
+  if (!data.email) return;
+
+  try {
+    const { subject, html, text } = renderAdminExpenseNoticeEmail(data);
+    await sendEmail({ to: data.email, subject, html, text });
+  } catch (error) {
+    console.error(
+      `[email] Admin expense notice (${data.action}) for batch "${data.expenseType}" could not be sent to ${data.email}:`,
+      error instanceof Error ? error.message : error
+    );
   }
 }

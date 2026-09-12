@@ -14,7 +14,9 @@ import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
 import { sectionIconFor, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON } from '@/lib/icons';
+import { X } from 'lucide-react';
 import Drawer from './ui/Drawer';
+import Modal from './ui/Modal';
 import styles from './dashboard.module.css';
 
 // How many rows the Dashboard panel itself shows before collapsing the rest
@@ -170,6 +172,25 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       .catch(() => setHealth(null));
   }, []);
 
+  // Also its own fetch — this one has a side effect server-side (sending
+  // today's birthday/anniversary emails the first time anyone's dashboard
+  // loads that day; see app/api/dashboard/celebrations/route.ts and
+  // lib/celebrationStore.ts, since there's no cron in this app to fire it
+  // any other way), which shouldn't be tangled up with the rest of the
+  // dashboard's plain read-only data fetch.
+  const [celebrations, setCelebrations] = useState<{ userId: string; name: string; type: 'birthday' | 'anniversary'; years?: number }[]>([]);
+  // Closing just hides it for this page view — it isn't remembered, so a
+  // fresh visit or reload later the same day shows it again. That's
+  // deliberate: the popup should be available "for the whole day", not
+  // just the first time someone happens to see it.
+  const [celebrationsDismissed, setCelebrationsDismissed] = useState(false);
+  useEffect(() => {
+    fetch('/api/dashboard/celebrations')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setCelebrations(data?.celebrations ?? []))
+      .catch(() => setCelebrations([]));
+  }, []);
+
   const recentProjects = useMemo(() => (allProjects ? [...allProjects].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 3) : null), [allProjects]);
 
   // Departments the viewer manages — drives "Demos awaiting your approval"
@@ -310,6 +331,49 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
   return (
     <AppShell title={BRAND.appName} subtitle={BRAND.tagline} showBackLink={false}>
+      {celebrations.length > 0 && !celebrationsDismissed && (
+        <Modal
+          title={
+            <div className={styles.celebrationHeader}>
+              <span>🎉 Today&apos;s Celebrations</span>
+              <button
+                type="button"
+                className={styles.celebrationCloseBtn}
+                onClick={() => setCelebrationsDismissed(true)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          }
+          ariaLabel="Today's birthdays and work anniversaries"
+          onClose={() => setCelebrationsDismissed(true)}
+          footer={
+            <button type="button" className={styles.celebrationOkBtn} onClick={() => setCelebrationsDismissed(true)}>
+              Close
+            </button>
+          }
+        >
+          <div className={styles.celebrationList}>
+            {celebrations.map((c) => (
+              <div
+                key={`${c.userId}-${c.type}`}
+                className={`${styles.celebrationCard} ${c.type === 'birthday' ? styles.celebrationCardBirthday : styles.celebrationCardAnniversary}`}
+              >
+                <span className={styles.celebrationBadge}>{c.type === 'birthday' ? '🎂' : '🏆'}</span>
+                <div className={styles.celebrationText}>
+                  <div className={styles.celebrationName}>{c.name}</div>
+                  <div className={styles.celebrationSub}>
+                    {c.type === 'birthday'
+                      ? 'has a birthday today! 🎈'
+                      : `completes ${c.years} year${c.years === 1 ? '' : 's'} with us today! 🎊`}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
       <div className={styles.greetingRow}>
         <div className={styles.greeting}>{timeOfDayGreeting()}, {currentUser.name}.</div>
         <Link href="/quotation" className={styles.primaryCta}>+ New Quotation</Link>

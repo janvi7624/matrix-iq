@@ -489,3 +489,95 @@
     .kpiValue { font-size: 1.35rem; }
     .followUpBanner { flex-direction: column; align-items: flex-start; }
 }
+
+/* ---------- Dashboard celebration popup (birthdays / anniversaries) ---------- */
+.celebrationHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 1.2rem;
+}
+.celebrationCloseBtn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: var(--mx-radius-full, 999px);
+    background: rgba(17, 24, 39, 0.06);
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+    transition: background var(--mx-duration-base, 0.15s) var(--mx-ease, ease), color var(--mx-duration-base, 0.15s) var(--mx-ease, ease);
+}
+.celebrationCloseBtn:hover {
+    background: var(--mx-danger-subtle, #fee2e2);
+    color: var(--mx-danger, #dc2626);
+}
+.celebrationList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 6px;
+    max-height: min(50vh, 420px);
+    overflow-y: auto;
+}
+.celebrationCard {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--mx-shadow-sm);
+}
+.celebrationCardBirthday {
+    background: linear-gradient(135deg, #fdf2ff 0%, #fce7f3 45%, #fef3c7 100%);
+    border: 1px solid #f5d0fe;
+}
+.celebrationCardAnniversary {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 45%, #fde68a 100%);
+    border: 1px solid #fcd34d;
+}
+.celebrationBadge {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--mx-radius-full, 999px);
+    background: rgba(255, 255, 255, 0.75);
+    box-shadow: 0 2px 8px rgba(17, 24, 39, 0.1);
+    font-size: 26px;
+    line-height: 1;
+}
+.celebrationText { min-width: 0; }
+.celebrationName {
+    font-size: 15.5px;
+    font-weight: 800;
+    color: #111827;
+}
+.celebrationSub {
+    font-size: 13.5px;
+    color: #4b5563;
+    margin-top: 2px;
+}
+.celebrationOkBtn {
+    padding: 12px 26px;
+    border: none;
+    border-radius: 12px;
+    background: var(--mx-brand);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background var(--mx-duration-base, 0.15s) var(--mx-ease, ease), transform var(--mx-duration-base, 0.15s) var(--mx-ease, ease);
+}
+.celebrationOkBtn:hover {
+    background: var(--mx-brand-hover);
+    transform: translateY(-1px);
+}

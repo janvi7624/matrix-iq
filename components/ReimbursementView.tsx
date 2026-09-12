@@ -458,8 +458,8 @@ export default function ReimbursementView({ currentUser }: Props) {
       if (!res.ok) { toast.error('Failed to load voucher data.'); return; }
       const data = await res.json();
       if (!data.records?.length) { toast.error('No entries to export.'); return; }
-      const { generateExpenseVoucherXlsx } = await import('@/lib/expenseVoucherXlsx');
-      await generateExpenseVoucherXlsx(data);
+      const { generateExpenseVoucherPdf } = await import('@/lib/expenseVoucherPdf');
+      await generateExpenseVoucherPdf(data);
       toast.success('Expense Voucher downloaded.');
     } catch (error) {
       console.error('Voucher export error:', error);

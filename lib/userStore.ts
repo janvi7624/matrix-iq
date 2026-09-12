@@ -158,6 +158,21 @@ export async function findUsersByIds(ids: string[]): Promise<UserRecord[]> {
   return rows.map((r) => toUserRecord(r));
 }
 
+// Every ACTIVE user in a given department by name (e.g. "Accounts") — not
+// just whoever is set as that department's manager(s) in Department Master
+// (listDepartmentManagers() in departmentStore.ts only returns those). Used
+// so a payment notification reaches the whole Accounts team, not just its
+// manager, who may not personally process every payment.
+export async function findUsersByDepartmentName(name: string): Promise<UserRecord[]> {
+  const dept = await db.Department.findOne({ where: { name } as never, attributes: ['id'] });
+  if (!dept) return [];
+  const rows = await db.User.findAll({
+    where: { departmentId: dept.get('id'), status: 'active' } as never,
+    include: [roleInclude, deptInclude]
+  });
+  return rows.map((r) => toUserRecord(r));
+}
+
 // Sidebar's profile card (runs on every page) only ever needs name + department
 // — it already has `role` from the signed session, so the role join
 // findUserByUsername pays for is pure waste here.

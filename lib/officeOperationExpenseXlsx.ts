@@ -1,15 +1,16 @@
 import type { Alignment, Fill, Font, Row, Worksheet } from 'exceljs';
 import { OfficeOperationExpenseRecord } from './types';
 
-// Office Operation Expense sheet — styling conventions borrowed from
-// lib/expenseVoucherXlsx.ts (the Reimbursement voucher): NANTA logo + yellow
-// title band, label/value header block, yellow table header, zebra-striped
-// rows, Indian digit grouping, amount in words, medium outer border, landscape
-// A4 fitToPage.
+// Office Operation Expense sheet — styling conventions originally borrowed
+// from the Reimbursement voucher's own Excel export (since replaced by
+// lib/expenseVoucherPdf.ts, a PDF, so that comparison no longer applies):
+// NANTA logo + yellow title band, label/value header block, yellow table
+// header, zebra-striped rows, Indian digit grouping, amount in words, medium
+// outer border, landscape A4 fitToPage.
 //
-// Unlike that voucher this is a flat monthly register: entries are listed in
-// date order in ONE table with Category as a column, rather than split into a
-// section per category. A "Summary by Category" recap follows the table (the
+// This is a flat monthly register: entries are listed in date order in ONE
+// table with Category as a column, rather than split into a section per
+// category. A "Summary by Category" recap follows the table (the
 // per-category breakdown is still the first question asked of a register), and
 // the grand total is the final row. There is no signature block.
 //

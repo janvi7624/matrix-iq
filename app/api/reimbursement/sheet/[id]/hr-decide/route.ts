@@ -6,7 +6,7 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { listDepartmentManagers, findHrManagers } from '@/lib/departmentStore';
-import { findUserByUsername, findUsersByUsernames } from '@/lib/userStore';
+import { findUserByUsername, findUsersByUsernames, findUsersByDepartmentName } from '@/lib/userStore';
 import { sendReimbursementLifecycleEmail } from '@/lib/email/notifications';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -55,9 +55,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     if (decision === 'hr_approved') {
+      // Everyone actively in the Accounts department, not just whoever is
+      // configured as its manager(s) in Department Master — a payment
+      // needs the whole team to see it, since the manager isn't always who
+      // actually processes it. Accounts managers are still merged in on
+      // top, in case one is assigned cross-department (e.g. seeded under
+      // "Finance") and so wouldn't otherwise show up in the department
+      // lookup.
       const accountsManagers = allManagers['Accounts'] || allManagers['Finance'] || [];
-      if (accountsManagers.length) {
-        await notifyUsers(accountsManagers.map((m) => m.username), {
+      const accountsDeptUsers = await findUsersByDepartmentName('Accounts');
+      const recipientUsernames = Array.from(new Set([...accountsDeptUsers.map((u) => u.username), ...accountsManagers.map((m) => m.username)]));
+
+      if (recipientUsernames.length) {
+        await notifyUsers(recipientUsernames, {
           title: 'Reimbursement sheet ready for payment',
           body: `${existing.creator_name}'s reimbursement for ${monthName} ${existing.year} (${existing.sheet_code}) approved by HR — ${totalStr}`,
           type: 'reimbursement_accounts_payment',
@@ -65,7 +75,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           entityId: id,
         });
 
-        const accountsUsers = await findUsersByUsernames(accountsManagers.map((m) => m.username));
+        const accountsUsers = await findUsersByUsernames(recipientUsernames);
         for (const au of accountsUsers) {
           sendReimbursementLifecycleEmail({
             email: au.email, name: au.name || au.username, event: 'hr_approved',

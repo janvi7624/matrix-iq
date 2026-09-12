@@ -3,6 +3,9 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { db } from '@/lib/db';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import { apiErrorResponse } from '@/lib/apiError';
+import { findUsersByIds, findUsersByDepartmentName } from '@/lib/userStore';
+import { notifyUsers } from '@/lib/notificationStore';
+import { sendAdminExpenseNoticeEmail } from '@/lib/email/notifications';
 
 const ALLOWED_ROLES = new Set(['superadmin', 'admin', 'hr']);
 
@@ -74,6 +77,50 @@ function resolveExpenseFields(body: Record<string, unknown>): ResolvedExpenseFie
   }
 
   return { error: 'Invalid type' };
+}
+
+// Admin Expenses have no approval chain at all (see the module-level note in
+// the plan/summary — created directly, no manager/HR review, unlike a
+// Reimbursement sheet which always passes through HR before payment). That
+// means Accounts otherwise never hears money moved here, so this is their
+// only notice — mirrors the Accounts fan-out added to
+// app/api/reimbursement/sheet/[id]/hr-decide/route.ts for the HR-approved
+// case, so the "which payments does Accounts get told about" behavior is
+// consistent across both paths.
+async function notifyAccountsOfAdminExpense(opts: {
+  action: 'created' | 'updated';
+  addedByName: string;
+  expenseType: string;
+  totalAmount: number;
+  resolvedDate: string;
+  batchId: string;
+  employeeIds: string[];
+}): Promise<void> {
+  const accountsUsers = await findUsersByDepartmentName('Accounts');
+  if (!accountsUsers.length) return;
+
+  const employees = await findUsersByIds(opts.employeeIds);
+  const employeeNames = employees.map((e) => e.name || e.username);
+  const totalStr = `₹${opts.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const verb = opts.action === 'created' ? 'created' : 'updated';
+
+  await notifyUsers(accountsUsers.map((u) => u.username), {
+    title: `Company-paid expense ${verb}`,
+    body: `${opts.expenseType} — ${totalStr} ${verb} by ${opts.addedByName}, split across ${opts.employeeIds.length} employee${opts.employeeIds.length === 1 ? '' : 's'}`,
+    type: 'admin_expense_accounts_notice',
+    entityType: 'admin_expense',
+    entityId: opts.batchId,
+  });
+
+  await Promise.allSettled(
+    accountsUsers.map((u) =>
+      sendAdminExpenseNoticeEmail({
+        email: u.email, name: u.name || u.username, action: opts.action,
+        expenseType: opts.expenseType, totalAmount: totalStr, employeeNames,
+        addedBy: opts.addedByName, date: opts.resolvedDate,
+      })
+    )
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -171,6 +218,11 @@ export async function POST(request: NextRequest) {
       created.push(row.get({ plain: true }));
     }
 
+    await notifyAccountsOfAdminExpense({
+      action: 'created', addedByName: admin.name, expenseType: description,
+      totalAmount: amt, resolvedDate, batchId, employeeIds,
+    });
+
     return NextResponse.json({
       message: `Created ${created.length} entries (₹${perPerson} per person from total ₹${amt})`,
       batchId,
@@ -231,6 +283,11 @@ export async function PUT(request: NextRequest) {
         admin_split_count: splitCount,
       } as never);
     }
+
+    await notifyAccountsOfAdminExpense({
+      action: 'updated', addedByName: admin.name, expenseType: description,
+      totalAmount: amt, resolvedDate, batchId, employeeIds,
+    });
 
     return NextResponse.json({
       message: `Updated batch (₹${perPerson} per person from total ₹${amt})`,
