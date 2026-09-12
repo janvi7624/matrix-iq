@@ -8,7 +8,11 @@ import { resolveIsPrivileged } from '@/lib/permissions';
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
-  const username = typeof body?.username === 'string' ? body.username : '';
+  // Trimmed here, not just client-side — credentials copy-pasted from
+  // WhatsApp/email/notes routinely carry a trailing space or stray
+  // whitespace character invisible in the input box, which silently fails
+  // the exact username lookup below even though the password is right.
+  const username = typeof body?.username === 'string' ? body.username.trim() : '';
   const password = typeof body?.password === 'string' ? body.password : '';
   const ip = getClientIp(request);
 

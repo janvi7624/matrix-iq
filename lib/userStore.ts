@@ -14,7 +14,7 @@ import { sendUserCreatedEmail, sendAccountChangedEmail, sendPasswordChangedEmail
 // generator, crashing with "Invalid value Where {...}" instead of running
 // the query — this was breaking every login attempt in production.
 function caseInsensitiveUsername(username: string) {
-  return db.Sequelize.where(db.Sequelize.fn('lower', db.Sequelize.col('username')), username.toLowerCase());
+  return db.Sequelize.where(db.Sequelize.fn('lower', db.Sequelize.col('username')), username.trim().toLowerCase());
 }
 
 function isoOrEmpty(value: unknown): string {

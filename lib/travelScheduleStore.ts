@@ -148,7 +148,7 @@ async function resolveCompanionNames(records: TravelScheduleRecord[]): Promise<v
     if (Array.isArray(r.companion_ids)) r.companion_ids.forEach((id) => allIds.add(id));
   }
   if (allIds.size === 0) return;
-  const { Op } = await import('sequelize');
+  const { Op } = db.Sequelize as unknown as { Op: Record<string, symbol> };
   const users = await db.User.findAll({ where: { id: { [Op.in]: [...allIds] } } as never, attributes: ['id', 'name', 'username'] });
   const nameMap = new Map<string, string>();
   for (const u of users) {
@@ -168,7 +168,7 @@ async function resolveProjectNames(records: TravelScheduleRecord[]): Promise<voi
     if (Array.isArray(r.project_ids)) r.project_ids.forEach((id) => allIds.add(id));
   }
   if (allIds.size === 0) return;
-  const { Op } = await import('sequelize');
+  const { Op } = db.Sequelize as unknown as { Op: Record<string, symbol> };
   const projects = await db.Project.findAll({ where: { id: { [Op.in]: [...allIds] } } as never, attributes: ['id', 'client_name', 'company'] });
   const nameMap = new Map<string, string>();
   for (const p of projects) {
@@ -185,7 +185,15 @@ async function resolveProjectNames(records: TravelScheduleRecord[]): Promise<voi
 async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promise<TravelScheduleRecord[]> {
   let where: Record<string | symbol, unknown> = {};
   if (!viewerIsPrivileged) {
-    const { Op, literal } = await import('sequelize');
+    // Sourced from db.Sequelize (the same copy that actually builds/runs this
+    // query), not a direct `import ... from 'sequelize'` — Hostinger's build
+    // bundles a distinct physical copy of the sequelize package for some
+    // routes, and a Literal/Op value from that other copy fails the query
+    // generator's `instanceof` check with "Invalid value Literal {...}" (the
+    // exact production crash this caused — every non-privileged dashboard
+    // load hit this on every login). See the identical fix already applied
+    // to lib/userStore.ts / lib/departmentStore.ts.
+    const { Op, literal } = db.Sequelize as unknown as { Op: Record<string, symbol>; literal: (val: string) => unknown };
     const user = await db.User.findOne({ where: { username: viewerUsername } as never });
     const userId = user ? (user.get('id') as string) : '00000000-0000-0000-0000-000000000000';
     where = {
