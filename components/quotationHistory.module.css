@@ -129,6 +129,34 @@
 .statusPillActive { background: var(--mx-success-subtle); color: var(--mx-success); }
 .statusPillInactive { background: rgba(107, 114, 128, 0.14); color: var(--mx-ink-muted); }
 .tableWrap { overflow-x: auto; border-radius: var(--mx-radius-sm); }
+
+/* Opt-in via Table's `tableClassName` — table-layout:auto (the .table
+   default above) sizes every column to fit its content on one line, which
+   is exactly what forces .tableWrap's horizontal scrollbar on a wide table
+   like the Project Dashboard's. Fixed layout + explicit per-column widths
+   (below) makes the browser respect the container's width instead, wrapping
+   any content that doesn't fit onto a second line (taller rows) rather than
+   growing the column sideways. Every other .table consumer is unaffected
+   since this only applies where a caller opts in. */
+.tableFixed { table-layout: fixed; }
+.tableFixed th, .tableFixed td { white-space: normal; word-break: break-word; overflow-wrap: break-word; }
+
+/* Project Dashboard's 11-column layout (components/ProjectsView.tsx) — one
+   set of percentages, applied via each column's headerClassName, summing to
+   100%. Client and Last Remark get the most room (free-text, most likely to
+   wrap); Actions gets enough for its View/Delete buttons without wrapping
+   them mid-word. */
+.colClient { width: 15%; }
+.colSalesPerson { width: 8%; }
+.colSource { width: 8%; }
+.colStage { width: 8%; }
+.colStatus { width: 7%; }
+.colUpdated { width: 9%; }
+.colNextFollowUp { width: 9%; }
+.colClosingPct { width: 6%; }
+.colLastRemark { width: 12%; }
+.colProgress { width: 8%; }
+.colActions { width: 10%; }
 /* A colSpan-injected approval form / expanded-detail row inherits the whole
    wide table's natural width (it's still a table cell), so without this the
    user has to scroll the table horizontally just to reach the Approve

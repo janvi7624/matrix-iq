@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { db } from '@/lib/db';
-import { Model, Op } from 'sequelize';
+import { Model } from 'sequelize';
 import { canViewRole } from '@/lib/permissions';
+
+// Sourced from db.Sequelize (the exact class the actual connection/models
+// were built from) rather than a separate top-level `import { Op } from
+// 'sequelize'` — see the fn/col/where fix in lib/userStore.ts for why: some
+// production bundling setups end up with two distinct copies of the
+// sequelize package, and symbols/instances from the "wrong" copy aren't
+// recognized by the query generator built from the other one.
+// `Sequelize.Op` is a real runtime static (sequelize/lib/sequelize.js sets
+// it), just missing from the package's own .d.ts — hence the cast.
+const { Op } = db.Sequelize as unknown as { Op: Record<string, symbol> };
 
 // Lightweight user list for dropdowns (handover, assignment, etc.)
 // ?scope=handover  → returns only users the viewer is allowed to hand projects to:

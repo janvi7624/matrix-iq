@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell from './AppShell';
+import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -280,7 +281,14 @@ export default function AdminExpensesView() {
         </div>
 
         {showForm && (
-          <form onSubmit={handleSubmit} className={styles.formCard}>
+          <Modal
+            title={editBatchId ? 'Edit Expense' : 'Add Expense'}
+            ariaLabel={editBatchId ? 'Edit Expense' : 'Add Expense'}
+            onClose={() => { resetForm(); setShowForm(false); }}
+            size="wide"
+            dismissible={!saving}
+          >
+          <form onSubmit={handleSubmit}>
             {editBatchId && (
               <div className={styles.editingBanner}>
                 Editing entry — changes will update all employee records in this batch
@@ -443,6 +451,7 @@ export default function AdminExpensesView() {
               </button>
             </div>
           </form>
+          </Modal>
         )}
 
         {loading ? (
@@ -453,17 +462,17 @@ export default function AdminExpensesView() {
           </div>
         ) : (
           <div className={historyStyles.tableWrap}>
-            <table className={historyStyles.table}>
+            <table className={`${historyStyles.table} ${historyStyles.tableFixed}`}>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Type</th>
-                  <th>Location / Route</th>
-                  <th>Total (₹)</th>
-                  <th>Employees</th>
-                  <th>Per Person (₹)</th>
-                  <th>Added</th>
-                  <th>Actions</th>
+                  <th className={styles.colDate}>Date</th>
+                  <th className={styles.colType}>Type</th>
+                  <th className={styles.colRoute}>Location / Route</th>
+                  <th className={styles.colTotal}>Total (₹)</th>
+                  <th className={styles.colEmployees}>Employees</th>
+                  <th className={styles.colPerPerson}>Per Person (₹)</th>
+                  <th className={styles.colAdded}>Added</th>
+                  <th className={styles.colActions}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -494,8 +503,22 @@ export default function AdminExpensesView() {
                       {entry.to_location ? `${entry.from_location} → ${entry.to_location}` : (entry.from_location || '—')}
                     </td>
                     <td className={styles.boldCell}>{formatCurrency(entry.total_amount)}</td>
-                    <td>
-                      <div className={styles.employeeBadgesWrap}>
+                    <td className={styles.colEmployees}>
+                      {/* Collapsed by default (row stays single-line, no
+                          horizontal scroll) — hovering the row swaps to the
+                          full list via pure CSS (tr:hover below), no click
+                          or popover needed. */}
+                      <div className={styles.employeeCollapsed}>
+                        {entry.employees.slice(0, 2).map((emp) => (
+                          <span key={emp.id} className={styles.employeeBadge}>
+                            {emp.name}
+                          </span>
+                        ))}
+                        {entry.employees.length > 2 && (
+                          <span className={styles.employeeMoreText}>+{entry.employees.length - 2}</span>
+                        )}
+                      </div>
+                      <div className={styles.employeeExpanded}>
                         {entry.employees.map((emp) => (
                           <span key={emp.id} className={styles.employeeBadge}>
                             {emp.name}

@@ -20,6 +20,11 @@ export interface TableProps<T> {
   // action button) should call stopPropagation() so it doesn't also fire
   // the row click.
   onRowClick?: (row: T) => void;
+  // Optional extra class on the <table> itself, alongside the shared
+  // .table — for a table-specific layout override (e.g. table-layout:fixed
+  // with per-column width classes on headerClassName) without touching the
+  // shared base styles every other consumer of this component still uses.
+  tableClassName?: string;
 }
 
 // Wraps the existing .tableWrap/.table CSS (quotationHistory.module.css)
@@ -30,10 +35,10 @@ export function TableWrap({ children, className }: { children: ReactNode; classN
   return <div className={classes}>{children}</div>;
 }
 
-export default function Table<T>({ columns, rows, rowKey, rowClassName, empty, onRowClick }: TableProps<T>) {
+export default function Table<T>({ columns, rows, rowKey, rowClassName, empty, onRowClick, tableClassName }: TableProps<T>) {
   return (
     <TableWrap>
-      <table className={styles.table}>
+      <table className={[styles.table, tableClassName || ''].filter(Boolean).join(' ')}>
         <thead>
           <tr>
             {columns.map((col) => (

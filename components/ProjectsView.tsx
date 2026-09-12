@@ -198,6 +198,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     {
       key: 'client',
       header: 'Client',
+      headerClassName: historyStyles.colClient,
       render: (p) => (
         <>
           {p.client_name || p.company || '-'}
@@ -205,12 +206,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         </>
       )
     },
-    { key: 'salesPerson', header: 'Sales Person', render: (p) => p.sales_person },
-    { key: 'source', header: 'Source', render: (p) => p.source || '-' },
-    { key: 'stage', header: 'Stage', render: (p) => STAGE_LABEL[p.stage] },
+    { key: 'salesPerson', header: 'Sales Person', headerClassName: historyStyles.colSalesPerson, render: (p) => p.sales_person },
+    { key: 'source', header: 'Source', headerClassName: historyStyles.colSource, render: (p) => p.source || '-' },
+    { key: 'stage', header: 'Stage', headerClassName: historyStyles.colStage, render: (p) => STAGE_LABEL[p.stage] },
     {
       key: 'status',
       header: 'Status',
+      headerClassName: historyStyles.colStatus,
       render: (p) =>
         p.status === 'won' || p.status === 'lost' ? (
           <StatusBadge tone={p.status} label={p.status === 'lost' ? 'Closed Lost' : STATUS_LABEL[p.status]} />
@@ -218,11 +220,12 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           STATUS_LABEL[p.status]
         )
     },
-    { key: 'updated', header: 'Last Updated', render: (p) => formatDateTime(p.updated_at) },
-    { key: 'nextFollowUp', header: 'Next Follow-up', render: (p) => formatDate(p.next_follow_up_date) },
+    { key: 'updated', header: 'Last Updated', headerClassName: historyStyles.colUpdated, render: (p) => formatDateTime(p.updated_at) },
+    { key: 'nextFollowUp', header: 'Next Follow-up', headerClassName: historyStyles.colNextFollowUp, render: (p) => formatDate(p.next_follow_up_date) },
     {
       key: 'closingProbability',
       header: 'Closing %',
+      headerClassName: historyStyles.colClosingPct,
       render: (p) => {
         const tone = closingProbabilityStyle(p.closing_probability_percent);
         return tone ? <span className={historyStyles.closingBadge} style={tone}>{p.closing_probability_percent}%</span> : '-';
@@ -231,11 +234,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     {
       key: 'lastRemark',
       header: 'Last Remark',
+      headerClassName: historyStyles.colLastRemark,
+      // Wraps onto multiple lines within its fixed-width column instead of
+      // .truncateCell's single-line ellipsis — the row grows taller for a
+      // long remark rather than the column growing wider, matching how
+      // every other column in this table now behaves.
       render: (p) =>
         p.last_remark ? (
-          <span title={`${p.last_remark} — ${p.last_remark_by}, ${formatDateTime(p.last_remark_at)}`} className={historyStyles.truncateCell}>
-            {p.last_remark}
-          </span>
+          <span title={`${p.last_remark_by}, ${formatDateTime(p.last_remark_at)}`}>{p.last_remark}</span>
         ) : (
           <span className={historyStyles.mutedInline}>No remarks yet</span>
         )
@@ -243,6 +249,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     {
       key: 'progress',
       header: 'Progress',
+      headerClassName: historyStyles.colProgress,
       render: (p) => (
         <>
           <div className={historyStyles.progressTrack}>
@@ -260,6 +267,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     {
       key: 'actions',
       header: '',
+      headerClassName: historyStyles.colActions,
       cellClassName: historyStyles.rowActionsInline,
       render: (p) => (
         <>
@@ -415,6 +423,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             columns={columns}
             rows={filtered}
             rowKey={(p) => p.id}
+            tableClassName={historyStyles.tableFixed}
             empty={
               <EmptyState
                 icon={FolderKanban}

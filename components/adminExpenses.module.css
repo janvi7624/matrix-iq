@@ -2,14 +2,6 @@
 .pageWrap { max-width: 1000px; margin: 0 auto; padding: 0 16px; }
 .headerRow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .headerTitle { font-size: 20px; font-weight: 700; color: var(--mx-ink); }
-.formCard {
-    background: var(--mx-surface, #fff);
-    border-radius: var(--mx-radius-sm, 10px);
-    border: 1px solid var(--mx-border, #e5e7eb);
-    padding: 20px;
-    margin-bottom: 24px;
-    box-shadow: var(--mx-shadow-xs);
-}
 .editingBanner {
     margin-bottom: 12px;
     padding: 8px 14px;
@@ -56,8 +48,32 @@
 .nowrap { white-space: nowrap; }
 .typeBadge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
 .boldCell { font-weight: 600; }
-.employeeBadgesWrap { display: flex; flex-wrap: wrap; gap: 4px; }
-.employeeBadge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; background: #f3f4f6; color: #374151; font-weight: 500; }
+.employeeBadge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; background: #f3f4f6; color: #374151; font-weight: 500; white-space: nowrap; }
+.employeeMoreText { font-size: 11.5px; color: var(--mx-ink-muted); font-weight: 600; white-space: nowrap; }
+
+/* Collapsed (default): at most 2 name badges + a plain "+N" — single line,
+   row height stays constant. Expanded (only shown on tr:hover, below):
+   every employee, wrapped onto as many lines as needed — the row grows
+   taller for exactly as long as the cursor rests on it, then springs back.
+   No click, no popover; a pure CSS reveal. */
+.employeeCollapsed { display: flex; flex-wrap: nowrap; gap: 4px; align-items: center; overflow: hidden; }
+.employeeExpanded {
+  display: none;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+tr:hover .employeeCollapsed { display: none; }
+tr:hover .employeeExpanded { display: flex; }
+
+.colDate { width: 10%; }
+.colType { width: 12%; }
+.colRoute { width: 16%; }
+.colTotal { width: 10%; }
+.colEmployees { width: 20%; }
+.colPerPerson { width: 10%; }
+.colAdded { width: 10%; }
+.colActions { width: 12%; }
 .perPersonCell { font-weight: 600; color: #16a34a; }
 .addedCell { white-space: nowrap; font-size: 12.5px; color: var(--mx-ink-muted); }
 .rowActions { display: flex; gap: 6px; }

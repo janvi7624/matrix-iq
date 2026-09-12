@@ -1,4 +1,4 @@
-import { Model, fn, col, where as sqlWhere } from 'sequelize';
+import { Model } from 'sequelize';
 import { DepartmentRecord } from './types';
 import { db, isUuid } from './db';
 import { cached, invalidateCache } from './memoCache';
@@ -115,7 +115,15 @@ export async function createDepartment(input: DepartmentInput, createdBy: string
   // assigned users, so there's nothing to reconcile) rather than leaving the
   // admin stuck unable to reuse a name they can no longer even see.
   const deletedMatch = await db.Department.findOne({
-    where: sqlWhere(fn('lower', col('name')), input.name.toLowerCase()) as never,
+    // fn/col/where sourced from db.Sequelize (the exact class the actual
+    // connection/models were built from) rather than a separate top-level
+    // `import ... from 'sequelize'` — some production bundling setups end
+    // up with two distinct copies of the sequelize package, and a Where/Fn
+    // instance built from the "wrong" copy fails its internal instanceof
+    // check and crashes with "Invalid value Where {...}" instead of running
+    // the query. See the identical fix in lib/userStore.ts for the incident
+    // this traces back to (it broke login in production).
+    where: db.Sequelize.where(db.Sequelize.fn('lower', db.Sequelize.col('name')), input.name.toLowerCase()) as never,
     paranoid: false
   });
   if (deletedMatch && (deletedMatch.get({ plain: true }) as Record<string, unknown>).deletedAt) {

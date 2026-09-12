@@ -1,9 +1,21 @@
-import { Model, fn, col, where as sqlWhere } from 'sequelize';
+import { Model } from 'sequelize';
 import { PublicUser, UserRecord, UserRole } from './types';
 import { hashPassword, verifyPassword } from './passwords';
 import { db, isUuid } from './db';
 import { listRoles, findRoleByKey } from './roleStore';
 import { sendUserCreatedEmail, sendAccountChangedEmail, sendPasswordChangedEmail } from './email/notifications';
+
+// fn/col/where sourced from db.Sequelize (the exact class the actual
+// connection/models were built from) rather than a separate top-level
+// `import { fn, col, where } from 'sequelize'` — some production bundling
+// setups (confirmed on the Hostinger deploy) end up with two distinct
+// copies of the sequelize package, and a Where/Fn instance built from the
+// "wrong" copy fails its internal instanceof check inside the query
+// generator, crashing with "Invalid value Where {...}" instead of running
+// the query — this was breaking every login attempt in production.
+function caseInsensitiveUsername(username: string) {
+  return db.Sequelize.where(db.Sequelize.fn('lower', db.Sequelize.col('username')), username.toLowerCase());
+}
 
 function isoOrEmpty(value: unknown): string {
   if (!value) return '';
@@ -120,7 +132,7 @@ export async function findUserStatusById(id: string): Promise<{ id: string; stat
 export async function findUserByUsername(username: string): Promise<UserRecord | undefined> {
   await ensureSeedAdmin();
   const row = await db.User.findOne({
-    where: sqlWhere(fn('lower', col('username')), username.toLowerCase()) as never,
+    where: caseInsensitiveUsername(username) as never,
     include: [roleInclude, deptInclude]
   });
   return row ? toUserRecord(row) : undefined;
@@ -151,7 +163,7 @@ export async function findUsersByIds(ids: string[]): Promise<UserRecord[]> {
 // findUserByUsername pays for is pure waste here.
 export async function findUserNameAndDeptByUsername(username: string): Promise<{ name: string; department: string } | undefined> {
   const row = await db.User.findOne({
-    where: sqlWhere(fn('lower', col('username')), username.toLowerCase()) as never,
+    where: caseInsensitiveUsername(username) as never,
     include: [deptInclude],
     attributes: ['id', 'name']
   });
@@ -195,7 +207,7 @@ export interface CreateUserInput {
 
 export async function createUser(input: CreateUserInput): Promise<PublicUser> {
   const existing = await db.User.findOne({
-    where: sqlWhere(fn('lower', col('username')), input.username.toLowerCase()) as never
+    where: caseInsensitiveUsername(input.username) as never
   });
   if (existing) throw new Error('Username already exists');
 

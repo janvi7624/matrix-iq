@@ -217,11 +217,11 @@ export default function EmployeeExitView() {
                 header: 'Address',
                 render: (row: WorkItem) => (row as ProjectItem).address || '—'
               },
-              {
+              ...(kind === 'quotation' ? [{
                 key: 'amount',
                 header: 'Amount',
-                render: (row: WorkItem) => (typeof (row as QuotationItem).total === 'number' ? formatMoney((row as QuotationItem).total) : '—')
-              },
+                render: (row: WorkItem) => formatMoney((row as QuotationItem).total)
+              }] : []),
               {
                 key: 'newOwner',
                 header: 'Reassign To',
