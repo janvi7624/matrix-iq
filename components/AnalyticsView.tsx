@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { TmsBomRequestRecord, TmsProcurementRecord, TmsProjectRecord, TmsTaskRecord, UserRole } from '@/lib/types';
 import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
+import { closingDatePresetRange, ClosingDatePreset } from '@/lib/dateHelpers';
 import AppShell from './AppShell';
 import styles from './dashboard.module.css';
 import calcStyles from './calculator.module.css';
 import analyticsStyles from './analyticsView.module.css';
+import Select from './ui/Select';
 
 interface AnalyticsViewProps {
   currentUser: { role: UserRole; isPrivileged: boolean };
@@ -41,6 +43,7 @@ interface Kpis {
   upcomingSiteVisits: number;
   pendingApprovals: number;
   activeProjects: number;
+  totalApproxValue: number;
 }
 
 const KPI_LABELS: { key: keyof Kpis; label: string; suffix?: string }[] = [
@@ -175,6 +178,9 @@ function marketingKpiLabels(stats: MarketingStats): { key: keyof MarketingStats;
 
 export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
   const [kpis, setKpis] = useState<Kpis | null>(null);
+  const [closingPreset, setClosingPreset] = useState<ClosingDatePreset>('all');
+  const [closingFrom, setClosingFrom] = useState('');
+  const [closingTo, setClosingTo] = useState('');
   const [quotationStats, setQuotationStats] = useState<QuotationStats | null>(null);
   const [backOfficeKpis, setBackOfficeKpis] = useState<BackOfficeKpis | null>(null);
   const [tmsData, setTmsData] = useState<TmsDashboardResponse | null>(null);
@@ -194,13 +200,24 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
   const isMarketing = currentUser.role === 'marketing' || isPrivileged;
 
   // Sales & Back Office analytics are unchanged from before — same three
-  // fetches, same endpoints, same shapes.
+  // fetches, same endpoints, same shapes. The only addition is the Closing
+  // Date filter, passed through as query params so every KPI below becomes
+  // filter-aware from the one server-side change in app/api/projects/kpis/route.ts.
+  const closingRange = useMemo(
+    () => (closingPreset === 'custom' ? { from: closingFrom, to: closingTo } : closingDatePresetRange(closingPreset)),
+    [closingPreset, closingFrom, closingTo]
+  );
+
   useEffect(() => {
-    fetch('/api/projects/kpis')
+    const params = new URLSearchParams();
+    if (closingRange.from) params.set('closingFrom', closingRange.from);
+    if (closingRange.to) params.set('closingTo', closingRange.to);
+    const qs = params.toString();
+    fetch(`/api/projects/kpis${qs ? `?${qs}` : ''}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data: Kpis | null) => setKpis(data))
       .catch(() => setKpis(null));
-  }, []);
+  }, [closingRange]);
 
   useEffect(() => {
     if (!isBackOffice) return;
@@ -253,6 +270,25 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
   return (
     <AppShell title="Analytics" subtitle="Quotation, project, and pipeline performance at a glance.">
       {(quotationStats || kpis) && <h2 className={calcStyles.h2}>Sales &amp; Pipeline</h2>}
+      {kpis && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+          <Select auto value={closingPreset} onChange={(e) => setClosingPreset(e.target.value as ClosingDatePreset)}>
+            <option value="all">Closing Date: All</option>
+            <option value="today">Closing Today</option>
+            <option value="this_week">Closing This Week</option>
+            <option value="this_month">Closing This Month</option>
+            <option value="next_7">Closing Next 7 Days</option>
+            <option value="next_30">Closing Next 30 Days</option>
+            <option value="custom">Closing: Custom Range…</option>
+          </Select>
+          {closingPreset === 'custom' && (
+            <>
+              <input type="date" className={calcStyles.formControl} value={closingFrom} onChange={(e) => setClosingFrom(e.target.value)} />
+              <input type="date" className={calcStyles.formControl} value={closingTo} onChange={(e) => setClosingTo(e.target.value)} />
+            </>
+          )}
+        </div>
+      )}
       {quotationStats && (
         <div className={styles.kpiGrid}>
           {QUOTATION_STAT_LABELS.map((s) => (
@@ -266,6 +302,10 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
 
       {kpis && (
         <div className={styles.kpiGrid}>
+          <div className={styles.kpiCard}>
+            <div className={styles.kpiValue}>₹{kpis.totalApproxValue.toLocaleString('en-IN')}</div>
+            <div className={styles.kpiLabel}>Total Approx. Value</div>
+          </div>
           {KPI_LABELS.map((k) => (
             <div key={k.key} className={styles.kpiCard}>
               <div className={styles.kpiValue}>{kpis[k.key]}{k.suffix || ''}</div>

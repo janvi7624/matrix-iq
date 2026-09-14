@@ -61,7 +61,8 @@ export const SECTION_ICON: Record<string, LucideIcon> = {
   Operations: Package,
   Reports: BarChart3,
   Administration: Building2,
-  HR: Users
+  HR: Users,
+  Accounts: ReceiptIndianRupee
 };
 
 export const DEFAULT_SECTION_ICON: LucideIcon = FolderKanban;

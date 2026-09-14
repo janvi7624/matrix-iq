@@ -12,7 +12,8 @@ import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { searchQuotations } from '@/lib/quotationStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, PROJECT_STAGES, UserRecord } from '@/lib/types';
+import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRecord } from '@/lib/types';
+import { ASSIGNABLE_STAGES } from '@/lib/projectStages';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
@@ -20,6 +21,7 @@ import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { syncTmsProjectForAssignment } from '@/lib/tmsHandoff';
+import { db } from '@/lib/db';
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests, deadlineExtensions, deadlineTier] = await Promise.all([
+    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests, deadlineExtensions, deadlineTier, linkedLeadRow] = await Promise.all([
       siteVisitStore.list(viewer.username, true),
       demoScheduleStore.list(viewer.username, true),
       customerResponseStore.list(viewer.username, true),
@@ -57,11 +59,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       searchQuotations(),
       marketingRequestStore.list(viewer.username, true),
       listDeadlineExtensions(id),
-      resolveProjectDeadlineTier(viewer)
+      resolveProjectDeadlineTier(viewer),
+      // "Created From Lead" (Part 13) — the only link is the reverse
+      // Lead.project_id FK; a Project has no lead_id column of its own.
+      db.Lead.findOne({ where: { project_id: id } as never, attributes: ['id', 'name'] })
     ]);
+    const linkedLead = linkedLeadRow ? (linkedLeadRow.get({ plain: true }) as { id: string; name: string }) : null;
 
     return NextResponse.json({
       project,
+      linkedLead,
       siteVisits: siteVisits.filter((r) => r.project_id === id),
       demos: demos.filter((r) => r.project_id === id),
       responses: responses.filter((r) => r.project_id === id),
@@ -158,6 +165,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
       patch.closing_probability_percent = isBlank ? '' : num;
     }
+    if ('approxPrice' in body) {
+      const raw = body.approxPrice;
+      const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+      // Unlike creation, blank is allowed here — an auto-created-from-lead
+      // project legitimately starts with no price (see
+      // lib/leadProjectAutomation.ts), and this is the field the assignee
+      // fills in while completing it. A NON-blank value must still be a
+      // real positive number.
+      const isBlank = raw === '' || raw === null || raw === undefined;
+      if (!isBlank && (!Number.isFinite(num) || num <= 0)) {
+        return NextResponse.json({ error: 'Approx. Project Price must be a positive number' }, { status: 400 });
+      }
+      patch.approx_price = isBlank ? '' : num;
+    }
 
     let newlyAssignedPerson: UserRecord | undefined;
     if (typeof body.assignedTechnicalPersonId === 'string') {
@@ -169,9 +190,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     let updated;
-    const stage: ProjectStage | undefined = PROJECT_STAGES.includes(body.stage) ? body.stage : undefined;
+    const stage: ProjectStage | undefined = ASSIGNABLE_STAGES.includes(body.stage) ? body.stage : undefined;
+    // "Close Project → Won" used to work by setting stage to the now-retired
+    // 'completed' value, which is how it got both a timeline entry and (via
+    // appendProjectTimeline's side effect) the status flip in one call. Now
+    // that path only sets status directly, so this logs the same kind of
+    // timeline entry without touching stage.
+    const closingAsWon = patch.status === 'won' && existing.status !== 'won';
     if (stage && stage !== existing.stage) {
       updated = await appendProjectTimeline(id, { by: viewer.username, stage, label: `Stage moved to ${stage.replace(/_/g, ' ')}` }, stage);
+      if (Object.keys(patch).length > 1) updated = await projectStore.update(id, patch);
+    } else if (closingAsWon) {
+      updated = await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label: 'Closed as won' });
       if (Object.keys(patch).length > 1) updated = await projectStore.update(id, patch);
     } else if (Object.keys(patch).length > 1) {
       updated = await projectStore.update(id, patch);

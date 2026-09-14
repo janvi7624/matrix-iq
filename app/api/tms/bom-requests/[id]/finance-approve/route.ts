@@ -6,7 +6,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
-import { findUsersByUsernames } from '@/lib/userStore';
+import { findUsersByUsernames, findUsersByDepartmentName } from '@/lib/userStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
 
 // admin_approved -> finance_approved. Gated to the configured Finance
@@ -41,8 +41,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ip: getClientIp(request)
     });
 
+    // Full active Accounts roster, not just its configured manager(s) — see
+    // the same fix applied to app/api/reimbursement/sheet/[id]/hr-decide/route.ts
+    // earlier: Department.managerIds['Accounts'] alone misses the actual
+    // Accounts team (Vaishali Jagani, Naresh Prajapati), who are department
+    // members but not configured managers.
     const accountsManagers = (await listDepartmentManagers())['Accounts'] || [];
-    const notifyTargets = accountsManagers.filter((m) => m.username && m.username !== viewer.username);
+    const accountsDeptUsers = await findUsersByDepartmentName('Accounts');
+    const notifyUsernames = Array.from(new Set([...accountsDeptUsers.map((u) => u.username), ...accountsManagers.map((m) => m.username)]));
+    const notifyTargets = notifyUsernames.filter((username) => username && username !== viewer.username).map((username) => ({ username }));
     if (notifyTargets.length) {
       await notifyUsers(notifyTargets.map((m) => m.username), {
         title: 'BOM request awaiting payment',

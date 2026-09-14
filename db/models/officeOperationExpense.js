@@ -19,7 +19,14 @@ module.exports = (sequelize, DataTypes) => {
     item_qty: { type: DataTypes.DECIMAL(10, 2) },
     amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     description: { type: DataTypes.TEXT },
-    remarks: { type: DataTypes.TEXT }
+    remarks: { type: DataTypes.TEXT },
+    // Accounts Payment Queue — see db/migrations/20260912180200-office-expense-payment-fields.js
+    payment_status: { type: DataTypes.STRING(20) },
+    paid_at: { type: DataTypes.DATE },
+    paid_by: { type: DataTypes.UUID },
+    payment_method: { type: DataTypes.STRING(30) },
+    payment_reference: { type: DataTypes.STRING },
+    payment_proof_urls: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
   }, {
     tableName: 'office_operation_expenses',
     underscored: true,

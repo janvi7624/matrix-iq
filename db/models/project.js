@@ -35,13 +35,26 @@ module.exports = (sequelize, DataTypes) => {
     // project closes — set at creation, editable later. Null = no estimate
     // given. See lib/projectStore.ts's FIELDS (kind 'nullable').
     closing_probability_percent: { type: DataTypes.INTEGER },
+    // Mandatory on manual creation (enforced in app/api/projects/route.ts,
+    // not here) — nullable at the DB level since an auto-created-from-lead
+    // project deliberately starts without one (see lib/leadProjectAutomation.ts;
+    // a Lead's own value is unstructured free text, never guess-parsed into
+    // a real money field).
+    approx_price: { type: DataTypes.DECIMAL(14, 2) },
     attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     created_by: { type: DataTypes.UUID },
     assigned_technical_person_id: { type: DataTypes.UUID },
     // Set the first time a technical person is assigned — see
     // lib/tmsHandoff.ts. Links this Sales project to the TMS project
     // auto-created (or kept in sync) for whoever is actually doing the work.
-    tms_project_id: { type: DataTypes.UUID }
+    tms_project_id: { type: DataTypes.UUID },
+    // Lead -> Project automation overlay — NULL for every normal project;
+    // only set on one auto-created from an assigned Lead
+    // (lib/leadProjectAutomation.ts). `status` itself is never touched by
+    // this feature. Values: 'pending_confirmation' | 'confirmed'.
+    lead_confirmation_status: { type: DataTypes.STRING(30) },
+    confirmed_by: { type: DataTypes.UUID },
+    confirmed_at: { type: DataTypes.DATE }
   }, {
     tableName: 'projects',
     underscored: true,

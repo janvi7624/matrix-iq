@@ -97,6 +97,11 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // HR + Admin + Super Admin — see HR_RESTRICTED_KEYS above, which is what
   // actually keeps the generic 'manager' role out (this list alone wouldn't).
   { key: 'office-operation-expenses', label: 'Office Operation Expenses', desc: 'HR/Admin office operating spend — office, electricity, guest, director, salary, and pantry expenses.', icon: 'receipt-indian-rupee', href: '/office-operation-expenses', section: 'HR', order: 4, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  // Accounts Payment Queue — one centralized workspace aggregating every
+  // payment-required record across Reimbursement, Admin Expenses, Office
+  // Operation Expenses, and TMS BOM Requests/Travel Schedule. 'accounts' is
+  // the Accounts team's own role; privileged roles keep oversight access.
+  { key: 'accounts-payments', label: 'Payments', desc: 'Every pending, on-hold, and completed payment across every module — the Accounts team\'s single payment queue.', icon: 'receipt-indian-rupee', href: '/accounts/payments', section: 'Accounts', order: 0, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin', 'manager', 'accounts'] },
   // HR operational task engine — HR_RESTRICTED_KEYS keeps these HR + Admin +
   // Super Admin only (not every department's generic 'manager' role).
   { key: 'hr-tasks', label: 'HR Tasks', desc: 'Daily tasks, assignment, submission, and review for the HR team.', icon: 'clipboard-list', href: '/hr/tasks', section: 'HR', order: 5, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },

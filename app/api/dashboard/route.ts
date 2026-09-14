@@ -109,6 +109,11 @@ export async function GET(request: NextRequest) {
     const upcomingSiteVisits = siteVisits.filter((v) => v.status === 'open').length;
     const pendingApprovals = demosForKpis.filter((d) => d.status === 'pending_technical' || d.status === 'pending_manager').length;
     const activeProjects = projectsLight.filter((p) => p.status === 'active').length;
+    // Lead -> Project automation — projectsLight is already scoped to what
+    // this viewer can see (their own projects, per resolveOwnerWhere), so an
+    // auto-created project (created_by = the assignee) is already in this
+    // set with no extra query needed.
+    const pendingProjectConfirmations = projectsLight.filter((p) => p.lead_confirmation_status === 'pending_confirmation').length;
 
     const kpis = {
       totalProjects: projectsLight.length,
@@ -189,6 +194,7 @@ export async function GET(request: NextRequest) {
       backOfficeKpis,
       followUpCount,
       reminderCount,
+      pendingProjectConfirmations,
       unattendedLeads: leadStats.unattended,
       metaLeadsToday: leadStats.metaToday,
       marketingStats,

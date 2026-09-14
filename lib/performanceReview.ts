@@ -80,7 +80,10 @@ export async function buildPerformanceReview(username: string) {
   const projectMetrics = {
     assignedProjects: projects.length,
     activeProjects: projects.filter((p) => p.status === 'active').length,
-    completedProjects: projects.filter((p) => p.stage === 'completed').length
+    // stage === 'completed' is retired from Project Progress (management
+    // decision, 2026-09) and never set going forward — status === 'won' is
+    // now the closest available "done" signal.
+    completedProjects: projects.filter((p) => p.status === 'won').length
   };
 
   const demoMetrics = {

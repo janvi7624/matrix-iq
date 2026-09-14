@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { installationStore } from '@/lib/installationStore';
-import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
+import { appendProjectTimeline, findProjectById, projectStore } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { sendFieldOpsLifecycleEmail } from '@/lib/email/notifications';
 import { findUserByUsername } from '@/lib/userStore';
@@ -32,11 +32,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const updated = await installationStore.update(id, patch);
 
     if (patch.status === 'completed' && existing.status !== 'completed') {
+      // Project Progress no longer has an 'installation'/'completed' stage
+      // (PO Received is now the final stage) — this only logs the timeline
+      // event and closes the deal as won, it no longer moves Project.stage.
       await appendProjectTimeline(
         existing.project_id,
-        { by: viewer.username, stage: 'completed', label: 'Installation completed — project closed as won', remarks: patch.completion_report || '' },
-        'completed'
+        { by: viewer.username, stage: 'completed', label: 'Installation completed — project closed as won', remarks: patch.completion_report || '' }
       );
+      await projectStore.update(existing.project_id, { status: 'won' });
 
       const project = existing.project_id ? await findProjectById(existing.project_id) : undefined;
       if (project?.created_by && project.created_by !== viewer.username) {

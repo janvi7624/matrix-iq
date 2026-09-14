@@ -113,7 +113,12 @@ async function create(viewerUsername: string, data: OfficeOperationExpenseInput)
     item_qty: data.item_qty,
     amount: data.amount,
     description: data.description,
-    remarks: data.remarks
+    remarks: data.remarks,
+    // Accounts Payment Queue — every new entry starts life awaiting Accounts
+    // confirmation; historical rows were backfilled to 'paid' by the
+    // migration that added this column (see
+    // db/migrations/20260912180200-office-expense-payment-fields.js).
+    payment_status: 'payment_required'
   } as never);
 
   // Re-read so the response carries the sequence-assigned sr_no and the

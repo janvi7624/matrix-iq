@@ -22,10 +22,22 @@ const FIELDS = [
   { name: 'next_follow_up_date', kind: 'nullable' as const },
   { name: 'remarks' },
   { name: 'closing_probability_percent', kind: 'nullable' as const },
+  { name: 'approx_price', kind: 'nullable' as const },
   { name: 'attachments', kind: 'json' as const },
   { name: 'assigned_technical_person_id', kind: 'nullable' as const },
-  { name: 'tms_project_id', kind: 'nullable' as const }
+  { name: 'tms_project_id', kind: 'nullable' as const },
+  { name: 'lead_confirmation_status', kind: 'nullable' as const },
+  { name: 'confirmed_by', kind: 'nullable' as const },
+  { name: 'confirmed_at', kind: 'nullable' as const }
 ];
+
+// Lead -> Project automation's completeness check lives in
+// lib/projectCompleteness.ts (a pure, dependency-free file) so client
+// components can import it too, without pulling this Sequelize-dependent
+// module into the browser bundle. Re-exported here for server-side callers
+// that already import everything else project-related from this file.
+export { checkProjectCompleteness } from './projectCompleteness';
+export type { ProjectCompleteness } from './projectCompleteness';
 
 function isoOrEmpty(value: unknown): string {
   if (!value) return '';
@@ -191,6 +203,15 @@ async function update(id: string, patch: Partial<ProjectRecord>): Promise<Projec
     const patchObj = patch as unknown as Record<string, unknown>;
     for (const { name, kind = 'string' } of FIELDS) {
       if (name in patchObj) attrs[name] = toAttr(patchObj[name], kind);
+    }
+    // created_by is deliberately NOT in FIELDS (it's the real ownership/
+    // visibility key, resolved from a username same as create() above) —
+    // reassigning ownership (e.g. Lead reassignment updating its linked
+    // project, see lib/leadProjectAutomation.ts) is the one legitimate
+    // reason to change it after creation.
+    if (typeof patch.created_by === 'string' && patch.created_by) {
+      const newOwner = await db.User.findOne({ where: { username: patch.created_by } as never, transaction: t });
+      if (newOwner) attrs.created_by = newOwner.get('id');
     }
     await row.update(attrs as never, { transaction: t });
 

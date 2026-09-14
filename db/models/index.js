@@ -69,7 +69,8 @@ const modelDefiners = [
   require('./generalTaskUpdate.js'),
   require('./generalTaskDeadlineChange.js'),
   require('./attendanceRecord.js'),
-  require('./leaveRequest.js')
+  require('./leaveRequest.js'),
+  require('./paymentHold.js')
 ];
 
 const db = {};

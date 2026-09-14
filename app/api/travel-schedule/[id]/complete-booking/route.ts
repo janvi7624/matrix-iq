@@ -6,6 +6,7 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { listDepartmentManagers } from '@/lib/departmentStore';
+import { isAccountsPaymentActor } from '@/lib/accountsPaymentAccess';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -22,14 +23,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'This request is not ready for ticket booking' }, { status: 400 });
     }
 
-    // Authorization: Accounts department managers or admin/superadmin override
-    const isOverride = viewer.role === 'admin' || viewer.role === 'superadmin';
-    if (!isOverride) {
-      const accountsManagers = (await listDepartmentManagers())['Accounts'] || [];
-      const isAccountsManager = accountsManagers.some((m) => m.username === viewer.username);
-      if (!isAccountsManager && !viewer.isPrivileged) {
-        return NextResponse.json({ error: 'Only the Accounts team can complete ticket booking' }, { status: 403 });
-      }
+    if (!(await isAccountsPaymentActor(viewer))) {
+      return NextResponse.json({ error: 'Only the Accounts team can complete ticket booking' }, { status: 403 });
     }
 
     const bookingDetails = typeof body.bookingDetails === 'string' ? body.bookingDetails.trim() : '';

@@ -1,0 +1,196 @@
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+}
+.toolbar .search {
+    flex: 1;
+    min-width: 200px;
+}
+.tabRow {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+    border-bottom: 1px solid var(--mx-border);
+}
+.tabBtn {
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+.tabBtn:hover { color: var(--mx-ink); }
+.tabActive {
+    color: var(--mx-brand);
+    border-bottom-color: var(--mx-brand);
+}
+
+.exportLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border-radius: var(--mx-radius-md);
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.exportLink:hover { background: var(--mx-surface-sunken); }
+
+.tableSection { margin-top: 16px; }
+
+.amountCell { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.dueCell { white-space: nowrap; font-size: 12.5px; }
+.dueOverdue { color: var(--mx-danger); font-weight: 700; }
+.dueToday { color: var(--mx-warning, #b45309); font-weight: 700; }
+
+.emptyState {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--mx-ink-muted);
+    font-size: 13.5px;
+}
+
+.payBtn {
+    padding: 6px 14px;
+    border-radius: var(--mx-radius-sm);
+    border: none;
+    background: var(--mx-brand);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.payBtn:hover { background: var(--mx-brand-hover); }
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 14px;
+    font-size: 12.5px;
+    color: var(--mx-ink-muted);
+}
+.pageBtn {
+    padding: 6px 12px;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
+    cursor: pointer;
+    font-size: 12.5px;
+}
+.pageBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ---------- Mobile cards ---------- */
+.cardList { display: none; flex-direction: column; gap: 10px; margin-top: 16px; }
+.card {
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg);
+    background: var(--mx-surface);
+    padding: 14px;
+    box-shadow: var(--mx-shadow-sm);
+}
+.cardHead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+.cardSource { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mx-brand-hover); }
+.cardPayee { font-size: 14.5px; font-weight: 700; color: var(--mx-ink); margin-top: 2px; }
+.cardAmount { font-size: 17px; font-weight: 800; color: var(--mx-ink); white-space: nowrap; }
+.cardMeta { font-size: 12px; color: var(--mx-ink-muted); margin-top: 6px; }
+.cardActions { display: flex; gap: 8px; margin-top: 12px; }
+.cardActions button, .cardActions a {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    border-radius: var(--mx-radius-sm);
+    font-size: 12.5px;
+    font-weight: 700;
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+@media (max-width: 768px) {
+    .tableSection { display: none; }
+    .cardList { display: flex; }
+    .toolbar .search { min-width: 100%; order: -1; }
+}
+
+/* ---------- Detail drawer ---------- */
+.detailGrid { display: flex; flex-direction: column; gap: 16px; }
+.detailRow { display: flex; flex-direction: column; gap: 3px; }
+.detailLabel { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--mx-ink-faint); }
+.detailValue { font-size: 14.5px; color: var(--mx-ink); }
+.detailAmount { font-size: 24px; font-weight: 800; color: var(--mx-ink); }
+.detailDivider { height: 1px; background: var(--mx-border); margin: 4px 0; }
+.detailActions { display: flex; gap: 10px; }
+.detailActions button { flex: 1; }
+.holdBtn {
+    padding: 12px;
+    border-radius: var(--mx-radius-md);
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    font-weight: 700;
+    font-size: 13.5px;
+    cursor: pointer;
+}
+.holdBtn:hover { background: var(--mx-surface-sunken); }
+.resumeBtn {
+    padding: 12px;
+    border-radius: var(--mx-radius-md);
+    border: none;
+    background: var(--mx-warning, #d97706);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13.5px;
+    cursor: pointer;
+}
+.holdBanner {
+    padding: 10px 14px;
+    border-radius: var(--mx-radius-md);
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    color: #92400e;
+    font-size: 13px;
+}
+.originalLink { font-size: 12.5px; color: var(--mx-brand-hover); text-decoration: underline; }
+
+/* ---------- Pay / Hold forms ---------- */
+.form { display: flex; flex-direction: column; gap: 14px; }
+.formRow { display: flex; flex-direction: column; gap: 5px; }
+.formRow label { font-size: 12.5px; font-weight: 700; color: var(--mx-ink-muted); }
+.formInput {
+    padding: 10px 12px;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border);
+    font-size: 14px;
+    width: 100%;
+}
+.formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .formGrid { grid-template-columns: 1fr; } }

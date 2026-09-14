@@ -466,6 +466,49 @@ export type ReimbursementSheetStatus =
   | 'hr_change_requested'
   | 'payment_done';
 
+// Accounts Payment Queue (lib/accountsPaymentStore.ts) — a read-time
+// aggregation over 4 existing source records, not a new copied table. See
+// the plan doc for why: ReimbursementSheet/TmsBomRequest/TravelSchedule keep
+// their own existing status columns untouched (a Hold is an overlay, not a
+// new status value); only Admin Expense (Reimbursement.is_admin_entry rows)
+// and Office Operation Expense gained real payment_status columns, since
+// neither had any payment-tracking concept before this.
+export type PaymentSource = 'reimbursement_sheet' | 'admin_expense' | 'office_expense' | 'bom_request' | 'travel_schedule';
+export type PaymentQueueStatus = 'payment_required' | 'on_hold' | 'paid';
+
+export interface PaymentQueueItem {
+  paymentId: string; // `${source}:${sourceId}`
+  source: PaymentSource;
+  sourceId: string;
+  sourceLabel: string;
+  payee: string;
+  description: string;
+  amount: number;
+  department: string;
+  requestedBy: string;
+  approvedBy: string;
+  approvedAt: string | null;
+  // Computed (approvedAt + a disclosed payment-SLA policy), never a stored
+  // deadline — none of the 4 sources has a real due-date field, and
+  // fabricating a per-record date would misrepresent it as fact.
+  dueDate: string | null;
+  status: PaymentQueueStatus;
+  paidAt: string | null;
+  paidBy: string | null;
+  paymentMethod: string | null;
+  paymentReference: string | null;
+  holdReason: string | null;
+  createdAt: string;
+}
+
+export interface PaymentSummary {
+  pendingCount: number;
+  pendingAmount: number;
+  dueTodayAmount: number;
+  overdueAmount: number;
+  paidThisMonthAmount: number;
+}
+
 export interface ReimbursementSheetRecord {
   id: string;
   created_by: string;
@@ -704,6 +747,10 @@ export interface ProjectRecord {
   // means no estimate has been given (never 0 by default — 0% is a real,
   // deliberate estimate, not "unset").
   closing_probability_percent: number | '';
+  // Mandatory on manual creation (app/api/projects/route.ts) — '' only for
+  // an auto-created-from-lead project awaiting the assignee to fill it in
+  // (see lib/leadProjectAutomation.ts and ProjectRecord.lead_confirmation_status).
+  approx_price: number | '';
   notes: ProjectNote[];
   attachments: string[];
   timeline: ProjectTimelineEvent[];
@@ -713,6 +760,12 @@ export interface ProjectRecord {
   // See lib/tmsHandoff.ts — links to the TMS project auto-created/kept in
   // sync when assigned_technical_person_id is set.
   tms_project_id: string;
+  // Lead -> Project automation overlay (lib/leadProjectAutomation.ts) — ''
+  // for every normal, manually-created project. `status` itself is never
+  // touched by this feature.
+  lead_confirmation_status: 'pending_confirmation' | 'confirmed' | '';
+  confirmed_by: string;
+  confirmed_at: string;
   // Resolved display-only fields, populated ONLY by the Dashboard list read
   // path (GET /api/projects -> listLastRemarks) — the most recent Activity
   // Log entry that actually has a remark (stage-change-only entries with no
@@ -854,7 +907,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request' | 'office_operation_expense';
   entity_id: string;
   action: string;
   previous_status: string;

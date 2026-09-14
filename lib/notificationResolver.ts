@@ -17,7 +17,7 @@ interface EntityResolver {
   exists: (entityId: string) => Promise<boolean>;
 }
 
-const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest'] as const;
+const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense'] as const;
 
 async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: string): Promise<boolean> {
   if (!isUuid(entityId)) return false;
@@ -49,7 +49,29 @@ const RESOLVERS: Record<string, EntityResolver> = {
   // (admin- or hr-assigned) — authorization inside the page decides what the
   // viewer (assignee, reviewer, creator, or manager) may see/do.
   general_task: { href: (id) => `/my-tasks/${id}`, exists: (id) => existsIn('GeneralTask', id) },
-  leave_request: { href: () => '/hr/leave', exists: (id) => existsIn('LeaveRequest', id) }
+  leave_request: { href: () => '/hr/leave', exists: (id) => existsIn('LeaveRequest', id) },
+  // Both previously had NO resolver entry at all — every "ready for
+  // Accounts" notification for these two sources silently resolved to
+  // nothing and was filtered out as non-actionable (see
+  // resolveActionableNotifications below). Now they open the unified
+  // Accounts Payment Queue instead of a per-record page, since that's the
+  // real destination for "go pay this" from here on.
+  //
+  // admin_expense's entity_id is a batch id (Reimbursement.admin_note, a
+  // free-text string like "admin-<timestamp>"), not a row's UUID primary
+  // key — existsIn's findByPk lookup doesn't apply, so this checks for any
+  // row in that batch directly instead.
+  admin_expense: {
+    href: (id) => `/accounts/payments?highlight=admin_expense:${id}`,
+    exists: async (id) => {
+      const count = await db.Reimbursement.count({ where: { admin_note: id, is_admin_entry: true } as never });
+      return count > 0;
+    }
+  },
+  office_operation_expense: {
+    href: (id) => `/accounts/payments?highlight=office_expense:${id}`,
+    exists: (id) => existsIn('OfficeOperationExpense', id)
+  }
 };
 
 // Resolves each notification's real destination and drops any that don't

@@ -22,7 +22,15 @@ interface AdminEntry {
   per_person: number;
   employees: { id: string; name: string }[];
   created_at: string;
+  approval_status: 'pending_approval' | 'approved';
+  approved_by_name: string;
+  approved_at: string;
 }
+
+// Must match APPROVER_USERNAME in lib/adminExpenseAccess.ts — only this
+// person sees the Approve action, since it's a named-approver requirement
+// rather than a role check.
+const APPROVER_USERNAME = 'hardik.acharya';
 
 // Whole days between two DATEONLY ('YYYY-MM-DD') strings — used both for
 // Hotel's "N night(s)" hint and a return flight's "same-day return" /
@@ -60,14 +68,16 @@ function formatCurrency(n: number): string {
   return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function AdminExpensesView() {
+export default function AdminExpensesView({ currentUser }: { currentUser: { username: string } }) {
   const toast = useToast();
+  const isApprover = currentUser.username === APPROVER_USERNAME;
   const [users, setUsers] = useState<UserOption[]>([]);
   const [entries, setEntries] = useState<AdminEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
 
   const [editBatchId, setEditBatchId] = useState<string | null>(null);
   const [type, setType] = useState('');
@@ -202,6 +212,18 @@ export default function AdminExpensesView() {
       fetchEntries();
     } catch { toast.error('Network error'); }
     finally { setDeleting(null); }
+  }
+
+  async function handleApprove(batchId: string) {
+    setApproving(batchId);
+    try {
+      const res = await fetch(`/api/admin-expenses/${encodeURIComponent(batchId)}/approve`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || 'Failed to approve'); return; }
+      toast.success(data.message || 'Approved');
+      fetchEntries();
+    } catch { toast.error('Network error'); }
+    finally { setApproving(null); }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -472,6 +494,7 @@ export default function AdminExpensesView() {
                   <th className={styles.colEmployees}>Employees</th>
                   <th className={styles.colPerPerson}>Per Person (₹)</th>
                   <th className={styles.colAdded}>Added</th>
+                  <th className={styles.colAdded}>Status</th>
                   <th className={styles.colActions}>Actions</th>
                 </tr>
               </thead>
@@ -531,7 +554,27 @@ export default function AdminExpensesView() {
                       {formatDate(entry.created_at)}
                     </td>
                     <td>
+                      {entry.approval_status === 'pending_approval' ? (
+                        <span className={styles.typeBadge} style={{ background: '#fee2e2', color: '#991b1b' }}>Pending Approval</span>
+                      ) : (
+                        <span className={styles.typeBadge} style={{ background: '#dcfce7', color: '#166534' }} title={entry.approved_by_name ? `Approved by ${entry.approved_by_name}` : undefined}>
+                          Approved
+                        </span>
+                      )}
+                    </td>
+                    <td>
                       <div className={styles.rowActions}>
+                        {isApprover && entry.approval_status === 'pending_approval' && (
+                          <button
+                            type="button"
+                            onClick={() => handleApprove(entry.batchId)}
+                            disabled={approving === entry.batchId}
+                            className={styles.editRowBtn}
+                            style={{ opacity: approving === entry.batchId ? 0.5 : 1 }}
+                          >
+                            {approving === entry.batchId ? '…' : 'Approve'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => startEdit(entry)}

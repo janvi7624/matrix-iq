@@ -60,7 +60,11 @@ async function fetchQualifyingRows(employeeIds: string[], periodStart: string, p
         model: db.Project,
         as: 'project',
         required: true,
-        where: { status: 'won', stage: 'completed' } as never,
+        // Used to also require stage === 'completed' (only ever set when
+        // Installation was marked done) — that stage is retired from Project
+        // Progress (management decision, 2026-09), so status === 'won' is now
+        // the qualifying signal on its own.
+        where: { status: 'won' } as never,
         attributes: []
       }
     ] as never
@@ -109,7 +113,7 @@ export async function listQualifyingQuotations(employeeId: string, periodStart: 
       project_id: { [Op.ne]: null },
       created_at: { [Op.gte]: periodStart, [Op.lt]: periodEndExclusive(periodEnd) }
     } as never,
-    include: [{ model: db.Project, as: 'project', required: true, where: { status: 'won', stage: 'completed' } as never, attributes: [] }] as never,
+    include: [{ model: db.Project, as: 'project', required: true, where: { status: 'won' } as never, attributes: [] }] as never,
     order: [['created_at', 'DESC']]
   });
   return rows.map((row) => {

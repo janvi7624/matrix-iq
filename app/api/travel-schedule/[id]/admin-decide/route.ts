@@ -6,6 +6,7 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { listDepartmentManagers } from '@/lib/departmentStore';
+import { findUsersByDepartmentName } from '@/lib/userStore';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -48,10 +49,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     if (decision === 'approve') {
-      // Notify Accounts department for ticket booking
+      // Notify Accounts department for ticket booking — full active roster,
+      // not just its configured manager(s) (same fix as BOM finance-approve
+      // and reimbursement hr-decide: Department.managerIds['Accounts'] alone
+      // misses Vaishali Jagani/Naresh Prajapati, who are department members
+      // but not configured managers).
       const accountsManagers = (await listDepartmentManagers())['Accounts'] || [];
-      if (accountsManagers.length) {
-        await notifyUsers(accountsManagers.map((m) => m.username), {
+      const accountsDeptUsers = await findUsersByDepartmentName('Accounts');
+      const accountsUsernames = Array.from(new Set([...accountsDeptUsers.map((u) => u.username), ...accountsManagers.map((m) => m.username)]));
+      if (accountsUsernames.length) {
+        await notifyUsers(accountsUsernames, {
           title: 'Travel request ready for ticket booking',
           body: `${existing.created_by}'s travel request (${existing.origin} → ${existing.destination}) approved — please book tickets`,
           type: 'travel_ticket_booking', entityType: 'travel_schedule', entityId: id

@@ -14,11 +14,27 @@ export async function GET(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const [projects, siteVisits, demos] = await Promise.all([
+    const url = new URL(request.url);
+    const closingFrom = url.searchParams.get('closingFrom') || '';
+    const closingTo = url.searchParams.get('closingTo') || '';
+
+    const [allProjects, siteVisits, demos] = await Promise.all([
       projectStore.listLight(viewer.username, viewer.isPrivileged),
       siteVisitStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, viewer.isPrivileged)
     ]);
+
+    // Closing Date filter, applied before every project-derived count below
+    // — every existing KPI becomes filter-aware from the same one change,
+    // rather than adding a second, parallel "filtered KPI" endpoint.
+    const projects = closingFrom || closingTo
+      ? allProjects.filter((p) => {
+          if (!p.expected_closing_date) return false;
+          if (closingFrom && p.expected_closing_date < closingFrom) return false;
+          if (closingTo && p.expected_closing_date > closingTo) return false;
+          return true;
+        })
+      : allProjects;
 
     const quotationsCount = await countQuotationsForProjects(projects.map((p) => p.id));
 
@@ -40,9 +56,11 @@ export async function GET(request: NextRequest) {
     // Manager dashboard extra
     const pendingApprovals = demos.filter((d) => d.status === 'pending_technical' || d.status === 'pending_manager').length;
     const activeProjects = projects.filter((p) => p.status === 'active').length;
+    const totalApproxValue = projects.reduce((sum, p) => sum + (typeof p.approx_price === 'number' ? p.approx_price : 0), 0);
 
     return NextResponse.json({
       totalProjects: projects.length,
+      totalApproxValue,
       siteVisitsToday,
       quotationsSent: quotationsCount,
       upcomingDemos,

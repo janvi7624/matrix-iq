@@ -144,8 +144,13 @@ export async function isBomFinanceApprover(viewer: TmsViewer): Promise<boolean> 
 // manager configured for Accounts yet -> falls back to any privileged
 // viewer, same safety net as those two precedents, so a request can't get
 // permanently stuck on an unmapped department.
+//
+// Also true for role==='accounts' — the Accounts Payment Queue's shared
+// gate (lib/accountsPaymentAccess.ts) broadens this the same way, since
+// Department.managerIds['Accounts'] today only contains one unrelated
+// 'manager'-role user, not the actual Accounts team.
 export async function isAccountsManager(viewer: TmsViewer): Promise<boolean> {
-  if (viewer.isPrivileged) return true;
+  if (viewer.isPrivileged || viewer.role === 'accounts') return true;
   const accountsManagers = (await listDepartmentManagers())['Accounts'] || [];
   if (!accountsManagers.length) return false;
   return accountsManagers.some((m) => m.username === viewer.username);

@@ -20,6 +20,18 @@ function parseClosingProbability(value: unknown): number | '' | undefined {
   return num;
 }
 
+// Approx. Project Price — mandatory on manual creation. Accepts a number or
+// a numeric string (same `<input type="number">`-round-trips-as-string
+// pattern as parseClosingProbability above); rejects anything non-numeric,
+// zero, or negative. Never accepts a pre-formatted currency string (e.g.
+// "₹12,50,000") — the UI formats for display only, the raw number is what's
+// ever sent/stored.
+function parseApproxPrice(value: unknown): number | undefined {
+  const num = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : NaN;
+  if (!Number.isFinite(num) || num <= 0) return undefined;
+  return num;
+}
+
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -66,6 +78,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Closing probability must be a whole number between 0 and 100' }, { status: 400 });
   }
 
+  const approxPrice = parseApproxPrice(body.approxPrice);
+  if (approxPrice === undefined) {
+    return NextResponse.json({ error: 'Approx. Project Price is required and must be a positive number' }, { status: 400 });
+  }
+
   const now = new Date().toISOString();
   // Only a privileged role may attribute a project to someone else (e.g. an
   // Admin entering data on a sales rep's behalf) — otherwise created_by IS
@@ -102,11 +119,15 @@ export async function POST(request: NextRequest) {
     next_follow_up_date: typeof body.nextFollowUpDate === 'string' ? body.nextFollowUpDate : '',
     remarks: typeof body.remarks === 'string' ? body.remarks.trim() : '',
     closing_probability_percent: closingProbabilityPercent,
+    approx_price: approxPrice,
     notes: [],
     attachments: [],
     assigned_technical_person_id: assignedTechnicalPerson ? assignedTechnicalPerson.id : '',
     assigned_technical_person_name: assignedTechnicalPerson ? assignedTechnicalPerson.name : '',
     tms_project_id: '',
+    lead_confirmation_status: '',
+    confirmed_by: '',
+    confirmed_at: '',
     timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created', remarks: '' }],
     updated_at: now,
     last_remark: '',

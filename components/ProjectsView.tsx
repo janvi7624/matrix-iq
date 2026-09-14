@@ -11,7 +11,8 @@ import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
-import { todayDateInputValue } from '@/lib/dateHelpers';
+import { todayDateInputValue, closingDatePresetRange, ClosingDatePreset } from '@/lib/dateHelpers';
+import StatTile from './ui/StatTile';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
@@ -40,7 +41,8 @@ const EMPTY_FORM = {
   priority: 'medium' as ProjectPriority,
   expectedClosingDate: '',
   remarks: '',
-  closingProbabilityPercent: ''
+  closingProbabilityPercent: '',
+  approxPrice: ''
 };
 
 const STATUS_LABEL: Record<ProjectStatus, string> = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost' };
@@ -53,6 +55,11 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function formatMoney(value: number | ''): string {
+  if (value === '' || value === null || value === undefined) return '-';
+  return `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 function formatDateTime(iso: string): string {
@@ -104,6 +111,19 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
   const [fSearch, setFSearch] = useState('');
+  const [fClosingPreset, setFClosingPreset] = useState<ClosingDatePreset>('all');
+  const [fClosingFrom, setFClosingFrom] = useState('');
+  const [fClosingTo, setFClosingTo] = useState('');
+  // 'pending_confirmation' | '' — driven by Dashboard's "Projects awaiting
+  // your confirmation" attention item linking to ?filter=pending_confirmation,
+  // read once on mount rather than via useSearchParams() (which would force
+  // this whole view behind a Suspense boundary just for one-time deep-link
+  // support).
+  const [fConfirmation, setFConfirmation] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('filter') === 'pending_confirmation' ? 'pending_confirmation' : '';
+  });
 
   async function load() {
     setStatus('Loading...');
@@ -131,6 +151,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const salesPeople = useMemo(() => Array.from(new Set(projects.map((p) => p.sales_person).filter(Boolean))).sort(), [projects]);
   const sources = useMemo(() => Array.from(new Set(projects.map((p) => p.source).filter(Boolean))).sort(), [projects]);
 
+  // Custom Range reveals its own two date inputs; every other preset
+  // resolves to a fixed [from, to] window computed once per render (cheap —
+  // plain Date arithmetic, no fetch).
+  const closingRange = useMemo(
+    () => (fClosingPreset === 'custom' ? { from: fClosingFrom, to: fClosingTo } : closingDatePresetRange(fClosingPreset)),
+    [fClosingPreset, fClosingFrom, fClosingTo]
+  );
+
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
     return projects.filter((p) => {
@@ -141,10 +169,25 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       if (fPriority && p.priority !== fPriority) return false;
       if (fFrom && p.created_at.slice(0, 10) < fFrom) return false;
       if (fTo && p.created_at.slice(0, 10) > fTo) return false;
+      if (fConfirmation && p.lead_confirmation_status !== fConfirmation) return false;
+      if ((closingRange.from || closingRange.to) && !p.expected_closing_date) return false;
+      if (closingRange.from && p.expected_closing_date < closingRange.from) return false;
+      if (closingRange.to && p.expected_closing_date > closingRange.to) return false;
       if (q && ![p.id, p.client_name, p.company, p.contact_person].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [projects, fSalesPerson, fSource, fStage, fStatus, fPriority, fFrom, fTo, fSearch]);
+  }, [projects, fSalesPerson, fSource, fStage, fStatus, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
+
+  // KPI tiles (Part 1.3) — deliberately derived from `filtered`, never
+  // `projects`, so they can never show a stale count against the visible
+  // table the way a separately-fetched/separately-computed KPI could.
+  const dashboardKpis = useMemo(() => {
+    const won = filtered.filter((p) => p.status === 'won').length;
+    const lost = filtered.filter((p) => p.status === 'lost').length;
+    const active = filtered.filter((p) => p.status === 'active').length;
+    const totalValue = filtered.reduce((sum, p) => sum + (typeof p.approx_price === 'number' ? p.approx_price : 0), 0);
+    return { total: filtered.length, won, lost, active, totalValue };
+  }, [filtered]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -154,6 +197,11 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     }
     if (!form.source.trim()) {
       toast.error('Source is required.');
+      return;
+    }
+    const priceNum = Number(form.approxPrice);
+    if (!form.approxPrice.trim() || !Number.isFinite(priceNum) || priceNum <= 0) {
+      toast.error('Approx. Project Price is required and must be a positive number.');
       return;
     }
     setCreating(true);
@@ -188,8 +236,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   function handleExportPdf() {
     exportListToPdf(
       'Project Dashboard',
-      ['Client', 'Company', 'Sales Person', 'Source', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
-      filtered.map((p) => [p.client_name, p.company, p.sales_person, p.source || '-', STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
+      ['Client', 'Company', 'Sales Person', 'Source', 'Approx. Price', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
+      filtered.map((p) => [p.client_name, p.company, p.sales_person, p.source || '-', formatMoney(p.approx_price), STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
       `projects-${new Date().toISOString().slice(0, 10)}.pdf`
     );
   }
@@ -208,6 +256,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     },
     { key: 'salesPerson', header: 'Sales Person', headerClassName: historyStyles.colSalesPerson, render: (p) => p.sales_person },
     { key: 'source', header: 'Source', headerClassName: historyStyles.colSource, render: (p) => p.source || '-' },
+    { key: 'approxPrice', header: 'Approx. Price', render: (p) => formatMoney(p.approx_price) },
     { key: 'stage', header: 'Stage', headerClassName: historyStyles.colStage, render: (p) => STAGE_LABEL[p.stage] },
     {
       key: 'status',
@@ -218,6 +267,18 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           <StatusBadge tone={p.status} label={p.status === 'lost' ? 'Closed Lost' : STATUS_LABEL[p.status]} />
         ) : (
           STATUS_LABEL[p.status]
+        )
+    },
+    {
+      key: 'confirmation',
+      header: 'Confirmation',
+      render: (p) =>
+        p.lead_confirmation_status === 'pending_confirmation' ? (
+          <StatusBadge tone="pending" label="Pending Confirmation" />
+        ) : p.lead_confirmation_status === 'confirmed' ? (
+          <StatusBadge tone="confirmed" label="Confirmed" />
+        ) : (
+          '-'
         )
     },
     { key: 'updated', header: 'Last Updated', headerClassName: historyStyles.colUpdated, render: (p) => formatDateTime(p.updated_at) },
@@ -286,6 +347,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
 
   return (
     <AppShell title="Project Dashboard" subtitle="Every sales project, site visit to close, in one pipeline.">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
+          <StatTile label="Total (filtered)" value={dashboardKpis.total} />
+          <StatTile label="Active" value={dashboardKpis.active} tone="info" />
+          <StatTile label="Won" value={dashboardKpis.won} tone="success" />
+          <StatTile label="Lost" value={dashboardKpis.lost} tone="danger" />
+          <StatTile label="Total Value" value={formatMoney(dashboardKpis.totalValue)} tone="brand" />
+        </div>
+
         <div className={historyStyles.actionRow}>
           {!isTechnical && (
             <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
@@ -356,6 +425,16 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               <Field label="Expected closing date">
                 <Input type="date" min={todayDateInputValue()} value={form.expectedClosingDate} onChange={(e) => setForm((f) => ({ ...f, expectedClosingDate: e.target.value }))} />
               </Field>
+              <Field label="Approx. Project Price (₹) *">
+                <Input
+                  type="number"
+                  min={1}
+                  step="0.01"
+                  placeholder="e.g. 1250000"
+                  value={form.approxPrice}
+                  onChange={(e) => setForm((f) => ({ ...f, approxPrice: e.target.value }))}
+                />
+              </Field>
               <Field label="Closing Probability % (optional)">
                 <Input
                   type="number"
@@ -410,6 +489,26 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           </Select>
           <Input auto type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
           <Input auto type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} />
+          <Select auto value={fClosingPreset} onChange={(e) => setFClosingPreset(e.target.value as ClosingDatePreset)}>
+            <option value="all">Closing Date: All</option>
+            <option value="today">Closing Today</option>
+            <option value="this_week">Closing This Week</option>
+            <option value="this_month">Closing This Month</option>
+            <option value="next_7">Closing Next 7 Days</option>
+            <option value="next_30">Closing Next 30 Days</option>
+            <option value="custom">Closing: Custom Range…</option>
+          </Select>
+          {fClosingPreset === 'custom' && (
+            <>
+              <Input auto type="date" value={fClosingFrom} onChange={(e) => setFClosingFrom(e.target.value)} />
+              <Input auto type="date" value={fClosingTo} onChange={(e) => setFClosingTo(e.target.value)} />
+            </>
+          )}
+          <Select auto value={fConfirmation} onChange={(e) => setFConfirmation(e.target.value)}>
+            <option value="">All confirmations</option>
+            <option value="pending_confirmation">Pending Confirmation</option>
+            <option value="confirmed">Confirmed</option>
+          </Select>
         </FilterBar>
         {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 

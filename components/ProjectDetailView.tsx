@@ -40,7 +40,7 @@ import {
   UserRole,
   ProjectHandoverRecord
 } from '@/lib/types';
-import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
+import { ASSIGNABLE_STAGES, closingProbabilityStyle, FORWARD_STAGES, stageIndex, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as VISIT_STAGE_LABEL } from '@/lib/siteVisitReminder';
@@ -48,6 +48,7 @@ import { parseFollowUpNotes } from '@/lib/followUp';
 import { exportListToPdf } from '@/lib/exportPdf';
 import { MARKETING_STATUS_LABEL } from '@/lib/marketingRequestHelpers';
 import { getPoPaymentStatus } from '@/lib/poPaymentStatus';
+import { checkProjectCompleteness } from '@/lib/projectCompleteness';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -72,6 +73,7 @@ interface DetailResponse {
   marketingRequests: MarketingRequestRecord[];
   deadlineExtensions: ProjectDeadlineExtensionRecord[];
   deadlineTier: 'plain' | 'manager' | 'admin';
+  linkedLead: { id: string; name: string } | null;
 }
 
 const STATUS_LABEL: Record<ProjectStatus, string> = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost' };
@@ -182,6 +184,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [assignSalesPersonId, setAssignSalesPersonId] = useState('');
   const [submittingSalesPerson, setSubmittingSalesPerson] = useState(false);
   const [orgUsers, setOrgUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+  const [confirmingAssignment, setConfirmingAssignment] = useState(false);
+  const [showClarifyInput, setShowClarifyInput] = useState(false);
+  const [clarificationText, setClarificationText] = useState('');
 
   useEffect(() => {
     fetch('/api/technical-roster')
@@ -300,6 +305,46 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   }, [projectId]);
 
   const canEdit = useMemo(() => isPrivileged || data?.project.created_by === currentUser.username, [isPrivileged, data, currentUser.username]);
+
+  // Lead -> Project automation — confirm/clarify actions on an
+  // auto-created project awaiting the assignee's review.
+  async function handleConfirmAssignment() {
+    setConfirmingAssignment(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/confirm-assignment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(body?.error || 'Could not confirm this assignment.');
+        return;
+      }
+      toast.success('Assignment confirmed.');
+      await load();
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setConfirmingAssignment(false);
+    }
+  }
+
+  async function handleRequestClarification() {
+    if (!clarificationText.trim()) return;
+    setConfirmingAssignment(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/confirm-assignment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clarification: clarificationText.trim() }) });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(body?.error || 'Could not send this request.');
+        return;
+      }
+      toast.success('Clarification request sent.');
+      setShowClarifyInput(false);
+      setClarificationText('');
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setConfirmingAssignment(false);
+    }
+  }
 
   // Client/contact master fields — the Project Dashboard is meant to be the
   // single place these can be edited (every other module only references a
@@ -595,7 +640,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     const won = await confirm({ title: 'Close project', message: 'Close this project as won or lost?', confirmLabel: 'Won', cancelLabel: 'Lost' });
     const normalized = won ? 'won' : 'lost';
     if (!(await confirm({ message: `Close this project as ${normalized === 'won' ? 'Won' : 'Closed Lost'}? This updates the final stage.`, danger: true }))) return;
-    await patchProject({ stage: normalized === 'won' ? 'completed' : 'closed_lost' });
+    // 'completed' is a retired Project Progress stage — closing as Won now
+    // sets status directly instead (stage stays at whatever it already was,
+    // e.g. PO Received). Closed Lost still works via the stage, unchanged.
+    if (normalized === 'won') {
+      await patchProject({ status: 'won' });
+    } else {
+      await patchProject({ stage: 'closed_lost' });
+    }
   }
 
   if (status && !data) {
@@ -608,9 +660,17 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   }
   if (!data) return null;
 
-  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests, deadlineExtensions, deadlineTier } = data;
-  const currentIdx = FORWARD_STAGES.indexOf(project.stage);
-  const isClosed = project.stage === 'closed_lost' || project.status === 'lost' || project.stage === 'completed';
+  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests, deadlineExtensions, deadlineTier, linkedLead } = data;
+  const currentIdx = stageIndex(project.stage);
+  // Installation/Completed are retired Project Progress stages (existing
+  // records may still carry them, but no project can be set to them going
+  // forward) — the select still needs to render the CURRENT value correctly
+  // for those legacy records without offering it as a choice for anyone else.
+  const stageSelectOptions = ASSIGNABLE_STAGES.includes(project.stage) ? ASSIGNABLE_STAGES : [...ASSIGNABLE_STAGES, project.stage];
+  // status === 'won' covers a project closed via the current "Close Project
+  // → Won" path (which no longer sets stage to the retired 'completed'
+  // value) — stage === 'completed' is kept for existing legacy records.
+  const isClosed = project.stage === 'closed_lost' || project.status === 'lost' || project.status === 'won' || project.stage === 'completed';
   const isOverdue = !isClosed && !!project.next_follow_up_date && project.next_follow_up_date < new Date().toISOString().slice(0, 10);
   const progressPercent = project.status === 'lost' ? 100 : stageProgressPercent(project.stage);
   const totalPoAmount = purchaseOrders.reduce((sum, po) => sum + po.amount, 0);
@@ -631,6 +691,56 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <button type="button" className={historyStyles.button} onClick={handleExportPdf}>Export Timeline PDF</button>
           <button type="button" className={historyStyles.button} onClick={() => window.print()}>Print</button>
         </div>
+
+        {linkedLead && (
+          <div className={historyStyles.status} style={{ marginBottom: 8 }}>
+            Created From Lead: <strong>{linkedLead.name}</strong>{' '}
+            <Link className={historyStyles.button} href="/leads" style={{ marginLeft: 8 }}>Open Lead</Link>
+          </div>
+        )}
+
+        {project.lead_confirmation_status === 'pending_confirmation' && project.created_by === currentUser.username && (
+          <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`} style={{ borderLeft: '4px solid var(--mx-warning, #d97706)', marginBottom: 16 }}>
+            <strong>New assignment — please confirm.</strong> This project was created automatically from a lead assigned to you.
+            {!showClarifyInput ? (
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button type="button" className={calcStyles.btn} disabled={confirmingAssignment} onClick={handleConfirmAssignment}>
+                  {confirmingAssignment ? 'Confirming…' : 'Confirm Assignment'}
+                </button>
+                <button type="button" className={historyStyles.button} disabled={confirmingAssignment} onClick={() => setShowClarifyInput(true)}>
+                  Request Clarification
+                </button>
+              </div>
+            ) : (
+              <div style={{ marginTop: 10 }}>
+                <textarea
+                  className={calcStyles.formControl}
+                  rows={2}
+                  placeholder="What do you need clarified before confirming?"
+                  value={clarificationText}
+                  onChange={(e) => setClarificationText(e.target.value)}
+                />
+                <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                  <button type="button" className={historyStyles.button} onClick={() => setShowClarifyInput(false)}>Cancel</button>
+                  <button type="button" className={calcStyles.btn} disabled={confirmingAssignment || !clarificationText.trim()} onClick={handleRequestClarification}>
+                    Send Request
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {project.lead_confirmation_status && (() => {
+          const completeness = checkProjectCompleteness(project);
+          if (completeness.isComplete) return null;
+          const FIELD_LABEL: Record<string, string> = { approx_price: 'Approx. Project Price', expected_closing_date: 'Expected Closing Date', remarks: 'Project Description / Remarks' };
+          return (
+            <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`} style={{ marginBottom: 16 }}>
+              <strong>Complete Project Details</strong> — still missing: {completeness.missingFields.map((f) => FIELD_LABEL[f]).join(', ')}. Use the fields below to fill these in.
+            </div>
+          );
+        })()}
 
         {/* Header summary: name / ID / client / sales person / stage / status / progress% */}
         <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
@@ -1099,7 +1209,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <label className={calcStyles.label}>Current stage</label>
                 {canEdit ? (
                   <select className={calcStyles.formControl} value={project.stage} onChange={(e) => patchProject({ stage: e.target.value })}>
-                    {FORWARD_STAGES.concat('closed_lost').map((s) => <option key={s} value={s}>{STAGE_LABEL[s as ProjectStage]}</option>)}
+                    {stageSelectOptions.map((s) => <option key={s} value={s}>{STAGE_LABEL[s as ProjectStage]}</option>)}
                   </select>
                 ) : <div className={calcStyles.small}>{STAGE_LABEL[project.stage]}</div>}
               </div>
@@ -1166,6 +1276,21 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   </span>
                 )}
               </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Approx. Project Price (₹)</label>
+                {canEdit ? (
+                  <input
+                    type="number"
+                    min={1}
+                    step="0.01"
+                    className={calcStyles.formControl}
+                    value={project.approx_price}
+                    onChange={(e) => patchProject({ approxPrice: e.target.value === '' ? '' : Number(e.target.value) })}
+                  />
+                ) : (
+                  <div className={calcStyles.small}>{project.approx_price === '' ? '-' : `₹${project.approx_price.toLocaleString('en-IN')}`}</div>
+                )}
+              </div>
             </div>
             <div className={`${historyStyles.miniCard} ${calcStyles.mt12}`}>
               <div className={`${historyStyles.miniCardTitle} ${styles.rowBetween}`}>
@@ -1181,7 +1306,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
         {tab === 'timeline' && (
           <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
-            <div className={`${calcStyles.small} ${calcStyles.mb10}`}>Lead Created → Site Visit → Quotation → Demo → Customer Response → Negotiation → Purchase Order → Installation → Completed</div>
+            <div className={`${calcStyles.small} ${calcStyles.mb10}`}>Lead Created → Site Visit → Quotation → Demo → Customer Response → Negotiation → Purchase Order</div>
             <div className={historyStyles.stepper}>
               {FORWARD_STAGES.map((s, idx) => {
                 const cls = idx < currentIdx ? historyStyles.stepDone : idx === currentIdx ? (isOverdue ? historyStyles.stepDelayed : historyStyles.stepCurrent) : '';

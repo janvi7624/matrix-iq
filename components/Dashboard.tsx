@@ -90,6 +90,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
   const [pendingHandovers, setPendingHandovers] = useState<ProjectHandoverRecord[]>([]);
   const [travelPendingCount, setTravelPendingCount] = useState<number>(0);
+  const [pendingProjectConfirmations, setPendingProjectConfirmations] = useState<number>(0);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   // Which department's health detail dialog is open, by name (null = none).
   const [openHealthDepartment, setOpenHealthDepartment] = useState<string | null>(null);
@@ -144,6 +145,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setRecentQuotations(data.recentQuotations ?? []);
         setPendingHandovers(data.pendingHandovers ?? []);
         setTravelPendingCount(data.travelPendingCount ?? 0);
+        setPendingProjectConfirmations(data.pendingProjectConfirmations ?? 0);
       })
       .catch(() => {
         setModules([]);
@@ -292,6 +294,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         tone: 'urgent'
       });
     }
+    if (pendingProjectConfirmations) {
+      items.push({
+        key: 'project-confirm',
+        label: `Project${pendingProjectConfirmations === 1 ? '' : 's'} awaiting your confirmation`,
+        count: pendingProjectConfirmations,
+        href: '/projects?filter=pending_confirmation',
+        tone: 'urgent'
+      });
+    }
     // Urgent items surface first regardless of push order above, so the
     // compact (sliced) view on the Dashboard itself always shows the most
     // pressing items rather than whatever happened to be pushed earliest.
@@ -311,7 +322,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     demosAwaitingMyConfirmation,
     demosAwaitingMyApproval,
     pendingHandovers,
-    travelPendingCount
+    travelPendingCount,
+    pendingProjectConfirmations
   ]);
 
   const [showAllAttention, setShowAllAttention] = useState(false);

@@ -16,5 +16,5 @@ export default async function AdminExpensesPage() {
 
   if (!ALLOWED_ROLES.has(session.role)) redirect('/');
 
-  return <AdminExpensesView />;
+  return <AdminExpensesView currentUser={{ username: user.username }} />;
 }

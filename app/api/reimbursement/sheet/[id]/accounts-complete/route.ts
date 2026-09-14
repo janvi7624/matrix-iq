@@ -5,9 +5,9 @@ import { logAudit } from '@/lib/auditLogStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
-import { listDepartmentManagers } from '@/lib/departmentStore';
 import { findUserByUsername } from '@/lib/userStore';
 import { sendReimbursementLifecycleEmail } from '@/lib/email/notifications';
+import { isAccountsPaymentActor } from '@/lib/accountsPaymentAccess';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -25,12 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Sheet is not awaiting payment' }, { status: 400 });
     }
 
-    const allManagers = await listDepartmentManagers();
-    const accountsManagers = allManagers['Accounts'] || allManagers['Finance'] || [];
-    const isAccounts = accountsManagers.some((m) => m.username === viewer.username);
-    const isSuperRole = viewer.role === 'admin' || viewer.role === 'superadmin';
-
-    if (!isAccounts && !isSuperRole) {
+    if (!(await isAccountsPaymentActor(viewer))) {
       return NextResponse.json({ error: 'Not authorized — only Accounts team can mark payment' }, { status: 403 });
     }
 

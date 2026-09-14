@@ -8,7 +8,8 @@ import { updateQuotationStatus } from '@/lib/quotationStore';
 import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { db } from '@/lib/db';
 import { Op } from 'sequelize';
-import { PROJECT_STAGES, ProjectStage, QuotationStatus } from '@/lib/types';
+import { ProjectStage, QuotationStatus } from '@/lib/types';
+import { ASSIGNABLE_STAGES } from '@/lib/projectStages';
 import { apiErrorResponse } from '@/lib/apiError';
 
 const VALID_PERIOD_TYPES: TargetPeriodType[] = ['monthly', 'quarterly', 'half_yearly', 'annual'];
@@ -106,7 +107,7 @@ export async function PATCH(request: NextRequest) {
       await updateQuotationStatus(body.quotationId, body.status, viewer.username);
       period = periodContainingDate('monthly', quotation.get('createdAt') as Date);
     } else if (body.action === 'project_stage') {
-      const stage: ProjectStage | undefined = PROJECT_STAGES.includes(body.stage) ? body.stage : undefined;
+      const stage: ProjectStage | undefined = ASSIGNABLE_STAGES.includes(body.stage) ? body.stage : undefined;
       if (!stage) return NextResponse.json({ error: 'Invalid project stage' }, { status: 400 });
       const project = await findProjectById(body.projectId);
       if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });

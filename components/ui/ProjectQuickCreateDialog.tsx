@@ -27,11 +27,12 @@ interface ProjectCreateForm {
   priority: ProjectPriority;
   expectedClosingDate: string;
   remarks: string;
+  approxPrice: string;
 }
 
 const EMPTY_FORM: ProjectCreateForm = {
   clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '',
-  salesPersonId: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: ''
+  salesPersonId: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: '', approxPrice: ''
 };
 
 interface PendingCreate {
@@ -76,6 +77,11 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
     }
     if (!form.source.trim()) {
       toast.error('Source is required.');
+      return;
+    }
+    const priceNum = Number(form.approxPrice);
+    if (!form.approxPrice.trim() || !Number.isFinite(priceNum) || priceNum <= 0) {
+      toast.error('Approx. Project Price is required and must be a positive number.');
       return;
     }
     setCreating(true);
@@ -165,6 +171,10 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Expected closing date</label>
                   <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={form.expectedClosingDate} onChange={(e) => setForm((f) => ({ ...f, expectedClosingDate: e.target.value }))} />
+                </div>
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Approx. Project Price (₹) *</label>
+                  <input type="number" min={1} step="0.01" className={calcStyles.formControl} placeholder="e.g. 1250000" value={form.approxPrice} onChange={(e) => setForm((f) => ({ ...f, approxPrice: e.target.value }))} />
                 </div>
               </div>
               <div className={calcStyles.field}>

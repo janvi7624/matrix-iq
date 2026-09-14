@@ -53,10 +53,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const created = await installationStore.create(record);
+    // Project Progress no longer has an 'installation' stage (PO Received is
+    // now the final stage) — this only logs the timeline event, it no longer
+    // moves Project.stage.
     await appendProjectTimeline(
       projectId,
-      { by: viewer.username, stage: 'installation', label: 'Installation scheduled', remarks: `Engineer: ${record.assigned_engineer || '-'}` },
-      'installation'
+      { by: viewer.username, stage: 'installation', label: 'Installation scheduled', remarks: `Engineer: ${record.assigned_engineer || '-'}` }
     );
 
     if (project.created_by && project.created_by !== viewer.username) {

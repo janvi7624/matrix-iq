@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getViewerContext } from '@/lib/viewerContext';
 import { db } from '@/lib/db';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import { apiErrorResponse } from '@/lib/apiError';
-import { findUsersByIds, findUsersByDepartmentName } from '@/lib/userStore';
-import { notifyUsers } from '@/lib/notificationStore';
-import { sendAdminExpenseNoticeEmail } from '@/lib/email/notifications';
-
-const ALLOWED_ROLES = new Set(['superadmin', 'admin', 'hr']);
-
-async function assertAdmin(request: NextRequest) {
-  const viewer = await getViewerContext(request);
-  if (!viewer) return null;
-  if (!ALLOWED_ROLES.has(viewer.role)) return null;
-  return viewer;
-}
+import { assertAdmin, APPROVER_USERNAME, notifyAccountsOfAdminExpense, notifyApproverOfPendingExpense } from '@/lib/adminExpenseAccess';
 
 interface ResolvedExpenseFields {
   description: string;
@@ -79,50 +67,6 @@ function resolveExpenseFields(body: Record<string, unknown>): ResolvedExpenseFie
   return { error: 'Invalid type' };
 }
 
-// Admin Expenses have no approval chain at all (see the module-level note in
-// the plan/summary — created directly, no manager/HR review, unlike a
-// Reimbursement sheet which always passes through HR before payment). That
-// means Accounts otherwise never hears money moved here, so this is their
-// only notice — mirrors the Accounts fan-out added to
-// app/api/reimbursement/sheet/[id]/hr-decide/route.ts for the HR-approved
-// case, so the "which payments does Accounts get told about" behavior is
-// consistent across both paths.
-async function notifyAccountsOfAdminExpense(opts: {
-  action: 'created' | 'updated';
-  addedByName: string;
-  expenseType: string;
-  totalAmount: number;
-  resolvedDate: string;
-  batchId: string;
-  employeeIds: string[];
-}): Promise<void> {
-  const accountsUsers = await findUsersByDepartmentName('Accounts');
-  if (!accountsUsers.length) return;
-
-  const employees = await findUsersByIds(opts.employeeIds);
-  const employeeNames = employees.map((e) => e.name || e.username);
-  const totalStr = `₹${opts.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-  const verb = opts.action === 'created' ? 'created' : 'updated';
-
-  await notifyUsers(accountsUsers.map((u) => u.username), {
-    title: `Company-paid expense ${verb}`,
-    body: `${opts.expenseType} — ${totalStr} ${verb} by ${opts.addedByName}, split across ${opts.employeeIds.length} employee${opts.employeeIds.length === 1 ? '' : 's'}`,
-    type: 'admin_expense_accounts_notice',
-    entityType: 'admin_expense',
-    entityId: opts.batchId,
-  });
-
-  await Promise.allSettled(
-    accountsUsers.map((u) =>
-      sendAdminExpenseNoticeEmail({
-        email: u.email, name: u.name || u.username, action: opts.action,
-        expenseType: opts.expenseType, totalAmount: totalStr, employeeNames,
-        addedBy: opts.addedByName, date: opts.resolvedDate,
-      })
-    )
-  );
-}
-
 export async function GET(request: NextRequest) {
   const admin = await assertAdmin(request);
   if (!admin) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
@@ -130,7 +74,10 @@ export async function GET(request: NextRequest) {
   try {
     const rows = await db.Reimbursement.findAll({
       where: { is_admin_entry: true } as never,
-      include: [{ model: db.User, as: 'creator', attributes: ['id', 'username', 'name'] }] as never,
+      include: [
+        { model: db.User, as: 'creator', attributes: ['id', 'username', 'name'] },
+        { model: db.User, as: 'approver', attributes: ['id', 'username', 'name'] },
+      ] as never,
       order: [['created_at', 'DESC']],
     });
 
@@ -152,6 +99,9 @@ export async function GET(request: NextRequest) {
           per_person: Number(rec.amount) || 0,
           employees: [] as { id: string; name: string }[],
           created_at: rec.created_at,
+          approval_status: rec.approval_status || 'approved',
+          approved_by_name: rec.approver ? ((rec.approver.name as string) || (rec.approver.username as string)) : '',
+          approved_at: rec.approved_at || '',
         });
       }
       const g = grouped.get(key)!;
@@ -192,6 +142,7 @@ export async function POST(request: NextRequest) {
   const perPerson = Math.round((amt / splitCount) * 100) / 100;
   const batchId = `admin-${Date.now()}`;
   const urls: string[] = Array.isArray(attachmentUrls) ? attachmentUrls.filter((v: unknown) => typeof v === 'string') : [];
+  const isApprover = admin.username === APPROVER_USERNAME;
 
   try {
     const created = [];
@@ -214,14 +165,24 @@ export async function POST(request: NextRequest) {
         admin_note: batchId,
         admin_total_amount: amt,
         admin_split_count: splitCount,
+        payment_status: 'payment_required',
+        approval_status: isApprover ? 'approved' : 'pending_approval',
+        approved_by: isApprover ? admin.userId : null,
+        approved_at: isApprover ? new Date() : null,
       } as never);
       created.push(row.get({ plain: true }));
     }
 
-    await notifyAccountsOfAdminExpense({
-      action: 'created', addedByName: admin.name, expenseType: description,
-      totalAmount: amt, resolvedDate, batchId, employeeIds,
-    });
+    if (isApprover) {
+      await notifyAccountsOfAdminExpense({
+        action: 'created', addedByName: admin.name, expenseType: description,
+        totalAmount: amt, resolvedDate, batchId, employeeIds,
+      });
+    } else {
+      await notifyApproverOfPendingExpense({
+        addedByName: admin.name, expenseType: description, totalAmount: amt, batchId,
+      });
+    }
 
     return NextResponse.json({
       message: `Created ${created.length} entries (₹${perPerson} per person from total ₹${amt})`,
@@ -257,8 +218,20 @@ export async function PUT(request: NextRequest) {
 
   const splitCount = employeeIds.length;
   const perPerson = Math.round((amt / splitCount) * 100) / 100;
+  const isApprover = admin.username === APPROVER_USERNAME;
 
   try {
+    // Accounts Payment Queue — a batch Accounts has already paid is
+    // protected from being silently rewritten by an HR/Admin edit (Part 32:
+    // once Paid, payment information isn't casually editable). The batch
+    // must be put back to payment_required via the payments workspace first
+    // if it genuinely needs correction.
+    const existingRows = await db.Reimbursement.findAll({ where: { admin_note: batchId, is_admin_entry: true } as never, attributes: ['payment_status'] });
+    if (!existingRows.length) return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+    if (existingRows.some((r) => (r.get({ plain: true }) as Record<string, unknown>).payment_status === 'paid')) {
+      return NextResponse.json({ error: 'This batch has already been paid and can no longer be edited' }, { status: 400 });
+    }
+
     // Delete old batch entries
     await db.Reimbursement.destroy({ where: { admin_note: batchId, is_admin_entry: true } as never });
 
@@ -281,13 +254,26 @@ export async function PUT(request: NextRequest) {
         admin_note: batchId,
         admin_total_amount: amt,
         admin_split_count: splitCount,
+        payment_status: 'payment_required',
+        // Re-editing resets approval — Hardik approved the ORIGINAL details,
+        // not whatever this edit just changed them to, unless he's the one
+        // making the edit.
+        approval_status: isApprover ? 'approved' : 'pending_approval',
+        approved_by: isApprover ? admin.userId : null,
+        approved_at: isApprover ? new Date() : null,
       } as never);
     }
 
-    await notifyAccountsOfAdminExpense({
-      action: 'updated', addedByName: admin.name, expenseType: description,
-      totalAmount: amt, resolvedDate, batchId, employeeIds,
-    });
+    if (isApprover) {
+      await notifyAccountsOfAdminExpense({
+        action: 'updated', addedByName: admin.name, expenseType: description,
+        totalAmount: amt, resolvedDate, batchId, employeeIds,
+      });
+    } else {
+      await notifyApproverOfPendingExpense({
+        addedByName: admin.name, expenseType: description, totalAmount: amt, batchId,
+      });
+    }
 
     return NextResponse.json({
       message: `Updated batch (₹${perPerson} per person from total ₹${amt})`,
@@ -309,6 +295,11 @@ export async function DELETE(request: NextRequest) {
   if (!batchId) return NextResponse.json({ error: 'batchId is required' }, { status: 400 });
 
   try {
+    const existingRows = await db.Reimbursement.findAll({ where: { admin_note: batchId, is_admin_entry: true } as never, attributes: ['payment_status'] });
+    if (existingRows.some((r) => (r.get({ plain: true }) as Record<string, unknown>).payment_status === 'paid')) {
+      return NextResponse.json({ error: 'This batch has already been paid and can no longer be deleted' }, { status: 400 });
+    }
+
     const count = await db.Reimbursement.destroy({ where: { admin_note: batchId, is_admin_entry: true } as never });
     return NextResponse.json({ message: `Deleted ${count} entries`, count });
   } catch (error) {
