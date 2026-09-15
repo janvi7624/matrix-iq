@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { findUsersByIds, findUsersByDepartmentName } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendAdminExpenseNoticeEmail } from '@/lib/email/notifications';
+import { REPORT_VIEWER_USERNAME } from '@/lib/adminExpenseReportAccess';
 
 // Shared between app/api/admin-expenses/route.ts and .../[batchId]/approve/
 // route.ts — a plain route.ts can only export HTTP method handlers, so
@@ -20,6 +21,17 @@ export async function assertAdmin(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return null;
   if (!ALLOWED_ROLES.has(viewer.role)) return null;
+  return viewer;
+}
+
+// Admin Expense Report — restricted to exactly one named person (see
+// lib/adminExpenseReportAccess.ts). No role/permission check at all here on
+// purpose: role membership (even 'hr') is not sufficient, only this specific
+// username is.
+export async function assertReportViewer(request: NextRequest) {
+  const viewer = await getViewerContext(request);
+  if (!viewer) return null;
+  if (viewer.username !== REPORT_VIEWER_USERNAME) return null;
   return viewer;
 }
 

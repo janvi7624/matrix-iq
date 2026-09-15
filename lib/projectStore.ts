@@ -22,7 +22,7 @@ const FIELDS = [
   { name: 'next_follow_up_date', kind: 'nullable' as const },
   { name: 'remarks' },
   { name: 'closing_probability_percent', kind: 'nullable' as const },
-  { name: 'approx_price', kind: 'nullable' as const },
+  { name: 'approx_price', kind: 'decimal' as const },
   { name: 'attachments', kind: 'json' as const },
   { name: 'assigned_technical_person_id', kind: 'nullable' as const },
   { name: 'tms_project_id', kind: 'nullable' as const },
@@ -45,7 +45,7 @@ function isoOrEmpty(value: unknown): string {
 }
 
 function toAttr(value: unknown, kind: string): unknown {
-  if (kind === 'nullable') return value === '' || value === undefined ? null : value;
+  if (kind === 'nullable' || kind === 'decimal') return value === '' || value === undefined || value === null ? null : value;
   return value;
 }
 
@@ -109,6 +109,12 @@ function toRecord(row: Model): ProjectRecord {
     const raw = plain[name];
     if (kind === 'nullable') record[name] = raw ?? '';
     else if (kind === 'json') record[name] = raw ?? [];
+    // node-postgres returns DECIMAL as a STRING (to preserve precision), so
+    // without this coercion `approx_price` would reach the UI as
+    // "1250000.00" — where toLocaleString('en-IN') is a no-op (String's own
+    // method, not Number's), rendering "₹1250000.00" instead of "₹12,50,000",
+    // and every `typeof x === 'number'` total silently summed it as 0.
+    else if (kind === 'decimal') record[name] = raw === null || raw === undefined ? '' : Number(raw);
     else record[name] = raw ?? '';
   }
   return record as unknown as ProjectRecord;

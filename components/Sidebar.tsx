@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { FileSpreadsheet } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { ModuleConfigRecord, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
@@ -10,10 +11,12 @@ import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
 import { sectionIconFor, resolveModuleIcon, QUICK_ACTION_ICON, CHROME_ICON } from '@/lib/icons';
+import { REPORT_VIEWER_USERNAME } from '@/lib/adminExpenseReportAccess';
 import styles from './sidebar.module.css';
 
 interface Viewer {
   name: string;
+  username: string;
   role: UserRole;
   department?: string;
 }
@@ -180,6 +183,16 @@ export default function Sidebar() {
               </div>
             );
           })}
+          {viewer?.username === REPORT_VIEWER_USERNAME && (
+            <Link
+              href="/admin-expense-report"
+              className={`${styles.link} ${isActive('/admin-expense-report') ? styles.linkActive : ''}`}
+              data-tooltip="Admin Expense Report"
+            >
+              <span className={styles.linkIcon}><FileSpreadsheet size={16} /></span>
+              <span className={styles.linkLabel}>Admin Expense Report</span>
+            </Link>
+          )}
         </nav>
 
         {quickActions.length > 0 && (
