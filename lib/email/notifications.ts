@@ -10,6 +10,7 @@ import { renderQuotationStatusChangedEmail, QuotationStatusChangedEmailData } fr
 import { renderDemoLifecycleEmail, DemoLifecycleEmailData } from './templates/demoLifecycle';
 import { renderProjectLifecycleEmail, ProjectLifecycleEmailData } from './templates/projectLifecycle';
 import { renderTaskLifecycleEmail, TaskLifecycleEmailData } from './templates/taskLifecycle';
+import { renderTaskAssignmentEmail, TaskAssignmentEmailData } from './templates/taskAssignment';
 import { renderProcurementLifecycleEmail, ProcurementLifecycleEmailData } from './templates/procurementLifecycle';
 import { renderMarketingRequestLifecycleEmail, MarketingRequestLifecycleEmailData } from './templates/marketingRequestLifecycle';
 import { renderFieldOpsLifecycleEmail, FieldOpsLifecycleEmailData } from './templates/fieldOpsLifecycle';
@@ -150,6 +151,23 @@ export async function sendTaskLifecycleEmail(data: { email: string } & Omit<Task
     await sendEmail({ to: data.email, subject, html, text });
   } catch (error) {
     console.error(`[email] Task lifecycle event "${data.event}" processed successfully but the notification email could not be sent:`, error instanceof Error ? error.message : error);
+  }
+}
+
+// Task Planner (GeneralTask, app/api/admin/task-assignment + .../reassign) —
+// a distinct, per-department task, not a TMS project task, so it gets its
+// own template/sender rather than reusing sendTaskLifecycleEmail (which
+// requires a projectName this task kind doesn't have).
+export async function sendTaskAssignedEmail(data: { email: string } & Omit<TaskAssignmentEmailData, 'tasksUrl'>): Promise<void> {
+  if (!data.email) return;
+
+  try {
+    const appUrl = resolveAppUrl();
+    const tasksUrl = appUrl ? `${appUrl}/admin/task-planner` : '/admin/task-planner';
+    const { subject, html, text } = renderTaskAssignmentEmail({ ...data, tasksUrl });
+    await sendEmail({ to: data.email, subject, html, text });
+  } catch (error) {
+    console.error('[email] Task was assigned successfully but the notification email could not be sent:', error instanceof Error ? error.message : error);
   }
 }
 

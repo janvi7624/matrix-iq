@@ -132,7 +132,7 @@ export default function Sidebar() {
       {open && <div className={styles.overlay} onClick={() => setOpen(false)} />}
       <aside className={`${styles.sidebar} ${open ? styles.sidebarOpen : ''} ${collapsed ? styles.sidebarCollapsed : ''}`}>
         <div className={styles.brand}>
-          <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={32} height={32} className={styles.brandLogo} unoptimized />
+          <Image src={BRAND.iconMark} alt={`${BRAND.companyName} logo`} width={32} height={32} className={styles.brandLogo} unoptimized />
           <div className={styles.brandText}>
             <div className={styles.brandName}>{BRAND.appName}</div>
             <div className={styles.brandMeta}>v{BRAND.version}</div>

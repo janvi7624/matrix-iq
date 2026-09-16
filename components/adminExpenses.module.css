@@ -86,6 +86,11 @@ tr:hover .employeeExpanded { display: flex; }
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+    /* .tableFixed sets white-space:normal on every cell so long text wraps —
+       that also wrapped this single word onto two lines, inflating the row
+       height. Buttons are short labels, never meant to wrap. */
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 .deleteRowBtn {
     padding: 4px 10px;
@@ -96,4 +101,6 @@ tr:hover .employeeExpanded { display: flex; }
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
 }

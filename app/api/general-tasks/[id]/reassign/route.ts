@@ -5,6 +5,7 @@ import { employeeBelongsToDepartment } from '@/lib/departmentEmployeeStore';
 import { findUserById } from '@/lib/userStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendTaskAssignedEmail } from '@/lib/email/notifications';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -53,6 +54,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         entityType: 'general_task',
         entityId: id
       });
+      if (newAssignee.email) {
+        void sendTaskAssignedEmail({
+          email: newAssignee.email, name: newAssignee.name || newAssignee.username,
+          taskName: task.title, departmentName: task.department_name, assignedBy: viewer.name, deadline: task.deadline
+        });
+      }
     }
 
     return NextResponse.json(updated);

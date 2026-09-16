@@ -7,6 +7,7 @@ import { employeeBelongsToDepartment, listActiveEmployeesForDepartment } from '@
 import { findDepartmentById, listDepartmentManagers } from '@/lib/departmentStore';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
+import { sendTaskAssignedEmail } from '@/lib/email/notifications';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -175,6 +176,12 @@ export async function POST(request: NextRequest) {
             type: 'general_task_assigned',
             entityType: 'general_task',
             entityId: row.id
+          });
+        }
+        if (assignee?.email) {
+          void sendTaskAssignedEmail({
+            email: assignee.email, name: assignee.name || assignee.username,
+            taskName: title, departmentName: department.name, assignedBy: viewer.name, deadline, priority
           });
         }
       }

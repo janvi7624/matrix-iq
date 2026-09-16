@@ -14,8 +14,19 @@ export const BRAND = {
   version: '1.0.0',
   companyName: 'NANTA',
   companyLegalName: 'NANTA TECH LIMITED',
+  // The full icon+wordmark lockup (~3.6:1 wide) — correct for every current
+  // `logo` usage (login, change-password, error/not-found headers, portal
+  // header) because they all size it by height only (CSS `width: auto`), so
+  // it renders at its real aspect ratio and stays legible.
   logo: '/NANTA.png',
-  favicon: '/NANTA.png',
+  // A browser/PWA favicon is always forced into a fixed square regardless of
+  // CSS, so the wide lockup above would shrink to an illegible sliver there
+  // — this is a tightly-cropped square export of just the mark (see
+  // public/nanta_technologies_logo.svg for the source vector), which is also
+  // what Sidebar's fixed 32x32 badge uses (BRAND.iconMark) for the same
+  // reason.
+  favicon: '/nanta-icon.png',
+  iconMark: '/nanta-icon.png',
   themeColor: '#111827',
   accentColor: '#dc2626'
 } as const;

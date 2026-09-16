@@ -43,7 +43,7 @@ export default function PortalHeader({ title, subtitle, showBackLink = true }: P
   return (
     <header className={styles.header}>
       <Link href="/" className={styles.headerBrand}>
-        <Image src="/NANTA.png" alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
+        <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
         <div>
           {section && <div className={styles.breadcrumb}>{section} <span>›</span> {title}</div>}
           <h1>{title}</h1>
