@@ -4,13 +4,19 @@ import { QuotationDetails } from '@/lib/types';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
 import PhoneInput from '@/components/ui/PhoneInput';
+import TeamMemberSelect, { TeamMemberOption } from '@/components/ui/TeamMemberSelect';
 
 interface QuotationDetailsFormProps {
   details: QuotationDetails;
   onChange: (patch: Partial<QuotationDetails>) => void;
+  // Only Khushi/Maulik get these — everyone else keeps the plain
+  // locked-to-self fields below exactly as before. See
+  // lib/quotationOnBehalfAccess.ts.
+  onBehalfOptions?: TeamMemberOption[];
 }
 
-export default function QuotationDetailsForm({ details, onChange }: QuotationDetailsFormProps) {
+export default function QuotationDetailsForm({ details, onChange, onBehalfOptions }: QuotationDetailsFormProps) {
+  const canActOnBehalf = !!onBehalfOptions;
   return (
     <>
       <h2 className={styles.h2}>Quotation Details</h2>
@@ -29,21 +35,29 @@ export default function QuotationDetailsForm({ details, onChange }: QuotationDet
             <span className={styles.lockedHint}>Assigned automatically — a new, unique number every time you save.</span>
           </div>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="preparedBy">Prepared by</label>
-            <input id="preparedBy" className={`${styles.formControl} ${styles.formControlLocked}`} type="text" value={details.preparedBy} readOnly tabIndex={-1} />
-            <span className={styles.lockedHint}>Your logged-in name.</span>
+            <label className={styles.label} htmlFor="preparedBy">Prepared by {canActOnBehalf && '*'}</label>
+            {canActOnBehalf ? (
+              <TeamMemberSelect
+                options={onBehalfOptions!}
+                value={details.preparedByUserId}
+                onChange={(opt) => onChange({ preparedByUserId: opt.id, preparedBy: opt.name, preparedByPhone: opt.phone, preparedByEmail: opt.email })}
+              />
+            ) : (
+              <input id="preparedBy" className={`${styles.formControl} ${styles.formControlLocked}`} type="text" value={details.preparedBy} readOnly tabIndex={-1} />
+            )}
+            <span className={styles.lockedHint}>{canActOnBehalf ? 'Search and select the team member this quotation is for.' : 'Your logged-in name.'}</span>
           </div>
         </div>
         <div className={`${styles.row} ${styles.columns}`}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="preparedByPhone">Mobile Number</label>
             <input id="preparedByPhone" className={`${styles.formControl} ${styles.formControlLocked}`} type="tel" value={details.preparedByPhone} readOnly tabIndex={-1} />
-            <span className={styles.lockedHint}>From your account.</span>
+            <span className={styles.lockedHint}>{canActOnBehalf ? "From the selected team member's profile." : 'From your account.'}</span>
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="preparedByEmail">Email ID</label>
             <input id="preparedByEmail" className={`${styles.formControl} ${styles.formControlLocked}`} type="email" value={details.preparedByEmail} readOnly tabIndex={-1} />
-            <span className={styles.lockedHint}>From your account.</span>
+            <span className={styles.lockedHint}>{canActOnBehalf ? "From the selected team member's profile." : 'From your account.'}</span>
           </div>
         </div>
         <div className={`${styles.row} ${styles.columns}`}>

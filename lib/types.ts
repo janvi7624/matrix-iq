@@ -81,6 +81,10 @@ export interface QuotationDetails {
   preparedBy: string;
   preparedByPhone: string;
   preparedByEmail: string;
+  // '' means "use the logged-in creator" (server default) — only set to
+  // someone else's id when a Khushi/Maulik-style delegated user picks a
+  // different team member as Prepared By. See lib/quotationOnBehalf.ts.
+  preparedByUserId: string;
   clientName: string;
   clientCompany: string;
   clientEmail: string;
@@ -174,6 +178,10 @@ export interface QuotationRecord {
   prepared_by: string;
   prepared_by_phone: string;
   prepared_by_email: string;
+  // The user prepared_by/_phone/_email were snapshotted from — '' when
+  // there's no linked user (older quotations, or self-service quotations
+  // created before this field existed). See lib/quotationOnBehalf.ts.
+  prepared_by_user_id: string;
   client_name: string;
   client_company: string;
   client_email: string;

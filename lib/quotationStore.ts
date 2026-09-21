@@ -43,6 +43,7 @@ function toRecord(row: Model): QuotationRecord {
     prepared_by: (plain.prepared_by as string) ?? '',
     prepared_by_phone: (plain.prepared_by_phone as string) ?? '',
     prepared_by_email: (plain.prepared_by_email as string) ?? '',
+    prepared_by_user_id: (plain.prepared_by_user_id as string) ?? '',
     client_name: (plain.client_name as string) ?? '',
     client_company: (plain.client_company as string) ?? '',
     client_email: (plain.client_email as string) ?? '',
@@ -74,6 +75,7 @@ export interface CreateQuotationInput {
   preparedBy?: string;
   preparedByPhone?: string;
   preparedByEmail?: string;
+  preparedByUserId?: string;
   clientName?: string;
   clientCompany?: string;
   clientEmail?: string;
@@ -136,6 +138,7 @@ export async function createQuotation(input: CreateQuotationInput): Promise<Quot
     prepared_by: input.preparedBy || '',
     prepared_by_phone: input.preparedByPhone || '',
     prepared_by_email: input.preparedByEmail || '',
+    prepared_by_user_id: input.preparedByUserId || null,
     client_name: input.clientName || '',
     client_company: input.clientCompany || '',
     client_email: input.clientEmail || '',
@@ -187,6 +190,7 @@ export async function createQuotationRevision(sourceId: string, input: CreateQuo
     prepared_by: input.preparedBy ?? rootPlain.prepared_by,
     prepared_by_phone: input.preparedByPhone ?? rootPlain.prepared_by_phone,
     prepared_by_email: input.preparedByEmail ?? rootPlain.prepared_by_email,
+    prepared_by_user_id: input.preparedByUserId ?? rootPlain.prepared_by_user_id,
     client_name: input.clientName ?? rootPlain.client_name,
     client_company: input.clientCompany ?? rootPlain.client_company,
     client_email: input.clientEmail ?? rootPlain.client_email,
@@ -341,6 +345,12 @@ export async function searchQuotationsFiltered(filters: QuotationFilters): Promi
       andConditions.push({
         [Op.or]: [
           { created_by: user.get('id') },
+          // prepared_by_user_id is the exact, reliable match (set for every
+          // quotation created since this field existed); the two prepared_by
+          // string comparisons stay as a fallback for older quotations that
+          // predate it, or a self-service quotation where prepared_by was
+          // typed/derived as the user's own name/username.
+          { prepared_by_user_id: user.get('id') },
           { prepared_by: filters.ownerUsername },
           { prepared_by: user.get('name') }
         ]
@@ -360,10 +370,23 @@ export async function searchQuotationsFiltered(filters: QuotationFilters): Promi
   // viewer's own quotations plus their managed department's team, otherwise
   // own-only. AND'd with ownerUsername above (never OR'd), so the
   // salesPerson filter can only narrow within this scope, not widen past it.
+  //
+  // Matches on prepared_by_user_id too, not just created_by — otherwise a
+  // quotation Khushi/Maulik created "on behalf of" someone outside their own
+  // scope (e.g. a non-privileged viewer looking at just their own id) would
+  // get silently AND'd back out here even though the ownerUsername clause
+  // above already matched it via prepared_by_user_id, since created_by is
+  // Khushi/Maulik's id, not the viewer's.
   if (filters.viewerUsername) {
     const scope = await resolveVisibilityScope(filters.viewerUsername);
     if (!scope.seesOrgWide) {
-      andConditions.push({ created_by: { [Op.in]: scope.scopedUserIds ?? [] } });
+      const scopedIds = scope.scopedUserIds ?? [];
+      andConditions.push({
+        [Op.or]: [
+          { created_by: { [Op.in]: scopedIds } },
+          { prepared_by_user_id: { [Op.in]: scopedIds } }
+        ]
+      });
     }
   }
 

@@ -17,7 +17,7 @@ export default async function QuotationPage() {
 
   return (
     <QuotationCalculator
-      currentUser={{ username: user.username, name: user.name, phone: user.phone, email: user.email, role: user.role }}
+      currentUser={{ id: user.id, username: user.username, name: user.name, phone: user.phone, email: user.email, role: user.role }}
       canEditPricing={isPrivileged}
       isPrivileged={isPrivileged}
     />

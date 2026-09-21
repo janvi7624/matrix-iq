@@ -210,6 +210,47 @@
     color: #9ca3af;
     margin-top: -2px;
 }
+/* Prepared By team-member picker (components/ui/TeamMemberSelect.tsx) —
+   only rendered for the Khushi/Maulik-style on-behalf-of case, everyone
+   else keeps the plain locked-to-self input above unchanged. */
+.teamMemberSelect {
+    position: relative;
+}
+.teamMemberSelectList {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+.teamMemberSelectOption {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 14px;
+    border: none;
+    background: transparent;
+    color: var(--mx-ink);
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+}
+.teamMemberSelectOption:hover,
+.teamMemberSelectOption:focus {
+    background: var(--mx-brand-subtle);
+    outline: none;
+}
+.teamMemberSelectEmpty {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+}
 .actions {
     display: flex;
     justify-content: space-between;

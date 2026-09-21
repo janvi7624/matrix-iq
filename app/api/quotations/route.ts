@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { createQuotation } from '@/lib/quotationStore';
+import { resolvePreparedBy } from '@/lib/quotationOnBehalf';
 import { apiErrorResponse } from '@/lib/apiError';
 
 // Listing/searching quotations requires admin login — see /api/admin/quotations
@@ -22,8 +23,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Client name or company is required' }, { status: 400 });
   }
 
+  const requestedPreparedByUserId = typeof body.preparedByUserId === 'string' ? body.preparedByUserId.trim() : undefined;
+  const resolved = await resolvePreparedBy(session.username, requestedPreparedByUserId);
+  if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+
   try {
-    const record = await createQuotation({ ...body, createdBy: session.username });
+    const record = await createQuotation({
+      ...body,
+      createdBy: session.username,
+      preparedByUserId: resolved.value.userId,
+      preparedBy: resolved.value.name,
+      preparedByPhone: resolved.value.phone,
+      preparedByEmail: resolved.value.email
+    });
     return NextResponse.json(record, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { createQuotationRevision, findQuotationById } from '@/lib/quotationStore';
+import { resolvePreparedBy } from '@/lib/quotationOnBehalf';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -29,7 +30,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const revision = await createQuotationRevision(id, { ...body, createdBy: viewer.username }, reason);
+    // Only gate/resolve prepared-by when the request is actually CHANGING
+    // who it's prepared by (a real delegation) — a revision that leaves it
+    // alone must keep inheriting the root's original prepared_by/_phone/
+    // _email/_user_id (createQuotationRevision's own `??` fallback below
+    // already does that). Resolving unconditionally here — the way POST
+    // /api/quotations does — would silently reset every revision's prepared
+    // by back to the REVISER's own identity even when nothing about who
+    // it's for was meant to change, since the calculator always includes
+    // these fields in its payload.
+    const requestedPreparedByUserId = typeof body.preparedByUserId === 'string' ? body.preparedByUserId.trim() : undefined;
+    const rootPreparedByUserId = (root?.prepared_by_user_id || source.prepared_by_user_id) || undefined;
+    const isChangingPreparedBy = requestedPreparedByUserId !== undefined && requestedPreparedByUserId !== rootPreparedByUserId;
+
+    let preparedByOverride: Partial<{ preparedByUserId: string; preparedBy: string; preparedByPhone: string; preparedByEmail: string }> = {};
+    if (isChangingPreparedBy) {
+      const resolved = await resolvePreparedBy(viewer.username, requestedPreparedByUserId);
+      if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+      preparedByOverride = {
+        preparedByUserId: resolved.value.userId,
+        preparedBy: resolved.value.name,
+        preparedByPhone: resolved.value.phone,
+        preparedByEmail: resolved.value.email
+      };
+    }
+
+    const revision = await createQuotationRevision(id, { ...body, ...preparedByOverride, createdBy: viewer.username }, reason);
     if (!revision) return NextResponse.json({ error: 'Could not create a revision' }, { status: 400 });
 
     await logAudit({

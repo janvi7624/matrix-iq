@@ -11,3 +11,12 @@
 // today, not one rule. Keeping them independent means one can change later
 // without silently changing the other.
 export const REPORT_VIEWER_USERNAME = 'hardik.acharya';
+
+// Report access, in full: Hardik (named individual, above) OR either of
+// these roles OR anyone in this department (by department NAME, not role —
+// e.g. a Sales person who happens to sit in the Administration department
+// still gets it, an admin-role person in a different department gets it too
+// via the role check). Widen here, not at each of the four call sites
+// (report API, export API, page, sidebar) that all key off these.
+export const REPORT_VIEWER_ROLES = ['admin', 'superadmin'];
+export const REPORT_VIEWER_DEPARTMENT = 'Administration';

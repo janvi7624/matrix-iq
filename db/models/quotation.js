@@ -8,6 +8,13 @@ module.exports = (sequelize, DataTypes) => {
     prepared_by: { type: DataTypes.STRING },
     prepared_by_phone: { type: DataTypes.STRING },
     prepared_by_email: { type: DataTypes.STRING },
+    // Who prepared_by/_phone/_email were snapshotted FROM at creation time —
+    // nullable (older quotations, or a manually-typed name that doesn't
+    // match a real user, have no linked id; the snapshot columns above are
+    // still the source of truth for display either way). Lets Khushi/Maulik
+    // create a quotation "on behalf of" someone else while created_by still
+    // records who actually did it — see lib/quotationOnBehalf.ts.
+    prepared_by_user_id: { type: DataTypes.UUID },
     client_name: { type: DataTypes.STRING },
     client_company: { type: DataTypes.STRING },
     client_email: { type: DataTypes.STRING },
@@ -39,6 +46,7 @@ module.exports = (sequelize, DataTypes) => {
   Quotation.associate = (models) => {
     Quotation.belongsTo(models.Project, { foreignKey: 'project_id', as: 'project' });
     Quotation.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
+    Quotation.belongsTo(models.User, { foreignKey: 'prepared_by_user_id', as: 'preparedByUser' });
     Quotation.belongsTo(models.Quotation, { foreignKey: 'original_quotation_id', as: 'originalQuotation' });
     Quotation.hasMany(models.Quotation, { foreignKey: 'original_quotation_id', as: 'revisions' });
     Quotation.hasMany(models.QuotationProduct, { foreignKey: 'quotation_id', as: 'products' });

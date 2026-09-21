@@ -24,6 +24,8 @@ import SiEstimator from './estimators/SiEstimator';
 import VisitIqEstimator from './estimators/VisitIqEstimator';
 import { buildOverrideMap, CatalogOverrideRow, OverrideMap } from '@/lib/catalogOverrides';
 import QuotationDetailsForm from './QuotationDetailsForm';
+import { TeamMemberOption } from './ui/TeamMemberSelect';
+import { canActOnBehalf } from '@/lib/quotationOnBehalfAccess';
 import CostInputsSection from './CostInputsSection';
 import CartList from './CartList';
 import DiscountsList from './DiscountsList';
@@ -58,6 +60,7 @@ const ROLE_PILL_CLASS: Record<UserRole, string> = {
 };
 
 export interface CurrentUser {
+  id: string;
   username: string;
   name: string;
   phone: string;
@@ -71,6 +74,7 @@ function defaultDetails(currentUser: CurrentUser): QuotationDetails {
     preparedBy: currentUser.name,
     preparedByPhone: currentUser.phone,
     preparedByEmail: currentUser.email,
+    preparedByUserId: currentUser.id,
     clientName: '',
     clientCompany: '',
     clientEmail: '',
@@ -171,6 +175,10 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
           preparedBy: source.prepared_by || d.preparedBy,
           preparedByPhone: source.prepared_by_phone || d.preparedByPhone,
           preparedByEmail: source.prepared_by_email || d.preparedByEmail,
+          // '' (a legacy quotation with no linked prepared-by user) falls
+          // back to the CURRENT reviser's own id, matching what the API
+          // treats as "no change" — see the revise route's isChangingPreparedBy.
+          preparedByUserId: source.prepared_by_user_id || d.preparedByUserId,
           clientName: source.client_name || '',
           clientCompany: source.client_company || '',
           clientEmail: source.client_email || '',
@@ -204,6 +212,15 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
       .then((rows: CatalogOverrideRow[]) => setOverrides(buildOverrideMap(rows)))
       .catch(() => setOverrides(new Map()));
   }, []);
+
+  const [onBehalfOptions, setOnBehalfOptions] = useState<TeamMemberOption[] | null>(null);
+  useEffect(() => {
+    if (!canActOnBehalf(currentUser.username)) return;
+    fetch('/api/quotations/on-behalf-options')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: TeamMemberOption[]) => setOnBehalfOptions(data))
+      .catch(() => setOnBehalfOptions([]));
+  }, [currentUser.username]);
 
   const selectedProject = useMemo(() => projects.find((p) => p.id === projectId) || null, [projects, projectId]);
 
@@ -288,6 +305,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
       preparedBy: details.preparedBy,
       preparedByPhone: details.preparedByPhone,
       preparedByEmail: details.preparedByEmail,
+      preparedByUserId: details.preparedByUserId,
       clientName: details.clientName,
       clientCompany: details.clientCompany,
       clientEmail: details.clientEmail,
@@ -717,7 +735,11 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
           <div className={historyStyles.wizardCard}>
             <h2 className={historyStyles.wizardCardTitle}><User size={22} /> Client Details</h2>
             <div className={historyStyles.wizardCardHint}>Who is this quotation for?</div>
-            <QuotationDetailsForm details={details} onChange={(patch) => setDetails((d) => ({ ...d, ...patch }))} />
+            <QuotationDetailsForm
+              details={details}
+              onChange={(patch) => setDetails((d) => ({ ...d, ...patch }))}
+              onBehalfOptions={onBehalfOptions ?? undefined}
+            />
           </div>
         )}
 

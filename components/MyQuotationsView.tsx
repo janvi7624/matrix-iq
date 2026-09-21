@@ -236,7 +236,11 @@ export default function MyQuotationsView() {
         loaded && (
           <QuotationTable
             rows={visibleRows}
-            showSalesPerson={isPrivileged}
+            // Always shown here (not just isPrivileged) — this is the
+            // viewer's OWN quotations, so seeing who actually created one
+            // (e.g. Khushi/Maulik creating it on their behalf) is never a
+            // privacy concern the way it would be on an org-wide view.
+            showSalesPerson
             onDelete={canDelete ? handleDelete : undefined}
             onLogFollowUp={handleLogFollowUp}
             onChangeStatus={handleChangeStatus}

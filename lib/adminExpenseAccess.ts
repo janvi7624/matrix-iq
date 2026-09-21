@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { findUsersByIds, findUsersByDepartmentName } from '@/lib/userStore';
+import { findUserById, findUsersByIds, findUsersByDepartmentName } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendAdminExpenseNoticeEmail } from '@/lib/email/notifications';
-import { REPORT_VIEWER_USERNAME } from '@/lib/adminExpenseReportAccess';
+import { REPORT_VIEWER_USERNAME, REPORT_VIEWER_ROLES, REPORT_VIEWER_DEPARTMENT } from '@/lib/adminExpenseReportAccess';
 
 // Shared between app/api/admin-expenses/route.ts and .../[batchId]/approve/
 // route.ts — a plain route.ts can only export HTTP method handlers, so
@@ -24,15 +24,19 @@ export async function assertAdmin(request: NextRequest) {
   return viewer;
 }
 
-// Admin Expense Report — restricted to exactly one named person (see
-// lib/adminExpenseReportAccess.ts). No role/permission check at all here on
-// purpose: role membership (even 'hr') is not sufficient, only this specific
-// username is.
+// Admin Expense Report — Hardik Acharya by name, anyone with an admin/
+// superadmin role, or anyone in the Administration department (see
+// lib/adminExpenseReportAccess.ts). The department check needs a real DB
+// lookup (department isn't on the lightweight ViewerContext), so it's only
+// done once the cheaper username/role checks have already failed.
 export async function assertReportViewer(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return null;
-  if (viewer.username !== REPORT_VIEWER_USERNAME) return null;
-  return viewer;
+  if (viewer.username === REPORT_VIEWER_USERNAME) return viewer;
+  if (REPORT_VIEWER_ROLES.includes(viewer.role)) return viewer;
+  const user = await findUserById(viewer.userId);
+  if (user?.department === REPORT_VIEWER_DEPARTMENT) return viewer;
+  return null;
 }
 
 // Admin Expenses have no approval chain of their own otherwise — created
