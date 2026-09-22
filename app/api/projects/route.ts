@@ -4,7 +4,8 @@ import { listLastRemarks, projectStore } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectPriority, ProjectRecord } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
-import { syncTmsProjectForAssignment } from '@/lib/tmsHandoff';
+import { requestTechnicalPerson } from '@/lib/projectTechnicalRequest';
+import { getClientIp } from '@/lib/requestIp';
 
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
 
@@ -97,7 +98,6 @@ export async function POST(request: NextRequest) {
   const requestedSalesPersonUser = viewer.isPrivileged && requestedSalesPersonId ? await findUserById(requestedSalesPersonId) : undefined;
   const salesPerson = requestedSalesPersonUser ? requestedSalesPersonUser.username : viewer.username;
   const assignedTechnicalPersonId = typeof body.assignedTechnicalPersonId === 'string' ? body.assignedTechnicalPersonId.trim() : '';
-  const assignedTechnicalPerson = assignedTechnicalPersonId ? await findUserById(assignedTechnicalPersonId) : undefined;
   const record: ProjectRecord = {
     id: `${Date.now()}`,
     created_at: now,
@@ -122,8 +122,9 @@ export async function POST(request: NextRequest) {
     approx_price: approxPrice,
     notes: [],
     attachments: [],
-    assigned_technical_person_id: assignedTechnicalPerson ? assignedTechnicalPerson.id : '',
-    assigned_technical_person_name: assignedTechnicalPerson ? assignedTechnicalPerson.name : '',
+    // Never set on creation — see the technical-person request below.
+    assigned_technical_person_id: '',
+    assigned_technical_person_name: '',
     tms_project_id: '',
     lead_confirmation_status: '',
     confirmed_by: '',
@@ -136,10 +137,14 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    const created = await projectStore.create(record);
-    if (assignedTechnicalPerson) {
+    let created = await projectStore.create(record);
+    // A technical person picked at creation goes through the same approval as
+    // one picked later (lib/projectTechnicalRequest.ts): assigned now only if
+    // this viewer may commit that person's time, otherwise requested.
+    if (assignedTechnicalPersonId) {
       try {
-        await syncTmsProjectForAssignment(created, assignedTechnicalPerson, viewer.username);
+        const result = await requestTechnicalPerson(created, assignedTechnicalPersonId, viewer, { note: '', neededBy: '' }, getClientIp(request));
+        if (result.mode === 'assigned' && result.project) created = result.project;
       } catch {
         // Best-effort — the Sales project above was already created either way.
       }

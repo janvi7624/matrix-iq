@@ -12,15 +12,13 @@ import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { searchQuotations } from '@/lib/quotationStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRecord } from '@/lib/types';
+import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus } from '@/lib/types';
 import { ASSIGNABLE_STAGES } from '@/lib/projectStages';
 import { findUserById } from '@/lib/userStore';
-import { notifyUsers } from '@/lib/notificationStore';
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
-import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
-import { syncTmsProjectForAssignment } from '@/lib/tmsHandoff';
+import { canViewForPendingRequest, getTechnicalRequestView, requestTechnicalPerson, TechnicalRequestError } from '@/lib/projectTechnicalRequest';
 import { db } from '@/lib/db';
 
 function toStringArray(value: unknown): string[] {
@@ -41,14 +39,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const project = await findProjectById(id);
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     if (!(await canAccessProject(viewer.username, project))) {
-      // Allow access if user has a pending handover request for this project
+      // Allow access if user has a pending handover request for this project,
+      // or is being asked to approve a technical person for it — they need
+      // to see what they'd be committing to before saying yes.
       const pendingHandover = await projectHandoverStore.findPendingForProject(id);
-      if (!pendingHandover || pendingHandover.to_user_id !== viewer.userId) {
+      const isHandoverRecipient = !!pendingHandover && pendingHandover.to_user_id === viewer.userId;
+      if (!isHandoverRecipient && !(await canViewForPendingRequest(id, viewer))) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }
 
-    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests, deadlineExtensions, deadlineTier, linkedLeadRow] = await Promise.all([
+    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests, deadlineExtensions, deadlineTier, linkedLeadRow, technicalRequest] = await Promise.all([
       siteVisitStore.list(viewer.username, true),
       demoScheduleStore.list(viewer.username, true),
       customerResponseStore.list(viewer.username, true),
@@ -62,7 +63,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       resolveProjectDeadlineTier(viewer),
       // "Created From Lead" (Part 13) — the only link is the reverse
       // Lead.project_id FK; a Project has no lead_id column of its own.
-      db.Lead.findOne({ where: { project_id: id } as never, attributes: ['id', 'name'] })
+      db.Lead.findOne({ where: { project_id: id } as never, attributes: ['id', 'name'] }),
+      getTechnicalRequestView(id, viewer, project.created_by)
     ]);
     const linkedLead = linkedLeadRow ? (linkedLeadRow.get({ plain: true }) as { id: string; name: string }) : null;
 
@@ -79,7 +81,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       quotations: quotations.filter((r) => r.project_id === id),
       marketingRequests: marketingRequests.filter((r) => r.project_id === id),
       deadlineExtensions,
-      deadlineTier
+      deadlineTier,
+      technicalRequest
     });
   } catch (error) {
     return apiErrorResponse(error);
@@ -180,13 +183,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.approx_price = isBlank ? '' : num;
     }
 
-    let newlyAssignedPerson: UserRecord | undefined;
+    // Removing the technical person applies directly. Picking one never does
+    // here — it goes through the same approval request as the project page's
+    // picker (lib/projectTechnicalRequest.ts), after the rest of this patch
+    // is saved, so no client can bypass the engineer's / manager's approval.
+    let requestedTechnicalPersonId = '';
     if (typeof body.assignedTechnicalPersonId === 'string') {
       const nextId = body.assignedTechnicalPersonId.trim();
-      if (nextId !== existing.assigned_technical_person_id) {
-        patch.assigned_technical_person_id = nextId;
-        if (nextId) newlyAssignedPerson = await findUserById(nextId);
-      }
+      if (!nextId && existing.assigned_technical_person_id) patch.assigned_technical_person_id = '';
+      else if (nextId && nextId !== existing.assigned_technical_person_id) requestedTechnicalPersonId = nextId;
     }
 
     let updated;
@@ -209,54 +214,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       updated = existing;
     }
 
-    if (newlyAssignedPerson) {
-      const previousName = existing.assigned_technical_person_name || 'Unassigned';
-      const label = `Assigned technical person: ${previousName} → ${newlyAssignedPerson.name}`;
-      await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label });
-      await logAudit({
-        by: viewer.username,
-        role: viewer.role,
-        entityType: 'project',
-        entityId: id,
-        action: 'Project reassigned',
-        previousStatus: previousName,
-        newStatus: newlyAssignedPerson.name,
-        remarks: existing.client_name || existing.company || '',
-        ip: getClientIp(request)
-      });
-      await notifyUsers([newlyAssignedPerson.username], {
-        title: 'A project was assigned to you',
-        body: `${existing.client_name || existing.company || 'Project'} — assigned as the technical lead`,
-        type: 'project_assigned',
-        entityType: 'project',
-        entityId: id
-      });
-      void sendProjectLifecycleEmail({
-        name: newlyAssignedPerson.name,
-        email: newlyAssignedPerson.email,
-        projectId: id,
-        projectKind: 'sales',
-        event: 'assigned',
-        projectLabel: existing.client_name || existing.company || 'Project'
-      });
+    if (requestedTechnicalPersonId) {
       try {
-        await syncTmsProjectForAssignment(updated ?? existing, newlyAssignedPerson, viewer.username);
-      } catch {
-        // Best-effort — the Sales assignment above already succeeded either way.
+        const result = await requestTechnicalPerson(updated ?? existing, requestedTechnicalPersonId, viewer, { note: '', neededBy: '' }, getClientIp(request));
+        if (result.mode === 'assigned' && result.project) updated = result.project;
+      } catch (error) {
+        if (error instanceof TechnicalRequestError) return NextResponse.json({ error: error.message }, { status: error.status });
+        throw error;
       }
     }
 
     // Notify whoever is currently the technical lead when the sales outcome
     // changes — not the actor themselves, who already knows since they just
-    // made the change. Uses the POST-patch assignee: if this same request
-    // also reassigned the lead (patch.assigned_technical_person_id above),
-    // that new person is who should hear about the status, not the one just
-    // replaced — reuse newlyAssignedPerson when it's the same id instead of
-    // re-fetching.
-    const currentTechnicalPersonId = patch.assigned_technical_person_id !== undefined ? patch.assigned_technical_person_id : existing.assigned_technical_person_id;
+    // made the change. Uses the POST-patch assignee (a direct assignment in
+    // this same request counts; a pending request doesn't).
+    const currentTechnicalPersonId = updated?.assigned_technical_person_id ?? existing.assigned_technical_person_id;
     if (patch.status && patch.status !== existing.status && currentTechnicalPersonId) {
-      const technicalLead =
-        newlyAssignedPerson && newlyAssignedPerson.id === currentTechnicalPersonId ? newlyAssignedPerson : await findUserById(currentTechnicalPersonId);
+      const technicalLead = await findUserById(currentTechnicalPersonId);
       if (technicalLead?.email && technicalLead.username !== viewer.username) {
         void sendProjectLifecycleEmail({
           name: technicalLead.name,

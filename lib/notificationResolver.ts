@@ -41,6 +41,9 @@ const RESOLVERS: Record<string, EntityResolver> = {
   tms_task: { href: (id) => `/tms/tasks/${id}`, exists: (id) => existsIn('TmsTask', id) },
   travel_schedule: { href: (id) => `/travel-schedule/${id}`, exists: (id) => existsIn('TravelSchedule', id) },
   lead: { href: () => '/leads', exists: (id) => existsIn('Lead', id) },
+  // A card a colleague scanned and handed over (lib/leadHandover.ts) — opens
+  // straight onto the recipient's "Assigned To Me" list, where it now sits.
+  lead_handover: { href: () => '/leads?filter=assigned-to-me', exists: (id) => existsIn('Lead', id) },
   // Reuses the highlight-and-auto-expand row on My Quotations rather than a
   // dedicated per-quotation page (none exists) — see components/
   // MyQuotationsView.tsx / QuotationTable.tsx.
@@ -68,8 +71,18 @@ const RESOLVERS: Record<string, EntityResolver> = {
       return count > 0;
     }
   },
+  // A new entry's "ready for Accounts" notice — goes to Accounts staff.
   office_operation_expense: {
-    href: (id) => `/accounts/payments?highlight=office_expense:${id}`,
+    href: () => '/accounts/payments',
+    exists: (id) => existsIn('OfficeOperationExpense', id)
+  },
+  // Hold/resume on an Office Operation Expense monthly SHEET — goes the
+  // other way, to the HR/Admin staff who logged its entries, so it opens
+  // their own module (they can't reach the Accounts queue). entityId is one
+  // of the sheet's entries: notifications.entityId is a UUID column, so the
+  // sheet's month key ('2026-09') itself can't be stored there.
+  office_expense_sheet: {
+    href: () => '/office-operation-expenses',
     exists: (id) => existsIn('OfficeOperationExpense', id)
   }
 };

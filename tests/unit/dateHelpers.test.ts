@@ -1,5 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { closingDatePresetRange } from '../../lib/dateHelpers';
+import { closingDatePresetRange, monthKeyBounds } from '../../lib/dateHelpers';
+
+describe('monthKeyBounds', () => {
+  it('returns the half-open [first of month, first of next month) range', () => {
+    expect(monthKeyBounds('2026-09')).toEqual({ from: '2026-09-01', to: '2026-10-01' });
+  });
+
+  it('rolls December over into the next year', () => {
+    expect(monthKeyBounds('2026-12')).toEqual({ from: '2026-12-01', to: '2027-01-01' });
+  });
+
+  it('rejects anything that is not a real YYYY-MM month key', () => {
+    for (const bad of ['2026-13', '2026-00', '2026-9', '2026-09~legacy', '2026-09~1726000000000', '', 'abc']) {
+      expect(monthKeyBounds(bad)).toBeNull();
+    }
+  });
+});
 
 function todayIso(): string {
   const d = new Date();

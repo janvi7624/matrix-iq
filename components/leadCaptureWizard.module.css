@@ -5,3 +5,32 @@
 .cardPreviewImg { max-height: 140px; border-radius: 10px; margin-bottom: 14px; border: 1px solid var(--mx-border); }
 .inlineFlexGapInline6 { display: inline-flex; align-items: center; gap: 6px; }
 .mt16 { margin-top: 16px; }
+
+/* "Whose lead is this?" on Confirm Details — set apart from the contact
+   fields above it because it's a routing decision, not a contact detail. */
+.handover {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-md);
+  background: var(--mx-surface-sunken);
+}
+.handoverTitle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--mx-ink); }
+.handoverHint { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--mx-ink-muted); }
+.handoverTarget { display: flex; align-items: flex-start; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--mx-info); }
+.handoverTarget svg { flex-shrink: 0; margin-top: 1px; }
+.handoverTarget strong { font-weight: 600; }
+
+/* Success-panel note for a hand-over that didn't go to the chosen person —
+   amber, unlike the green .autofillNotice it sits beside. */
+.noticeWarn {
+  font-size: 12.5px;
+  color: var(--mx-warning);
+  background: var(--mx-warning-subtle);
+  border: 1px solid var(--mx-amber-200);
+  border-radius: var(--mx-radius-sm);
+  padding: 8px 12px;
+  margin: -8px 0 18px;
+}

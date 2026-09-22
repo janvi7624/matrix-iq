@@ -18,6 +18,21 @@ export function nowDatetimeInputValue(): string {
   return `${todayDateInputValue()}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// A 'YYYY-MM' month key -> its [from, to) DATEONLY bounds, e.g. '2026-12' ->
+// { from: '2026-12-01', to: '2027-01-01' }. null for anything that isn't a
+// real month key. Pure string math — no Date/timezone involvement, so a
+// DATEONLY column compared against these can never shift across a month
+// boundary.
+export function monthKeyBounds(key: string): { from: string; to: string } | null {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(key);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  return { from: `${match[1]}-${match[2]}-01`, to: `${nextYear}-${pad(nextMonth)}-01` };
+}
+
 export type ClosingDatePreset = 'all' | 'today' | 'this_week' | 'this_month' | 'next_7' | 'next_30' | 'custom';
 
 function toDateInputValue(d: Date): string {

@@ -10,7 +10,7 @@ import Drawer from './ui/Drawer';
 import Modal from './ui/Modal';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { useToast } from './ui/ToastProvider';
-import { PaymentQueueItem, PaymentSource, PaymentSummary, UserRole } from '@/lib/types';
+import { OfficeExpenseSheetEntry, PaymentQueueItem, PaymentSource, PaymentSummary, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
 import { friendlyFileName } from '@/lib/format';
 import { VoucherData } from '@/lib/expenseVoucherPdf';
@@ -130,6 +130,31 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
     return () => { cancelled = true; };
   }, [selected]);
 
+  // Line items for an Office Operation Expense monthly sheet's detail
+  // Drawer — the sheet is one queue row per month, these are what it's
+  // made of. Served by the Accounts-gated detail route, not the module's
+  // own HR/Admin-only API.
+  // Tagged with the paymentId it was fetched for, so "loading" and "which
+  // sheet's entries" are derived rather than reset inside the effect — a
+  // previously opened sheet's entries can never flash under a different one.
+  const [officeSheet, setOfficeSheet] = useState<{ paymentId: string; entries: OfficeExpenseSheetEntry[] | null } | null>(null);
+
+  useEffect(() => {
+    if (!selected || selected.source !== 'office_expense') return;
+    let cancelled = false;
+    const paymentId = selected.paymentId;
+    fetch(`/api/accounts/payments/${encodeURIComponent(paymentId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { entries?: OfficeExpenseSheetEntry[] } | null) => {
+        if (!cancelled) setOfficeSheet({ paymentId, entries: data?.entries ?? null });
+      })
+      .catch(() => { if (!cancelled) setOfficeSheet({ paymentId, entries: null }); });
+    return () => { cancelled = true; };
+  }, [selected]);
+
+  const officeEntriesLoading = selected?.source === 'office_expense' && officeSheet?.paymentId !== selected.paymentId;
+  const officeEntries = officeSheet && selected && officeSheet.paymentId === selected.paymentId ? officeSheet.entries : null;
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350);
     return () => clearTimeout(t);
@@ -235,7 +260,10 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
       const res = await fetch(`/api/accounts/payments/${encodeURIComponent(selected.paymentId)}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payForm)
+        // expectedAmount: the total the payer was shown — the server rejects
+        // the payment if a sheet has grown since (e.g. HR logged another
+        // office expense for that month after this was opened).
+        body: JSON.stringify({ ...payForm, expectedAmount: selected.amount })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -509,6 +537,45 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
                       <button type="button" className={styles.holdBtn} disabled={mergingBills} onClick={downloadAllBills}>
                         {mergingBills ? 'Merging…' : 'Download All Bills (PDF)'}
                       </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className={styles.detailValue}>Could not load the expense entries for this sheet.</div>
+                )}
+              </>
+            )}
+
+            {selected.source === 'office_expense' && (
+              <>
+                <div className={styles.detailDivider} />
+                {officeEntriesLoading ? (
+                  <div className={styles.detailValue}>Loading expense entries…</div>
+                ) : officeEntries ? (
+                  <>
+                    <div className={styles.detailRow}>
+                      <span className={styles.detailLabel}>Expense entries ({officeEntries.length}) — paid together as one sheet</span>
+                    </div>
+                    <div className={styles.entryList}>
+                      {officeEntries.map((entry) => {
+                        const meta = [
+                          entry.itemSubNames.length ? entry.itemSubNames.join(', ') : '',
+                          entry.itemQty !== null ? `Qty ${entry.itemQty}` : '',
+                          entry.description,
+                          entry.remarks
+                        ].filter(Boolean);
+                        return (
+                          <div key={entry.id} className={styles.entryRow}>
+                            <div className={styles.entryHead}>
+                              <span>
+                                {formatDate(entry.date)} — {entry.usecase}{entry.usecaseDetail ? ` (${entry.usecaseDetail})` : ''}{entry.itemName ? ` · ${entry.itemName}` : ''}
+                              </span>
+                              <span className={styles.amountCell}>{formatMoney(entry.amount)}</span>
+                            </div>
+                            {meta.length > 0 && <div className={styles.entryMeta}>{meta.join(' · ')}</div>}
+                            {entry.createdBy && <div className={styles.entryMeta}>Logged by {entry.createdBy}</div>}
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 ) : (

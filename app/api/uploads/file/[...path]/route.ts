@@ -17,10 +17,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!result) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
+    // no-transform asks the hosting CDN not to re-encode these files (live
+    // turns .jpg/.png URLs into WebP) — they're bills and documents, which
+    // should reach the user byte-for-byte as uploaded.
     return new NextResponse(result.blob, {
       headers: {
         'Content-Type': result.contentType,
-        'Cache-Control': 'private, max-age=86400'
+        'Cache-Control': 'private, max-age=86400, no-transform'
       }
     });
   } catch (error) {

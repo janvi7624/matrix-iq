@@ -45,3 +45,10 @@
 .historyLogNote { margin-top: 4px; color: var(--mx-slate-600); font-size: 12px; }
 .historyLogResponseNote { margin-top: 4px; color: var(--mx-slate-600); font-size: 12px; font-weight: 500; }
 .historyLogResponseNoteRejected { color: var(--mx-brand); }
+
+/* Technical person awaiting approval (lib/projectTechnicalRequest.ts) — a
+   quiet amber line under the field, matching the approval panel's palette. */
+.techPending { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: 12.5px; color: var(--mx-amber-800); }
+.techPending svg { flex-shrink: 0; }
+.techPendingLink { background: none; border: none; padding: 0; font: inherit; color: var(--mx-brand); text-decoration: underline; cursor: pointer; }
+.techPickIntro { margin: 0 0 14px; font-size: 13.5px; line-height: 1.5; color: var(--mx-ink-muted); }

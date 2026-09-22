@@ -18,7 +18,8 @@ import {
   StickyNote,
   Users,
   Wrench,
-  Clock
+  Clock,
+  Hourglass
 } from 'lucide-react';
 import {
   CustomerResponseRecord,
@@ -38,7 +39,8 @@ import {
   QuotationRecord,
   SiteVisitRecord,
   UserRole,
-  ProjectHandoverRecord
+  ProjectHandoverRecord,
+  ProjectTechnicalRequestView
 } from '@/lib/types';
 import { ASSIGNABLE_STAGES, closingProbabilityStyle, FORWARD_STAGES, stageIndex, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
@@ -58,6 +60,7 @@ import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import ProjectDeadlineExtendModal from './ProjectDeadlineExtendModal';
+import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import ProjectSourceField from './ui/ProjectSourceField';
 
 interface DetailResponse {
@@ -74,6 +77,8 @@ interface DetailResponse {
   deadlineExtensions: ProjectDeadlineExtensionRecord[];
   deadlineTier: 'plain' | 'manager' | 'admin';
   linkedLead: { id: string; name: string } | null;
+  // The technical-person request still waiting for approval, if any.
+  technicalRequest: ProjectTechnicalRequestView | null;
 }
 
 const STATUS_LABEL: Record<ProjectStatus, string> = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost' };
@@ -187,6 +192,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [confirmingAssignment, setConfirmingAssignment] = useState(false);
   const [showClarifyInput, setShowClarifyInput] = useState(false);
   const [clarificationText, setClarificationText] = useState('');
+  // Technical person: picking one opens a request (approved by the engineer
+  // or their department manager) — see lib/projectTechnicalRequest.ts.
+  const [techPick, setTechPick] = useState<{ personId: string; note: string; neededBy: string } | null>(null);
+  const [submittingTechPick, setSubmittingTechPick] = useState(false);
+  const [techDeclining, setTechDeclining] = useState(false);
+  const [techDeclineReason, setTechDeclineReason] = useState('');
+  const [techAssignId, setTechAssignId] = useState('');
+  const [decidingTech, setDecidingTech] = useState(false);
 
   useEffect(() => {
     fetch('/api/technical-roster')
@@ -428,6 +441,87 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     }
   }
 
+  function handleTechnicalPersonSelect(value: string) {
+    if (!value) return;
+    if (value === '__remove__') {
+      void (async () => {
+        if (!(await confirm({ message: `Remove ${data?.project.assigned_technical_person_name || 'the technical person'} from this project?`, danger: true }))) return;
+        await patchProject({ assignedTechnicalPersonId: '' });
+      })();
+      return;
+    }
+    setTechPick({ personId: value, note: '', neededBy: '' });
+  }
+
+  async function submitTechnicalPick() {
+    if (!techPick) return;
+    setSubmittingTechPick(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/technical-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(techPick)
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast.error(body?.error || 'Could not send this request.');
+        return;
+      }
+      const name = technicalRoster.find((p) => p.id === techPick.personId)?.name || 'They';
+      toast.success(body?.mode === 'assigned' ? `${name} is now the technical person.` : `Request sent. ${name} will be assigned once it's approved.`);
+      setTechPick(null);
+      await load();
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setSubmittingTechPick(false);
+    }
+  }
+
+  async function withdrawTechnicalRequest() {
+    if (!(await confirm({ message: 'Withdraw this technical person request?' }))) return;
+    const response = await fetch(`/api/projects/${projectId}/technical-request`, { method: 'DELETE' });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      toast.error(body?.error || 'Could not withdraw the request.');
+    } else {
+      toast.success('Request withdrawn.');
+    }
+    await load();
+  }
+
+  async function decideTechnicalRequest(decision: 'approve' | 'decline') {
+    const request = data?.technicalRequest;
+    if (!request) return;
+    if (decision === 'decline' && !techDeclineReason.trim()) {
+      toast.error('Give a reason so the sales team knows what to do next.');
+      return;
+    }
+    setDecidingTech(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/technical-request/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: request.id, decision, remarks: decision === 'decline' ? techDeclineReason.trim() : '', assignUserId: techAssignId })
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast.error(body?.error || 'Could not save your decision.');
+        await load();
+        return;
+      }
+      toast.success(decision === 'approve' ? 'Approved — the technical person is assigned.' : 'Request declined.');
+      setTechDeclining(false);
+      setTechDeclineReason('');
+      setTechAssignId('');
+      await load();
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setDecidingTech(false);
+    }
+  }
+
   async function handleDecideExtension() {
     if (!decidingExtension) return;
     if (decidingExtension.decision === 'reject' && !decisionRemark.trim()) {
@@ -660,7 +754,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   }
   if (!data) return null;
 
-  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests, deadlineExtensions, deadlineTier, linkedLead } = data;
+  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests, deadlineExtensions, deadlineTier, linkedLead, technicalRequest } = data;
   const currentIdx = stageIndex(project.stage);
   // Installation/Completed are retired Project Progress stages (existing
   // records may still carry them, but no project can be set to them going
@@ -738,6 +832,67 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           return (
             <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`} style={{ marginBottom: 16 }}>
               <strong>Complete Project Details</strong> — still missing: {completeness.missingFields.map((f) => FIELD_LABEL[f]).join(', ')}. Use the fields below to fill these in.
+            </div>
+          );
+        })()}
+
+        {/* Technical-person approval — shown to the requested engineer, their
+            department manager, or an admin. Nothing is assigned (no TMS
+            project, no "assigned" email) until this is approved. */}
+        {technicalRequest?.can_decide && (() => {
+          const isMe = technicalRequest.requested_username === currentUser.username;
+          const isAdmin = currentUser.role === 'admin' || currentUser.role === 'superadmin';
+          const teamOptions = technicalRoster.filter((p) => p.id === technicalRequest.requested_user_id || isAdmin || p.department === technicalRequest.requested_department);
+          const sendingOther = techAssignId && techAssignId !== technicalRequest.requested_user_id ? technicalRoster.find((p) => p.id === techAssignId) : undefined;
+          return (
+            <div className={`${calcStyles.sectionPanel} ${styles.amberPanel}`}>
+              <div className={styles.amberPanelTitle}>Technical Assignment — Your Approval Needed</div>
+              <div className={styles.amberPanelBody}>
+                <strong>{technicalRequest.requested_by_name}</strong> wants <strong>{isMe ? 'you' : technicalRequest.requested_name}</strong>
+                {!isMe && technicalRequest.requested_department ? ` (${technicalRequest.requested_department})` : ''} as the technical person for this project.
+                {' '}Nobody is assigned until you approve.
+                {technicalRequest.needed_by && <div className={styles.amberRemarkNote}>Needed on site by: <strong>{formatDate(technicalRequest.needed_by)}</strong></div>}
+                {technicalRequest.note && <div className={styles.amberRemarkNote}>Note: {technicalRequest.note}</div>}
+              </div>
+
+              {!techDeclining ? (
+                <>
+                  {technicalRequest.can_reassign && teamOptions.length > 1 && (
+                    <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
+                      <label className={calcStyles.label} htmlFor="tech-assign">Assign</label>
+                      <select id="tech-assign" className={calcStyles.formControl} value={techAssignId || technicalRequest.requested_user_id} onChange={(e) => setTechAssignId(e.target.value)}>
+                        {teamOptions.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}{p.id === technicalRequest.requested_user_id ? ' (requested)' : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className={styles.actionsRow8}>
+                    <button type="button" className={styles.acceptBtn} disabled={decidingTech} onClick={() => decideTechnicalRequest('approve')}>
+                      {decidingTech ? 'Saving…' : sendingOther ? `Approve — send ${sendingOther.name}` : 'Approve'}
+                    </button>
+                    <button type="button" className={styles.brandActionBtn} disabled={decidingTech} onClick={() => setTechDeclining(true)}>Decline</button>
+                  </div>
+                </>
+              ) : (
+                <div className={styles.declineFormPanel}>
+                  <div className={styles.declineFormTitle}>Reason for declining</div>
+                  <textarea
+                    aria-label="Reason for declining"
+                    className={`${calcStyles.formControl} ${calcStyles.mb10}`}
+                    rows={3}
+                    value={techDeclineReason}
+                    onChange={(e) => setTechDeclineReason(e.target.value)}
+                    placeholder="e.g. Already on site at another client that day — ask again for next week, or request Janvi."
+                  />
+                  <div className={styles.actionsRow8}>
+                    <button type="button" className={styles.brandActionBtn} disabled={decidingTech || !techDeclineReason.trim()} onClick={() => decideTechnicalRequest('decline')}>
+                      {decidingTech ? 'Submitting…' : 'Submit Decline'}
+                    </button>
+                    <button type="button" className={styles.cancelActionBtn} onClick={() => { setTechDeclining(false); setTechDeclineReason(''); }}>Cancel</button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}
@@ -1242,19 +1397,33 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Assigned Technical Person</label>
-                {canEdit ? (
+                <div className={calcStyles.small}>{project.assigned_technical_person_name || 'Unassigned'}</div>
+                {technicalRequest && (
+                  <div className={styles.techPending}>
+                    <Hourglass size={13} aria-hidden="true" />
+                    <span>Awaiting approval: <strong>{technicalRequest.requested_name}</strong></span>
+                    {technicalRequest.can_withdraw && (
+                      <button type="button" className={styles.techPendingLink} onClick={withdrawTechnicalRequest}>Withdraw</button>
+                    )}
+                  </div>
+                )}
+                {/* Picking someone raises a request for them / their manager to
+                    approve — nothing is assigned from here directly. */}
+                {canEdit && (
                   <select
-                    className={calcStyles.formControl}
-                    value={project.assigned_technical_person_id}
-                    onChange={(e) => patchProject({ assignedTechnicalPersonId: e.target.value })}
+                    className={`${calcStyles.formControl} ${calcStyles.mt4}`}
+                    value=""
+                    aria-label="Request a technical person"
+                    onChange={(e) => handleTechnicalPersonSelect(e.target.value)}
                   >
-                    <option value="">-- Unassigned --</option>
-                    {technicalRoster.map((person) => (
-                      <option key={person.id} value={person.id}>{person.name}</option>
-                    ))}
+                    <option value="">{project.assigned_technical_person_id || technicalRequest ? 'Request someone else…' : 'Request a technical person…'}</option>
+                    {technicalRoster
+                      .filter((person) => person.id !== project.assigned_technical_person_id)
+                      .map((person) => (
+                        <option key={person.id} value={person.id}>{person.name}{person.department ? ` — ${person.department}` : ''}</option>
+                      ))}
+                    {project.assigned_technical_person_id && <option value="__remove__">Remove technical person</option>}
                   </select>
-                ) : (
-                  <div className={calcStyles.small}>{project.assigned_technical_person_name || 'Unassigned'}</div>
                 )}
               </div>
               <div className={calcStyles.field}>
@@ -1583,6 +1752,37 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <button type="button" className={historyStyles.button} disabled={deciding} onClick={() => setDecidingExtension(null)}>Cancel</button>
           </div>
         )}
+
+        {techPick && (() => {
+          const person = technicalRoster.find((p) => p.id === techPick.personId);
+          const name = person?.name || 'this person';
+          return (
+            <Modal
+              title={`Request ${name}`}
+              ariaLabel="Request a technical person"
+              onClose={() => setTechPick(null)}
+              dismissible={!submittingTechPick}
+              footer={
+                <>
+                  <ModalCancelButton disabled={submittingTechPick} onClick={() => setTechPick(null)}>Cancel</ModalCancelButton>
+                  <ModalOkButton disabled={submittingTechPick} onClick={submitTechnicalPick}>{submittingTechPick ? 'Sending…' : 'Send Request'}</ModalOkButton>
+                </>
+              }
+            >
+              <p className={styles.techPickIntro}>
+                {name}{person?.department ? ` (${person.department})` : ''} or their department manager has to approve before {name} is assigned. No TMS project or assignment email goes out until then.
+              </p>
+              <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
+                <label className={calcStyles.label} htmlFor="tech-needed-by">Needed on site by (optional)</label>
+                <input id="tech-needed-by" type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={techPick.neededBy} onChange={(e) => setTechPick((p) => (p ? { ...p, neededBy: e.target.value } : p))} />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label} htmlFor="tech-note">Note for the technical team (optional)</label>
+                <textarea id="tech-note" className={calcStyles.formControl} rows={3} value={techPick.note} placeholder="What's needed — installation, demo, survey — and where." onChange={(e) => setTechPick((p) => (p ? { ...p, note: e.target.value } : p))} />
+              </div>
+            </Modal>
+          );
+        })()}
 
         {showExtendDeadline && (
           <ProjectDeadlineExtendModal

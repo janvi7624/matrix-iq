@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { isAccountsPaymentActor } from '@/lib/accountsPaymentAccess';
-import { resumePayment, parsePaymentId, resolveRequesterUsername, findPaymentItem } from '@/lib/accountsPaymentStore';
+import { resumePayment, parsePaymentId, resolveRequesterUsernames, resolveEntityIds, findPaymentItem } from '@/lib/accountsPaymentStore';
 import { findUserByUsername } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { logAudit } from '@/lib/auditLogStore';
@@ -22,7 +22,7 @@ const AUDIT_ENTITY_TYPE: Record<PaymentSource, AuditLogEntry['entity_type']> = {
 const NOTIFY_ENTITY_TYPE: Record<PaymentSource, string> = {
   reimbursement_sheet: 'reimbursement_sheet',
   admin_expense: 'admin_expense',
-  office_expense: 'office_operation_expense',
+  office_expense: 'office_expense_sheet',
   bom_request: 'tms_bom_request',
   travel_schedule: 'travel_schedule'
 };
@@ -40,23 +40,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const actor = await findUserByUsername(viewer.username);
     if (!actor) return NextResponse.json({ error: 'Actor not found' }, { status: 404 });
 
+    const entityIds = await resolveEntityIds(parsed.source, parsed.sourceId);
+
     const result = await resumePayment(parsed.source, parsed.sourceId, actor.id);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
 
-    await logAudit({
-      by: viewer.username, role: viewer.role, entityType: AUDIT_ENTITY_TYPE[parsed.source], entityId: parsed.sourceId,
-      action: 'payment_resume', previousStatus: 'on_hold', newStatus: 'payment_required', remarks: '',
+    const isGrouped = !(entityIds.length === 1 && entityIds[0] === parsed.sourceId);
+    await Promise.all(entityIds.map((entityId) => logAudit({
+      by: viewer.username, role: viewer.role, entityType: AUDIT_ENTITY_TYPE[parsed.source], entityId,
+      action: 'payment_resume', previousStatus: 'on_hold', newStatus: 'payment_required',
+      remarks: isGrouped ? `Part of ${paymentId}` : '',
       ip: getClientIp(request)
-    });
+    })));
 
-    const requesterUsername = await resolveRequesterUsername(parsed.source, parsed.sourceId);
-    if (requesterUsername) {
-      await notifyUsers([requesterUsername], {
+    const requesterUsernames = await resolveRequesterUsernames(parsed.source, parsed.sourceId);
+    if (requesterUsernames.length && entityIds.length) {
+      await notifyUsers(requesterUsernames, {
         title: 'Payment resumed',
         body: `Your ${parsed.source.replace('_', ' ')} payment hold has been lifted and is awaiting payment again.`,
         type: 'payment_resume',
         entityType: NOTIFY_ENTITY_TYPE[parsed.source],
-        entityId: parsed.sourceId
+        entityId: entityIds[0]
       });
     }
 

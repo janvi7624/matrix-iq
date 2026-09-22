@@ -509,6 +509,24 @@ export interface PaymentQueueItem {
   createdAt: string;
 }
 
+// One line item inside an Office Operation Expense monthly sheet, as shown
+// in the Accounts payment detail — the sheet itself is the PaymentQueueItem
+// (one per calendar month, the same unit the Office Operation Expense
+// module's own register/Excel export uses), not each individual entry.
+export interface OfficeExpenseSheetEntry {
+  id: string;
+  date: string;
+  usecase: string;
+  usecaseDetail: string;
+  itemName: string;
+  itemSubNames: string[];
+  itemQty: number | null;
+  amount: number;
+  description: string;
+  remarks: string;
+  createdBy: string;
+}
+
 export interface PaymentSummary {
   pendingCount: number;
   pendingAmount: number;
@@ -863,6 +881,41 @@ export interface ProjectHandoverRecord {
   project_title: string;
   created_at: string;
   updated_at: string;
+}
+
+// A sales-side request for a technical person on a Sales project — nothing is
+// assigned (no TMS project, no "assigned" email) until the requested engineer,
+// their department manager, or an admin approves it. See
+// lib/projectTechnicalRequest.ts.
+export type ProjectTechnicalRequestStatus = 'pending' | 'approved' | 'declined' | 'withdrawn';
+
+export interface ProjectTechnicalRequestRecord {
+  id: string;
+  project_id: string;
+  requested_user_id: string;
+  requested_name: string;
+  requested_username: string;
+  requested_department: string;
+  requested_by_id: string;
+  requested_by_name: string;
+  requested_by_username: string;
+  status: ProjectTechnicalRequestStatus;
+  note: string;
+  needed_by: string;
+  decided_by_name: string;
+  decided_at: string;
+  assigned_user_id: string;
+  assigned_name: string;
+  response_remarks: string;
+  created_at: string;
+}
+
+// The pending request as the project page shows it to the current viewer.
+export interface ProjectTechnicalRequestView extends ProjectTechnicalRequestRecord {
+  can_decide: boolean;
+  // A department manager / admin approving may send someone else instead.
+  can_reassign: boolean;
+  can_withdraw: boolean;
 }
 
 export type CustomerResponseType = 'interested' | 'not_interested' | 'need_revision' | 'need_new_quotation' | 'budget_issue' | 'competitor';
@@ -1269,6 +1322,25 @@ export interface LeadRecord {
   assigned_to: string;
   assigned_to_name: string;
   assigned_by: string;
+}
+
+// A colleague the capturer can hand a scanned card over to on the wizard's
+// Confirm Details step — see lib/leadHandover.ts.
+export interface LeadHandoverRecipient {
+  id: string;
+  name: string;
+  department: string;
+  designation: string;
+}
+
+// What happened to a requested hand-over, returned with the saved lead:
+// handed_over — now assigned to them, and they were emailed;
+// already_with_them — a re-scanned lead they already had (no second email);
+// kept_existing — a re-scanned lead already routed to someone else, left there;
+// failed — the lead was saved but stayed unassigned.
+export interface LeadHandoverOutcome {
+  status: 'handed_over' | 'already_with_them' | 'kept_existing' | 'failed';
+  toName: string;
 }
 
 // ---------------------------------------------------------------------------

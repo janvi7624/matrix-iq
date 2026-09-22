@@ -8,19 +8,23 @@ export type ProjectLifecycleEvent =
   | 'handover_requested'
   | 'handover_approved'
   | 'handover_rejected'
-  | 'handover_cancelled';
+  | 'handover_cancelled'
+  | 'technical_requested'
+  | 'technical_approved'
+  | 'technical_declined';
 
 export interface ProjectLifecycleEmailData {
   name: string;
   event: ProjectLifecycleEvent;
   projectLabel: string;
-  // Free-text context line, meaning depends on the event — e.g. "Status:
-  // Won", "Requested by <name>", "Reason: <remarks>".
+  // Free-text context, meaning depends on the event — e.g. "Status: Won",
+  // "Requested by <name>", "Reason: <remarks>". Each line (split on \n)
+  // renders as its own paragraph.
   detail?: string;
   projectUrl: string;
 }
 
-const EVENT_COPY: Record<ProjectLifecycleEvent, { subject: string; intro: (projectLabel: string) => string; accentColor: string }> = {
+const EVENT_COPY: Record<ProjectLifecycleEvent, { subject: string; intro: (projectLabel: string) => string; accentColor: string; buttonLabel?: string }> = {
   assigned: {
     subject: 'A Project Was Assigned to You',
     intro: (label) => `You have been assigned as the technical lead on "${label}".`,
@@ -55,6 +59,24 @@ const EVENT_COPY: Record<ProjectLifecycleEvent, { subject: string; intro: (proje
     subject: 'Project Handover Request Cancelled',
     intro: (label) => `A pending handover request for "${label}" was cancelled by the sender.`,
     accentColor: '#6b7280'
+  },
+  // Sent to the requested engineer and their department manager(s) — the
+  // assignment only happens once one of them approves.
+  technical_requested: {
+    subject: 'Approval Needed — Technical Person Request',
+    intro: (label) => `A technical person has been requested for "${label}". Nothing is assigned until this is approved — please approve or decline it on the project page.`,
+    accentColor: '#d97706',
+    buttonLabel: 'Review Request'
+  },
+  technical_approved: {
+    subject: 'Technical Person Approved',
+    intro: (label) => `Your technical person request for "${label}" was approved.`,
+    accentColor: '#16a34a'
+  },
+  technical_declined: {
+    subject: 'Technical Person Request Declined',
+    intro: (label) => `Your technical person request for "${label}" was declined. Nobody has been assigned.`,
+    accentColor: '#dc2626'
   }
 };
 
@@ -79,8 +101,8 @@ export function renderProjectLifecycleEmail(data: ProjectLifecycleEmailData): Re
   const bodyHtml = `
                 <p style="margin:0 0 16px; font-size:15px; color:#111827;">Hello ${escapeHtml(data.name)},</p>
                 <p style="margin:0 0 24px; font-size:15px; color:#374151; line-height:1.5;">${escapeHtml(intro)}</p>
-                ${data.detail ? renderInfoBox(`<p style="margin:0; font-size:14px; color:#111827;">${escapeHtml(data.detail)}</p>`) : ''}
-                ${renderButton(data.projectUrl, 'View Project', copy.accentColor)}`;
+                ${data.detail ? renderInfoBox(data.detail.split('\n').map((line) => `<p style="margin:0 0 6px; font-size:14px; color:#111827;">${escapeHtml(line)}</p>`).join('')) : ''}
+                ${renderButton(data.projectUrl, copy.buttonLabel || 'View Project', copy.accentColor)}`;
 
   return { subject, html: renderEmailShell(subject, bodyHtml), text };
 }

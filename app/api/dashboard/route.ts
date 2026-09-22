@@ -16,6 +16,7 @@ import { needsFollowUp } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
 import { summarizeMarketingReminders } from '@/lib/marketingRequestReminder';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
+import { listTechnicalRequestsAwaiting } from '@/lib/projectTechnicalRequest';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 import { travelScheduleStore } from '@/lib/travelScheduleStore';
 
@@ -89,10 +90,13 @@ export async function GET(request: NextRequest) {
     // need only the viewer — so they run together instead of as three more
     // sequential round trips (travelScheduleStore.list in particular is a
     // multi-join query, not cheap to pay for twice removed from parallel).
-    const [quotationsCount, pendingHandovers, travelRecords] = await Promise.all([
+    const [quotationsCount, pendingHandovers, travelRecords, pendingTechnicalApprovals] = await Promise.all([
       countQuotationsForProjects(projectsLight.map((p) => p.id)),
       projectHandoverStore.listPendingForUser(viewer.userId),
-      travelScheduleStore.list(viewer.username, viewer.isPrivileged)
+      travelScheduleStore.list(viewer.username, viewer.isPrivileged),
+      // Technical-person requests waiting on this viewer, as the engineer or
+      // their department manager (lib/projectTechnicalRequest.ts).
+      listTechnicalRequestsAwaiting(viewer)
     ]);
 
     const today = new Date().toISOString().slice(0, 10);
@@ -206,6 +210,7 @@ export async function GET(request: NextRequest) {
       recentQuotations: recentQuotationsTrimmed,
       quotationStats,
       pendingHandovers,
+      pendingTechnicalApprovals,
       travelPendingCount
     });
   } catch (error) {

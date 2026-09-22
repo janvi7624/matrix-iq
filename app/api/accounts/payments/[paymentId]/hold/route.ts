@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { isAccountsPaymentActor } from '@/lib/accountsPaymentAccess';
-import { holdPayment, parsePaymentId, resolveRequesterUsername, findPaymentItem } from '@/lib/accountsPaymentStore';
+import { holdPayment, parsePaymentId, resolveRequesterUsernames, resolveEntityIds, findPaymentItem } from '@/lib/accountsPaymentStore';
 import { findUserByUsername } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { logAudit } from '@/lib/auditLogStore';
@@ -22,10 +22,14 @@ const AUDIT_ENTITY_TYPE: Record<PaymentSource, AuditLogEntry['entity_type']> = {
 // — admin_expense's entityId is a batch id (Reimbursement.admin_note), not
 // a row's UUID primary key, so it needs its own resolver key (batch
 // lookup), separate from the generic 'reimbursement' audit-log type.
+// office_expense_sheet (not office_operation_expense): these go to the HR/
+// Admin staff who logged the entries, so they must link into their own
+// module — office_operation_expense's link is the Accounts queue, which
+// those staff can't open.
 const NOTIFY_ENTITY_TYPE: Record<PaymentSource, string> = {
   reimbursement_sheet: 'reimbursement_sheet',
   admin_expense: 'admin_expense',
-  office_expense: 'office_operation_expense',
+  office_expense: 'office_expense_sheet',
   bom_request: 'tms_bom_request',
   travel_schedule: 'travel_schedule'
 };
@@ -47,23 +51,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const actor = await findUserByUsername(viewer.username);
     if (!actor) return NextResponse.json({ error: 'Actor not found' }, { status: 404 });
 
+    const entityIds = await resolveEntityIds(parsed.source, parsed.sourceId);
+
     const result = await holdPayment(parsed.source, parsed.sourceId, actor.id, reason);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
 
-    await logAudit({
-      by: viewer.username, role: viewer.role, entityType: AUDIT_ENTITY_TYPE[parsed.source], entityId: parsed.sourceId,
-      action: 'payment_hold', previousStatus: 'payment_required', newStatus: 'on_hold', remarks: reason,
+    const isGrouped = !(entityIds.length === 1 && entityIds[0] === parsed.sourceId);
+    await Promise.all(entityIds.map((entityId) => logAudit({
+      by: viewer.username, role: viewer.role, entityType: AUDIT_ENTITY_TYPE[parsed.source], entityId,
+      action: 'payment_hold', previousStatus: 'payment_required', newStatus: 'on_hold',
+      remarks: isGrouped ? `${reason} — part of ${paymentId}` : reason,
       ip: getClientIp(request)
-    });
+    })));
 
-    const requesterUsername = await resolveRequesterUsername(parsed.source, parsed.sourceId);
-    if (requesterUsername) {
-      await notifyUsers([requesterUsername], {
+    const requesterUsernames = await resolveRequesterUsernames(parsed.source, parsed.sourceId);
+    if (requesterUsernames.length && entityIds.length) {
+      await notifyUsers(requesterUsernames, {
         title: 'Payment put on hold',
         body: `Your ${parsed.source.replace('_', ' ')} payment has been put on hold: ${reason}`,
         type: 'payment_hold',
         entityType: NOTIFY_ENTITY_TYPE[parsed.source],
-        entityId: parsed.sourceId
+        entityId: entityIds[0]
       });
     }
 

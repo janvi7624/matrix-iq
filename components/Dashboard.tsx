@@ -89,6 +89,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [managersByDepartment, setManagersByDepartment] = useState<ManagersByDepartment>({});
   const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
   const [pendingHandovers, setPendingHandovers] = useState<ProjectHandoverRecord[]>([]);
+  const [pendingTechnicalApprovals, setPendingTechnicalApprovals] = useState<{ project_id: string; project_label: string; requested_name: string }[]>([]);
   const [travelPendingCount, setTravelPendingCount] = useState<number>(0);
   const [pendingProjectConfirmations, setPendingProjectConfirmations] = useState<number>(0);
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -144,6 +145,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setTechnicalRoster(data.technicalRoster ?? []);
         setRecentQuotations(data.recentQuotations ?? []);
         setPendingHandovers(data.pendingHandovers ?? []);
+        setPendingTechnicalApprovals(data.pendingTechnicalApprovals ?? []);
         setTravelPendingCount(data.travelPendingCount ?? 0);
         setPendingProjectConfirmations(data.pendingProjectConfirmations ?? 0);
       })
@@ -285,6 +287,18 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         tone: 'urgent'
       });
     }
+    // A sales person asked for this viewer (or someone on the team they
+    // manage) as a project's technical person — nothing is assigned until
+    // it's approved, so this is urgent.
+    if (pendingTechnicalApprovals.length) {
+      items.push({
+        key: 'technical-approval',
+        label: `Technical assignment request${pendingTechnicalApprovals.length === 1 ? '' : 's'} awaiting your approval`,
+        count: pendingTechnicalApprovals.length,
+        href: `/projects/${pendingTechnicalApprovals[0].project_id}`,
+        tone: 'urgent'
+      });
+    }
     if (travelPendingCount) {
       items.push({
         key: 'travel',
@@ -322,6 +336,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     demosAwaitingMyConfirmation,
     demosAwaitingMyApproval,
     pendingHandovers,
+    pendingTechnicalApprovals,
     travelPendingCount,
     pendingProjectConfirmations
   ]);

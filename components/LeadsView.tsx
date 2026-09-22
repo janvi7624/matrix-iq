@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { DomainKey, LeadPriority, LeadRecord, LeadSource, UserRole } from '@/lib/types';
+import { DomainKey, LeadHandoverOutcome, LeadPriority, LeadRecord, LeadSource, UserRole } from '@/lib/types';
 import { LEAD_DOMAIN_TILES, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
 import { AlertTriangle, Flame, Contact, Share2, UserPlus, UserCheck, Pencil } from 'lucide-react';
@@ -93,7 +93,10 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const confirm = useConfirm();
   const searchParams = useSearchParams();
   const startUnattended = searchParams.get('filter') === 'unattended';
-  const [mode, setMode] = useState<Mode>(startUnattended ? 'list' : 'capture');
+  // Where a hand-over email / notification lands the recipient (see
+  // lib/leadHandover.ts) — straight onto the leads now assigned to them.
+  const startAssignedToMe = searchParams.get('filter') === 'assigned-to-me';
+  const [mode, setMode] = useState<Mode>(startUnattended || startAssignedToMe ? 'list' : 'capture');
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [loading, setLoading] = useState(true);
@@ -117,7 +120,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   // /api/leads/assignees 403s for anyone who can't, so one fetch decides both
   // whether to render the assignment controls and what to put in them.
   const [assignees, setAssignees] = useState<Assignee[] | null>(null);
-  const [assigneeFilter, setAssigneeFilter] = useState<string>('');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>(startAssignedToMe ? FILTER_MINE : '');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAssigneeId, setBulkAssigneeId] = useState('');
   const [assigningId, setAssigningId] = useState<string | null>(null);
@@ -304,7 +307,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   async function handleSubmitLead(form: {
     name: string; mobile: string; email: string; designation: string; company: string; city: string; cardImageUrl: string;
     interests: DomainKey[]; subInterests: string[]; priority: LeadPriority; followUpActions: string[]; budget: string; notes: string;
-  }): Promise<(LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string }) | null> {
+    handoverToId: string;
+  }): Promise<(LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string; handover?: LeadHandoverOutcome }) | null> {
     setCreating(true);
     try {
       const response = await fetch('/api/leads', {
@@ -313,10 +317,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
         body: JSON.stringify(form)
       });
       if (!response.ok) {
-        toast.error('Could not save this lead. Please try again.');
+        // A refused hand-over (that person can't receive leads) says so
+        // rather than a generic failure.
+        const body = await response.json().catch(() => null);
+        toast.error(body?.error || 'Could not save this lead. Please try again.');
         return null;
       }
-      const result: LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string } = await response.json();
+      const result: LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string; handover?: LeadHandoverOutcome } = await response.json();
       // A merged duplicate updates an existing row in place instead of
       // prepending a second copy of the same contact.
       setLeads((prev) => {

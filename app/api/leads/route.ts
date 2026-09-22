@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { leadStore, createOrMergeLead } from '@/lib/leadStore';
+import { findHandoverRecipient, handOverCapturedLead } from '@/lib/leadHandover';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -45,8 +46,18 @@ export async function POST(request: NextRequest) {
   const city = typeof body.city === 'string' ? body.city.trim() : '';
   const cardImageUrl = typeof body.cardImageUrl === 'string' ? body.cardImageUrl : '';
   const budget = typeof body.budget === 'string' ? body.budget.trim() : '';
+  // "Whose lead is this?" on the Confirm Details step — '' leaves the lead
+  // unassigned, exactly as before.
+  const handoverToId = typeof body.handoverToId === 'string' ? body.handoverToId.trim() : '';
 
   try {
+    // Checked before anything is written, so a bad pick is refused outright
+    // instead of saving the lead and then failing to route it.
+    const recipient = handoverToId ? await findHandoverRecipient(handoverToId, viewer) : null;
+    if (handoverToId && !recipient) {
+      return NextResponse.json({ error: 'That person can’t receive leads. Pick someone else, or leave it Unassigned.' }, { status: 400 });
+    }
+
     // Same mobile/email already scanned by anyone — merge into that lead
     // instead of creating a duplicate (spec: two reps scanning the same card
     // at an event must not fork into two records).
@@ -67,20 +78,26 @@ export async function POST(request: NextRequest) {
         newStatus: result.record.priority || 'unrated',
         ip: getClientIp(request)
       });
-      return NextResponse.json({ ...result.record, duplicate: true, duplicateCapturedBy: before.created_by }, { status: 200 });
+    } else {
+      await logAudit({
+        by: viewer.username,
+        role: viewer.role,
+        entityType: 'lead',
+        entityId: result.record.id,
+        action: `Lead captured: ${result.record.name || result.record.company}`,
+        previousStatus: '',
+        newStatus: result.record.priority || 'unrated',
+        ip: getClientIp(request)
+      });
     }
 
-    await logAudit({
-      by: viewer.username,
-      role: viewer.role,
-      entityType: 'lead',
-      entityId: result.record.id,
-      action: `Lead captured: ${result.record.name || result.record.company}`,
-      previousStatus: '',
-      newStatus: result.record.priority || 'unrated',
-      ip: getClientIp(request)
-    });
-    return NextResponse.json(result.record, { status: 201 });
+    const handover = recipient ? await handOverCapturedLead(result.record, recipient, viewer, getClientIp(request)) : null;
+    const record = handover ? handover.record : result.record;
+
+    if (result.merged) {
+      return NextResponse.json({ ...record, duplicate: true, duplicateCapturedBy: result.duplicateBefore!.created_by, handover: handover?.outcome }, { status: 200 });
+    }
+    return NextResponse.json({ ...record, handover: handover?.outcome }, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);
   }

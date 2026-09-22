@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { isAccountsPaymentActor } from '@/lib/accountsPaymentAccess';
-import { findPaymentItem, payItem, parsePaymentId } from '@/lib/accountsPaymentStore';
+import { findPaymentItem, payItem, parsePaymentId, resolveEntityIds } from '@/lib/accountsPaymentStore';
 import { findUserByUsername } from '@/lib/userStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
@@ -38,6 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const paymentReference = typeof body.paymentReference === 'string' ? body.paymentReference.trim() : '';
   const remarks = typeof body.remarks === 'string' ? body.remarks.trim() : '';
   const proofUrls = Array.isArray(body.proofUrls) ? body.proofUrls.filter((v: unknown) => typeof v === 'string') : [];
+  const expectedAmount = typeof body.expectedAmount === 'number' && Number.isFinite(body.expectedAmount) ? body.expectedAmount : undefined;
 
   if (!paymentMethod) return NextResponse.json({ error: 'Payment method is required' }, { status: 400 });
 
@@ -51,20 +52,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const actor = await findUserByUsername(viewer.username);
     if (!actor) return NextResponse.json({ error: 'Actor not found' }, { status: 404 });
 
+    // Resolved before paying — see resolveEntityIds for why the order matters.
+    const entityIds = await resolveEntityIds(parsed.source, parsed.sourceId);
+
     const result = await payItem(parsed.source, parsed.sourceId, { id: actor.id, username: actor.username }, {
-      paymentMethod, paymentDate, paymentReference, remarks, proofUrls
+      paymentMethod, paymentDate, paymentReference, remarks, proofUrls, expectedAmount
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
 
-    await logAudit({
-      by: viewer.username, role: viewer.role, entityType: AUDIT_ENTITY_TYPE[parsed.source], entityId: parsed.sourceId,
+    // One audit row per real record paid, so each Office entry / Admin
+    // Expense row carries its own payment history, tagged with the sheet or
+    // batch it was settled as part of.
+    const baseRemarks = paymentReference ? `${paymentMethod} — Ref: ${paymentReference}` : paymentMethod;
+    const isGrouped = !(entityIds.length === 1 && entityIds[0] === parsed.sourceId);
+    await Promise.all(entityIds.map((entityId) => logAudit({
+      by: viewer.username, role: viewer.role, entityType: AUDIT_ENTITY_TYPE[parsed.source], entityId,
       action: 'accounts_payment_done', previousStatus: existing.status, newStatus: 'paid',
-      remarks: paymentReference ? `${paymentMethod} — Ref: ${paymentReference}` : paymentMethod,
+      remarks: isGrouped ? `${baseRemarks} — part of ${paymentId}` : baseRemarks,
       ip: getClientIp(request)
-    });
+    })));
 
+    // An Office sheet's bare month key stops resolving once paid (its entries
+    // move into a paid group), so this can legitimately be null here.
     const updated = await findPaymentItem(paymentId);
-    return NextResponse.json(updated);
+    return NextResponse.json(updated ?? { ok: true });
   } catch (error) {
     return apiErrorResponse(error);
   }

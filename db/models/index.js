@@ -56,6 +56,7 @@ const modelDefiners = [
   require('./attachment.js'),
   require('./notification.js'),
   require('./projectHandoverRequest.js'),
+  require('./projectTechnicalRequest.js'),
   require('./reimbursement.js'),
   require('./reimbursementSheet.js'),
   require('./reimbursementDeadlineExtension.js'),

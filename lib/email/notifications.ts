@@ -17,6 +17,7 @@ import { renderFieldOpsLifecycleEmail, FieldOpsLifecycleEmailData } from './temp
 import { renderReimbursementLifecycleEmail, ReimbursementLifecycleEmailData } from './templates/reimbursementLifecycle';
 import { renderCelebrationEmail, CelebrationEmailData } from './templates/celebration';
 import { renderAdminExpenseNoticeEmail, AdminExpenseNoticeEmailData } from './templates/adminExpenseNotice';
+import { renderLeadHandoverEmail, LeadHandoverEmailData } from './templates/leadHandover';
 
 // APP_URL must be this app's absolute public origin (e.g.
 // https://app.example.com, see .env.example) — every link embedded in an
@@ -260,5 +261,21 @@ export async function sendAdminExpenseNoticeEmail(data: { email: string } & Admi
       `[email] Admin expense notice (${data.action}) for batch "${data.expenseType}" could not be sent to ${data.email}:`,
       error instanceof Error ? error.message : error
     );
+  }
+}
+
+// Links to the recipient's "Assigned To Me" view of Lead Capture — there is
+// no per-lead page, and that filter puts the handed-over lead in front of
+// them (see components/LeadsView.tsx's ?filter=assigned-to-me).
+export async function sendLeadHandoverEmail(data: { email: string } & Omit<LeadHandoverEmailData, 'leadsUrl'>): Promise<void> {
+  if (!data.email) return;
+
+  try {
+    const appUrl = resolveAppUrl();
+    const leadsUrl = appUrl ? `${appUrl}/leads?filter=assigned-to-me` : '/leads?filter=assigned-to-me';
+    const { subject, html, text } = renderLeadHandoverEmail({ ...data, leadsUrl });
+    await sendEmail({ to: data.email, subject, html, text });
+  } catch (error) {
+    console.error(`[email] Lead was handed over to ${data.name} but the notification email could not be sent:`, error instanceof Error ? error.message : error);
   }
 }
