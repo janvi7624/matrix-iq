@@ -366,6 +366,18 @@
     border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-sm);
 }
+/* Applied alongside .kpiCard when it's a <button> instead of a <Link> — the
+   underlying stat is a filtered list to pop up (see components/
+   TmsDashboardView.tsx's showProjects/showTasks/showBom/showProcurement)
+   rather than a page to navigate to. */
+.kpiCardButton {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+.kpiCardButton:hover { border-color: var(--mx-brand); }
 .kpiValue {
     font-size: 1.6rem;
     font-weight: 800;

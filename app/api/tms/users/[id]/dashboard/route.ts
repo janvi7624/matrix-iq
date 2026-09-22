@@ -46,6 +46,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const today = new Date().toISOString().slice(0, 10);
     const overdueTasks = openTasks.filter((t) => t.due_date && t.due_date < today);
 
+    // Lightweight index for a click-through drill-down from the Tasks tiles
+    // — mirrors lib/performanceReview.ts's tasksList for the same reason:
+    // the tiles here used to be totals with nothing to click through to.
+    const tasksList = tasks
+      .map((t) => ({ id: t.id, label: t.name, status: t.status, dueDate: t.due_date, projectName: t.project_name }))
+      .sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1));
+
     return NextResponse.json({
       user: { id: target.id, username: target.username, name: target.name, department: target.department, designation: target.designation, role: target.role },
       projects: { assigned: assignedProjects.length, active: activeProjects.length, completed: completedProjects.length },
@@ -57,6 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         pending: openTasks.length,
         overdue: overdueTasks.length
       },
+      tasksList,
       taskDerivedProgress: tasks.length ? Math.round((completedTasks.length / tasks.length) * 100) : null,
       recentUpdates
     });

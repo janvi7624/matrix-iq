@@ -1,19 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import Modal, { ModalOkButton } from './ui/Modal';
 import ErrorState from './ui/ErrorState';
 import { SkeletonRows } from './ui/Skeleton';
-import { TMS_ROLE_LABEL } from '@/lib/tmsLabels';
+import { TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, todayIso } from '@/lib/tmsLabels';
 import styles from './departmentHealthDetail.module.css';
 
 interface TmsPersonDashboardData {
   user: { id: string; username: string; name: string; department: string; designation: string; role: string };
   projects: { assigned: number; active: number; completed: number };
   tasks: { total: number; completed: number; inProgress: number; blocked: number; pending: number; overdue: number };
+  tasksList: { id: string; label: string; status: string; dueDate: string; projectName: string }[];
   taskDerivedProgress: number | null;
   recentUpdates: { id: string; taskName: string; progressPercent: number; statusAtUpdate: string; remark: string; updatedByName: string; createdAt: string }[];
 }
+
+type TaskTile = 'total' | 'completed' | 'inProgress' | 'blocked' | 'overdue';
 
 interface TmsPersonDashboardProps {
   userId: string;
@@ -37,6 +41,7 @@ export default function TmsPersonDashboard({ userId, onClose }: TmsPersonDashboa
   const [data, setData] = useState<TmsPersonDashboardData | null>(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [taskFilter, setTaskFilter] = useState<TaskTile | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,32 +102,67 @@ export default function TmsPersonDashboard({ userId, onClose }: TmsPersonDashboa
             </div>
           </div>
 
-          <h3 className={styles.sectionTitle}>Tasks{data.taskDerivedProgress !== null ? ` — ${data.taskDerivedProgress}% complete` : ''}</h3>
+          <h3 className={styles.sectionTitle}>
+            Tasks{data.taskDerivedProgress !== null ? ` — ${data.taskDerivedProgress}% complete` : ''}
+            {data.tasks.total > 0 ? (taskFilter ? ' — click a tile again to hide the list' : ' — click a tile to see the tasks') : ''}
+          </h3>
           {data.tasks.total === 0 ? (
             <p className={styles.emptyNote}>No tasks assigned in TMS.</p>
           ) : (
-            <div className={styles.totalsGrid}>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.tasks.total}</div>
-                <div className={styles.totalLabel}>Total</div>
+            <>
+              <div className={styles.totalsGrid}>
+                {([
+                  ['total', data.tasks.total, 'Total'],
+                  ['completed', data.tasks.completed, 'Completed'],
+                  ['inProgress', data.tasks.inProgress, 'In Progress'],
+                  ['blocked', data.tasks.blocked, 'Blocked'],
+                  ['overdue', data.tasks.overdue, 'Overdue']
+                ] as [TaskTile, number, string][]).map(([tile, value, label]) => (
+                  <button
+                    key={tile}
+                    type="button"
+                    className={`${styles.totalCard} ${styles.totalCardClickable} ${taskFilter === tile ? styles.totalCardActive : ''}`}
+                    onClick={() => setTaskFilter((f) => (f === tile ? null : tile))}
+                  >
+                    <div className={styles.totalValue}>{value}</div>
+                    <div className={styles.totalLabel}>{label}</div>
+                  </button>
+                ))}
               </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.tasks.completed}</div>
-                <div className={styles.totalLabel}>Completed</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.tasks.inProgress}</div>
-                <div className={styles.totalLabel}>In Progress</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.tasks.blocked}</div>
-                <div className={styles.totalLabel}>Blocked</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.tasks.overdue}</div>
-                <div className={styles.totalLabel}>Overdue</div>
-              </div>
-            </div>
+              {taskFilter && (() => {
+                const today = todayIso();
+                const filtered = data.tasksList.filter((t) => {
+                  if (taskFilter === 'total') return true;
+                  if (taskFilter === 'completed') return t.status === 'completed';
+                  if (taskFilter === 'inProgress') return t.status === 'in_progress';
+                  if (taskFilter === 'blocked') return t.status === 'blocked';
+                  return t.status !== 'completed' && t.status !== 'cancelled' && !!t.dueDate && t.dueDate < today;
+                });
+                return filtered.length === 0 ? (
+                  <p className={styles.emptyNote}>No tasks in this bucket.</p>
+                ) : (
+                  <ul className={styles.memberList}>
+                    {filtered.map((t) => (
+                      <li key={t.id}>
+                        <Link href={`/tms/tasks/${t.id}`} className={styles.memberLink}>
+                          <div className={styles.member}>
+                            <div className={styles.memberBody}>
+                              <div className={styles.memberTop}>
+                                <span className={styles.memberName}>{t.label}</span>
+                                <span className={styles.memberDesignation}>{TMS_TASK_STATUS_LABEL[t.status as keyof typeof TMS_TASK_STATUS_LABEL] || t.status}</span>
+                              </div>
+                              {(t.projectName || t.dueDate) && (
+                                <div className={styles.memberDesignation}>{[t.projectName, t.dueDate].filter(Boolean).join(' · ')}</div>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
+            </>
           )}
 
           <h3 className={styles.sectionTitle}>Recent Activity</h3>

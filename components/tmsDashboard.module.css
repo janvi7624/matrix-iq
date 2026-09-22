@@ -56,3 +56,20 @@
 .taskRowName { font-weight: 600; font-size: 13.5px; color: var(--mx-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .taskRowProject { font-size: 12px; color: var(--mx-ink-muted); }
 .taskRowDue { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--mx-ink-muted); flex-shrink: 0; }
+
+/* ---------- KPI tile drilldown popup (components/TmsDashboardView.tsx) ---------- */
+.drilldownList { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.drilldownRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border);
+    color: var(--mx-ink);
+    text-decoration: none;
+}
+.drilldownRow:hover { border-color: var(--mx-brand); background: var(--mx-brand-subtle); }
+.drilldownLabel { font-size: 13.5px; font-weight: 600; }
+.drilldownSublabel { font-size: 12px; color: var(--mx-ink-muted); white-space: nowrap; }

@@ -1,6 +1,6 @@
 import { ReimbursementRecord } from './types';
 
-interface VoucherData {
+export interface VoucherData {
   employee: { name: string; employeeId: string; department: string; designation: string };
   sheet: {
     code: string; month: number; year: number; status: string; expensePeriod: string; paidTo: string;

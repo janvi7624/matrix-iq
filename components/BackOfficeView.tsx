@@ -564,6 +564,11 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
 function BackOfficeContent({ currentUser }: { currentUser: { username: string; role: UserRole } }) {
   const searchParams = useSearchParams();
   const demoIdParam = searchParams.get('demoId') || '';
+  // Deep-links a specific DC open — e.g. from the Person Performance
+  // Dashboard's "DCs moved past preparation" / "Still awaiting dispatch"
+  // drill-down (lib/departmentScoring.ts). Read once on mount, same as
+  // demoIdParam above.
+  const dcIdParam = searchParams.get('dc') || '';
   // DC management is strictly Back Office (or Admin/Super Admin as the org's
   // ultimate override) — Manager is deliberately excluded, unlike the app's
   // usual isPrivileged convention. Matches the server-side gates in
@@ -575,7 +580,7 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(dcIdParam || null);
   const [showManualDc, setShowManualDc] = useState(false);
   const toast = useToast();
   const confirm = useConfirm();

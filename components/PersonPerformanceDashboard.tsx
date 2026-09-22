@@ -7,6 +7,7 @@ import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import ErrorState from './ui/ErrorState';
 import { SkeletonRows } from './ui/Skeleton';
 import { STAGE_LABEL } from '@/lib/projectStages';
+import { TMS_TASK_STATUS_LABEL } from '@/lib/tmsLabels';
 import { formatMoney } from '@/lib/format';
 import styles from './departmentHealthDetail.module.css';
 
@@ -18,7 +19,8 @@ const TARGET_STATUS_LABEL: Record<string, string> = {
   exceeded: 'Exceeded'
 };
 
-interface MetricRow { label: string; value: string; }
+interface DrilldownItem { id: string; label: string; sublabel: string; href: string }
+interface MetricRow { label: string; value: string; items?: DrilldownItem[]; }
 
 // Shape returned by app/api/dashboard/person/[username]/route.ts — a subset
 // of lib/performanceReview.ts's PerformanceReview actually shown here (the
@@ -32,6 +34,7 @@ interface PersonReview {
   projects: { assignedProjects: number; activeProjects: number; completedProjects: number };
   projectsList: { id: string; label: string; stage: string; status: string }[];
   tasks: { total: number; completed: number; pending: number };
+  tasksList: { id: string; label: string; status: string; dueDate: string; projectName: string }[];
   followUps: { pending: number; completed: number; overdue: number };
   // Only present when the viewer can manage targets (lib/targetAccess.ts's
   // canManageTargets) — absent entirely for a normal employee viewing their
@@ -57,6 +60,13 @@ export default function PersonPerformanceDashboard({ username, name, department,
   const [data, setData] = useState<PersonReview | null>(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  // Which Tasks tile was clicked — filters the task list below it. Defaults
+  // to unset (list hidden) so this panel doesn't grow by default; clicking
+  // Total/Completed/Pending both narrows and reveals the list.
+  const [taskFilter, setTaskFilter] = useState<'total' | 'completed' | 'pending' | null>(null);
+  // Same idea for the Pipeline contribution tiles — keyed by the metric's
+  // own label since these vary per department (lib/departmentScoring.ts).
+  const [metricFilter, setMetricFilter] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,15 +109,51 @@ export default function PersonPerformanceDashboard({ username, name, department,
         <>
           {metrics.length > 0 && (
             <>
-              <h3 className={styles.sectionTitle}>Pipeline contribution{score !== null ? ` — ${score}%` : ''}</h3>
+              <h3 className={styles.sectionTitle}>
+                Pipeline contribution{score !== null ? ` — ${score}%` : ''}
+                {metrics.some((m) => m.items && m.items.length > 0) ? (metricFilter ? ' — click a tile again to hide the list' : ' — click a tile to see what it counts') : ''}
+              </h3>
               <div className={styles.totalsGrid}>
-                {metrics.map((m) => (
-                  <div key={m.label} className={styles.totalCard}>
-                    <div className={styles.totalValue}>{m.value}</div>
-                    <div className={styles.totalLabel}>{m.label}</div>
-                  </div>
-                ))}
+                {metrics.map((m) =>
+                  m.items && m.items.length > 0 ? (
+                    <button
+                      key={m.label}
+                      type="button"
+                      className={`${styles.totalCard} ${styles.totalCardClickable} ${metricFilter === m.label ? styles.totalCardActive : ''}`}
+                      onClick={() => setMetricFilter((f) => (f === m.label ? null : m.label))}
+                    >
+                      <div className={styles.totalValue}>{m.value}</div>
+                      <div className={styles.totalLabel}>{m.label}</div>
+                    </button>
+                  ) : (
+                    <div key={m.label} className={styles.totalCard}>
+                      <div className={styles.totalValue}>{m.value}</div>
+                      <div className={styles.totalLabel}>{m.label}</div>
+                    </div>
+                  )
+                )}
               </div>
+              {metricFilter && (() => {
+                const items = metrics.find((m) => m.label === metricFilter)?.items || [];
+                return items.length === 0 ? null : (
+                  <ul className={styles.memberList}>
+                    {items.map((item) => (
+                      <li key={item.id}>
+                        <Link href={item.href} className={styles.memberLink}>
+                          <div className={styles.member}>
+                            <div className={styles.memberBody}>
+                              <div className={styles.memberTop}>
+                                <span className={styles.memberName}>{item.label}</span>
+                                {item.sublabel && <span className={styles.memberDesignation}>{item.sublabel}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
             </>
           )}
 
@@ -155,24 +201,54 @@ export default function PersonPerformanceDashboard({ username, name, department,
             </div>
           </div>
 
-          <h3 className={styles.sectionTitle}>Tasks</h3>
+          <h3 className={styles.sectionTitle}>Tasks{taskFilter ? ' — click a tile again to hide the list' : ' — click a tile to see the tasks'}</h3>
           {data.tasks.total === 0 ? (
             <p className={styles.emptyNote}>No tasks assigned in TMS.</p>
           ) : (
-            <div className={styles.totalsGrid}>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.tasks.total}</div>
-                <div className={styles.totalLabel}>Total</div>
+            <>
+              <div className={styles.totalsGrid}>
+                <button type="button" className={`${styles.totalCard} ${styles.totalCardClickable} ${taskFilter === 'total' ? styles.totalCardActive : ''}`} onClick={() => setTaskFilter((f) => (f === 'total' ? null : 'total'))}>
+                  <div className={styles.totalValue}>{data.tasks.total}</div>
+                  <div className={styles.totalLabel}>Total</div>
+                </button>
+                <button type="button" className={`${styles.totalCard} ${styles.totalCardClickable} ${taskFilter === 'completed' ? styles.totalCardActive : ''}`} onClick={() => setTaskFilter((f) => (f === 'completed' ? null : 'completed'))}>
+                  <div className={styles.totalValue}>{data.tasks.completed}</div>
+                  <div className={styles.totalLabel}>Completed</div>
+                </button>
+                <button type="button" className={`${styles.totalCard} ${styles.totalCardClickable} ${taskFilter === 'pending' ? styles.totalCardActive : ''}`} onClick={() => setTaskFilter((f) => (f === 'pending' ? null : 'pending'))}>
+                  <div className={styles.totalValue}>{data.tasks.pending}</div>
+                  <div className={styles.totalLabel}>Pending</div>
+                </button>
               </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.tasks.completed}</div>
-                <div className={styles.totalLabel}>Completed</div>
-              </div>
-              <div className={styles.totalCard}>
-                <div className={styles.totalValue}>{data.tasks.pending}</div>
-                <div className={styles.totalLabel}>Pending</div>
-              </div>
-            </div>
+              {taskFilter && (() => {
+                const filtered = data.tasksList.filter((t) =>
+                  taskFilter === 'total' ? true : taskFilter === 'completed' ? t.status === 'completed' : t.status !== 'completed' && t.status !== 'cancelled'
+                );
+                return filtered.length === 0 ? (
+                  <p className={styles.emptyNote}>No tasks in this bucket.</p>
+                ) : (
+                  <ul className={styles.memberList}>
+                    {filtered.map((t) => (
+                      <li key={t.id}>
+                        <Link href={`/tms/tasks/${t.id}`} className={styles.memberLink}>
+                          <div className={styles.member}>
+                            <div className={styles.memberBody}>
+                              <div className={styles.memberTop}>
+                                <span className={styles.memberName}>{t.label}</span>
+                                <span className={styles.memberDesignation}>{TMS_TASK_STATUS_LABEL[t.status as keyof typeof TMS_TASK_STATUS_LABEL] || t.status}</span>
+                              </div>
+                              {(t.projectName || t.dueDate) && (
+                                <div className={styles.memberDesignation}>{[t.projectName, t.dueDate].filter(Boolean).join(' · ')}</div>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
+            </>
           )}
 
           <h3 className={styles.sectionTitle}>Quotations &amp; follow-ups</h3>

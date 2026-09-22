@@ -145,6 +145,12 @@ export async function buildPerformanceReview(username: string) {
     .map((p) => ({ id: p.id, label: p.client_name || p.company || `Project ${p.id}`, stage: p.stage, status: p.status }))
     .sort((a, b) => (a.label < b.label ? -1 : 1));
 
+  // Same idea for TMS tasks — the Person Performance Dashboard's Tasks tiles
+  // used to be totals with nothing to click through to.
+  const tasksList = tasks
+    .map((t) => ({ id: t.id, label: t.name, status: t.status, dueDate: t.due_date, projectName: t.project_name }))
+    .sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1));
+
   return {
     user: { username: user.username, name: user.name, department: user.department, designation: user.designation, employeeId: user.employeeId, joiningDate: user.createdAt, role: user.role },
     crm,
@@ -157,6 +163,7 @@ export async function buildPerformanceReview(username: string) {
     dc,
     customerResponse,
     tasks: taskMetrics,
+    tasksList,
     timeline,
     charts: {
       weekly: buildSeries(activityDates, 'week', 12),

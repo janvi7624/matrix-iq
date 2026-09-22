@@ -6,7 +6,8 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { AlertTriangle, CheckCircle2, Clock, FolderKanban, ListChecks } from 'lucide-react';
 import { TmsBomRequestRecord, TmsProcurementRecord, TmsProjectRecord, TmsTaskRecord, TmsTaskStatus, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS, TMS_MANAGER_TIER_ROLES } from '@/lib/tmsConstants';
-import { TMS_BOM_STATUS_LABEL, TMS_TASK_STATUS_LABEL, todayIso } from '@/lib/tmsLabels';
+import { TMS_BOM_STATUS_LABEL, TMS_PROJECT_STATUS_LABEL, TMS_PURCHASE_STATUS_LABEL, TMS_TASK_STATUS_LABEL, todayIso } from '@/lib/tmsLabels';
+import Modal from './ui/Modal';
 import AppShell from './AppShell';
 import dashboardStyles from './dashboard.module.css';
 import historyStyles from './quotationHistory.module.css';
@@ -221,7 +222,12 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
     const pendingTasks = data.tasks.filter((t) => t.status === 'to_do' || t.status === 'in_progress' || t.status === 'on_hold');
     const date = todayIso();
     const overdueTasks = data.tasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled' && t.due_date && t.due_date < date);
-    return { engineers: teamWorkload.length, activeProjects: activeProjects.length, pendingTasks: pendingTasks.length, overdueTasks: overdueTasks.length };
+    return {
+      engineers: teamWorkload.length,
+      activeProjects: activeProjects.length, activeProjectsItems: activeProjects,
+      pendingTasks: pendingTasks.length, pendingTasksItems: pendingTasks,
+      overdueTasks: overdueTasks.length, overdueTasksItems: overdueTasks
+    };
   }, [isManagerTier, data, teamWorkload]);
 
   // Technical dashboard charts (manager-tier only) — built from the SAME
@@ -245,17 +251,23 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
       .filter((row) => row.count > 0);
   }, [isManagerTier, bomRequests]);
 
+  // Every stat below also keeps the underlying filtered array (xxxItems) —
+  // same predicate that produced the count — so a KPI tile can pop up
+  // exactly what it's counting instead of just displaying a number with
+  // nothing behind it. No extra fetch: data.projects/tasks/bomRequests/
+  // procurements are already the full org-scoped arrays client-side.
   const projectStats = useMemo(() => {
     const date = fDate || todayIso();
     const active = projects.filter((p) => p.status !== 'completed' && p.status !== 'cancelled');
+    const completed = projects.filter((p) => p.status === 'completed');
     const nearDeadline = active.filter((p) => p.estimated_close_date && p.estimated_close_date >= date && p.estimated_close_date <= addDays(date, 7));
     const delayed = active.filter((p) => p.estimated_close_date && p.estimated_close_date < date);
     return {
-      total: projects.length,
-      active: active.length,
-      completed: projects.filter((p) => p.status === 'completed').length,
-      nearDeadline: nearDeadline.length,
-      delayed: delayed.length
+      total: projects.length, totalItems: projects,
+      active: active.length, activeItems: active,
+      completed: completed.length, completedItems: completed,
+      nearDeadline: nearDeadline.length, nearDeadlineItems: nearDeadline,
+      delayed: delayed.length, delayedItems: delayed
     };
   }, [projects, fDate]);
 
@@ -271,14 +283,24 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
       const label = t.assignee_name || 'Unassigned';
       byAssignee.set(label, (byAssignee.get(label) || 0) + 1);
     });
-    return { today: today.length, pending: pending.length, completedToday: completedToday.length, overdue: overdue.length, byAssignee: [...byAssignee.entries()].sort((a, b) => b[1] - a[1]) };
+    return {
+      today: today.length, todayItems: today,
+      pending: pending.length, pendingItems: pending,
+      completedToday: completedToday.length, completedTodayItems: completedToday,
+      overdue: overdue.length, overdueItems: overdue,
+      byAssignee: [...byAssignee.entries()].sort((a, b) => b[1] - a[1])
+    };
   }, [tasks, fDate]);
 
   const bomStats = useMemo(() => {
     const pending = bomRequests.filter((b) => b.status === 'draft' || b.status === 'submitted' || b.status === 'under_review');
     const approved = bomRequests.filter((b) => b.status === 'approved' || b.status === 'sent_for_procurement' || b.status === 'completed');
     const awaitingReview = bomRequests.filter((b) => b.status === 'submitted' || b.status === 'under_review');
-    return { pending: pending.length, approved: approved.length, awaitingReview: awaitingReview.length };
+    return {
+      pending: pending.length, pendingItems: pending,
+      approved: approved.length, approvedItems: approved,
+      awaitingReview: awaitingReview.length, awaitingReviewItems: awaitingReview
+    };
   }, [bomRequests]);
 
   const procurementStats = useMemo(() => {
@@ -286,8 +308,29 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
     const approvalPending = procurements.filter((p) => p.purchase_status === 'approval_pending');
     const ordered = procurements.filter((p) => p.purchase_status === 'ordered' || p.purchase_status === 'po_created');
     const awaitingDelivery = procurements.filter((p) => p.delivery_status === 'pending' || p.delivery_status === 'partially_received');
-    return { pending: pending.length, approvalPending: approvalPending.length, ordered: ordered.length, awaitingDelivery: awaitingDelivery.length };
+    return {
+      pending: pending.length, pendingItems: pending,
+      approvalPending: approvalPending.length, approvalPendingItems: approvalPending,
+      ordered: ordered.length, orderedItems: ordered,
+      awaitingDelivery: awaitingDelivery.length, awaitingDeliveryItems: awaitingDelivery
+    };
   }, [procurements]);
+
+  interface DrilldownItem { id: string; label: string; sublabel: string; href: string }
+  const [drilldown, setDrilldown] = useState<{ title: string; items: DrilldownItem[] } | null>(null);
+
+  function showProjects(title: string, items: TmsProjectRecord[]) {
+    setDrilldown({ title, items: items.map((p) => ({ id: p.id, label: p.name || p.client_name || p.project_code, sublabel: TMS_PROJECT_STATUS_LABEL[p.status] || p.status, href: `/tms/projects/${p.id}` })) });
+  }
+  function showTasks(title: string, items: TmsTaskRecord[]) {
+    setDrilldown({ title, items: items.map((t) => ({ id: t.id, label: t.name, sublabel: [t.project_name, TMS_TASK_STATUS_LABEL[t.status]].filter(Boolean).join(' · '), href: `/tms/tasks/${t.id}` })) });
+  }
+  function showBom(title: string, items: TmsBomRequestRecord[]) {
+    setDrilldown({ title, items: items.map((b) => ({ id: b.id, label: `${b.bom_request_code} — ${b.item_name}`, sublabel: TMS_BOM_STATUS_LABEL[b.status] || b.status, href: `/tms/bom-requests/${b.id}` })) });
+  }
+  function showProcurement(title: string, items: TmsProcurementRecord[]) {
+    setDrilldown({ title, items: items.map((p) => ({ id: p.id, label: `${p.procurement_code} — ${p.item_name}`, sublabel: TMS_PURCHASE_STATUS_LABEL[p.purchase_status] || p.purchase_status, href: `/tms/procurement/${p.id}` })) });
+  }
 
   if (loadFailed) {
     return (
@@ -414,18 +457,18 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
               <div className={dashboardStyles.kpiValue}>{teamOverviewStats.engineers}</div>
               <div className={dashboardStyles.kpiLabel}>Engineers</div>
             </div>
-            <div className={dashboardStyles.kpiCard}>
+            <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Active Projects', teamOverviewStats.activeProjectsItems)}>
               <div className={dashboardStyles.kpiValue}>{teamOverviewStats.activeProjects}</div>
               <div className={dashboardStyles.kpiLabel}>Active Projects</div>
-            </div>
-            <div className={dashboardStyles.kpiCard}>
+            </button>
+            <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showTasks('Pending Tasks', teamOverviewStats.pendingTasksItems)}>
               <div className={dashboardStyles.kpiValue}>{teamOverviewStats.pendingTasks}</div>
               <div className={dashboardStyles.kpiLabel}>Pending Tasks</div>
-            </div>
-            <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
+            </button>
+            <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showTasks('Overdue Tasks', teamOverviewStats.overdueTasksItems)}>
               <div className={dashboardStyles.kpiValue}>{teamOverviewStats.overdueTasks}</div>
               <div className={dashboardStyles.kpiLabel}>Overdue Tasks</div>
-            </div>
+            </button>
           </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             {taskDistributionChart.length > 0 && (
@@ -531,22 +574,22 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={dashboardStyles.kpiValue}>{projectStats.total}</div>
           <div className={dashboardStyles.kpiLabel}>Total Projects</div>
         </Link>
-        <div className={dashboardStyles.kpiCard}>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Active Projects', projectStats.activeItems)}>
           <div className={dashboardStyles.kpiValue}>{projectStats.active}</div>
           <div className={dashboardStyles.kpiLabel}>Active Projects</div>
-        </div>
-        <div className={dashboardStyles.kpiCard}>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Completed Projects', projectStats.completedItems)}>
           <div className={dashboardStyles.kpiValue}>{projectStats.completed}</div>
           <div className={dashboardStyles.kpiLabel}>Completed Projects</div>
-        </div>
-        <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Near Deadline', projectStats.nearDeadlineItems)}>
           <div className={dashboardStyles.kpiValue}>{projectStats.nearDeadline}</div>
           <div className={dashboardStyles.kpiLabel}>Near Deadline</div>
-        </div>
-        <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Delayed Projects', projectStats.delayedItems)}>
           <div className={dashboardStyles.kpiValue}>{projectStats.delayed}</div>
           <div className={dashboardStyles.kpiLabel}>Delayed Projects</div>
-        </div>
+        </button>
       </div>
 
       <div className={dashboardStyles.sectionHeading}>Task Overview</div>
@@ -555,18 +598,18 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={dashboardStyles.kpiValue}>{taskStats.today}</div>
           <div className={dashboardStyles.kpiLabel}>Today&apos;s Tasks</div>
         </Link>
-        <div className={dashboardStyles.kpiCard}>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showTasks('Pending Tasks', taskStats.pendingItems)}>
           <div className={dashboardStyles.kpiValue}>{taskStats.pending}</div>
           <div className={dashboardStyles.kpiLabel}>Pending Tasks</div>
-        </div>
-        <div className={dashboardStyles.kpiCard}>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showTasks('Completed Today', taskStats.completedTodayItems)}>
           <div className={dashboardStyles.kpiValue}>{taskStats.completedToday}</div>
           <div className={dashboardStyles.kpiLabel}>Completed Today</div>
-        </div>
-        <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showTasks('Overdue Tasks', taskStats.overdueItems)}>
           <div className={dashboardStyles.kpiValue}>{taskStats.overdue}</div>
           <div className={dashboardStyles.kpiLabel}>Overdue Tasks</div>
-        </div>
+        </button>
       </div>
       {taskStats.byAssignee.length > 0 && (
         <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedLg}`}>
@@ -588,14 +631,14 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={dashboardStyles.kpiValue}>{bomStats.pending}</div>
           <div className={dashboardStyles.kpiLabel}>Pending BOM Requests</div>
         </Link>
-        <div className={dashboardStyles.kpiCard}>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showBom('Approved BOM Requests', bomStats.approvedItems)}>
           <div className={dashboardStyles.kpiValue}>{bomStats.approved}</div>
           <div className={dashboardStyles.kpiLabel}>Approved BOM Requests</div>
-        </div>
-        <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showBom('Awaiting Review', bomStats.awaitingReviewItems)}>
           <div className={dashboardStyles.kpiValue}>{bomStats.awaitingReview}</div>
           <div className={dashboardStyles.kpiLabel}>Awaiting Review</div>
-        </div>
+        </button>
       </div>
 
       <div className={dashboardStyles.sectionHeading}>Procurement Overview</div>
@@ -604,19 +647,38 @@ export default function TmsDashboardView({ currentUser }: TmsDashboardViewProps)
           <div className={dashboardStyles.kpiValue}>{procurementStats.pending}</div>
           <div className={dashboardStyles.kpiLabel}>Pending Procurement</div>
         </Link>
-        <div className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert}`}>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showProcurement('Approval Pending', procurementStats.approvalPendingItems)}>
           <div className={dashboardStyles.kpiValue}>{procurementStats.approvalPending}</div>
           <div className={dashboardStyles.kpiLabel}>Approval Pending</div>
-        </div>
-        <div className={dashboardStyles.kpiCard}>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProcurement('Ordered', procurementStats.orderedItems)}>
           <div className={dashboardStyles.kpiValue}>{procurementStats.ordered}</div>
           <div className={dashboardStyles.kpiLabel}>Ordered</div>
-        </div>
-        <div className={dashboardStyles.kpiCard}>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProcurement('Awaiting Delivery', procurementStats.awaitingDeliveryItems)}>
           <div className={dashboardStyles.kpiValue}>{procurementStats.awaitingDelivery}</div>
           <div className={dashboardStyles.kpiLabel}>Awaiting Delivery</div>
-        </div>
+        </button>
       </div>
+
+      {drilldown && (
+        <Modal title={drilldown.title} ariaLabel={drilldown.title} onClose={() => setDrilldown(null)}>
+          {drilldown.items.length === 0 ? (
+            <p className={calcStyles.small}>Nothing in this bucket.</p>
+          ) : (
+            <ul className={styles.drilldownList}>
+              {drilldown.items.map((item) => (
+                <li key={item.id}>
+                  <Link href={item.href} className={styles.drilldownRow} onClick={() => setDrilldown(null)}>
+                    <span className={styles.drilldownLabel}>{item.label}</span>
+                    <span className={styles.drilldownSublabel}>{item.sublabel}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Modal>
+      )}
 
       {openPersonId && <TmsPersonDashboard userId={openPersonId} onClose={() => setOpenPersonId(null)} />}
     </AppShell>

@@ -71,15 +71,24 @@ export async function notifyAccountsOfAdminExpense(opts: {
     entityId: opts.batchId,
   });
 
-  await Promise.allSettled(
-    accountsUsers.map((u) =>
-      sendAdminExpenseNoticeEmail({
-        email: u.email, name: u.name || u.username, action: opts.action === 'approved' ? 'created' : opts.action,
-        expenseType: opts.expenseType, totalAmount: totalStr, employeeNames,
-        addedBy: opts.addedByName, date: opts.resolvedDate,
-      })
-    )
-  );
+  // Email only for the two moments this batch is genuinely NEW information
+  // for Accounts — first became payable ('created', only reachable when
+  // it's auto-approved) or just got approved out of pending ('approved').
+  // 'updated' (the approver re-editing a batch Accounts was already told
+  // about) still gets the in-app notice above, but no email — otherwise
+  // every minor correction re-sends a full email, which is exactly the
+  // "spam" the Accounts team complained about.
+  if (opts.action !== 'updated') {
+    await Promise.allSettled(
+      accountsUsers.map((u) =>
+        sendAdminExpenseNoticeEmail({
+          email: u.email, name: u.name || u.username, action: 'created',
+          expenseType: opts.expenseType, totalAmount: totalStr, employeeNames,
+          addedBy: opts.addedByName, date: opts.resolvedDate,
+        })
+      )
+    );
+  }
 }
 
 // A batch that isn't auto-approved (i.e. not created by APPROVER_USERNAME

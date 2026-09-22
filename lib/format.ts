@@ -24,3 +24,12 @@ export function ordinalDay(day: number): string {
   const suffix = ['th', 'st', 'nd', 'rd'][day % 10 > 3 || Math.floor(day / 10) === 1 ? 0 : day % 10];
   return `${day}${suffix}`;
 }
+
+// Strips the "<timestamp>-<uuid>-" prefix lib/uploads.ts adds to every
+// uploaded filename, leaving just the human-typed original name for display.
+export function friendlyFileName(url: string): string {
+  const parts = url.split('/');
+  const raw = decodeURIComponent(parts[parts.length - 1] || 'file');
+  const match = raw.match(/^\d+-[a-f0-9]+-(.+)$/);
+  return match?.[1] || raw;
+}

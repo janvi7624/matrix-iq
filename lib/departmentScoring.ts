@@ -51,9 +51,18 @@ function getTmsBomRequests(cache: ScoringDataCache): Promise<TmsBomRequestRecord
 
 export type ScoreBand = 'red' | 'yellow' | 'green' | 'na';
 
+export interface DrilldownItem { id: string; label: string; sublabel: string; href: string }
+
 export interface BreakdownRow {
   label: string;
   value: string;
+  // The actual records behind this metric — only populated on a MemberScore
+  // row (per-person), never on the department-wide `breakdown` aggregate.
+  // Lets the Person Performance Dashboard's "Pipeline contribution" tiles
+  // click through to what they're counting, the same way its Tasks tiles
+  // already do. Omitted (rather than []) when there's genuinely nothing
+  // clickable to show for this metric.
+  items?: DrilldownItem[];
 }
 
 // Each scorer already computed a per-member percentage in order to average
@@ -157,15 +166,20 @@ async function scoreSalesTeam(team: TeamMember[], cache: ScoringDataCache): Prom
     const quotations = allQuotations.filter((q) => q.created_by === m.username);
     const projects = allProjects.filter((p) => p.created_by === m.username);
 
-    const won = projects.filter((p) => p.status === 'won').length;
-    const lost = projects.filter((p) => p.status === 'lost').length;
+    const wonProjects = projects.filter((p) => p.status === 'won');
+    const lostProjects = projects.filter((p) => p.status === 'lost');
+    const won = wonProjects.length;
+    const lost = lostProjects.length;
     const created = quotations.length;
-    const converted = quotations.filter((q) => q.status === 'approved').length;
+    const convertedQuotations = quotations.filter((q) => q.status === 'approved');
+    const converted = convertedQuotations.length;
 
     let overdue = 0, tracked = 0;
+    const onTrackQuotations: QuotationRecord[] = [];
     quotations.forEach((q) => {
       tracked += 1;
       if (needsFollowUp(q)) overdue += 1;
+      else onTrackQuotations.push(q);
     });
 
     totalWon += won; totalLost += lost; totalQuotations += created; totalConverted += converted;
@@ -174,14 +188,16 @@ async function scoreSalesTeam(team: TeamMember[], cache: ScoringDataCache): Prom
     const components = [pct(won, won + lost), pct(converted, created), pct(tracked - overdue, tracked)].filter(
       (p): p is number => p !== null
     );
+    const projectItem = (p: ProjectRecord, outcome: string): DrilldownItem => ({ id: p.id, label: p.client_name || p.company || `Project ${p.id}`, sublabel: outcome, href: `/projects/${p.id}` });
+    const quotationItem = (q: QuotationRecord): DrilldownItem => ({ id: q.id, label: q.quotation_number, sublabel: q.status, href: `/my-quotations?highlight=${q.id}` });
     return {
       id: m.id,
       username: m.username,
       score: rounded(average(components)),
       metrics: [
-        { label: 'Won / Lost deals', value: `${won} / ${lost}` },
-        { label: 'Quotations converted', value: `${converted} / ${created}` },
-        { label: 'Follow-ups on track', value: `${tracked - overdue} / ${tracked}` }
+        { label: 'Won / Lost deals', value: `${won} / ${lost}`, items: [...wonProjects.map((p) => projectItem(p, 'Won')), ...lostProjects.map((p) => projectItem(p, 'Lost'))] },
+        { label: 'Quotations converted', value: `${converted} / ${created}`, items: quotations.map(quotationItem) },
+        { label: 'Follow-ups on track', value: `${tracked - overdue} / ${tracked}`, items: onTrackQuotations.map(quotationItem) }
       ]
     };
   });
@@ -211,14 +227,17 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
   const members: MemberScore[] = team.map((m) => {
     const assigned = allProjects.filter((p) => p.assigned_technical_person_id === m.id && p.status === 'active');
     const delayed = assigned.filter((p) => p.expected_closing_date && p.expected_closing_date < today);
+    const delayedIds = new Set(delayed.map((p) => p.id));
+    const onTrack = assigned.filter((p) => !delayedIds.has(p.id));
     totalActive += assigned.length; totalDelayed += delayed.length;
+    const projectItem = (p: ProjectRecord): DrilldownItem => ({ id: p.id, label: p.client_name || p.company || `Project ${p.id}`, sublabel: p.expected_closing_date || '', href: `/projects/${p.id}` });
     return {
       id: m.id,
       username: m.username,
       score: rounded(pct(assigned.length - delayed.length, assigned.length)),
       metrics: [
-        { label: 'On-track projects', value: `${assigned.length - delayed.length} / ${assigned.length}` },
-        { label: 'Overdue projects', value: String(delayed.length) }
+        { label: 'On-track projects', value: `${assigned.length - delayed.length} / ${assigned.length}`, items: onTrack.map(projectItem) },
+        { label: 'Overdue projects', value: String(delayed.length), items: delayed.map(projectItem) }
       ]
     };
   });
@@ -247,24 +266,31 @@ async function scoreMarketingTeam(team: TeamMember[], cache: ScoringDataCache): 
     const withDeadline = mine.filter((r) => r.needed_by_date);
 
     let onTime = 0, late = 0, overdueOpen = 0;
+    const onTimeReqs: MarketingRequestRecord[] = [], lateReqs: MarketingRequestRecord[] = [], overdueOpenReqs: MarketingRequestRecord[] = [];
     withDeadline.forEach((r) => {
       if (r.status === 'completed') {
-        if (r.updated_at.slice(0, 10) <= r.needed_by_date) onTime += 1;
-        else late += 1;
+        if (r.updated_at.slice(0, 10) <= r.needed_by_date) { onTime += 1; onTimeReqs.push(r); }
+        else { late += 1; lateReqs.push(r); }
       } else if (r.needed_by_date < today) {
         overdueOpen += 1;
+        overdueOpenReqs.push(r);
       }
     });
 
     totalOnTime += onTime; totalLate += late; totalOverdueOpen += overdueOpen;
+    // No per-request deep link exists yet (components/MarketingRequestsView.tsx
+    // has no detail/highlight route the way /projects/:id or
+    // /my-quotations?highlight=:id do) — links to the list page itself rather
+    // than nothing, same reasoning as every other metric here.
+    const requestItem = (r: MarketingRequestRecord): DrilldownItem => ({ id: r.id, label: r.title, sublabel: r.needed_by_date, href: '/marketing-requests' });
     return {
       id: m.id,
       username: m.username,
       score: rounded(pct(onTime, onTime + late + overdueOpen)),
       metrics: [
-        { label: 'Delivered on time', value: `${onTime} / ${onTime + late + overdueOpen}` },
-        { label: 'Delivered late', value: String(late) },
-        { label: 'Open past deadline', value: String(overdueOpen) }
+        { label: 'Delivered on time', value: `${onTime} / ${onTime + late + overdueOpen}`, items: onTimeReqs.map(requestItem) },
+        { label: 'Delivered late', value: String(late), items: lateReqs.map(requestItem) },
+        { label: 'Open past deadline', value: String(overdueOpen), items: overdueOpenReqs.map(requestItem) }
       ]
     };
   });
@@ -289,15 +315,21 @@ async function scoreBackOfficeTeam(team: TeamMember[], _cache: ScoringDataCache)
   const members: MemberScore[] = await Promise.all(
     team.map(async (m) => {
       const dcs = await deliveryChallanStore.listOwnedBy(m.username);
-      const moved = dcs.filter((d) => d.status !== 'prepared').length;
+      const movedDcs = dcs.filter((d) => d.status !== 'prepared');
+      const awaitingDcs = dcs.filter((d) => d.status === 'prepared');
+      const moved = movedDcs.length;
       totalMoved += moved; totalDcs += dcs.length;
+      // /backoffice reads ?dc=<id> to open that specific Delivery Challan
+      // (mirrors its existing ?demoId= convention) — see components/
+      // BackOfficeView.tsx.
+      const dcItem = (d: (typeof dcs)[number]): DrilldownItem => ({ id: d.id, label: `${d.dc_number} — ${d.client_name}`, sublabel: d.status, href: `/backoffice?dc=${d.id}` });
       return {
         id: m.id,
         username: m.username,
         score: rounded(pct(moved, dcs.length)),
         metrics: [
-          { label: 'DCs moved past preparation', value: `${moved} / ${dcs.length}` },
-          { label: 'Still awaiting dispatch', value: String(dcs.length - moved) }
+          { label: 'DCs moved past preparation', value: `${moved} / ${dcs.length}`, items: movedDcs.map(dcItem) },
+          { label: 'Still awaiting dispatch', value: String(dcs.length - moved), items: awaitingDcs.map(dcItem) }
         ]
       };
     })
@@ -330,13 +362,14 @@ async function scoreAccountsTeam(team: TeamMember[], cache: ScoringDataCache): P
     const handled = all.filter((r) => r.payment_marked_by_id === m.id && r.finance_reviewed_at);
     const onTime = handled.filter((r) => daysBetween(r.finance_reviewed_at, r.payment_marked_at) <= ACCOUNTS_TARGET_DAYS);
     totalOnTime += onTime.length; totalHandled += handled.length;
+    const bomItem = (r: TmsBomRequestRecord): DrilldownItem => ({ id: r.id, label: `${r.bom_request_code} — ${r.item_name}`, sublabel: r.project_name, href: `/tms/bom-requests/${r.id}` });
     return {
       id: m.id,
       username: m.username,
       score: rounded(pct(onTime.length, handled.length)),
       metrics: [
-        { label: `Paid within ${ACCOUNTS_TARGET_DAYS} days`, value: `${onTime.length} / ${handled.length}` },
-        { label: 'Payments handled', value: String(handled.length) }
+        { label: `Paid within ${ACCOUNTS_TARGET_DAYS} days`, value: `${onTime.length} / ${handled.length}`, items: onTime.map(bomItem) },
+        { label: 'Payments handled', value: String(handled.length), items: handled.map(bomItem) }
       ]
     };
   });
@@ -361,13 +394,14 @@ async function scoreAdministrationTeam(team: TeamMember[], cache: ScoringDataCac
     const handled = all.filter((r) => r.admin_reviewed_by_id === m.id && r.reviewed_at);
     const onTime = handled.filter((r) => daysBetween(r.reviewed_at, r.admin_reviewed_at) <= ADMINISTRATION_TARGET_DAYS);
     totalOnTime += onTime.length; totalHandled += handled.length;
+    const bomItem = (r: TmsBomRequestRecord): DrilldownItem => ({ id: r.id, label: `${r.bom_request_code} — ${r.item_name}`, sublabel: r.project_name, href: `/tms/bom-requests/${r.id}` });
     return {
       id: m.id,
       username: m.username,
       score: rounded(pct(onTime.length, handled.length)),
       metrics: [
-        { label: `Approved within ${ADMINISTRATION_TARGET_DAYS} days`, value: `${onTime.length} / ${handled.length}` },
-        { label: 'Approvals handled', value: String(handled.length) }
+        { label: `Approved within ${ADMINISTRATION_TARGET_DAYS} days`, value: `${onTime.length} / ${handled.length}`, items: onTime.map(bomItem) },
+        { label: 'Approvals handled', value: String(handled.length), items: handled.map(bomItem) }
       ]
     };
   });

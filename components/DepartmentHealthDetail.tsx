@@ -14,7 +14,8 @@ import PersonPerformanceDashboard from './PersonPerformanceDashboard';
 import notifyStyles from './ui/notify.module.css';
 import styles from './departmentHealthDetail.module.css';
 
-interface MetricRow { label: string; value: string; }
+interface DrilldownItem { id: string; label: string; sublabel: string; href: string }
+interface MetricRow { label: string; value: string; items?: DrilldownItem[]; }
 
 interface MemberDetail {
   id: string;

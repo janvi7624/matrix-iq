@@ -12,6 +12,8 @@ import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { useToast } from './ui/ToastProvider';
 import { PaymentQueueItem, PaymentSource, PaymentSummary, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
+import { friendlyFileName } from '@/lib/format';
+import { VoucherData } from '@/lib/expenseVoucherPdf';
 import styles from './accountsPayments.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -85,11 +87,48 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
   const [selected, setSelected] = useState<PaymentQueueItem | null>(null);
   const [payOpen, setPayOpen] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const [payForm, setPayForm] = useState({ paymentMethod: 'Bank Transfer', paymentDate: new Date().toISOString().slice(0, 10), paymentReference: '', remarks: '' });
   const [holdReason, setHoldReason] = useState('');
+
+  // Itemized line items for a Reimbursement source's detail Drawer — same
+  // data the manager saw at approval time (app/api/reimbursement/sheet/[id]/
+  // voucher/route.ts already assembles exactly this, also used by the
+  // existing "download voucher PDF" flow in components/ReimbursementView.tsx,
+  // so it's reused as-is rather than adding a second endpoint).
+  const [voucherData, setVoucherData] = useState<VoucherData | null>(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [mergingBills, setMergingBills] = useState(false);
+  const [downloadingVoucher, setDownloadingVoucher] = useState(false);
+
+  useEffect(() => {
+    if (!selected || selected.source !== 'reimbursement_sheet') {
+      setVoucherData(null);
+      return;
+    }
+    let cancelled = false;
+    setVoucherLoading(true);
+    fetch(`/api/reimbursement/sheet/${encodeURIComponent(selected.sourceId)}/voucher`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: VoucherData | null) => {
+        if (cancelled || !data) return;
+        // The voucher route includes admin-added entries in `records` for
+        // an accounts/admin/hr/superadmin viewer (originally meant for a
+        // different reviewer's fuller view of an employee's month), but its
+        // own `total`/`totalInWords` already always exclude them — an
+        // admin-added expense is paid through the separate Admin Expense
+        // queue (its own PaymentQueueItem), not this Reimbursement one, so
+        // showing it here too would double-display the same expense under
+        // two payment entries. Filtering here keeps the displayed line
+        // items, the expense-sheet PDF, and the merged bills download all
+        // consistent with the total actually payable on this sheet.
+        setVoucherData({ ...data, records: data.records.filter((r) => !r.is_admin_entry) });
+      })
+      .catch(() => { if (!cancelled) setVoucherData(null); })
+      .finally(() => { if (!cancelled) setVoucherLoading(false); });
+    return () => { cancelled = true; };
+  }, [selected]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350);
@@ -174,8 +213,12 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
 
   function openPay(item: PaymentQueueItem) {
     setSelected(item);
+    // Method/date/reference/remarks are no longer collected from Accounts —
+    // a fixed default is sent as-is (the backend only actually requires
+    // paymentMethod to be non-empty; see app/api/accounts/payments/
+    // [paymentId]/pay/route.ts). This is a straight "mark it done"
+    // confirmation now, not a data-entry form.
     setPayForm({ paymentMethod: 'Bank Transfer', paymentDate: new Date().toISOString().slice(0, 10), paymentReference: '', remarks: '' });
-    setConfirming(false);
     setPayOpen(true);
   }
 
@@ -254,6 +297,46 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
       toast.error('Could not reach the server.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Same client-side PDF components/ReimbursementView.tsx's own voucher
+  // download already uses — reused as-is (not rebuilt) since it already
+  // produces exactly the "expense sheet" document Accounts asked for.
+  async function downloadVoucherPdf() {
+    if (!voucherData) return;
+    setDownloadingVoucher(true);
+    try {
+      const { generateExpenseVoucherPdf } = await import('@/lib/expenseVoucherPdf');
+      await generateExpenseVoucherPdf(voucherData);
+    } catch {
+      toast.error('Could not generate the expense sheet PDF.');
+    } finally {
+      setDownloadingVoucher(false);
+    }
+  }
+
+  async function downloadAllBills() {
+    if (!voucherData) return;
+    const urls = voucherData.records.flatMap((r) => r.attachment_urls || []);
+    if (!urls.length) {
+      toast.error('No bills attached to this sheet.');
+      return;
+    }
+    setMergingBills(true);
+    try {
+      const { mergeBillsIntoPdf, downloadMergedPdf } = await import('@/lib/mergeBillsPdf');
+      const { bytes, succeeded, failed } = await mergeBillsIntoPdf(urls);
+      if (!succeeded) {
+        toast.error('Could not read any of the attached bills.');
+        return;
+      }
+      downloadMergedPdf(bytes, `Bills_${voucherData.sheet.code}.pdf`);
+      if (failed) toast.error(`${failed} bill${failed === 1 ? '' : 's'} could not be included.`);
+    } catch {
+      toast.error('Could not merge the bills into one PDF.');
+    } finally {
+      setMergingBills(false);
     }
   }
 
@@ -386,6 +469,54 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
                 {SOURCE_LABELS[selected.source]} — <a className={styles.originalLink} href={SOURCE_ORIGINAL_HREF[selected.source]}>Open Original Request</a>
               </span>
             </div>
+
+            {selected.source === 'reimbursement_sheet' && (
+              <>
+                <div className={styles.detailDivider} />
+                {voucherLoading ? (
+                  <div className={styles.detailValue}>Loading expense entries…</div>
+                ) : voucherData ? (
+                  <>
+                    <div className={styles.detailRow}>
+                      <span className={styles.detailLabel}>Expense entries ({voucherData.records.length}) — same breakdown the manager approved</span>
+                    </div>
+                    <div className={styles.entryList}>
+                      {voucherData.records.map((r) => (
+                        <div key={r.id} className={styles.entryRow}>
+                          <div className={styles.entryHead}>
+                            <span>{formatDate(r.date)} — {r.description}</span>
+                            <span className={styles.amountCell}>{formatMoney(r.amount)}</span>
+                          </div>
+                          {(r.from_location || r.to_location) && (
+                            <div className={styles.entryMeta}>{r.from_location}{r.to_location ? ` → ${r.to_location}` : ''}{r.kilometers ? ` · ${r.kilometers} km` : ''}</div>
+                          )}
+                          {r.attachment_urls.length > 0 && (
+                            <div className={styles.entryActions}>
+                              {r.attachment_urls.map((url, i) => (
+                                <a key={i} href={url} target="_blank" rel="noopener noreferrer" className={styles.billLink} title={friendlyFileName(url)}>
+                                  View Bill{r.attachment_urls.length > 1 ? ` ${i + 1}` : ''}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className={styles.detailActions}>
+                      <button type="button" className={styles.holdBtn} disabled={downloadingVoucher} onClick={downloadVoucherPdf}>
+                        {downloadingVoucher ? 'Preparing…' : 'Download Expense Sheet (PDF)'}
+                      </button>
+                      <button type="button" className={styles.holdBtn} disabled={mergingBills} onClick={downloadAllBills}>
+                        {mergingBills ? 'Merging…' : 'Download All Bills (PDF)'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className={styles.detailValue}>Could not load the expense entries for this sheet.</div>
+                )}
+              </>
+            )}
+
             {selected.status === 'paid' && (
               <>
                 <div className={styles.detailDivider} />
@@ -423,67 +554,26 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
       )}
 
       {payOpen && selected && (
-        <Modal
-          title={confirming ? 'Confirm Payment' : 'Make Payment'}
-          ariaLabel="Make payment"
-          onClose={() => { setPayOpen(false); setSelected(null); }}
-        >
-          {!confirming ? (
-            <div className={styles.form}>
-              <div className={styles.formRow}>
-                <label>Amount</label>
-                <div className={styles.detailAmount}>{formatMoney(selected.amount)}</div>
-              </div>
-              <div className={styles.formGrid}>
-                <div className={styles.formRow}>
-                  <label>Payment Date</label>
-                  <input type="date" className={styles.formInput} value={payForm.paymentDate} onChange={(e) => setPayForm((f) => ({ ...f, paymentDate: e.target.value }))} />
-                </div>
-                <div className={styles.formRow}>
-                  <label>Payment Method</label>
-                  <Select value={payForm.paymentMethod} onChange={(e) => setPayForm((f) => ({ ...f, paymentMethod: e.target.value }))}>
-                    <option>Bank Transfer</option>
-                    <option>UPI</option>
-                    <option>Cash</option>
-                    <option>Cheque</option>
-                    <option>Other</option>
-                  </Select>
-                </div>
-              </div>
-              <div className={styles.formRow}>
-                <label>Transaction / Reference No.</label>
-                <input type="text" className={styles.formInput} value={payForm.paymentReference} onChange={(e) => setPayForm((f) => ({ ...f, paymentReference: e.target.value }))} />
-              </div>
-              <div className={styles.formRow}>
-                <label>Remarks (optional)</label>
-                <input type="text" className={styles.formInput} value={payForm.remarks} onChange={(e) => setPayForm((f) => ({ ...f, remarks: e.target.value }))} />
-              </div>
-              <div className={styles.detailActions}>
-                <button type="button" className={styles.holdBtn} onClick={() => { setPayOpen(false); setSelected(null); }}>Cancel</button>
-                <button type="button" className={styles.payBtn} style={{ padding: 12 }} onClick={() => setConfirming(true)}>Continue</button>
-              </div>
+        <Modal title="Confirm Payment" ariaLabel="Confirm payment" onClose={() => { setPayOpen(false); setSelected(null); }}>
+          <div className={styles.form}>
+            <div className={styles.detailRow}>
+              <span className={styles.detailLabel}>Payee</span>
+              <span className={styles.detailValue}>{selected.payee}</span>
             </div>
-          ) : (
-            <div className={styles.form}>
-              <div className={styles.detailRow}>
-                <span className={styles.detailLabel}>Payee</span>
-                <span className={styles.detailValue}>{selected.payee}</span>
-              </div>
-              <div className={styles.detailRow}>
-                <span className={styles.detailLabel}>Amount</span>
-                <span className={styles.detailAmount}>{formatMoney(selected.amount)}</span>
-              </div>
-              <div className={styles.detailRow}>
-                <span className={styles.detailLabel}>Method</span>
-                <span className={styles.detailValue}>{payForm.paymentMethod}</span>
-              </div>
-              <p style={{ fontSize: 13.5, color: 'var(--mx-ink-muted)' }}>Are you sure this payment has been completed?</p>
-              <div className={styles.detailActions}>
-                <button type="button" className={styles.holdBtn} disabled={busy} onClick={() => setConfirming(false)}>Back</button>
-                <button type="button" className={styles.payBtn} style={{ padding: 12 }} disabled={busy} onClick={submitPay}>Confirm Payment</button>
-              </div>
+            <div className={styles.detailRow}>
+              <span className={styles.detailLabel}>Amount</span>
+              <span className={styles.detailAmount}>{formatMoney(selected.amount)}</span>
             </div>
-          )}
+            <div className={styles.detailRow}>
+              <span className={styles.detailLabel}>Method</span>
+              <span className={styles.detailValue}>{payForm.paymentMethod}</span>
+            </div>
+            <p style={{ fontSize: 13.5, color: 'var(--mx-ink-muted)' }}>Are you sure this payment has been completed?</p>
+            <div className={styles.detailActions}>
+              <button type="button" className={styles.holdBtn} disabled={busy} onClick={() => { setPayOpen(false); setSelected(null); }}>Back</button>
+              <button type="button" className={styles.payBtn} style={{ padding: 12 }} disabled={busy} onClick={submitPay}>Confirm Payment</button>
+            </div>
+          </div>
         </Modal>
       )}
 
