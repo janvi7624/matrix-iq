@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readUploadFormData, UploadTooLargeError } from '@/lib/uploadRequest';
 import * as XLSX from 'xlsx';
 import { getViewerContext } from '@/lib/viewerContext';
 
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const formData = await request.formData();
+    const formData = await readUploadFormData(request);
     const file = formData.get('file');
     if (!(file instanceof File)) return NextResponse.json({ error: 'file is required' }, { status: 400 });
 
@@ -50,6 +51,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ headers: rows[0], rows: rows.slice(1) });
   } catch (error) {
+    // Too big to have arrived intact — say that, rather than blaming the
+    // workbook below.
+    if (error instanceof UploadTooLargeError) return NextResponse.json({ error: error.message }, { status: 413 });
     // A malformed/corrupt/password-protected upload, not a server fault —
     // 400, not 500, and log server-side for diagnostics without leaking
     // parser internals to the client.

@@ -2,6 +2,7 @@ import { putFile } from '@/lib/supabaseStorage';
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
+import { readUploadFormData, UploadTooLargeError } from '@/lib/uploadRequest';
 
 // Generic attachment upload used by the project-pipeline modules (Demo
 // report attachments, PO documents, installation completion reports/client
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const formData = await request.formData();
+    const formData = await readUploadFormData(request);
     const folder = typeof formData.get('folder') === 'string' ? String(formData.get('folder')).replace(/[^a-z0-9_-]/gi, '') || 'misc' : 'misc';
     const files = formData.getAll('files').filter((f): f is File => f instanceof File);
     if (files.length === 0) return NextResponse.json({ error: 'No files provided' }, { status: 400 });
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ urls });
   } catch (error) {
+    if (error instanceof UploadTooLargeError) return NextResponse.json({ error: error.message }, { status: 413 });
     return apiErrorResponse(error);
   }
 }

@@ -2,6 +2,7 @@ import { putFile } from '@/lib/supabaseStorage';
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
+import { readUploadFormData, UploadTooLargeError } from '@/lib/uploadRequest';
 
 // This project's Blob store is locked to private access (same as the JSON
 // data blobs), so images are uploaded private too and served back through
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const formData = await request.formData();
+    const formData = await readUploadFormData(request);
     const files = formData.getAll('files').filter((f): f is File => f instanceof File);
     if (files.length === 0) return NextResponse.json({ error: 'No files provided' }, { status: 400 });
 
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ urls });
   } catch (error) {
+    if (error instanceof UploadTooLargeError) return NextResponse.json({ error: error.message }, { status: 413 });
     return apiErrorResponse(error);
   }
 }

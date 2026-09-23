@@ -30,10 +30,17 @@ module.exports = {
 
     // At most one open request per project, enforced by Postgres — a second
     // request replaces the first (withdrawn) rather than piling up beside it.
+    //
+    // IF NOT EXISTS on both, to match the CREATE TABLE above: a database that
+    // already has this table (restored from a dump taken after it was created,
+    // but without the SequelizeMeta row) can then run this migration to record
+    // itself instead of failing with "relation already exists".
     await queryInterface.sequelize.query(
-      "CREATE UNIQUE INDEX project_technical_requests_one_pending ON project_technical_requests (project_id) WHERE status = 'pending'"
+      "CREATE UNIQUE INDEX IF NOT EXISTS project_technical_requests_one_pending ON project_technical_requests (project_id) WHERE status = 'pending'"
     );
-    await queryInterface.addIndex('project_technical_requests', ['requested_user_id', 'status']);
+    await queryInterface.sequelize.query(
+      'CREATE INDEX IF NOT EXISTS project_technical_requests_requested_user_id_status ON project_technical_requests (requested_user_id, status)'
+    );
   },
 
   async down(queryInterface) {
