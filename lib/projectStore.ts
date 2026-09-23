@@ -137,24 +137,14 @@ async function readAllLight(): Promise<ProjectRecord[]> {
 // technical person on, widened to their whole managed department's team
 // when they manage one. See lib/departmentScope.ts.
 //
-// The 'engineer' role is the one exception to "created OR assigned": they
-// can't create Sales projects at all (see app/api/projects/route.ts's POST
-// guard), so the created_by branch would only ever resurface stale/legacy
-// rows, not anything they're meant to be working from — they only ever see
-// what they're actually assigned to.
+// Engineers used to be the one exception (assigned-only), back when they
+// couldn't create Sales projects. They can now (for a sales person, or via a
+// lead's "To Project"), so they follow the same rule as everyone else —
+// otherwise a project they own would vanish from their own list, while
+// canAccessProject below still let them open it by id.
 async function resolveOwnerWhere(viewerUsername: string): Promise<Record<string, unknown>> {
   const scope = await resolveVisibilityScope(viewerUsername);
   if (!scope.scopedUserIds) return {};
-
-  const viewer = await db.User.findOne({
-    where: { username: viewerUsername } as never,
-    include: [{ model: db.Role, as: 'role', attributes: ['key'] }]
-  });
-  const roleKey = (viewer?.get({ plain: true }) as { role?: { key?: string } } | undefined)?.role?.key;
-  if (roleKey === 'engineer') {
-    return { assigned_technical_person_id: { [Op.in]: scope.scopedUserIds } };
-  }
-
   return { [Op.or]: [{ created_by: { [Op.in]: scope.scopedUserIds } }, { assigned_technical_person_id: { [Op.in]: scope.scopedUserIds } }] };
 }
 

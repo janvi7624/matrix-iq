@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { db } from '@/lib/db';
 import { Model } from 'sequelize';
 import { canViewRole } from '@/lib/permissions';
+import { SALES_DEPARTMENTS } from '@/lib/technicalRoles';
 
 // Sourced from db.Sequelize (the exact class the actual connection/models
 // were built from) rather than a separate top-level `import { Op } from
@@ -27,6 +28,20 @@ export async function GET(request: NextRequest) {
 
   // Build where clause
   const where: Record<string, unknown> = { status: 'active' };
+
+  // ?scope=sales → active members of the sales departments — the people a
+  // project can be handed to as its sales owner (lib/projectSalesOwner.ts
+  // enforces the same rule server-side).
+  if (scope === 'sales') {
+    const salesDepts = await db.Department.findAll({ where: { name: SALES_DEPARTMENTS } as never, attributes: ['id'] });
+    // Same precedence as UserRecord.department (lib/userStore.ts): the linked
+    // department wins, the legacy string only counts when there's no link —
+    // so the picker never offers someone the server would then reject.
+    (where as Record<string | symbol, unknown>)[Op.or] = [
+      { departmentId: { [Op.in]: salesDepts.map((d: Model) => d.get('id') as string) } },
+      { departmentId: null, department: { [Op.in]: SALES_DEPARTMENTS } }
+    ];
+  }
 
   if (scope === 'handover') {
     // Look up the viewer's department

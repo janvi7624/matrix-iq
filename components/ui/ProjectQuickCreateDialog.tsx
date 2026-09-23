@@ -3,6 +3,7 @@
 import { FormEvent, createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { ProjectPriority, ProjectRecord } from '@/lib/types';
 import { todayDateInputValue } from '@/lib/dateHelpers';
+import { isTechnicalRole } from '@/lib/technicalRoles';
 import PhoneInput from './PhoneInput';
 import ProjectSourceField from './ProjectSourceField';
 import { useToast } from './ToastProvider';
@@ -48,14 +49,28 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
   const [form, setForm] = useState<ProjectCreateForm>(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+  const [viewer, setViewer] = useState<{ role: string; isPrivileged: boolean } | null>(null);
 
+  // The Sales person picker follows the same rule as POST /api/projects:
+  // privileged → anyone, defaults to self; technical staff → a sales person
+  // is required (they own the project); everyone else → no picker, the
+  // project is always their own. Re-resolved on every open since this
+  // provider outlives a logout/login as someone else.
   useEffect(() => {
     if (!pending) return;
-    fetch('/api/users/list')
-      .then((r) => (r.ok ? r.json() : []))
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me: { role?: string; isPrivileged?: boolean } | null) => {
+        const next = me ? { role: me.role || '', isPrivileged: !!me.isPrivileged } : null;
+        setViewer(next);
+        if (!next || (!next.isPrivileged && !isTechnicalRole(next.role))) return [];
+        return fetch(next.isPrivileged ? '/api/users/list' : '/api/users/list?scope=sales').then((r) => (r.ok ? r.json() : []));
+      })
       .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
       .catch(() => setAssignableUsers([]));
   }, [pending]);
+
+  const isTechnicalCreator = !!viewer && !viewer.isPrivileged && isTechnicalRole(viewer.role);
 
   const open = useCallback((prefill?: Partial<ProjectCreateForm>) => {
     return new Promise<ProjectRecord | null>((resolve) => {
@@ -84,6 +99,10 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
       toast.error('Approx. Project Price is required and must be a positive number.');
       return;
     }
+    if (isTechnicalCreator && !form.salesPersonId) {
+      toast.error('Select the sales person this project is for.');
+      return;
+    }
     setCreating(true);
     try {
       const response = await fetch('/api/projects', {
@@ -91,9 +110,22 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
-      if (!response.ok) throw new Error(String(response.status));
-      const project: ProjectRecord = await response.json();
-      toast.success('Project created.');
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast.error(body?.error || 'Could not create this project. Please try again.');
+        return;
+      }
+      const { warning, ...project } = body as ProjectRecord & { warning?: string };
+      // `warning`: created, but the technical creator couldn't be added as
+      // its technical person — say so rather than claim they were.
+      if (warning) {
+        toast.error(warning);
+      } else if (isTechnicalCreator) {
+        const salesPerson = assignableUsers.find((u) => u.id === form.salesPersonId);
+        toast.success(`Project created for ${salesPerson ? salesPerson.name || salesPerson.username : 'the sales person'} — you're its technical person.`);
+      } else {
+        toast.success('Project created.');
+      }
       close(project);
     } catch {
       toast.error('Could not create this project. Please try again.');
@@ -145,15 +177,29 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                 </div>
               </div>
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-                <div className={calcStyles.field}>
-                  <label className={calcStyles.label}>Sales person</label>
-                  <select className={calcStyles.formControl} value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
-                    <option value="">Defaults to you</option>
-                    {assignableUsers.map((u) => (
-                      <option key={u.id} value={u.id}>{u.name || u.username}</option>
-                    ))}
-                  </select>
-                </div>
+                {viewer?.isPrivileged && (
+                  <div className={calcStyles.field}>
+                    <label className={calcStyles.label}>Sales person</label>
+                    <select className={calcStyles.formControl} value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
+                      <option value="">Defaults to you</option>
+                      {assignableUsers.map((u) => (
+                        <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {isTechnicalCreator && (
+                  <div className={calcStyles.field}>
+                    <label className={calcStyles.label}>Sales person *</label>
+                    <select required className={calcStyles.formControl} value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
+                      <option value="">Select the sales person</option>
+                      {assignableUsers.map((u) => (
+                        <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                      ))}
+                    </select>
+                    <span className={calcStyles.lockedHint}>The project will be theirs — you&apos;ll be added as its technical person.</span>
+                  </div>
+                )}
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Source *</label>
                   <ProjectSourceField required value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))} />

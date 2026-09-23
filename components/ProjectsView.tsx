@@ -7,6 +7,7 @@ import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole }
 import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { exportListToPdf } from '@/lib/exportPdf';
+import { isTechnicalRole } from '@/lib/technicalRoles';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -83,7 +84,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // privileged status independently of what the role is called.
   const isPrivileged = currentUser.isPrivileged;
   const isSuperAdmin = currentUser.role === 'superadmin';
-  const isTechnical = currentUser.role === 'engineer';
+  // Technical staff may create a project when needed, but always FOR a sales
+  // person, who then owns it — same rule as POST /api/projects (a technical
+  // role that's also privileged keeps the privileged path).
+  const isTechnicalCreator = !isPrivileged && isTechnicalRole(currentUser.role);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -95,8 +99,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; username: string; name: string }[]>([]);
 
   useEffect(() => {
-    if (!isPrivileged) return;
-    fetch('/api/users/list')
+    if (!isPrivileged && !isTechnicalCreator) return;
+    // Privileged: anyone (defaults to self). Technical creator: the sales
+    // team only, since the project must be owned by a sales person.
+    fetch(isTechnicalCreator ? '/api/users/list?scope=sales' : '/api/users/list')
       .then((r) => (r.ok ? r.json() : []))
       .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
       .catch(() => setAssignableUsers([]));
@@ -204,6 +210,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       toast.error('Approx. Project Price is required and must be a positive number.');
       return;
     }
+    if (isTechnicalCreator && !form.salesPersonId) {
+      toast.error('Select the sales person this project is for.');
+      return;
+    }
     setCreating(true);
     try {
       const response = await fetch('/api/projects', {
@@ -211,7 +221,19 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
-      if (!response.ok) throw new Error(String(response.status));
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast.error(body?.error || 'Could not create this project. Please try again.');
+        return;
+      }
+      // `warning`: created, but the technical creator couldn't be added as
+      // its technical person — say so rather than claim they were.
+      if (body?.warning) {
+        toast.error(body.warning);
+      } else if (isTechnicalCreator) {
+        const salesPerson = assignableUsers.find((u) => u.id === form.salesPersonId);
+        toast.success(`Project created for ${salesPerson ? salesPerson.name || salesPerson.username : 'the sales person'} — you're its technical person.`);
+      }
       setForm(EMPTY_FORM);
       setShowForm(false);
       await load();
@@ -356,11 +378,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         </div>
 
         <div className={historyStyles.actionRow}>
-          {!isTechnical && (
-            <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-              {showForm ? 'Cancel' : '+ New Project'}
-            </button>
-          )}
+          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : '+ New Project'}
+          </button>
           <ToolbarButton onClick={handleExportPdf}>
             Export PDF
           </ToolbarButton>
@@ -410,6 +430,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                       <option key={u.id} value={u.id}>{u.name || u.username}</option>
                     ))}
                   </Select>
+                </Field>
+              )}
+              {isTechnicalCreator && (
+                <Field label="Sales person *">
+                  <Select required value={form.salesPersonId} onChange={(e) => setForm((f) => ({ ...f, salesPersonId: e.target.value }))}>
+                    <option value="">Select the sales person</option>
+                    {assignableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name || u.username}</option>
+                    ))}
+                  </Select>
+                  <span className={calcStyles.lockedHint}>The project will be theirs — you&apos;ll be added as its technical person.</span>
                 </Field>
               )}
               <Field label="Source *">
@@ -526,9 +557,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             empty={
               <EmptyState
                 icon={FolderKanban}
-                title={projects.length === 0 ? (isTechnical ? 'No projects assigned to you yet' : 'No projects yet') : 'No projects match your filters'}
-                message={projects.length === 0 ? (isTechnical ? "You'll see a project here once someone assigns you as its technical lead." : 'Create your first project to start tracking it through the pipeline.') : 'Try clearing a filter or search term.'}
-                action={projects.length === 0 && !isTechnical ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>+ New Project</button> : undefined}
+                title={projects.length === 0 ? 'No projects yet' : 'No projects match your filters'}
+                message={projects.length === 0 ? (isTechnicalCreator ? "Projects you're assigned to as technical lead show up here — or create one for a sales person when needed." : 'Create your first project to start tracking it through the pipeline.') : 'Try clearing a filter or search term.'}
+                action={projects.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>+ New Project</button> : undefined}
               />
             }
           />

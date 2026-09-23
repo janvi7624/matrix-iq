@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { findQuotationById, logQuotationFollowUp } from '@/lib/quotationStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { canAccessOwnedRecord } from '@/lib/departmentScope';
+import { canManageQuotation } from '@/lib/quotationAccess';
 
 // Auth + admin-role enforcement happens in proxy.ts (matcher: /api/admin/:path*)
 // — that only confirms the viewer is privileged (e.g. any Manager), not that
@@ -19,7 +19,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const existing = await findQuotationById(id);
     if (!existing) return NextResponse.json({ error: 'Quotation not found' }, { status: 404 });
-    if (!(await canAccessOwnedRecord(session.username, existing.created_by))) {
+    // Same rule as the rep-facing follow-up route — includes a quotation
+    // prepared for (or on a project owned by) someone in this viewer's scope.
+    if (!(await canManageQuotation(session.username, existing))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

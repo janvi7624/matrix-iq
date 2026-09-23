@@ -527,6 +527,18 @@ export interface OfficeExpenseSheetEntry {
   createdBy: string;
 }
 
+// One line item inside an Admin Expense monthly sheet, as shown in the
+// Accounts payment detail — the sheet itself is the PaymentQueueItem (one
+// per calendar month, mirroring how Office Operation Expense is presented),
+// not each individual batch/employee-split row.
+export interface AdminExpenseSheetEntry {
+  id: string;
+  date: string;
+  expenseType: string;
+  amount: number;
+  employeeName: string;
+}
+
 export interface PaymentSummary {
   pendingCount: number;
   pendingAmount: number;

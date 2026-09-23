@@ -11,7 +11,8 @@ export type ProjectLifecycleEvent =
   | 'handover_cancelled'
   | 'technical_requested'
   | 'technical_approved'
-  | 'technical_declined';
+  | 'technical_declined'
+  | 'sales_assigned';
 
 export interface ProjectLifecycleEmailData {
   name: string;
@@ -77,6 +78,13 @@ const EVENT_COPY: Record<ProjectLifecycleEvent, { subject: string; intro: (proje
     subject: 'Technical Person Request Declined',
     intro: (label) => `Your technical person request for "${label}" was declined. Nobody has been assigned.`,
     accentColor: '#dc2626'
+  },
+  // A project handed to this person as its sales owner — by an admin, or by
+  // the technical person who created it (lib/projectSalesOwner.ts).
+  sales_assigned: {
+    subject: 'A Project Was Assigned to You (Sales)',
+    intro: (label) => `You are now the sales person for "${label}" — it's in your project pipeline.`,
+    accentColor: '#2563eb'
   }
 };
 

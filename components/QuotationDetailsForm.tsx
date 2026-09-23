@@ -9,13 +9,17 @@ import TeamMemberSelect, { TeamMemberOption } from '@/components/ui/TeamMemberSe
 interface QuotationDetailsFormProps {
   details: QuotationDetails;
   onChange: (patch: Partial<QuotationDetails>) => void;
-  // Only Khushi/Maulik get these — everyone else keeps the plain
-  // locked-to-self fields below exactly as before. See
-  // lib/quotationOnBehalfAccess.ts.
+  // Only Khushi/Maulik get these (see lib/quotationOnBehalfAccess.ts), plus
+  // technical staff quoting on a project owned by a sales person (just
+  // themselves + that owner) — everyone else keeps the plain locked-to-self
+  // fields below exactly as before.
   onBehalfOptions?: TeamMemberOption[];
+  // Replaces the picker's default hint — the technical-staff case above needs
+  // to explain why Prepared By starts out as someone else.
+  onBehalfHint?: string;
 }
 
-export default function QuotationDetailsForm({ details, onChange, onBehalfOptions }: QuotationDetailsFormProps) {
+export default function QuotationDetailsForm({ details, onChange, onBehalfOptions, onBehalfHint }: QuotationDetailsFormProps) {
   const canActOnBehalf = !!onBehalfOptions;
   return (
     <>
@@ -45,7 +49,7 @@ export default function QuotationDetailsForm({ details, onChange, onBehalfOption
             ) : (
               <input id="preparedBy" className={`${styles.formControl} ${styles.formControlLocked}`} type="text" value={details.preparedBy} readOnly tabIndex={-1} />
             )}
-            <span className={styles.lockedHint}>{canActOnBehalf ? 'Search and select the team member this quotation is for.' : 'Your logged-in name.'}</span>
+            <span className={styles.lockedHint}>{canActOnBehalf ? onBehalfHint || 'Search and select the team member this quotation is for.' : 'Your logged-in name.'}</span>
           </div>
         </div>
         <div className={`${styles.row} ${styles.columns}`}>

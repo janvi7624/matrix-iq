@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { findProjectById } from '@/lib/projectStore';
+import { canAccessProject, findProjectById } from '@/lib/projectStore';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { findUserById } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
@@ -13,7 +13,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const rows = await db.ProjectHandoverRequest.findAll({
+  const project = await findProjectById(id);
+  if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+
+  const allRows = await db.ProjectHandoverRequest.findAll({
     where: { project_id: id },
     include: [
       { model: db.User, as: 'fromUser', attributes: ['id', 'username', 'name'] },
@@ -22,6 +25,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ],
     order: [['created_at', 'DESC']]
   });
+
+  // Same visibility rule as GET /api/projects/[id]. Without it, a viewer only
+  // gets the PENDING requests they're party to — a pending recipient can't
+  // see the project yet but has to load the request to answer it. Old,
+  // settled requests (e.g. a handover they made and lost the project by)
+  // don't keep the rest of the project's history open to them.
+  let rows = allRows;
+  if (!(await canAccessProject(viewer.username, project))) {
+    rows = allRows.filter((r) => r.get('status') === 'pending' && (r.get('from_user_id') === viewer.userId || r.get('to_user_id') === viewer.userId));
+    if (!rows.length) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   return NextResponse.json(rows.map((r: any) => {
     const p = r.get({ plain: true });
@@ -50,7 +64,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   const { toUserId, remarks } = body;
 
   if (!toUserId) {

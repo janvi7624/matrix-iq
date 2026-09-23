@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sortPaymentQueue, computeSummary, parsePaymentId, groupOfficeExpenseRows } from '../../lib/accountsPaymentStore';
+import { sortPaymentQueue, computeSummary, parsePaymentId, groupOfficeExpenseRows, groupAdminExpenseRows } from '../../lib/accountsPaymentStore';
 import { PaymentQueueItem } from '../../lib/types';
 
 function makeItem(overrides: Partial<PaymentQueueItem>): PaymentQueueItem {
@@ -199,6 +199,102 @@ describe('groupOfficeExpenseRows (Office Operation Expense monthly sheets)', () 
 
   it('skips a row with no usable date rather than inventing a month for it', () => {
     expect(groupOfficeExpenseRows([row({ date: null })], new Map())).toHaveLength(0);
+  });
+});
+
+describe('groupAdminExpenseRows (Admin Expense monthly sheets)', () => {
+  const medha = { id: 'u1', username: 'medha', name: 'Medha Dave' };
+  const himanshu = { id: 'u2', username: 'himanshu', name: 'Himanshu Chudasama' };
+  // The REAL shape of Reimbursement.get({ plain: true }) for an
+  // is_admin_entry row: `amount` is this row's own split (a beneficiary's
+  // share), `admin_total_amount` is the WHOLE BATCH's total repeated
+  // identically on every row that batch was split across — summing the
+  // latter across a month would multiply-count every multi-employee batch.
+  function row(overrides: Record<string, unknown>): Record<string, unknown> {
+    return {
+      id: `e-${Math.random()}`, date: '2026-09-05', description: 'Hotel', amount: '500.00', admin_total_amount: '500.00',
+      is_admin_entry: true, approval_status: 'approved',
+      payment_status: 'payment_required', paid_at: null, paid_by: null, payment_method: null, payment_reference: null,
+      createdAt: new Date('2026-09-05T10:00:00.000Z'), creator: medha, ...overrides
+    };
+  }
+
+  it('collapses every unpaid entry in a month into ONE sheet keyed by the month', () => {
+    const sheets = groupAdminExpenseRows([row({}), row({ date: '2026-09-18' }), row({ date: '2026-09-30' })], new Map());
+    expect(sheets).toHaveLength(1);
+    expect(sheets[0].item.paymentId).toBe('admin_expense:2026-09');
+    expect(sheets[0].item.status).toBe('payment_required');
+    expect(sheets[0].entries).toHaveLength(3);
+    expect(sheets[0].item.description).toBe('Admin Expense — September 2026 (3 entries)');
+  });
+
+  it('sums each row\'s own split (amount), never the batch total repeated on every row', () => {
+    // One ₹1000 batch split across 2 employees: two rows, each amount=500,
+    // both admin_total_amount=1000. The month total must be 1000, not 2000.
+    const sheets = groupAdminExpenseRows([
+      row({ amount: '500.00', admin_total_amount: '1000.00', creator: medha }),
+      row({ amount: '500.00', admin_total_amount: '1000.00', creator: himanshu })
+    ], new Map());
+    expect(sheets[0].item.amount).toBe(1000);
+  });
+
+  it('sums DECIMAL-as-string amounts without floating-point drift', () => {
+    const sheets = groupAdminExpenseRows([row({ amount: '0.10' }), row({ amount: '0.20' }), row({ amount: '1000.33' })], new Map());
+    expect(sheets[0].item.amount).toBe(1000.63);
+  });
+
+  it('keeps different months as separate sheets', () => {
+    const sheets = groupAdminExpenseRows([row({ date: '2026-08-31' }), row({ date: '2026-09-01' })], new Map());
+    expect(sheets.map((s) => s.item.sourceId).sort()).toEqual(['2026-08', '2026-09']);
+  });
+
+  it('keeps a month\'s paid entries apart from its unpaid ones', () => {
+    const sheets = groupAdminExpenseRows([
+      row({}),
+      row({ payment_status: 'paid', paid_at: new Date('2026-09-10T00:00:00.000Z'), paid_by: 'u9' })
+    ], new Map([['u9', 'Vaishali Jagani']]));
+    const pending = sheets.find((s) => s.item.status === 'payment_required');
+    const paid = sheets.find((s) => s.item.status === 'paid');
+    expect(pending?.item.sourceId).toBe('2026-09');
+    expect(paid?.item.sourceId).toBe(`2026-09~${new Date('2026-09-10T00:00:00.000Z').getTime()}`);
+    expect(paid?.item.paidBy).toBe('Vaishali Jagani');
+  });
+
+  it('separates two payments of the same month into two history rows', () => {
+    const sheets = groupAdminExpenseRows([
+      row({ payment_status: 'paid', paid_at: new Date('2026-09-10T00:00:00.000Z') }),
+      row({ payment_status: 'paid', paid_at: new Date('2026-09-20T00:00:00.000Z') })
+    ], new Map());
+    expect(sheets).toHaveLength(2);
+  });
+
+  it('groups rows backfilled as already-paid (no paid_at) under a legacy key, never payable', () => {
+    const sheets = groupAdminExpenseRows([row({ payment_status: 'paid' }), row({ payment_status: 'paid' })], new Map());
+    expect(sheets).toHaveLength(1);
+    expect(sheets[0].item.sourceId).toBe('2026-09~legacy');
+    expect(sheets[0].item.status).toBe('paid');
+  });
+
+  it('lists every distinct beneficiary employee, for payee', () => {
+    const sheets = groupAdminExpenseRows([row({}), row({ creator: himanshu }), row({})], new Map());
+    expect(sheets[0].item.payee).toBe('Medha Dave, Himanshu Chudasama');
+  });
+
+  it('dates the sheet by its OLDEST waiting entry', () => {
+    const sheets = groupAdminExpenseRows([
+      row({ createdAt: new Date('2026-09-20T10:00:00.000Z') }),
+      row({ createdAt: new Date('2026-09-02T10:00:00.000Z') })
+    ], new Map());
+    expect(sheets[0].item.createdAt).toBe('2026-09-02T10:00:00.000Z');
+  });
+
+  it('skips a row with no usable date rather than inventing a month for it', () => {
+    expect(groupAdminExpenseRows([row({ date: null })], new Map())).toHaveLength(0);
+  });
+
+  it('carries each entry\'s expense type, amount and beneficiary for the detail drawer', () => {
+    const sheets = groupAdminExpenseRows([row({ description: 'Flight Ticket', amount: '7500.00', creator: himanshu })], new Map());
+    expect(sheets[0].entries[0]).toMatchObject({ expenseType: 'Flight Ticket', amount: 7500, employeeName: 'Himanshu Chudasama' });
   });
 });
 

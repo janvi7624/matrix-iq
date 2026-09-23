@@ -12,6 +12,7 @@ import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
 import { sectionIconFor, resolveModuleIcon, QUICK_ACTION_ICON, CHROME_ICON } from '@/lib/icons';
 import { REPORT_VIEWER_USERNAME, REPORT_VIEWER_ROLES, REPORT_VIEWER_DEPARTMENT } from '@/lib/adminExpenseReportAccess';
+import { TMS_ROLE_LABEL } from '@/lib/tmsLabels';
 import styles from './sidebar.module.css';
 
 interface Viewer {
@@ -21,7 +22,8 @@ interface Viewer {
   department?: string;
 }
 
-const ROLE_LABEL: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', engineer: 'Engineer', backoffice: 'Back Office', user: 'Sales', marketing: 'Marketing', accounts: 'Accounts', hr: 'HR' };
+// Technical roles (technical-manager, team-lead, technician) reuse TMS's own labels.
+const ROLE_LABEL: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', engineer: 'Engineer', backoffice: 'Back Office', user: 'Sales', marketing: 'Marketing', accounts: 'Accounts', hr: 'HR', ...TMS_ROLE_LABEL };
 
 // Curated shortcuts for the Quick Actions panel — a subset of the full nav,
 // matched by module key so it stays role-authorized "for free" (only shows

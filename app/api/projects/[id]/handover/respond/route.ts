@@ -13,7 +13,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id: projectId } = await params;
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   const { handoverRequestId, approved, responseRemarks } = body;
 
   if (!handoverRequestId) {
@@ -23,6 +24,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const handover = await projectHandoverStore.findById(handoverRequestId);
   if (!handover) {
     return NextResponse.json({ error: 'Handover request not found' }, { status: 404 });
+  }
+
+  // The request id alone decides which project changes hands — without this,
+  // the recipient of a handover for one project could replay its id against
+  // another project's URL and take that one over instead.
+  if (handover.project_id !== projectId) {
+    return NextResponse.json({ error: 'Handover request does not belong to this project' }, { status: 400 });
   }
 
   if (handover.status !== 'pending') {
@@ -41,16 +49,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (approved) {
     // Transfer project ownership
-    const project = await findProjectById(projectId);
+    const project = await findProjectById(handover.project_id);
     if (project) {
       // Update created_by (ownership) and sales_person directly since created_by isn't in the FIELDS list
       await db.Project.update(
         { created_by: handover.to_user_id, sales_person: handover.to_username },
-        { where: { id: projectId } }
+        { where: { id: handover.project_id } }
       );
 
       // Add timeline event
-      await appendProjectTimeline(projectId, {
+      await appendProjectTimeline(handover.project_id, {
         by: viewer.username,
         stage: project.stage,
         label: `Project handed over from ${handover.from_name || handover.from_username} to ${handover.to_name || handover.to_username}`

@@ -52,3 +52,7 @@
 .techPending svg { flex-shrink: 0; }
 .techPendingLink { background: none; border: none; padding: 0; font: inherit; color: var(--mx-brand); text-decoration: underline; cursor: pointer; }
 .techPickIntro { margin: 0 0 14px; font-size: 13.5px; line-height: 1.5; color: var(--mx-ink-muted); }
+
+/* Assign Sales Person modal (technical staff → lib/projectSalesOwner.ts) —
+   same intro copy style as the technical-person request modal. */
+.salesOwnerIntro { composes: techPickIntro; }

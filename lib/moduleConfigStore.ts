@@ -79,7 +79,10 @@ const SALES_ROLES_WITH_TMS: UserRole[] = [...ALL_ROLES, ...TMS_ROLE_KEYS];
 const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: 'folder-kanban', href: '/projects', section: 'Sales', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'quotation', label: 'New Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', icon: 'file-text', href: '/quotation', section: 'Sales', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
-  { key: 'my-quotations', label: 'Existing Quotations', desc: "Every quotation you've created, with status, versions, and follow-ups.", icon: 'clipboard-list', href: '/my-quotations', section: 'Sales', order: 3, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  // SALES_ROLES_WITH_TMS (not ALL_ROLES) — technical staff can issue
+  // quotations too, and need the nav entry to find them again. See
+  // MY_QUOTATIONS_TMS_ACCESS_KEY below.
+  { key: 'my-quotations', label: 'Existing Quotations', desc: "Every quotation you've created, with status, versions, and follow-ups.", icon: 'clipboard-list', href: '/my-quotations', section: 'Sales', order: 3, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: 'map-pin', href: '/site-visits', section: 'Sales', order: 4, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'leads', label: 'Lead Capture / Inquiry', desc: 'Scan a business card at an event, or bulk-import from CSV or multiple photos, and qualify each lead on the spot.', icon: 'contact', href: '/leads', section: 'Sales', order: 6, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: 'monitor', href: '/demo-schedule', section: 'Sales', order: 7, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
@@ -323,6 +326,14 @@ const NEW_ADMIN_EXPENSES_ROLES: UserRole[] = ['superadmin', 'admin', 'hr'];
 const OLD_ALL_ROLES_SNAPSHOT: UserRole[] = ['superadmin', 'admin', 'manager', 'engineer', 'backoffice', 'user', 'marketing', 'accounts', 'hr'];
 const HR_SECTION_TMS_ACCESS_KEYS = new Set(['hr-dashboard', 'travel-schedule', 'reimbursement']);
 
+// Existing Quotations widened to every TMS role too — technical staff may
+// now create quotations (lib/technicalRoles.ts), but ALL_ROLES left
+// technical-manager/team-lead/technician with no nav entry to find them.
+// Same OLD_ALL_ROLES_SNAPSHOT guard as HR_SECTION_TMS_ACCESS_KEYS above; none
+// of the older my-quotations rules (MARKETING_/TECHNICAL_MERGE_/ACCOUNTS_/
+// HR_ALL_ROLES_KEYS) match SALES_ROLES_WITH_TMS, so nothing flips it back.
+const MY_QUOTATIONS_TMS_ACCESS_KEY = 'my-quotations';
+
 // "Assign Task" upgraded in-place into "Task Planner" — same key, so this
 // only rewrites label/href/icon/desc, and only if the row still holds every
 // one of the exact old defaults (an admin who already renamed/re-iconed this
@@ -406,6 +417,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (RESECTIONED_TO_HR_KEYS.has(key) && plain.section === OLD_SECTION_FOR_HR) { attrs.section = NEW_SECTION_FOR_HR; attrs.order = 1; }
     if (HR_RESTRICTED_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_HR_MODULE_ROLES_NO_ADMIN)) attrs.visibleToRoles = HR_MODULE_ROLES;
     if (HR_SECTION_TMS_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_SNAPSHOT)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
+    if (key === MY_QUOTATIONS_TMS_ACCESS_KEY && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_SNAPSHOT)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
     if (key === TASK_PLANNER_KEY && plain.label === OLD_TASK_PLANNER_LABEL) attrs.label = 'Task Planner';
     if (key === TASK_PLANNER_KEY && plain.href === OLD_TASK_PLANNER_HREF) attrs.href = '/admin/task-planner';

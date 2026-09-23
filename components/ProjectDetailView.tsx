@@ -16,6 +16,7 @@ import {
   Paperclip,
   Receipt,
   StickyNote,
+  UserPlus,
   Users,
   Wrench,
   Clock,
@@ -44,6 +45,7 @@ import {
 } from '@/lib/types';
 import { ASSIGNABLE_STAGES, closingProbabilityStyle, FORWARD_STAGES, stageIndex, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
+import { isTechnicalRole } from '@/lib/technicalRoles';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { STAGE_LABEL as VISIT_STAGE_LABEL } from '@/lib/siteVisitReminder';
 import { parseFollowUpNotes } from '@/lib/followUp';
@@ -79,6 +81,9 @@ interface DetailResponse {
   linkedLead: { id: string; name: string } | null;
   // The technical-person request still waiting for approval, if any.
   technicalRequest: ProjectTechnicalRequestView | null;
+  // Whether the viewer may hand this project to a sales person (its new
+  // owner) — lib/projectSalesOwner.ts canAssignSalesPerson.
+  canAssignSalesPerson: boolean;
 }
 
 const STATUS_LABEL: Record<ProjectStatus, string> = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost' };
@@ -154,6 +159,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // re-derived from role name, since an admin can toggle a role's
   // privileged status independently of what the role is called.
   const isPrivileged = currentUser.isPrivileged;
+  const isTechnical = isTechnicalRole(currentUser.role);
   const [data, setData] = useState<DetailResponse | null>(null);
   const [status, setStatus] = useState('Loading...');
   const [tab, setTab] = useState<TabKey>('overview');
@@ -200,6 +206,13 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [techDeclineReason, setTechDeclineReason] = useState('');
   const [techAssignId, setTechAssignId] = useState('');
   const [decidingTech, setDecidingTech] = useState(false);
+  // Technical staff's "Assign Sales Person" — hands the project to a sales
+  // person as its owner (unlike Assign Team, which only relabels it). The
+  // sales team is fetched the first time the picker opens.
+  const [showSalesOwner, setShowSalesOwner] = useState(false);
+  const [salesOwnerId, setSalesOwnerId] = useState('');
+  const [savingSalesOwner, setSavingSalesOwner] = useState(false);
+  const [salesUsers, setSalesUsers] = useState<{ id: string; username: string; name: string; department: string }[] | null>(null);
 
   useEffect(() => {
     fetch('/api/technical-roster')
@@ -729,6 +742,45 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     }
   }
 
+  function openSalesOwnerPicker() {
+    setSalesOwnerId('');
+    setShowSalesOwner(true);
+    if (salesUsers) return;
+    fetch('/api/users/list?scope=sales')
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((users: { id: string; username: string; name: string; department: string }[]) => setSalesUsers(users))
+      .catch(() => {
+        // Left unloaded so the next open tries again.
+        toast.error('Could not load the sales team.');
+        setShowSalesOwner(false);
+      });
+  }
+
+  async function submitSalesOwner() {
+    if (!salesOwnerId) return;
+    setSavingSalesOwner(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/sales-person`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ salesPersonId: salesOwnerId })
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast.error(body?.error || 'Could not assign the sales person.');
+        return;
+      }
+      const name = salesUsers?.find((u) => u.id === salesOwnerId)?.name || body?.project?.sales_person;
+      toast.success(name ? `${name} is now the sales person.` : 'Sales person assigned.');
+      setShowSalesOwner(false);
+      await load();
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setSavingSalesOwner(false);
+    }
+  }
+
   async function handleCloseProject() {
     if (!data) return;
     const won = await confirm({ title: 'Close project', message: 'Close this project as won or lost?', confirmLabel: 'Won', cancelLabel: 'Lost' });
@@ -754,7 +806,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   }
   if (!data) return null;
 
-  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests, deadlineExtensions, deadlineTier, linkedLead, technicalRequest } = data;
+  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests, deadlineExtensions, deadlineTier, linkedLead, technicalRequest, canAssignSalesPerson } = data;
   const currentIdx = stageIndex(project.stage);
   // Installation/Completed are retired Project Progress stages (existing
   // records may still carry them, but no project can be set to them going
@@ -1035,9 +1087,18 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('documents')}>
               <span className={historyStyles.quickActionIcon}><Paperclip size={20} /></span> Upload Documents
             </button>
-            {canEdit && (
+            {/* Assign Team only relabels the sales person, so technical staff
+                get Assign Sales Person instead, which hands over ownership. */}
+            {canEdit && !(isTechnical && !isPrivileged) && (
               <button type="button" className={historyStyles.quickActionBtn} onClick={handleAssignTeam}>
                 <span className={historyStyles.quickActionIcon}><Users size={20} /></span> Assign Team
+              </button>
+            )}
+            {/* Hidden while a handover is pending — the server refuses it until
+                that is settled (lib/projectSalesOwner.ts). */}
+            {canAssignSalesPerson && isTechnical && !isPrivileged && !pendingHandover && (
+              <button type="button" className={historyStyles.quickActionBtn} onClick={openSalesOwnerPicker}>
+                <span className={historyStyles.quickActionIcon}><UserPlus size={20} /></span> Assign Sales Person
               </button>
             )}
             {canEdit && !isClosed && !pendingHandover && (
@@ -1783,6 +1844,38 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             </Modal>
           );
         })()}
+
+        {showSalesOwner && (
+          <Modal
+            title="Assign Sales Person"
+            ariaLabel="Assign a sales person"
+            onClose={() => setShowSalesOwner(false)}
+            dismissible={!savingSalesOwner}
+            footer={
+              <>
+                <ModalCancelButton disabled={savingSalesOwner} onClick={() => setShowSalesOwner(false)}>Cancel</ModalCancelButton>
+                <ModalOkButton disabled={savingSalesOwner || !salesOwnerId} onClick={submitSalesOwner}>{savingSalesOwner ? 'Saving…' : 'Save'}</ModalOkButton>
+              </>
+            }
+          >
+            <p className={styles.salesOwnerIntro}>
+              The sales person you pick owns this project: it moves into their pipeline and they are notified by email.
+              {project.created_by === currentUser.username && !isPrivileged ? ' Editing the project details moves to them too.' : ''}
+            </p>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="sales-owner">Sales person</label>
+              <select id="sales-owner" className={calcStyles.formControl} value={salesOwnerId} disabled={!salesUsers || savingSalesOwner} onChange={(e) => setSalesOwnerId(e.target.value)}>
+                <option value="">{!salesUsers ? 'Loading…' : salesUsers.length === 0 ? 'No active sales people' : '-- Select person --'}</option>
+                {(salesUsers || []).map((u) => (
+                  // The current owner can't be picked again — the server rejects it.
+                  <option key={u.id} value={u.id} disabled={u.username === project.created_by}>
+                    {u.name || u.username}{u.department ? ` (${u.department})` : ''}{u.username === project.created_by ? ' — current' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Modal>
+        )}
 
         {showExtendDeadline && (
           <ProjectDeadlineExtendModal

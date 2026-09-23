@@ -10,7 +10,7 @@ import Drawer from './ui/Drawer';
 import Modal from './ui/Modal';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { useToast } from './ui/ToastProvider';
-import { OfficeExpenseSheetEntry, PaymentQueueItem, PaymentSource, PaymentSummary, UserRole } from '@/lib/types';
+import { AdminExpenseSheetEntry, OfficeExpenseSheetEntry, PaymentQueueItem, PaymentSource, PaymentSummary, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
 import { friendlyFileName } from '@/lib/format';
 import { VoucherData } from '@/lib/expenseVoucherPdf';
@@ -154,6 +154,26 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
 
   const officeEntriesLoading = selected?.source === 'office_expense' && officeSheet?.paymentId !== selected.paymentId;
   const officeEntries = officeSheet && selected && officeSheet.paymentId === selected.paymentId ? officeSheet.entries : null;
+
+  // Line items for an Admin Expense monthly sheet's detail Drawer — same
+  // pattern as officeSheet above (the sheet is one queue row per month).
+  const [adminSheet, setAdminSheet] = useState<{ paymentId: string; entries: AdminExpenseSheetEntry[] | null } | null>(null);
+
+  useEffect(() => {
+    if (!selected || selected.source !== 'admin_expense') return;
+    let cancelled = false;
+    const paymentId = selected.paymentId;
+    fetch(`/api/accounts/payments/${encodeURIComponent(paymentId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { entries?: AdminExpenseSheetEntry[] } | null) => {
+        if (!cancelled) setAdminSheet({ paymentId, entries: data?.entries ?? null });
+      })
+      .catch(() => { if (!cancelled) setAdminSheet({ paymentId, entries: null }); });
+    return () => { cancelled = true; };
+  }, [selected]);
+
+  const adminEntriesLoading = selected?.source === 'admin_expense' && adminSheet?.paymentId !== selected.paymentId;
+  const adminEntries = adminSheet && selected && adminSheet.paymentId === selected.paymentId ? adminSheet.entries : null;
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350);
@@ -576,6 +596,34 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
                           </div>
                         );
                       })}
+                    </div>
+                  </>
+                ) : (
+                  <div className={styles.detailValue}>Could not load the expense entries for this sheet.</div>
+                )}
+              </>
+            )}
+
+            {selected.source === 'admin_expense' && (
+              <>
+                <div className={styles.detailDivider} />
+                {adminEntriesLoading ? (
+                  <div className={styles.detailValue}>Loading expense entries…</div>
+                ) : adminEntries ? (
+                  <>
+                    <div className={styles.detailRow}>
+                      <span className={styles.detailLabel}>Expense entries ({adminEntries.length}) — paid together as one sheet</span>
+                    </div>
+                    <div className={styles.entryList}>
+                      {adminEntries.map((entry) => (
+                        <div key={entry.id} className={styles.entryRow}>
+                          <div className={styles.entryHead}>
+                            <span>{formatDate(entry.date)} — {entry.expenseType}</span>
+                            <span className={styles.amountCell}>{formatMoney(entry.amount)}</span>
+                          </div>
+                          {entry.employeeName && <div className={styles.entryMeta}>For {entry.employeeName}</div>}
+                        </div>
+                      ))}
                     </div>
                   </>
                 ) : (

@@ -19,6 +19,7 @@ import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { getClientIp } from '@/lib/requestIp';
 import { canViewForPendingRequest, getTechnicalRequestView, requestTechnicalPerson, TechnicalRequestError } from '@/lib/projectTechnicalRequest';
+import { canAssignSalesPerson } from '@/lib/projectSalesOwner';
 import { db } from '@/lib/db';
 
 function toStringArray(value: unknown): string[] {
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests, deadlineExtensions, deadlineTier, linkedLeadRow, technicalRequest] = await Promise.all([
+    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests, deadlineExtensions, deadlineTier, linkedLeadRow, technicalRequest, canAssignSales] = await Promise.all([
       siteVisitStore.list(viewer.username, true),
       demoScheduleStore.list(viewer.username, true),
       customerResponseStore.list(viewer.username, true),
@@ -64,7 +65,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // "Created From Lead" (Part 13) — the only link is the reverse
       // Lead.project_id FK; a Project has no lead_id column of its own.
       db.Lead.findOne({ where: { project_id: id } as never, attributes: ['id', 'name'] }),
-      getTechnicalRequestView(id, viewer, project.created_by)
+      getTechnicalRequestView(id, viewer, project.created_by),
+      // Drives the project page's "Assign Sales Person" (lib/projectSalesOwner.ts).
+      canAssignSalesPerson(viewer, project)
     ]);
     const linkedLead = linkedLeadRow ? (linkedLeadRow.get({ plain: true }) as { id: string; name: string }) : null;
 
@@ -82,7 +85,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       marketingRequests: marketingRequests.filter((r) => r.project_id === id),
       deadlineExtensions,
       deadlineTier,
-      technicalRequest
+      technicalRequest,
+      canAssignSalesPerson: canAssignSales
     });
   } catch (error) {
     return apiErrorResponse(error);

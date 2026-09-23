@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { listLastRemarks, projectStore } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { ProjectPriority, ProjectRecord } from '@/lib/types';
+import { ProjectPriority, ProjectRecord, UserRecord } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
 import { requestTechnicalPerson } from '@/lib/projectTechnicalRequest';
+import { findSalesPersonCandidate, notifySalesPersonAssigned, SalesOwnerError } from '@/lib/projectSalesOwner';
+import { isTechnicalRole } from '@/lib/technicalRoles';
 import { getClientIp } from '@/lib/requestIp';
 
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
@@ -53,12 +55,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  // Engineer accounts only work projects they're assigned to — they don't
-  // originate Sales projects. See projectStore's resolveOwnerWhere for the
-  // matching visibility-side restriction.
-  if (viewer.role === 'engineer') {
-    return NextResponse.json({ error: 'Forbidden — engineer accounts can only view projects assigned to them' }, { status: 403 });
-  }
+  // Technical staff (engineers included) may originate a Sales project when
+  // needed, but always FOR a sales person — see the salesPersonId handling
+  // below. Technical staff with a privileged role keep the privileged path.
+  const isTechnicalCreator = !viewer.isPrivileged && isTechnicalRole(viewer.role);
 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
@@ -94,8 +94,22 @@ export async function POST(request: NextRequest) {
   // `salesPerson` was a free-text string matched case-sensitively against
   // usernames in projectStore.create(), and any mismatch (e.g. "Pankaj" vs
   // the real username "pankaj") resolved to a NULL owner with no error.
+  //
+  // A technical creator MUST name the sales person (an active Sales / GEM -
+  // Sales member): the project is theirs — pipeline, KPIs, follow-ups — and a
+  // project owned by technical staff would be invisible to the Sales side.
   const requestedSalesPersonId = typeof body.salesPersonId === 'string' ? body.salesPersonId.trim() : '';
-  const requestedSalesPersonUser = viewer.isPrivileged && requestedSalesPersonId ? await findUserById(requestedSalesPersonId) : undefined;
+  let requestedSalesPersonUser: UserRecord | undefined;
+  if (isTechnicalCreator) {
+    try {
+      requestedSalesPersonUser = await findSalesPersonCandidate(requestedSalesPersonId);
+    } catch (error) {
+      if (error instanceof SalesOwnerError) return NextResponse.json({ error: error.message }, { status: error.status });
+      return apiErrorResponse(error);
+    }
+  } else if (viewer.isPrivileged && requestedSalesPersonId) {
+    requestedSalesPersonUser = await findUserById(requestedSalesPersonId);
+  }
   const salesPerson = requestedSalesPersonUser ? requestedSalesPersonUser.username : viewer.username;
   const assignedTechnicalPersonId = typeof body.assignedTechnicalPersonId === 'string' ? body.assignedTechnicalPersonId.trim() : '';
   const record: ProjectRecord = {
@@ -129,7 +143,15 @@ export async function POST(request: NextRequest) {
     lead_confirmation_status: '',
     confirmed_by: '',
     confirmed_at: '',
-    timeline: [{ id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created', label: 'Project created', remarks: '' }],
+    // `by` is the true originator even after ownership moves to a sales
+    // person — lib/projectSalesOwner.ts reads it back.
+    // "for <sales person>" goes in the label, not remarks — remarks surface
+    // as the project's "Last Remark" on the dashboard.
+    timeline: [{
+      id: `${Date.now()}`, at: now, by: viewer.username, stage: 'created',
+      label: requestedSalesPersonUser && requestedSalesPersonUser.username !== viewer.username ? `Project created for ${requestedSalesPersonUser.name}` : 'Project created',
+      remarks: ''
+    }],
     updated_at: now,
     last_remark: '',
     last_remark_at: '',
@@ -140,16 +162,25 @@ export async function POST(request: NextRequest) {
     let created = await projectStore.create(record);
     // A technical person picked at creation goes through the same approval as
     // one picked later (lib/projectTechnicalRequest.ts): assigned now only if
-    // this viewer may commit that person's time, otherwise requested.
-    if (assignedTechnicalPersonId) {
+    // this viewer may commit that person's time, otherwise requested. A
+    // technical creator is the project's technical person themselves — that
+    // is also what keeps it in their list once the sales person owns it.
+    const technicalPersonId = isTechnicalCreator ? viewer.userId : assignedTechnicalPersonId;
+    let warning = '';
+    if (technicalPersonId) {
       try {
-        const result = await requestTechnicalPerson(created, assignedTechnicalPersonId, viewer, { note: '', neededBy: '' }, getClientIp(request));
+        const result = await requestTechnicalPerson(created, technicalPersonId, viewer, { note: '', neededBy: '' }, getClientIp(request));
         if (result.mode === 'assigned' && result.project) created = result.project;
-      } catch {
-        // Best-effort — the Sales project above was already created either way.
+      } catch (error) {
+        // The Sales project above was already created either way.
+        if (isTechnicalCreator) {
+          console.error(`[projects] Could not add ${viewer.username} as technical person on new project ${created.id}:`, error instanceof Error ? error.message : error);
+          warning = 'The project was created, but you could not be added as its technical person — ask an admin to add you.';
+        }
       }
     }
-    return NextResponse.json(created, { status: 201 });
+    if (requestedSalesPersonUser) await notifySalesPersonAssigned(created, requestedSalesPersonUser, viewer);
+    return NextResponse.json(warning ? { ...created, warning } : created, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);
   }

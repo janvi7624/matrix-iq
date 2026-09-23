@@ -26,6 +26,7 @@ import { buildOverrideMap, CatalogOverrideRow, OverrideMap } from '@/lib/catalog
 import QuotationDetailsForm from './QuotationDetailsForm';
 import { TeamMemberOption } from './ui/TeamMemberSelect';
 import { canActOnBehalf } from '@/lib/quotationOnBehalfAccess';
+import { isTechnicalRole } from '@/lib/technicalRoles';
 import CostInputsSection from './CostInputsSection';
 import CartList from './CartList';
 import DiscountsList from './DiscountsList';
@@ -46,12 +47,15 @@ const WIZARD_STEPS = [
   { icon: <Send size={18} />, label: 'Review & Send' }
 ];
 
-const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', engineer: 'Engineer', backoffice: 'Back Office', user: 'Sales', marketing: 'Marketing', accounts: 'Accounts', hr: 'HR' };
+const ROLE_LABELS: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', engineer: 'Engineer', 'technical-manager': 'Technical Manager', 'team-lead': 'Team Lead', technician: 'Technician', backoffice: 'Back Office', user: 'Sales', marketing: 'Marketing', accounts: 'Accounts', hr: 'HR' };
 const ROLE_PILL_CLASS: Record<UserRole, string> = {
   superadmin: styles.rolePillSuperadmin,
   admin: styles.rolePillAdmin,
   manager: styles.rolePillManager,
   engineer: styles.rolePillTechnical,
+  'technical-manager': styles.rolePillTechnical,
+  'team-lead': styles.rolePillTechnical,
+  technician: styles.rolePillTechnical,
   backoffice: styles.rolePillBackoffice,
   user: styles.rolePillUser,
   marketing: styles.rolePillMarketing,
@@ -85,6 +89,12 @@ function defaultDetails(currentUser: CurrentUser): QuotationDetails {
     customTerms: ''
   };
 }
+
+function preparedByFields(member: { id: string; name: string; phone: string; email: string }): Pick<QuotationDetails, 'preparedBy' | 'preparedByPhone' | 'preparedByEmail' | 'preparedByUserId'> {
+  return { preparedBy: member.name, preparedByPhone: member.phone, preparedByEmail: member.email, preparedByUserId: member.id };
+}
+
+const TECHNICAL_ON_BEHALF_HINT = "Defaults to the project's sales person — pick yourself to issue it in your own name.";
 
 interface QuotationCalculatorProps {
   currentUser: CurrentUser;
@@ -221,6 +231,58 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
       .then((data: TeamMemberOption[]) => setOnBehalfOptions(data))
       .catch(() => setOnBehalfOptions([]));
   }, [currentUser.username]);
+
+  // Technical staff quoting on a project owned by a sales person: Prepared By
+  // defaults to that owner, so the quotation is issued in their name and
+  // lands in their Existing Quotations, with a two-option picker (self +
+  // owner) to switch back. The allowlist path above takes precedence, and a
+  // revision keeps the prepared-by it inherited from its source quotation.
+  // Driven from the project picker's onChange (handleProjectOnBehalfChange)
+  // rather than an effect on projectId, so clearing the project resets
+  // Prepared By in the same event instead of a cascading effect render.
+  const isTechnical = isTechnicalRole(currentUser.role);
+  const usesProjectOnBehalf = isTechnical && !canActOnBehalf(currentUser.username) && !reviseId;
+  const [projectOnBehalfOptions, setProjectOnBehalfOptions] = useState<TeamMemberOption[] | null>(null);
+  const projectOnBehalfRequest = useRef(0);
+
+  function applyProjectOnBehalf(options: TeamMemberOption[] | null) {
+    const owner = options?.length === 2 ? options.find((o) => o.id !== currentUser.id) : undefined;
+    setProjectOnBehalfOptions(owner ? options : null);
+    setDetails((d) => {
+      if (owner) return { ...d, ...preparedByFields(owner) };
+      return d.preparedByUserId === currentUser.id ? d : { ...d, ...preparedByFields(currentUser) };
+    });
+  }
+
+  function loadProjectOnBehalf(nextProjectId: string) {
+    // Only the latest selection's response counts — switching projects
+    // quickly mustn't let an earlier, slower answer default the wrong owner.
+    const request = ++projectOnBehalfRequest.current;
+    fetch(`/api/quotations/on-behalf-options?projectId=${encodeURIComponent(nextProjectId)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: TeamMemberOption[]) => {
+        if (request === projectOnBehalfRequest.current) applyProjectOnBehalf(Array.isArray(data) ? data : null);
+      })
+      .catch(() => {
+        if (request === projectOnBehalfRequest.current) applyProjectOnBehalf(null);
+      });
+  }
+
+  function handleProjectOnBehalfChange(nextProjectId: string) {
+    if (!usesProjectOnBehalf) return;
+    if (nextProjectId) {
+      loadProjectOnBehalf(nextProjectId);
+      return;
+    }
+    projectOnBehalfRequest.current++; // drop any answer still in flight
+    applyProjectOnBehalf(null);
+  }
+
+  // A ?projectId= deep link arrives already selected, with no onChange.
+  useEffect(() => {
+    if (usesProjectOnBehalf && projectId) loadProjectOnBehalf(projectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selectedProject = useMemo(() => projects.find((p) => p.id === projectId) || null, [projects, projectId]);
 
@@ -414,7 +476,15 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
     setDomain('');
     setAvProjectType('');
     setCostInputs(DEFAULT_COST_INPUTS);
-    setDetails(defaultDetails(currentUser));
+    // The project stays selected across Start Over, so keep its sales-person
+    // default too (see applyProjectOnBehalf).
+    // A revision keeps the prepared-by it inherited — starting the products
+    // over must not quietly reissue the quotation in the reviser's own name.
+    const projectOwner = projectOnBehalfOptions?.find((o) => o.id !== currentUser.id);
+    const keptPreparedBy = revisingFrom
+      ? { preparedBy: details.preparedBy, preparedByPhone: details.preparedByPhone, preparedByEmail: details.preparedByEmail, preparedByUserId: details.preparedByUserId }
+      : projectOwner ? preparedByFields(projectOwner) : {};
+    setDetails({ ...defaultDetails(currentUser), ...keptPreparedBy });
     setCartItems([]);
     setDiscounts([]);
     setCustomProducts([]);
@@ -527,6 +597,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
                     onChange={(next, project) => {
                       setProjectId(next);
                       if (project) {
+                        // A project just made via "+ Add New Project" isn't in
+                        // this list yet — upsert it so selectedProject resolves.
+                        setProjects((prev) => (prev.some((p) => p.id === project.id) ? prev.map((p) => (p.id === project.id ? project : p)) : [project, ...prev]));
                         setDetails((d) => ({
                           ...d,
                           clientName: project.client_name || d.clientName,
@@ -536,6 +609,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
                           clientAddress: project.address || d.clientAddress
                         }));
                       }
+                      handleProjectOnBehalfChange(next);
                     }}
                   />
                   {selectedProject && <div className={styles.small}>Stage: {PROJECT_STAGE_LABEL[selectedProject.stage]}</div>}
@@ -738,7 +812,8 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
             <QuotationDetailsForm
               details={details}
               onChange={(patch) => setDetails((d) => ({ ...d, ...patch }))}
-              onBehalfOptions={onBehalfOptions ?? undefined}
+              onBehalfOptions={onBehalfOptions ?? projectOnBehalfOptions ?? undefined}
+              onBehalfHint={!onBehalfOptions && projectOnBehalfOptions ? TECHNICAL_ON_BEHALF_HINT : undefined}
             />
           </div>
         )}
@@ -779,9 +854,13 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
                       Project <Link href={`/projects/${projectId}`}>{projectId}</Link>
                       {selectedProject ? ` · Stage: ${PROJECT_STAGE_LABEL[selectedProject.stage]}` : ''}
                     </span>
-                    <button type="button" className={historyStyles.button} disabled={movingToDemo} onClick={handleMoveToDemo}>
-                      {movingToDemo ? 'Moving…' : 'Move to Demo'}
-                    </button>
+                    {/* Technical staff can't create demo requests — the
+                        project's sales owner moves it to Demo. */}
+                    {!isTechnical && (
+                      <button type="button" className={historyStyles.button} disabled={movingToDemo} onClick={handleMoveToDemo}>
+                        {movingToDemo ? 'Moving…' : 'Move to Demo'}
+                      </button>
+                    )}
                   </>
                 ) : (
                   <span>This quotation wasn&apos;t linked to a project — select one above next time to track it through the pipeline.</span>

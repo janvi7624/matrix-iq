@@ -3,7 +3,7 @@ import { reimbursementSheetStore } from './reimbursementSheetStore';
 import { tmsBomRequestStore } from './tmsBomRequestStore';
 import { travelScheduleStore } from './travelScheduleStore';
 import { monthKeyBounds } from './dateHelpers';
-import { OfficeExpenseSheetEntry, PaymentQueueItem, PaymentSource, PaymentQueueStatus, PaymentSummary } from './types';
+import { AdminExpenseSheetEntry, OfficeExpenseSheetEntry, PaymentQueueItem, PaymentSource, PaymentQueueStatus, PaymentSummary } from './types';
 
 // A stated payment-SLA policy, not an asserted per-record fact — none of the
 // 4 sources aggregated here has a real due-date field. Used only to compute
@@ -110,95 +110,128 @@ async function getReimbursementSheetItems(): Promise<PaymentQueueItem[]> {
   });
 }
 
-interface AdminExpenseBatch {
-  batchId: string;
-  date: string;
-  description: string;
-  total_amount: number;
-  payment_status: string | null;
-  paid_at: string | null;
-  paid_by_name: string | null;
-  payment_method: string | null;
-  payment_reference: string | null;
-  employees: string[];
-  created_at: string;
+// ---------- Admin Expense: one sheet per calendar month ----------
+//
+// Grouped the same way, and for the same reason, as Office Operation
+// Expense below: Accounts pays these monthly, not one row per "add expense"
+// action. A "batch" (Reimbursement.admin_note — several employees split in
+// one add/edit action) still exists as the unit of entry and approval (see
+// lib/adminExpenseAccess.ts), but is no longer the unit of payment — several
+// batches logged in the same month settle together as one sheet, same as
+// several individually-logged Office Operation Expense entries do.
+//
+// Unlike Office Operation Expense, a row here isn't payable purely by virtue
+// of existing — approval_status='approved' is required too (a batch a
+// designated approver hasn't signed off on yet is not Accounts' to act on),
+// even though payment_status is already 'payment_required' at creation
+// regardless of approval state. And the per-row amount to sum is `amount`
+// (this row's own split), never `admin_total_amount` (the whole batch's
+// total, repeated identically on every row in it — summing that across a
+// month would multiply-count every multi-employee batch).
+
+async function loadAdminExpenseSheets(): Promise<AdminExpenseSheet[]> {
+  const { Op } = db.Sequelize as unknown as { Op: Record<string, symbol> };
+  const rows = await db.Reimbursement.findAll({
+    where: { is_admin_entry: true, payment_status: { [Op.in]: ['payment_required', 'paid'] }, approval_status: 'approved' } as never,
+    include: [{ model: db.User, as: 'creator', attributes: ['id', 'username', 'name'] }] as never,
+    order: [['date', 'ASC'], ['created_at', 'ASC']]
+  });
+  const plains = rows.map((row) => row.get({ plain: true }) as Record<string, unknown>);
+  const paidByIds = [...new Set(plains.map((p) => p.paid_by as string).filter(Boolean))];
+  return groupAdminExpenseRows(plains, await resolveUserNames(paidByIds));
+}
+
+export interface AdminExpenseSheet {
+  item: PaymentQueueItem;
+  entries: AdminExpenseSheetEntry[];
+}
+
+// Pure — same shape/reasoning as groupOfficeExpenseRows below, so the
+// grouping rules can be unit-tested without a database.
+export function groupAdminExpenseRows(rows: Record<string, unknown>[], paidByNames: Map<string, string>): AdminExpenseSheet[] {
+  const groups = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const month = String(row.date || '').slice(0, 7);
+    if (!monthKeyBounds(month)) continue;
+    const key = row.payment_status === 'paid'
+      ? `${month}~${row.paid_at ? new Date(isoOf(row.paid_at)).getTime() : 'legacy'}`
+      : month;
+    const list = groups.get(key) || [];
+    list.push(row);
+    groups.set(key, list);
+  }
+
+  const sheets: AdminExpenseSheet[] = [];
+  for (const [key, groupRows] of groups) {
+    const month = key.slice(0, 7);
+    const first = groupRows[0];
+    const employeeNames: string[] = [];
+    for (const row of groupRows) {
+      const creator = row.creator as Record<string, unknown> | undefined;
+      const name = (creator?.name as string) || (creator?.username as string) || '';
+      if (name && !employeeNames.includes(name)) employeeNames.push(name);
+    }
+    // The sheet is as urgent as its oldest waiting entry — same rule as
+    // Office Operation Expense's sheet below.
+    const earliestCreatedAt = groupRows
+      .map((row) => isoOf(row.createdAt ?? row.created_at))
+      .filter(Boolean)
+      .sort()[0] || '';
+    const amount = Math.round(groupRows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0) * 100) / 100;
+    const count = groupRows.length;
+    const people = employeeNames.join(', ') || '—';
+    const status: PaymentQueueStatus = first.payment_status === 'paid' ? 'paid' : 'payment_required';
+
+    sheets.push({
+      item: {
+        paymentId: makePaymentId('admin_expense', key),
+        source: 'admin_expense',
+        sourceId: key,
+        sourceLabel: SOURCE_LABELS.admin_expense,
+        payee: people,
+        description: `Admin Expense — ${monthLabel(month)} (${count} entr${count === 1 ? 'y' : 'ies'})`,
+        amount,
+        department: '',
+        // No separate "who entered this" field exists on Admin Expense rows
+        // — created_by is the beneficiary employee, not the admin/HR staff
+        // who logged it (see app/api/admin-expenses/route.ts), and there's
+        // no approval-by-name captured either. The employee list is the
+        // only identity data genuinely available here.
+        requestedBy: people,
+        approvedBy: '',
+        approvedAt: earliestCreatedAt || null,
+        dueDate: computeDueDate(earliestCreatedAt || null),
+        status,
+        paidAt: isoOf(first.paid_at) || null,
+        paidBy: first.paid_by ? paidByNames.get(first.paid_by as string) || null : null,
+        paymentMethod: (first.payment_method as string) || null,
+        paymentReference: (first.payment_reference as string) || null,
+        holdReason: null,
+        createdAt: earliestCreatedAt
+      },
+      entries: groupRows.map((row) => {
+        const creator = row.creator as Record<string, unknown> | undefined;
+        return {
+          id: row.id as string,
+          date: String(row.date || ''),
+          expenseType: (row.description as string) || '',
+          amount: Number(row.amount) || 0,
+          employeeName: (creator?.name as string) || (creator?.username as string) || ''
+        };
+      })
+    });
+  }
+  return sheets;
 }
 
 async function getAdminExpenseItems(): Promise<PaymentQueueItem[]> {
-  const { Op } = db.Sequelize as unknown as { Op: Record<string, symbol> };
-  const rows = await db.Reimbursement.findAll({
-    // approval_status='approved' required — a batch a designated approver
-    // (see lib/adminExpenseAccess.ts) hasn't signed off on yet is not
-    // Accounts' to act on (Part 12: "source request is approved where
-    // approval is required"), even though payment_status is already
-    // 'payment_required' at creation time regardless of approval state.
-    where: { is_admin_entry: true, payment_status: { [Op.in]: ['payment_required', 'paid'] }, approval_status: 'approved' } as never,
-    include: [{ model: db.User, as: 'creator', attributes: ['id', 'username', 'name'] }] as never,
-    order: [['created_at', 'DESC']]
-  });
+  return (await loadAdminExpenseSheets()).map((sheet) => sheet.item);
+}
 
-  const batches = new Map<string, AdminExpenseBatch>();
-  const paidByIds = new Set<string>();
-  for (const row of rows) {
-    const p = row.get({ plain: true }) as Record<string, unknown>;
-    const batchId = (p.admin_note as string) || (p.id as string);
-    if (!batches.has(batchId)) {
-      batches.set(batchId, {
-        batchId,
-        date: p.date ? String(p.date) : '',
-        description: (p.description as string) || '',
-        total_amount: Number(p.admin_total_amount) || 0,
-        payment_status: (p.payment_status as string) || null,
-        paid_at: isoOf(p.paid_at) || null,
-        paid_by_name: null,
-        payment_method: (p.payment_method as string) || null,
-        payment_reference: (p.payment_reference as string) || null,
-        employees: [],
-        created_at: isoOf(p.createdAt ?? p.created_at)
-      });
-    }
-    const batch = batches.get(batchId)!;
-    const creator = p.creator as Record<string, unknown> | undefined;
-    if (creator) batch.employees.push((creator.name as string) || (creator.username as string) || '');
-    if (p.paid_by) paidByIds.add(p.paid_by as string);
-  }
-
-  const paidByMap = await resolveUserNames([...paidByIds]);
-  for (const row of rows) {
-    const p = row.get({ plain: true }) as Record<string, unknown>;
-    const batchId = (p.admin_note as string) || (p.id as string);
-    const batch = batches.get(batchId)!;
-    if (p.paid_by && !batch.paid_by_name) batch.paid_by_name = paidByMap.get(p.paid_by as string) || null;
-  }
-
-  return [...batches.values()].map((b) => {
-    const status: PaymentQueueStatus = b.payment_status === 'paid' ? 'paid' : 'payment_required';
-    return {
-      paymentId: makePaymentId('admin_expense', b.batchId),
-      source: 'admin_expense',
-      sourceId: b.batchId,
-      sourceLabel: SOURCE_LABELS.admin_expense,
-      payee: b.employees.join(', ') || '—',
-      description: `${b.description} — split across ${b.employees.length} employee${b.employees.length === 1 ? '' : 's'}`,
-      amount: b.total_amount,
-      department: '',
-      // No separate "who entered this batch" field exists on Admin Expense
-      // rows — created_by is the beneficiary employee, not the admin/HR
-      // staff who logged it (see app/api/admin-expenses/route.ts). The
-      // employee list is the only identity data genuinely available here.
-      requestedBy: b.employees.join(', ') || '—',
-      approvedBy: '',
-      approvedAt: b.created_at,
-      dueDate: computeDueDate(b.created_at),
-      status,
-      paidAt: b.paid_at,
-      paidBy: b.paid_by_name,
-      paymentMethod: b.payment_method,
-      paymentReference: b.payment_reference,
-      holdReason: null,
-      createdAt: b.created_at
-    };
-  });
+// Line items for one sheet's detail view — null if no such sheet exists.
+export async function getAdminExpenseSheetEntries(sheetKey: string): Promise<AdminExpenseSheetEntry[] | null> {
+  const sheet = (await loadAdminExpenseSheets()).find((s) => s.item.sourceId === sheetKey);
+  return sheet ? sheet.entries : null;
 }
 
 // ---------- Office Operation Expenses: one sheet per calendar month ----------
@@ -496,9 +529,9 @@ export interface PayInput {
   proofUrls?: string[];
   // The total the Accounts user was shown when they confirmed. Only
   // enforced where a payable item's amount can grow after it's displayed —
-  // an Office Operation Expense sheet absorbs any new entry HR logs for
-  // that month, so paying without this check could settle an amount the
-  // payer never actually saw.
+  // an Admin Expense or Office Operation Expense sheet absorbs any new
+  // entry logged for that month, so paying without this check could settle
+  // an amount the payer never actually saw.
   expectedAmount?: number;
 }
 
@@ -545,7 +578,7 @@ export async function payItem(
       return updated ? { ok: true } : { ok: false, error: 'Payment could not be completed — it may already be paid' };
     }
     case 'admin_expense':
-      return payAdminExpenseBatch(sourceId, actor, input);
+      return payAdminExpenseSheet(sourceId, actor, input);
     case 'office_expense':
       return payOfficeExpenseSheet(sourceId, actor, input);
     default:
@@ -553,25 +586,50 @@ export async function payItem(
   }
 }
 
-async function payAdminExpenseBatch(batchId: string, actor: { id: string }, input: PayInput): Promise<PayResult> {
-  const [affectedCount] = await db.Reimbursement.update(
-    {
-      payment_status: 'paid',
-      paid_at: input.paymentDate ? new Date(input.paymentDate) : new Date(),
-      paid_by: actor.id,
-      payment_method: input.paymentMethod || null,
-      payment_reference: input.paymentReference || null,
-      payment_proof_urls: input.proofUrls || []
-    } as never,
-    // The WHERE clause doubling as the eligibility+duplicate-payment guard:
-    // this only touches rows still 'payment_required' AND already
-    // approved, so a second concurrent pay attempt, or a direct API call
-    // against a not-yet-approved batch, affects 0 rows instead of
-    // incorrectly recording payment.
-    { where: { admin_note: batchId, is_admin_entry: true, payment_status: 'payment_required', approval_status: 'approved' } as never }
-  );
-  if (!affectedCount) return { ok: false, error: 'This batch is not awaiting payment — it may already be paid, not yet approved, or not found' };
-  return { ok: true };
+// Settles every unpaid, approved entry in one month together — same
+// row-locked, expectedAmount-checked transaction as payOfficeExpenseSheet
+// below, for the same concurrency reasons. approval_status='approved' is
+// part of the WHERE clause (not just a display filter) so a batch still
+// pending sign-off can never be swept into a month's payment even if its
+// date falls inside it.
+async function payAdminExpenseSheet(sheetKey: string, actor: { id: string }, input: PayInput): Promise<PayResult> {
+  const bounds = monthKeyBounds(sheetKey);
+  if (!bounds) return { ok: false, error: 'This sheet is not awaiting payment' };
+  const { Op } = db.Sequelize as unknown as { Op: Record<string, symbol> };
+
+  return db.sequelize.transaction(async (t) => {
+    const rows = await db.Reimbursement.findAll({
+      where: {
+        is_admin_entry: true, approval_status: 'approved', payment_status: 'payment_required',
+        date: { [Op.gte]: bounds.from, [Op.lt]: bounds.to }
+      } as never,
+      attributes: ['id', 'amount'],
+      lock: t.LOCK.UPDATE,
+      transaction: t
+    });
+    if (!rows.length) return { ok: false, error: 'This sheet is not awaiting payment — it may already be paid or not yet approved' } as PayResult;
+
+    const total = Math.round(rows.reduce((sum, row) => sum + (Number(row.get('amount')) || 0), 0) * 100) / 100;
+    if (input.expectedAmount !== undefined && Math.abs(total - input.expectedAmount) > 0.005) {
+      return {
+        ok: false,
+        error: `This sheet changed since you opened it — it now totals ₹${total.toLocaleString('en-IN')}. Refresh and review it before paying.`
+      } as PayResult;
+    }
+
+    await db.Reimbursement.update(
+      {
+        payment_status: 'paid',
+        paid_at: input.paymentDate ? new Date(input.paymentDate) : new Date(),
+        paid_by: actor.id,
+        payment_method: input.paymentMethod || null,
+        payment_reference: input.paymentReference || null,
+        payment_proof_urls: input.proofUrls || []
+      } as never,
+      { where: { id: rows.map((row) => row.get('id')), payment_status: 'payment_required' } as never, transaction: t }
+    );
+    return { ok: true } as PayResult;
+  });
 }
 
 // Settles every unpaid entry in one month's sheet together. Row-locked in a
@@ -640,15 +698,15 @@ export async function holdPayment(source: PaymentSource, sourceId: string, actor
 // The real row UUID(s) a payment acts on, for audit logs and notifications.
 // audit_logs.entity_id and notifications.entityId are both UUID columns, and
 // both writers (logAudit, notifyUsers) swallow insert errors — so logging
-// against an Admin Expense batch id ('admin-<ts>') or an Office sheet's month
-// key ('2026-09') doesn't error, it just silently records nothing. Resolve
-// BEFORE acting: paying an Office sheet moves its entries into a paid group,
-// after which the bare month key no longer finds them.
+// against an Admin Expense or Office sheet's month key ('2026-09') doesn't
+// error, it just silently records nothing. Resolve BEFORE acting: paying a
+// sheet moves its entries into a paid group, after which the bare month key
+// no longer finds them.
 export async function resolveEntityIds(source: PaymentSource, sourceId: string): Promise<string[]> {
   switch (source) {
     case 'admin_expense': {
-      const rows = await db.Reimbursement.findAll({ where: { admin_note: sourceId, is_admin_entry: true } as never, attributes: ['id'] });
-      return rows.map((row) => row.get('id') as string);
+      const sheet = (await loadAdminExpenseSheets()).find((s) => s.item.sourceId === sourceId);
+      return sheet ? sheet.entries.map((entry) => entry.id) : [];
     }
     case 'office_expense': {
       const sheet = (await loadOfficeExpenseSheets()).find((s) => s.item.sourceId === sourceId);
