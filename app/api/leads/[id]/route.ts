@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { leadStore, canWorkLead } from '@/lib/leadStore';
+import { leadStore, canWorkLead, findLeadById } from '@/lib/leadStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -54,7 +54,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
     }
 
-    return NextResponse.json(updated);
+    // Re-read through findLeadById rather than returning leadStore.update()'s
+    // own result. That result comes from the generic record store, which only
+    // knows LEAD_FIELDS — it carries assigned_to_id but NOT the joined
+    // assigned_to / assigned_to_name / assigned_by / called_by_name that
+    // toLeadRecord adds. The Leads list patches its row from this response, so
+    // returning the partial record made an edited lead read as unassigned:
+    // it dropped out of the viewer's To Call queue and lost its Log Call
+    // button until a full page reload. Correcting a typo must not move a lead.
+    return NextResponse.json((await findLeadById(id)) ?? updated);
   } catch (error) {
     return apiErrorResponse(error);
   }

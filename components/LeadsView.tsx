@@ -284,12 +284,15 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
   // Sends both the per-row change and the bulk action through the one
   // endpoint, so authorisation and audit logging can't diverge between them.
-  async function assign(leadIds: string[], assigneeId: string): Promise<boolean> {
+  // `claim` asks the server to assign to whoever is calling — the browser
+  // never knows its own user id, and "me" must not be something the client
+  // gets to name.
+  async function assign(leadIds: string[], assigneeId: string, claim = false): Promise<boolean> {
     try {
       const response = await fetch('/api/leads/assign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadIds, assigneeId })
+        body: JSON.stringify(claim ? { leadIds, claim: true } : { leadIds, assigneeId })
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
@@ -309,6 +312,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       const noun = `${result.assigned} lead${result.assigned === 1 ? '' : 's'}`;
       if (result.failed.length) {
         toast.error(`${noun} updated, ${result.failed.length} could not be.`);
+      } else if (claim) {
+        toast.success(`${noun} assigned to you — it's in your "To Call" list.`);
       } else {
         toast.success(assigneeId ? `${noun} assigned to ${result.assigneeName}.` : `${noun} unassigned.`);
       }
@@ -323,6 +328,17 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     setAssigningId(leadId);
     try {
       await assign([leadId], assigneeId);
+    } finally {
+      setAssigningId(null);
+    }
+  }
+
+  // "This one's mine" — the rep takes an unassigned lead into their own call
+  // queue without waiting for a manager to route it.
+  async function handleClaim(leadId: string) {
+    setAssigningId(leadId);
+    try {
+      await assign([leadId], '', true);
     } finally {
       setAssigningId(null);
     }
@@ -400,7 +416,16 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   }, [leads, todayKey, currentUser.username, canAssign]);
 
   const totalPages = Math.max(1, Math.ceil(visibleLeads.length / PAGE_SIZE));
-  const pageRows = visibleLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Clamped at render rather than stored, because an ACTION can shrink the
+  // list under the page you are standing on: assign the last five unassigned
+  // leads while the "To Assign" filter is on, or log the last call while "To
+  // Call" is on, and the rows leave the filter. No filter state changed, so
+  // the reset effect below doesn't fire, page stays at 2, and Pagination
+  // hides itself once there is only one page — leaving "No leads match your
+  // filters" and no control to get back. Clamping keeps the stored page for
+  // when the list grows again; a filter change still resets it to 1.
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = visibleLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
@@ -735,7 +760,18 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             {l.assigned_by && <span className={leadStyles.assigneeMeta}>by {l.assigned_by}</span>}
           </>
         ) : (
-          <span className={leadStyles.unassignedPill}>Unassigned</span>
+          // Nobody holds this lead, so it is in no call queue at all. Anyone
+          // who can see it can take it — the server re-checks that it really
+          // is unassigned and really is theirs to work.
+          <button
+            type="button"
+            className={leadStyles.claimBtn}
+            disabled={assigningId === l.id}
+            onClick={() => handleClaim(l.id)}
+            aria-label={`Assign lead ${l.name || l.company || l.id} to me`}
+          >
+            {assigningId === l.id ? 'Taking…' : 'Unassigned — take it'}
+          </button>
         )
     },
     { key: 'call', header: 'Call', render: (l) => <CallCell lead={l} todayKey={todayKey} /> },
@@ -985,7 +1021,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               />
             )}
 
-            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+            <Pagination page={currentPage} totalPages={totalPages} onChange={setPage} />
           </>
         )}
 

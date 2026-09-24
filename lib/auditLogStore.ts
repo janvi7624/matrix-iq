@@ -36,6 +36,20 @@ export interface LogAuditInput {
   ip?: string;
 }
 
+// audit_logs.action / previous_status / new_status are VARCHAR(255), and
+// callers interpolate user data into them — "Lead assigned to rahul: <company>"
+// where company is itself a 255-character column. Postgres rejects the whole
+// INSERT on overflow, and since both writers below swallow errors to protect
+// the workflow, an over-long company name silently lost the audit row. Worse
+// for the batch writer: bulkCreate is ONE multi-row INSERT, so a single long
+// value discarded all 600 rows of an expo assignment. A truncated line is a
+// far better record than no line at all.
+const FIELD_MAX = 255;
+function fit(value: string): string {
+  if (value.length <= FIELD_MAX) return value;
+  return `${value.slice(0, FIELD_MAX - 1)}…`;
+}
+
 // Fire-and-forget style append used by every status-changing route in the
 // Back Office workflow (demo approvals, DC lifecycle) — never throws, so a
 // logging hiccup can't block the actual workflow action.
@@ -49,9 +63,9 @@ export async function logAudit(input: LogAuditInput): Promise<void> {
       role: input.role,
       entity_type: input.entityType,
       entity_id: input.entityId || null,
-      action: input.action,
-      previous_status: input.previousStatus,
-      new_status: input.newStatus,
+      action: fit(input.action),
+      previous_status: fit(input.previousStatus),
+      new_status: fit(input.newStatus),
       remarks: input.remarks || '',
       ip: input.ip || ''
     } as never);
@@ -81,9 +95,9 @@ export async function logAuditMany(entries: LogAuditInput[]): Promise<void> {
         role: input.role,
         entity_type: input.entityType,
         entity_id: input.entityId || null,
-        action: input.action,
-        previous_status: input.previousStatus,
-        new_status: input.newStatus,
+        action: fit(input.action),
+        previous_status: fit(input.previousStatus),
+        new_status: fit(input.newStatus),
         remarks: input.remarks || '',
         ip: input.ip || ''
       })) as never

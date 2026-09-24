@@ -113,10 +113,15 @@
 .assigneeCell { min-width: 150px; }
 /* An unassigned lead is the thing a sales manager is looking for, so it gets a
    real badge rather than a dash that disappears into the table. */
-.unassignedPill {
+/* The unassigned state is an invitation, not a label: an unassigned lead sits
+   in nobody's call queue, so the row offers the fix rather than reporting the
+   problem. Keeps the warning colouring of the pill it replaced so the row
+   still reads as "needs attention" at a glance. */
+.claimBtn {
     display: inline-block;
-    padding: 2px 9px;
+    padding: 3px 10px;
     border-radius: var(--mx-radius-full);
+    border: 1px dashed var(--mx-warning);
     background: var(--mx-warning-subtle);
     color: var(--mx-warning);
     font-size: 10.5px;
@@ -124,7 +129,19 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
+.claimBtn:hover:not(:disabled) {
+    border-style: solid;
+    background: var(--mx-warning);
+    color: #fff;
+}
+.claimBtn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
 .assigneeName {
     display: block;
     font-weight: 600;

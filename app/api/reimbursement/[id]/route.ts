@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { reimbursementStore } from '@/lib/reimbursementStore';
+import { reimbursementSheetStore } from '@/lib/reimbursementSheetStore';
+import { checkAddPeriod } from '@/lib/reimbursementPeriod';
+import { findUserByUsername } from '@/lib/userStore';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -46,6 +49,22 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     } catch (error) {
       return apiErrorResponse(error);
     }
+  }
+
+  // Re-dating an entry is still "adding a bill for that month" — same
+  // HR-mandated restriction as creating one (see lib/reimbursementPeriod.ts),
+  // only checked when the date is actually moving somewhere new.
+  if (body.date !== undefined && typeof body.date === 'string' && body.date !== existing.date) {
+    let periodCheck = checkAddPeriod(body.date);
+    if (!periodCheck.allowed) {
+      const dateMatch = /^(\d{4})-(\d{2})-\d{2}$/.exec(body.date);
+      if (dateMatch) {
+        const user = await findUserByUsername(existing.created_by);
+        const sheet = user ? await reimbursementSheetStore.findForPeriod(user.id, Number(dateMatch[1]), Number(dateMatch[2])) : null;
+        periodCheck = checkAddPeriod(body.date, new Date(), sheet?.status);
+      }
+    }
+    if (!periodCheck.allowed) return NextResponse.json({ error: periodCheck.reason }, { status: 400 });
   }
 
   const patch: Record<string, unknown> = {};

@@ -88,11 +88,18 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
   const recipientGroups = useMemo(() => {
     const byDepartment = new Map<string, LeadHandoverRecipient[]>();
     for (const r of recipients || []) {
+      if (r.self) continue; // pinned to the top of the list on its own, not buried in a department
       const key = r.department || 'Other';
       byDepartment.set(key, [...(byDepartment.get(key) || []), r]);
     }
     return [...byDepartment.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [recipients]);
+
+  // The capturer's own entry. Scanning a card that is yours is at least as
+  // common as scanning one for a colleague, and a lead left Unassigned does
+  // not appear in anyone's call queue — so this is a first-class choice
+  // rather than one name among a hundred in a department group.
+  const selfRecipient = recipients?.find((r) => r.self) ?? null;
 
   const handoverTarget = recipients?.find((r) => r.id === form.handoverToId) ?? null;
 
@@ -197,15 +204,14 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
 
   if (successRecord) {
     const handover = successRecord.handover;
-    // Once it's someone else's lead, converting it here would attribute the
-    // project to the person who scanned the card — that's the recipient's call.
+    const keptBySelf = handover?.status === 'kept_by_capturer';
     const handedOver = handover?.status === 'handed_over' || handover?.status === 'already_with_them';
     return (
       <div className={historyStyles.wizardCard}>
         <div className={historyStyles.successPanel}>
           <div className={historyStyles.successIcon}>{successRecord.duplicate ? <RefreshCw size={44} /> : <CheckCircle2 size={44} />}</div>
           <h2 className={`${calcStyles.h2} ${calcStyles.h2NoAccent}`}>
-            {successRecord.duplicate ? 'Lead already existed — details merged' : handedOver ? 'Lead saved & handed over' : 'Lead saved!'}
+            {successRecord.duplicate ? 'Lead already existed — details merged' : keptBySelf ? 'Lead saved & assigned to you' : handedOver ? 'Lead saved & handed over' : 'Lead saved!'}
           </h2>
           {successRecord.duplicate && (
             <div className={historyStyles.autofillNotice}>
@@ -215,6 +221,11 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
           {handover?.status === 'handed_over' && (
             <div className={historyStyles.autofillNotice}>
               Sent to {handover.toName}. They&apos;ve been emailed and will find it under &ldquo;Assigned To Me&rdquo;.
+            </div>
+          )}
+          {handover?.status === 'kept_by_capturer' && (
+            <div className={historyStyles.autofillNotice}>
+              It&apos;s yours — you&apos;ll find it under &ldquo;To Call&rdquo; on the Leads list. Ring the contact and record what came of it; only a suitable call becomes a project.
             </div>
           )}
           {handover?.status === 'already_with_them' && (
@@ -353,7 +364,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
               <p className={styles.handoverHint}>
                 {recipientsFailed
                   ? 'Couldn’t load your colleagues right now — this lead will be saved as Unassigned.'
-                  : 'Scanning a card for a colleague? Pick them and the lead goes straight to their list, with an email.'}
+                  : 'Keep it yourself, or pick the colleague it belongs to and it goes straight to their list with an email.'}
               </p>
               <Select
                 id="lead-handover"
@@ -362,6 +373,11 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
                 onChange={(e) => setForm((f) => ({ ...f, handoverToId: e.target.value }))}
               >
                 <option value="">{recipients || recipientsFailed ? 'Unassigned — a sales manager will route it' : 'Loading colleagues…'}</option>
+                {selfRecipient && (
+                  <optgroup label="Keep it">
+                    <option value={selfRecipient.id}>Assign to me — {selfRecipient.name}</option>
+                  </optgroup>
+                )}
                 {recipientGroups.map(([department, people]) => (
                   <optgroup key={department} label={department}>
                     {people.map((p) => (
@@ -373,7 +389,9 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
               {handoverTarget && (
                 <span className={styles.handoverTarget}>
                   <UserCheck size={15} />
-                  <span>Goes to <strong>{handoverTarget.name}</strong> · they&apos;ll be emailed when you save</span>
+                  {handoverTarget.self
+                    ? <span>Stays with <strong>you</strong> · it&apos;ll be in your &ldquo;To Call&rdquo; list, no email sent</span>
+                    : <span>Goes to <strong>{handoverTarget.name}</strong> · they&apos;ll be emailed when you save</span>}
                 </span>
               )}
             </div>

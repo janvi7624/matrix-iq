@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { reimbursementStore } from '@/lib/reimbursementStore';
+import { reimbursementSheetStore } from '@/lib/reimbursementSheetStore';
+import { checkAddPeriod } from '@/lib/reimbursementPeriod';
+import { findUserByUsername } from '@/lib/userStore';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -40,6 +43,21 @@ export async function POST(request: NextRequest) {
   if (!amount || amount <= 0) return NextResponse.json({ error: 'Amount must be greater than zero' }, { status: 400 });
   const isConveyance2w4w = /^Conveyance \((2 Wheeler|4 Wheeler)\)$/.test(description);
   if (!isConveyance2w4w && !attachmentUrls.length) return NextResponse.json({ error: 'At least one attachment (bill proof) is required' }, { status: 400 });
+
+  // HR-mandated: new bills only for the most recently completed month — see
+  // lib/reimbursementPeriod.ts. The sheet-status lookup only runs when the
+  // fast, DB-free check already fails, so the common case (adding for last
+  // month) costs nothing extra.
+  let periodCheck = checkAddPeriod(date);
+  if (!periodCheck.allowed) {
+    const dateMatch = /^(\d{4})-(\d{2})-\d{2}$/.exec(date);
+    if (dateMatch) {
+      const user = await findUserByUsername(viewer.username);
+      const sheet = user ? await reimbursementSheetStore.findForPeriod(user.id, Number(dateMatch[1]), Number(dateMatch[2])) : null;
+      periodCheck = checkAddPeriod(date, new Date(), sheet?.status);
+    }
+  }
+  if (!periodCheck.allowed) return NextResponse.json({ error: periodCheck.reason }, { status: 400 });
 
   try {
     const record = await reimbursementStore.create(viewer.username, {

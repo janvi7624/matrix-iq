@@ -1362,15 +1362,19 @@ export interface LeadHandoverRecipient {
   name: string;
   department: string;
   designation: string;
+  /** True for the one entry that is the capturer themselves ("keep it"). */
+  self?: boolean;
 }
 
 // What happened to a requested hand-over, returned with the saved lead:
 // handed_over — now assigned to them, and they were emailed;
+// kept_by_capturer — the capturer assigned it to themselves (no email, no
+//   notification: they are standing right there and just did it);
 // already_with_them — a re-scanned lead they already had (no second email);
 // kept_existing — a re-scanned lead already routed to someone else, left there;
 // failed — the lead was saved but stayed unassigned.
 export interface LeadHandoverOutcome {
-  status: 'handed_over' | 'already_with_them' | 'kept_existing' | 'failed';
+  status: 'handed_over' | 'kept_by_capturer' | 'already_with_them' | 'kept_existing' | 'failed';
   toName: string;
 }
 

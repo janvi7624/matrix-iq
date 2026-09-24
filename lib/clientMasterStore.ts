@@ -293,7 +293,13 @@ async function list(viewerUsername: string): Promise<ClientMasterRow[]> {
     // dropped, so it belongs in the directory alongside project remarks.
     const callRemark = String(l.call_remark || '').trim();
     if (callRemark) {
-      const labelled = `${CALL_OUTCOME_LABEL[callOutcome] || 'Call'}: ${callRemark}`;
+      // Named, because a directory row is a COMPANY and this verdict is about
+      // one contact at it. Unattributed, "Not suitable: no buying authority"
+      // sitting in a live customer's Remarks column (and in the CSV export)
+      // reads as a judgement on the customer rather than on the intern whose
+      // card somebody scanned.
+      const who = leadName || 'contact';
+      const labelled = `${CALL_OUTCOME_LABEL[callOutcome] || 'Call'} — ${who}: ${callRemark}`;
       if (!group.remarks.includes(labelled)) group.remarks.push(labelled);
     }
     const notes = String(l.notes || '').trim();
@@ -303,6 +309,20 @@ async function list(viewerUsername: string): Promise<ClientMasterRow[]> {
   const rows = Array.from(groups.values());
   for (const row of rows) {
     row.type = row.projectCount > 0 ? 'customer' : 'prospect';
+
+    // This row-level verdict answers "where has this PROSPECT got to", so it
+    // is only set for a prospect. A customer's row is keyed on company name,
+    // and an unconverted card from that same company merges into it — so a
+    // paying client with a live project would otherwise be badged
+    // "[Customer] [Not suitable]" because somebody rang their HR intern and
+    // wrote it off. The individual verdicts are untouched in row.leads, where
+    // the detail panel shows each one against the contact it actually belongs
+    // to; the contradiction only existed at company level.
+    if (row.projectCount > 0) {
+      row.callOutcome = '';
+      continue;
+    }
+
     // The latest word on this client is the most recently CALLED lead, which
     // is not the most recently captured one: a card scanned at yesterday's
     // expo and never rung would otherwise outrank last week's card that was

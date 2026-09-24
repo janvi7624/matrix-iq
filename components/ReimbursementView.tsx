@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { UserRole, ReimbursementRecord, ReimbursementSheetRecord, ReimbursementSheetStatus, ReimbursementDeadlineInfo } from '@/lib/types';
 import { numberToIndianWords } from '@/lib/numberToWords';
+import { checkSubmittablePeriod, lastClaimableMonth } from '@/lib/reimbursementPeriod';
 import AppShell from './AppShell';
 import ReimbursementBulkAddForm from './ReimbursementBulkAddForm';
 import { useToast } from './ui/ToastProvider';
@@ -107,8 +108,13 @@ function StepIndicator({ currentStep, status }: { currentStep: number; status: R
 export default function ReimbursementView({ currentUser }: Props) {
   const now = useMemo(() => new Date(), []);
   const toast = useToast();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  // Opens on the most recently completed month by default — the only one new
+  // bills can be added for (see lib/reimbursementPeriod.ts) — not the
+  // still-running current month. The selector below can still navigate
+  // elsewhere to review or correct an older sheet.
+  const claimableMonth = useMemo(() => lastClaimableMonth(now), [now]);
+  const [year, setYear] = useState(claimableMonth.year);
+  const [month, setMonth] = useState(claimableMonth.month);
   const [records, setRecords] = useState<ReimbursementRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [totalInWords, setTotalInWords] = useState('');
@@ -178,6 +184,14 @@ export default function ReimbursementView({ currentUser }: Props) {
 
   const sheetStatus = sheet?.status || 'draft';
   const canEdit = ['draft', 'manager_change_requested', 'hr_change_requested'].includes(sheetStatus);
+  // Brand-new bills only go against the most recently completed month — the
+  // same rule the server enforces (lib/reimbursementPeriod.ts). A sheet
+  // already sent back for correction is exempt regardless of its month, or a
+  // requested fix could become permanently impossible to make; editing/
+  // deleting an entry that already exists is unaffected either way — this
+  // only governs the "+Add Entry"/"+Add Multiple" buttons below.
+  const isClaimableMonth = year === claimableMonth.year && month === claimableMonth.month;
+  const canAddNewEntries = canEdit && (isClaimableMonth || sheetStatus === 'manager_change_requested' || sheetStatus === 'hr_change_requested');
 
   const fetchRecords = useCallback(() => {
     setLoading(true);
@@ -332,6 +346,12 @@ export default function ReimbursementView({ currentUser }: Props) {
 
   const dateMin = `${year}-${String(month).padStart(2, '0')}-01`;
   const dateMax = `${year}-${String(month).padStart(2, '0')}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+
+  // A month can only be claimed once it is over — the same rule the submit
+  // route enforces, from the same module, so the button and the server can
+  // never disagree. Entering bills for the running month stays open; it is
+  // only the submission that waits for the month to end.
+  const periodCheck = useMemo(() => checkSubmittablePeriod(year, month), [year, month]);
 
   const amountInWords = useMemo(() => {
     const n = Number(form.amount);
@@ -563,21 +583,26 @@ export default function ReimbursementView({ currentUser }: Props) {
       )}
       {/* Toolbar */}
       <div className={historyStyles.toolbar}>
-        <select className={`${calcStyles.formControl} ${styles.selectMonth}`} value={month} onChange={(e) => { setMonth(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); }}>
+        <select className={`${calcStyles.formControl} ${styles.selectMonth}`} value={month} onChange={(e) => { setMonth(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); setShowForm(false); setShowBulkForm(false); cancelForm(); }}>
           {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
         </select>
-        <select className={`${calcStyles.formControl} ${styles.selectYear}`} value={year} onChange={(e) => { setYear(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); }}>
+        <select className={`${calcStyles.formControl} ${styles.selectYear}`} value={year} onChange={(e) => { setYear(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); setShowForm(false); setShowBulkForm(false); cancelForm(); }}>
           {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
-        {canEdit && (
+        {canAddNewEntries && (
           <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => { setShowForm((v) => !v); setShowBulkForm(false); if (showForm) cancelForm(); else { setEditId(null); setForm({ ...EMPTY_FORM, employeeIds: myUserId ? [myUserId] : [] }); setGuestNameInput(''); } }}>
             {showForm ? 'Cancel' : '+ Add Entry'}
           </button>
         )}
-        {canEdit && (
+        {canAddNewEntries && (
           <button type="button" className={historyStyles.button} onClick={() => { setShowBulkForm((v) => !v); setShowForm(false); cancelForm(); }}>
             {showBulkForm ? 'Cancel' : '+ Add Multiple'}
           </button>
+        )}
+        {canEdit && !canAddNewEntries && (
+          <span className={styles.addLockedHint}>
+            New entries can only be added for {MONTHS[claimableMonth.month - 1]} {claimableMonth.year}.
+          </span>
         )}
         <button type="button" className={historyStyles.button} onClick={() => { fetchRecords(); fetchSheet(); }}>Refresh</button>
         {records.length > 0 && (
@@ -622,12 +647,15 @@ export default function ReimbursementView({ currentUser }: Props) {
               <button
                 type="button"
                 className={`${historyStyles.button} ${historyStyles.primary} ${styles.submitBtnSm}`}
-                disabled={actionLoading}
+                disabled={actionLoading || !periodCheck.allowed}
+                title={periodCheck.allowed ? undefined : periodCheck.reason}
                 onClick={() => handleSheetAction('submit', {})}
               >
                 {actionLoading ? 'Submitting…' : 'Submit to Manager for Approval'}
               </button>
-              {sheetStatus === 'draft' && (
+              {!periodCheck.allowed ? (
+                <span className={styles.submitHint}>{periodCheck.reason}</span>
+              ) : sheetStatus === 'draft' && (
                 <span className={styles.submitHint}>
                   This will send your {MONTHS[sheet.month - 1]} sheet (₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}) to your department manager.
                 </span>

@@ -87,6 +87,24 @@ async function fetchWithTotals(row: Model): Promise<ReimbursementSheetRecord> {
   return toRecord(full!, totals);
 }
 
+// Read-only counterpart to findOrCreate, for callers that only want to KNOW
+// the sheet's status. findOrCreate writes, so using it to answer a question
+// on a request that is about to be rejected (the change-requested carve-out
+// in checkAddPeriod's callers) left an empty draft sheet behind for whatever
+// month the rejected bill was dated — 2019-03, 2031-01, whatever was typed.
+// A validation check must not create rows.
+async function findForPeriod(userId: string, year: number, month: number): Promise<ReimbursementSheetRecord | null> {
+  if (!isUuid(userId)) return null;
+  const row = await db.ReimbursementSheet.findOne({
+    where: { created_by: userId, year, month } as never,
+    include: INCLUDE_USERS as never,
+  });
+  if (!row) return null;
+  const p = row.get({ plain: true }) as Record<string, unknown>;
+  const totals = await computeTotals(p.created_by as string, year, month);
+  return toRecord(row, totals);
+}
+
 async function findOrCreate(userId: string, year: number, month: number): Promise<ReimbursementSheetRecord> {
   const existing = await db.ReimbursementSheet.findOne({
     where: { created_by: userId, year, month } as never,
@@ -276,6 +294,7 @@ async function listActedOn(actorId: string): Promise<ReimbursementSheetRecord[]>
 
 export const reimbursementSheetStore = {
   findOrCreate,
+  findForPeriod,
   findById,
   listForReviewer,
   listActedOn,

@@ -104,6 +104,21 @@ export async function logLeadCall(leadId: string, actor: LeadCallActor, input: L
   }
   const { outcome, remark, callbackAt } = validate(input);
 
+  // Once a lead is a project, a later call cannot un-convert it. Re-recording
+  // 'suitable' is harmless (the project already exists and is kept), but
+  // 'not_suitable' or 'callback' would write a verdict that contradicts a
+  // live project: the Leads list, Client Master and the CSV would all report
+  // the contact as out of the pipeline while the project stayed active in
+  // Projects, with no screen able to reconcile the two. The UI already hides
+  // Log Call on a converted lead — this is the case where two people had the
+  // list open at once and one of them clicked first.
+  if (lead.project_id && outcome !== 'suitable') {
+    throw new LeadCallError(
+      'This lead is already a project, so the call outcome can’t be changed. Close the project as lost instead if it turned out not to be suitable.',
+      409
+    );
+  }
+
   const now = new Date().toISOString();
   await leadStore.update(leadId, {
     call_outcome: outcome,

@@ -30,7 +30,17 @@
 .statusPillSm { padding: 4px 12px; border-radius: 16px; color: var(--mx-surface); font-size: 11.5px; font-weight: 700; }
 .changeRequestNote { margin-top: 8px; padding: 10px 14px; border-radius: var(--mx-radius-xs, 6px); background: var(--mx-red-50); border: 1px solid var(--mx-red-200); font-size: 13px; color: var(--mx-red-800); }
 .submitBtnSm { font-size: 13px; padding: 8px 24px; }
+/* A month that isn't over yet leaves this button disabled for up to thirty
+   days, so it has to LOOK unavailable — the shared .primary style has no
+   disabled state of its own, and a full-strength red button that silently
+   does nothing reads as a broken page rather than a rule. */
+.submitBtnSm:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(0.7);
+}
 .submitHint { margin-left: 12px; font-size: 12px; color: var(--mx-ink-faint); }
+.addLockedHint { font-size: 12.5px; color: var(--mx-ink-faint); align-self: center; }
 .paymentDoneNote { margin-top: 10px; font-size: 13px; color: var(--mx-green-600); font-weight: 600; }
 .h2SpacedTop { margin-top: 16px; }
 
