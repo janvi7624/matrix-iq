@@ -507,7 +507,12 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
               </div>
             )}
             <div className={styles.detailRow}>
-              <span className={styles.detailLabel}>Due Date (SLA target)</span>
+              {/* Reimbursements are due on a fixed pay date (the 20th of the
+                  month the expenses belong to), not the generic approval+SLA
+                  target every other source uses. */}
+              <span className={styles.detailLabel}>
+                {selected.source === 'reimbursement_sheet' ? 'Due Date (20th of expense month)' : 'Due Date (SLA target)'}
+              </span>
               <span className={styles.detailValue}>{formatDate(selected.dueDate)}</span>
             </div>
             <div className={styles.detailDivider} />

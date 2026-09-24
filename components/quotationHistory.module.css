@@ -139,24 +139,63 @@
    growing the column sideways. Every other .table consumer is unaffected
    since this only applies where a caller opts in. */
 .tableFixed { table-layout: fixed; }
-.tableFixed th, .tableFixed td { white-space: normal; word-break: break-word; overflow-wrap: break-word; }
+/* overflow-wrap (not word-break) so a word only splits when it genuinely
+   can't fit — word-break:break-word chopped ordinary labels mid-word
+   ("Confirmati/on", "Closi/ng %", "Captur/e") even with room to wrap
+   normally. Long unbroken strings (a URL, a run-on remark) still break. */
+.tableFixed th, .tableFixed td { white-space: normal; word-break: normal; overflow-wrap: break-word; }
 
-/* Project Dashboard's 11-column layout (components/ProjectsView.tsx) — one
+/* Project Dashboard's 13-column layout (components/ProjectsView.tsx) — one
    set of percentages, applied via each column's headerClassName, summing to
    100%. Client and Last Remark get the most room (free-text, most likely to
    wrap); Actions gets enough for its View/Delete buttons without wrapping
-   them mid-word. */
-.colClient { width: 15%; }
-.colSalesPerson { width: 8%; }
-.colSource { width: 8%; }
-.colStage { width: 8%; }
-.colStatus { width: 7%; }
-.colUpdated { width: 9%; }
-.colNextFollowUp { width: 9%; }
+   them mid-word.
+   EVERY column in that table needs an entry here: with table-layout:fixed,
+   a column with no width gets whatever is left over — which, once these
+   already added up to 100%, was nothing. Approx. Price and Confirmation were
+   added later without one, so they collapsed to zero width and their text
+   spilled over the next column ("₹10,00,000" printed on top of "Cold Call",
+   one character per line). */
+.colClient { width: 13%; }
+.colSalesPerson { width: 7%; }
+.colSource { width: 6%; }
+.colApproxPrice { width: 8%; }
+.colStage { width: 7%; }
+.colStatus { width: 6%; }
+.colConfirmation { width: 8%; }
+.colUpdated { width: 8%; }
+.colNextFollowUp { width: 7%; }
 .colClosingPct { width: 6%; }
-.colLastRemark { width: 12%; }
-.colProgress { width: 8%; }
-.colActions { width: 10%; }
+.colLastRemark { width: 9%; }
+.colProgress { width: 6%; }
+.colActions { width: 9%; }
+
+/* Opt-in scroll viewport for a wide table (Table's `wrapClassName`).
+   Two things it fixes on a laptop screen:
+   1. min-width — 13 columns sharing a narrow viewport left each one too thin
+      to read, wrapping dates and money one character per line. Below this
+      width the table scrolls sideways instead of squeezing further.
+   2. The scrollbar's position — .tableWrap alone puts the horizontal
+      scrollbar underneath the LAST row, so with 20+ projects you had to
+      scroll all the way down before you could scroll sideways. Capping the
+      height makes the table its own scroll area, so that scrollbar sits at
+      the bottom of the visible table, and .table th's existing
+      position:sticky finally has a scroll container to stick to — the header
+      row stays put while the rows move. */
+.tableViewport { max-height: min(72vh, 780px); overflow: auto; }
+/* .table sets overflow:hidden (for its rounded corners), which makes the
+   TABLE the scrollport for its own sticky <th> — so the header scrolled away
+   with the rows. The wrapper already carries the radius, so the table doesn't
+   need to clip. */
+.tableViewport .table { min-width: 1320px; overflow: visible; }
+.tableViewport .table th { z-index: 2; }
+/* On a short screen the filters/tiles above leave little room, so lean on
+   the viewport rather than the fixed cap: still far less scrolling than a
+   full list of rows, and the header + horizontal scrollbar come into view
+   after a short page scroll instead of after every row. */
+@media (max-height: 900px) {
+    .tableViewport { max-height: 62vh; }
+}
 /* A colSpan-injected approval form / expanded-detail row inherits the whole
    wide table's natural width (it's still a table cell), so without this the
    user has to scroll the table horizontally just to reach the Approve

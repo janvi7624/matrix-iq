@@ -278,7 +278,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     },
     { key: 'salesPerson', header: 'Sales Person', headerClassName: historyStyles.colSalesPerson, render: (p) => p.sales_person },
     { key: 'source', header: 'Source', headerClassName: historyStyles.colSource, render: (p) => p.source || '-' },
-    { key: 'approxPrice', header: 'Approx. Price', render: (p) => formatMoney(p.approx_price) },
+    { key: 'approxPrice', header: 'Approx. Price', headerClassName: historyStyles.colApproxPrice, render: (p) => formatMoney(p.approx_price) },
     { key: 'stage', header: 'Stage', headerClassName: historyStyles.colStage, render: (p) => STAGE_LABEL[p.stage] },
     {
       key: 'status',
@@ -294,6 +294,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     {
       key: 'confirmation',
       header: 'Confirmation',
+      headerClassName: historyStyles.colConfirmation,
       render: (p) =>
         p.lead_confirmation_status === 'pending_confirmation' ? (
           <StatusBadge tone="pending" label="Pending Confirmation" />
@@ -544,7 +545,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
 
         {loading ? (
-          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={11} /></div>
+          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={13} /></div>
         ) : loadFailed ? (
           <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
         ) : (
@@ -554,6 +555,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             rows={filtered}
             rowKey={(p) => p.id}
             tableClassName={historyStyles.tableFixed}
+            wrapClassName={historyStyles.tableViewport}
             empty={
               <EmptyState
                 icon={FolderKanban}

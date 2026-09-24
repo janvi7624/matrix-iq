@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sortPaymentQueue, computeSummary, parsePaymentId, groupOfficeExpenseRows, groupAdminExpenseRows } from '../../lib/accountsPaymentStore';
+import { sortPaymentQueue, computeSummary, parsePaymentId, groupOfficeExpenseRows, groupAdminExpenseRows, reimbursementDueDate } from '../../lib/accountsPaymentStore';
 import { PaymentQueueItem } from '../../lib/types';
 
 function makeItem(overrides: Partial<PaymentQueueItem>): PaymentQueueItem {
@@ -320,5 +320,39 @@ describe('groupOfficeExpenseRows — timestamp handling (regression)', () => {
   it('still accepts a snake_case `created_at` if a caller ever supplies one', () => {
     const [sheet] = groupOfficeExpenseRows([{ ...base, payment_status: 'payment_required', paid_at: null, created_at: '2026-09-05T10:00:00.000Z' }], new Map());
     expect(sheet.item.dueDate).not.toBeNull();
+  });
+});
+
+describe('reimbursementDueDate (fixed 20th-of-the-expense-month pay date)', () => {
+  const localDay = (iso: string | null) => (iso ? new Date(iso).getDate() : null);
+  const localMonth = (iso: string | null) => (iso ? new Date(iso).getMonth() + 1 : null);
+
+  it('falls on the 20th of the sheet\'s own month, whatever the approval date', () => {
+    const due = reimbursementDueDate(2026, 8);
+    expect(localDay(due)).toBe(20);
+    expect(localMonth(due)).toBe(8);
+    expect(new Date(due!).getFullYear()).toBe(2026);
+  });
+
+  it('is the 20th in local time, not a date that shifts across the timezone', () => {
+    // Built at midday so formatting can never roll it back to the 19th.
+    for (const month of [1, 6, 12]) expect(localDay(reimbursementDueDate(2026, month))).toBe(20);
+  });
+
+  it('handles December without rolling into the next year', () => {
+    const due = reimbursementDueDate(2026, 12);
+    expect(localMonth(due)).toBe(12);
+    expect(new Date(due!).getFullYear()).toBe(2026);
+  });
+
+  it('returns null for a month/year it cannot use, so the queue shows no due date', () => {
+    expect(reimbursementDueDate(2026, 0)).toBeNull();
+    expect(reimbursementDueDate(2026, 13)).toBeNull();
+    expect(reimbursementDueDate(NaN, 8)).toBeNull();
+  });
+
+  it('an August sheet approved in September is already overdue — the point of a fixed pay date', () => {
+    const due = new Date(reimbursementDueDate(2026, 8)!).getTime();
+    expect(due).toBeLessThan(new Date('2026-09-05T00:00:00.000Z').getTime());
   });
 });

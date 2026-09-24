@@ -35,6 +35,20 @@ function computeDueDate(approvedAt: string | null): string | null {
   return addDays(approvedAt, PAYMENT_SLA_DAYS);
 }
 
+// Reimbursements don't follow the generic approval + SLA rule: they're paid on
+// the 20th of the month the expenses belong to (the sheet's own month/year,
+// e.g. REIMB-…-202608 -> 20 August 2026), regardless of when HR approved it.
+// Because a month's sheet is normally approved in the FOLLOWING month, most
+// sheets are already past this date when they reach Accounts and show as
+// overdue — that is the intent of a fixed pay date, not a bug.
+// Built in local time (not UTC) so the 20th stays the 20th when displayed.
+export const REIMBURSEMENT_DUE_DAY = 20;
+
+export function reimbursementDueDate(year: number, month: number): string | null {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return null;
+  return new Date(year, month - 1, REIMBURSEMENT_DUE_DAY, 12, 0, 0).toISOString();
+}
+
 const SOURCE_LABELS: Record<PaymentSource, string> = {
   reimbursement_sheet: 'Reimbursement',
   admin_expense: 'Admin Expense',
@@ -98,7 +112,7 @@ async function getReimbursementSheetItems(): Promise<PaymentQueueItem[]> {
       requestedBy: s.creator_name,
       approvedBy: s.hr_reviewer_name || '',
       approvedAt: s.hr_reviewed_at,
-      dueDate: computeDueDate(s.hr_reviewed_at),
+      dueDate: reimbursementDueDate(s.year, s.month),
       status,
       paidAt: s.accounts_completed_at,
       paidBy: s.accounts_handler_name,
