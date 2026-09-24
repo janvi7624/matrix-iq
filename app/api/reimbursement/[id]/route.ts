@@ -1,11 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { reimbursementStore } from '@/lib/reimbursementStore';
-import { reimbursementSheetStore } from '@/lib/reimbursementSheetStore';
+import { reimbursementSheetStore, EDITABLE_SHEET_STATUSES } from '@/lib/reimbursementSheetStore';
 import { checkAddPeriod } from '@/lib/reimbursementPeriod';
 import { findUserByUsername } from '@/lib/userStore';
 import { numberToIndianWords } from '@/lib/numberToWords';
+import { ReimbursementRecord } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
+
+// A single bill may only be changed or removed while its sheet is still the
+// employee's to change (draft, or sent back for correction). Without this the
+// per-entry routes were a side door around every approval in the module: the
+// owner — or ANY isPrivileged account, which here means admin, manager and
+// technical, not just the one super admin — could edit the amount on a bill
+// HR had already approved, or delete an hr_approved claim's bills one at a
+// time, changing what Accounts is about to pay with no status check, no
+// reason and no audit line. Deleting an approved claim is deliberately
+// reserved for a super admin through DELETE /api/reimbursement/sheet/[id],
+// which records what it destroyed; this keeps that the only way in.
+async function sheetGuard(entry: ReimbursementRecord): Promise<string | null> {
+  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(entry.date);
+  if (!match) return null;
+  const owner = await findUserByUsername(entry.created_by);
+  if (!owner) return null;
+  const sheet = await reimbursementSheetStore.findForPeriod(owner.id, Number(match[1]), Number(match[2]));
+  // No sheet yet means nothing has been submitted for that month — the bill
+  // is still loose and freely editable, exactly as before.
+  if (!sheet || EDITABLE_SHEET_STATUSES.includes(sheet.status)) return null;
+  return sheet.status === 'payment_done'
+    ? 'This bill has already been paid and can’t be changed.'
+    : 'This claim is already submitted for approval. Ask your manager or HR to send it back before changing a bill.';
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -50,6 +75,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return apiErrorResponse(error);
     }
   }
+
+  // Everything below this point is the OWNER's full edit of a bill, which is
+  // only theirs to make while the claim is still in their hands. The HR
+  // amount-only path above is exempt and returns before here: adjusting a
+  // claimed amount during review is HR's job, and their review happens
+  // precisely when the sheet is no longer editable by the employee.
+  const blocked = await sheetGuard(existing);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 409 });
 
   // Re-dating an entry is still "adding a bill for that month" — same
   // HR-mandated restriction as creating one (see lib/reimbursementPeriod.ts),
@@ -108,6 +141,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (existing.created_by !== viewer.username && !viewer.isPrivileged) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+
+  const blocked = await sheetGuard(existing);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 409 });
 
   try {
     await reimbursementStore.remove(id);

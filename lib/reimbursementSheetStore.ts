@@ -1,6 +1,6 @@
 import { Model, Op } from 'sequelize';
 import { ReimbursementSheetRecord, ReimbursementSheetStatus } from './types';
-import { db, isUuid } from './db';
+import { db, isUuid, sequelize } from './db';
 import { numberToIndianWords } from './numberToWords';
 
 const MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June',
@@ -292,10 +292,124 @@ async function listActedOn(actorId: string): Promise<ReimbursementSheetRecord[]>
   return results;
 }
 
+// Thrown inside the delete transaction when the sheet stopped being
+// hr_approved while the request was in flight — rolls everything back.
+class SheetStatusChangedError extends Error {}
+
+// Statuses in which a claim is still the employee's to change. Once it is
+// submitted, every entry is evidence an approver looked at, so editing or
+// deleting one behind their back would change a total somebody already signed
+// off. The two change-requested states are back in the employee's hands by
+// design, which is how a correction gets made.
+export const EDITABLE_SHEET_STATUSES: ReimbursementSheetStatus[] = ['draft', 'manager_change_requested', 'hr_change_requested'];
+
+// What was destroyed, captured BEFORE the rows go, so the audit trail can
+// still answer "whose claim, for how much, approved by whom" once nothing is
+// left to look at.
+export interface DeletedSheetSummary {
+  sheetCode: string;
+  employeeUsername: string;
+  employeeName: string;
+  employeeId: string;
+  year: number;
+  month: number;
+  monthName: string;
+  status: ReimbursementSheetStatus;
+  entriesDeleted: number;
+  totalAmount: number;
+  managerName: string | null;
+  hrReviewerName: string | null;
+}
+
+// Permanently removes an approved-but-unpaid claim: the sheet row AND the
+// employee's own bill entries for that month. Both tables are paranoid:false,
+// so destroy() is a real DELETE — there is no soft-deleted copy to recover
+// from, which is exactly what was asked for.
+//
+// Two things it deliberately does NOT delete:
+//   * is_admin_entry rows. They share the reimbursements table but belong to
+//     the Admin Expenses module, carry their OWN approval/payment status, and
+//     appear in the Accounts queue in their own right (lib/accountsPaymentStore.ts).
+//     They are also split across several employees, so removing them here
+//     would destroy another module's approved payment on someone else's
+//     behalf. computeTotals already excludes them, so they were never part of
+//     what this sheet claimed.
+//   * the uploaded bill images in object storage. Orphaning a file is
+//     recoverable; deleting the wrong one is not, and storage cleanup is not
+//     what a finance correction should be reaching into.
+//
+// Authorisation and the status check belong to the caller (the route) — this
+// function does what it is told, in one transaction so a half-deleted claim
+// can never exist.
+async function deleteSheetWithEntries(id: string): Promise<DeletedSheetSummary | null> {
+  if (!isUuid(id)) return null;
+
+  const row = await db.ReimbursementSheet.findByPk(id, { include: INCLUDE_USERS as never });
+  if (!row) return null;
+  const p = row.get({ plain: true }) as Record<string, unknown>;
+  const createdBy = p.created_by as string;
+  const year = p.year as number;
+  const month = p.month as number;
+  const creator = p.creator as Record<string, unknown> | undefined;
+
+  const totals = await computeTotals(createdBy, year, month);
+
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+  let entriesDeleted = 0;
+  try {
+    await sequelize.transaction(async (t) => {
+      entriesDeleted = await db.Reimbursement.destroy({
+        where: {
+          created_by: createdBy,
+          date: { [Op.gte]: startDate, [Op.lt]: endDate },
+          is_admin_entry: false
+        } as never,
+        transaction: t
+      });
+      // Conditional on the status STILL being hr_approved, not just on the id.
+      // The route checked the status a few queries ago; in that window Accounts
+      // can click Pay (accountsComplete does its own unlocked read-then-write),
+      // and an unconditional destroy would then erase a payment that has
+      // actually left the bank along with every bill backing it. Letting the
+      // database decide the winner makes that impossible: if the row is no
+      // longer hr_approved nothing matches, and throwing here rolls the entry
+      // deletions back with it.
+      const destroyed = await db.ReimbursementSheet.destroy({
+        where: { id, status: 'hr_approved' } as never,
+        transaction: t
+      });
+      if (!destroyed) throw new SheetStatusChangedError();
+    });
+  } catch (error) {
+    if (error instanceof SheetStatusChangedError) return null;
+    throw error;
+  }
+
+  return {
+    sheetCode: (p.sheet_code as string) || '',
+    employeeUsername: (creator?.username as string) || '',
+    employeeName: (creator?.name as string) || (creator?.username as string) || '',
+    employeeId: (creator?.employeeId as string) || '',
+    year,
+    month,
+    monthName: MONTH_NAMES[month] || '',
+    status: p.status as ReimbursementSheetStatus,
+    entriesDeleted,
+    totalAmount: totals.total,
+    managerName: userName(p.manager as Record<string, unknown> | undefined),
+    hrReviewerName: userName(p.hrReviewer as Record<string, unknown> | undefined)
+  };
+}
+
 export const reimbursementSheetStore = {
   findOrCreate,
   findForPeriod,
   findById,
+  deleteSheetWithEntries,
   listForReviewer,
   listActedOn,
   submit,

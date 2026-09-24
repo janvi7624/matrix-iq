@@ -138,6 +138,9 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [pendingSheets, setPendingSheets] = useState<ReimbursementSheetRecord[]>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [selectedPending, setSelectedPending] = useState<ReimbursementSheetRecord | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [pendingRecords, setPendingRecords] = useState<ReimbursementRecord[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingTotalInWords, setPendingTotalInWords] = useState('');
@@ -278,6 +281,14 @@ export default function ReimbursementView({ currentUser }: Props) {
     setPendingAdminTotal(0);
     setActionRemarks('');
     setPaymentRef('');
+    // Cleared with every other per-sheet field: a half-typed confirmation
+    // must not follow the reviewer to the next claim. The button also
+    // compares the typed code against THIS sheet's code, so a leftover value
+    // could never arm the wrong row — but leaving one employee's reason
+    // sitting in the box while another employee's claim is on screen invites
+    // exactly the mistake this panel is built to prevent.
+    setDeleteConfirm('');
+    setDeleteReason('');
     fetch(`/api/reimbursement/sheet/${s.id}/entries`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
@@ -322,6 +333,35 @@ export default function ReimbursementView({ currentUser }: Props) {
         }
       })
       .finally(() => setApprovedDetailLoading(false));
+  }
+
+  // Permanently deletes an approved-but-unpaid claim (super admin only). The
+  // confirmation is a typed sheet code rather than an OK button: this erases
+  // the employee's bills outright with no undo, so it should be impossible to
+  // do by reflex or on the wrong row.
+  async function handleDeleteSheet(sheetId: string, sheetCode: string) {
+    if (!deleteReason.trim()) { toast.error('Give a reason — it is the only record that will survive.'); return; }
+    if (deleteConfirm.trim() !== sheetCode) { toast.error(`Type ${sheetCode} exactly to confirm.`); return; }
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/reimbursement/sheet/${sheetId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmSheetCode: deleteConfirm.trim(), reason: deleteReason.trim() })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { toast.error(data?.error || 'Could not delete this claim.'); return; }
+      toast.success(`${sheetCode} deleted — ${data?.entriesDeleted ?? 0} entr${data?.entriesDeleted === 1 ? 'y' : 'ies'} removed.`);
+      setSelectedPending(null);
+      setPendingRecords([]);
+      setDeleteConfirm('');
+      setDeleteReason('');
+      fetchPending();
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function handlePendingAction(endpoint: string, body: Record<string, unknown>) {
@@ -1261,6 +1301,54 @@ export default function ReimbursementView({ currentUser }: Props) {
                         <button type="button" className={`${historyStyles.button} ${historyStyles.primary} ${styles.approveBtn}`} disabled={actionLoading}
                           onClick={() => handlePendingAction('accounts-complete', { paymentReference: paymentRef, remarks: actionRemarks })}>
                           {actionLoading ? 'Processing…' : 'Mark Payment Done'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Super admin only: stop a claim that should never be paid.
+                        Sits below Process Payment because it is the exception,
+                        not the normal ending, and is styled as a hazard so it
+                        reads differently from every other action here. The
+                        server re-checks both the role and the status. */}
+                    {currentUser.role === 'superadmin' && sp.status === 'hr_approved' && (
+                      <div className={styles.dangerPanel}>
+                        <div className={styles.dangerPanelTitle}>Delete this claim permanently</div>
+                        <div className={styles.dangerPanelBody}>
+                          Removes {sp.sheet_code} and {pendingRecords.length > 0 ? `all ${pendingRecords.length} of ` : ''}{sp.creator_name}&apos;s bill
+                          entries for {MONTHS[sp.month - 1]} {sp.year} (₹{pendingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}) from the
+                          database. It leaves the payment queue and cannot be recovered — {sp.creator_name} would have to enter every bill again.
+                          Only the audit log will remember it.
+                        </div>
+                        <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb10}`}>
+                          <div className={calcStyles.field}>
+                            <label className={calcStyles.label}>Why is this being deleted? *</label>
+                            <input
+                              type="text"
+                              className={calcStyles.formControl}
+                              value={deleteReason}
+                              onChange={(e) => setDeleteReason(e.target.value)}
+                              placeholder="e.g. Duplicate of REIMB-NT0002-202607"
+                            />
+                          </div>
+                          <div className={calcStyles.field}>
+                            <label className={calcStyles.label}>Type <strong>{sp.sheet_code}</strong> to confirm *</label>
+                            <input
+                              type="text"
+                              className={calcStyles.formControl}
+                              value={deleteConfirm}
+                              onChange={(e) => setDeleteConfirm(e.target.value)}
+                              placeholder={sp.sheet_code}
+                              autoComplete="off"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className={`${historyStyles.button} ${styles.deleteSheetBtn}`}
+                          disabled={deleting || !deleteReason.trim() || deleteConfirm.trim() !== sp.sheet_code}
+                          onClick={() => handleDeleteSheet(sp.id, sp.sheet_code)}
+                        >
+                          {deleting ? 'Deleting…' : 'Delete claim permanently'}
                         </button>
                       </div>
                     )}

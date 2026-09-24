@@ -52,6 +52,40 @@
 .decisionTextarea { margin-bottom: 10px; width: 100%; }
 .decisionActionsRow { display: flex; gap: 8px; }
 .approveBtn { background: var(--mx-green-600); border-color: var(--mx-green-600); }
+
+/* Super-admin claim deletion. Deliberately does NOT reuse .decisionPanel:
+   every other panel on this screen advances the workflow, and this one ends
+   it irreversibly, so it has to look like a different kind of thing rather
+   than the next button along. */
+.dangerPanel {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: var(--mx-radius-xs, 8px);
+    background: var(--mx-red-50);
+    border: 1px solid var(--mx-red-200);
+}
+.dangerPanelTitle {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--mx-red-800);
+    margin-bottom: 4px;
+}
+.dangerPanelBody {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--mx-red-800);
+    margin-bottom: 12px;
+}
+.deleteSheetBtn {
+    background: var(--mx-danger);
+    border-color: var(--mx-danger);
+    color: #fff;
+}
+.deleteSheetBtn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(0.5);
+}
 .rejectBtn { color: var(--mx-brand); border-color: var(--mx-brand); }
 
 /* Add / Edit entry form */
