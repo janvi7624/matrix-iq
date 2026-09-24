@@ -242,9 +242,82 @@
     font-family: monospace;
 }
 
+/* ---------- Qualification call ---------- */
+/* A call-back whose day has already passed. The badge inside is red on its
+   own; the ring separates a MISSED call-back from an ordinary "not suitable"
+   at a glance down a list that is 600 rows long after an expo. */
+.callOverdue > span {
+    box-shadow: 0 0 0 1px var(--mx-danger);
+    border-radius: var(--mx-radius-full);
+}
+
+/* The Log Call dialog's outcome picker. Real radios (one name, arrow keys,
+   screen-reader group) behind card labels, so what each outcome DOES is
+   readable before it's picked — "Suitable" silently creating a project is
+   exactly the surprise this whole feature exists to undo. */
+.callIntro {
+    margin: 10px 0 0;
+    font-size: 12.5px;
+    color: var(--mx-ink-muted);
+}
+.callOptions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 14px;
+}
+.callOption {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 165px;
+    padding: 9px 12px;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface);
+    cursor: pointer;
+    transition: border-color var(--mx-duration-fast) var(--mx-ease), background var(--mx-duration-fast) var(--mx-ease);
+}
+/* An inset ring rather than a 2px border — the card must not change size
+   when it's selected. */
+.callOptionActive {
+    border-color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+    box-shadow: inset 0 0 0 1px var(--mx-brand);
+}
+.callOption:focus-within {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+.callOptionLabel {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--mx-ink);
+}
+.callOptionHint {
+    font-size: 11.5px;
+    color: var(--mx-ink-muted);
+}
+/* Clipped, not display:none — the radio has to stay focusable so the group
+   is still reachable by keyboard (.callOption:focus-within draws the ring). */
+.hiddenRadio {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+.callError {
+    margin-top: 10px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--mx-danger);
+}
+
 @media (max-width: 768px) {
     .bulkSelect { flex: 1 1 100%; }
     .rowSelect { max-width: none; }
+    .callOption { flex: 1 1 100%; }
 }
 
 .editIcon { vertical-align: text-bottom; margin-right: 4px; }

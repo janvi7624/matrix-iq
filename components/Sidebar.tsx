@@ -49,21 +49,33 @@ export default function Sidebar() {
   // route.ts, which resolves the viewer once and fans everything out in
   // parallel server-side. Runs on every page (Sidebar is in AppShell), so
   // this compounds across every navigation, not just first load.
+  //
+  // Keyed on `pathname`, not `[]`: the badge counts are live work queues (a
+  // rep's uncalled leads, a manager's unassigned ones, approvals), and with
+  // `[]` they were whatever they happened to be when this component first
+  // mounted — clear the queue and the badge sat there stale until a full
+  // reload. Re-fetching per navigation is the same single round trip the
+  // first paint already pays for, and the `cancelled` guard means a slow
+  // response for the page you just left can't overwrite the new one's.
   useEffect(() => {
+    let cancelled = false;
     fetch('/api/sidebar')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data) return;
+        if (cancelled || !data) return;
         setModules(data.modules ?? []);
         setViewer(data.viewer ?? null);
         setBadges(data.badges ?? {});
       })
       .catch(() => {
-        setModules([]);
-        setViewer(null);
-        setBadges({});
+        // A failed refresh must not blank a nav that's already on screen —
+        // only the very first load falls back to the empty shell.
+        if (!cancelled) setModules((prev) => prev ?? []);
       });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   // Explicit user choice wins; otherwise default to a compact rail on
   // tablet-width screens and fully expanded everywhere else — re-evaluated

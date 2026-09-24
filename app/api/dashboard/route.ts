@@ -7,12 +7,12 @@ import { siteVisitStore } from '@/lib/siteVisitStore';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { countQuotationsForProjects, computeEffectiveStatus, searchQuotationsFiltered } from '@/lib/quotationStore';
-import { computeLeadStats } from '@/lib/leadStore';
+import { leadStore } from '@/lib/leadStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { isMarketingManager } from '@/lib/permissions';
 import { listDepartmentManagers, isUserADepartmentManager } from '@/lib/departmentStore';
 import { listTechnicalRoster } from '@/lib/technicalRoster';
-import { needsFollowUp } from '@/lib/followUp';
+import { needsFollowUp, isLeadUnattended } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
 import { summarizeMarketingReminders } from '@/lib/marketingRequestReminder';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       siteVisits,
       demosForKpis,
       demosForQueue,
-      leadStats,
+      leads,
       technicalRoster,
       managersByDepartment,
       quotationsForViewer,
@@ -74,7 +74,12 @@ export async function GET(request: NextRequest) {
       siteVisitStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, canSeeQueue),
-      computeLeadStats(viewer.username, viewer.isPrivileged),
+      // The lead list rather than computeLeadStats: same single query that
+      // helper runs internally, but "Needs Your Attention" is a personal
+      // queue, so the unattended count below has to be scoped to leads
+      // assigned to THIS viewer — a department-wide total isn't something
+      // they can act on, and the helper only offers the wider figure.
+      leadStore.list(viewer.username, viewer.isPrivileged),
       listTechnicalRoster(),
       listDepartmentManagers(),
       searchQuotationsFiltered({ viewerUsername: viewer.username }),
@@ -118,6 +123,16 @@ export async function GET(request: NextRequest) {
     // auto-created project (created_by = the assignee) is already in this
     // set with no extra query needed.
     const pendingProjectConfirmations = projectsLight.filter((p) => p.lead_confirmation_status === 'pending_confirmation').length;
+
+    // The rep's call queue: leads handed to this viewer that still have no
+    // call logged against them after the SLA (lib/followUp.ts). Deliberately
+    // assignee-scoped — the Dashboard row it feeds says "assigned to you",
+    // and a lead sitting on a colleague's desk isn't this viewer's to chase.
+    const unattendedLeads = leads.filter((l) => l.assigned_to === viewer.username && isLeadUnattended(l)).length;
+    // Same local-date comparison computeLeadStats used for this figure, so
+    // the Dashboard's "New Meta leads today" and the Leads page tile agree.
+    const todayStr = new Date().toDateString();
+    const metaLeadsToday = leads.filter((l) => l.source === 'meta_lead_ads' && new Date(l.created_at).toDateString() === todayStr).length;
 
     const kpis = {
       totalProjects: projectsLight.length,
@@ -199,8 +214,8 @@ export async function GET(request: NextRequest) {
       followUpCount,
       reminderCount,
       pendingProjectConfirmations,
-      unattendedLeads: leadStats.unattended,
-      metaLeadsToday: leadStats.metaToday,
+      unattendedLeads,
+      metaLeadsToday,
       marketingStats,
       marketingReminderUrgentCount,
       allProjects: projectsLight,

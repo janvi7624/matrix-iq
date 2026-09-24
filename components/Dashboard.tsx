@@ -182,11 +182,12 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   // lib/celebrationStore.ts, since there's no cron in this app to fire it
   // any other way), which shouldn't be tangled up with the rest of the
   // dashboard's plain read-only data fetch.
+  // The server already caps how many of today's dashboard loads actually
+  // return a non-empty list (see shouldShowCelebrationsPopup) — at most 3
+  // per viewer per day, tracked per-user so it holds across devices. This
+  // dismiss state only hides it for the rest of THIS page view; closing it
+  // doesn't spend one of those 3 any faster or slower than just visiting did.
   const [celebrations, setCelebrations] = useState<{ userId: string; name: string; type: 'birthday' | 'anniversary'; years?: number }[]>([]);
-  // Closing just hides it for this page view — it isn't remembered, so a
-  // fresh visit or reload later the same day shows it again. That's
-  // deliberate: the popup should be available "for the whole day", not
-  // just the first time someone happens to see it.
   const [celebrationsDismissed, setCelebrationsDismissed] = useState(false);
   useEffect(() => {
     fetch('/api/dashboard/celebrations')
@@ -239,8 +240,13 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (isBackOffice && backOfficeKpis?.pendingVerification) {
       items.push({ key: 'dc-verify', label: `DC${backOfficeKpis.pendingVerification === 1 ? '' : 's'} awaiting material return verification`, count: backOfficeKpis.pendingVerification, href: '/backoffice', tone: 'urgent' });
     }
+    // A call queue, not a backlog of paperwork: a lead is assigned, and
+    // nobody has rung it yet (lib/followUp.ts's isLeadUnattended, and
+    // /api/dashboard scopes the count to this viewer's own assignments).
+    // "Unattended leads" read as an unexplained scolding — this says what
+    // the row actually wants done about it.
     if (unattendedLeads) {
-      items.push({ key: 'leads', label: 'Unattended leads', count: unattendedLeads, href: '/leads?filter=unattended', tone: 'urgent' });
+      items.push({ key: 'leads', label: `Lead${unattendedLeads === 1 ? '' : 's'} assigned to you with no call logged`, count: unattendedLeads, href: '/leads?filter=unattended&assignee=me', tone: 'urgent' });
     }
     if (metaLeadsToday) {
       items.push({ key: 'meta-leads', label: `New Meta lead${metaLeadsToday === 1 ? '' : 's'} today`, count: metaLeadsToday, href: '/leads', tone: 'info' });

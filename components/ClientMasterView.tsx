@@ -3,7 +3,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Users, ChevronDown, ChevronUp } from 'lucide-react';
-import { ClientProject, ClientSummary, ProjectPriority, ProjectStatus, UserRole } from '@/lib/types';
+import { ClientProject, LeadCallOutcome, ProjectPriority, ProjectStatus, UserRole } from '@/lib/types';
+// Type-only import — erased at compile time, so the store's server-side
+// Sequelize imports never reach this client bundle.
+import type { ClientMasterRow } from '@/lib/clientMasterStore';
 import { STAGE_LABEL } from '@/lib/projectStages';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
@@ -40,21 +43,35 @@ const STATUS_TONE: Record<ProjectStatus, StatusTone> = { active: 'confirmed', on
 const PRIORITY_LABEL: Record<ProjectPriority, string> = { low: 'Low', medium: 'Medium', high: 'High' };
 const PRIORITY_TONE: Record<ProjectPriority, PriorityTone> = { low: 'cool', medium: 'info', high: 'warm' };
 
+// Mirrors lib/clientMasterStore.ts's CALL_OUTCOME_LABEL — that module can't be
+// imported for real here (it pulls in Sequelize), so the four labels are
+// repeated rather than dragging the server layer into the client bundle.
+const CALL_OUTCOME_LABEL: Record<LeadCallOutcome, string> = {
+  '': 'Not called yet', suitable: 'Suitable', not_suitable: 'Not suitable', callback: 'Call back'
+};
+const CALL_OUTCOME_TONE: Record<Exclude<LeadCallOutcome, ''>, StatusTone> = {
+  suitable: 'won', not_suitable: 'lost', callback: 'pending'
+};
+
 type ActiveFilter = '' | 'has' | 'none';
 type HandlerFilter = '' | 'has' | 'none';
+type TypeFilter = '' | 'customer' | 'prospect';
+type OutcomeFilter = '' | 'not_called' | 'suitable' | 'not_suitable' | 'callback';
 type SortKey = 'name' | 'company' | 'owner' | 'projects' | 'updated' | 'created';
 
 const SORT_LABEL: Record<SortKey, string> = {
   name: 'Name', company: 'Company Name', owner: 'Client Owner', projects: 'Project Count', updated: 'Last Updated', created: 'Created Date'
 };
 
-const COLUMN_KEYS = ['srNo', 'name', 'company', 'mobile', 'email', 'handlers', 'projects', 'owner', 'remarks', 'defaultUser'] as const;
+const COLUMN_KEYS = ['srNo', 'type', 'name', 'company', 'mobile', 'email', 'handlers', 'projects', 'owner', 'remarks', 'defaultUser'] as const;
 type ColumnKey = (typeof COLUMN_KEYS)[number];
 const COLUMN_LABEL: Record<ColumnKey, string> = {
-  srNo: 'Sr. No.', name: 'Name', company: 'Company Name', mobile: 'Mobile Number', email: 'E-mail ID',
+  srNo: 'Sr. No.', type: 'Type', name: 'Name', company: 'Company Name', mobile: 'Mobile Number', email: 'E-mail ID',
   handlers: 'Product Handlers', projects: 'Projects', owner: 'Whose Client', remarks: 'Remarks', defaultUser: 'By Default User ID'
 };
-const COLUMN_STORAGE_KEY = 'clientMaster.visibleColumns.v1';
+// v2: the Type column is new, and a saved v1 set would have hidden it for
+// everyone who ever opened the Columns menu.
+const COLUMN_STORAGE_KEY = 'clientMaster.visibleColumns.v2';
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -72,8 +89,19 @@ function isThisMonth(iso: string): boolean {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
 
-function hasActiveProject(c: ClientSummary): boolean {
+function hasActiveProject(c: ClientMasterRow): boolean {
   return (c.statusCounts.active || 0) > 0;
+}
+
+// A prospect is a captured lead that hasn't earned a project yet (only a
+// 'suitable' qualification call creates one) — it has no project to open, no
+// active/inactive status, and shouldn't be counted as a customer.
+function isProspect(c: ClientMasterRow): boolean {
+  return c.type === 'prospect';
+}
+
+function typeLabel(c: ClientMasterRow): string {
+  return isProspect(c) ? 'Prospect' : 'Customer';
 }
 
 // Safe tel:/mailto: link — never links malformed values, just shows the raw
@@ -87,12 +115,7 @@ function isLikelyEmail(v: string): boolean {
 
 export default function ClientMasterView({ currentUser }: ClientMasterViewProps) {
   const toast = useToast();
-  // Engineer accounts can't originate Sales projects (see app/api/projects
-  // POST's own guard) — Client Master's "manual entry" creates one under the
-  // hood, so it's hidden for the same accounts that can't use "+ New
-  // Project" on the Project Dashboard either.
-  const canAddManually = currentUser.role !== 'engineer';
-  const [clients, setClients] = useState<ClientSummary[]>([]);
+  const [clients, setClients] = useState<ClientMasterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -105,6 +128,8 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
   const [ownerFilter, setOwnerFilter] = useState('');
   const [handlerNameFilter, setHandlerNameFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('');
+  const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>('');
   const [productHandlerFilter, setProductHandlerFilter] = useState<HandlerFilter>('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -155,7 +180,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     try {
       const response = await fetch('/api/clients');
       if (!response.ok) throw new Error(String(response.status));
-      const data: { clients: ClientSummary[] } = await response.json();
+      const data: { clients: ClientMasterRow[] } = await response.json();
       setClients(data.clients);
     } catch {
       setLoadFailed(true);
@@ -164,13 +189,16 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     }
   }
 
-  // Client Master is a read-only directory derived entirely from Project
-  // records (see lib/clientMasterStore.ts) — there's no separate clients
-  // table to insert into. "Manual entry" is a lightweight shortcut that
-  // creates a minimal Project under the hood (reusing the exact same
-  // POST /api/projects endpoint, validation, and visibility as the Project
-  // Dashboard's own "+ New Project"), which then appears here automatically
-  // through the normal aggregation — never a second, parallel client store.
+  // Client Master is a read-only directory derived from Project records and
+  // from leads with no project (see lib/clientMasterStore.ts) — there's no
+  // separate clients table to insert into, so "manual entry" writes to one of
+  // those two sources. It creates a LEAD (the same POST /api/leads the Lead
+  // Capture module uses, with its duplicate-merge and its visibility), never a
+  // Project: under the call-qualification flow a project is only created once
+  // someone rings the contact and marks them suitable (lib/leadCall.ts).
+  // It also used to be broken — it posted this form straight to
+  // /api/projects, which has required `source` and `approxPrice` for a while
+  // now, so every attempt 400'd.
   async function handleAddClient(e: FormEvent) {
     e.preventDefault();
     if (!addForm.clientName.trim() && !addForm.company.trim()) {
@@ -179,19 +207,32 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     }
     setAdding(true);
     try {
-      const response = await fetch('/api/projects', {
+      const response = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(addForm)
+        body: JSON.stringify({
+          name: addForm.clientName,
+          company: addForm.company,
+          mobile: addForm.phone,
+          email: addForm.email,
+          // A lead has no address column; keeping it as a note is better than
+          // dropping what the user typed.
+          notes: addForm.address.trim() ? `Address: ${addForm.address.trim()}` : ''
+        })
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         throw new Error(body?.error || String(response.status));
       }
+      const created: { duplicate?: boolean; duplicateCapturedBy?: string } = await response.json().catch(() => ({}));
       setAddForm(EMPTY_ADD_FORM);
       setShowAddForm(false);
       await load();
-      toast.success('Client added.');
+      toast.success(
+        created.duplicate
+          ? `Already in the system${created.duplicateCapturedBy ? ` (captured by ${created.duplicateCapturedBy})` : ''} — merged into that contact.`
+          : 'Added as a prospect.'
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not add this client.');
     } finally {
@@ -207,7 +248,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
   // current page.
   useEffect(() => {
     setPage(1);
-  }, [search, companyFilter, ownerFilter, handlerNameFilter, activeFilter, productHandlerFilter, dateFrom, dateTo]);
+  }, [search, companyFilter, ownerFilter, handlerNameFilter, activeFilter, typeFilter, outcomeFilter, productHandlerFilter, dateFrom, dateTo]);
 
   const distinctCompanies = useMemo(() => Array.from(new Set(clients.map((c) => c.displayName))).sort(), [clients]);
   const distinctOwners = useMemo(() => {
@@ -235,11 +276,18 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       .sort((a, b) => b.count - a.count);
   }, [clients]);
 
+  // The two project-shaped tiles count CUSTOMERS only. With 600 expo cards in
+  // the directory, "No Active Projects" counting prospects too would read as
+  // 600 neglected customers when in truth they are contacts nobody has
+  // qualified yet — the prospects get their own tile instead. "Added This
+  // Month" deliberately counts every row: a month's new prospects are real
+  // directory growth.
   const kpis = useMemo(
     () => ({
       total: clients.length,
-      withActive: clients.filter(hasActiveProject).length,
-      withoutActive: clients.filter((c) => !hasActiveProject(c)).length,
+      withActive: clients.filter((c) => !isProspect(c) && hasActiveProject(c)).length,
+      withoutActive: clients.filter((c) => !isProspect(c) && !hasActiveProject(c)).length,
+      prospects: clients.filter(isProspect).length,
       addedThisMonth: clients.filter((c) => isThisMonth(c.createdAt)).length
     }),
     [clients]
@@ -250,8 +298,15 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       if (companyFilter && c.displayName !== companyFilter) return false;
       if (ownerFilter && !c.owners.some((o) => o.username === ownerFilter)) return false;
       if (handlerNameFilter && !c.productHandlers.some((h) => h.product === handlerNameFilter)) return false;
-      if (activeFilter === 'has' && !hasActiveProject(c)) return false;
-      if (activeFilter === 'none' && hasActiveProject(c)) return false;
+      if (typeFilter && c.type !== typeFilter) return false;
+      if (outcomeFilter) {
+        if (c.leadCount === 0) return false;
+        if (outcomeFilter === 'not_called' ? c.callOutcome !== '' : c.callOutcome !== outcomeFilter) return false;
+      }
+      // Both project tiles are about customers — a prospect has no project to
+      // be active or inactive, so it belongs in neither bucket.
+      if (activeFilter === 'has' && (isProspect(c) || !hasActiveProject(c))) return false;
+      if (activeFilter === 'none' && (isProspect(c) || hasActiveProject(c))) return false;
       if (productHandlerFilter === 'has' && c.productHandlers.length === 0) return false;
       if (productHandlerFilter === 'none' && c.productHandlers.length > 0) return false;
       if (dateFrom && (!c.createdAt || c.createdAt.slice(0, 10) < dateFrom)) return false;
@@ -259,6 +314,8 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       if (search) {
         const haystack = [
           c.displayName,
+          typeLabel(c),
+          c.callOutcome ? CALL_OUTCOME_LABEL[c.callOutcome] : '',
           ...c.contacts.flatMap((ct) => [ct.clientName, ct.phone, ct.email, ct.altContactName, ct.altContactPhone]),
           ...c.productHandlers.flatMap((h) => [h.product, h.handledBy]),
           ...c.owners.flatMap((o) => [o.name, o.username]),
@@ -268,7 +325,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       }
       return true;
     });
-  }, [clients, companyFilter, ownerFilter, handlerNameFilter, activeFilter, productHandlerFilter, dateFrom, dateTo, search]);
+  }, [clients, companyFilter, ownerFilter, handlerNameFilter, activeFilter, typeFilter, outcomeFilter, productHandlerFilter, dateFrom, dateTo, search]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];
@@ -302,24 +359,36 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     setOwnerFilter('');
     setHandlerNameFilter('');
     setActiveFilter('');
+    setTypeFilter('');
+    setOutcomeFilter('');
     setProductHandlerFilter('');
     setDateFrom('');
     setDateTo('');
     setSearchInput('');
   }
 
-  function ownerCell(c: ClientSummary): string {
+  function ownerCell(c: ClientMasterRow): string {
     if (!c.owners.length) return 'Unassigned';
     return c.owners.length === 1 ? c.owners[0].name : `${c.owners[0].name} +${c.owners.length - 1}`;
   }
 
-  function defaultUserCell(c: ClientSummary): string {
+  function defaultUserCell(c: ClientMasterRow): string {
     if (!c.owners.length) return '-';
     return c.owners.length === 1 ? c.owners[0].username : `${c.owners[0].username} +${c.owners.length - 1}`;
   }
 
-  const allColumns: TableColumn<ClientSummary>[] = [
+  const allColumns: TableColumn<ClientMasterRow>[] = [
     { key: 'srNo', header: 'Sr. No.', render: (c) => sorted.indexOf(c) + 1 },
+    {
+      key: 'type',
+      header: 'Type',
+      render: (c) => (
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <StatusBadge tone={isProspect(c) ? 'pending' : 'confirmed'} label={typeLabel(c)} />
+          {c.callOutcome && <StatusBadge tone={CALL_OUTCOME_TONE[c.callOutcome]} label={CALL_OUTCOME_LABEL[c.callOutcome]} />}
+        </div>
+      )
+    },
     {
       key: 'name',
       header: 'Name',
@@ -386,7 +455,11 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     {
       key: 'projects',
       header: 'Projects',
-      render: (c) => (
+      // A prospect has nothing to open — "0 Projects" as a clickable popover
+      // that reveals an empty panel is worse than saying so in plain text.
+      render: (c) => (c.projectCount === 0 ? (
+        <span className={calcStyles.small}>No project yet</span>
+      ) : (
         <Popover ariaLabel="Projects" trigger={`${c.projectCount} Project${c.projectCount === 1 ? '' : 's'}`}>
           <div className={calcStyles.small} style={{ fontWeight: 700, marginBottom: 8 }}>Projects</div>
           {c.projects.map((p, i) => (
@@ -399,7 +472,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
             </div>
           ))}
         </Popover>
-      )
+      ))
     },
     { key: 'owner', header: 'Whose Client', render: (c) => ownerCell(c) },
     {
@@ -422,7 +495,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
   const columns = allColumns.filter((c) => visibleColumns.has(c.key as ColumnKey));
 
   return (
-    <AppShell title="Client Master" subtitle="Every client across your projects — contact details, ownership, and who's handling which product.">
+    <AppShell title="Client Master" subtitle="Every client and prospect — contact details, ownership, and who's handling which product.">
       <div className={styles.statRow}>
         <StatTile value={kpis.total} label="Total Clients" onClick={() => clearAllFilters()} tone="brand" />
         <StatTile
@@ -430,22 +503,36 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
           label="Clients With Active Projects"
           tone="success"
           active={activeFilter === 'has'}
-          onClick={() => setActiveFilter((v) => (v === 'has' ? '' : 'has'))}
+          onClick={() => {
+            setTypeFilter('');
+            setActiveFilter((v) => (v === 'has' ? '' : 'has'));
+          }}
         />
         <StatTile
           value={kpis.withoutActive}
           label="No Active Projects"
           tone="warning"
           active={activeFilter === 'none'}
-          onClick={() => setActiveFilter((v) => (v === 'none' ? '' : 'none'))}
+          onClick={() => {
+            setTypeFilter('');
+            setActiveFilter((v) => (v === 'none' ? '' : 'none'));
+          }}
         />
-        <StatTile value={kpis.addedThisMonth} label="Clients Added This Month" tone="info" />
+        <StatTile
+          value={kpis.prospects}
+          label="Prospects (No Project Yet)"
+          tone="accent"
+          active={typeFilter === 'prospect'}
+          onClick={() => {
+            setActiveFilter('');
+            setTypeFilter((v) => (v === 'prospect' ? '' : 'prospect'));
+          }}
+        />
+        <StatTile value={kpis.addedThisMonth} label="Added This Month" tone="info" />
       </div>
 
       <div className={styles.ownershipToggleRow}>
-        {canAddManually && (
-          <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button>
-        )}
+        <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button>
         <button type="button" className={historyStyles.button} onClick={() => setShowOwnership((v) => !v)}>
           {showOwnership ? 'Hide' : 'Show'} Client Ownership {showOwnership ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
@@ -505,6 +592,25 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
           <option value="has">Has Product Handler</option>
           <option value="none">No Product Handler</option>
         </Select>
+        <Select
+          auto
+          value={typeFilter}
+          onChange={(e) => {
+            setTypeFilter(e.target.value as TypeFilter);
+            setActiveFilter('');
+          }}
+        >
+          <option value="">Type: any</option>
+          <option value="customer">Customers (have projects)</option>
+          <option value="prospect">Prospects (lead only)</option>
+        </Select>
+        <Select auto value={outcomeFilter} onChange={(e) => setOutcomeFilter(e.target.value as OutcomeFilter)}>
+          <option value="">Call outcome: any</option>
+          <option value="not_called">Not called yet</option>
+          <option value="suitable">Suitable</option>
+          <option value="not_suitable">Not suitable</option>
+          <option value="callback">Call back</option>
+        </Select>
         <Input auto type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="Created from" />
         <Input auto type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="Created to" />
         <Select auto value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
@@ -537,8 +643,8 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
                 <EmptyState
                   icon={Users}
                   title={clients.length === 0 ? 'No clients yet' : 'No clients match your search'}
-                  message={clients.length === 0 ? 'Clients appear here automatically once projects are created — or add one manually below.' : 'Try a different search or filter.'}
-                  action={clients.length === 0 && canAddManually ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
+                  message={clients.length === 0 ? 'Clients appear here automatically as leads are captured and projects are created — or add one manually below.' : 'Try a different search or filter.'}
+                  action={clients.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
                 />
               }
             />
@@ -549,8 +655,8 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
               <EmptyState
                 icon={Users}
                 title={clients.length === 0 ? 'No clients yet' : 'No clients match your search'}
-                message={clients.length === 0 ? 'Clients appear here automatically once projects are created — or add one manually below.' : 'Try a different search or filter.'}
-                action={clients.length === 0 && canAddManually ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
+                message={clients.length === 0 ? 'Clients appear here automatically as leads are captured and projects are created — or add one manually below.' : 'Try a different search or filter.'}
+                action={clients.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
               />
             ) : (
               pageRows.map((c) => {
@@ -560,11 +666,17 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
                     <div className={styles.cardCompany}>{c.displayName}</div>
                     <div className={styles.primaryName}>{primary?.clientName || '-'}</div>
                     <div className={calcStyles.small}>{primary?.phone}{primary?.phone && primary?.email ? ' · ' : ''}{primary?.email}</div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                      <StatusBadge tone={isProspect(c) ? 'pending' : 'confirmed'} label={typeLabel(c)} />
+                      {c.callOutcome && <StatusBadge tone={CALL_OUTCOME_TONE[c.callOutcome]} label={CALL_OUTCOME_LABEL[c.callOutcome]} />}
+                    </div>
                     <div className={styles.cardMetaRow}>
                       <span>Owner: {ownerCell(c)}</span>
                     </div>
                     <div className={styles.cardMetaRow}>
-                      <span>Projects: {c.projectCount}</span>
+                      {/* Same reason as the table's Projects cell: a prospect
+                          has no project, so don't show it a count of zero. */}
+                      <span>{c.projectCount === 0 ? 'No project yet' : `Projects: ${c.projectCount}`}</span>
                       <span>Handlers: {c.productHandlers.length}</span>
                     </div>
                   </button>
@@ -604,7 +716,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
               <Input value={addForm.address} onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))} />
             </Field>
             <div className={calcStyles.small} style={{ marginBottom: 12 }}>
-              This creates a new project record for this client, owned by you — the same as starting one from the Project Dashboard, just quicker for adding a client to the directory.
+              This adds the contact as a lead captured by you ({currentUser.username}), exactly as Lead Capture would. It appears here straight away as a Prospect; it only becomes a project once someone calls and marks it suitable. If this phone or email is already on file, the details are merged into that contact instead of creating a duplicate.
             </div>
             <SubmitButton disabled={adding}>{adding ? 'Adding…' : 'Add Client'}</SubmitButton>
           </form>
@@ -614,12 +726,29 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
   );
 }
 
-function ClientDetailDrawerBody({ client }: { client: ClientSummary }) {
+function ClientDetailDrawerBody({ client }: { client: ClientMasterRow }) {
   const primary = client.contacts[0];
   const mostRecentProject = client.projects[0] as ClientProject | undefined;
 
   return (
     <div className={styles.drawerBody}>
+      <section className={styles.drawerSection}>
+        <div className={styles.drawerSectionTitle}>Type</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <StatusBadge tone={isProspect(client) ? 'pending' : 'confirmed'} label={typeLabel(client)} />
+          {client.callOutcome && <StatusBadge tone={CALL_OUTCOME_TONE[client.callOutcome]} label={CALL_OUTCOME_LABEL[client.callOutcome]} />}
+        </div>
+        {isProspect(client) && (
+          <div className={calcStyles.small} style={{ marginTop: 6 }}>
+            {client.callOutcome === 'not_suitable'
+              ? 'Called and ruled out — kept as a contact, not chased.'
+              : client.callOutcome === 'callback'
+                ? 'Waiting on a call back — no project until the call says suitable.'
+                : 'Captured as a lead. A project is created only once a call marks it suitable.'}
+          </div>
+        )}
+      </section>
+
       <section className={styles.drawerSection}>
         <div className={styles.drawerSectionTitle}>Primary Contact</div>
         <div className={styles.primaryName}>{primary?.clientName || '-'}</div>
@@ -656,16 +785,42 @@ function ClientDetailDrawerBody({ client }: { client: ClientSummary }) {
 
       <section className={styles.drawerSection}>
         <div className={styles.drawerSectionTitle}>Projects ({client.projectCount})</div>
-        {client.projects.map((p) => (
-          <div key={p.id} style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <StatusBadge tone={STATUS_TONE[p.status]} label={STATUS_LABEL[p.status]} />
-              <PriorityBadge tone={PRIORITY_TONE[p.priority]} label={PRIORITY_LABEL[p.priority]} />
+        {client.projects.length === 0 ? (
+          <span className={calcStyles.small}>No project yet.</span>
+        ) : (
+          client.projects.map((p) => (
+            <div key={p.id} style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <StatusBadge tone={STATUS_TONE[p.status]} label={STATUS_LABEL[p.status]} />
+                <PriorityBadge tone={PRIORITY_TONE[p.priority]} label={PRIORITY_LABEL[p.priority]} />
+              </div>
+              <div className={calcStyles.small}>{STAGE_LABEL[p.stage] || p.stage} · Owner: {p.ownerName || '-'} · Created {formatDate(p.createdAt)}</div>
             </div>
-            <div className={calcStyles.small}>{STAGE_LABEL[p.stage] || p.stage} · Owner: {p.ownerName || '-'} · Created {formatDate(p.createdAt)}</div>
-          </div>
-        ))}
+          ))
+        )}
       </section>
+
+      {client.leadCount > 0 && (
+        <section className={styles.drawerSection}>
+          <div className={styles.drawerSectionTitle}>Leads ({client.leadCount})</div>
+          {client.leads.map((l) => (
+            <div key={l.id} style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 600 }}>{l.name || '-'}</span>
+                <StatusBadge
+                  tone={l.callOutcome ? CALL_OUTCOME_TONE[l.callOutcome] : 'not_started'}
+                  label={CALL_OUTCOME_LABEL[l.callOutcome]}
+                />
+              </div>
+              <div className={calcStyles.small}>
+                Owner: {l.ownerName || 'Unassigned'} · Captured {formatDate(l.createdAt)}
+                {l.calledAt ? ` · Called ${formatDate(l.calledAt)}` : ''}
+                {l.callbackAt ? ` · Call back ${formatDate(l.callbackAt)}` : ''}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className={styles.drawerSection}>
         <div className={styles.drawerSectionTitle}>Remarks</div>
@@ -681,12 +836,19 @@ function ClientDetailDrawerBody({ client }: { client: ClientSummary }) {
         {client.owners.length === 0 ? <span className={calcStyles.small}>-</span> : client.owners.map((o) => <div key={o.id}>{o.username}</div>)}
       </section>
 
-      {mostRecentProject && (
-        <div className={styles.drawerActions}>
-          <Link className={historyStyles.button} href={`/projects/${mostRecentProject.id}`}>Open Client</Link>
-          <Link className={historyStyles.button} href={`/projects/${mostRecentProject.id}`}>Edit</Link>
-        </div>
-      )}
+      {/* A prospect has no project page to open, but the drawer must still
+          offer a way through to the record — otherwise the whole action row
+          silently disappears for lead-only rows. */}
+      <div className={styles.drawerActions}>
+        {mostRecentProject ? (
+          <>
+            <Link className={historyStyles.button} href={`/projects/${mostRecentProject.id}`}>Open Client</Link>
+            <Link className={historyStyles.button} href={`/projects/${mostRecentProject.id}`}>Edit</Link>
+          </>
+        ) : (
+          <Link className={historyStyles.button} href="/leads">Open Lead</Link>
+        )}
+      </div>
     </div>
   );
 }

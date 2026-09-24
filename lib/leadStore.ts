@@ -42,7 +42,12 @@ const LEAD_FIELDS = [
   { name: 'meta_raw_field_data', kind: 'json' as const },
   { name: 'assigned_to_id', kind: 'nullable' as const },
   { name: 'assigned_by_id', kind: 'nullable' as const },
-  { name: 'assigned_at', kind: 'date' as const }
+  { name: 'assigned_at', kind: 'date' as const },
+  { name: 'call_outcome' },
+  { name: 'called_at', kind: 'date' as const },
+  { name: 'called_by_id', kind: 'nullable' as const },
+  { name: 'call_remark' },
+  { name: 'callback_at', kind: 'nullable' as const }
 ];
 
 const base = createRecordStore<LeadRecord>(db.Lead, LEAD_FIELDS, { departmentScoped: true });
@@ -55,7 +60,8 @@ const base = createRecordStore<LeadRecord>(db.Lead, LEAD_FIELDS, { departmentSco
 const LEAD_INCLUDES = () => [
   { model: db.User, as: 'creator', attributes: ['id', 'username'] },
   { model: db.User, as: 'assignee', attributes: ['id', 'username', 'name'] },
-  { model: db.User, as: 'assigner', attributes: ['id', 'username'] }
+  { model: db.User, as: 'assigner', attributes: ['id', 'username'] },
+  { model: db.User, as: 'caller', attributes: ['id', 'username', 'name'] }
 ];
 
 function toLeadRecord(row: Model): LeadRecord {
@@ -63,11 +69,13 @@ function toLeadRecord(row: Model): LeadRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
   const assignee = plain.assignee as { username?: string; name?: string } | null;
   const assigner = plain.assigner as { username?: string } | null;
+  const caller = plain.caller as { username?: string; name?: string } | null;
   return {
     ...record,
     assigned_to: assignee?.username ?? '',
     assigned_to_name: assignee?.name || assignee?.username || '',
-    assigned_by: assigner?.username ?? ''
+    assigned_by: assigner?.username ?? '',
+    called_by_name: caller?.name || caller?.username || ''
   };
 }
 
@@ -101,6 +109,15 @@ export async function findLeadById(id: string): Promise<LeadRecord | undefined> 
   if (!isUuid(id)) return undefined;
   const row = await db.Lead.findByPk(id, { include: LEAD_INCLUDES() });
   return row ? toLeadRecord(row) : undefined;
+}
+
+// The same read for a whole batch, in one query — used after a bulk assign,
+// where calling findLeadById per lead would mean 600 more round trips.
+export async function findLeadsByIds(ids: string[]): Promise<LeadRecord[]> {
+  const valid = ids.filter(isUuid);
+  if (!valid.length) return [];
+  const rows = await db.Lead.findAll({ where: { id: valid } as never, include: LEAD_INCLUDES() });
+  return rows.map(toLeadRecord);
 }
 
 // Whether this viewer may act on a lead (edit it, log a follow-up, convert it
@@ -137,25 +154,34 @@ export async function assignLeads(
   const assigner = assignerUsername
     ? await db.User.findOne({ where: { username: assignerUsername } as never, attributes: ['id'] })
     : null;
-  const now = new Date().toISOString();
-  const failed: string[] = [];
-  let assigned = 0;
+  const now = new Date();
+  const failed = leadIds.filter((id) => !isUuid(id));
+  const ids = leadIds.filter((id) => isUuid(id));
+  if (!ids.length) return { assigned: 0, failed };
 
-  for (const id of leadIds) {
-    if (!isUuid(id)) {
-      failed.push(id);
-      continue;
-    }
-    const updated = await base.update(id, {
-      assigned_to_id: assigneeId,
+  // ONE update for the whole batch. This used to be a read-modify-write per
+  // lead (three queries each), which for an expo's 600 cards meant ~1,800
+  // sequential round trips in a single request — it timed out long before it
+  // finished. Written straight through the model rather than via
+  // recordStore.update for the same reason.
+  const [assigned] = await db.Lead.update(
+    {
+      assigned_to_id: assigneeId || null,
       // Clearing the assignee clears the provenance too, so an unassigned
       // lead never shows a stale "assigned by X on <date>".
-      assigned_by_id: assigneeId ? ((assigner?.get('id') as string) ?? '') : '',
-      assigned_at: assigneeId ? now : '',
+      assigned_by_id: assigneeId ? ((assigner?.get('id') as string) ?? null) : null,
+      assigned_at: assigneeId ? now : null,
       updated_at: now
-    } as Partial<LeadRecord>);
-    if (updated) assigned += 1;
-    else failed.push(id);
+    } as never,
+    { where: { id: ids } as never }
+  );
+
+  // Anything that didn't match (already deleted, or an id outside this table)
+  // is reported the same way the per-lead loop used to report it.
+  if (assigned < ids.length) {
+    const found = await db.Lead.findAll({ where: { id: ids } as never, attributes: ['id'] });
+    const foundIds = new Set(found.map((r) => r.get('id') as string));
+    failed.push(...ids.filter((id) => !foundIds.has(id)));
   }
 
   return { assigned, failed };
@@ -344,7 +370,14 @@ export async function createOrMergeLead(input: CreateOrMergeLeadInput, actorUser
     assigned_at: '',
     assigned_to: '',
     assigned_to_name: '',
-    assigned_by: ''
+    assigned_by: '',
+    // Nobody has called a brand-new lead yet (lib/leadCall.ts).
+    call_outcome: '',
+    called_at: '',
+    called_by_id: '',
+    called_by_name: '',
+    call_remark: '',
+    callback_at: ''
   };
   const created = await base.create(record);
   return { record: created, merged: false };

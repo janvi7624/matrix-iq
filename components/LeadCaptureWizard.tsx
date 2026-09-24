@@ -48,19 +48,16 @@ type LeadSubmitResult = LeadRecord & { duplicate?: boolean; duplicateCapturedBy?
 interface LeadCaptureWizardProps {
   creating: boolean;
   onSubmit: (form: LeadForm) => Promise<LeadSubmitResult | null>;
-  onConvertToProject: (leadId: string) => Promise<boolean>;
   onViewAllLeads: () => void;
 }
 
-export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProject, onViewAllLeads }: LeadCaptureWizardProps) {
+export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }: LeadCaptureWizardProps) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<LeadForm>(emptyForm());
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanNote, setScanNote] = useState('');
   const [successRecord, setSuccessRecord] = useState<LeadSubmitResult | null>(null);
-  const [converting, setConverting] = useState(false);
-  const [converted, setConverted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [recipients, setRecipients] = useState<LeadHandoverRecipient[] | null>(null);
   const [recipientsFailed, setRecipientsFailed] = useState(false);
@@ -194,20 +191,8 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
 
   function handleCaptureNext() {
     setSuccessRecord(null);
-    setConverted(false);
     setForm(emptyForm());
     setStep(0);
-  }
-
-  async function handleConvert() {
-    if (!successRecord) return;
-    setConverting(true);
-    try {
-      const ok = await onConvertToProject(successRecord.id);
-      if (ok) setConverted(true);
-    } finally {
-      setConverting(false);
-    }
   }
 
   if (successRecord) {
@@ -254,13 +239,10 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
           <div className={historyStyles.successActions}>
             <button type="button" className={historyStyles.bigBtn} onClick={handleCaptureNext}>Scan Next Lead</button>
             <button type="button" className={historyStyles.bigBtnGhost} onClick={onViewAllLeads}>View All Leads</button>
-            {!handedOver && (!converted ? (
-              <button type="button" className={historyStyles.bigBtnGhost} disabled={converting} onClick={handleConvert}>
-                {converting ? 'Converting…' : 'Convert to Project'}
-              </button>
-            ) : (
-              <div className={historyStyles.autofillNotice}>Added to the project pipeline.</div>
-            ))}
+            {/* No "Convert to Project" here any more: a lead becomes a project
+                only after someone calls it and marks the outcome suitable
+                (lib/leadCall.ts), so this button would be refused every time.
+                A card just scanned has nobody assigned and no call yet. */}
           </div>
         </div>
       </div>

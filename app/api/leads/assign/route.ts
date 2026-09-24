@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { leadStore, assignLeads, findLeadById } from '@/lib/leadStore';
+import { leadStore, assignLeads, findLeadsByIds } from '@/lib/leadStore';
 import { canAssignLeads } from '@/lib/permissions';
-import { logAudit } from '@/lib/auditLogStore';
+import { logAudit, logAuditMany } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { db } from '@/lib/db';
-import { createProjectFromLead, reassignLinkedProject } from '@/lib/leadProjectAutomation';
+import { reassignLinkedProject } from '@/lib/leadProjectAutomation';
 import { notifyUsers } from '@/lib/notificationStore';
 
 // A sales manager routes captured leads to the reps who will work them.
@@ -63,34 +63,38 @@ export async function POST(request: NextRequest) {
 
     const result = await assignLeads(permitted, assigneeId, viewer.username);
 
-    for (const id of permitted) {
-      const before = previousById.get(id);
-      if (!before) continue;
-      const label = before.name || before.company || id;
-      await logAudit({
-        by: viewer.username,
-        role: viewer.role,
-        entityType: 'lead',
-        entityId: id,
-        action: assigneeUsername
-          ? `Lead ${before.assigned_to ? 'reassigned' : 'assigned'} to ${assigneeUsername}: ${label}`
-          : `Lead unassigned: ${label}`,
-        previousStatus: before.assigned_to || 'unassigned',
-        newStatus: assigneeUsername || 'unassigned',
-        remarks: before.assigned_to ? `Previously assigned to ${before.assigned_to}` : `Captured by ${before.created_by}`,
-        ip: getClientIp(request)
-      });
-    }
+    // One audit row per lead, written as a single batch — an expo assignment
+    // is 600 rows, and one INSERT each would take longer than the request has.
+    await logAuditMany(
+      permitted.flatMap((id) => {
+        const before = previousById.get(id);
+        if (!before) return [];
+        const label = before.name || before.company || id;
+        return [{
+          by: viewer.username,
+          role: viewer.role,
+          entityType: 'lead' as const,
+          entityId: id,
+          action: assigneeUsername
+            ? `Lead ${before.assigned_to ? 'reassigned' : 'assigned'} to ${assigneeUsername}: ${label}`
+            : `Lead unassigned: ${label}`,
+          previousStatus: before.assigned_to || 'unassigned',
+          newStatus: assigneeUsername || 'unassigned',
+          remarks: before.assigned_to ? `Previously assigned to ${before.assigned_to}` : `Captured by ${before.created_by}`,
+          ip: getClientIp(request)
+        }];
+      })
+    );
 
-    // Lead -> Project automation (Part 2 of the plan): assigning a lead is
-    // the trigger, not a separate manual step. Unassigning (assigneeId: '')
-    // never creates/touches a project — there's no one to auto-create it
-    // for. A lead with no project yet gets one created and attributed to
-    // the ASSIGNEE (not the manager doing the assigning); a lead that
-    // already has a linked project (this is a reassignment) has that
-    // existing project's ownership moved instead of a second one being
-    // created — see lib/leadProjectAutomation.ts for why both paths share
-    // one function and how the duplicate-project guard works.
+    // Assigning a lead NO LONGER creates a project. It used to: one project
+    // per assigned lead, which after an expo meant 600 projects nobody had
+    // spoken to, swamping the pipeline and every conversion chart. A project
+    // is now created only by a qualification call that goes well
+    // (lib/leadCall.ts — outcome 'suitable').
+    //
+    // The one case that still touches a project is REASSIGNMENT of a lead
+    // that already has one: its ownership has to follow the new assignee,
+    // otherwise the work silently stays with the person who left it.
     if (assigneeUsername) {
       for (const id of permitted) {
         const before = previousById.get(id);
@@ -111,38 +115,41 @@ export async function POST(request: NextRequest) {
                 type: 'project_assigned_from_lead', entityType: 'project', entityId: project.id
               });
             }
-          } else {
-            const freshLead = await findLeadById(id);
-            if (!freshLead) continue;
-            const result = await createProjectFromLead(freshLead, { attributeToUsername: assigneeUsername, autoCreated: true });
-            if (result) {
-              await logAudit({
-                by: viewer.username, role: viewer.role, entityType: 'project', entityId: result.project.id,
-                action: `Project auto-created from lead assignment, assigned to ${assigneeUsername}`,
-                previousStatus: '', newStatus: 'pending_confirmation',
-                ip: getClientIp(request)
-              });
-              await notifyUsers([assigneeUsername], {
-                title: 'New lead assigned — project created for you',
-                body: `${result.project.client_name || result.project.company} — please review and confirm the assignment.`,
-                type: 'project_assigned_from_lead', entityType: 'project', entityId: result.project.id
-              });
-            }
           }
         } catch (automationError) {
           // Best-effort — the lead assignment itself already succeeded and
-          // must not be rolled back just because the follow-on project
-          // automation hit an error; it's logged server-side by
-          // apiErrorResponse's console.error pattern elsewhere, but since
-          // this isn't the top-level catch, log directly here instead.
+          // must not be rolled back just because moving the linked project
+          // hit an error.
           console.error(`[lead-project-automation] Failed for lead ${id}:`, automationError instanceof Error ? automationError.message : automationError);
         }
+      }
+
+      // One notification for the batch, not one per lead: assigning 600 expo
+      // cards must not fire 600 notifications at the person who has to call
+      // them. Their queue is the "To Call" list on Lead Capture.
+      //
+      // Counted from what assignLeads actually wrote, not from what was asked
+      // for: a lead that failed mid-batch isn't in the rep's queue, so telling
+      // them "600 leads were assigned to you" when 580 landed sends them
+      // looking for twenty calls that aren't there. If none landed, there is
+      // nothing to tell them at all.
+      const failedIds = new Set(result.failed);
+      const assignedIds = permitted.filter((id) => !failedIds.has(id));
+      if (assignedIds.length) {
+        const count = assignedIds.length;
+        await notifyUsers([assigneeUsername], {
+          title: count === 1 ? 'A lead was assigned to you' : `${count} leads were assigned to you`,
+          body: `${viewer.name} assigned you ${count === 1 ? 'a lead' : `${count} leads`} to call. Record what comes of each call — only the suitable ones become projects.`,
+          type: 'lead_assigned',
+          entityType: 'lead_assignment',
+          entityId: assignedIds[0]
+        });
       }
     }
 
     // Return the updated rows so the client can patch its list in place
-    // instead of refetching everything.
-    const updated = (await Promise.all(permitted.map((id) => findLeadById(id)))).filter(Boolean);
+    // instead of refetching everything — in ONE query, not one per lead.
+    const updated = await findLeadsByIds(permitted);
 
     return NextResponse.json({
       assigned: result.assigned,

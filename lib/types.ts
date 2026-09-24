@@ -1334,7 +1334,26 @@ export interface LeadRecord {
   assigned_to: string;
   assigned_to_name: string;
   assigned_by: string;
+  // ── Qualification call ──────────────────────────────────────────────────
+  // The step between "assigned" and "worth a project": the assignee rings the
+  // contact and records what came of it. Only 'suitable' creates a project —
+  // see lib/leadCall.ts. '' means nobody has called yet.
+  // called_by is resolved from the `caller` association on read.
+  call_outcome: LeadCallOutcome;
+  called_at: string;
+  called_by_id: string;
+  called_by_name: string;
+  call_remark: string;
+  /** Only for 'callback' — the day the rep promised to ring back. */
+  callback_at: string;
 }
+
+// '' = not called yet. 'suitable' converts the lead into a Sales project;
+// 'not_suitable' keeps it as a contact only (still in Client Master, never in
+// the pipeline); 'callback' leaves it in the queue with a date.
+export type LeadCallOutcome = '' | 'suitable' | 'not_suitable' | 'callback';
+
+export const LEAD_CALL_OUTCOMES: LeadCallOutcome[] = ['suitable', 'not_suitable', 'callback'];
 
 // A colleague the capturer can hand a scanned card over to on the wizard's
 // Confirm Details step — see lib/leadHandover.ts.

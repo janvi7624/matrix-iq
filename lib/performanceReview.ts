@@ -8,6 +8,7 @@ import { searchQuotationsFiltered } from './quotationStore';
 import { leadStore } from './leadStore';
 import { tmsTaskStore } from './tmsTaskStore';
 import { isLeadUnattended, needsFollowUp, parseFollowUpNotes } from './followUp';
+import { computeLeadCallStats } from './leadCall';
 import { ProjectTimelineEvent } from './types';
 
 interface TimelineItem {
@@ -59,16 +60,46 @@ export async function buildPerformanceReview(username: string) {
     customerResponseStore.list(username, false),
     deliveryChallanStore.listOwnedBy(username),
     searchQuotationsFiltered({ ownerUsername: username }),
-    leadStore.listOwnedBy(username),
+    // list() (this person's own visibility scope), not listOwnedBy(): the CRM
+    // metrics below are keyed on the ASSIGNEE — the person actually asked to
+    // ring the card — and listOwnedBy only knows created_by. Both subsets are
+    // filtered back to strictly this person below, so nothing balloons to a
+    // department manager's whole team the way a raw list() would.
+    leadStore.list(username, false),
     tmsTaskStore.listForAssignee(user.id)
   ]);
 
+  // Leads this person captured (their own scanning/import activity) vs leads
+  // routed to them to work — two different numbers that used to be the same
+  // one, which is how a single 600-card expo import made one employee look
+  // responsible for the entire unattended pile.
+  const capturedLeads = leads.filter((l) => l.created_by === username);
+  const assignedLeads = leads.filter((l) => l.assigned_to === username);
+
+  // The CRM group counts LEADS now, not projects. It used to read off
+  // projectStore, which was only ever a proxy for leads because assigning a
+  // lead created a project — that's exactly what the expo broke, and a
+  // project now exists only once a call said the lead was worth one. Same
+  // funnel the Leads page tiles show (lib/leadCall.ts), so the two agree.
+  const callStats = computeLeadCallStats(assignedLeads);
+  const projectById = new Map(projects.map((p) => [p.id, p]));
   const crm = {
-    totalLeads: projects.length,
-    qualifiedLeads: projects.filter((p) => p.stage !== 'cold_call' && p.stage !== 'catalogue_offered' && p.stage !== 'site_visit').length,
-    lostLeads: projects.filter((p) => p.status === 'lost').length,
-    wonLeads: projects.filter((p) => p.status === 'won').length,
-    unattendedLeads: leads.filter(isLeadUnattended).length
+    // 'Total Leads' — routed to this person to work.
+    totalLeads: assignedLeads.length,
+    // 'Qualified Leads' — the call said suitable (the only path to a project).
+    qualifiedLeads: callStats.suitable,
+    // 'Lost Leads' — ruled out on the call: stays a contact, never a project.
+    lostLeads: callStats.notSuitable,
+    // 'Won Leads' — qualified AND the project it became was won. No extra
+    // query needed: createProjectFromLead attributes the project to the
+    // assignee, so it's already in `projects`.
+    wonLeads: assignedLeads.filter((l) => l.project_id && projectById.get(l.project_id)?.status === 'won').length,
+    calledLeads: assignedLeads.filter((l) => !!l.called_at).length,
+    // Assigned, never called, no project — the rep's actual call queue.
+    awaitingCallLeads: callStats.toCall,
+    callbacksDue: callStats.callbackDue,
+    unattendedLeads: assignedLeads.filter(isLeadUnattended).length,
+    capturedLeads: capturedLeads.length
   };
 
   const sales = {
@@ -83,7 +114,12 @@ export async function buildPerformanceReview(username: string) {
     // stage === 'completed' is retired from Project Progress (management
     // decision, 2026-09) and never set going forward — status === 'won' is
     // now the closest available "done" signal.
-    completedProjects: projects.filter((p) => p.status === 'won').length
+    completedProjects: projects.filter((p) => p.status === 'won').length,
+    // Project win/loss lives here rather than under `crm`, which is lead
+    // data now — the Person Performance Dashboard's "Won / Lost" tile sits
+    // in its Projects section and reads these.
+    wonProjects: projects.filter((p) => p.status === 'won').length,
+    lostProjects: projects.filter((p) => p.status === 'lost').length
   };
 
   const demoMetrics = {
@@ -129,14 +165,31 @@ export async function buildPerformanceReview(username: string) {
     ...demos.map((d) => ({ at: d.created_at, action: `Demo requested — ${d.client_name || d.company}`, remarks: d.notes })),
     ...responses.map((r) => ({ at: r.created_at, action: 'Customer response logged', remarks: r.feedback })),
     ...deliveryChallans.map((d) => ({ at: d.created_at, action: `Delivery Challan ${d.dc_number} created`, remarks: '' })),
-    ...leads.map((l) => ({ at: l.created_at, action: `Lead captured — ${l.name || l.company}`, remarks: l.notes })),
+    ...capturedLeads.map((l) => ({ at: l.created_at, action: `Lead captured — ${l.name || l.company}`, remarks: l.notes })),
+    // The qualification call is the step that decides whether a card becomes
+    // a project at all (lib/leadCall.ts), so it belongs on the timeline —
+    // keyed on who made the call, which is not always the assignee.
+    ...leads
+      .filter((l) => l.called_at && l.called_by_id === user.id)
+      .map((l) => ({ at: l.called_at, action: `Lead call — ${l.name || l.company} (${l.call_outcome.replace('_', ' ')})`, remarks: l.call_remark })),
     ...tasks.map((t) => ({ at: t.created_at, action: `Task ${t.status === 'completed' ? 'completed' : 'assigned'} — ${t.name}`, remarks: t.remarks }))
   ]
     .filter((t) => t.at)
     .sort((a, b) => (a.at < b.at ? 1 : -1))
     .slice(0, 60);
 
-  const activityDates = [...projects.map((p) => p.created_at), ...siteVisits.map((v) => v.created_at), ...quotations.map((q) => q.created_at), ...demos.map((d) => d.created_at)];
+  // Qualification calls count as activity. They didn't need to before,
+  // because assigning a lead created a project and the project's created_at
+  // stood in for the work — now most assigned leads never become a project,
+  // so without this a rep who spent the week on the phone would show an
+  // empty activity chart.
+  const activityDates = [
+    ...projects.map((p) => p.created_at),
+    ...siteVisits.map((v) => v.created_at),
+    ...quotations.map((q) => q.created_at),
+    ...demos.map((d) => d.created_at),
+    ...leads.filter((l) => l.called_at && l.called_by_id === user.id).map((l) => l.called_at)
+  ];
 
   // Lightweight project index for a click-through drill-down (name + id +
   // status only) — the full ProjectRecord carries notes/timeline/etc. that a

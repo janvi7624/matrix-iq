@@ -41,6 +41,9 @@ const RESOLVERS: Record<string, EntityResolver> = {
   tms_task: { href: (id) => `/tms/tasks/${id}`, exists: (id) => existsIn('TmsTask', id) },
   travel_schedule: { href: (id) => `/travel-schedule/${id}`, exists: (id) => existsIn('TravelSchedule', id) },
   lead: { href: () => '/leads', exists: (id) => existsIn('Lead', id) },
+  // A batch of leads handed to a rep to call — opens their call queue rather
+  // than one of the leads (lib/leadCall.ts, app/api/leads/assign).
+  lead_assignment: { href: () => '/leads?filter=to-call', exists: (id) => existsIn('Lead', id) },
   // A card a colleague scanned and handed over (lib/leadHandover.ts) — opens
   // straight onto the recipient's "Assigned To Me" list, where it now sits.
   lead_handover: { href: () => '/leads?filter=assigned-to-me', exists: (id) => existsIn('Lead', id) },

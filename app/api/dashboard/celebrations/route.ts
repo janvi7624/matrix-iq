@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { processTodaysCelebrations } from '@/lib/celebrationStore';
+import { processTodaysCelebrations, shouldShowCelebrationsPopup } from '@/lib/celebrationStore';
 import { apiErrorResponse } from '@/lib/apiError';
 
 // No cron/scheduler exists anywhere in this app — this GET is what actually
@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
 
   try {
     const celebrations = await processTodaysCelebrations();
-    return NextResponse.json({ celebrations });
+    // Emails/announcements above still fire regardless — only the popup
+    // itself is capped, per viewer, at a few appearances per day.
+    const showPopup = celebrations.length > 0 && (await shouldShowCelebrationsPopup(viewer.userId));
+    return NextResponse.json({ celebrations: showPopup ? celebrations : [] });
   } catch (error) {
     return apiErrorResponse(error);
   }

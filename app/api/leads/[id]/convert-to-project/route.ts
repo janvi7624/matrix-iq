@@ -27,6 +27,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     if (lead.project_id) return NextResponse.json({ error: 'Already converted to a project' }, { status: 400 });
+    // One way into the pipeline: a call that went well. Before this, assigning
+    // a lead created a project by itself, so 600 expo cards became 600
+    // projects that nobody had spoken to. Record the call first (that step
+    // creates the project itself when the outcome is 'suitable').
+    if (lead.call_outcome !== 'suitable') {
+      return NextResponse.json({ error: 'Call this lead first and mark the outcome "suitable" — that converts it to a project.' }, { status: 400 });
+    }
 
     const result = await createProjectFromLead(lead, { attributeToUsername: viewer.username, autoCreated: false });
     if (!result) return NextResponse.json({ error: 'Already converted to a project' }, { status: 400 });

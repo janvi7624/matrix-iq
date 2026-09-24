@@ -60,6 +60,39 @@ export async function logAudit(input: LogAuditInput): Promise<void> {
   }
 }
 
+// Same thing for a batch — one actor lookup and one INSERT for the whole set
+// instead of two queries per entry. Assigning an expo's 600 cards writes 600
+// audit rows; doing that one at a time is 1,200 round trips and times the
+// request out. Never throws, exactly like logAudit.
+export async function logAuditMany(entries: LogAuditInput[]): Promise<void> {
+  if (!entries.length) return;
+  try {
+    const actors = new Map<string, unknown>();
+    for (const username of new Set(entries.map((e) => e.by).filter(Boolean))) {
+      const actor = await db.User.findOne({ where: { username } as never, attributes: ['id'] });
+      actors.set(username, actor ? actor.get('id') : null);
+    }
+    const at = new Date();
+    await db.AuditLog.bulkCreate(
+      entries.map((input) => ({
+        at,
+        by: input.by,
+        actor_id: actors.get(input.by) ?? null,
+        role: input.role,
+        entity_type: input.entityType,
+        entity_id: input.entityId || null,
+        action: input.action,
+        previous_status: input.previousStatus,
+        new_status: input.newStatus,
+        remarks: input.remarks || '',
+        ip: input.ip || ''
+      })) as never
+    );
+  } catch {
+    // never let audit logging break the actual workflow action
+  }
+}
+
 export async function listAuditLog(entityType?: AuditLogEntry['entity_type'], entityId?: string): Promise<AuditLogEntry[]> {
   const where: Record<string, unknown> = {};
   if (entityType) where.entity_type = entityType;

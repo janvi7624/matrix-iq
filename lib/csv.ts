@@ -3,8 +3,28 @@
 // Product Master import feature, which is the first place in the app that
 // needs to read a CSV back in rather than only generate one.
 
+// Excel/Sheets/LibreOffice treat a cell starting with = + - or @ as a formula
+// when the file is opened, so exported text has to be neutralised with a
+// leading apostrophe (the spreadsheet's own "this is literal text" marker).
+// This is not hypothetical here: OCR'd company names in the leads table
+// genuinely start with '=='. Numbers are passed through untouched — a
+// negative amount is a number, not a formula, and quoting it would break
+// every numeric column in every export.
+// Phone numbers and negative amounts are the common false positives: almost
+// every Indian mobile in this database is stored as "+91…", and a number that
+// a caller has already turned into a string ("-500") reaches here as text, so
+// a type check alone doesn't catch it. Both would be prefixed and land in the
+// sheet as left-aligned text that SUM skips. Only a leading = or @, or a + / -
+// that is NOT the start of a number, is actually a formula risk.
+function neutralizeFormula(value: unknown, str: string): string {
+  if (typeof value === 'number') return str;
+  if (/^[=@]/.test(str)) return `'${str}`;
+  if (/^[+\-]/.test(str) && !/^[+\-][\d\s(]/.test(str)) return `'${str}`;
+  return str;
+}
+
 export function csvEscape(value: unknown): string {
-  const str = String(value ?? '');
+  const str = neutralizeFormula(value, String(value ?? ''));
   if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
   return str;
 }

@@ -372,21 +372,35 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
       {metaLeadAnalytics && metaLeadAnalytics.total > 0 && (
         <>
           <h2 className={calcStyles.h2}>Meta Lead Ads</h2>
+          {/* A lead only becomes a project once a rep has rung it and marked
+              it suitable (lib/leadCall.ts). Before that, assigning a lead
+              created a project by itself, so this number counted "was it
+              handed to anyone", not "was it any good" — it will read lower
+              from now on, and that drop is the junk leaving the pipeline,
+              not the campaigns getting worse. Spelled out here because this
+              panel is what marketing judges a campaign on. */}
+          <p className={calcStyles.small}>
+            A Meta lead becomes a project only after a sales rep calls it and marks it suitable, so &ldquo;Qualified on a call&rdquo; is a
+            quality figure, not a routing one. Counts before that change are not comparable with these.
+          </p>
           <div className={styles.kpiGrid}>
             <div className={styles.kpiCard}>
               <div className={styles.kpiValue}>{metaLeadAnalytics.total}</div>
               <div className={styles.kpiLabel}>Total Meta Leads</div>
             </div>
-            <div className={styles.kpiCard}>
+            <div className={styles.kpiCard} title="Meta leads a rep called and marked suitable, which is what creates the project. Leads not yet called, called back later, or ruled out are not counted here.">
               <div className={styles.kpiValue}>{metaLeadAnalytics.convertedToProject}</div>
-              <div className={styles.kpiLabel}>Converted to Project</div>
+              <div className={styles.kpiLabel}>Qualified on a call → Project</div>
             </div>
           </div>
           <div className={`${calcStyles.sectionPanel} ${analyticsStyles.breakdownWrap}`}>
             <BreakdownList title="By Campaign" buckets={metaLeadAnalytics.byCampaign} />
             <BreakdownList title="By Form" buckets={metaLeadAnalytics.byForm} />
             <BreakdownList title="By Platform" buckets={metaLeadAnalytics.byPlatform} />
-            <BreakdownList title="By Status" buckets={metaLeadAnalytics.byStatus} />
+            {/* Its buckets are "Converted to Project" / "New" — "New" now
+                covers everything a call hasn't qualified yet, including
+                leads called back or ruled out. */}
+            <BreakdownList title="By Status (project = qualified on a call)" buckets={metaLeadAnalytics.byStatus} />
             <BreakdownList title="By Assigned Sales Person" buckets={metaLeadAnalytics.byAssignedUser} />
           </div>
         </>
