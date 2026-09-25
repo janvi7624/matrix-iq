@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
   }
 
   const mobile = typeof body.mobile === 'string' ? body.mobile.trim() : '';
+  const altMobile = typeof body.altMobile === 'string' ? body.altMobile.trim() : '';
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
   const interests: DomainKey[] = Array.isArray(body.interests) ? body.interests.filter((d: unknown): d is DomainKey => VALID_DOMAINS.includes(d as DomainKey)) : [];
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     // instead of creating a duplicate (spec: two reps scanning the same card
     // at an event must not fork into two records).
     const result = await createOrMergeLead(
-      { name, mobile, email, designation, company, city, cardImageUrl, interests, subInterests, followUpActions, priority, budget, notes, source: cardImageUrl ? 'business_card' : 'manual' },
+      { name, mobile, altMobile, email, designation, company, city, cardImageUrl, interests, subInterests, followUpActions, priority, budget, notes, source: cardImageUrl ? 'business_card' : 'manual' },
       viewer.username
     );
 

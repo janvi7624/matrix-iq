@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FolderKanban } from 'lucide-react';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
 import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
+import { findClosestClient } from '@/lib/clientSimilarity';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { exportListToPdf } from '@/lib/exportPdf';
 import { isTechnicalRole } from '@/lib/technicalRoles';
@@ -194,6 +195,18 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     const totalValue = filtered.reduce((sum, p) => sum + (typeof p.approx_price === 'number' ? p.approx_price : 0), 0);
     return { total: filtered.length, won, lost, active, totalValue };
   }, [filtered]);
+
+  // A live, non-blocking nudge while the New Project form is open — the
+  // typed client name/company against every existing project, so a rep
+  // retyping a client someone already entered (under a slightly different
+  // spelling) gets a chance to open that one instead of creating a
+  // duplicate. Suggestion only: it never blocks or auto-cancels the submit.
+  const possibleDuplicate = useMemo(
+    () => (showForm
+      ? findClosestClient(form.clientName, form.company, projects.map((p) => ({ id: p.id, clientName: p.client_name, company: p.company })))
+      : null),
+    [showForm, form.clientName, form.company, projects]
+  );
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -403,6 +416,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 <Input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} />
               </Field>
             </FieldRow>
+            {possibleDuplicate && (
+              <div className={calcStyles.duplicateSuggestion}>
+                <span>
+                  Are you talking about <strong>{possibleDuplicate.project.clientName || possibleDuplicate.project.company}</strong>
+                  {possibleDuplicate.project.company && possibleDuplicate.project.clientName ? ` — ${possibleDuplicate.project.company}` : ''}? A project for them already exists.
+                </span>
+                <Link className={calcStyles.duplicateSuggestionLink} href={`/projects/${possibleDuplicate.project.id}`} target="_blank" rel="noopener noreferrer">
+                  Open it instead →
+                </Link>
+              </div>
+            )}
             <FieldRow>
               <Field label="Phone">
                 <PhoneInput value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />

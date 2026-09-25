@@ -14,6 +14,9 @@ import styles from './leadCaptureWizard.module.css';
 interface LeadForm {
   name: string;
   mobile: string;
+  // Some cards list two numbers — this one's never OCR-filled, only typed in
+  // by hand, since lib/cardOcr.ts's phone regex only ever captures the first.
+  altMobile: string;
   email: string;
   designation: string;
   company: string;
@@ -31,7 +34,7 @@ interface LeadForm {
 }
 
 function emptyForm(): LeadForm {
-  return { name: '', mobile: '', email: '', designation: '', company: '', city: '', cardImageUrl: '', interests: [], subInterests: [], priority: '', followUpActions: [], budget: '', notes: '', handoverToId: '' };
+  return { name: '', mobile: '', altMobile: '', email: '', designation: '', company: '', city: '', cardImageUrl: '', interests: [], subInterests: [], priority: '', followUpActions: [], budget: '', notes: '', handoverToId: '' };
 }
 
 const STEPS = [
@@ -350,6 +353,10 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
                 <PhoneInput value={form.mobile} onChange={(v) => setForm((f) => ({ ...f, mobile: v }))} />
               </div>
               <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Alternate Mobile (optional)</label>
+                <PhoneInput value={form.altMobile} onChange={(v) => setForm((f) => ({ ...f, altMobile: v }))} />
+              </div>
+              <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Email</label>
                 <input className={calcStyles.formControl} type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
               </div>
@@ -515,6 +522,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
               <div className={historyStyles.reviewRow}><strong>Designation:</strong> {form.designation || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Company:</strong> {form.company || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Mobile:</strong> {form.mobile || '-'}</div>
+              <div className={historyStyles.reviewRow}><strong>Alternate Mobile:</strong> {form.altMobile || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Email:</strong> {form.email || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>City:</strong> {form.city || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Interests:</strong> {form.interests.join(', ') || '-'}</div>

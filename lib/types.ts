@@ -1289,6 +1289,9 @@ export interface LeadRecord {
   updated_at: string;
   name: string;
   mobile: string;
+  // Optional second number — some business cards list two (e.g. a direct
+  // line and a mobile, or two people's numbers on a shared card).
+  alt_mobile: string;
   email: string;
   designation: string;
   company: string;

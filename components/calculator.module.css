@@ -210,6 +210,37 @@
     color: #9ca3af;
     margin-top: -2px;
 }
+/* New Project form's live duplicate-client nudge (components/ProjectsView.tsx,
+   components/ui/ProjectQuickCreateDialog.tsx) — a suggestion, not a blocker,
+   so it reads as informational (info tone) rather than an error/warning. */
+.duplicateSuggestion {
+    margin-top: 4px;
+    padding: 10px 14px;
+    border-radius: var(--mx-radius-sm, 8px);
+    background: var(--mx-info-subtle);
+    border: 1px solid var(--mx-info);
+    font-size: 13px;
+    color: var(--mx-ink);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.duplicateSuggestionLink {
+    font: inherit;
+    font-weight: 700;
+    color: var(--mx-info);
+    text-decoration: none;
+    white-space: nowrap;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+.duplicateSuggestionLink:hover {
+    text-decoration: underline;
+}
 /* Prepared By team-member picker (components/ui/TeamMemberSelect.tsx) —
    only rendered for the Khushi/Maulik-style on-behalf-of case, everyone
    else keeps the plain locked-to-self input above unchanged. */

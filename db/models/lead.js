@@ -4,6 +4,7 @@ module.exports = (sequelize, DataTypes) => {
     created_by: { type: DataTypes.UUID },
     name: { type: DataTypes.STRING },
     mobile: { type: DataTypes.STRING },
+    alt_mobile: { type: DataTypes.STRING },
     email: { type: DataTypes.STRING },
     designation: { type: DataTypes.STRING },
     company: { type: DataTypes.STRING },

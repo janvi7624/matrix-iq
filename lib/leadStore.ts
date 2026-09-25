@@ -14,6 +14,7 @@ const LEAD_FIELDS = [
   { name: 'updated_at', kind: 'date' as const, column: 'updatedAt' },
   { name: 'name' },
   { name: 'mobile' },
+  { name: 'alt_mobile' },
   { name: 'email' },
   { name: 'designation' },
   { name: 'company' },
@@ -246,6 +247,9 @@ export interface CreateOrMergeLeadMetaInput {
 export interface CreateOrMergeLeadInput {
   name: string;
   mobile: string;
+  // Optional — omitted entirely by callers that don't collect it (bulk
+  // import), defaults to '' same as every other optional string field here.
+  altMobile?: string;
   email: string;
   designation: string;
   company: string;
@@ -315,6 +319,7 @@ export async function createOrMergeLead(input: CreateOrMergeLeadInput, actorUser
       name: input.name || duplicate.name,
       company: input.company || duplicate.company,
       mobile: input.mobile || duplicate.mobile,
+      alt_mobile: input.altMobile || duplicate.alt_mobile,
       email: input.email || duplicate.email,
       designation: input.designation || duplicate.designation,
       city: input.city || duplicate.city,
@@ -338,6 +343,7 @@ export async function createOrMergeLead(input: CreateOrMergeLeadInput, actorUser
     updated_at: now,
     name: input.name,
     mobile: input.mobile,
+    alt_mobile: input.altMobile || '',
     email: input.email,
     designation: input.designation,
     company: input.company,

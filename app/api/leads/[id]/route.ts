@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const patch: Partial<LeadRecord> = { updated_at: new Date().toISOString() };
-    const stringFields = ['name', 'mobile', 'email', 'designation', 'company', 'city', 'budget', 'notes'] as const;
+    const stringFields = ['name', 'mobile', 'alt_mobile', 'email', 'designation', 'company', 'city', 'budget', 'notes'] as const;
     stringFields.forEach((field) => {
       if (typeof body[field] === 'string') patch[field] = body[field].trim();
     });

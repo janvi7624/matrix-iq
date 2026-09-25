@@ -207,7 +207,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number; unassigned: number; assignedToMe: number } | null>(null);
   const [metaInfoLead, setMetaInfoLead] = useState<LeadRecord | null>(null);
   const [editingLead, setEditingLead] = useState<LeadRecord | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', company: '', designation: '', mobile: '', email: '', city: '', budget: '', priority: '' as LeadPriority, notes: '' });
+  const [editForm, setEditForm] = useState({ name: '', company: '', designation: '', mobile: '', alt_mobile: '', email: '', city: '', budget: '', priority: '' as LeadPriority, notes: '' });
   const [savingEdit, setSavingEdit] = useState(false);
 
   // ── Qualification call ──────────────────────────────────────────────────
@@ -375,7 +375,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     let rows = leads;
     if (q.trim()) {
       const needle = q.trim().toLowerCase();
-      rows = rows.filter((l) => `${l.name} ${l.company} ${l.city} ${l.email} ${l.mobile}`.toLowerCase().includes(needle));
+      rows = rows.filter((l) => `${l.name} ${l.company} ${l.city} ${l.email} ${l.mobile} ${l.alt_mobile}`.toLowerCase().includes(needle));
     }
     if (priorityFilter) rows = rows.filter((l) => l.priority === priorityFilter);
     if (interestFilter) rows = rows.filter((l) => l.interests.includes(interestFilter));
@@ -459,7 +459,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   }
 
   async function handleSubmitLead(form: {
-    name: string; mobile: string; email: string; designation: string; company: string; city: string; cardImageUrl: string;
+    name: string; mobile: string; altMobile: string; email: string; designation: string; company: string; city: string; cardImageUrl: string;
     interests: DomainKey[]; subInterests: string[]; priority: LeadPriority; followUpActions: string[]; budget: string; notes: string;
     handoverToId: string;
   }): Promise<(LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string; handover?: LeadHandoverOutcome }) | null> {
@@ -631,6 +631,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       company: lead.company,
       designation: lead.designation,
       mobile: lead.mobile,
+      alt_mobile: lead.alt_mobile,
       email: lead.email,
       city: lead.city,
       budget: lead.budget,
@@ -1136,6 +1137,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             <FieldRow>
               <Field label="Mobile">
                 <PhoneInput value={editForm.mobile} onChange={(v) => setEditForm((f) => ({ ...f, mobile: v }))} />
+              </Field>
+              <Field label="Alternate Mobile (optional)">
+                <PhoneInput value={editForm.alt_mobile} onChange={(v) => setEditForm((f) => ({ ...f, alt_mobile: v }))} />
               </Field>
               <Field label="Email">
                 <Input type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} />
