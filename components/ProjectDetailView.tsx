@@ -229,13 +229,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       .catch(() => setAllUsers([]));
   }, []);
 
-  // Org-wide (not department-scoped) user list for the "Assign Team" / sales
-  // person picker — unlike Handover this is a data-correction/labeling
-  // action typically done by an Admin, who may not share a department with
-  // the salesperson being assigned, so the handover-scoped list (limited to
-  // the viewer's own department) would be too narrow here.
+  // The sales team for the "Assign Team" / sales person picker. Not the
+  // handover-scoped list (limited to the viewer's own department — too
+  // narrow, since an Admin correcting this label often isn't in Sales), and
+  // no longer the whole org either: this labels a project's sales person, so
+  // offering technical/accounts/HR staff here only produced a label the
+  // Projects list then showed as fact. The server enforces the same rule.
   useEffect(() => {
-    fetch('/api/users/list')
+    fetch('/api/users/list?scope=sales')
       .then((r) => (r.ok ? r.json() : []))
       .then((users: { id: string; username: string; name: string }[]) => setOrgUsers(users))
       .catch(() => setOrgUsers([]));

@@ -3,7 +3,6 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { listLastRemarks, projectStore } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectPriority, ProjectRecord, UserRecord } from '@/lib/types';
-import { findUserById } from '@/lib/userStore';
 import { requestTechnicalPerson } from '@/lib/projectTechnicalRequest';
 import { findSalesPersonCandidate, notifySalesPersonAssigned, SalesOwnerError } from '@/lib/projectSalesOwner';
 import { isTechnicalRole } from '@/lib/technicalRoles';
@@ -98,17 +97,24 @@ export async function POST(request: NextRequest) {
   // A technical creator MUST name the sales person (an active Sales / GEM -
   // Sales member): the project is theirs — pipeline, KPIs, follow-ups — and a
   // project owned by technical staff would be invisible to the Sales side.
+  //
+  // Naming someone here makes them the project's OWNER, so the same
+  // active-Sales-member rule applies no matter who is asking. A privileged
+  // creator used to be exempt and could name ANY user id — which is how an
+  // engineer ended up owning a sales project: the project left the Sales
+  // pipeline for a queue its new owner doesn't work, and the sales person
+  // who should have had it never saw it. Leaving the picker blank is still
+  // fine for a privileged creator (the project stays theirs); only naming
+  // someone else is gated.
   const requestedSalesPersonId = typeof body.salesPersonId === 'string' ? body.salesPersonId.trim() : '';
   let requestedSalesPersonUser: UserRecord | undefined;
-  if (isTechnicalCreator) {
+  if (isTechnicalCreator || (viewer.isPrivileged && requestedSalesPersonId)) {
     try {
       requestedSalesPersonUser = await findSalesPersonCandidate(requestedSalesPersonId);
     } catch (error) {
       if (error instanceof SalesOwnerError) return NextResponse.json({ error: error.message }, { status: error.status });
       return apiErrorResponse(error);
     }
-  } else if (viewer.isPrivileged && requestedSalesPersonId) {
-    requestedSalesPersonUser = await findUserById(requestedSalesPersonId);
   }
   const salesPerson = requestedSalesPersonUser ? requestedSalesPersonUser.username : viewer.username;
   const assignedTechnicalPersonId = typeof body.assignedTechnicalPersonId === 'string' ? body.assignedTechnicalPersonId.trim() : '';

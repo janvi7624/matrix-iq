@@ -66,7 +66,10 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
         const next = me ? { role: me.role || '', isPrivileged: !!me.isPrivileged } : null;
         setViewer(next);
         if (!next || (!next.isPrivileged && !isTechnicalRole(next.role))) return [];
-        return fetch(next.isPrivileged ? '/api/users/list' : '/api/users/list?scope=sales').then((r) => (r.ok ? r.json() : []));
+        // Sales team only for every creator, privileged included — the person
+        // picked here owns the project. Same rule as ProjectsView's form and
+        // as the server enforces in app/api/projects/route.ts.
+        return fetch('/api/users/list?scope=sales').then((r) => (r.ok ? r.json() : []));
       })
       .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
       .catch(() => setAssignableUsers([]));

@@ -101,9 +101,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
 
   useEffect(() => {
     if (!isPrivileged && !isTechnicalCreator) return;
-    // Privileged: anyone (defaults to self). Technical creator: the sales
-    // team only, since the project must be owned by a sales person.
-    fetch(isTechnicalCreator ? '/api/users/list?scope=sales' : '/api/users/list')
+    // The sales team only, for everyone — whoever is picked here OWNS the
+    // project, and that has to be a sales person. An admin/manager used to
+    // get the whole org in this dropdown, so picking an engineer was one
+    // click away and the server took it (see app/api/projects/route.ts).
+    // A privileged creator who wants the project themselves leaves it on
+    // "Defaults to you".
+    fetch('/api/users/list?scope=sales')
       .then((r) => (r.ok ? r.json() : []))
       .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
       .catch(() => setAssignableUsers([]));

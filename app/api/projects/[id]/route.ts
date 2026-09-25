@@ -15,6 +15,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus } from '@/lib/types';
 import { ASSIGNABLE_STAGES } from '@/lib/projectStages';
 import { findUserById } from '@/lib/userStore';
+import { findSalesPersonCandidate, SalesOwnerError } from '@/lib/projectSalesOwner';
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { getClientIp } from '@/lib/requestIp';
@@ -147,11 +148,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // Resolved from an actual user id (the UI offers a picker, not free
     // text) so a typo/case mismatch can never silently mislabel this field
     // — see the salesPersonId handling in POST above for the fuller story.
+    //
+    // Must be an active member of Sales, same rule the create and
+    // assign-sales-person routes enforce. This label is what the Projects
+    // list, its Sales Person filter and every export read, so letting it
+    // name a technical person here just moved the same wrong answer to a
+    // different screen. The old free-text `salesPerson` fallback is gone
+    // with it: nothing in the app sent it, and it accepted any string at
+    // all, which is the same hole without even a user behind it.
     if (typeof body.salesPersonId === 'string' && body.salesPersonId.trim()) {
-      const salesPersonUser = await findUserById(body.salesPersonId.trim());
-      if (salesPersonUser) patch.sales_person = salesPersonUser.name || salesPersonUser.username;
-    } else if (typeof body.salesPerson === 'string' && body.salesPerson.trim()) {
-      patch.sales_person = body.salesPerson.trim();
+      try {
+        patch.sales_person = (await findSalesPersonCandidate(body.salesPersonId.trim())).username;
+      } catch (error) {
+        if (error instanceof SalesOwnerError) return NextResponse.json({ error: error.message }, { status: error.status });
+        return apiErrorResponse(error);
+      }
     }
     if (VALID_PRIORITY.includes(body.priority)) patch.priority = body.priority;
     if (VALID_STATUS.includes(body.status)) patch.status = body.status;
