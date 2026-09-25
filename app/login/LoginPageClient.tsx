@@ -66,7 +66,7 @@ function LoginForm() {
       <MatrixLoginVisual />
       <div className={visualStyles.centerWrap}>
         <form className={visualStyles.formCard} onSubmit={handleSubmit} noValidate>
-          <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={96} height={96} className={visualStyles.formLogo} unoptimized />
+          <Image src={BRAND.logoWeb} alt={`${BRAND.companyName} logo`} width={96} height={96} className={visualStyles.formLogo} unoptimized />
           <h1>{BRAND.appName}</h1>
           <span className={visualStyles.formSub}>
             {BRAND.tagline}

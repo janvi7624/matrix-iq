@@ -18,7 +18,16 @@ export const BRAND = {
   // `logo` usage (login, change-password, error/not-found headers, portal
   // header) because they all size it by height only (CSS `width: auto`), so
   // it renders at its real aspect ratio and stays legible.
+  // The PNG stays the canonical asset because the PDF and XLSX exporters
+  // embed it directly (lib/deliveryChallanPdf.ts, lib/expenseVoucherPdf.ts,
+  // lib/officeOperationExpenseXlsx.ts) and jsPDF/ExcelJS want PNG, not WebP.
   logo: '/NANTA.png',
+  // Same lockup, same 935x267, as WebP: 16.2KB against the PNG's 72.8KB for
+  // no visible difference on a flat two-colour mark. Every on-screen use goes
+  // through this one — it was 22% of the login page's entire transfer, and it
+  // loads on every page of the app, so it was the single largest saving
+  // available anywhere in the product.
+  logoWeb: '/nanta-logo.webp',
   // A browser/PWA favicon is always forced into a fixed square regardless of
   // CSS, so the wide lockup above would shrink to an illegible sliver there
   // — this is a tightly-cropped square export of just the mark (see

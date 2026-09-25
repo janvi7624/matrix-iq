@@ -53,7 +53,7 @@ export default function ChangePasswordPage() {
   return (
     <div className={styles.loginWrap}>
       <form className={styles.loginCard} onSubmit={handleSubmit}>
-        <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={96} height={96} className={styles.loginLogo} unoptimized />
+        <Image src={BRAND.logoWeb} alt={`${BRAND.companyName} logo`} width={96} height={96} className={styles.loginLogo} unoptimized />
         <h1>Change Password</h1>
         <span className={styles.sub}>
           For your security, you must set a new password before continuing.

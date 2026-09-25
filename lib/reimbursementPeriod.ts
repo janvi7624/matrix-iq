@@ -62,25 +62,28 @@ export function checkSubmittablePeriod(year: number, month: number, now: Date = 
     const opensOnText = opensOn.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
     return {
       allowed: false,
-      // Deliberately does NOT say "keep adding this month's bills": new bills
-      // are only accepted for the most recently completed month
-      // (checkAddPeriod below), so inviting that here would contradict the
-      // other rule and send people to a form that refuses them.
-      reason: `${monthName(month)} ${year} isn’t over yet — you can submit the sheet from ${opensOnText}. Sheets for earlier months can be submitted now.`
+      reason: `${monthName(month)} ${year} isn’t over yet. Keep adding this month’s bills — you can submit the sheet from ${opensOnText}. Sheets for earlier months can be submitted now.`
     };
   }
   return { allowed: true, reason: '' };
 }
 
-// HR-mandated (2026-09): new bills may only be logged for the immediately
-// preceding calendar month — not the still-running current month, and not an
-// older forgotten one either. This tightens the "add bills anytime, submit
-// once the month closes" model above; it governs which month a NEW entry may
-// be dated, not which month a sheet may be SUBMITTED for (checkSubmittablePeriod,
+// HR-mandated (2026-09): new bills may only be logged for the current,
+// still-running month (bills as they happen) or the one right before it
+// (catching up once it's just closed) — not any older forgotten month, and
+// not a future one. This governs which month a NEW entry may be dated, not
+// which month a sheet may be SUBMITTED for (checkSubmittablePeriod above,
 // unchanged, still has no lower bound on submission).
 export function lastClaimableMonth(now: Date = new Date()): { year: number; month: number } {
   const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
+
+// True for exactly the current month or the one right before it.
+export function isWithinAddWindow(year: number, month: number, now: Date = new Date()): boolean {
+  const idx = monthIndex(year, month);
+  const currentIdx = monthIndex(now.getFullYear(), now.getMonth() + 1);
+  return idx === currentIdx || idx === currentIdx - 1;
 }
 
 export interface PeriodAddCheck {
@@ -103,11 +106,11 @@ export function checkAddPeriod(dateStr: string, now: Date = new Date(), sheetSta
   if (!match) return { allowed: false, reason: 'That is not a valid date.' };
   const year = Number(match[1]);
   const month = Number(match[2]);
-  const { year: lastYear, month: lastMonth } = lastClaimableMonth(now);
-  if (year === lastYear && month === lastMonth) return { allowed: true, reason: '' };
+  if (isWithinAddWindow(year, month, now)) return { allowed: true, reason: '' };
 
+  const { year: lastYear, month: lastMonth } = lastClaimableMonth(now);
   return {
     allowed: false,
-    reason: `You can only add bills for ${monthName(lastMonth)} ${lastYear} right now — the most recently completed month.`
+    reason: `You can only add bills for ${monthName(now.getMonth() + 1)} ${now.getFullYear()} or ${monthName(lastMonth)} ${lastYear} right now.`
   };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkSubmittablePeriod, submittableFrom, monthName, lastClaimableMonth, checkAddPeriod } from '@/lib/reimbursementPeriod';
+import { checkSubmittablePeriod, submittableFrom, monthName, lastClaimableMonth, isWithinAddWindow, checkAddPeriod } from '@/lib/reimbursementPeriod';
 
 // The rule: a reimbursement sheet may only be submitted for a month that has
 // finished. No lower bound — an old forgotten month is still claimable.
@@ -75,22 +75,50 @@ describe('lastClaimableMonth', () => {
   });
 });
 
-// HR-mandated (2026-09): a new bill may only be dated in the month right
-// before now — not the still-running current month, not an older forgotten
-// one — unless it belongs to a sheet already sent back for correction.
+describe('isWithinAddWindow', () => {
+  it('allows the current, still-running month', () => {
+    expect(isWithinAddWindow(2026, 9, sep24)).toBe(true);
+  });
+
+  it('allows the month right before it', () => {
+    expect(isWithinAddWindow(2026, 8, sep24)).toBe(true);
+  });
+
+  it('refuses an older month', () => {
+    expect(isWithinAddWindow(2026, 7, sep24)).toBe(false);
+    expect(isWithinAddWindow(2025, 1, sep24)).toBe(false);
+  });
+
+  it('refuses a future month', () => {
+    expect(isWithinAddWindow(2026, 10, sep24)).toBe(false);
+  });
+
+  it('crosses the year boundary without a special case', () => {
+    const jan5 = new Date(2027, 0, 5);
+    expect(isWithinAddWindow(2027, 1, jan5)).toBe(true); // this month
+    expect(isWithinAddWindow(2026, 12, jan5)).toBe(true); // last month
+    expect(isWithinAddWindow(2026, 11, jan5)).toBe(false);
+  });
+});
+
+// HR-mandated (2026-09): a new bill may only be dated in the current,
+// still-running month or the one right before it — not an older forgotten
+// month, not a future one — unless it belongs to a sheet already sent back
+// for correction.
 describe('checkAddPeriod', () => {
+  it('allows a date in the current, still-running month', () => {
+    expect(checkAddPeriod('2026-09-24', sep24).allowed).toBe(true);
+  });
+
   it('allows a date in the immediately preceding month', () => {
     expect(checkAddPeriod('2026-08-15', sep24).allowed).toBe(true);
   });
 
-  it('refuses a date in the still-running current month', () => {
-    const result = checkAddPeriod('2026-09-10', sep24);
-    expect(result.allowed).toBe(false);
-    expect(result.reason).toContain('August 2026');
-  });
-
   it('refuses an older, forgotten month — unlike checkSubmittablePeriod, there is a lower bound here', () => {
-    expect(checkAddPeriod('2026-06-01', sep24).allowed).toBe(false);
+    const result = checkAddPeriod('2026-06-01', sep24);
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain('September 2026');
+    expect(result.reason).toContain('August 2026');
     expect(checkAddPeriod('2025-01-01', sep24).allowed).toBe(false);
   });
 
@@ -100,8 +128,9 @@ describe('checkAddPeriod', () => {
 
   it('crosses the year boundary without a special case', () => {
     const jan5 = new Date(2027, 0, 5);
-    expect(checkAddPeriod('2026-12-15', jan5).allowed).toBe(true);
-    expect(checkAddPeriod('2027-01-02', jan5).allowed).toBe(false);
+    expect(checkAddPeriod('2027-01-02', jan5).allowed).toBe(true); // this month
+    expect(checkAddPeriod('2026-12-15', jan5).allowed).toBe(true); // last month
+    expect(checkAddPeriod('2026-11-20', jan5).allowed).toBe(false);
   });
 
   it('rejects a malformed date', () => {
@@ -114,7 +143,7 @@ describe('checkAddPeriod', () => {
     expect(checkAddPeriod('2025-01-01', sep24, 'hr_change_requested').allowed).toBe(true);
   });
 
-  it('does not exempt a plain draft sheet outside the claimable month', () => {
+  it('does not exempt a plain draft sheet outside the add window', () => {
     expect(checkAddPeriod('2026-06-01', sep24, 'draft').allowed).toBe(false);
   });
 });

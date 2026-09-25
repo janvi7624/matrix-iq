@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { UserRole, ReimbursementRecord, ReimbursementSheetRecord, ReimbursementSheetStatus, ReimbursementDeadlineInfo } from '@/lib/types';
 import { numberToIndianWords } from '@/lib/numberToWords';
-import { checkSubmittablePeriod, lastClaimableMonth } from '@/lib/reimbursementPeriod';
+import { checkSubmittablePeriod, lastClaimableMonth, isWithinAddWindow } from '@/lib/reimbursementPeriod';
 import AppShell from './AppShell';
 import ReimbursementBulkAddForm from './ReimbursementBulkAddForm';
 import { useToast } from './ui/ToastProvider';
@@ -108,13 +108,14 @@ function StepIndicator({ currentStep, status }: { currentStep: number; status: R
 export default function ReimbursementView({ currentUser }: Props) {
   const now = useMemo(() => new Date(), []);
   const toast = useToast();
-  // Opens on the most recently completed month by default — the only one new
-  // bills can be added for (see lib/reimbursementPeriod.ts) — not the
-  // still-running current month. The selector below can still navigate
-  // elsewhere to review or correct an older sheet.
+  // Opens on the current, still-running month by default — bills get logged
+  // as they happen. New entries can also go against the month right before
+  // it (catching up once it's just closed) — see lib/reimbursementPeriod.ts.
+  // The selector below can still navigate elsewhere to review or correct an
+  // older sheet.
   const claimableMonth = useMemo(() => lastClaimableMonth(now), [now]);
-  const [year, setYear] = useState(claimableMonth.year);
-  const [month, setMonth] = useState(claimableMonth.month);
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
   const [records, setRecords] = useState<ReimbursementRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [totalInWords, setTotalInWords] = useState('');
@@ -187,14 +188,15 @@ export default function ReimbursementView({ currentUser }: Props) {
 
   const sheetStatus = sheet?.status || 'draft';
   const canEdit = ['draft', 'manager_change_requested', 'hr_change_requested'].includes(sheetStatus);
-  // Brand-new bills only go against the most recently completed month — the
-  // same rule the server enforces (lib/reimbursementPeriod.ts). A sheet
-  // already sent back for correction is exempt regardless of its month, or a
-  // requested fix could become permanently impossible to make; editing/
-  // deleting an entry that already exists is unaffected either way — this
-  // only governs the "+Add Entry"/"+Add Multiple" buttons below.
-  const isClaimableMonth = year === claimableMonth.year && month === claimableMonth.month;
-  const canAddNewEntries = canEdit && (isClaimableMonth || sheetStatus === 'manager_change_requested' || sheetStatus === 'hr_change_requested');
+  // Brand-new bills only go against the current month or the one right
+  // before it — the same rule the server enforces
+  // (lib/reimbursementPeriod.ts). A sheet already sent back for correction
+  // is exempt regardless of its month, or a requested fix could become
+  // permanently impossible to make; editing/deleting an entry that already
+  // exists is unaffected either way — this only governs the "+Add Entry"/
+  // "+Add Multiple" buttons below.
+  const isAddWindowMonth = isWithinAddWindow(year, month, now);
+  const canAddNewEntries = canEdit && (isAddWindowMonth || sheetStatus === 'manager_change_requested' || sheetStatus === 'hr_change_requested');
 
   const fetchRecords = useCallback(() => {
     setLoading(true);
@@ -641,7 +643,7 @@ export default function ReimbursementView({ currentUser }: Props) {
         )}
         {canEdit && !canAddNewEntries && (
           <span className={styles.addLockedHint}>
-            New entries can only be added for {MONTHS[claimableMonth.month - 1]} {claimableMonth.year}.
+            New entries can only be added for {MONTHS[now.getMonth()]} {now.getFullYear()} or {MONTHS[claimableMonth.month - 1]} {claimableMonth.year}.
           </span>
         )}
         <button type="button" className={historyStyles.button} onClick={() => { fetchRecords(); fetchSheet(); }}>Refresh</button>
