@@ -6,6 +6,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DomainKey, LeadPriority } from '@/lib/types';
+import { isLeadOrigin } from '@/lib/leadSources';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITIES: LeadPriority[] = ['hot', 'warm', 'cool', ''];
@@ -33,6 +34,14 @@ export async function POST(request: NextRequest) {
   const company = typeof body.company === 'string' ? body.company.trim() : '';
   if (!name && !company) {
     return NextResponse.json({ error: 'Name or company is required' }, { status: 400 });
+  }
+
+  // Mandatory, and checked here rather than only in the wizard: a lead with no
+  // origin is invisible to every "how did InfoComm do" question the pipeline
+  // exists to answer, and backfilling it later means guessing.
+  const leadSource = typeof body.leadSource === 'string' ? body.leadSource.trim() : '';
+  if (!isLeadOrigin(leadSource)) {
+    return NextResponse.json({ error: 'Pick where this lead came from.' }, { status: 400 });
   }
 
   const mobile = typeof body.mobile === 'string' ? body.mobile.trim() : '';
@@ -63,7 +72,7 @@ export async function POST(request: NextRequest) {
     // instead of creating a duplicate (spec: two reps scanning the same card
     // at an event must not fork into two records).
     const result = await createOrMergeLead(
-      { name, mobile, altMobile, email, designation, company, city, cardImageUrl, interests, subInterests, followUpActions, priority, budget, notes, source: cardImageUrl ? 'business_card' : 'manual' },
+      { name, mobile, altMobile, email, designation, company, city, cardImageUrl, interests, subInterests, followUpActions, priority, budget, notes, source: cardImageUrl ? 'business_card' : 'manual', leadSource: leadSource },
       viewer.username
     );
 

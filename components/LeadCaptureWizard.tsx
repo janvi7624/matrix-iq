@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DomainKey, LeadHandoverOutcome, LeadHandoverRecipient, LeadPriority, LeadRecord } from '@/lib/types';
+import { DomainKey, LeadHandoverOutcome, LeadHandoverRecipient, LeadOrigin, LeadPriority, LeadRecord } from '@/lib/types';
+import { LEAD_ORIGIN_OPTIONS } from '@/lib/leadSources';
 import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { preprocessCardImage, scanBusinessCard } from '@/lib/cardOcr';
 import { Camera, User, Target, Flame, StickyNote, CheckCircle2, RefreshCw, Images, PenLine, Send, UserCheck } from 'lucide-react';
@@ -28,13 +29,15 @@ interface LeadForm {
   followUpActions: string[];
   budget: string;
   notes: string;
+  // Where the lead came from — mandatory, see lib/leadSources.ts.
+  leadSource: LeadOrigin;
   // The colleague this card belongs to, when the person scanning it isn't
   // that colleague. '' = Unassigned (a sales manager routes it).
   handoverToId: string;
 }
 
 function emptyForm(): LeadForm {
-  return { name: '', mobile: '', altMobile: '', email: '', designation: '', company: '', city: '', cardImageUrl: '', interests: [], subInterests: [], priority: '', followUpActions: [], budget: '', notes: '', handoverToId: '' };
+  return { name: '', mobile: '', altMobile: '', email: '', designation: '', company: '', city: '', cardImageUrl: '', interests: [], subInterests: [], priority: '', followUpActions: [], budget: '', notes: '', leadSource: '', handoverToId: '' };
 }
 
 const STEPS = [
@@ -166,6 +169,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
 
   function validateStep(index: number): string[] {
     if (index === 1 && !form.name.trim() && !form.company.trim()) return ['Enter at least a name or a company.'];
+    if (index === 1 && !form.leadSource) return ['Pick where this lead came from.'];
     if (index === 2 && form.interests.length === 0) return ['Select at least one area of interest.'];
     if (index === 3 && !form.priority) return ['Select a priority level.'];
     return [];
@@ -364,6 +368,24 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
                 <label className={calcStyles.label}>City</label>
                 <input className={calcStyles.formControl} value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
               </div>
+            </div>
+
+            {/* Mandatory, and placed before the hand-over picker because it's
+                a fact about the lead rather than a routing decision. A card
+                scanned at a stand has one obvious answer, so the field is a
+                plain select rather than anything that slows the queue down. */}
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="lead-source">Where did this lead come from? *</label>
+              <Select
+                id="lead-source"
+                value={form.leadSource}
+                onChange={(e) => setForm((f) => ({ ...f, leadSource: e.target.value as LeadOrigin }))}
+              >
+                <option value="">Select a source…</option>
+                {LEAD_ORIGIN_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </Select>
             </div>
 
             <div className={styles.handover}>

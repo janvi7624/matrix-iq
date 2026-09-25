@@ -338,3 +338,72 @@
 }
 
 .editIcon { vertical-align: text-bottom; margin-right: 4px; }
+
+/* Source (origin) category row — one horizontal strip above the table, in
+   place of seven more stat tiles. Scrolls sideways rather than wrapping, so
+   adding next year's event never pushes the table down the page. */
+.originRow {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    overflow-x: auto;
+    padding: 2px 0 8px;
+    margin-bottom: 4px;
+    scrollbar-width: thin;
+}
+.originChip {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--mx-radius-full);
+    border: 1px solid var(--mx-border-strong);
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.originChip:hover {
+    border-color: var(--mx-brand);
+    color: var(--mx-ink);
+}
+.originChipActive {
+    background: var(--mx-brand);
+    border-color: var(--mx-brand);
+    color: #fff;
+}
+/* A category nobody has used yet still shows — the taxonomy is part of the
+   instruction to the user — but recedes so the populated ones read first. */
+.originChipEmpty {
+    opacity: 0.55;
+}
+.originChipActive .originCount {
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+}
+.originCount {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    padding: 0 5px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-surface-sunken);
+    color: inherit;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+.originTag {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-info-subtle);
+    color: var(--mx-info);
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}

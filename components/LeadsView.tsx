@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { DomainKey, LeadCallOutcome, LeadHandoverOutcome, LeadPriority, LeadRecord, LeadSource, UserRole, LEAD_CALL_OUTCOMES } from '@/lib/types';
+import { DomainKey, LeadCallOutcome, LeadHandoverOutcome, LeadOrigin, LeadPriority, LeadRecord, LeadSource, UserRole, LEAD_CALL_OUTCOMES } from '@/lib/types';
+import { LEAD_ORIGIN_OPTIONS, LEAD_ORIGIN_UNSET_LABEL, leadOriginLabel } from '@/lib/leadSources';
 import { LEAD_DOMAIN_TILES, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
 import { todayDateInputValue } from '@/lib/dateHelpers';
@@ -50,6 +51,9 @@ const PAGE_SIZE = 20;
 // never collide with a real user id.
 const FILTER_UNASSIGNED = '@unassigned';
 const FILTER_MINE = '@mine';
+// Sentinel for "no source recorded" — '' already means "no filter", so the
+// unset leads need a value of their own to be selectable.
+const FILTER_UNSET = '@unset';
 
 type Mode = 'capture' | 'list' | 'bulk';
 const MODE_OPTIONS: SegmentedOption<Mode>[] = [
@@ -200,6 +204,10 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [priorityFilter, setPriorityFilter] = useState<LeadPriority | ''>('');
   const [interestFilter, setInterestFilter] = useState<DomainKey | ''>('');
   const [sourceFilter, setSourceFilter] = useState<LeadSource | ''>('');
+  // Where leads came from — the category row above the table. FILTER_UNSET
+  // selects the leads captured before the field existed, which is a real
+  // queue to clean up rather than a blank to ignore.
+  const [originFilter, setOriginFilter] = useState<string>('');
   const [unattendedOnly, setUnattendedOnly] = useState(startUnattended);
   const [callFilter, setCallFilter] = useState<CallFilter>(startToCall ? 'to-call' : '');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
@@ -380,6 +388,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     if (priorityFilter) rows = rows.filter((l) => l.priority === priorityFilter);
     if (interestFilter) rows = rows.filter((l) => l.interests.includes(interestFilter));
     if (sourceFilter) rows = rows.filter((l) => l.source === sourceFilter);
+    if (originFilter) rows = rows.filter((l) => (l.lead_source || FILTER_UNSET) === originFilter);
     if (callFilter === 'to-call') rows = rows.filter((l) => leadIsMyCall(l, currentUser.username, canAssign));
     else if (callFilter === 'callback-due') rows = rows.filter((l) => l.call_outcome === 'callback' && !!l.callback_at && l.callback_at <= todayKey);
     else if (callFilter) rows = rows.filter((l) => l.call_outcome === callFilter);
@@ -393,13 +402,26 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       return a.created_at < b.created_at ? 1 : -1;
     });
     return sorted;
-  }, [leads, q, priorityFilter, interestFilter, sourceFilter, callFilter, todayKey, unattendedOnly, sortBy, assigneeFilter, currentUser.username, canAssign]);
+  }, [leads, q, priorityFilter, interestFilter, sourceFilter, originFilter, callFilter, todayKey, unattendedOnly, sortBy, assigneeFilter, currentUser.username, canAssign]);
 
   // The post-expo funnel, counted over the loaded list in one pass.
   // Deliberately NOT lib/leadCall.ts's computeLeadCallStats, which is this
   // same arithmetic: that module imports lib/db (plus the project and
   // notification stores) at the top level, so importing it here would drag
   // the server into the browser bundle. The rules below match it exactly.
+  // One count per source, over everything the viewer can see — the chip row
+  // is how you pick a category, so its numbers describe the whole list rather
+  // than whatever is currently filtered. "Not set" only appears when there is
+  // something in it; a clean database shouldn't carry a permanent empty chip.
+  const originCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const lead of leads) {
+      const key = lead.lead_source || FILTER_UNSET;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return counts;
+  }, [leads]);
+
   const callStats = useMemo(() => {
     let toCall = 0;
     let suitable = 0;
@@ -429,7 +451,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
   useEffect(() => {
     setPage(1);
-  }, [q, priorityFilter, interestFilter, sourceFilter, callFilter, unattendedOnly, sortBy, assigneeFilter]);
+  }, [q, priorityFilter, interestFilter, sourceFilter, originFilter, callFilter, unattendedOnly, sortBy, assigneeFilter]);
 
   // Selection is only ever acted on through this intersection with the visible
   // rows, so a stale id left behind by a filter change simply stops counting —
@@ -461,6 +483,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   async function handleSubmitLead(form: {
     name: string; mobile: string; altMobile: string; email: string; designation: string; company: string; city: string; cardImageUrl: string;
     interests: DomainKey[]; subInterests: string[]; priority: LeadPriority; followUpActions: string[]; budget: string; notes: string;
+    leadSource: LeadOrigin;
     handoverToId: string;
   }): Promise<(LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string; handover?: LeadHandoverOutcome }) | null> {
     setCreating(true);
@@ -728,7 +751,19 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
         return <PriorityBadge tone={l.priority} icon={<Icon size={12} />} label={l.priority.toUpperCase()} />;
       }
     },
-    { key: 'source', header: 'Source', render: (l) => <SourceBadge lead={l} onClick={() => setMetaInfoLead(l)} /> },
+    // Two columns, because they answer different questions: where the lead
+    // came from (what sales reports on) and how it got in (the camera icon
+    // that tells a rep this row came off a scanned card).
+    {
+      key: 'leadSource',
+      header: 'Source',
+      render: (l) => (
+        l.lead_source
+          ? <span className={leadStyles.originTag}>{leadOriginLabel(l.lead_source)}</span>
+          : <span className={leadStyles.emptyCell}>{LEAD_ORIGIN_UNSET_LABEL}</span>
+      )
+    },
+    { key: 'source', header: 'Captured via', render: (l) => <SourceBadge lead={l} onClick={() => setMetaInfoLead(l)} /> },
     {
       key: 'assignedTo',
       header: 'Assigned To',
@@ -926,6 +961,47 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
         {mode === 'list' && (
           <>
+            {/* Category row rather than seven more stat tiles: the page already
+                carries eleven, and sources are a taxonomy you pick ONE of, not
+                eleven numbers to read at once. One compact scrollable strip
+                keeps every category visible with its count and still leaves
+                room when the next event is added. */}
+            <div className={leadStyles.originRow} role="group" aria-label="Filter by source">
+              <button
+                type="button"
+                className={`${leadStyles.originChip} ${!originFilter ? leadStyles.originChipActive : ''}`}
+                aria-pressed={!originFilter}
+                onClick={() => setOriginFilter('')}
+              >
+                All <span className={leadStyles.originCount}>{leads.length}</span>
+              </button>
+              {LEAD_ORIGIN_OPTIONS.map((o) => {
+                const n = originCounts.get(o.value) || 0;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    className={`${leadStyles.originChip} ${originFilter === o.value ? leadStyles.originChipActive : ''} ${n === 0 ? leadStyles.originChipEmpty : ''}`}
+                    aria-pressed={originFilter === o.value}
+                    onClick={() => setOriginFilter((v) => (v === o.value ? '' : o.value))}
+                  >
+                    {o.label} <span className={leadStyles.originCount}>{n}</span>
+                  </button>
+                );
+              })}
+              {(originCounts.get(FILTER_UNSET) || 0) > 0 && (
+                <button
+                  type="button"
+                  className={`${leadStyles.originChip} ${originFilter === FILTER_UNSET ? leadStyles.originChipActive : ''}`}
+                  aria-pressed={originFilter === FILTER_UNSET}
+                  onClick={() => setOriginFilter((v) => (v === FILTER_UNSET ? '' : FILTER_UNSET))}
+                  title="Captured before a source was recorded — worth cleaning up"
+                >
+                  {LEAD_ORIGIN_UNSET_LABEL} <span className={leadStyles.originCount}>{originCounts.get(FILTER_UNSET)}</span>
+                </button>
+              )}
+            </div>
+
             <FilterBar>
               <input type="text" placeholder="Search name, company, city, email, mobile..." value={q} onChange={(e) => setQ(e.target.value)} />
               <Select auto value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as LeadPriority | '')}>
@@ -939,7 +1015,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 {LEAD_DOMAIN_TILES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
               </Select>
               <Select auto value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as LeadSource | '')}>
-                <option value="">All sources</option>
+                <option value="">All capture methods</option>
                 <option value="meta_lead_ads">Meta Lead Ads</option>
                 <option value="manual">Manual</option>
                 <option value="business_card">Business Card</option>

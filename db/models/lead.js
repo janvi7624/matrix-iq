@@ -20,6 +20,10 @@ module.exports = (sequelize, DataTypes) => {
     project_id: { type: DataTypes.UUID },
     // 'manual' | 'business_card' | 'csv_import' | 'meta_lead_ads'
     source: { type: DataTypes.STRING(30), allowNull: false, defaultValue: 'manual' },
+    // Where the lead CAME FROM (event/campaign/channel) — picked by the rep,
+    // mandatory on capture. Separate from `source` above, which is the capture
+    // method. '' = captured before this field existed. See lib/leadSources.ts.
+    lead_source: { type: DataTypes.STRING(40), allowNull: false, defaultValue: '' },
     // Meta (Facebook/Instagram) Lead Ads attribution — see lib/metaLeadIngest.ts.
     // meta_lead_id has a DB-level unique index (migration
     // 20260901120000-add-meta-fields-to-leads.js) so the same Meta lead can

@@ -4,6 +4,8 @@ import { useRef, useState } from 'react';
 import { FileSpreadsheet, Images, Upload, CheckCircle2, XCircle, AlertTriangle, Download } from 'lucide-react';
 import { preprocessCardImage, scanBusinessCard } from '@/lib/cardOcr';
 import { parseCsv } from '@/lib/csv';
+import { LeadOrigin } from '@/lib/types';
+import { LEAD_ORIGIN_OPTIONS } from '@/lib/leadSources';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -113,6 +115,10 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [commitSummary, setCommitSummary] = useState<{ created: number; merged: number; failed: number } | null>(null);
+  // One source for the whole batch — a CSV or a folder of card photos comes
+  // from a single event, so this is asked once on the review screen rather
+  // than per row. The commit route requires it.
+  const [leadSource, setLeadSource] = useState<LeadOrigin>('');
 
   const csvFileInputRef = useRef<HTMLInputElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
@@ -314,12 +320,16 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
       toast.error('Select at least one row to import.');
       return;
     }
+    if (!leadSource) {
+      toast.error('Pick where these leads came from.');
+      return;
+    }
     setBusy(true);
     try {
       const response = await fetch('/api/leads/bulk-import/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: selected.map((r) => r.row), importType })
+        body: JSON.stringify({ rows: selected.map((r) => r.row), importType, leadSource })
       });
       if (!response.ok) throw new Error(String(response.status));
       const summary: { created: number; merged: number; failed: number } = await response.json();
@@ -521,8 +531,25 @@ export default function LeadBulkImportWizard({ onImportComplete, onCancel }: Lea
               </tbody>
             </table>
           </div>
+          {/* Asked once, here, right before the import runs — the batch is one
+              event's worth of contacts, and this is the last screen where the
+              person still has that context in mind. */}
           <div className={styles.actionsRow16}>
-            <button type="button" className={calcStyles.btn} disabled={busy} onClick={handleCommit}>
+            <label htmlFor="bulk-lead-source" className={calcStyles.label}>Where did these leads come from? *</label>
+            <select
+              id="bulk-lead-source"
+              className={calcStyles.formControl}
+              value={leadSource}
+              onChange={(e) => setLeadSource(e.target.value as LeadOrigin)}
+            >
+              <option value="">Select a source…</option>
+              {LEAD_ORIGIN_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.actionsRow16}>
+            <button type="button" className={calcStyles.btn} disabled={busy || !leadSource} onClick={handleCommit}>
               {busy ? 'Importing...' : `Import ${previewRows.filter((r) => r.selected && r.status !== 'invalid').length} Record(s)`}
             </button>
             <button type="button" className={historyStyles.button} onClick={reset}>Start Over</button>

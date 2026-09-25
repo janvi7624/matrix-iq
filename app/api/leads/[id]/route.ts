@@ -4,6 +4,7 @@ import { leadStore, canWorkLead, findLeadById } from '@/lib/leadStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
+import { isLeadOrigin } from '@/lib/leadSources';
 import { DomainKey, LeadPriority, LeadRecord } from '@/lib/types';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
@@ -37,6 +38,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (Array.isArray(body.subInterests)) patch.sub_interests = body.subInterests.filter((s: unknown): s is string => typeof s === 'string');
     if (Array.isArray(body.followUpActions)) patch.follow_up_actions = body.followUpActions.filter((s: unknown): s is string => typeof s === 'string');
     if (VALID_PRIORITIES.includes(body.priority)) patch.priority = body.priority;
+    // Correcting a wrongly-picked origin has to be possible; an invalid value
+    // is ignored rather than clearing a good one.
+    if (isLeadOrigin(body.leadSource)) patch.lead_source = body.leadSource;
 
     const previousPriority = existing.priority || 'unrated';
     const updated = await leadStore.update(id, patch);

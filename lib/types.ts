@@ -1,3 +1,10 @@
+// Type-only, so this stays a types file with no runtime dependency. The
+// lead-origin list lives beside its labels in lib/leadSources.ts because the
+// API routes and the client both need the values themselves, not just the type.
+import type { LeadOrigin } from './leadSources';
+
+export type { LeadOrigin };
+
 export type DomainKey = 'av' | 'robotics' | 'ai' | 'si' | 'visitiq';
 
 export type AvProjectType = 'standee' | 'led' | 'interactive-panel' | 'conference' | 'cables' | 'av-solution';
@@ -1270,8 +1277,11 @@ export interface CustomModuleRecord {
 
 export type LeadPriority = 'hot' | 'warm' | 'cool' | '';
 
-// How this lead first entered MatrixIQ. 'meta_lead_ads' leads flow through
-// lib/metaLeadIngest.ts — see that file for the acquisition pipeline.
+// How this lead first entered MatrixIQ — the capture method, set
+// automatically. 'meta_lead_ads' leads flow through lib/metaLeadIngest.ts —
+// see that file for the acquisition pipeline. Where the lead CAME FROM (the
+// event or channel a rep picks, and the one sales reports on) is a separate
+// field: LeadRecord.lead_source, see lib/leadSources.ts.
 export type LeadSource = 'manual' | 'business_card' | 'csv_import' | 'meta_lead_ads';
 
 // One entry from Meta's field_data array on a leadgen node — preserved
@@ -1308,6 +1318,10 @@ export interface LeadRecord {
   // previously there was a separate crm_id for a since-retired CRM module).
   project_id: string;
   source: LeadSource;
+  // The campaign/event/channel this lead came from — mandatory when a rep
+  // captures one, '' for everything captured before the field existed.
+  // See lib/leadSources.ts for the option list and why it is not `source`.
+  lead_source: LeadOrigin;
   // Meta (Facebook/Instagram) Lead Ads attribution — blank for every source
   // other than 'meta_lead_ads'. See lib/metaLeadIngest.ts.
   meta_lead_id: string;

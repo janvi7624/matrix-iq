@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { commitBulkLeads, BulkLeadRow } from '@/lib/leadStore';
+import { isLeadOrigin } from '@/lib/leadSources';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -45,9 +46,16 @@ export async function POST(request: NextRequest) {
   }
   const importType = VALID_IMPORT_TYPES.includes(body.importType) ? body.importType : 'csv';
 
+  // One origin for the whole batch — same rule as a single capture. Checked
+  // here so an import can never quietly land 500 leads with no source.
+  const leadSource = typeof body.leadSource === 'string' ? body.leadSource.trim() : '';
+  if (!isLeadOrigin(leadSource)) {
+    return NextResponse.json({ error: 'Pick where these leads came from before importing.' }, { status: 400 });
+  }
+
   try {
     const rows = (body.rows as unknown[]).map(toRow);
-    const summary = await commitBulkLeads(rows, viewer.username, importType === 'images' ? 'business_card' : 'csv_import');
+    const summary = await commitBulkLeads(rows, viewer.username, importType === 'images' ? 'business_card' : 'csv_import', leadSource);
 
     await logAudit({
       by: viewer.username,

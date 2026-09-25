@@ -1,6 +1,6 @@
 import type { Model } from 'sequelize';
 import { Op } from 'sequelize';
-import { DomainKey, LeadPriority, LeadRecord, LeadSource, MetaLeadFieldDatum } from './types';
+import { DomainKey, LeadOrigin, LeadPriority, LeadRecord, LeadSource, MetaLeadFieldDatum } from './types';
 import { createRecordStore } from './recordStore';
 import { db, isUuid } from './db';
 import { isLeadUnattended } from './followUp';
@@ -28,6 +28,7 @@ const LEAD_FIELDS = [
   { name: 'notes' },
   { name: 'project_id', kind: 'nullable' as const },
   { name: 'source' },
+  { name: 'lead_source' },
   { name: 'meta_lead_id', kind: 'nullable' as const },
   { name: 'meta_page_id', kind: 'nullable' as const },
   { name: 'meta_form_id', kind: 'nullable' as const },
@@ -264,6 +265,11 @@ export interface CreateOrMergeLeadInput {
   // Defaults to 'manual' when omitted — every pre-existing call site (single
   // capture, CSV/image bulk import) is unaffected by this addition.
   source?: LeadSource;
+  // Where the lead came from — the API layer makes this mandatory for a human
+  // capture; the Meta pipeline supplies 'meta_leads' itself. Optional here so
+  // the merge path, which never rewrites an existing lead's origin, is
+  // unaffected.
+  leadSource?: LeadOrigin;
   meta?: CreateOrMergeLeadMetaInput;
 }
 
@@ -357,6 +363,7 @@ export async function createOrMergeLead(input: CreateOrMergeLeadInput, actorUser
     notes: input.notes,
     project_id: '',
     source: input.source || 'manual',
+    lead_source: input.leadSource || (input.meta ? 'meta_leads' : ''),
     meta_lead_id: input.meta?.leadId || '',
     meta_page_id: input.meta?.pageId || '',
     meta_form_id: input.meta?.formId || '',
@@ -489,7 +496,10 @@ export interface BulkLeadCommitSummary {
 // skipped, matching single-capture's existing behavior — the caller
 // controls which rows actually reach commit by only sending the ones the
 // user approved on the review screen.
-export async function commitBulkLeads(rows: BulkLeadRow[], actorUsername: string, source: LeadSource = 'csv_import'): Promise<BulkLeadCommitSummary> {
+// `leadSource` is the origin picked once for the whole batch — a CSV or a
+// folder of card photos comes from one event, so asking per row would be
+// noise. The route makes it mandatory, the same as a single capture.
+export async function commitBulkLeads(rows: BulkLeadRow[], actorUsername: string, source: LeadSource = 'csv_import', leadSource: LeadOrigin = ''): Promise<BulkLeadCommitSummary> {
   const preview = await previewBulkLeads(rows);
   const results: BulkLeadCommitRowResult[] = [];
   let created = 0;
@@ -518,7 +528,8 @@ export async function commitBulkLeads(rows: BulkLeadRow[], actorUsername: string
         priority: '',
         budget: row.budget,
         notes: row.notes,
-        source
+        source,
+        leadSource
       },
       actorUsername
     );

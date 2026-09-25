@@ -19,7 +19,11 @@ interface UserOption { id: string; username: string; name: string }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const DESCRIPTION_OPTIONS = ['Lunch', 'Dinner', 'Snacks', 'Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Hotel', 'Other'];
+// Kept in step with ReimbursementBulkAddForm's own list — the two forms write
+// to the same column, so an option missing from one is a category that
+// silently can't be claimed through that route. 'Parking Fees' sits before
+// 'Other' so the catch-all stays last.
+const DESCRIPTION_OPTIONS = ['Lunch', 'Dinner', 'Snacks', 'Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Hotel', 'Parking Fees', 'Other'];
 
 const TRAVEL_DESCRIPTIONS = new Set(['Conveyance', 'Bus Ticket', 'Train Ticket', 'Flight Ticket']);
 
