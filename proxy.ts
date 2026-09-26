@@ -29,7 +29,7 @@ const PUBLIC_PATHS = new Set(['/login', '/api/auth/login', '/api/auth/logout', '
 const ADMIN_ONLY_PREFIXES = ['/admin', '/quotation-history', '/api/admin'];
 // Reachable even while a bulk-imported account is force-locked to changing
 // its temporary password — see the mustChangePassword gate below.
-const CHANGE_PASSWORD_ALLOWED_PATHS = new Set(['/change-password', '/api/auth/change-password', '/api/auth/me']);
+const CHANGE_PASSWORD_ALLOWED_PATHS = new Set(['/change-password', '/api/auth/change-password', '/api/auth/me', '/api/auth/heartbeat']);
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

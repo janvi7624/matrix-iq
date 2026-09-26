@@ -21,6 +21,10 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Sent here by the idle timeout (components/SessionTimeoutWatcher.tsx)
+  // rather than by a failed login — without this the person just finds
+  // themselves back at a login screen with no explanation.
+  const timedOut = searchParams.get('timeout') === '1';
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -74,11 +78,11 @@ function LoginForm() {
             Sign in with your username and password to continue.
           </span>
           <div
-            className={`${visualStyles.formError} ${error ? visualStyles.formErrorVisible : ''}`}
+            className={`${visualStyles.formError} ${error || (timedOut && !busy) ? visualStyles.formErrorVisible : ''}`}
             role="alert"
-            aria-hidden={!error}
+            aria-hidden={!error && !timedOut}
           >
-            {error}
+            {error || (timedOut ? 'You were signed out because the session was idle. Please sign in again.' : '')}
           </div>
           <div className={visualStyles.formField}>
             <label htmlFor="loginUsername">Username</label>

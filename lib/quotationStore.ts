@@ -40,6 +40,7 @@ function toRecord(row: Model): QuotationRecord {
     project_id: (plain.project_id as string) ?? '',
     created_by: (plain.creator as { username?: string } | null)?.username ?? '',
     status: plain.status as QuotationStatus,
+    status_changed_at: isoOrEmpty(plain.status_changed_at),
     prepared_by: (plain.prepared_by as string) ?? '',
     prepared_by_phone: (plain.prepared_by_phone as string) ?? '',
     prepared_by_email: (plain.prepared_by_email as string) ?? '',
@@ -271,7 +272,15 @@ export async function updateQuotationStatus(id: string, status: QuotationStatus,
   const row = await db.Quotation.findByPk(id);
   if (!row) return null;
   const previousStatus = row.get('status') as QuotationStatus;
-  await row.update({ status } as never);
+  // status_changed_at (see QuotationRecord's comment) — stamps "now" the
+  // moment it becomes Approved/Rejected, clears on a reopen back to
+  // draft/sent so a reopened quotation doesn't stay eligible for the
+  // Quotation list's 90-day auto-hide.
+  const attrs: Record<string, unknown> = { status };
+  if (status !== previousStatus) {
+    attrs.status_changed_at = status === 'approved' || status === 'rejected' ? new Date() : null;
+  }
+  await row.update(attrs as never);
   const updated = await findQuotationById(id);
   if (!updated) return null;
 

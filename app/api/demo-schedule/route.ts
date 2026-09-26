@@ -107,6 +107,9 @@ export async function POST(request: NextRequest) {
     client_name: clientName,
     company: typeof body.company === 'string' ? body.company.trim() : '',
     location: typeof body.location === 'string' ? body.location.trim() : '',
+    // Anything but an explicit 'virtual' stays onsite — the mode decides
+    // whether this request ever reaches Back Office, so it is never guessed.
+    mode: body.mode === 'virtual' ? 'virtual' : 'onsite',
     product_domains: productDomains,
     products_demonstrated: [],
     products_required: toProductLines(body.productsRequired),

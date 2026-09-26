@@ -16,6 +16,7 @@ const FIELDS = [
   { name: 'source' },
   { name: 'status' },
   { name: 'stage' },
+  { name: 'closed_at', kind: 'nullable' as const },
   { name: 'cold_call_responded' },
   { name: 'priority' },
   { name: 'expected_closing_date', kind: 'nullable' as const },
@@ -24,6 +25,7 @@ const FIELDS = [
   { name: 'closing_probability_percent', kind: 'nullable' as const },
   { name: 'approx_price', kind: 'decimal' as const },
   { name: 'attachments', kind: 'json' as const },
+  { name: 'skipped_stages', kind: 'json' as const },
   { name: 'assigned_technical_person_id', kind: 'nullable' as const },
   { name: 'tms_project_id', kind: 'nullable' as const },
   { name: 'lead_confirmation_status', kind: 'nullable' as const },
@@ -200,6 +202,14 @@ async function update(id: string, patch: Partial<ProjectRecord>): Promise<Projec
     for (const { name, kind = 'string' } of FIELDS) {
       if (name in patchObj) attrs[name] = toAttr(patchObj[name], kind);
     }
+    // closed_at (see ProjectRecord's comment) — derived here, never accepted
+    // directly from a patch, so every caller that flips status gets it for
+    // free. Won/Lost stamps "now"; moving back to active/on_hold (a reopen)
+    // clears it so the project doesn't stay eligible for the Projects list's
+    // 90-day auto-hide.
+    if (typeof patch.status === 'string' && patch.status !== (row.get('status') as string)) {
+      attrs.closed_at = patch.status === 'won' || patch.status === 'lost' ? new Date() : null;
+    }
     // created_by is deliberately NOT in FIELDS (it's the real ownership/
     // visibility key, resolved from a username same as create() above) —
     // reassigning ownership (e.g. Lead reassignment updating its linked
@@ -267,6 +277,7 @@ function normalizeProject(project: ProjectRecord): ProjectRecord {
     ...project,
     notes: project.notes ?? [],
     attachments: project.attachments ?? [],
+    skipped_stages: project.skipped_stages ?? [],
     timeline: project.timeline ?? [],
     source: project.source ?? ''
   };
@@ -398,7 +409,12 @@ export async function appendProjectTimeline(
     await row.update(
       {
         stage: advanceStageTo || current.stage,
-        status: advanceStageTo === 'completed' ? 'won' : advanceStageTo === 'closed_lost' ? 'lost' : current.status
+        status: advanceStageTo === 'completed' ? 'won' : advanceStageTo === 'closed_lost' ? 'lost' : current.status,
+        // See ProjectRecord.closed_at / update()'s own version of this rule —
+        // 'closed_lost' is how "Close Project → Lost" actually reaches the
+        // DB (as an advanceStageTo, not a plain status patch), so it needs
+        // the same stamp here.
+        closed_at: advanceStageTo === 'completed' || advanceStageTo === 'closed_lost' ? new Date() : current.closed_at
       } as never,
       { transaction: t }
     );

@@ -7,6 +7,9 @@ module.exports = (sequelize, DataTypes) => {
     client_name: { type: DataTypes.STRING },
     company: { type: DataTypes.STRING },
     location: { type: DataTypes.STRING },
+    // 'onsite' or 'virtual' — a virtual demo skips the delivery-challan half
+    // of the pipeline entirely (see the 20260926120000 migration).
+    mode: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'onsite' },
     product_domains: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     products_demonstrated: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     priority: { type: DataTypes.ENUM('low', 'medium', 'high'), allowNull: false, defaultValue: 'medium' },
@@ -17,7 +20,7 @@ module.exports = (sequelize, DataTypes) => {
     assigned_rep: { type: DataTypes.STRING },
     status: {
       type: DataTypes.ENUM(
-        'draft', 'pending_technical', 'pending_manager', 'pending_backoffice',
+        'draft', 'pending_technical', 'pending_manager', 'pending_backoffice', 'ready_for_demo',
         'dc_generated', 'material_dispatched', 'demo_completed', 'material_returned',
         'dc_closed', 'cancelled'
       ),

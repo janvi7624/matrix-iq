@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { needsFollowUp } from '@/lib/followUp';
+import { CLOSED_QUOTATION_HIDE_AFTER_DAYS, isAgedClosedQuotation } from '@/lib/quotationVisibility';
 import AppShell from './AppShell';
 import QuotationTable from './QuotationTable';
 import { useToast } from './ui/ToastProvider';
@@ -83,7 +84,23 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
     loadQuotations();
   }, [loadQuotations]);
 
-  const visibleRows = useMemo(() => (followUpOnly ? rows.filter((r) => needsFollowUp(r)) : rows), [rows, followUpOnly]);
+  const visibleRows = useMemo(() => {
+    const now = new Date();
+    return rows.filter((r) => {
+      if (followUpOnly && !needsFollowUp(r)) return false;
+      // No explicit Status pick -> a quote closed (or expired) long ago
+      // drops out of the default view. Filtering Status to Approved,
+      // Rejected, or Expired still shows every one of them, however old —
+      // see lib/quotationVisibility.ts.
+      if (!fStatus && isAgedClosedQuotation(r, now)) return false;
+      return true;
+    });
+  }, [rows, followUpOnly, fStatus]);
+  const hiddenAgedClosedCount = useMemo(() => {
+    if (fStatus) return 0;
+    const now = new Date();
+    return rows.filter((r) => isAgedClosedQuotation(r, now)).length;
+  }, [rows, fStatus]);
   const salesPeople = useMemo(() => Array.from(new Set(rows.map((r) => r.created_by).filter(Boolean))).sort(), [rows]);
 
   async function handleDelete(id: string) {
@@ -181,6 +198,11 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
           )}
         </FilterBar>
         <div className={styles.status}>{status}</div>
+        {loaded && hiddenAgedClosedCount > 0 && (
+          <div className={styles.status}>
+            {hiddenAgedClosedCount} quotation{hiddenAgedClosedCount === 1 ? '' : 's'} older than {CLOSED_QUOTATION_HIDE_AFTER_DAYS} days (Approved/Rejected/Expired) {hiddenAgedClosedCount === 1 ? 'is' : 'are'} hidden — filter Status to see {hiddenAgedClosedCount === 1 ? 'it' : 'them'}.
+          </div>
+        )}
         {loaded && (
           <QuotationTable
             rows={visibleRows}

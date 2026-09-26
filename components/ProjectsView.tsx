@@ -6,6 +6,7 @@ import { FolderKanban } from 'lucide-react';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
 import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { findClosestClient } from '@/lib/clientSimilarity';
+import { CLOSED_PROJECT_HIDE_AFTER_DAYS, isAgedClosedProject } from '@/lib/projectVisibility';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { exportListToPdf } from '@/lib/exportPdf';
 import { isTechnicalRole } from '@/lib/technicalRoles';
@@ -172,11 +173,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
 
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
+    const now = new Date();
     return projects.filter((p) => {
       if (fSalesPerson && p.sales_person !== fSalesPerson) return false;
       if (fSource && p.source !== fSource) return false;
       if (fStage && p.stage !== fStage) return false;
       if (fStatus && p.status !== fStatus) return false;
+      // No explicit Won/Lost pick -> a deal closed long ago drops out of the
+      // default view (it was piling up alongside everything still active).
+      // Filtering the Status dropdown to Won or Lost still shows every one
+      // of them, however old — see lib/projectVisibility.ts.
+      if (!fStatus && isAgedClosedProject(p, now)) return false;
       if (fPriority && p.priority !== fPriority) return false;
       if (fFrom && p.created_at.slice(0, 10) < fFrom) return false;
       if (fTo && p.created_at.slice(0, 10) > fTo) return false;
@@ -188,6 +195,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       return true;
     });
   }, [projects, fSalesPerson, fSource, fStage, fStatus, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
+
+  // Surfaced next to the filter bar so the auto-hide above never looks like
+  // data went missing — see the comment in the filter itself.
+  const hiddenAgedClosedCount = useMemo(() => {
+    if (fStatus) return 0;
+    const now = new Date();
+    return projects.filter((p) => isAgedClosedProject(p, now)).length;
+  }, [projects, fStatus]);
 
   // KPI tiles (Part 1.3) — deliberately derived from `filtered`, never
   // `projects`, so they can never show a stale count against the visible
@@ -571,6 +586,11 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           </Select>
         </FilterBar>
         {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
+        {!loading && !loadFailed && hiddenAgedClosedCount > 0 && (
+          <div className={historyStyles.status}>
+            {hiddenAgedClosedCount} closed project{hiddenAgedClosedCount === 1 ? '' : 's'} older than {CLOSED_PROJECT_HIDE_AFTER_DAYS} days {hiddenAgedClosedCount === 1 ? 'is' : 'are'} hidden — filter Status to Won or Lost to see {hiddenAgedClosedCount === 1 ? 'it' : 'them'}.
+          </div>
+        )}
 
         {loading ? (
           <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={13} /></div>

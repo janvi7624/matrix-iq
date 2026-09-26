@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
     source,
     status: 'active',
     stage: 'cold_call',
+    closed_at: '',
     cold_call_responded: '',
     priority: VALID_PRIORITY.includes(body.priority) ? body.priority : 'medium',
     expected_closing_date: typeof body.expectedClosingDate === 'string' ? body.expectedClosingDate : '',
@@ -142,6 +143,9 @@ export async function POST(request: NextRequest) {
     approx_price: approxPrice,
     notes: [],
     attachments: [],
+    // No stage is pre-marked as skippable; that is a per-project decision
+    // taken later (e.g. Site Visit, when the demo turns out to be virtual).
+    skipped_stages: [],
     // Never set on creation — see the technical-person request below.
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',

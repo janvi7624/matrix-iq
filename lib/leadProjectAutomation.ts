@@ -66,6 +66,7 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     source: projectSource,
     status: 'active',
     stage: 'cold_call',
+    closed_at: '',
     cold_call_responded: '',
     priority: lead.priority === 'hot' ? 'high' : lead.priority === 'warm' ? 'medium' : 'low',
     expected_closing_date: '',
@@ -75,6 +76,9 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     approx_price: '',
     notes: [],
     attachments: [],
+    // No stage is pre-marked as skippable; that is a per-project decision
+    // taken later (e.g. Site Visit, when the demo turns out to be virtual).
+    skipped_stages: [],
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',
     tms_project_id: '',

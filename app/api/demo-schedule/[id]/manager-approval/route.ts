@@ -65,13 +65,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     if (typeof body.newScheduledAt === 'string' && body.newScheduledAt) patch.scheduled_at = body.newScheduledAt;
 
-    if (body.decision === 'approved') patch.status = 'pending_backoffice';
+    // A virtual demo has no equipment to raise a challan for, dispatch or get
+    // back, so approving it does not hand it to Back Office — it goes straight
+    // to waiting for its date. This is also what keeps virtual demos out of
+    // the Back Office DC queue, which selects on 'pending_backoffice'.
+    if (body.decision === 'approved') patch.status = existing.mode === 'virtual' ? 'ready_for_demo' : 'pending_backoffice';
     else if (body.decision === 'rejected') patch.status = 'cancelled';
     // 'modified' stays at pending_manager — schedule/engineer changes above apply, a follow-up call approves.
 
     const updated = await demoScheduleStore.update(id, patch);
 
-    if (body.decision === 'approved') {
+    // A virtual demo is not Back Office's business: there is no challan to
+    // raise, nothing to dispatch and nothing to take back, so telling them it
+    // is "ready for Back Office" would be a false task. The people who will
+    // actually run the demo are told instead.
+    if (body.decision === 'approved' && existing.mode === 'virtual') {
+      const runners = [existing.created_by, assignedPerson?.username].filter((name): name is string => !!name && name !== viewer.username);
+      if (runners.length) {
+        await notifyUsers(Array.from(new Set(runners)), {
+          title: 'Virtual demo approved',
+          body: `${existing.client_name}${existing.company ? ` (${existing.company})` : ''} — approved by ${viewer.username}. No material is being sent; mark it completed once the demo is done.`,
+          type: 'demo_ready_for_demo',
+          entityType: 'demo',
+          entityId: id
+        });
+      }
+    } else if (body.decision === 'approved') {
       const users = await listUsers();
       const backofficeUsers = users.filter((u) => u.status === 'active' && (u.role === 'backoffice' || u.department === 'Back Office'));
       if (backofficeUsers.length) {

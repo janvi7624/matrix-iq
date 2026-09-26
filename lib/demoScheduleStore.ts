@@ -8,6 +8,7 @@ const FIELDS = [
   { name: 'client_name' },
   { name: 'company' },
   { name: 'location' },
+  { name: 'mode' },
   { name: 'product_domains', kind: 'json' as const },
   { name: 'products_demonstrated', kind: 'json' as const },
   { name: 'priority' },

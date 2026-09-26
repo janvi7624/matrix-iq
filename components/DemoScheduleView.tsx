@@ -3,7 +3,7 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { DemoOutcome, DemoPriority, DemoProductLine, DemoRequestStatus, DemoScheduleRecord, DomainKey, QuotationRecord, UserRole } from '@/lib/types';
+import { DemoMode, DemoOutcome, DemoPriority, DemoProductLine, DemoRequestStatus, DemoScheduleRecord, DomainKey, QuotationRecord, UserRole } from '@/lib/types';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
@@ -30,6 +30,7 @@ const EMPTY_FORM = {
   clientName: '',
   company: '',
   location: '',
+  mode: 'onsite' as DemoMode,
   productDomains: [] as DomainKey[],
   productsRequired: [] as DemoProductLine[],
   priority: 'medium' as DemoPriority,
@@ -46,6 +47,7 @@ const STATUS_LABEL: Record<DemoRequestStatus, string> = {
   pending_technical: 'Pending Technical Approval',
   pending_manager: 'Pending Manager Approval',
   pending_backoffice: 'Pending Back Office',
+  ready_for_demo: 'Ready — Virtual Demo',
   dc_generated: 'DC Generated',
   material_dispatched: 'Material Dispatched',
   demo_completed: 'Demo Completed',
@@ -59,6 +61,7 @@ const STATUS_TONE: Record<DemoRequestStatus, StatusTone> = {
   pending_technical: 'pending',
   pending_manager: 'pending',
   pending_backoffice: 'pending',
+  ready_for_demo: 'confirmed',
   dc_generated: 'confirmed',
   material_dispatched: 'confirmed',
   demo_completed: 'done',
@@ -81,17 +84,31 @@ const DEMO_STAGES: { key: DemoRequestStatus; label: string }[] = [
   { key: 'dc_closed', label: 'DC Closed' }
 ];
 
+// The same chain with everything physical removed: nothing is challaned,
+// dispatched or returned for a demo given over a screen share, so the pipeline
+// ends the moment the demo itself is done.
+const VIRTUAL_DEMO_STAGES: { key: DemoRequestStatus; label: string }[] = [
+  { key: 'pending_technical', label: 'Sales Request Submitted' },
+  { key: 'pending_manager', label: 'Technical Approval' },
+  { key: 'ready_for_demo', label: 'Manager Approval' },
+  { key: 'demo_completed', label: 'Demo Completed' }
+];
+
 // Cancellation can happen from any status and doesn't record which stage it
 // was cancelled at, so a cancelled demo gets a plain badge instead of a
 // fabricated stepper position.
 function buildDemoSteps(record: DemoScheduleRecord): StepperStep[] | null {
   if (record.status === 'cancelled') return null;
-  const idx = record.status === 'draft' ? -1 : DEMO_STAGES.findIndex((s) => s.key === record.status);
-  return DEMO_STAGES.map((s, i) => {
+  // A virtual demo never goes through Back Office, so showing it four steps it
+  // will never reach would make a finished demo look permanently unfinished.
+  // Manager approval lands on 'ready_for_demo' instead of 'pending_backoffice'.
+  const stages = record.mode === 'virtual' ? VIRTUAL_DEMO_STAGES : DEMO_STAGES;
+  const idx = record.status === 'draft' ? -1 : stages.findIndex((s) => s.key === record.status);
+  return stages.map((s, i) => {
     let meta: string | undefined;
     if (s.key === 'pending_manager' && record.technical_approval.decision) {
       meta = `${record.technical_approval.decision} by ${record.technical_approval.decided_by}`;
-    } else if (s.key === 'pending_backoffice' && record.manager_approval.decision) {
+    } else if ((s.key === 'pending_backoffice' || s.key === 'ready_for_demo') && record.manager_approval.decision) {
       meta = `${record.manager_approval.decision} by ${record.manager_approval.decided_by}`;
     }
     return { key: s.key, label: s.label, state: i <= idx ? 'done' : i === idx + 1 ? 'current' : 'upcoming', meta };
@@ -348,7 +365,9 @@ function DemoRow({
           {(record.status === 'dc_generated' || record.status === 'material_dispatched' || record.status === 'material_returned') && (
             <Link className={`${historyStyles.actionBtn} ${historyStyles.actionBtnSecondary} ${historyStyles.actionBtnCompact}`} href={`/backoffice?demoId=${record.id}`}>View DC →</Link>
           )}
-          {record.status === 'material_dispatched' && (isTechnical || currentUser.role === 'backoffice') && (
+          {/* A virtual demo has no dispatch to wait for, so it becomes
+              completable as soon as the manager has approved it. */}
+          {(record.status === 'material_dispatched' || record.status === 'ready_for_demo') && (isTechnical || currentUser.role === 'backoffice') && (
             <Button variant="success" compact onClick={() => onMarkCompleted(record.id)}>Mark Demo Completed</Button>
           )}
           {!['cancelled', 'dc_closed', 'material_returned', 'demo_completed'].includes(record.status) && (isOwner || isPrivileged) && (
@@ -671,6 +690,26 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Location</label>
               <input className={calcStyles.formControl} value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
+            </div>
+            {/* Decides the whole rest of the pipeline: an onsite demo needs a
+                delivery challan, dispatch and return; a virtual one needs none
+                of it and is done once the demo has happened. */}
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="demo-mode">How is the demo given?</label>
+              <select
+                id="demo-mode"
+                className={calcStyles.formControl}
+                value={form.mode}
+                onChange={(e) => setForm((f) => ({ ...f, mode: e.target.value as DemoMode }))}
+              >
+                <option value="onsite">At the client&apos;s site — equipment is sent</option>
+                <option value="virtual">Virtual / online — nothing is sent</option>
+              </select>
+              <span className={calcStyles.small}>
+                {form.mode === 'virtual'
+                  ? 'No delivery challan, dispatch or material return. Approved by the manager, then marked done after the demo.'
+                  : 'Goes to Back Office for a delivery challan after approval.'}
+              </span>
             </div>
           </div>
 

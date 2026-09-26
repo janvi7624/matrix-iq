@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 import { findUserById } from '@/lib/userStore';
+import { isBackOfficeActor } from '@/lib/backOfficeAccess';
 import BackOfficeView from '@/components/BackOfficeView';
 
 export default async function BackOfficePage() {
@@ -12,5 +13,6 @@ export default async function BackOfficePage() {
   const user = await findUserById(session.sub);
   if (!user) redirect('/login');
 
-  return <BackOfficeView currentUser={{ username: user.username, role: user.role }} />;
+  const canManage = await isBackOfficeActor({ role: user.role, username: user.username });
+  return <BackOfficeView canManage={canManage} />;
 }

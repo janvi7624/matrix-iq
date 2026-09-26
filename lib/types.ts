@@ -182,6 +182,11 @@ export interface QuotationRecord {
   project_id: string;
   created_by: string;
   status: QuotationStatus;
+  // Set the moment status flips to 'approved'/'rejected', cleared if it's
+  // ever moved back to draft/sent. Drives the Quotation list's 90-day
+  // auto-hide of closed quotes (lib/quotationVisibility.ts) alongside
+  // 'expired' ones — same reasoning as ProjectRecord.closed_at.
+  status_changed_at: string;
   prepared_by: string;
   prepared_by_phone: string;
   prepared_by_email: string;
@@ -270,6 +275,10 @@ export type DemoRequestStatus =
   | 'pending_technical'
   | 'pending_manager'
   | 'pending_backoffice'
+  // Manager-approved VIRTUAL demo: nothing to dispatch, so it waits here for
+  // its date instead of going to Back Office. Onsite demos never take this
+  // status, which is also what keeps virtual ones out of the DC queue.
+  | 'ready_for_demo'
   | 'dc_generated'
   | 'material_dispatched'
   | 'demo_completed'
@@ -278,6 +287,10 @@ export type DemoRequestStatus =
   | 'cancelled';
 
 export type DemoPriority = 'low' | 'medium' | 'high';
+
+// How the demo is given. 'virtual' means remote — no equipment leaves the
+// office, so no delivery challan, dispatch or return applies to it.
+export type DemoMode = 'onsite' | 'virtual';
 
 // Filled in after the demo actually happens — separate from `status` (the
 // approval/fulfillment pipeline above it).
@@ -314,6 +327,7 @@ export interface DemoScheduleRecord {
   client_name: string;
   company: string;
   location: string;
+  mode: DemoMode;
   product_domains: DomainKey[];
   products_demonstrated: string[];
   products_required: DemoProductLine[];
@@ -780,6 +794,13 @@ export interface ProjectRecord {
   source: string;
   status: ProjectStatus;
   stage: ProjectStage;
+  // Set the moment status flips to 'won'/'lost' (see lib/projectStore.ts's
+  // update() and appendProjectTimeline()), cleared if it's ever reopened
+  // back to active/on_hold. Drives the Projects list's 90-day auto-hide of
+  // closed deals (lib/projectVisibility.ts) — a dedicated timestamp instead
+  // of reusing updated_at, since a later edit (a note, a remark) on an
+  // already-closed project must not reset that clock.
+  closed_at: string;
   // Cold Call stage's own sub-detail — whether the initial cold call was
   // responded to. '' until the call has actually been logged.
   cold_call_responded: 'yes' | 'no' | '';
@@ -798,6 +819,10 @@ export interface ProjectRecord {
   approx_price: number | '';
   notes: ProjectNote[];
   attachments: string[];
+  // Stages this project has been marked as not applicable — a virtually-given
+  // demo means no Site Visit, and that is recorded rather than left looking
+  // unfinished. Never includes the stage the project is currently on.
+  skipped_stages: ProjectStage[];
   timeline: ProjectTimelineEvent[];
   updated_at: string;
   assigned_technical_person_id: string;

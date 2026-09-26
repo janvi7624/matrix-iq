@@ -52,6 +52,7 @@ import {
   ReceiptIndianRupee,
   Cake,
   KanbanSquare,
+  CheckSquare,
   type LucideIcon
 } from 'lucide-react';
 
@@ -115,6 +116,11 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   'folder-kanban': FolderKanban,
   'file-text': FileText,
   'clipboard-list': ClipboardList,
+  // My Tasks ships with icon 'check-square' (lib/moduleConfigStore.ts's seed),
+  // which was missing here — so resolveModuleIcon returned null and the
+  // sidebar fell back to printing the key as text in a 16px icon slot, i.e.
+  // no icon. Every key any seeded module uses must exist in this registry.
+  'check-square': CheckSquare,
   'map-pin': MapPin,
   contact: Contact,
   monitor: Monitor,

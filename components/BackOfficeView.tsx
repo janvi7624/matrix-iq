@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { BackOfficeRemarkTag, DcLineItem, DcStatus, DeliveryChallanRecord, DemoScheduleRecord, ProjectRecord, PublicAppConfig, UserRole } from '@/lib/types';
+import { BackOfficeRemarkTag, DcLineItem, DcStatus, DeliveryChallanRecord, DemoScheduleRecord, ProjectRecord, PublicAppConfig } from '@/lib/types';
 import { CheckCircle2, Download, Lock, Package, Plus, Printer, Save, Trash2, Truck } from 'lucide-react';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { BACK_OFFICE_REMARK_LABEL, BACK_OFFICE_REMARK_TAGS } from '@/lib/backOfficeRemarks';
@@ -561,7 +561,7 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
   );
 }
 
-function BackOfficeContent({ currentUser }: { currentUser: { username: string; role: UserRole } }) {
+function BackOfficeContent({ canManage }: { canManage: boolean }) {
   const searchParams = useSearchParams();
   const demoIdParam = searchParams.get('demoId') || '';
   // Deep-links a specific DC open — e.g. from the Person Performance
@@ -569,11 +569,6 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
   // drill-down (lib/departmentScoring.ts). Read once on mount, same as
   // demoIdParam above.
   const dcIdParam = searchParams.get('dc') || '';
-  // DC management is strictly Back Office (or Admin/Super Admin as the org's
-  // ultimate override) — Manager is deliberately excluded, unlike the app's
-  // usual isPrivileged convention. Matches the server-side gates in
-  // app/api/delivery-challans/route.ts and [id]/route.ts.
-  const canManage = currentUser.role === 'backoffice' || currentUser.role === 'admin' || currentUser.role === 'superadmin';
 
   const [dcs, setDcs] = useState<DeliveryChallanRecord[]>([]);
   const [demos, setDemos] = useState<DemoScheduleRecord[]>([]);
@@ -706,10 +701,17 @@ function BackOfficeContent({ currentUser }: { currentUser: { username: string; r
   );
 }
 
-export default function BackOfficeView({ currentUser }: { currentUser: { username: string; role: UserRole } }) {
+// DC management is strictly Back Office (or Admin/Super Admin as the org's
+// ultimate override), or whoever is configured as the Back Office
+// department's own manager — Manager is otherwise deliberately excluded,
+// unlike the app's usual isPrivileged convention. Resolved server-side (see
+// app/backoffice/page.tsx, lib/backOfficeAccess.ts) since this client
+// component only ever gets {username, role} for currentUser, with no
+// Department Master lookup available in the browser.
+export default function BackOfficeView({ canManage }: { canManage: boolean }) {
   return (
     <Suspense fallback={<AppShell title="Back Office Operations" subtitle="Delivery Challans — prepare, dispatch, verify returns, close.">{null}</AppShell>}>
-      <BackOfficeContent currentUser={currentUser} />
+      <BackOfficeContent canManage={canManage} />
     </Suspense>
   );
 }

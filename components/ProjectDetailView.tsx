@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
@@ -64,6 +64,60 @@ import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import ProjectDeadlineExtendModal from './ProjectDeadlineExtendModal';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import ProjectSourceField from './ui/ProjectSourceField';
+
+// Every editable field on the Overview card, named as PATCH /api/projects/[id]
+// names it, so the save below is a straight copy of what changed.
+//
+// These all used to behave in one of two broken ways: the selects and dates
+// saved silently the instant you touched them (no confirmation — so it read as
+// "nothing happened"), and the two numbers saved on EVERY KEYSTROKE, each save
+// reloading the page's data and overwriting whatever had been typed since.
+// Now the whole card is one form with one Save.
+type OverviewField =
+  | 'clientName' | 'company' | 'contactPerson' | 'altContactPhone' | 'phone' | 'email' | 'address' | 'source'
+  | 'priority' | 'status' | 'stage' | 'coldCallResponded' | 'nextFollowUpDate'
+  | 'closingProbabilityPercent' | 'approxPrice';
+
+const NUMERIC_OVERVIEW_FIELDS: OverviewField[] = ['closingProbabilityPercent', 'approxPrice'];
+
+// The saved value of one field, always as the string an input holds. Pure and
+// module-level so "what is on screen" and "what counts as changed" can never
+// answer this question differently.
+function savedOverviewValue(project: ProjectRecord, field: OverviewField): string {
+  switch (field) {
+    case 'clientName': return project.client_name || '';
+    case 'company': return project.company || '';
+    case 'contactPerson': return project.contact_person || '';
+    case 'altContactPhone': return project.alt_contact_phone || '';
+    case 'phone': return project.phone || '';
+    case 'email': return project.email || '';
+    case 'address': return project.address || '';
+    case 'source': return project.source || '';
+    case 'priority': return project.priority;
+    case 'status': return project.status;
+    case 'stage': return project.stage;
+    case 'coldCallResponded': return project.cold_call_responded || '';
+    case 'nextFollowUpDate': return project.next_follow_up_date || '';
+    case 'closingProbabilityPercent': return project.closing_probability_percent === '' ? '' : String(project.closing_probability_percent);
+    case 'approxPrice': return project.approx_price === '' ? '' : String(project.approx_price);
+  }
+}
+
+// Mirrors exactly what the PATCH route accepts, so a bad value is caught here
+// with wording a person can act on instead of coming back as a 400.
+export function validateOverviewField(field: OverviewField, raw: string): string {
+  const value = raw.trim();
+  if (field === 'source' && !value) return 'Source is required.';
+  if (!value || !NUMERIC_OVERVIEW_FIELDS.includes(field)) return '';
+  const num = Number(value);
+  if (field === 'approxPrice') {
+    if (!Number.isFinite(num)) return 'Enter the price as a number, e.g. 1250000.';
+    if (num <= 0) return 'The price has to be more than zero. Clear the field if it is not known yet.';
+    return '';
+  }
+  if (!Number.isFinite(num) || !Number.isInteger(num) || num < 0 || num > 100) return 'Closing probability is a whole number between 0 and 100.';
+  return '';
+}
 
 interface DetailResponse {
   project: ProjectRecord;
@@ -206,9 +260,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [techDeclineReason, setTechDeclineReason] = useState('');
   const [techAssignId, setTechAssignId] = useState('');
   const [decidingTech, setDecidingTech] = useState(false);
-  // Technical staff's "Assign Sales Person" — hands the project to a sales
-  // person as its owner (unlike Assign Team, which only relabels it). The
-  // sales team is fetched the first time the picker opens.
+  // "Assign / Change Sales Person" — hands the project to a sales person as
+  // its owner (unlike Assign Team, which only relabels it). Open to admins
+  // and managers as well as to the technical person who created the project;
+  // the server decides in lib/projectSalesOwner.ts canAssignSalesPerson and
+  // tells us through data.canAssignSalesPerson. The sales team is fetched the
+  // first time the picker opens.
   const [showSalesOwner, setShowSalesOwner] = useState(false);
   const [salesOwnerId, setSalesOwnerId] = useState('');
   const [savingSalesOwner, setSavingSalesOwner] = useState(false);
@@ -380,78 +437,106 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // already accepted them. Local draft + explicit Save (not per-keystroke
   // patching) so typing doesn't fire a request per character or fight the
   // reload this component does after every save.
-  const [detailsDraft, setDetailsDraft] = useState({ clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '', source: '' });
+  // Only the fields actually touched are held here; everything else reads
+  // straight from the saved project. That is what lets an edit survive the
+  // page's own refetches (a patch elsewhere in this view used to be able to
+  // clobber an unsaved edit) while an untouched field can never go stale —
+  // including after Close Project, which sets status and stage from outside
+  // this card.
+  const [overviewDraft, setOverviewDraft] = useState<Partial<Record<OverviewField, string>>>({});
   const [savingDetails, setSavingDetails] = useState(false);
+  const [savingSkipped, setSavingSkipped] = useState(false);
 
-  // Only re-syncs on the initial load / when navigating to a different
-  // project (by id) — NOT on every subsequent patchProject-triggered
-  // refetch elsewhere in this view (priority, status, stage, ...), which
-  // would otherwise silently clobber an unsaved in-progress edit here.
-  useEffect(() => {
-    const p = data?.project;
-    if (!p) return;
-    setDetailsDraft({
-      clientName: p.client_name || '',
-      company: p.company || '',
-      contactPerson: p.contact_person || '',
-      altContactPhone: p.alt_contact_phone || '',
-      phone: p.phone || '',
-      email: p.email || '',
-      address: p.address || '',
-      source: p.source || ''
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.project.id]);
+  const overviewValue = (field: OverviewField): string =>
+    overviewDraft[field] ?? (data?.project ? savedOverviewValue(data.project, field) : '');
 
-  const detailsDirty = useMemo(() => {
+  function setOverviewField(field: OverviewField, value: string) {
+    setOverviewDraft((draft) => ({ ...draft, [field]: value }));
+  }
+
+  // A field typed back to its saved value is not a change, so the Save bar
+  // disappears again instead of offering to save nothing.
+  const changedOverviewFields = useMemo(() => {
     const p = data?.project;
-    if (!p) return false;
-    return (
-      detailsDraft.clientName !== (p.client_name || '') ||
-      detailsDraft.company !== (p.company || '') ||
-      detailsDraft.contactPerson !== (p.contact_person || '') ||
-      detailsDraft.altContactPhone !== (p.alt_contact_phone || '') ||
-      detailsDraft.phone !== (p.phone || '') ||
-      detailsDraft.email !== (p.email || '') ||
-      detailsDraft.address !== (p.address || '') ||
-      detailsDraft.source !== (p.source || '')
-    );
-  }, [detailsDraft, data?.project]);
+    if (!p) return [] as OverviewField[];
+    return (Object.keys(overviewDraft) as OverviewField[]).filter((field) => (overviewDraft[field] ?? '') !== savedOverviewValue(p, field));
+  }, [overviewDraft, data?.project]);
 
   async function handleSaveDetails() {
-    if (!detailsDraft.source.trim()) {
-      toast.error('Source is required.');
-      return;
+    if (!changedOverviewFields.length) return;
+    for (const field of changedOverviewFields) {
+      const problem = validateOverviewField(field, overviewDraft[field] ?? '');
+      if (problem) {
+        toast.error(problem);
+        return;
+      }
+    }
+    const patch: Record<string, unknown> = {};
+    for (const field of changedOverviewFields) {
+      const value = (overviewDraft[field] ?? '').trim();
+      patch[field] = NUMERIC_OVERVIEW_FIELDS.includes(field) && value !== '' ? Number(value) : value;
     }
     setSavingDetails(true);
     try {
-      await patchProject({
-        clientName: detailsDraft.clientName.trim(),
-        company: detailsDraft.company.trim(),
-        contactPerson: detailsDraft.contactPerson.trim(),
-        altContactPhone: detailsDraft.altContactPhone.trim(),
-        phone: detailsDraft.phone.trim(),
-        email: detailsDraft.email.trim(),
-        address: detailsDraft.address.trim(),
-        source: detailsDraft.source.trim()
-      });
-      toast.success('Project details updated.');
+      if (await patchProject(patch)) {
+        // Cleared only on success, so a rejected save leaves the values on
+        // screen to be corrected rather than silently reverting them.
+        setOverviewDraft({});
+        toast.success(changedOverviewFields.length === 1 ? 'Change saved.' : `${changedOverviewFields.length} changes saved.`);
+      }
     } finally {
       setSavingDetails(false);
     }
   }
 
-  async function patchProject(patch: Record<string, unknown>) {
+  // Returns whether the change was actually saved, so a caller holding
+  // unsaved input (the numeric fields below) can keep it on screen to be
+  // retried instead of silently reverting to the old value.
+  async function patchProject(patch: Record<string, unknown>): Promise<boolean> {
     try {
       const response = await fetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch)
       });
-      if (!response.ok) throw new Error(String(response.status));
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || String(response.status));
+      }
       await load();
-    } catch {
-      toast.error('Could not save this change. Please try again.');
+      return true;
+    } catch (error) {
+      // Show the server's own wording when it explained itself; a bare status
+      // code means nothing to the person reading it.
+      const message = error instanceof Error ? error.message : '';
+      toast.error(!message || /^\d+$/.test(message) ? 'Could not save this change. Please try again.' : message);
+      return false;
+    }
+  }
+
+  // Kept out of the Overview card's draft on purpose: this is a checkbox, one
+  // deliberate click per stage, so there is nothing to type and nothing to lose
+  // by saving it straight away.
+  async function toggleSkippedStage(stage: ProjectStage, skip: boolean) {
+    const current = data?.project.skipped_stages ?? [];
+    const next = skip ? [...current, stage] : current.filter((s) => s !== stage);
+    setSavingSkipped(true);
+    try {
+      await patchProject({ skippedStages: next });
+    } finally {
+      setSavingSkipped(false);
+    }
+  }
+
+  // Enter anywhere on the card saves it, so the keyboard path matches the
+  // button. Escape puts every field back to what is stored.
+  function overviewKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void handleSaveDetails();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      setOverviewDraft({});
     }
   }
 
@@ -828,7 +913,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const latestQuotation = [...quotations].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
   const latestDemo = [...demos].sort((a, b) => (a.scheduled_at < b.scheduled_at ? 1 : -1))[0];
   const technicalTeam = [...new Set([...demos.flatMap((d) => d.technical_members), ...demos.map((d) => d.assigned_technical_person), ...siteVisits.flatMap((v) => v.team_technical)].filter(Boolean))];
+  const skippedStages = project.skipped_stages ?? [];
   const salesTeam = [...new Set([project.sales_person, ...siteVisits.flatMap((v) => v.team_sales)].filter(Boolean))];
+  // "Change" once the project already has one — correcting a wrong sales
+  // person is the everyday case for an admin, and "Assign" reads as if the
+  // field were empty.
+  const salesOwnerActionLabel = project.sales_person ? 'Change Sales Person' : 'Assign Sales Person';
   const lastActivity = [...project.timeline].sort((a, b) => (a.at < b.at ? 1 : -1))[0];
 
   return (
@@ -990,17 +1080,41 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <span className={`${historyStyles.step} ${historyStyles.stepLost}`}>✕ Closed Lost</span>
           ) : (
             FORWARD_STAGES.map((s, idx) => {
-              const cls =
-                idx < currentIdx ? historyStyles.stepDone : idx === currentIdx ? (isOverdue ? historyStyles.stepDelayed : historyStyles.stepCurrent) : '';
+              const skipped = skippedStages.includes(s);
+              const cls = skipped
+                ? styles.stepSkipped
+                : idx < currentIdx ? historyStyles.stepDone : idx === currentIdx ? (isOverdue ? historyStyles.stepDelayed : historyStyles.stepCurrent) : '';
               return (
-                <span key={s} className={`${historyStyles.step} ${cls}`}>
-                  {idx < currentIdx ? '✓ ' : idx === currentIdx && isOverdue ? <AlertTriangle size={14} className={styles.alertIcon} /> : ''}
+                <span key={s} className={`${historyStyles.step} ${cls}`} title={skipped ? 'Marked as not required for this project' : undefined}>
+                  {skipped ? '— ' : idx < currentIdx ? '✓ ' : idx === currentIdx && isOverdue ? <AlertTriangle size={14} className={styles.alertIcon} /> : ''}
                   {STAGE_LABEL[s]}
+                  {skipped && <span className={styles.stepSkippedNote}> not required</span>}
                 </span>
               );
             })
           )}
         </div>
+
+        {/* Marking a stage not required — the case this exists for is a demo
+            given virtually, where nobody visits the site, so Site Visit is not
+            pending, it simply does not apply. Saved on the spot: it is a single
+            choice per stage, not something typed. */}
+        {canEdit && !isClosed && (
+          <div className={styles.skipStagesRow}>
+            <span className={calcStyles.small}>Not required for this project:</span>
+            {FORWARD_STAGES.filter((s) => s !== project.stage).map((s) => (
+              <label key={s} className={styles.skipStageChip}>
+                <input
+                  type="checkbox"
+                  checked={skippedStages.includes(s)}
+                  disabled={savingSkipped}
+                  onChange={(e) => void toggleSkippedStage(s, e.target.checked)}
+                />
+                {STAGE_LABEL[s]}
+              </label>
+            ))}
+          </div>
+        )}
 
         {/* Summary cards */}
         <div className={historyStyles.summaryCardGrid}>
@@ -1088,18 +1202,23 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <button type="button" className={historyStyles.quickActionBtn} onClick={() => setTab('documents')}>
               <span className={historyStyles.quickActionIcon}><Paperclip size={20} /></span> Upload Documents
             </button>
-            {/* Assign Team only relabels the sales person, so technical staff
-                get Assign Sales Person instead, which hands over ownership. */}
-            {canEdit && !(isTechnical && !isPrivileged) && (
+            {/* Assign Team only relabels the sales person. Anyone who gets the
+                real ownership-moving action below is deliberately NOT offered
+                it as well: two near-identically named buttons, one of which
+                silently does half the job, is how a project ends up labelled
+                for one person while still sitting in someone else's pipeline. */}
+            {canEdit && !isPrivileged && !isTechnical && (
               <button type="button" className={historyStyles.quickActionBtn} onClick={handleAssignTeam}>
                 <span className={historyStyles.quickActionIcon}><Users size={20} /></span> Assign Team
               </button>
             )}
-            {/* Hidden while a handover is pending — the server refuses it until
-                that is settled (lib/projectSalesOwner.ts). */}
-            {canAssignSalesPerson && isTechnical && !isPrivileged && !pendingHandover && (
+            {/* Admins/managers (any project) and the technical person who
+                created it — canAssignSalesPerson is the server's answer, not a
+                guess made here. Hidden while a handover is pending: the server
+                refuses it until that is settled (lib/projectSalesOwner.ts). */}
+            {canAssignSalesPerson && !pendingHandover && (
               <button type="button" className={historyStyles.quickActionBtn} onClick={openSalesOwnerPicker}>
-                <span className={historyStyles.quickActionIcon}><UserPlus size={20} /></span> Assign Sales Person
+                <span className={historyStyles.quickActionIcon}><UserPlus size={20} /></span> {salesOwnerActionLabel}
               </button>
             )}
             {canEdit && !isClosed && !pendingHandover && (
@@ -1348,13 +1467,13 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Client Representative Name</label>
                 {canEdit ? (
-                  <input className={calcStyles.formControl} value={detailsDraft.clientName} onChange={(e) => setDetailsDraft((d) => ({ ...d, clientName: e.target.value }))} />
+                  <input className={calcStyles.formControl} value={overviewValue('clientName')} onChange={(e) => setOverviewField('clientName', e.target.value)} onKeyDown={overviewKeyDown} />
                 ) : <div className={calcStyles.small}>{project.client_name || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Company</label>
                 {canEdit ? (
-                  <input className={calcStyles.formControl} value={detailsDraft.company} onChange={(e) => setDetailsDraft((d) => ({ ...d, company: e.target.value }))} />
+                  <input className={calcStyles.formControl} value={overviewValue('company')} onChange={(e) => setOverviewField('company', e.target.value)} onKeyDown={overviewKeyDown} />
                 ) : <div className={calcStyles.small}>{project.company || '-'}</div>}
               </div>
             </div>
@@ -1362,25 +1481,25 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Phone</label>
                 {canEdit ? (
-                  <input className={calcStyles.formControl} value={detailsDraft.phone} onChange={(e) => setDetailsDraft((d) => ({ ...d, phone: e.target.value }))} />
+                  <input className={calcStyles.formControl} value={overviewValue('phone')} onChange={(e) => setOverviewField('phone', e.target.value)} onKeyDown={overviewKeyDown} />
                 ) : <div className={calcStyles.small}>{project.phone || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Email</label>
                 {canEdit ? (
-                  <input className={calcStyles.formControl} value={detailsDraft.email} onChange={(e) => setDetailsDraft((d) => ({ ...d, email: e.target.value }))} />
+                  <input className={calcStyles.formControl} value={overviewValue('email')} onChange={(e) => setOverviewField('email', e.target.value)} onKeyDown={overviewKeyDown} />
                 ) : <div className={calcStyles.small}>{project.email || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Address</label>
                 {canEdit ? (
-                  <input className={calcStyles.formControl} value={detailsDraft.address} onChange={(e) => setDetailsDraft((d) => ({ ...d, address: e.target.value }))} />
+                  <input className={calcStyles.formControl} value={overviewValue('address')} onChange={(e) => setOverviewField('address', e.target.value)} onKeyDown={overviewKeyDown} />
                 ) : <div className={calcStyles.small}>{project.address || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Source *</label>
                 {canEdit ? (
-                  <ProjectSourceField required value={detailsDraft.source} onChange={(v) => setDetailsDraft((d) => ({ ...d, source: v }))} />
+                  <ProjectSourceField required value={overviewValue('source')} onChange={(v) => setOverviewField('source', v)} />
                 ) : <div className={calcStyles.small}>{project.source || '-'}</div>}
               </div>
             </div>
@@ -1388,28 +1507,21 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Alternate Contact Name (optional)</label>
                 {canEdit ? (
-                  <input className={calcStyles.formControl} value={detailsDraft.contactPerson} onChange={(e) => setDetailsDraft((d) => ({ ...d, contactPerson: e.target.value }))} />
+                  <input className={calcStyles.formControl} value={overviewValue('contactPerson')} onChange={(e) => setOverviewField('contactPerson', e.target.value)} onKeyDown={overviewKeyDown} />
                 ) : <div className={calcStyles.small}>{project.contact_person || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Alternate Contact Phone (optional)</label>
                 {canEdit ? (
-                  <input className={calcStyles.formControl} value={detailsDraft.altContactPhone} onChange={(e) => setDetailsDraft((d) => ({ ...d, altContactPhone: e.target.value }))} />
+                  <input className={calcStyles.formControl} value={overviewValue('altContactPhone')} onChange={(e) => setOverviewField('altContactPhone', e.target.value)} onKeyDown={overviewKeyDown} />
                 ) : <div className={calcStyles.small}>{project.alt_contact_phone || '-'}</div>}
               </div>
             </div>
-            {canEdit && detailsDirty && (
-              <div className={styles.saveDetailsWrap}>
-                <button type="button" className={calcStyles.btn} disabled={savingDetails} onClick={handleSaveDetails}>
-                  {savingDetails ? 'Saving...' : 'Save Details'}
-                </button>
-              </div>
-            )}
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Priority</label>
                 {canEdit ? (
-                  <select className={calcStyles.formControl} value={project.priority} onChange={(e) => patchProject({ priority: e.target.value })}>
+                  <select className={calcStyles.formControl} value={overviewValue('priority')} onChange={(e) => setOverviewField('priority', e.target.value)}>
                     {(Object.keys(PRIORITY_LABEL) as ProjectPriority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
                   </select>
                 ) : <div className={calcStyles.small}>{PRIORITY_LABEL[project.priority]}</div>}
@@ -1417,7 +1529,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Status</label>
                 {canEdit ? (
-                  <select className={calcStyles.formControl} value={project.status} onChange={(e) => patchProject({ status: e.target.value })}>
+                  <select className={calcStyles.formControl} value={overviewValue('status')} onChange={(e) => setOverviewField('status', e.target.value)}>
                     {(Object.keys(STATUS_LABEL) as ProjectStatus[]).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
                   </select>
                 ) : <div className={calcStyles.small}>{STATUS_LABEL[project.status]}</div>}
@@ -1425,7 +1537,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Current stage</label>
                 {canEdit ? (
-                  <select className={calcStyles.formControl} value={project.stage} onChange={(e) => patchProject({ stage: e.target.value })}>
+                  <select className={calcStyles.formControl} value={overviewValue('stage')} onChange={(e) => setOverviewField('stage', e.target.value)}>
                     {stageSelectOptions.map((s) => <option key={s} value={s}>{STAGE_LABEL[s as ProjectStage]}</option>)}
                   </select>
                 ) : <div className={calcStyles.small}>{STAGE_LABEL[project.stage]}</div>}
@@ -1433,7 +1545,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Cold call responded</label>
                 {canEdit ? (
-                  <select className={calcStyles.formControl} value={project.cold_call_responded} onChange={(e) => patchProject({ coldCallResponded: e.target.value })}>
+                  <select className={calcStyles.formControl} value={overviewValue('coldCallResponded')} onChange={(e) => setOverviewField('coldCallResponded', e.target.value)}>
                     <option value="">Not yet called</option>
                     <option value="yes">Yes</option>
                     <option value="no">No</option>
@@ -1454,7 +1566,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Next follow-up date</label>
                 {canEdit ? (
-                  <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={project.next_follow_up_date} onChange={(e) => patchProject({ nextFollowUpDate: e.target.value })} />
+                  <input type="date" className={calcStyles.formControl} min={todayDateInputValue()} value={overviewValue('nextFollowUpDate')} onChange={(e) => setOverviewField('nextFollowUpDate', e.target.value)} />
                 ) : <div className={calcStyles.small}>{formatDate(project.next_follow_up_date)}</div>}
               </div>
               <div className={calcStyles.field}>
@@ -1491,13 +1603,19 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Closing Probability % (your estimate)</label>
                 {canEdit ? (
+                  // type="text" + inputMode, not type="number": a number input
+                  // reports an empty value for anything partially typed, which
+                  // is what made a decimal point impossible to enter.
                   <input
-                    type="number"
-                    min={0}
-                    max={100}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="0-100"
+                    aria-label="Closing probability percent"
                     className={calcStyles.formControl}
-                    value={project.closing_probability_percent}
-                    onChange={(e) => patchProject({ closingProbabilityPercent: e.target.value === '' ? '' : Number(e.target.value) })}
+                    value={overviewValue('closingProbabilityPercent')}
+                    onChange={(e) => setOverviewField('closingProbabilityPercent', e.target.value)}
+                    onKeyDown={overviewKeyDown}
                   />
                 ) : project.closing_probability_percent === '' ? (
                   <div className={calcStyles.small}>-</div>
@@ -1511,18 +1629,37 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 <label className={calcStyles.label}>Approx. Project Price (₹)</label>
                 {canEdit ? (
                   <input
-                    type="number"
-                    min={1}
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder="e.g. 1250000"
+                    aria-label="Approximate project price in rupees"
                     className={calcStyles.formControl}
-                    value={project.approx_price}
-                    onChange={(e) => patchProject({ approxPrice: e.target.value === '' ? '' : Number(e.target.value) })}
+                    value={overviewValue('approxPrice')}
+                    onChange={(e) => setOverviewField('approxPrice', e.target.value)}
+                    onKeyDown={overviewKeyDown}
                   />
                 ) : (
                   <div className={calcStyles.small}>{project.approx_price === '' ? '-' : `₹${project.approx_price.toLocaleString('en-IN')}`}</div>
                 )}
               </div>
             </div>
+            {/* One Save for the whole card. It appears only once something has
+                actually been changed, and says how much is waiting, so an edit
+                can never be left sitting unsaved without the page saying so. */}
+            {canEdit && changedOverviewFields.length > 0 && (
+              <div className={styles.saveDetailsWrap}>
+                <span className={calcStyles.small}>
+                  {changedOverviewFields.length === 1 ? '1 unsaved change' : `${changedOverviewFields.length} unsaved changes`}
+                </span>
+                <button type="button" className={calcStyles.btn} disabled={savingDetails} onClick={handleSaveDetails}>
+                  {savingDetails ? 'Saving…' : 'Save changes'}
+                </button>
+                <button type="button" className={historyStyles.button} disabled={savingDetails} onClick={() => setOverviewDraft({})}>
+                  Discard
+                </button>
+              </div>
+            )}
             <div className={`${historyStyles.miniCard} ${calcStyles.mt12}`}>
               <div className={`${historyStyles.miniCardTitle} ${styles.rowBetween}`}>
                 Payment
@@ -1848,8 +1985,8 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
         {showSalesOwner && (
           <Modal
-            title="Assign Sales Person"
-            ariaLabel="Assign a sales person"
+            title={salesOwnerActionLabel}
+            ariaLabel={salesOwnerActionLabel}
             onClose={() => setShowSalesOwner(false)}
             dismissible={!savingSalesOwner}
             footer={
@@ -1861,6 +1998,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           >
             <p className={styles.salesOwnerIntro}>
               The sales person you pick owns this project: it moves into their pipeline and they are notified by email.
+              {' The change is recorded on the project timeline.'}
+              {/* Matches who lib/projectSalesOwner.ts actually notifies — the
+                  outgoing owner, and never the person making the change. */}
+              {project.created_by && project.created_by !== currentUser.username ? ` ${project.sales_person || project.created_by} is told that it has moved.` : ''}
               {project.created_by === currentUser.username && !isPrivileged ? ' Editing the project details moves to them too.' : ''}
             </p>
             <div className={calcStyles.field}>

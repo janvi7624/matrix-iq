@@ -17,6 +17,9 @@ module.exports = (sequelize, DataTypes) => {
     sales_person: { type: DataTypes.STRING },
     source: { type: DataTypes.STRING },
     status: { type: DataTypes.ENUM('active', 'on_hold', 'won', 'lost'), allowNull: false, defaultValue: 'active' },
+    // Set the moment status flips to 'won'/'lost', cleared on reopen — see
+    // lib/projectStore.ts. Drives the Projects list's 90-day auto-hide.
+    closed_at: { type: DataTypes.DATE },
     stage: {
       type: DataTypes.ENUM(
         'cold_call', 'catalogue_offered', 'site_visit', 'quotation', 'demo', 'customer_response', 'negotiation',
@@ -42,6 +45,9 @@ module.exports = (sequelize, DataTypes) => {
     // a real money field).
     approx_price: { type: DataTypes.DECIMAL(14, 2) },
     attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // ProjectStage values this project has been marked as not needing — e.g.
+    // Site Visit when the demo was given virtually.
+    skipped_stages: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     created_by: { type: DataTypes.UUID },
     assigned_technical_person_id: { type: DataTypes.UUID },
     // Set the first time a technical person is assigned — see

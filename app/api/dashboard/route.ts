@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
     const today = new Date().toISOString().slice(0, 10);
     const now = Date.now();
     const siteVisitsToday = siteVisits.filter((v) => v.visit_date === today).length;
-    const nonFinalDemoStatuses = new Set(['pending_technical', 'pending_manager', 'pending_backoffice', 'dc_generated', 'material_dispatched']);
+    const nonFinalDemoStatuses = new Set(['pending_technical', 'pending_manager', 'pending_backoffice', 'ready_for_demo', 'dc_generated', 'material_dispatched']);
     const upcomingDemos = demosForKpis.filter((d) => nonFinalDemoStatuses.has(d.status) && d.scheduled_at && new Date(d.scheduled_at).getTime() > now).length;
     const pendingResponses = projectsLight.filter((p) => p.stage === 'customer_response').length;
     const negotiations = projectsLight.filter((p) => p.stage === 'negotiation').length;

@@ -13,7 +13,7 @@ import { searchQuotations } from '@/lib/quotationStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus } from '@/lib/types';
-import { ASSIGNABLE_STAGES } from '@/lib/projectStages';
+import { ASSIGNABLE_STAGES, FORWARD_STAGES } from '@/lib/projectStages';
 import { findUserById } from '@/lib/userStore';
 import { findSalesPersonCandidate, SalesOwnerError } from '@/lib/projectSalesOwner';
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
@@ -172,6 +172,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // is always captured (previously this silently overwrote it with zero
     // history). next_follow_up_date is a plain reminder date, unaffected.
     if (typeof body.nextFollowUpDate === 'string') patch.next_follow_up_date = body.nextFollowUpDate;
+    // Stages marked "not required" — e.g. Site Visit on a deal whose demo was
+    // given virtually. Only real forward stages can be skipped: the terminal
+    // 'closed_lost' is an outcome rather than a step, and the stage a project
+    // is currently ON cannot be skipped, which would otherwise leave it parked
+    // on a step it claims not to need.
+    if (Array.isArray(body.skippedStages)) {
+      const requested: ProjectStage[] = (body.skippedStages as unknown[]).filter(
+        (value): value is ProjectStage => typeof value === 'string' && FORWARD_STAGES.includes(value as ProjectStage)
+      );
+      const currentStage = (typeof body.stage === 'string' && ASSIGNABLE_STAGES.includes(body.stage) ? body.stage : existing.stage) as ProjectStage;
+      const invalid = requested.filter((value) => value === currentStage);
+      if (invalid.length) {
+        return NextResponse.json({ error: `The project is on ${invalid[0]} right now, so it can't be marked as not required.` }, { status: 400 });
+      }
+      patch.skipped_stages = Array.from(new Set(requested));
+    }
     if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
     if ('closingProbabilityPercent' in body) {

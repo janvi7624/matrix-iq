@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SESSION_COOKIE, createSessionToken } from '@/lib/auth';
+import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from '@/lib/auth';
 import { verifyLogin, recordLogin } from '@/lib/userStore';
 import { logLoginAttempt } from '@/lib/loginHistoryStore';
 import { getClientIp } from '@/lib/requestIp';
@@ -33,13 +33,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       user: { name: user.name, phone: user.phone, email: user.email, role: user.role, username: user.username }
     });
-    response.cookies.set(SESSION_COOKIE, token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 8 * 60 * 60
-    });
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
     return response;
   } catch (error) {
     return apiErrorResponse(error);
