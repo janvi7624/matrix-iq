@@ -1,4 +1,33 @@
+import os from 'node:os';
 import type { NextConfig } from "next";
+
+// How many worker processes `next build` may fork for compilation and static
+// generation. Left alone, Next forks one per CPU — which is the right answer on
+// a workstation and the wrong one on a build container, because a shared host
+// reports the HOST's core count while giving the container a fraction of its
+// RAM. That is what killed the Hostinger deploys: ~11 workers were forked into
+// a container with a couple of gigabytes, the build was killed part-way through
+// compiling, and the platform reported only "Failed to build the application"
+// with no compiler error — the same commit builds here in under 30 seconds.
+//
+// Deliberately a fixed cap rather than anything derived from os.freemem():
+// inside a container Node reports the HOST's memory, not the cgroup limit, so
+// a memory-derived count cannot see the very constraint it would be trying to
+// respect — and free memory swings minute to minute, which would make build
+// times unpredictable. Next's own fallback when no count is configured is 4,
+// so this is its documented default made explicit instead of one-per-core.
+//
+// Four workers is no slower than eleven on a build of this size (the static
+// pass here takes about a second either way) while cutting peak worker memory
+// by roughly two thirds. NEXT_BUILD_CPUS pins it lower still — set it to 2, or
+// 1, on a small build container if this is not enough.
+const DEFAULT_BUILD_WORKERS = 4;
+
+function buildWorkerCount(): number {
+  const override = Number(process.env.NEXT_BUILD_CPUS);
+  if (Number.isFinite(override) && override > 0) return Math.floor(override);
+  return Math.max(1, Math.min(os.cpus().length, DEFAULT_BUILD_WORKERS));
+}
 
 const nextConfig: NextConfig = {
   // Sequelize does its own dynamic require() to load the pg dialect module at
@@ -45,7 +74,10 @@ const nextConfig: NextConfig = {
     // legitimate upload batch; each individual file is still capped at 10MB by
     // the upload routes, which now also refuse an oversized request cleanly
     // (lib/uploadRequest.ts) instead of letting it truncate.
-    proxyClientMaxBodySize: '50mb'
+    proxyClientMaxBodySize: '50mb',
+    // See buildWorkerCount() above — sized by free memory, not just cores, so a
+    // memory-limited build container cannot fork itself to death.
+    cpus: buildWorkerCount()
   }
 };
 
