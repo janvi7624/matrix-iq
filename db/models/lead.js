@@ -4,6 +4,7 @@ module.exports = (sequelize, DataTypes) => {
     created_by: { type: DataTypes.UUID },
     name: { type: DataTypes.STRING },
     mobile: { type: DataTypes.STRING },
+    alt_mobile: { type: DataTypes.STRING },
     email: { type: DataTypes.STRING },
     designation: { type: DataTypes.STRING },
     company: { type: DataTypes.STRING },
@@ -19,6 +20,10 @@ module.exports = (sequelize, DataTypes) => {
     project_id: { type: DataTypes.UUID },
     // 'manual' | 'business_card' | 'csv_import' | 'meta_lead_ads'
     source: { type: DataTypes.STRING(30), allowNull: false, defaultValue: 'manual' },
+    // Where the lead CAME FROM (event/campaign/channel) — picked by the rep,
+    // mandatory on capture. Separate from `source` above, which is the capture
+    // method. '' = captured before this field existed. See lib/leadSources.ts.
+    lead_source: { type: DataTypes.STRING(40), allowNull: false, defaultValue: '' },
     // Meta (Facebook/Instagram) Lead Ads attribution — see lib/metaLeadIngest.ts.
     // meta_lead_id has a DB-level unique index (migration
     // 20260901120000-add-meta-fields-to-leads.js) so the same Meta lead can
@@ -43,7 +48,15 @@ module.exports = (sequelize, DataTypes) => {
     // Separate from created_by, which stays "who captured it".
     assigned_to_id: { type: DataTypes.UUID },
     assigned_by_id: { type: DataTypes.UUID },
-    assigned_at: { type: DataTypes.DATE }
+    assigned_at: { type: DataTypes.DATE },
+    // Qualification call — the step between "assigned" and "is this worth a
+    // project?". '' = not called yet; 'suitable' is the only outcome that
+    // creates a project. See lib/leadCall.ts.
+    call_outcome: { type: DataTypes.STRING(20), allowNull: false, defaultValue: '' },
+    called_at: { type: DataTypes.DATE },
+    called_by_id: { type: DataTypes.UUID },
+    call_remark: { type: DataTypes.TEXT, allowNull: false, defaultValue: '' },
+    callback_at: { type: DataTypes.DATEONLY }
   }, {
     tableName: 'leads',
     underscored: true,
@@ -55,6 +68,7 @@ module.exports = (sequelize, DataTypes) => {
     Lead.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
     Lead.belongsTo(models.User, { foreignKey: 'assigned_to_id', as: 'assignee' });
     Lead.belongsTo(models.User, { foreignKey: 'assigned_by_id', as: 'assigner' });
+    Lead.belongsTo(models.User, { foreignKey: 'called_by_id', as: 'caller' });
   };
 
   return Lead;

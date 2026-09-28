@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { composeQuote } from '@/lib/calculations';
 import { generateQuotationPdf } from '@/lib/pdf';
 import { computeQuotationPrefix, generateDraftQuotationNumber, refreshDraftQuotationNumber } from '@/lib/quotationNumber';
-import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey, DomainResult, ProjectRecord, PublicAppConfig, QuotationDetails, QuotationRecord, UserRole } from '@/lib/types';
+import { AvProjectType, CartItem, CostInputs, CustomProduct, Discount, DomainKey, DomainResult, LineItem, ProjectRecord, PublicAppConfig, QuotationDetails, QuotationRecord, UserRole } from '@/lib/types';
 import { getRoomSuggestions } from '@/lib/roomSuggestions';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
@@ -197,6 +197,47 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
           projectVertical: source.project_vertical || '',
           validityDays: source.validity_days || d.validityDays
         }));
+
+        // Carry the last quote's actual line items over as editable Custom
+        // Products — the per-domain estimator wizards can't be "un-run" back
+        // to their original inputs from a saved quote's flattened totals,
+        // but every line item, quantity, and price the client already saw is
+        // right here to tweak, remove, or add to, instead of the reviser
+        // rebuilding the whole quote product-by-product from scratch.
+        try {
+          // The shape buildQuotationPayload() actually sends/saves as
+          // products_json — grouped label + flattened LineItem[], not the
+          // ProductGroup (start/end index) shape composition.productGroups
+          // uses in memory.
+          const groups: { label: string; lineItems: LineItem[]; remark?: string }[] = JSON.parse(source.products_json || '[]');
+          // Negative, sequential ids — never collide with nextId.current's
+          // own positive counter (used by every "+ Add" action elsewhere),
+          // and mutating that shared ref from inside an effect is its own
+          // hazard, so this avoids touching it at all.
+          let seedId = -1;
+          const items: CustomProduct[] = groups.flatMap((g) =>
+            (g.lineItems || []).map((li) => ({
+              id: seedId--,
+              name: li.description || g.label,
+              description: g.label,
+              unit: li.unit || '',
+              qty: Number(li.qty) || 1,
+              price: Number(li.rate) || 0,
+              remarks: g.remark || ''
+            }))
+          );
+          if (items.length) {
+            setCustomProducts(items);
+            setQuotationMode('custom');
+          }
+        } catch {
+          // Malformed/legacy products_json — leave the cart empty rather
+          // than block the revision.
+        }
+        setCostInputs((c) => ({ ...c, markupPercent: source.markup_percent || 0 }));
+        if (source.discount_total) {
+          setDiscounts([{ id: -1_000_000, label: `Carried over from ${source.quotation_number}`, type: 'flat', value: source.discount_total }]);
+        }
       })
       .catch(() => null);
     // eslint-disable-next-line react-hooks/exhaustive-deps

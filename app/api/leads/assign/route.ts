@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { leadStore, assignLeads, findLeadById } from '@/lib/leadStore';
+import { leadStore, assignLeads, findLeadsByIds, canWorkLead } from '@/lib/leadStore';
 import { canAssignLeads } from '@/lib/permissions';
-import { logAudit } from '@/lib/auditLogStore';
+import { logAudit, logAuditMany } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { db } from '@/lib/db';
-import { createProjectFromLead, reassignLinkedProject } from '@/lib/leadProjectAutomation';
+import { reassignLinkedProject } from '@/lib/leadProjectAutomation';
 import { notifyUsers } from '@/lib/notificationStore';
 
 // A sales manager routes captured leads to the reps who will work them.
@@ -21,17 +21,42 @@ export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (!(await canAssignLeads(viewer))) {
-    return NextResponse.json({ error: 'Forbidden — only a sales manager can assign leads' }, { status: 403 });
-  }
-
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
   const leadIds: string[] = Array.isArray(body.leadIds) ? body.leadIds.filter((v: unknown): v is string => typeof v === 'string' && !!v) : [];
   if (!leadIds.length) return NextResponse.json({ error: 'No leads selected' }, { status: 400 });
 
-  const assigneeId = typeof body.assigneeId === 'string' ? body.assigneeId.trim() : '';
+  // Routing leads to other people stays a sales manager's job. The one thing
+  // anybody may do is CLAIM an unassigned lead they can already work — take
+  // it for themselves — which is what `claim: true` asks for. Without it, a
+  // rep who captured a card but left "Whose lead is this?" on Unassigned has
+  // no way to put their own lead into their own To Call queue; they have to
+  // find a manager to hand them back their own contact. It grants nothing
+  // new either: canLogLeadCall (lib/leadCall.ts) already lets the same person
+  // record a call on that same unassigned lead, and claiming is the smaller
+  // act.
+  //
+  // The claimer is resolved from the session here rather than trusted from
+  // the request, so "assign to me" can only ever mean the caller, and the
+  // rest of the claim (lead really unassigned, really workable by them) is
+  // re-checked against the database below.
+  const wantsClaim = body.claim === true;
+  const canAssign = await canAssignLeads(viewer);
+  if (!canAssign && !wantsClaim) {
+    return NextResponse.json({ error: 'Forbidden — only a sales manager can assign leads to someone else' }, { status: 403 });
+  }
+
+  let assigneeId = typeof body.assigneeId === 'string' ? body.assigneeId.trim() : '';
+  if (wantsClaim) {
+    const self = await db.User.findOne({ where: { username: viewer.username } as never, attributes: ['id'] });
+    if (!self) return NextResponse.json({ error: 'Your account could not be found' }, { status: 400 });
+    assigneeId = self.get('id') as string;
+  }
+  // A manager using the ordinary dropdown to route a lead to themselves is
+  // still a normal assignment — the narrow claim rules only bind when the
+  // claim path was actually used.
+  const isSelfClaim = wantsClaim;
 
   try {
     let assigneeUsername = '';
@@ -50,11 +75,33 @@ export async function POST(request: NextRequest) {
     // sales manager grants the right to route leads, not to reach leads
     // outside their own visibility scope by guessing ids.
     const visible = await leadStore.list(viewer.username, viewer.isPrivileged);
-    const visibleIds = new Set(visible.map((l) => l.id));
-    const permitted = leadIds.filter((id) => visibleIds.has(id));
-    const rejected = leadIds.filter((id) => !visibleIds.has(id));
+    const visibleById = new Map(visible.map((l) => [l.id, l]));
+    let permitted = leadIds.filter((id) => visibleById.has(id));
+    let rejected = leadIds.filter((id) => !visibleById.has(id));
+    // Answered before the claim rules below so each failure gets its own
+    // reason: "you can't see it" and "somebody already has it" are different
+    // problems and the second message would be a lie about the first.
     if (!permitted.length) {
       return NextResponse.json({ error: 'None of the selected leads are available to you' }, { status: 403 });
+    }
+
+    // A self-claim is narrower than a manager's routing: only a lead that
+    // nobody holds yet, and only one this person may actually work. Anything
+    // else in the batch is refused rather than quietly taken from its owner.
+    if (isSelfClaim) {
+      const claimable = await Promise.all(
+        permitted.map(async (id) => {
+          const lead = visibleById.get(id)!;
+          if (lead.assigned_to_id) return null;
+          return (await canWorkLead(viewer.username, lead)) ? id : null;
+        })
+      );
+      const allowedIds = new Set(claimable.filter((id): id is string => !!id));
+      rejected = [...rejected, ...permitted.filter((id) => !allowedIds.has(id))];
+      permitted = permitted.filter((id) => allowedIds.has(id));
+      if (!permitted.length) {
+        return NextResponse.json({ error: 'You can only take a lead that is still unassigned.' }, { status: 403 });
+      }
     }
 
     // Captured before the write so the audit trail can name the previous
@@ -63,34 +110,38 @@ export async function POST(request: NextRequest) {
 
     const result = await assignLeads(permitted, assigneeId, viewer.username);
 
-    for (const id of permitted) {
-      const before = previousById.get(id);
-      if (!before) continue;
-      const label = before.name || before.company || id;
-      await logAudit({
-        by: viewer.username,
-        role: viewer.role,
-        entityType: 'lead',
-        entityId: id,
-        action: assigneeUsername
-          ? `Lead ${before.assigned_to ? 'reassigned' : 'assigned'} to ${assigneeUsername}: ${label}`
-          : `Lead unassigned: ${label}`,
-        previousStatus: before.assigned_to || 'unassigned',
-        newStatus: assigneeUsername || 'unassigned',
-        remarks: before.assigned_to ? `Previously assigned to ${before.assigned_to}` : `Captured by ${before.created_by}`,
-        ip: getClientIp(request)
-      });
-    }
+    // One audit row per lead, written as a single batch — an expo assignment
+    // is 600 rows, and one INSERT each would take longer than the request has.
+    await logAuditMany(
+      permitted.flatMap((id) => {
+        const before = previousById.get(id);
+        if (!before) return [];
+        const label = before.name || before.company || id;
+        return [{
+          by: viewer.username,
+          role: viewer.role,
+          entityType: 'lead' as const,
+          entityId: id,
+          action: assigneeUsername
+            ? `Lead ${before.assigned_to ? 'reassigned' : 'assigned'} to ${assigneeUsername}: ${label}`
+            : `Lead unassigned: ${label}`,
+          previousStatus: before.assigned_to || 'unassigned',
+          newStatus: assigneeUsername || 'unassigned',
+          remarks: before.assigned_to ? `Previously assigned to ${before.assigned_to}` : `Captured by ${before.created_by}`,
+          ip: getClientIp(request)
+        }];
+      })
+    );
 
-    // Lead -> Project automation (Part 2 of the plan): assigning a lead is
-    // the trigger, not a separate manual step. Unassigning (assigneeId: '')
-    // never creates/touches a project — there's no one to auto-create it
-    // for. A lead with no project yet gets one created and attributed to
-    // the ASSIGNEE (not the manager doing the assigning); a lead that
-    // already has a linked project (this is a reassignment) has that
-    // existing project's ownership moved instead of a second one being
-    // created — see lib/leadProjectAutomation.ts for why both paths share
-    // one function and how the duplicate-project guard works.
+    // Assigning a lead NO LONGER creates a project. It used to: one project
+    // per assigned lead, which after an expo meant 600 projects nobody had
+    // spoken to, swamping the pipeline and every conversion chart. A project
+    // is now created only by a qualification call that goes well
+    // (lib/leadCall.ts — outcome 'suitable').
+    //
+    // The one case that still touches a project is REASSIGNMENT of a lead
+    // that already has one: its ownership has to follow the new assignee,
+    // otherwise the work silently stays with the person who left it.
     if (assigneeUsername) {
       for (const id of permitted) {
         const before = previousById.get(id);
@@ -111,38 +162,43 @@ export async function POST(request: NextRequest) {
                 type: 'project_assigned_from_lead', entityType: 'project', entityId: project.id
               });
             }
-          } else {
-            const freshLead = await findLeadById(id);
-            if (!freshLead) continue;
-            const result = await createProjectFromLead(freshLead, { attributeToUsername: assigneeUsername, autoCreated: true });
-            if (result) {
-              await logAudit({
-                by: viewer.username, role: viewer.role, entityType: 'project', entityId: result.project.id,
-                action: `Project auto-created from lead assignment, assigned to ${assigneeUsername}`,
-                previousStatus: '', newStatus: 'pending_confirmation',
-                ip: getClientIp(request)
-              });
-              await notifyUsers([assigneeUsername], {
-                title: 'New lead assigned — project created for you',
-                body: `${result.project.client_name || result.project.company} — please review and confirm the assignment.`,
-                type: 'project_assigned_from_lead', entityType: 'project', entityId: result.project.id
-              });
-            }
           }
         } catch (automationError) {
           // Best-effort — the lead assignment itself already succeeded and
-          // must not be rolled back just because the follow-on project
-          // automation hit an error; it's logged server-side by
-          // apiErrorResponse's console.error pattern elsewhere, but since
-          // this isn't the top-level catch, log directly here instead.
+          // must not be rolled back just because moving the linked project
+          // hit an error.
           console.error(`[lead-project-automation] Failed for lead ${id}:`, automationError instanceof Error ? automationError.message : automationError);
         }
+      }
+
+      // One notification for the batch, not one per lead: assigning 600 expo
+      // cards must not fire 600 notifications at the person who has to call
+      // them. Their queue is the "To Call" list on Lead Capture.
+      //
+      // Counted from what assignLeads actually wrote, not from what was asked
+      // for: a lead that failed mid-batch isn't in the rep's queue, so telling
+      // them "600 leads were assigned to you" when 580 landed sends them
+      // looking for twenty calls that aren't there. If none landed, there is
+      // nothing to tell them at all.
+      const failedIds = new Set(result.failed);
+      const assignedIds = permitted.filter((id) => !failedIds.has(id));
+      // Nothing to tell someone who just took the lead themselves — they are
+      // looking at the row they clicked (same reasoning as lib/leadHandover.ts).
+      if (assignedIds.length && !isSelfClaim) {
+        const count = assignedIds.length;
+        await notifyUsers([assigneeUsername], {
+          title: count === 1 ? 'A lead was assigned to you' : `${count} leads were assigned to you`,
+          body: `${viewer.name} assigned you ${count === 1 ? 'a lead' : `${count} leads`} to call. Record what comes of each call — only the suitable ones become projects.`,
+          type: 'lead_assigned',
+          entityType: 'lead_assignment',
+          entityId: assignedIds[0]
+        });
       }
     }
 
     // Return the updated rows so the client can patch its list in place
-    // instead of refetching everything.
-    const updated = (await Promise.all(permitted.map((id) => findLeadById(id)))).filter(Boolean);
+    // instead of refetching everything — in ONE query, not one per lead.
+    const updated = await findLeadsByIds(permitted);
 
     return NextResponse.json({
       assigned: result.assigned,

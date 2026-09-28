@@ -9,9 +9,17 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+// preload:false because this face is referenced by exactly one rule in the
+// whole product — the `@username` line in the employee directory
+// (components/employeeDirectory.module.css .personSub) — yet declaring it on
+// <html> made Next preload its 22.6KB woff2 on EVERY page, including the
+// login screen, which renders no monospace character at all. With preloading
+// off the variable still resolves and the font is still fetched on the one
+// screen that actually paints with it; every other page stops paying for it.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 export const metadata: Metadata = {

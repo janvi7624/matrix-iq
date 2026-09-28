@@ -137,3 +137,27 @@ export async function processTodaysCelebrations(): Promise<CelebrationToday[]> {
 
   return celebrations;
 }
+
+// The popup used to reappear on every dashboard visit for the whole day,
+// deliberately, so a visit later in the day still caught it — but that made
+// it show up "every time" someone logged in, which is what this caps.
+// Tracked per-user in the DB (not per-browser/localStorage) so the limit
+// holds across devices and sessions, not just on whichever one they saw it
+// first. The date/count reset implicitly on the next day's first call
+// (dateMatches becomes false), the same way processTodaysCelebrations'
+// per-day dedup works — no cron needed to clear it.
+const MAX_CELEBRATIONS_POPUP_VIEWS_PER_DAY = 3;
+
+export async function shouldShowCelebrationsPopup(userId: string): Promise<boolean> {
+  const user = await db.User.findByPk(userId, { attributes: ['id', 'celebrationPopupViewDate', 'celebrationPopupViewCount'] });
+  if (!user) return false;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const p = user.get({ plain: true }) as Record<string, unknown>;
+  const dateMatches = p.celebrationPopupViewDate === today;
+  const viewsToday = dateMatches ? Number(p.celebrationPopupViewCount) || 0 : 0;
+  if (viewsToday >= MAX_CELEBRATIONS_POPUP_VIEWS_PER_DAY) return false;
+
+  await user.update({ celebrationPopupViewDate: today, celebrationPopupViewCount: viewsToday + 1 } as never);
+  return true;
+}

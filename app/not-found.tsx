@@ -8,7 +8,7 @@ export default function NotFound() {
     <div className={`${styles.body} ${styles.fullPageColumn}`}>
       <header className={styles.header}>
         <div className={styles.headerBrand}>
-          <Image src={BRAND.logo} alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
+          <Image src={BRAND.logoWeb} alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
           <div>
             <h1>{BRAND.appName}</h1>
             <div className={styles.sub}>{BRAND.tagline}</div>

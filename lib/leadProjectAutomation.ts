@@ -1,5 +1,5 @@
 import { LeadRecord, ProjectRecord } from './types';
-import { leadStore } from './leadStore';
+import { findLeadById } from './leadStore';
 import { projectStore } from './projectStore';
 import { db } from './db';
 
@@ -75,6 +75,7 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     source: projectSource,
     status: 'active',
     stage: 'cold_call',
+    closed_at: '',
     cold_call_responded: '',
     priority: lead.priority === 'hot' ? 'high' : lead.priority === 'warm' ? 'medium' : 'low',
     expected_closing_date: '',
@@ -87,6 +88,9 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     project_lead_id: opts.projectLeadId || '',
     project_lead_name: '',
     opportunity_type: opts.opportunityType || '',
+    // No stage is pre-marked as skippable; that is a per-project decision
+    // taken later (e.g. Site Visit, when the demo turns out to be virtual).
+    skipped_stages: [],
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',
     tms_project_id: '',
@@ -107,7 +111,25 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
   const createdProject = await projectStore.create(project);
 
   try {
-    const updatedLead = await leadStore.update(lead.id, { project_id: createdProject.id, updated_at: now });
+    // Claim the lead only if it STILL has no project. The in-memory check at
+    // the top of this function can't stop two callers racing (the assignee
+    // and a manager both marking the same lead suitable, or a retried
+    // request): both would read project_id as empty and create a project, and
+    // the loser's would be an orphan nothing links to — sitting in the
+    // pipeline being counted forever, which is the exact pollution this
+    // feature exists to prevent. Letting the database decide the winner makes
+    // that impossible.
+    const [claimed] = await db.Lead.update(
+      { project_id: createdProject.id, updated_at: now } as never,
+      { where: { id: lead.id, project_id: null } as never }
+    );
+    if (!claimed) {
+      // Someone else linked a project first — throw away the one just made
+      // and report "already converted" the same way the guard above does.
+      await db.Project.destroy({ where: { id: createdProject.id } as never, force: true }).catch(() => {});
+      return null;
+    }
+    const updatedLead = await findLeadById(lead.id);
     if (!updatedLead) throw new Error('Lead not found when linking created project');
     return { lead: updatedLead, project: createdProject };
   } catch (error) {

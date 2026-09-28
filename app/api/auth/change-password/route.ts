@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SESSION_COOKIE, createSessionToken, getSessionFromRequest } from '@/lib/auth';
+import { SESSION_COOKIE, createSessionToken, getSessionFromRequest, sessionCookieOptions } from '@/lib/auth';
 import { findUserById, updateUser } from '@/lib/userStore';
 import { verifyPassword } from '@/lib/passwords';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -36,13 +36,7 @@ export async function POST(request: NextRequest) {
     const isPrivileged = await resolveIsPrivileged(user.role);
     const token = await createSessionToken({ id: user.id, username: user.username, role: user.role, mustChangePassword: false, isPrivileged });
     const response = NextResponse.json({ ok: true });
-    response.cookies.set(SESSION_COOKIE, token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 8 * 60 * 60
-    });
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
     return response;
   } catch (error) {
     return apiErrorResponse(error);

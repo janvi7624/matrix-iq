@@ -52,6 +52,7 @@ import {
   ReceiptIndianRupee,
   Cake,
   KanbanSquare,
+  CheckSquare,
   type LucideIcon
 } from 'lucide-react';
 
@@ -103,6 +104,11 @@ export const ATTENTION_ICON: Record<string, LucideIcon> = {
 };
 
 export const ALL_CAUGHT_UP_ICON: LucideIcon = CheckCircle2;
+// The "Due" bar in the Dashboard's section list (Sales leadership only) —
+// sits among module sections, so it needs an icon of the same shape as
+// SECTION_ICON's, but it isn't a module section and must not be reachable
+// through sectionIconFor.
+export const DUE_SECTION_ICON: LucideIcon = Clock;
 export const ANALYTICS_ICON: LucideIcon = BarChart3;
 
 // Module Manager / Custom Module Builder icon picker — the `icon` field on
@@ -115,6 +121,11 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   'folder-kanban': FolderKanban,
   'file-text': FileText,
   'clipboard-list': ClipboardList,
+  // My Tasks ships with icon 'check-square' (lib/moduleConfigStore.ts's seed),
+  // which was missing here — so resolveModuleIcon returned null and the
+  // sidebar fell back to printing the key as text in a 16px icon slot, i.e.
+  // no icon. Every key any seeded module uses must exist in this registry.
+  'check-square': CheckSquare,
   'map-pin': MapPin,
   contact: Contact,
   monitor: Monitor,

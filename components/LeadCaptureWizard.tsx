@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DomainKey, LeadHandoverOutcome, LeadHandoverRecipient, LeadPriority, LeadRecord } from '@/lib/types';
+import { DomainKey, LeadHandoverOutcome, LeadHandoverRecipient, LeadOrigin, LeadPriority, LeadRecord } from '@/lib/types';
+import { LEAD_ORIGIN_OPTIONS } from '@/lib/leadSources';
 import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { preprocessCardImage, scanBusinessCard } from '@/lib/cardOcr';
 import { Camera, User, Target, Flame, StickyNote, CheckCircle2, RefreshCw, Images, PenLine, Send, UserCheck } from 'lucide-react';
@@ -14,6 +15,9 @@ import styles from './leadCaptureWizard.module.css';
 interface LeadForm {
   name: string;
   mobile: string;
+  // Some cards list two numbers — this one's never OCR-filled, only typed in
+  // by hand, since lib/cardOcr.ts's phone regex only ever captures the first.
+  altMobile: string;
   email: string;
   designation: string;
   company: string;
@@ -25,13 +29,15 @@ interface LeadForm {
   followUpActions: string[];
   budget: string;
   notes: string;
+  // Where the lead came from — mandatory, see lib/leadSources.ts.
+  leadSource: LeadOrigin;
   // The colleague this card belongs to, when the person scanning it isn't
   // that colleague. '' = Unassigned (a sales manager routes it).
   handoverToId: string;
 }
 
 function emptyForm(): LeadForm {
-  return { name: '', mobile: '', email: '', designation: '', company: '', city: '', cardImageUrl: '', interests: [], subInterests: [], priority: '', followUpActions: [], budget: '', notes: '', handoverToId: '' };
+  return { name: '', mobile: '', altMobile: '', email: '', designation: '', company: '', city: '', cardImageUrl: '', interests: [], subInterests: [], priority: '', followUpActions: [], budget: '', notes: '', leadSource: '', handoverToId: '' };
 }
 
 const STEPS = [
@@ -48,11 +54,10 @@ type LeadSubmitResult = LeadRecord & { duplicate?: boolean; duplicateCapturedBy?
 interface LeadCaptureWizardProps {
   creating: boolean;
   onSubmit: (form: LeadForm) => Promise<LeadSubmitResult | null>;
-  onConvertToProject: (leadId: string) => Promise<boolean>;
   onViewAllLeads: () => void;
 }
 
-export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProject, onViewAllLeads }: LeadCaptureWizardProps) {
+export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }: LeadCaptureWizardProps) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<LeadForm>(emptyForm());
   const [scanning, setScanning] = useState(false);
@@ -62,8 +67,6 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
   // works without it, so this warns rather than blocks.
   const [cardUploadError, setCardUploadError] = useState('');
   const [successRecord, setSuccessRecord] = useState<LeadSubmitResult | null>(null);
-  const [converting, setConverting] = useState(false);
-  const [converted, setConverted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [recipients, setRecipients] = useState<LeadHandoverRecipient[] | null>(null);
   const [recipientsFailed, setRecipientsFailed] = useState(false);
@@ -94,11 +97,18 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
   const recipientGroups = useMemo(() => {
     const byDepartment = new Map<string, LeadHandoverRecipient[]>();
     for (const r of recipients || []) {
+      if (r.self) continue; // pinned to the top of the list on its own, not buried in a department
       const key = r.department || 'Other';
       byDepartment.set(key, [...(byDepartment.get(key) || []), r]);
     }
     return [...byDepartment.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [recipients]);
+
+  // The capturer's own entry. Scanning a card that is yours is at least as
+  // common as scanning one for a colleague, and a lead left Unassigned does
+  // not appear in anyone's call queue — so this is a first-class choice
+  // rather than one name among a hundred in a department group.
+  const selfRecipient = recipients?.find((r) => r.self) ?? null;
 
   const handoverTarget = recipients?.find((r) => r.id === form.handoverToId) ?? null;
 
@@ -173,6 +183,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
 
   function validateStep(index: number): string[] {
     if (index === 1 && !form.name.trim() && !form.company.trim()) return ['Enter at least a name or a company.'];
+    if (index === 1 && !form.leadSource) return ['Pick where this lead came from.'];
     if (index === 2 && form.interests.length === 0) return ['Select at least one area of interest.'];
     if (index === 3 && !form.priority) return ['Select a priority level.'];
     return [];
@@ -208,33 +219,20 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
 
   function handleCaptureNext() {
     setSuccessRecord(null);
-    setConverted(false);
     setForm(emptyForm());
     setStep(0);
   }
 
-  async function handleConvert() {
-    if (!successRecord) return;
-    setConverting(true);
-    try {
-      const ok = await onConvertToProject(successRecord.id);
-      if (ok) setConverted(true);
-    } finally {
-      setConverting(false);
-    }
-  }
-
   if (successRecord) {
     const handover = successRecord.handover;
-    // Once it's someone else's lead, converting it here would attribute the
-    // project to the person who scanned the card — that's the recipient's call.
+    const keptBySelf = handover?.status === 'kept_by_capturer';
     const handedOver = handover?.status === 'handed_over' || handover?.status === 'already_with_them';
     return (
       <div className={historyStyles.wizardCard}>
         <div className={historyStyles.successPanel}>
           <div className={historyStyles.successIcon}>{successRecord.duplicate ? <RefreshCw size={44} /> : <CheckCircle2 size={44} />}</div>
           <h2 className={`${calcStyles.h2} ${calcStyles.h2NoAccent}`}>
-            {successRecord.duplicate ? 'Lead already existed — details merged' : handedOver ? 'Lead saved & handed over' : 'Lead saved!'}
+            {successRecord.duplicate ? 'Lead already existed — details merged' : keptBySelf ? 'Lead saved & assigned to you' : handedOver ? 'Lead saved & handed over' : 'Lead saved!'}
           </h2>
           {successRecord.duplicate && (
             <div className={historyStyles.autofillNotice}>
@@ -244,6 +242,11 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
           {handover?.status === 'handed_over' && (
             <div className={historyStyles.autofillNotice}>
               Sent to {handover.toName}. They&apos;ve been emailed and will find it under &ldquo;Assigned To Me&rdquo;.
+            </div>
+          )}
+          {handover?.status === 'kept_by_capturer' && (
+            <div className={historyStyles.autofillNotice}>
+              It&apos;s yours — you&apos;ll find it under &ldquo;To Call&rdquo; on the Leads list. Ring the contact and record what came of it; only a suitable call becomes a project.
             </div>
           )}
           {handover?.status === 'already_with_them' && (
@@ -268,13 +271,10 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
           <div className={historyStyles.successActions}>
             <button type="button" className={historyStyles.bigBtn} onClick={handleCaptureNext}>Scan Next Lead</button>
             <button type="button" className={historyStyles.bigBtnGhost} onClick={onViewAllLeads}>View All Leads</button>
-            {!handedOver && (!converted ? (
-              <button type="button" className={historyStyles.bigBtnGhost} disabled={converting} onClick={handleConvert}>
-                {converting ? 'Converting…' : 'Convert to Project'}
-              </button>
-            ) : (
-              <div className={historyStyles.autofillNotice}>Added to the project pipeline.</div>
-            ))}
+            {/* No "Convert to Project" here any more: a lead becomes a project
+                only after someone calls it and marks the outcome suitable
+                (lib/leadCall.ts), so this button would be refused every time.
+                A card just scanned has nobody assigned and no call yet. */}
           </div>
         </div>
       </div>
@@ -380,6 +380,10 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
                 <PhoneInput value={form.mobile} onChange={(v) => setForm((f) => ({ ...f, mobile: v }))} />
               </div>
               <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Alternate Mobile (optional)</label>
+                <PhoneInput value={form.altMobile} onChange={(v) => setForm((f) => ({ ...f, altMobile: v }))} />
+              </div>
+              <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Email</label>
                 <input className={calcStyles.formControl} type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
               </div>
@@ -389,12 +393,30 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
               </div>
             </div>
 
+            {/* Mandatory, and placed before the hand-over picker because it's
+                a fact about the lead rather than a routing decision. A card
+                scanned at a stand has one obvious answer, so the field is a
+                plain select rather than anything that slows the queue down. */}
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="lead-source">Where did this lead come from? *</label>
+              <Select
+                id="lead-source"
+                value={form.leadSource}
+                onChange={(e) => setForm((f) => ({ ...f, leadSource: e.target.value as LeadOrigin }))}
+              >
+                <option value="">Select a source…</option>
+                {LEAD_ORIGIN_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </Select>
+            </div>
+
             <div className={styles.handover}>
               <label htmlFor="lead-handover" className={styles.handoverTitle}><Send size={16} /> Whose lead is this?</label>
               <p className={styles.handoverHint}>
                 {recipientsFailed
                   ? 'Couldn’t load your colleagues right now — this lead will be saved as Unassigned.'
-                  : 'Scanning a card for a colleague? Pick them and the lead goes straight to their list, with an email.'}
+                  : 'Keep it yourself, or pick the colleague it belongs to and it goes straight to their list with an email.'}
               </p>
               <Select
                 id="lead-handover"
@@ -403,6 +425,11 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
                 onChange={(e) => setForm((f) => ({ ...f, handoverToId: e.target.value }))}
               >
                 <option value="">{recipients || recipientsFailed ? 'Unassigned — a sales manager will route it' : 'Loading colleagues…'}</option>
+                {selfRecipient && (
+                  <optgroup label="Keep it">
+                    <option value={selfRecipient.id}>Assign to me — {selfRecipient.name}</option>
+                  </optgroup>
+                )}
                 {recipientGroups.map(([department, people]) => (
                   <optgroup key={department} label={department}>
                     {people.map((p) => (
@@ -414,7 +441,9 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
               {handoverTarget && (
                 <span className={styles.handoverTarget}>
                   <UserCheck size={15} />
-                  <span>Goes to <strong>{handoverTarget.name}</strong> · they&apos;ll be emailed when you save</span>
+                  {handoverTarget.self
+                    ? <span>Stays with <strong>you</strong> · it&apos;ll be in your &ldquo;To Call&rdquo; list, no email sent</span>
+                    : <span>Goes to <strong>{handoverTarget.name}</strong> · they&apos;ll be emailed when you save</span>}
                 </span>
               )}
             </div>
@@ -538,6 +567,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
               <div className={historyStyles.reviewRow}><strong>Designation:</strong> {form.designation || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Company:</strong> {form.company || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Mobile:</strong> {form.mobile || '-'}</div>
+              <div className={historyStyles.reviewRow}><strong>Alternate Mobile:</strong> {form.altMobile || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Email:</strong> {form.email || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>City:</strong> {form.city || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Interests:</strong> {form.interests.join(', ') || '-'}</div>

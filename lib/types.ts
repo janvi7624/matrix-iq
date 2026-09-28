@@ -1,3 +1,10 @@
+// Type-only, so this stays a types file with no runtime dependency. The
+// lead-origin list lives beside its labels in lib/leadSources.ts because the
+// API routes and the client both need the values themselves, not just the type.
+import type { LeadOrigin } from './leadSources';
+
+export type { LeadOrigin };
+
 export type DomainKey = 'av' | 'robotics' | 'ai' | 'si' | 'visitiq';
 
 export type AvProjectType = 'standee' | 'led' | 'interactive-panel' | 'conference' | 'cables' | 'av-solution';
@@ -175,6 +182,11 @@ export interface QuotationRecord {
   project_id: string;
   created_by: string;
   status: QuotationStatus;
+  // Set the moment status flips to 'approved'/'rejected', cleared if it's
+  // ever moved back to draft/sent. Drives the Quotation list's 90-day
+  // auto-hide of closed quotes (lib/quotationVisibility.ts) alongside
+  // 'expired' ones — same reasoning as ProjectRecord.closed_at.
+  status_changed_at: string;
   prepared_by: string;
   prepared_by_phone: string;
   prepared_by_email: string;
@@ -263,6 +275,10 @@ export type DemoRequestStatus =
   | 'pending_technical'
   | 'pending_manager'
   | 'pending_backoffice'
+  // Manager-approved VIRTUAL demo: nothing to dispatch, so it waits here for
+  // its date instead of going to Back Office. Onsite demos never take this
+  // status, which is also what keeps virtual ones out of the DC queue.
+  | 'ready_for_demo'
   | 'dc_generated'
   | 'material_dispatched'
   | 'demo_completed'
@@ -271,6 +287,10 @@ export type DemoRequestStatus =
   | 'cancelled';
 
 export type DemoPriority = 'low' | 'medium' | 'high';
+
+// How the demo is given. 'virtual' means remote — no equipment leaves the
+// office, so no delivery challan, dispatch or return applies to it.
+export type DemoMode = 'onsite' | 'virtual';
 
 // Filled in after the demo actually happens — separate from `status` (the
 // approval/fulfillment pipeline above it).
@@ -307,6 +327,7 @@ export interface DemoScheduleRecord {
   client_name: string;
   company: string;
   location: string;
+  mode: DemoMode;
   product_domains: DomainKey[];
   products_demonstrated: string[];
   products_required: DemoProductLine[];
@@ -773,6 +794,13 @@ export interface ProjectRecord {
   source: string;
   status: ProjectStatus;
   stage: ProjectStage;
+  // Set the moment status flips to 'won'/'lost' (see lib/projectStore.ts's
+  // update() and appendProjectTimeline()), cleared if it's ever reopened
+  // back to active/on_hold. Drives the Projects list's 90-day auto-hide of
+  // closed deals (lib/projectVisibility.ts) — a dedicated timestamp instead
+  // of reusing updated_at, since a later edit (a note, a remark) on an
+  // already-closed project must not reset that clock.
+  closed_at: string;
   // Cold Call stage's own sub-detail — whether the initial cold call was
   // responded to. '' until the call has actually been logged.
   cold_call_responded: 'yes' | 'no' | '';
@@ -791,6 +819,10 @@ export interface ProjectRecord {
   approx_price: number | '';
   notes: ProjectNote[];
   attachments: string[];
+  // Stages this project has been marked as not applicable — a virtually-given
+  // demo means no Site Visit, and that is recorded rather than left looking
+  // unfinished. Never includes the stage the project is currently on.
+  skipped_stages: ProjectStage[];
   timeline: ProjectTimelineEvent[];
   updated_at: string;
   // Project Lead / Mentor — mandatory on every new project (one of the fixed
@@ -1281,8 +1313,11 @@ export interface CustomModuleRecord {
 
 export type LeadPriority = 'hot' | 'warm' | 'cool' | '';
 
-// How this lead first entered MatrixIQ. 'meta_lead_ads' leads flow through
-// lib/metaLeadIngest.ts — see that file for the acquisition pipeline.
+// How this lead first entered MatrixIQ — the capture method, set
+// automatically. 'meta_lead_ads' leads flow through lib/metaLeadIngest.ts —
+// see that file for the acquisition pipeline. Where the lead CAME FROM (the
+// event or channel a rep picks, and the one sales reports on) is a separate
+// field: LeadRecord.lead_source, see lib/leadSources.ts.
 export type LeadSource = 'manual' | 'business_card' | 'csv_import' | 'meta_lead_ads';
 
 // One entry from Meta's field_data array on a leadgen node — preserved
@@ -1300,6 +1335,9 @@ export interface LeadRecord {
   updated_at: string;
   name: string;
   mobile: string;
+  // Optional second number — some business cards list two (e.g. a direct
+  // line and a mobile, or two people's numbers on a shared card).
+  alt_mobile: string;
   email: string;
   designation: string;
   company: string;
@@ -1316,6 +1354,10 @@ export interface LeadRecord {
   // previously there was a separate crm_id for a since-retired CRM module).
   project_id: string;
   source: LeadSource;
+  // The campaign/event/channel this lead came from — mandatory when a rep
+  // captures one, '' for everything captured before the field existed.
+  // See lib/leadSources.ts for the option list and why it is not `source`.
+  lead_source: LeadOrigin;
   // Meta (Facebook/Instagram) Lead Ads attribution — blank for every source
   // other than 'meta_lead_ads'. See lib/metaLeadIngest.ts.
   meta_lead_id: string;
@@ -1345,7 +1387,26 @@ export interface LeadRecord {
   assigned_to: string;
   assigned_to_name: string;
   assigned_by: string;
+  // ── Qualification call ──────────────────────────────────────────────────
+  // The step between "assigned" and "worth a project": the assignee rings the
+  // contact and records what came of it. Only 'suitable' creates a project —
+  // see lib/leadCall.ts. '' means nobody has called yet.
+  // called_by is resolved from the `caller` association on read.
+  call_outcome: LeadCallOutcome;
+  called_at: string;
+  called_by_id: string;
+  called_by_name: string;
+  call_remark: string;
+  /** Only for 'callback' — the day the rep promised to ring back. */
+  callback_at: string;
 }
+
+// '' = not called yet. 'suitable' converts the lead into a Sales project;
+// 'not_suitable' keeps it as a contact only (still in Client Master, never in
+// the pipeline); 'callback' leaves it in the queue with a date.
+export type LeadCallOutcome = '' | 'suitable' | 'not_suitable' | 'callback';
+
+export const LEAD_CALL_OUTCOMES: LeadCallOutcome[] = ['suitable', 'not_suitable', 'callback'];
 
 // A colleague the capturer can hand a scanned card over to on the wizard's
 // Confirm Details step — see lib/leadHandover.ts.
@@ -1354,15 +1415,19 @@ export interface LeadHandoverRecipient {
   name: string;
   department: string;
   designation: string;
+  /** True for the one entry that is the capturer themselves ("keep it"). */
+  self?: boolean;
 }
 
 // What happened to a requested hand-over, returned with the saved lead:
 // handed_over — now assigned to them, and they were emailed;
+// kept_by_capturer — the capturer assigned it to themselves (no email, no
+//   notification: they are standing right there and just did it);
 // already_with_them — a re-scanned lead they already had (no second email);
 // kept_existing — a re-scanned lead already routed to someone else, left there;
 // failed — the lead was saved but stayed unassigned.
 export interface LeadHandoverOutcome {
-  status: 'handed_over' | 'already_with_them' | 'kept_existing' | 'failed';
+  status: 'handed_over' | 'kept_by_capturer' | 'already_with_them' | 'kept_existing' | 'failed';
   toName: string;
 }
 

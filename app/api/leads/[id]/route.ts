@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { leadStore, canWorkLead } from '@/lib/leadStore';
+import { leadStore, canWorkLead, findLeadById } from '@/lib/leadStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
+import { isLeadOrigin } from '@/lib/leadSources';
 import { DomainKey, LeadPriority, LeadRecord, LeadSource } from '@/lib/types';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
@@ -30,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const patch: Partial<LeadRecord> = { updated_at: new Date().toISOString() };
-    const stringFields = ['name', 'mobile', 'email', 'designation', 'company', 'city', 'budget', 'notes'] as const;
+    const stringFields = ['name', 'mobile', 'alt_mobile', 'email', 'designation', 'company', 'city', 'budget', 'notes'] as const;
     stringFields.forEach((field) => {
       if (typeof body[field] === 'string') patch[field] = body[field].trim();
     });
@@ -38,6 +39,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (Array.isArray(body.subInterests)) patch.sub_interests = body.subInterests.filter((s: unknown): s is string => typeof s === 'string');
     if (Array.isArray(body.followUpActions)) patch.follow_up_actions = body.followUpActions.filter((s: unknown): s is string => typeof s === 'string');
     if (VALID_PRIORITIES.includes(body.priority)) patch.priority = body.priority;
+    // Correcting a wrongly-picked origin has to be possible; an invalid value
+    // is ignored rather than clearing a good one.
+    if (isLeadOrigin(body.leadSource)) patch.lead_source = body.leadSource;
 
     // Source (the acquisition channel) is editable like every other detail —
     // but "Meta Lead Ads" is attribution set by the Meta integration when a
@@ -85,7 +89,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
     }
 
-    return NextResponse.json(updated);
+    // Re-read through findLeadById rather than returning leadStore.update()'s
+    // own result. That result comes from the generic record store, which only
+    // knows LEAD_FIELDS — it carries assigned_to_id but NOT the joined
+    // assigned_to / assigned_to_name / assigned_by / called_by_name that
+    // toLeadRecord adds. The Leads list patches its row from this response, so
+    // returning the partial record made an edited lead read as unassigned:
+    // it dropped out of the viewer's To Call queue and lost its Log Call
+    // button until a full page reload. Correcting a typo must not move a lead.
+    return NextResponse.json((await findLeadById(id)) ?? updated);
   } catch (error) {
     return apiErrorResponse(error);
   }

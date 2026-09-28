@@ -33,7 +33,20 @@ const nextConfig: NextConfig = {
   // artifact instead of metadata a third-party deploy script has to interpret
   // correctly. Verified: .next/standalone/node_modules/pg exists after build,
   // and `node .next/standalone/server.js` serves a working login.
-  output: 'standalone'
+  output: 'standalone',
+  experimental: {
+    // This app has a proxy (proxy.ts), so Next buffers every request body in
+    // memory to let both the proxy and the route handler read it — capped at
+    // 10MB by default. Over that, the body is SILENTLY TRUNCATED: the request
+    // still runs, but /api/uploads then fails to parse the multipart form
+    // ("Failed to parse body as FormData") and 500s. That's what a few bill
+    // photos attached at once looked like in production. proxy.ts never reads
+    // the body, so this buffer only has to be big enough for our biggest
+    // legitimate upload batch; each individual file is still capped at 10MB by
+    // the upload routes, which now also refuse an oversized request cleanly
+    // (lib/uploadRequest.ts) instead of letting it truncate.
+    proxyClientMaxBodySize: '50mb'
+  }
 };
 
 export default nextConfig;

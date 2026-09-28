@@ -8,6 +8,7 @@ import ErrorState from './ui/ErrorState';
 import { SkeletonRows } from './ui/Skeleton';
 import { STAGE_LABEL } from '@/lib/projectStages';
 import { TMS_TASK_STATUS_LABEL } from '@/lib/tmsLabels';
+import { FOLLOW_UP_DAYS } from '@/lib/followUp';
 import { formatMoney } from '@/lib/format';
 import styles from './departmentHealthDetail.module.css';
 
@@ -29,9 +30,22 @@ interface MetricRow { label: string; value: string; items?: DrilldownItem[]; }
 // that answer "how is this person doing" at a glance).
 interface PersonReview {
   user: { username: string; name: string; department: string; designation: string };
-  crm: { wonLeads: number; lostLeads: number; unattendedLeads: number };
+  // `crm` counts LEADS assigned to this person (lib/performanceReview.ts) —
+  // the call funnel, not projects. wonLeads/lostLeads are kept for the admin
+  // Performance Review page; this modal shows the funnel below instead.
+  crm: {
+    totalLeads: number;
+    qualifiedLeads: number;
+    lostLeads: number;
+    wonLeads: number;
+    calledLeads: number;
+    awaitingCallLeads: number;
+    callbacksDue: number;
+    unattendedLeads: number;
+    capturedLeads: number;
+  };
   sales: { quotationsCreated: number; quotationsConverted: number };
-  projects: { assignedProjects: number; activeProjects: number; completedProjects: number };
+  projects: { assignedProjects: number; activeProjects: number; completedProjects: number; wonProjects: number; lostProjects: number };
   projectsList: { id: string; label: string; stage: string; status: string }[];
   tasks: { total: number; completed: number; pending: number };
   tasksList: { id: string; label: string; status: string; dueDate: string; projectName: string }[];
@@ -196,10 +210,59 @@ export default function PersonPerformanceDashboard({ username, name, department,
               <div className={styles.totalLabel}>Completed</div>
             </div>
             <div className={styles.totalCard}>
-              <div className={styles.totalValue}>{data.crm.wonLeads} / {data.crm.lostLeads}</div>
+              {/* Project win/loss — was reading crm.wonLeads/lostLeads, which
+                  now count leads (qualified / ruled out on the call), not
+                  deals. Same numbers as before, from the project side. */}
+              <div className={styles.totalValue}>{data.projects.wonProjects} / {data.projects.lostProjects}</div>
               <div className={styles.totalLabel}>Won / Lost</div>
             </div>
           </div>
+
+          {/* The qualification call is where a lead's life is decided now
+              (assign -> call -> only 'suitable' becomes a project), so this
+              is the honest picture of a rep's lead work — a project count
+              alone would show nothing for the 600 cards they rang and
+              correctly ruled out. Captured is shown separately because
+              scanning a card and working one are different jobs. */}
+          <h3 className={styles.sectionTitle}>Leads assigned</h3>
+          {data.crm.totalLeads === 0 ? (
+            <p className={styles.emptyNote}>No leads assigned to {name || username}.{data.crm.capturedLeads > 0 ? ` Captured ${data.crm.capturedLeads}.` : ''}</p>
+          ) : (
+            <div className={styles.totalsGrid}>
+              <div className={styles.totalCard}>
+                <div className={styles.totalValue}>{data.crm.totalLeads}</div>
+                <div className={styles.totalLabel}>Assigned</div>
+              </div>
+              <div className={styles.totalCard}>
+                <div className={styles.totalValue}>{data.crm.calledLeads}</div>
+                <div className={styles.totalLabel}>Called</div>
+              </div>
+              <div className={styles.totalCard}>
+                <div className={styles.totalValue}>{data.crm.qualifiedLeads}</div>
+                <div className={styles.totalLabel}>Suitable</div>
+              </div>
+              <div className={styles.totalCard}>
+                <div className={styles.totalValue}>{data.crm.lostLeads}</div>
+                <div className={styles.totalLabel}>Not suitable</div>
+              </div>
+              <div className={styles.totalCard}>
+                <div className={styles.totalValue}>{data.crm.awaitingCallLeads}</div>
+                <div className={styles.totalLabel}>Awaiting a call</div>
+              </div>
+              <div className={styles.totalCard}>
+                <div className={styles.totalValue}>{data.crm.callbacksDue}</div>
+                <div className={styles.totalLabel}>Call-backs due</div>
+              </div>
+              <div className={styles.totalCard}>
+                <div className={styles.totalValue}>{data.crm.unattendedLeads}</div>
+                <div className={styles.totalLabel}>No call in {FOLLOW_UP_DAYS} days</div>
+              </div>
+              <div className={styles.totalCard}>
+                <div className={styles.totalValue}>{data.crm.capturedLeads}</div>
+                <div className={styles.totalLabel}>Captured by them</div>
+              </div>
+            </div>
+          )}
 
           <h3 className={styles.sectionTitle}>Tasks{taskFilter ? ' — click a tile again to hide the list' : ' — click a tile to see the tasks'}</h3>
           {data.tasks.total === 0 ? (

@@ -9,6 +9,7 @@ import { listDepartmentManagers, findHrManagers } from '@/lib/departmentStore';
 import { findUserByUsername, findUsersByUsernames } from '@/lib/userStore';
 import { sendReimbursementLifecycleEmail } from '@/lib/email/notifications';
 import { getEffectiveDeadline } from '@/lib/reimbursementDeadlineStore';
+import { checkSubmittablePeriod } from '@/lib/reimbursementPeriod';
 import { ordinalDay } from '@/lib/format';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -29,6 +30,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     if (existing.entry_count === 0) {
       return NextResponse.json({ error: 'Cannot submit an empty sheet — add at least one entry' }, { status: 400 });
+    }
+
+    // The month being claimed has to be over (lib/reimbursementPeriod.ts).
+    // Checked here and not only in the view, because the view is a
+    // convenience and this route is the authority — isPrivileged does not
+    // exempt anyone either: an admin submitting a half-finished month
+    // produces the same broken sheet as anybody else.
+    const period = checkSubmittablePeriod(existing.year, existing.month);
+    if (!period.allowed) {
+      return NextResponse.json({ error: period.reason }, { status: 400 });
     }
 
     const today = new Date();

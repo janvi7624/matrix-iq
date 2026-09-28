@@ -25,11 +25,20 @@ const TEAM_LEAD_MODULES: RolePermissions['modules'] = {
   'tms-bom-requests': { view: true, create: true },
   'tms-procurement': { view: true }
 };
-// Engineer: view-only Projects, own-tasks-only (no `manage`), create+view BOM,
-// view Procurement.
+// Engineer: may CREATE a project but not edit others' (no `edit`),
+// own-tasks-only (no `manage`), create+view BOM, view Procurement.
+//
+// `create` on tms-projects was added Sept 2026 on request: engineers start
+// technical work themselves rather than waiting for a manager to open the
+// project for them. It is only `create` — editing an existing project stays
+// with Team Lead and above. A plain-tier viewer sees projects they created,
+// manage or are a member of (lib/tmsProjectStore.ts list()), so an engineer
+// can always see their own. Note the "+ New Project" button on
+// components/TmsProjectsView.tsx was never role-gated, so before this the
+// button was visible to engineers and simply returned 403.
 const ENGINEER_MODULES: RolePermissions['modules'] = {
   'tms-dashboard': { view: true },
-  'tms-projects': { view: true },
+  'tms-projects': { view: true, create: true },
   'tms-tasks': { view: true, edit: true },
   'tms-bom-requests': { view: true, create: true },
   'tms-procurement': { view: true }

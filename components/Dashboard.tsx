@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { DemoScheduleRecord, ModuleConfigRecord, ProjectHandoverRecord, ProjectRecord, QuotationRecord, UserRole } from '@/lib/types';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
+import type { SalesTeamSummaryRow } from '@/lib/salesTeamSummary';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import { formatMoney } from '@/lib/format';
 import AppShell from './AppShell';
@@ -13,17 +14,26 @@ import { BRAND } from '@/lib/branding';
 import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
-import { sectionIconFor, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON } from '@/lib/icons';
-import { X } from 'lucide-react';
+import { sectionIconFor, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON, DUE_SECTION_ICON } from '@/lib/icons';
+import { Users as UsersIcon, X } from 'lucide-react';
 import Drawer from './ui/Drawer';
 import Modal from './ui/Modal';
 import { hasSeenCelebrationPopup, markCelebrationPopupSeen } from '@/lib/celebrationPopupSeen';
+import Table from './ui/Table';
+import StatusBadge from './ui/StatusBadge';
+import EmptyState from './ui/EmptyState';
 import styles from './dashboard.module.css';
 
 // How many rows the Dashboard panel itself shows before collapsing the rest
 // behind "View All" — keeps the panel a fixed, small size at login instead
 // of growing tall whenever several things need attention at once.
 const ATTENTION_COMPACT_LIMIT = 3;
+
+// Which module section the Sales-leadership "Due" bar is pinned beneath, and
+// the label/expand-state key it uses (shared with useCollapsibleSections, so
+// open/closed persists exactly like a real section's does).
+const DUE_AFTER_SECTION = 'Workspace';
+const DUE_SECTION_LABEL = 'Due';
 
 interface DashboardProps {
   currentUser: { id: string; username: string; name: string; role: UserRole; department?: string; isPrivileged: boolean };
@@ -65,6 +75,14 @@ interface AttentionItem {
   count: number;
   href: string;
   tone: 'urgent' | 'info';
+  // Which of the two panels this row belongs in for a Sales Manager / Admin /
+  // Super Admin (see `salesLeadership`): 'pending' is a request sitting on
+  // somebody's desk waiting to be approved, confirmed or responded to —
+  // there's a decision to make. 'due' is everything driven by a clock
+  // instead: a follow-up overdue, a reminder falling due, today's new
+  // arrivals. Every other role still sees one combined list, so the field is
+  // inert for them.
+  group: 'pending' | 'due';
 }
 
 function timeOfDayGreeting(): string {
@@ -93,6 +111,13 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [pendingTechnicalApprovals, setPendingTechnicalApprovals] = useState<{ project_id: string; project_label: string; requested_name: string }[]>([]);
   const [travelPendingCount, setTravelPendingCount] = useState<number>(0);
   const [pendingProjectConfirmations, setPendingProjectConfirmations] = useState<number>(0);
+  // Both resolved server-side (app/api/dashboard/route.ts) — a Sales-side
+  // Manager / Admin / Super Admin. `salesLeadership` alone decides the
+  // reshaped top row, so it stays a flag of its own rather than being
+  // inferred from salesTeamSummary being non-empty (a brand-new Sales
+  // department with no reps yet is still Sales leadership).
+  const [salesLeadership, setSalesLeadership] = useState(false);
+  const [salesTeamSummary, setSalesTeamSummary] = useState<SalesTeamSummaryRow[] | null>(null);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   // Which department's health detail dialog is open, by name (null = none).
   const [openHealthDepartment, setOpenHealthDepartment] = useState<string | null>(null);
@@ -117,6 +142,18 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     return [sections[idx], ...sections.slice(0, idx), ...sections.slice(idx + 1)];
   }, [sections, primarySection]);
   const { isExpanded, toggle } = useCollapsibleSections(primarySection);
+
+  // The "Due" bar is a peer of the module-section bars rather than a card in
+  // the top row — it reads as a queue you open when you're ready to work it,
+  // not something competing with "Needs Your Attention" for the first glance.
+  // It sits directly under Workspace; module visibility is admin-configurable
+  // though, so a viewer without a Workspace section gets it after their last
+  // section instead (and after the whole list when they have none at all).
+  const dueAfterSection = useMemo(() => {
+    if (!orderedSections.length) return null;
+    if (orderedSections.some((section) => section.label === DUE_AFTER_SECTION)) return DUE_AFTER_SECTION;
+    return orderedSections[orderedSections.length - 1].label;
+  }, [orderedSections]);
 
   // One round trip instead of what used to be up to 13 separate fetches
   // (modules, projects/kpis, backoffice/kpis, admin/quotations, site-visits,
@@ -149,6 +186,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setPendingTechnicalApprovals(data.pendingTechnicalApprovals ?? []);
         setTravelPendingCount(data.travelPendingCount ?? 0);
         setPendingProjectConfirmations(data.pendingProjectConfirmations ?? 0);
+        setSalesLeadership(!!data.salesLeadership);
+        setSalesTeamSummary(data.salesTeamSummary ?? null);
       })
       .catch(() => {
         setModules([]);
@@ -163,6 +202,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setManagersByDepartment({});
         setTechnicalRoster([]);
         setRecentQuotations([]);
+        setSalesLeadership(false);
+        setSalesTeamSummary(null);
       });
   }, []);
 
@@ -183,6 +224,11 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   // lib/celebrationStore.ts, since there's no cron in this app to fire it
   // any other way), which shouldn't be tangled up with the rest of the
   // dashboard's plain read-only data fetch.
+  // The server already caps how many of today's dashboard loads actually
+  // return a non-empty list (see shouldShowCelebrationsPopup) — at most 3
+  // per viewer per day, tracked per-user so it holds across devices. This
+  // dismiss state only hides it for the rest of THIS page view; closing it
+  // doesn't spend one of those 3 any faster or slower than just visiting did.
   const [celebrations, setCelebrations] = useState<{ userId: string; name: string; type: 'birthday' | 'anniversary'; years?: number }[]>([]);
   // Shown once per login, not once per visit. It used to reappear on every
   // dashboard load for the rest of the day, because dismissing it only set
@@ -243,32 +289,38 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const attentionItems = useMemo<AttentionItem[]>(() => {
     const items: AttentionItem[] = [];
     if (isPrivileged && followUpCount) {
-      items.push({ key: 'followup', label: `Quotation${followUpCount === 1 ? '' : 's'} needing a follow-up`, count: followUpCount, href: '/quotation-history', tone: 'urgent' });
+      items.push({ key: 'followup', group: 'due', label: `Quotation${followUpCount === 1 ? '' : 's'} needing a follow-up`, count: followUpCount, href: '/quotation-history', tone: 'urgent' });
     }
     if ((currentUser.role === 'engineer' || isPrivileged) && kpis?.pendingApprovals) {
-      items.push({ key: 'demo-approvals', label: `Demo request${kpis.pendingApprovals === 1 ? '' : 's'} awaiting approval`, count: kpis.pendingApprovals, href: '/demo-schedule', tone: 'urgent' });
+      items.push({ key: 'demo-approvals', group: 'pending', label: `Demo request${kpis.pendingApprovals === 1 ? '' : 's'} awaiting approval`, count: kpis.pendingApprovals, href: '/demo-schedule', tone: 'urgent' });
     }
     if (isBackOffice && backOfficeKpis?.pendingDc) {
-      items.push({ key: 'dc', label: `Demo${backOfficeKpis.pendingDc === 1 ? '' : 's'} awaiting a Delivery Challan`, count: backOfficeKpis.pendingDc, href: '/backoffice', tone: 'urgent' });
+      items.push({ key: 'dc', group: 'pending', label: `Demo${backOfficeKpis.pendingDc === 1 ? '' : 's'} awaiting a Delivery Challan`, count: backOfficeKpis.pendingDc, href: '/backoffice', tone: 'urgent' });
     }
     if (isBackOffice && backOfficeKpis?.pendingDispatch) {
-      items.push({ key: 'dc-dispatch', label: `DC${backOfficeKpis.pendingDispatch === 1 ? '' : 's'} prepared and awaiting dispatch`, count: backOfficeKpis.pendingDispatch, href: '/backoffice', tone: 'urgent' });
+      items.push({ key: 'dc-dispatch', group: 'pending', label: `DC${backOfficeKpis.pendingDispatch === 1 ? '' : 's'} prepared and awaiting dispatch`, count: backOfficeKpis.pendingDispatch, href: '/backoffice', tone: 'urgent' });
     }
     if (isBackOffice && backOfficeKpis?.pendingVerification) {
-      items.push({ key: 'dc-verify', label: `DC${backOfficeKpis.pendingVerification === 1 ? '' : 's'} awaiting material return verification`, count: backOfficeKpis.pendingVerification, href: '/backoffice', tone: 'urgent' });
+      items.push({ key: 'dc-verify', group: 'pending', label: `DC${backOfficeKpis.pendingVerification === 1 ? '' : 's'} awaiting material return verification`, count: backOfficeKpis.pendingVerification, href: '/backoffice', tone: 'urgent' });
     }
+    // A call queue, not a backlog of paperwork: a lead is assigned, and
+    // nobody has rung it yet (lib/followUp.ts's isLeadUnattended, and
+    // /api/dashboard scopes the count to this viewer's own assignments).
+    // "Unattended leads" read as an unexplained scolding — this says what
+    // the row actually wants done about it.
     if (unattendedLeads) {
-      items.push({ key: 'leads', label: 'Unattended leads', count: unattendedLeads, href: '/leads?filter=unattended', tone: 'urgent' });
+      items.push({ key: 'leads', group: 'due', label: `Lead${unattendedLeads === 1 ? '' : 's'} assigned to you with no call logged`, count: unattendedLeads, href: '/leads?filter=unattended&assignee=me', tone: 'urgent' });
     }
     if (metaLeadsToday) {
-      items.push({ key: 'meta-leads', label: `New Meta lead${metaLeadsToday === 1 ? '' : 's'} today`, count: metaLeadsToday, href: '/leads', tone: 'info' });
+      items.push({ key: 'meta-leads', group: 'due', label: `New Meta lead${metaLeadsToday === 1 ? '' : 's'} today`, count: metaLeadsToday, href: '/leads', tone: 'info' });
     }
     if (marketingStats?.isReviewer && marketingStats.awaitingReview) {
-      items.push({ key: 'marketing', label: 'Marketing tickets awaiting review', count: marketingStats.awaitingReview, href: '/marketing-requests?filter=submitted', tone: 'info' });
+      items.push({ key: 'marketing', group: 'pending', label: 'Marketing tickets awaiting review', count: marketingStats.awaitingReview, href: '/marketing-requests?filter=submitted', tone: 'info' });
     }
     if (marketingReminderUrgentCount) {
       items.push({
         key: 'marketing-reminders',
+        group: 'due',
         label: `Marketing request${marketingReminderUrgentCount === 1 ? '' : 's'} due today or overdue`,
         count: marketingReminderUrgentCount,
         href: '/marketing-requests?filter=due',
@@ -276,11 +328,12 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       });
     }
     if (reminderCount) {
-      items.push({ key: 'sitevisit', label: `Site visit reminder${reminderCount === 1 ? '' : 's'} due`, count: reminderCount, href: '/site-visits?focus=open', tone: 'info' });
+      items.push({ key: 'sitevisit', group: 'due', label: `Site visit reminder${reminderCount === 1 ? '' : 's'} due`, count: reminderCount, href: '/site-visits?focus=open', tone: 'info' });
     }
     if (demosAwaitingMyConfirmation.length) {
       items.push({
         key: 'my-demo-confirm',
+        group: 'pending',
         label: `Demo${demosAwaitingMyConfirmation.length === 1 ? '' : 's'} awaiting your confirmation`,
         count: demosAwaitingMyConfirmation.length,
         href: '/demo-schedule',
@@ -290,6 +343,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (demosAwaitingMyApproval.length) {
       items.push({
         key: 'my-demo-approve',
+        group: 'pending',
         label: `Demo${demosAwaitingMyApproval.length === 1 ? '' : 's'} awaiting your approval`,
         count: demosAwaitingMyApproval.length,
         href: '/demo-schedule',
@@ -299,6 +353,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (pendingHandovers.length) {
       items.push({
         key: 'handover',
+        group: 'pending',
         label: `Project handover request${pendingHandovers.length === 1 ? '' : 's'} awaiting your response`,
         count: pendingHandovers.length,
         href: `/projects/${pendingHandovers[0].project_id}`,
@@ -311,6 +366,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (pendingTechnicalApprovals.length) {
       items.push({
         key: 'technical-approval',
+        group: 'pending',
         label: `Technical assignment request${pendingTechnicalApprovals.length === 1 ? '' : 's'} awaiting your approval`,
         count: pendingTechnicalApprovals.length,
         href: `/projects/${pendingTechnicalApprovals[0].project_id}`,
@@ -320,6 +376,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (travelPendingCount) {
       items.push({
         key: 'travel',
+        group: 'pending',
         label: `Travel request${travelPendingCount === 1 ? '' : 's'} needing your action`,
         count: travelPendingCount,
         href: '/travel-schedule',
@@ -329,6 +386,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (pendingProjectConfirmations) {
       items.push({
         key: 'project-confirm',
+        group: 'pending',
         label: `Project${pendingProjectConfirmations === 1 ? '' : 's'} awaiting your confirmation`,
         count: pendingProjectConfirmations,
         href: '/projects?filter=pending_confirmation',
@@ -359,9 +417,22 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     pendingProjectConfirmations
   ]);
 
+  // Sales leadership reads this queue as two different questions — "what is
+  // waiting on a decision" and "what is falling due" — so the one list splits
+  // in two for them (see AttentionItem.group). Every other role keeps the
+  // single combined list it has always had, which is `attentionItems` whole.
+  const pendingAttentionItems = useMemo(
+    () => (salesLeadership ? attentionItems.filter((item) => item.group === 'pending') : attentionItems),
+    [salesLeadership, attentionItems]
+  );
+  const dueAttentionItems = useMemo(
+    () => (salesLeadership ? attentionItems.filter((item) => item.group === 'due') : []),
+    [salesLeadership, attentionItems]
+  );
+
   const [showAllAttention, setShowAllAttention] = useState(false);
-  const visibleAttentionItems = attentionItems.slice(0, ATTENTION_COMPACT_LIMIT);
-  const hiddenAttentionCount = attentionItems.length - visibleAttentionItems.length;
+  const visibleAttentionItems = pendingAttentionItems.slice(0, ATTENTION_COMPACT_LIMIT);
+  const hiddenAttentionCount = pendingAttentionItems.length - visibleAttentionItems.length;
 
   // Only declare "you're all caught up" once every signal this role
   // actually receives has resolved — otherwise a still-loading dashboard
@@ -373,6 +444,12 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     marketingStats === null ||
     (isPrivileged && followUpCount === null) ||
     (isBackOffice && backOfficeKpis === null);
+
+  // Built once and placed by whichever slot in the section list matches
+  // `dueAfterSection`, so the two placements can't drift apart.
+  const dueSection = salesLeadership ? (
+    <DueSection items={dueAttentionItems} loading={attentionLoading} isExpanded={isExpanded(DUE_SECTION_LABEL)} onToggle={() => toggle(DUE_SECTION_LABEL)} />
+  ) : null;
 
   return (
     <AppShell title={BRAND.appName} subtitle={BRAND.tagline} showBackLink={false}>
@@ -424,10 +501,10 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         <Link href="/quotation" className={styles.primaryCta}>+ New Quotation</Link>
       </div>
 
-      <div className={styles.topGrid}>
-        <div className={`${styles.attentionPanel} ${styles.topGridHighlight}`}>
+      <div className={`${styles.topGrid} ${salesLeadership ? styles.topGridPair : ''}`}>
+        <div className={`${styles.attentionPanel} ${styles.topGridPanel} ${styles.topGridHighlight}`}>
           <div className={styles.attentionHead}>Needs Your Attention</div>
-          {attentionItems.length > 0 ? (
+          {pendingAttentionItems.length > 0 ? (
             <>
               <div className={styles.attentionList}>
                 {visibleAttentionItems.map((item) => (
@@ -436,14 +513,14 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               </div>
               {hiddenAttentionCount > 0 && (
                 <button type="button" className={styles.attentionViewAll} onClick={() => setShowAllAttention(true)}>
-                  View All ({attentionItems.length})
+                  View All ({pendingAttentionItems.length})
                 </button>
               )}
             </>
           ) : (
             <div className={styles.attentionEmpty}>
               {attentionLoading ? (
-                'Checking…'
+                'Checking\u2026'
               ) : (
                 <span className={styles.attentionAllCaughtUp}>
                   <ALL_CAUGHT_UP_ICON size={16} /> You&apos;re all caught up.
@@ -453,50 +530,59 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           )}
         </div>
 
-        <div className={styles.recentCard}>
-          <div className={styles.recentCardHead}>
-            <h3>Recent Projects</h3>
-            <Link href="/projects">View all →</Link>
-          </div>
-          <div className={styles.recentList}>
-            {recentProjects === null && <div className={styles.recentEmpty}>Loading…</div>}
-            {recentProjects?.length === 0 && <div className={styles.recentEmpty}>No projects yet.</div>}
-            {recentProjects?.map((p) => (
-              <Link key={p.id} href={`/projects/${p.id}`} className={styles.recentRow}>
-                <div className={styles.recentRowMain}>
-                  <div className={styles.recentRowTitle}>{p.client_name || p.company || `Project ${p.id}`}</div>
-                  <div className={styles.recentRowMeta}>{PROJECT_STAGE_LABEL[p.stage] || p.stage}</div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
+        {/* Sales leadership gets the Sales Team Summary in the space the
+            Recent Projects / Recent Quotations pair occupies for everyone
+            else — a six-column table needs both of those columns to itself. */}
+        {salesLeadership ? (
+          <SalesTeamSummaryPanel rows={salesTeamSummary} />
+        ) : (
+          <>
+            <div className={styles.recentCard}>
+              <div className={styles.recentCardHead}>
+                <h3>Recent Projects</h3>
+                <Link href="/projects">View all &rarr;</Link>
+              </div>
+              <div className={styles.recentList}>
+                {recentProjects === null && <div className={styles.recentEmpty}>Loading&hellip;</div>}
+                {recentProjects?.length === 0 && <div className={styles.recentEmpty}>No projects yet.</div>}
+                {recentProjects?.map((p) => (
+                  <Link key={p.id} href={`/projects/${p.id}`} className={styles.recentRow}>
+                    <div className={styles.recentRowMain}>
+                      <div className={styles.recentRowTitle}>{p.client_name || p.company || `Project ${p.id}`}</div>
+                      <div className={styles.recentRowMeta}>{PROJECT_STAGE_LABEL[p.stage] || p.stage}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
 
-        <div className={styles.recentCard}>
-          <div className={styles.recentCardHead}>
-            <h3>Recent Quotations</h3>
-            <Link href="/my-quotations">View all →</Link>
-          </div>
-          <div className={styles.recentList}>
-            {recentQuotations === null && <div className={styles.recentEmpty}>Loading…</div>}
-            {recentQuotations?.length === 0 && <div className={styles.recentEmpty}>No quotations yet.</div>}
-            {recentQuotations?.map((q) => (
-              <Link key={q.id} href={`/my-quotations?highlight=${q.id}`} className={styles.recentRow}>
-                <div className={styles.recentRowMain}>
-                  <div className={styles.recentRowTitle}>{q.quotation_number}</div>
-                  <div className={styles.recentRowMeta}>{q.client_company || q.client_name || 'No client name'}</div>
-                </div>
-                <div className={styles.recentRowAmount}>{formatMoney(q.total)}</div>
-              </Link>
-            ))}
-          </div>
-        </div>
+            <div className={styles.recentCard}>
+              <div className={styles.recentCardHead}>
+                <h3>Recent Quotations</h3>
+                <Link href="/my-quotations">View all &rarr;</Link>
+              </div>
+              <div className={styles.recentList}>
+                {recentQuotations === null && <div className={styles.recentEmpty}>Loading&hellip;</div>}
+                {recentQuotations?.length === 0 && <div className={styles.recentEmpty}>No quotations yet.</div>}
+                {recentQuotations?.map((q) => (
+                  <Link key={q.id} href={`/my-quotations?highlight=${q.id}`} className={styles.recentRow}>
+                    <div className={styles.recentRowMain}>
+                      <div className={styles.recentRowTitle}>{q.quotation_number}</div>
+                      <div className={styles.recentRowMeta}>{q.client_company || q.client_name || 'No client name'}</div>
+                    </div>
+                    <div className={styles.recentRowAmount}>{formatMoney(q.total)}</div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {showAllAttention && (
         <Drawer title="Needs Your Attention" ariaLabel="Everything needing your attention" onClose={() => setShowAllAttention(false)}>
           <div className={styles.attentionList}>
-            {attentionItems.map((item) => (
+            {pendingAttentionItems.map((item) => (
               <AttentionRow key={item.key} item={item} onNavigate={() => setShowAllAttention(false)} />
             ))}
           </div>
@@ -616,27 +702,141 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       {orderedSections.map((section) => {
         const SectionToggleIcon = sectionIconFor(section.label);
         return (
-          <div key={section.label}>
-            <button type="button" className={styles.sectionToggle} aria-expanded={isExpanded(section.label)} onClick={() => toggle(section.label)}>
-              <span className={styles.sectionToggleIcon}><SectionToggleIcon size={14} /></span>
-              <span className={styles.sectionToggleLabel}>{section.label}</span>
-              <span className={styles.sectionToggleCount}>{section.tiles.length}</span>
-              <span className={styles.sectionChevron}>›</span>
-            </button>
-            {isExpanded(section.label) && (
-              <div className={styles.grid}>
-                {section.tiles.map((tile) => (
-                  <Link key={tile.id} href={tile.href} className={styles.tile}>
-                    <span className={styles.tileTitle}>{tile.label}</span>
-                    <span className={styles.tileDesc}>{tile.desc}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+          <Fragment key={section.label}>
+            <div>
+              <button type="button" className={styles.sectionToggle} aria-expanded={isExpanded(section.label)} onClick={() => toggle(section.label)}>
+                <span className={styles.sectionToggleIcon}><SectionToggleIcon size={14} /></span>
+                <span className={styles.sectionToggleLabel}>{section.label}</span>
+                <span className={styles.sectionToggleCount}>{section.tiles.length}</span>
+                <span className={styles.sectionChevron}>›</span>
+              </button>
+              {isExpanded(section.label) && (
+                <div className={styles.grid}>
+                  {section.tiles.map((tile) => (
+                    <Link key={tile.id} href={tile.href} className={styles.tile}>
+                      <span className={styles.tileTitle}>{tile.label}</span>
+                      <span className={styles.tileDesc}>{tile.desc}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+            {dueAfterSection === section.label && dueSection}
+          </Fragment>
         );
       })}
+
+      {/* No module sections at all (none visible to this role, or still
+          loading) — the bar still has to appear somewhere. */}
+      {dueAfterSection === null && dueSection}
     </AppShell>
+  );
+}
+
+// Sits among the module-section bars, styled as one of them, so a Sales
+// Manager / Admin / Super Admin can collapse the clock-driven half of their
+// queue away and still see its count. Unlike "Needs Your Attention" there's
+// no 3-row cap or "View All" drawer here — it's already collapsed by default
+// and full width when opened, so the whole list fits.
+function DueSection({
+  items,
+  loading,
+  isExpanded,
+  onToggle
+}: {
+  items: AttentionItem[];
+  loading: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div>
+      <button type="button" className={styles.sectionToggle} aria-expanded={isExpanded} onClick={onToggle}>
+        <span className={styles.sectionToggleIcon}><DUE_SECTION_ICON size={14} /></span>
+        <span className={styles.sectionToggleLabel}>{DUE_SECTION_LABEL}</span>
+        <span className={styles.sectionToggleCount}>{items.length}</span>
+        <span className={styles.sectionChevron}>›</span>
+      </button>
+      {isExpanded && (
+        <div className={styles.dueBody}>
+          {items.length > 0 ? (
+            <div className={styles.attentionList}>
+              {items.map((item) => (
+                <AttentionRow key={item.key} item={item} />
+              ))}
+            </div>
+          ) : (
+            <div className={styles.attentionEmpty}>
+              {loading ? (
+                'Checking\u2026'
+              ) : (
+                <span className={styles.attentionAllCaughtUp}>
+                  <ALL_CAUGHT_UP_ICON size={16} /> Nothing due right now.
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Replaces the Recent Projects / Recent Quotations cards for Sales
+// leadership: one row per rep, read left to right as the funnel they work
+// (Lead -> Enquiry -> Quotation -> Billing -> Won/Lost). Every figure is
+// computed server-side in lib/salesTeamSummary.ts — see that file for what
+// each column counts and how it's attributed.
+function SalesTeamSummaryPanel({ rows }: { rows: SalesTeamSummaryRow[] | null }) {
+  return (
+    <div className={styles.summaryCard}>
+      <div className={styles.recentCardHead}>
+        <h3>Sales Team Summary</h3>
+      </div>
+      {rows === null ? (
+        <div className={styles.recentEmpty}>Loading&hellip;</div>
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={UsersIcon}
+          title="No Sales Team members yet"
+          message="Add active employees to the Sales or GEM - Sales department to see their pipeline here."
+        />
+      ) : (
+        <Table
+          rows={rows}
+          rowKey={(row) => row.id}
+          tableClassName={styles.summaryTable}
+          columns={[
+            { key: 'name', header: 'Name', render: (row: SalesTeamSummaryRow) => row.name },
+            { key: 'leads', header: 'Lead', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.leads },
+            { key: 'enquiries', header: 'Enquiry', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.enquiries },
+            { key: 'quotations', header: 'Quotation', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.quotations },
+            {
+              key: 'billing',
+              header: 'Billing',
+              headerClassName: styles.summaryNum,
+              cellClassName: styles.summaryNum,
+              render: (row: SalesTeamSummaryRow) => (row.billing ? formatMoney(row.billing) : '\u2014')
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              render: (row: SalesTeamSummaryRow) =>
+                row.won || row.lost ? (
+                  <span className={styles.summaryStatus}>
+                    {row.won > 0 && <StatusBadge tone="won" label={`${row.won} Won`} />}
+                    {row.lost > 0 && <StatusBadge tone="lost" label={`${row.lost} Lost`} />}
+                  </span>
+                ) : (
+                  // Nothing decided yet — deliberately not "0 Won", which
+                  // reads as a result rather than an open pipeline.
+                  '\u2014'
+                )
+            }
+          ]}
+        />
+      )}
+    </div>
   );
 }
 

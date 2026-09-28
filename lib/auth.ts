@@ -3,9 +3,40 @@
 // but this stays portable either way).
 import type { NextRequest } from 'next/server';
 import { UserRole } from './types';
+import { SESSION_IDLE_MS } from './sessionTimeout';
 
 export const SESSION_COOKIE = 'nanta_session';
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+
+// A session now dies two ways, and the enforcement for both is here rather
+// than in the browser, where it could simply be ignored:
+//
+//  1. Idle. The signed token is only valid for SESSION_IDLE_MS, so a session
+//     left untouched stops working — the server rejects it, whatever the page
+//     does. An actively-used session is renewed well before that by
+//     POST /api/auth/heartbeat, which the client fires on real interaction
+//     (see components/SessionTimeoutWatcher.tsx); renewal deliberately is NOT
+//     driven by requests, because a background poller — the notification bell
+//     polls every 60s — would otherwise keep an abandoned screen signed in
+//     forever.
+//  2. Browser closed. The cookie is a session cookie (no Max-Age/Expires, see
+//     sessionCookieOptions), so closing the browser discards it.
+// The window itself lives in lib/sessionTimeout.ts, which has no imports, so
+// the browser can share the number without bundling this file's signing code.
+export { SESSION_IDLE_MS, SESSION_WARN_BEFORE_MS } from './sessionTimeout';
+
+const SESSION_TTL_MS = SESSION_IDLE_MS;
+
+// Every place that sets this cookie must set it the same way; a stray maxAge
+// on one of them would quietly make that path's session outlive the browser.
+export function sessionCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production',
+    path: '/'
+    // No maxAge/expires on purpose — see (2) above.
+  };
+}
 
 const encoder = new TextEncoder();
 

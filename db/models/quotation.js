@@ -5,6 +5,10 @@ module.exports = (sequelize, DataTypes) => {
     project_id: { type: DataTypes.UUID },
     created_by: { type: DataTypes.UUID },
     status: { type: DataTypes.ENUM('draft', 'sent', 'approved', 'rejected'), allowNull: false, defaultValue: 'draft' },
+    // Set the moment status flips to 'approved'/'rejected', cleared on
+    // reopen — see lib/quotationStore.ts. Drives the Quotation list's
+    // 90-day auto-hide.
+    status_changed_at: { type: DataTypes.DATE },
     prepared_by: { type: DataTypes.STRING },
     prepared_by_phone: { type: DataTypes.STRING },
     prepared_by_email: { type: DataTypes.STRING },

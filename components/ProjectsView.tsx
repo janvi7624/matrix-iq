@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { FolderKanban } from 'lucide-react';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
 import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
+import { findClosestClient } from '@/lib/clientSimilarity';
+import { CLOSED_PROJECT_HIDE_AFTER_DAYS, isAgedClosedProject } from '@/lib/projectVisibility';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { exportListToPdf } from '@/lib/exportPdf';
 import { isTechnicalRole } from '@/lib/technicalRoles';
@@ -106,9 +108,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
 
   useEffect(() => {
     if (!isPrivileged && !isTechnicalCreator) return;
-    // Privileged: anyone (defaults to self). Technical creator: the sales
-    // team only, since the project must be owned by a sales person.
-    fetch(isTechnicalCreator ? '/api/users/list?scope=sales' : '/api/users/list')
+    // The sales team only, for everyone — whoever is picked here OWNS the
+    // project, and that has to be a sales person. An admin/manager used to
+    // get the whole org in this dropdown, so picking an engineer was one
+    // click away and the server took it (see app/api/projects/route.ts).
+    // A privileged creator who wants the project themselves leaves it on
+    // "Defaults to you".
+    fetch('/api/users/list?scope=sales')
       .then((r) => (r.ok ? r.json() : []))
       .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
       .catch(() => setAssignableUsers([]));
@@ -191,6 +197,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
 
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
+    const now = new Date();
     return projects.filter((p) => {
       // Filtering by a lead shows what they LEAD plus what they OWN — a lead
       // is also a person with projects of their own, and both belong in "their"
@@ -205,6 +212,11 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       if (fSource && p.source !== fSource) return false;
       if (fStage && p.stage !== fStage) return false;
       if (fStatus && p.status !== fStatus) return false;
+      // No explicit Won/Lost pick -> a deal closed long ago drops out of the
+      // default view (it was piling up alongside everything still active).
+      // Filtering the Status dropdown to Won or Lost still shows every one
+      // of them, however old — see lib/projectVisibility.ts.
+      if (!fStatus && isAgedClosedProject(p, now)) return false;
       if (fPriority && p.priority !== fPriority) return false;
       if (fFrom && p.created_at.slice(0, 10) < fFrom) return false;
       if (fTo && p.created_at.slice(0, 10) > fTo) return false;
@@ -217,6 +229,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     });
   }, [projects, fLead, selectedLead, fType, fSalesPerson, fSource, fStage, fStatus, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
 
+  // Surfaced next to the filter bar so the auto-hide above never looks like
+  // data went missing — see the comment in the filter itself.
+  const hiddenAgedClosedCount = useMemo(() => {
+    if (fStatus) return 0;
+    const now = new Date();
+    return projects.filter((p) => isAgedClosedProject(p, now)).length;
+  }, [projects, fStatus]);
+
   // KPI tiles (Part 1.3) — deliberately derived from `filtered`, never
   // `projects`, so they can never show a stale count against the visible
   // table the way a separately-fetched/separately-computed KPI could.
@@ -227,6 +247,18 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     const totalValue = filtered.reduce((sum, p) => sum + (typeof p.approx_price === 'number' ? p.approx_price : 0), 0);
     return { total: filtered.length, won, lost, active, totalValue };
   }, [filtered]);
+
+  // A live, non-blocking nudge while the New Project form is open — the
+  // typed client name/company against every existing project, so a rep
+  // retyping a client someone already entered (under a slightly different
+  // spelling) gets a chance to open that one instead of creating a
+  // duplicate. Suggestion only: it never blocks or auto-cancels the submit.
+  const possibleDuplicate = useMemo(
+    () => (showForm
+      ? findClosestClient(form.clientName, form.company, projects.map((p) => ({ id: p.id, clientName: p.client_name, company: p.company })))
+      : null),
+    [showForm, form.clientName, form.company, projects]
+  );
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -456,6 +488,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 <Input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} />
               </Field>
             </FieldRow>
+            {possibleDuplicate && (
+              <div className={calcStyles.duplicateSuggestion}>
+                <span>
+                  Are you talking about <strong>{possibleDuplicate.project.clientName || possibleDuplicate.project.company}</strong>
+                  {possibleDuplicate.project.company && possibleDuplicate.project.clientName ? ` — ${possibleDuplicate.project.company}` : ''}? A project for them already exists.
+                </span>
+                <Link className={calcStyles.duplicateSuggestionLink} href={`/projects/${possibleDuplicate.project.id}`} target="_blank" rel="noopener noreferrer">
+                  Open it instead →
+                </Link>
+              </div>
+            )}
             <FieldRow>
               <Field label="Phone">
                 <PhoneInput value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
@@ -618,9 +661,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         {!loading && !loadFailed && selectedLead && (
           <div className={historyStyles.status}>Showing projects led by {selectedLead.name} and projects {selectedLead.name} owns.</div>
         )}
+        {!loading && !loadFailed && hiddenAgedClosedCount > 0 && (
+          <div className={historyStyles.status}>
+            {hiddenAgedClosedCount} closed project{hiddenAgedClosedCount === 1 ? '' : 's'} older than {CLOSED_PROJECT_HIDE_AFTER_DAYS} days {hiddenAgedClosedCount === 1 ? 'is' : 'are'} hidden — filter Status to Won or Lost to see {hiddenAgedClosedCount === 1 ? 'it' : 'them'}.
+          </div>
+        )}
 
         {loading ? (
-          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={11} /></div>
+          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={14} /></div>
         ) : loadFailed ? (
           <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
         ) : (
@@ -630,6 +678,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             rows={filtered}
             rowKey={(p) => p.id}
             tableClassName={historyStyles.tableFixed}
+            wrapClassName={historyStyles.tableViewport}
             empty={
               <EmptyState
                 icon={FolderKanban}

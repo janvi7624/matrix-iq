@@ -7,18 +7,20 @@ import { siteVisitStore } from '@/lib/siteVisitStore';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { countQuotationsForProjects, computeEffectiveStatus, searchQuotationsFiltered } from '@/lib/quotationStore';
-import { computeLeadStats } from '@/lib/leadStore';
+import { leadStore } from '@/lib/leadStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
-import { isMarketingManager } from '@/lib/permissions';
+import { hasCapability, isMarketingManager } from '@/lib/permissions';
 import { listDepartmentManagers, isUserADepartmentManager } from '@/lib/departmentStore';
 import { listTechnicalRoster } from '@/lib/technicalRoster';
-import { needsFollowUp } from '@/lib/followUp';
+import { needsFollowUp, isLeadUnattended } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
 import { summarizeMarketingReminders } from '@/lib/marketingRequestReminder';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { listTechnicalRequestsAwaiting } from '@/lib/projectTechnicalRequest';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 import { travelScheduleStore } from '@/lib/travelScheduleStore';
+import { listSalesTeamRoster } from '@/lib/targetAccess';
+import { buildSalesTeamSummary, isSalesLeadership, SalesTeamSummaryRow } from '@/lib/salesTeamSummary';
 
 // Single round trip for everything Dashboard.tsx needs on first paint —
 // replaces what used to be up to 13 separate client-side fetches (modules,
@@ -49,8 +51,14 @@ export async function GET(request: NextRequest) {
 
     // isDeptManager resolved up front — needed both for canSeeQueue below and
     // for listVisibleModules's team-tasks visibility, and this way it's only
-    // looked up once instead of twice.
-    const [user, isDeptManager] = await Promise.all([findUserNameAndDeptByUsername(viewer.username), isUserADepartmentManager(viewer.username)]);
+    // looked up once instead of twice. seesOrgWide joins them rather than
+    // being awaited on its own later: it reads the cached roles list, and
+    // isSalesLeadership() below needs it before the roster fetch is queued.
+    const [user, isDeptManager, seesOrgWide] = await Promise.all([
+      findUserNameAndDeptByUsername(viewer.username),
+      isUserADepartmentManager(viewer.username),
+      hasCapability(viewer.role, 'viewAllDepartments')
+    ]);
     const canSeeQueue = viewer.isPrivileged || viewer.role === 'engineer' || viewer.role === 'backoffice' || isDeptManager;
 
     // canSeeQueue also gates backOfficeKpis below — isBackOffice (backoffice
@@ -62,7 +70,7 @@ export async function GET(request: NextRequest) {
       siteVisits,
       demosForKpis,
       demosForQueue,
-      leadStats,
+      leads,
       technicalRoster,
       managersByDepartment,
       quotationsForViewer,
@@ -74,7 +82,12 @@ export async function GET(request: NextRequest) {
       siteVisitStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, canSeeQueue),
-      computeLeadStats(viewer.username, viewer.isPrivileged),
+      // The lead list rather than computeLeadStats: same single query that
+      // helper runs internally, but "Needs Your Attention" is a personal
+      // queue, so the unattended count below has to be scoped to leads
+      // assigned to THIS viewer — a department-wide total isn't something
+      // they can act on, and the helper only offers the wider figure.
+      leadStore.list(viewer.username, viewer.isPrivileged),
       listTechnicalRoster(),
       listDepartmentManagers(),
       searchQuotationsFiltered({ viewerUsername: viewer.username }),
@@ -85,24 +98,45 @@ export async function GET(request: NextRequest) {
       })()
     ]);
 
-    // None of these three depend on each other — quotationsCount needs
-    // projectsLight (already resolved above), pendingHandovers/travelRecords
-    // need only the viewer — so they run together instead of as three more
-    // sequential round trips (travelScheduleStore.list in particular is a
-    // multi-join query, not cheap to pay for twice removed from parallel).
-    const [quotationsCount, pendingHandovers, travelRecords, pendingTechnicalApprovals] = await Promise.all([
+    // Sales Manager / Admin / Super Admin only — see lib/salesTeamSummary.ts
+    // for why this is a positive Sales-side check rather than canManageTargets.
+    // Resolved from data already in hand (no extra query), and it gates both
+    // of this viewer's Dashboard differences: the pending/due split of the
+    // attention panel, and the Sales Team Summary table.
+    const salesLeadership = isSalesLeadership({
+      role: viewer.role,
+      username: viewer.username,
+      department: user?.department ?? '',
+      seesOrgWide,
+      managersByDepartment
+    });
+
+    // None of these depend on each other — quotationsCount needs
+    // projectsLight (already resolved above), pendingHandovers/travelRecords/
+    // salesRoster need only the viewer — so they run together instead of as
+    // four more sequential round trips (travelScheduleStore.list in
+    // particular is a multi-join query, not cheap to pay for twice removed
+    // from parallel).
+    const [quotationsCount, pendingHandovers, travelRecords, pendingTechnicalApprovals, salesRoster] = await Promise.all([
       countQuotationsForProjects(projectsLight.map((p) => p.id)),
       projectHandoverStore.listPendingForUser(viewer.userId),
       travelScheduleStore.list(viewer.username, viewer.isPrivileged),
       // Technical-person requests waiting on this viewer, as the engineer or
       // their department manager (lib/projectTechnicalRequest.ts).
-      listTechnicalRequestsAwaiting(viewer)
+      listTechnicalRequestsAwaiting(viewer),
+      // The only query the Sales Team Summary costs — its leads/projects/
+      // quotations columns are all derived from rows already fetched above.
+      salesLeadership ? listSalesTeamRoster(viewer.username) : Promise.resolve(null)
     ]);
+
+    const salesTeamSummary: SalesTeamSummaryRow[] | null = salesRoster
+      ? buildSalesTeamSummary(salesRoster, leads, projectsLight, quotationsForViewer)
+      : null;
 
     const today = new Date().toISOString().slice(0, 10);
     const now = Date.now();
     const siteVisitsToday = siteVisits.filter((v) => v.visit_date === today).length;
-    const nonFinalDemoStatuses = new Set(['pending_technical', 'pending_manager', 'pending_backoffice', 'dc_generated', 'material_dispatched']);
+    const nonFinalDemoStatuses = new Set(['pending_technical', 'pending_manager', 'pending_backoffice', 'ready_for_demo', 'dc_generated', 'material_dispatched']);
     const upcomingDemos = demosForKpis.filter((d) => nonFinalDemoStatuses.has(d.status) && d.scheduled_at && new Date(d.scheduled_at).getTime() > now).length;
     const pendingResponses = projectsLight.filter((p) => p.stage === 'customer_response').length;
     const negotiations = projectsLight.filter((p) => p.stage === 'negotiation').length;
@@ -118,6 +152,16 @@ export async function GET(request: NextRequest) {
     // auto-created project (created_by = the assignee) is already in this
     // set with no extra query needed.
     const pendingProjectConfirmations = projectsLight.filter((p) => p.lead_confirmation_status === 'pending_confirmation').length;
+
+    // The rep's call queue: leads handed to this viewer that still have no
+    // call logged against them after the SLA (lib/followUp.ts). Deliberately
+    // assignee-scoped — the Dashboard row it feeds says "assigned to you",
+    // and a lead sitting on a colleague's desk isn't this viewer's to chase.
+    const unattendedLeads = leads.filter((l) => l.assigned_to === viewer.username && isLeadUnattended(l)).length;
+    // Same local-date comparison computeLeadStats used for this figure, so
+    // the Dashboard's "New Meta leads today" and the Leads page tile agree.
+    const todayStr = new Date().toDateString();
+    const metaLeadsToday = leads.filter((l) => l.source === 'meta_lead_ads' && new Date(l.created_at).toDateString() === todayStr).length;
 
     const kpis = {
       totalProjects: projectsLight.length,
@@ -199,8 +243,8 @@ export async function GET(request: NextRequest) {
       followUpCount,
       reminderCount,
       pendingProjectConfirmations,
-      unattendedLeads: leadStats.unattended,
-      metaLeadsToday: leadStats.metaToday,
+      unattendedLeads,
+      metaLeadsToday,
       marketingStats,
       marketingReminderUrgentCount,
       allProjects: projectsLight,
@@ -211,7 +255,9 @@ export async function GET(request: NextRequest) {
       quotationStats,
       pendingHandovers,
       pendingTechnicalApprovals,
-      travelPendingCount
+      travelPendingCount,
+      salesLeadership,
+      salesTeamSummary
     });
   } catch (error) {
     return apiErrorResponse(error);

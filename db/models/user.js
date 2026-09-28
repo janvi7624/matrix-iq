@@ -19,6 +19,12 @@ module.exports = (sequelize, DataTypes) => {
     dateOfJoining: { type: DataTypes.DATEONLY },
     status: { type: DataTypes.ENUM('active', 'inactive'), allowNull: false, defaultValue: 'active' },
     lastLoginAt: { type: DataTypes.DATE },
+    // Caps the "Today's Celebrations" popup at a few views per day per
+    // viewer — see lib/celebrationStore.ts's shouldShowCelebrationsPopup.
+    // Reset (implicitly, by date mismatch) rather than cleared at midnight,
+    // same as there being no cron anywhere else in this app.
+    celebrationPopupViewDate: { type: DataTypes.DATEONLY },
+    celebrationPopupViewCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     // Set true only by the bulk employee import (lib/userImportStore.ts) —
     // cleared the moment the employee successfully changes their password.
     mustChangePassword: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }

@@ -9,7 +9,18 @@
 .followUpCardOverdue { border-color: var(--mx-brand); }
 .followUpValueOverdue { color: var(--mx-danger); }
 
-.saveDetailsWrap { margin-top: 4px; margin-bottom: 8px; }
+/* The Overview card's single save bar: an unsaved-count, Save, Discard. Set
+   off from the fields above it so an unsaved edit is noticeable rather than
+   blending into the form. */
+.saveDetailsWrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--mx-slate-200);
+}
 .rowBetween { display: flex; justify-content: space-between; gap: 8px; }
 
 /* Handover / assign-sales-person panels */
@@ -56,3 +67,25 @@
 /* Assign Sales Person modal (technical staff → lib/projectSalesOwner.ts) —
    same intro copy style as the technical-person request modal. */
 .salesOwnerIntro { composes: techPickIntro; }
+
+/* A pipeline stage the project has been marked as not needing — struck through
+   rather than removed, so the pipeline still reads the same on every project. */
+.stepSkipped { opacity: 0.55; text-decoration: line-through; }
+.stepSkippedNote { text-decoration: none; font-size: 11px; opacity: 0.85; }
+
+/* The "not required for this project" checkbox row under the stepper. */
+.skipStagesRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 10px 0 4px;
+}
+.skipStageChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--mx-ink-muted);
+  white-space: nowrap;
+}

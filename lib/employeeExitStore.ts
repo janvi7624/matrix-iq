@@ -47,7 +47,7 @@ export async function getAssignedWorkSummary(userId: string): Promise<WorkSummar
       attributes: ['id', 'name', 'status']
     }),
     db.Lead.findAll({
-      where: { assigned_to_id: userId, project_id: null } as never,
+      where: { assigned_to_id: userId, project_id: null, call_outcome: { [Op.ne]: 'not_suitable' } } as never,
       attributes: ['id', 'name', 'company']
     }),
     db.Quotation.findAll({

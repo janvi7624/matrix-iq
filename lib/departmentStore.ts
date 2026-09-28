@@ -196,13 +196,25 @@ export async function departmentsManagedBy(username: string): Promise<{ id: stri
 }
 
 // {departmentName -> [{id, username, name}]} for every active department
-// with at least one manager — feeds domain-manager routing hints and the
-// Dashboard's "awaiting your approval" matching, both client-side.
+// with at least one manager — feeds domain-manager routing hints, the
+// Dashboard's "awaiting your approval" matching, approval/notification
+// routing across reimbursement/travel/marketing/demo/TMS, and every
+// dropdown built on top of it (e.g. Task Planner's "Assign to Department
+// Manager" picker). status: 'active' matters here specifically — Department
+// Master's managerIds isn't cleared automatically when someone is
+// deactivated (see updateDepartment), so without this filter a former
+// employee kept showing up as a pickable/notifiable "manager" long after
+// they left. Department Master's own admin display of who's CONFIGURED
+// (active or not, so an admin knows to fix it) is the separate
+// resolveManagerNames() above — deliberately not filtered, since hiding a
+// stale assignment there would look like the assignment was silently gone.
 export async function listDepartmentManagers(): Promise<Record<string, { id: string; username: string; name: string }[]>> {
   const departments = await listActiveDepartments();
   const allIds = new Set<string>();
   departments.forEach((d) => d.managerIds.forEach((id) => allIds.add(id)));
-  const users = allIds.size ? await db.User.findAll({ where: { id: [...allIds] } as never, attributes: ['id', 'username', 'name'] }) : [];
+  const users = allIds.size
+    ? await db.User.findAll({ where: { id: [...allIds], status: 'active' } as never, attributes: ['id', 'username', 'name'] })
+    : [];
   const userById = new Map(users.map((u) => [u.get('id') as string, { id: u.get('id') as string, username: u.get('username') as string, name: u.get('name') as string }]));
   const result: Record<string, { id: string; username: string; name: string }[]> = {};
   departments.forEach((d) => {

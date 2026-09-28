@@ -123,7 +123,7 @@ export async function listTechnicalRoster(options?: { category?: string }): Prom
         attributes: ['assigned_technical_person_id'],
         where: {
           assigned_technical_person_id: { [Op.in]: userIds },
-          status: { [Op.in]: ['draft', 'pending_technical', 'pending_manager', 'pending_backoffice', 'dc_generated', 'material_dispatched'] }
+          status: { [Op.in]: ['draft', 'pending_technical', 'pending_manager', 'pending_backoffice', 'ready_for_demo', 'dc_generated', 'material_dispatched'] }
         } as never,
         raw: true
       });

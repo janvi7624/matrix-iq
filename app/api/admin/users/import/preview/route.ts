@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readUploadFormData, UploadTooLargeError } from '@/lib/uploadRequest';
 import { getSessionFromRequest } from '@/lib/auth';
 import { parseEmployeeXlsxBuffer, processEmployeeImport } from '@/lib/userImportStore';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const formData = await request.formData();
+    const formData = await readUploadFormData(request);
     const file = formData.get('file');
     if (!file || !(file instanceof File)) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof UploadTooLargeError) return NextResponse.json({ error: error.message }, { status: 413 });
     return apiErrorResponse(error);
   }
 }

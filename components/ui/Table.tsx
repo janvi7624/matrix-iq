@@ -25,6 +25,10 @@ export interface TableProps<T> {
   // with per-column width classes on headerClassName) without touching the
   // shared base styles every other consumer of this component still uses.
   tableClassName?: string;
+  // Same idea for the scrolling wrapper — e.g. .tableViewport, which caps the
+  // height so a wide table keeps its horizontal scrollbar (and sticky header)
+  // in view instead of below the last row.
+  wrapClassName?: string;
 }
 
 // Wraps the existing .tableWrap/.table CSS (quotationHistory.module.css)
@@ -35,9 +39,9 @@ export function TableWrap({ children, className }: { children: ReactNode; classN
   return <div className={classes}>{children}</div>;
 }
 
-export default function Table<T>({ columns, rows, rowKey, rowClassName, empty, onRowClick, tableClassName }: TableProps<T>) {
+export default function Table<T>({ columns, rows, rowKey, rowClassName, empty, onRowClick, tableClassName, wrapClassName }: TableProps<T>) {
   return (
-    <TableWrap>
+    <TableWrap className={wrapClassName}>
       <table className={[styles.table, tableClassName || ''].filter(Boolean).join(' ')}>
         <thead>
           <tr>

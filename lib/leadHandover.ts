@@ -25,13 +25,24 @@ interface HandoverViewer {
 
 // Anyone active who can open Lead Capture — the recipient has to be able to
 // see the lead they're sent. Not limited to Sales: a card is often for
-// someone in AI, Robotics, etc. The capturer themselves is left out (a lead
-// they keep is simply theirs, as before), and so are accounts this viewer
-// may not see at all (see canViewRole).
+// someone in AI, Robotics, etc. Accounts this viewer may not see at all are
+// left out (see canViewRole).
+//
+// The capturer themselves IS included. They used to be excluded on the
+// reasoning that "a lead they keep is simply theirs" — but a captured lead is
+// saved UNASSIGNED, and since qualification moved to a phone call
+// (lib/leadCall.ts) an unassigned lead sits in nobody's To Call queue. So a
+// rep who scanned their own card at an expo had no way to put it in their own
+// queue; they had to wait for a sales manager to hand them back their own
+// lead. Picking yourself is now just another hand-over, with the messaging
+// steps skipped (see handOverCapturedLead).
 async function recipientFilter(viewer: HandoverViewer): Promise<(user: Pick<PublicUser, 'id' | 'role' | 'status' | 'department'>) => Promise<boolean>> {
   const privilegedByRole = new Map<string, Promise<boolean>>();
   return async (user) => {
-    if (user.status !== 'active' || user.id === viewer.userId || !canViewRole(viewer.role, user.role)) return false;
+    // canViewRole is about seeing OTHER people; it never needs to be asked
+    // about yourself, and some role setups would answer no.
+    const isSelf = user.id === viewer.userId;
+    if (user.status !== 'active' || (!isSelf && !canViewRole(viewer.role, user.role))) return false;
     if (!privilegedByRole.has(user.role)) privilegedByRole.set(user.role, resolveIsPrivileged(user.role));
     const isPrivileged = await privilegedByRole.get(user.role)!;
     return isModuleAccessAllowed('leads', { role: user.role as UserRole, isPrivileged, department: user.department });
@@ -43,7 +54,7 @@ export async function listHandoverRecipients(viewer: HandoverViewer): Promise<Le
   const allowed = await Promise.all(users.map((u) => canReceive(u)));
   return users
     .filter((_, i) => allowed[i])
-    .map((u) => ({ id: u.id, name: u.name || u.username, department: u.department, designation: u.designation }))
+    .map((u) => ({ id: u.id, name: u.name || u.username, department: u.department, designation: u.designation, self: u.id === viewer.userId }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -59,7 +70,7 @@ export async function findHandoverRecipient(id: string, viewer: HandoverViewer):
   if (!user) return null;
   const canReceive = await recipientFilter(viewer);
   if (!(await canReceive(user))) return null;
-  return { id: user.id, username: user.username, name: user.name || user.username, email: user.email, department: user.department, designation: user.designation };
+  return { id: user.id, username: user.username, name: user.name || user.username, email: user.email, department: user.department, designation: user.designation, self: user.id === viewer.userId };
 }
 
 function formatCapturedAt(iso: string): string {
@@ -102,17 +113,32 @@ export async function handOverCapturedLead(
   }
 
   const label = lead.name || lead.company || 'A new lead';
+  // Keeping your own card is still a hand-over in every respect that matters
+  // to the data — the lead becomes assigned, so it enters a To Call queue and
+  // the audit trail records who claimed it. Only the messaging is skipped.
+  const keptBySelf = recipient.username === actor.username;
+
   await logAudit({
     by: actor.username,
     role: actor.role,
     entityType: 'lead',
     entityId: lead.id,
-    action: `Lead handed over to ${recipient.username} at capture: ${label}`,
+    action: keptBySelf
+      ? `Lead kept by the capturer at capture: ${label}`
+      : `Lead handed over to ${recipient.username} at capture: ${label}`,
     previousStatus: 'unassigned',
     newStatus: recipient.username,
     remarks: `Captured by ${actor.username}`,
     ip
   });
+
+  if (keptBySelf) {
+    // No notification and no email: the person is looking at the confirmation
+    // screen that says they kept it. Telling them by bell and by mail that
+    // they gave themselves a lead is noise, and after an expo it is 600 of them.
+    return { record: (await findLeadById(lead.id)) ?? lead, outcome: { status: 'kept_by_capturer', toName: recipient.name } };
+  }
+
   await notifyUsers([recipient.username], {
     title: 'Lead handed over to you',
     body: `${actor.name} captured ${label}${lead.name && lead.company ? ` (${lead.company})` : ''} and passed it to you.`,

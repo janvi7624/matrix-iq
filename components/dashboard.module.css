@@ -118,6 +118,14 @@
     margin-top: 16px;
     align-items: stretch;
 }
+/* Sales leadership's variant of the row: Needs Your Attention beside the
+   Sales Team Summary, which takes both of the columns Recent Projects /
+   Recent Quotations occupy for everyone else — a six-column table needs
+   them. (Their "Due" queue is a collapsible bar down among the module
+   sections instead, so it never competes with this row for attention.) */
+.topGridPair {
+    grid-template-columns: 1fr 2fr;
+}
 .topGridHighlight {
     margin-top: 0;
     border: 1.5px solid var(--mx-brand);
@@ -136,6 +144,15 @@
     box-shadow: var(--mx-shadow-sm);
     overflow: hidden;
 }
+/* Zeroes .attentionPanel's own 16px margin-top for a panel sitting inside
+   .topGrid, which already carries that spacing — the grid's panels then line
+   up with each other and with the cards beside them. Has to be declared
+   after .attentionPanel: same specificity, so source order decides, which is
+   why .topGridHighlight's own margin-top: 0 above never took effect. */
+.topGridPanel {
+    margin-top: 0;
+}
+
 .attentionHead {
     padding: 14px 18px;
     font-size: 12px;
@@ -483,6 +500,53 @@
     padding: 8px 0;
 }
 
+/* The "Due" bar's expanded body — same shell .attentionPanel gives the
+   attention rows (the list inside is .attentionList either way), spaced under
+   its section toggle the way .grid spaces a section's tiles. */
+.dueBody {
+    margin-top: 8px;
+    border-radius: var(--mx-radius-lg);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
+    overflow: hidden;
+}
+
+/* ---------- Sales Team Summary (Sales Manager / Admin / Super Admin) ----------
+   Same card shell as .recentCard, taking the two columns that pair occupies —
+   see .topGridPair. min-width: 0 so a wide table scrolls inside .tableWrap
+   (components/ui/Table.tsx) rather than forcing the grid column wider than
+   its share, which is what a grid item's default min-width: auto would do. */
+.summaryCard {
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg);
+    box-shadow: var(--mx-shadow-sm);
+    padding: 16px 18px;
+    /* No margin-top: it's a .topGrid child, which already carries that. */
+    min-width: 0;
+}
+.summaryNum {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+/* Right-aligning the count columns has to out-specify the shared table's own
+   `.table th, .table td { text-align: left }` base rule (quotationHistory.
+   module.css, which components/ui/Table.tsx renders with) — a bare
+   .summaryNum class loses that on specificity no matter which stylesheet
+   loads first, so the alignment is scoped through .summaryTable instead. */
+.summaryTable th.summaryNum,
+.summaryTable td.summaryNum {
+    text-align: right;
+}
+/* Won and Lost both belong in one Status cell — a rep usually has some of
+   each, and two badges read faster than a "3 / 1" that needs a legend. */
+.summaryStatus {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 /* This file had zero responsive handling before — the module-tile grid,
    KPI grid, and recent-items grid all used auto-fill/auto-fit minmax()
    widths (240px / 150px / 320px) that hold up reasonably down to tablet,
@@ -493,7 +557,7 @@
     .tile { padding: 16px; }
     .kpiGrid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
     .recentGrid { grid-template-columns: 1fr; gap: 12px; }
-    .topGrid { grid-template-columns: 1fr; gap: 12px; }
+    .topGrid, .topGridPair { grid-template-columns: 1fr; gap: 12px; }
 }
 @media (max-width: 400px) {
     .grid { grid-template-columns: 1fr 1fr; }

@@ -1,9 +1,10 @@
 'use client';
 
-import { FormEvent, createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { FormEvent, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ProjectPriority, ProjectRecord } from '@/lib/types';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { isTechnicalRole } from '@/lib/technicalRoles';
+import { findClosestClient } from '@/lib/clientSimilarity';
 import PhoneInput from './PhoneInput';
 import ProjectSourceField from './ProjectSourceField';
 import ProjectLeadField from './ProjectLeadField';
@@ -84,6 +85,7 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
   const [creating, setCreating] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; username: string; name: string }[]>([]);
   const [viewer, setViewer] = useState<{ role: string; isPrivileged: boolean } | null>(null);
+  const [existingProjects, setExistingProjects] = useState<ProjectRecord[]>([]);
 
   // The Sales person picker follows the same rule as POST /api/projects:
   // privileged → anyone, defaults to self; technical staff → a sales person
@@ -98,13 +100,40 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
         const next = me ? { role: me.role || '', isPrivileged: !!me.isPrivileged } : null;
         setViewer(next);
         if (!next || (!next.isPrivileged && !isTechnicalRole(next.role))) return [];
-        return fetch(next.isPrivileged ? '/api/users/list' : '/api/users/list?scope=sales').then((r) => (r.ok ? r.json() : []));
+        // Sales team only for every creator, privileged included — the person
+        // picked here owns the project. Same rule as ProjectsView's form and
+        // as the server enforces in app/api/projects/route.ts.
+        return fetch('/api/users/list?scope=sales').then((r) => (r.ok ? r.json() : []));
       })
       .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
       .catch(() => setAssignableUsers([]));
   }, [pending]);
 
+  // For the live "are you talking about this client?" nudge below — same
+  // full list components/ui/ProjectSelect.tsx already fetches for its own
+  // dropdown, re-fetched here since this dialog is a standalone context
+  // provider with no access to that instance's state.
+  useEffect(() => {
+    if (!pending) return;
+    fetch('/api/projects')
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setExistingProjects)
+      .catch(() => setExistingProjects([]));
+  }, [pending]);
+
   const isTechnicalCreator = !!viewer && !viewer.isPrivileged && isTechnicalRole(viewer.role);
+
+  // Suggestion only — never blocks Create. Resolving with the matched
+  // existing record via `close()` short-circuits the rest of this form
+  // exactly like a normal successful creation would, from the caller's side.
+  const possibleDuplicate = useMemo(
+    () => findClosestClient(
+      form.clientName,
+      form.company,
+      existingProjects.map((p) => ({ id: p.id, clientName: p.client_name, company: p.company }))
+    ),
+    [form.clientName, form.company, existingProjects]
+  );
 
   const open = useCallback((prefill?: Partial<ProjectCreateForm>) => {
     return new Promise<ProjectRecord | null>((resolve) => {
@@ -194,6 +223,24 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                   <input className={calcStyles.formControl} value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} />
                 </div>
               </div>
+              {possibleDuplicate && (
+                <div className={calcStyles.duplicateSuggestion}>
+                  <span>
+                    Are you talking about <strong>{possibleDuplicate.project.clientName || possibleDuplicate.project.company}</strong>
+                    {possibleDuplicate.project.company && possibleDuplicate.project.clientName ? ` — ${possibleDuplicate.project.company}` : ''}? A project for them already exists.
+                  </span>
+                  <button
+                    type="button"
+                    className={calcStyles.duplicateSuggestionLink}
+                    onClick={() => {
+                      const existing = existingProjects.find((p) => p.id === possibleDuplicate.project.id);
+                      if (existing) close(existing);
+                    }}
+                  >
+                    Use this project instead →
+                  </button>
+                </div>
+              )}
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Phone</label>

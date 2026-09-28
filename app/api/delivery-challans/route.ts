@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { deliveryChallanStore, nextDcNumber } from '@/lib/deliveryChallanStore';
+import { isBackOfficeActor } from '@/lib/backOfficeAccess';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { findProjectById } from '@/lib/projectStore';
 import { appendProjectTimeline } from '@/lib/projectStore';
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
     // shared dispatch/return queue, not just DCs they personally made (or
     // their own department's — Back Office team membership is what grants
     // this, independent of department-manager scoping).
-    const records = await deliveryChallanStore.list(viewer.username, viewer.isPrivileged, viewer.role === 'backoffice');
+    const records = await deliveryChallanStore.list(viewer.username, viewer.isPrivileged, await isBackOfficeActor(viewer));
     return NextResponse.json(records);
   } catch (error) {
     return apiErrorResponse(error);
@@ -63,9 +64,11 @@ export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   // Strictly Back Office (or Admin/Super Admin as the org's ultimate
-  // override, same as every other module) — Manager is deliberately
-  // excluded here, unlike the rest of the app's usual isPrivileged check.
-  if (viewer.role !== 'backoffice' && viewer.role !== 'admin' && viewer.role !== 'superadmin') {
+  // override, same as every other module), or whoever is configured as the
+  // Back Office department's own manager in Department Master — Manager is
+  // otherwise deliberately excluded here, unlike the rest of the app's usual
+  // isPrivileged check. See lib/backOfficeAccess.ts.
+  if (!(await isBackOfficeActor(viewer))) {
     return NextResponse.json({ error: 'Forbidden — Back Office only' }, { status: 403 });
   }
 

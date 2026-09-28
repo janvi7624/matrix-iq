@@ -1,6 +1,8 @@
+/* auto-fit rather than a fixed 4 columns: the Prospects tile made five, and a
+   hard-coded count would leave the fifth stranded on a row of its own. */
 .statRow {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }

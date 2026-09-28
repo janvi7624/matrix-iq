@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { computeLeadStats } from '@/lib/leadStore';
+import { leadStore } from '@/lib/leadStore';
+import { isLeadUnattended } from '@/lib/followUp';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
-import { isMarketingManager } from '@/lib/permissions';
+import { isMarketingManager, canAssignLeads } from '@/lib/permissions';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { listVisibleModules } from '@/lib/moduleConfigStore';
@@ -36,9 +37,14 @@ export async function GET(request: NextRequest) {
     const [user, deptManagers] = await Promise.all([findUserNameAndDeptByUsername(viewer.username), listDepartmentManagers()]);
     const isDeptManager = Object.values(deptManagers).some((list) => list.some((m) => m.username === viewer.username));
 
-    const [modules, leadStats, isMarketingReviewer, demosForBadge, backOfficeCounts] = await Promise.all([
+    const [modules, leads, canAssign, isMarketingReviewer, demosForBadge, backOfficeCounts] = await Promise.all([
       listVisibleModules({ role: viewer.role, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager }),
-      computeLeadStats(viewer.username, viewer.isPrivileged),
+      // The lead list itself rather than computeLeadStats — same single query
+      // that helper runs internally, but the badge below needs two counts it
+      // doesn't expose (this viewer's OWN unattended leads, not their whole
+      // department's), so counting here costs nothing extra.
+      leadStore.list(viewer.username, viewer.isPrivileged),
+      canAssignLeads(viewer),
       isMarketingManager(viewer),
       viewer.role === 'engineer' || isManagerTier ? demoScheduleStore.list(viewer.username, viewer.isPrivileged) : Promise.resolve(null),
       isBackOffice
@@ -47,7 +53,19 @@ export async function GET(request: NextRequest) {
     ]);
 
     const badges: Record<string, number> = {};
-    if (leadStats.unattended) badges.leads = leadStats.unattended;
+    // One Leads badge, two different jobs, because two different people read
+    // it. For a rep it's the calls they owe: leads handed to them that nobody
+    // has rung within the SLA (lib/followUp.ts's isLeadUnattended — scoped to
+    // leads assigned to THIS viewer, not every unattended lead in their
+    // department, which is somebody else's queue and not actionable here).
+    // For whoever routes leads it's the cards still sitting unassigned —
+    // that's their backlog, and it's invisible to the unattended rule by
+    // design, since nobody has been asked to do anything with them yet.
+    // The two sets can't overlap (an unassigned lead is never unattended), so
+    // a sales manager who also works leads gets both added, not double-counted.
+    const myUnattendedLeads = leads.filter((l) => l.assigned_to === viewer.username && isLeadUnattended(l)).length;
+    const unassignedLeads = canAssign ? leads.filter((l) => !l.assigned_to_id).length : 0;
+    if (myUnattendedLeads + unassignedLeads) badges.leads = myUnattendedLeads + unassignedLeads;
 
     // marketingRecords needs isMarketingReviewer (resolved above); travelRecords
     // and deptManagers don't depend on anything from the first batch — all

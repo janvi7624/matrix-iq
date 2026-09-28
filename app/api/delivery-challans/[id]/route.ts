@@ -10,6 +10,7 @@ import { sendFieldOpsLifecycleEmail } from '@/lib/email/notifications';
 import { findUserByUsername } from '@/lib/userStore';
 import { BackOfficeRemarkTag, DcLineItem, DeliveryChallanRecord, DemoRequestStatus, MaterialReturnChecklist } from '@/lib/types';
 import { canAccessOwnedRecord } from '@/lib/departmentScope';
+import { isBackOfficeActor } from '@/lib/backOfficeAccess';
 
 const VALID_REMARK_TAGS: BackOfficeRemarkTag[] = [
   'good_condition',
@@ -66,8 +67,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   // Strictly Back Office (or Admin/Super Admin as the org's ultimate
-  // override) — Manager is deliberately excluded here.
-  if (viewer.role !== 'backoffice' && viewer.role !== 'admin' && viewer.role !== 'superadmin') {
+  // override), or the Back Office department's own configured manager —
+  // Manager is otherwise deliberately excluded here. See
+  // lib/backOfficeAccess.ts.
+  if (!(await isBackOfficeActor(viewer))) {
     return NextResponse.json({ error: 'Forbidden — Back Office only' }, { status: 403 });
   }
 
@@ -174,9 +177,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  // Strictly Back Office (or Admin/Super Admin) — Manager excluded, matching
-  // POST/PATCH above.
-  const canDelete = viewer.role === 'backoffice' || viewer.role === 'admin' || viewer.role === 'superadmin';
+  // Strictly Back Office (or Admin/Super Admin), or the Back Office
+  // department's own configured manager — matching POST/PATCH above.
+  const canDelete = await isBackOfficeActor(viewer);
   if (!canDelete) return NextResponse.json({ error: 'Forbidden — Back Office only' }, { status: 403 });
 
   const { id } = await params;

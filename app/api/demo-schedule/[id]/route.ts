@@ -46,7 +46,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.status = 'pending_technical';
     } else if (body.status === 'cancelled' && existing.status !== 'dc_closed') {
       patch.status = 'cancelled';
-    } else if (body.status === 'demo_completed' && existing.status === 'material_dispatched') {
+    } else if (body.status === 'demo_completed' && (existing.status === 'material_dispatched' || existing.status === 'ready_for_demo')) {
+      // 'material_dispatched' is the onsite path (equipment is with the
+      // client); 'ready_for_demo' is the virtual one, where there is no
+      // dispatch to wait for — without this a virtual demo could never be
+      // marked done at all.
       patch.status = 'demo_completed';
     } else if (typeof body.status === 'string' && body.status) {
       // A status value was supplied but doesn't match any transition legal
@@ -56,6 +60,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: `Cannot change status from "${existing.status}" to "${body.status}"` }, { status: 400 });
     }
 
+    // Switchable only while the request is still a draft: once it has been
+    // approved, the mode is what decided whether Back Office was involved and
+    // whether a challan exists, so flipping it afterwards would strand a demo
+    // mid-pipeline.
+    if (body.mode === 'virtual' || body.mode === 'onsite') {
+      if (existing.status !== 'draft' && body.mode !== existing.mode) {
+        return NextResponse.json({ error: 'The demo mode can only be changed while the request is still a draft.' }, { status: 400 });
+      }
+      patch.mode = body.mode;
+    }
     if (typeof body.notes === 'string') patch.notes = body.notes.trim();
     if (typeof body.demoObjective === 'string') patch.demo_objective = body.demoObjective.trim();
     if (VALID_OUTCOMES.includes(body.outcome)) patch.outcome = body.outcome;
