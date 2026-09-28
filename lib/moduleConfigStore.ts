@@ -112,7 +112,12 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'hr-reports', label: 'HR Reports', desc: 'Daily task, monthly performance, and employee work reports.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   { key: 'hr-settings', label: 'HR Settings', desc: 'Task categories and recurring task templates.', icon: 'settings', href: '/hr/settings', section: 'HR', order: 10, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
-  { key: 'my-tasks', label: 'My Tasks', desc: 'Tasks assigned to you, from any module.', icon: 'check-square', href: '/my-tasks', section: 'Workspace', order: 0, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  // SALES_ROLES_WITH_TMS, not ALL_ROLES: a technical-manager/team-lead/
+  // technician can be assigned tasks like anyone else, and with ALL_ROLES
+  // they had no nav entry to find them (a technical manager who's a
+  // department manager still saw Team Tasks via MANAGER_GATED_KEYS, but not
+  // their own inbox).
+  { key: 'my-tasks', label: 'My Tasks', desc: 'Tasks assigned to you, from any module.', icon: 'check-square', href: '/my-tasks', section: 'Workspace', order: 0, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   // Generalizes HR Tasks' "manager assigns only within their own department"
   // pattern to every department, not just HR — a recognized manager of ANY
   // department (Department.managerIds, not tied to any one role — technical
@@ -334,6 +339,12 @@ const HR_SECTION_TMS_ACCESS_KEYS = new Set(['hr-dashboard', 'travel-schedule', '
 // HR_ALL_ROLES_KEYS) match SALES_ROLES_WITH_TMS, so nothing flips it back.
 const MY_QUOTATIONS_TMS_ACCESS_KEY = 'my-quotations';
 
+// My Tasks widened to every TMS role too — same gap as Existing Quotations
+// above: it stopped at ALL_ROLES, so technical-manager/team-lead/technician
+// accounts never saw their own task inbox in the sidebar. Same
+// OLD_ALL_ROLES_SNAPSHOT don't-clobber-an-admin-edit guard.
+const MY_TASKS_TMS_ACCESS_KEY = 'my-tasks';
+
 // "Assign Task" upgraded in-place into "Task Planner" — same key, so this
 // only rewrites label/href/icon/desc, and only if the row still holds every
 // one of the exact old defaults (an admin who already renamed/re-iconed this
@@ -418,6 +429,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (HR_RESTRICTED_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_HR_MODULE_ROLES_NO_ADMIN)) attrs.visibleToRoles = HR_MODULE_ROLES;
     if (HR_SECTION_TMS_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_SNAPSHOT)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (key === MY_QUOTATIONS_TMS_ACCESS_KEY && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_SNAPSHOT)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
+    if (key === MY_TASKS_TMS_ACCESS_KEY && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ALL_ROLES_SNAPSHOT)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (FORCED_ICON_KEYS.has(key) && plain.icon === OLD_DEFAULT_ICONS[key]) attrs.icon = NEW_DEFAULT_ICONS.get(key);
     if (key === TASK_PLANNER_KEY && plain.label === OLD_TASK_PLANNER_LABEL) attrs.label = 'Task Planner';
     if (key === TASK_PLANNER_KEY && plain.href === OLD_TASK_PLANNER_HREF) attrs.href = '/admin/task-planner';
