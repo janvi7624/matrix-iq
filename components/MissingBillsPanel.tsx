@@ -163,7 +163,7 @@ export default function MissingBillsPanel() {
             {`${all.totalBills} bill${all.totalBills === 1 ? '' : 's'} across ${all.people.length} employee${all.people.length === 1 ? '' : 's'} can't be opened`}
           </h2>
           <p className={styles.lead}>
-            These files were lost with the old storage and only the employees still have the originals. Ask them to upload each bill again — they&apos;ll see the same list
+            These files were crashed and only the employees still have the originals. Ask them to upload each bill again — they&apos;ll see the same list
             on this page, and it clears as they do.
           </p>
           <ul className={styles.people}>

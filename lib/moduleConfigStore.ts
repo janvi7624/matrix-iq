@@ -51,6 +51,18 @@ const TMS_DEPARTMENT_LIST: string[] = [...TMS_DEPARTMENTS];
 const HR_MODULE_ROLES: UserRole[] = ['hr', 'superadmin', 'admin'];
 const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-tasks', 'hr-employees', 'hr-reports', 'hr-settings']);
 
+// Accounts, for exactly the same reason. The payment queue is the Accounts
+// team's and the admins' — it previously listed 'manager' in visibleToRoles
+// AND got the isPrivileged bypass, so every manager in the company saw the
+// whole payment queue: Sales managers, the Back Office manager, all of them.
+// Expressed as roles rather than departments deliberately: superadmin accounts
+// carry no department at all, so a department gate would lock out the very
+// people who must never be locked out. The Accounts department's own manager
+// keeps access through lib/accountsPaymentAccess.ts, which is a configured
+// grant rather than a side effect of the privileged flag.
+const ACCOUNTS_MODULE_ROLES: UserRole[] = ['accounts', 'superadmin', 'admin'];
+const ACCOUNTS_RESTRICTED_KEYS = new Set(['accounts-payments']);
+
 // Keys that need "is this viewer a recognized manager of ANY department"
 // instead of a static role list — HR/TMS above can hard-code a role set
 // because HR and TMS each map onto one fixed role family; a cross-department
@@ -104,7 +116,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // payment-required record across Reimbursement, Admin Expenses, Office
   // Operation Expenses, and TMS BOM Requests/Travel Schedule. 'accounts' is
   // the Accounts team's own role; privileged roles keep oversight access.
-  { key: 'accounts-payments', label: 'Payments', desc: 'Every pending, on-hold, and completed payment across every module — the Accounts team\'s single payment queue.', icon: 'receipt-indian-rupee', href: '/accounts/payments', section: 'Accounts', order: 0, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin', 'manager', 'accounts'] },
+  { key: 'accounts-payments', label: 'Payments', desc: 'Every pending, on-hold, and completed payment across every module — the Accounts team\'s single payment queue.', icon: 'receipt-indian-rupee', href: '/accounts/payments', section: 'Accounts', order: 0, enabled: true, isCustom: false, visibleToRoles: ACCOUNTS_MODULE_ROLES },
   // HR operational task engine — HR_RESTRICTED_KEYS keeps these HR + Admin +
   // Super Admin only (not every department's generic 'manager' role).
   { key: 'hr-tasks', label: 'HR Tasks', desc: 'Daily tasks, assignment, submission, and review for the HR team.', icon: 'clipboard-list', href: '/hr/tasks', section: 'HR', order: 5, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
@@ -337,6 +349,14 @@ const NEW_TASK_PLANNER_ORDER = 2;
 const OLD_ADMIN_EXPENSES_ROLES: UserRole[] = ['superadmin', 'admin'];
 const NEW_ADMIN_EXPENSES_ROLES: UserRole[] = ['superadmin', 'admin', 'hr'];
 
+// Accounts > Payments shipped visible to every 'manager', which meant the
+// Sales managers and the Back Office manager could all open the company's
+// payment queue. Seed defaults are never re-applied to a module that already
+// exists, so the stored row needs this. Guarded on the exact old value, like
+// every reconciliation here: if an admin has already edited this tile's roles
+// through Module Manager, their choice stands.
+const OLD_ACCOUNTS_PAYMENTS_ROLES: UserRole[] = ['superadmin', 'admin', 'manager', 'accounts'];
+
 // HR section widened to every TMS role too — HR Dashboard, Travel Schedule,
 // and Reimbursement previously stopped at ALL_ROLES, so technical-manager/
 // team-lead/technician accounts couldn't see the HR section at all. Literal
@@ -451,6 +471,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (key === TASK_PLANNER_KEY && plain.desc === OLD_TASK_PLANNER_DESC) attrs.desc = 'Plan, assign and track work across departments and employees.';
     if (key === TASK_PLANNER_KEY && plain.section === OLD_TASK_PLANNER_SECTION) { attrs.section = NEW_TASK_PLANNER_SECTION; attrs.order = NEW_TASK_PLANNER_ORDER; }
     if (key === 'admin-expenses' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ADMIN_EXPENSES_ROLES)) attrs.visibleToRoles = NEW_ADMIN_EXPENSES_ROLES;
+    if (ACCOUNTS_RESTRICTED_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ACCOUNTS_PAYMENTS_ROLES)) attrs.visibleToRoles = ACCOUNTS_MODULE_ROLES;
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }
 
@@ -538,7 +559,9 @@ export async function isModuleAccessAllowed(
     ? TMS_OVERSIGHT_ROLES.includes(viewer.role)
     : HR_RESTRICTED_KEYS.has(key)
       ? HR_MODULE_ROLES.includes(viewer.role)
-      : viewer.isPrivileged;
+      : ACCOUNTS_RESTRICTED_KEYS.has(key)
+        ? ACCOUNTS_MODULE_ROLES.includes(viewer.role)
+        : viewer.isPrivileged;
 
   if (!departmentAllowsModule(config, viewer.department, isPrivilegedHere)) return false;
   if (isPrivilegedHere) return true;
