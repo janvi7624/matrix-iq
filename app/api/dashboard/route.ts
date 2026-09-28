@@ -9,7 +9,7 @@ import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { countQuotationsForProjects, computeEffectiveStatus, searchQuotationsFiltered } from '@/lib/quotationStore';
 import { leadStore } from '@/lib/leadStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
-import { isMarketingManager } from '@/lib/permissions';
+import { hasCapability, isMarketingManager } from '@/lib/permissions';
 import { listDepartmentManagers, isUserADepartmentManager } from '@/lib/departmentStore';
 import { listTechnicalRoster } from '@/lib/technicalRoster';
 import { needsFollowUp, isLeadUnattended } from '@/lib/followUp';
@@ -19,6 +19,8 @@ import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { listTechnicalRequestsAwaiting } from '@/lib/projectTechnicalRequest';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 import { travelScheduleStore } from '@/lib/travelScheduleStore';
+import { listSalesTeamRoster } from '@/lib/targetAccess';
+import { buildSalesTeamSummary, isSalesLeadership, SalesTeamSummaryRow } from '@/lib/salesTeamSummary';
 
 // Single round trip for everything Dashboard.tsx needs on first paint —
 // replaces what used to be up to 13 separate client-side fetches (modules,
@@ -49,8 +51,14 @@ export async function GET(request: NextRequest) {
 
     // isDeptManager resolved up front — needed both for canSeeQueue below and
     // for listVisibleModules's team-tasks visibility, and this way it's only
-    // looked up once instead of twice.
-    const [user, isDeptManager] = await Promise.all([findUserNameAndDeptByUsername(viewer.username), isUserADepartmentManager(viewer.username)]);
+    // looked up once instead of twice. seesOrgWide joins them rather than
+    // being awaited on its own later: it reads the cached roles list, and
+    // isSalesLeadership() below needs it before the roster fetch is queued.
+    const [user, isDeptManager, seesOrgWide] = await Promise.all([
+      findUserNameAndDeptByUsername(viewer.username),
+      isUserADepartmentManager(viewer.username),
+      hasCapability(viewer.role, 'viewAllDepartments')
+    ]);
     const canSeeQueue = viewer.isPrivileged || viewer.role === 'engineer' || viewer.role === 'backoffice' || isDeptManager;
 
     // canSeeQueue also gates backOfficeKpis below — isBackOffice (backoffice
@@ -90,19 +98,40 @@ export async function GET(request: NextRequest) {
       })()
     ]);
 
-    // None of these three depend on each other — quotationsCount needs
-    // projectsLight (already resolved above), pendingHandovers/travelRecords
-    // need only the viewer — so they run together instead of as three more
-    // sequential round trips (travelScheduleStore.list in particular is a
-    // multi-join query, not cheap to pay for twice removed from parallel).
-    const [quotationsCount, pendingHandovers, travelRecords, pendingTechnicalApprovals] = await Promise.all([
+    // Sales Manager / Admin / Super Admin only — see lib/salesTeamSummary.ts
+    // for why this is a positive Sales-side check rather than canManageTargets.
+    // Resolved from data already in hand (no extra query), and it gates both
+    // of this viewer's Dashboard differences: the pending/due split of the
+    // attention panel, and the Sales Team Summary table.
+    const salesLeadership = isSalesLeadership({
+      role: viewer.role,
+      username: viewer.username,
+      department: user?.department ?? '',
+      seesOrgWide,
+      managersByDepartment
+    });
+
+    // None of these depend on each other — quotationsCount needs
+    // projectsLight (already resolved above), pendingHandovers/travelRecords/
+    // salesRoster need only the viewer — so they run together instead of as
+    // four more sequential round trips (travelScheduleStore.list in
+    // particular is a multi-join query, not cheap to pay for twice removed
+    // from parallel).
+    const [quotationsCount, pendingHandovers, travelRecords, pendingTechnicalApprovals, salesRoster] = await Promise.all([
       countQuotationsForProjects(projectsLight.map((p) => p.id)),
       projectHandoverStore.listPendingForUser(viewer.userId),
       travelScheduleStore.list(viewer.username, viewer.isPrivileged),
       // Technical-person requests waiting on this viewer, as the engineer or
       // their department manager (lib/projectTechnicalRequest.ts).
-      listTechnicalRequestsAwaiting(viewer)
+      listTechnicalRequestsAwaiting(viewer),
+      // The only query the Sales Team Summary costs — its leads/projects/
+      // quotations columns are all derived from rows already fetched above.
+      salesLeadership ? listSalesTeamRoster(viewer.username) : Promise.resolve(null)
     ]);
+
+    const salesTeamSummary: SalesTeamSummaryRow[] | null = salesRoster
+      ? buildSalesTeamSummary(salesRoster, leads, projectsLight, quotationsForViewer)
+      : null;
 
     const today = new Date().toISOString().slice(0, 10);
     const now = Date.now();
@@ -226,7 +255,9 @@ export async function GET(request: NextRequest) {
       quotationStats,
       pendingHandovers,
       pendingTechnicalApprovals,
-      travelPendingCount
+      travelPendingCount,
+      salesLeadership,
+      salesTeamSummary
     });
   } catch (error) {
     return apiErrorResponse(error);
