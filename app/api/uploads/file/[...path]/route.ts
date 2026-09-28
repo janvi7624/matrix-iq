@@ -1,4 +1,4 @@
-import { getFile } from '@/lib/supabaseStorage';
+import { getFile } from '@/lib/fileStorage';
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';

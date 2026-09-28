@@ -1,4 +1,4 @@
-import { putFile } from '@/lib/supabaseStorage';
+import { putFile } from '@/lib/fileStorage';
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       }
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const pathname = `uploads/${folder}/${viewer.username}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeName}`;
-      const { pathname: stored } = await putFile(pathname, file);
+      const { pathname: stored } = await putFile(pathname, file, viewer.username);
       urls.push(`/api/uploads/file/${stored.split('/').map(encodeURIComponent).join('/')}`);
     }
 

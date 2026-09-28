@@ -17,6 +17,7 @@ import { sectionIconFor, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON } fr
 import { X } from 'lucide-react';
 import Drawer from './ui/Drawer';
 import Modal from './ui/Modal';
+import { hasSeenCelebrationPopup, markCelebrationPopupSeen } from '@/lib/celebrationPopupSeen';
 import styles from './dashboard.module.css';
 
 // How many rows the Dashboard panel itself shows before collapsing the rest
@@ -183,17 +184,34 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   // any other way), which shouldn't be tangled up with the rest of the
   // dashboard's plain read-only data fetch.
   const [celebrations, setCelebrations] = useState<{ userId: string; name: string; type: 'birthday' | 'anniversary'; years?: number }[]>([]);
-  // Closing just hides it for this page view — it isn't remembered, so a
-  // fresh visit or reload later the same day shows it again. That's
-  // deliberate: the popup should be available "for the whole day", not
-  // just the first time someone happens to see it.
+  // Shown once per login, not once per visit. It used to reappear on every
+  // dashboard load for the rest of the day, because dismissing it only set
+  // state that a reload threw away — so the same person got interrupted by
+  // the same popup several times a day. lib/celebrationPopupSeen.ts remembers
+  // it per user per day, and every sign-out path clears that, so a fresh
+  // login on a birthday still shows it.
   const [celebrationsDismissed, setCelebrationsDismissed] = useState(false);
+  // Read once, lazily, instead of in an effect. `null` on the server, where
+  // there is no localStorage. Safe for hydration because the popup cannot
+  // render on that first pass either way — `celebrations` is empty until the
+  // fetch below returns — so the server and client agree on the output.
+  const [celebrationsAlreadySeen] = useState<boolean | null>(() =>
+    typeof window === 'undefined' ? null : hasSeenCelebrationPopup(currentUser.username)
+  );
   useEffect(() => {
     fetch('/api/dashboard/celebrations')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setCelebrations(data?.celebrations ?? []))
       .catch(() => setCelebrations([]));
   }, []);
+
+  const showCelebrations = celebrations.length > 0 && celebrationsAlreadySeen === false && !celebrationsDismissed;
+  // Marked the moment it is actually on screen, not when it is closed:
+  // "once" has to hold even for someone who navigates away or shuts the tab
+  // without pressing Close, which is exactly how the repeats happened.
+  useEffect(() => {
+    if (showCelebrations) markCelebrationPopupSeen(currentUser.username);
+  }, [showCelebrations, currentUser.username]);
 
   const recentProjects = useMemo(() => (allProjects ? [...allProjects].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 3) : null), [allProjects]);
 
@@ -358,7 +376,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
   return (
     <AppShell title={BRAND.appName} subtitle={BRAND.tagline} showBackLink={false}>
-      {celebrations.length > 0 && !celebrationsDismissed && (
+      {showCelebrations && (
         <Modal
           title={
             <div className={styles.celebrationHeader}>

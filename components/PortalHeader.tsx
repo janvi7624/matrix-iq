@@ -9,6 +9,7 @@ import { ModuleConfigRecord } from '@/lib/types';
 import GlobalSearch from './GlobalSearch';
 import NotificationBell from './NotificationBell';
 import styles from './quotationHistory.module.css';
+import { forgetCelebrationPopups } from '@/lib/celebrationPopupSeen';
 
 interface PortalHeaderProps {
   title: string;
@@ -35,6 +36,9 @@ export default function PortalHeader({ title, subtitle, showBackLink = true }: P
   }, [pathname]);
 
   async function handleLogout() {
+    // So the birthday popup shows once on the NEXT login rather than being
+    // suppressed for the rest of the day (lib/celebrationPopupSeen.ts).
+    forgetCelebrationPopups();
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
     router.push('/login');
     router.refresh();

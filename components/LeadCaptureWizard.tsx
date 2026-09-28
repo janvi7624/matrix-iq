@@ -58,6 +58,9 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanNote, setScanNote] = useState('');
+  // Set when the card photo could not be stored. The capture itself still
+  // works without it, so this warns rather than blocks.
+  const [cardUploadError, setCardUploadError] = useState('');
   const [successRecord, setSuccessRecord] = useState<LeadSubmitResult | null>(null);
   const [converting, setConverting] = useState(false);
   const [converted, setConverted] = useState(false);
@@ -103,6 +106,7 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
     if (!file) return;
     setScanning(true);
     setScanProgress(0);
+    setCardUploadError('');
     setScanNote('Preparing photo…');
     try {
       const [uploadResult] = await Promise.all([
@@ -111,7 +115,17 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
           body.append('folder', 'leads');
           body.append('files', file);
           const response = await fetch('/api/uploads', { method: 'POST', body });
-          if (!response.ok) return null;
+          if (!response.ok) {
+            // The failure used to be dropped on the floor here. Reading the
+            // card is done locally, so capture carried on and the lead was
+            // saved with its photo silently missing — nobody found out until
+            // they went looking for the card later. The server's own wording
+            // is shown, so an unreachable file store says exactly that
+            // instead of nothing at all (see lib/fileStorage.ts).
+            const problem = await response.json().catch(() => null);
+            setCardUploadError(problem?.error || 'The card photo could not be saved.');
+            return null;
+          }
           const data: { urls: string[] } = await response.json();
           return data.urls[0] || null;
         })(),
@@ -335,6 +349,15 @@ export default function LeadCaptureWizard({ creating, onSubmit, onConvertToProje
             {form.cardImageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={form.cardImageUrl} alt="Business card" className={styles.cardPreviewImg} />
+            )}
+            {/* Shown in place of the card preview when the photo could not be
+                stored. Deliberately not a blocker: the details were still read
+                off the card and the lead is worth keeping either way — but it
+                has to be said, because the photo will not be there later. */}
+            {cardUploadError && (
+              <div className={styles.noticeWarn} role="status">
+                <strong>The card photo was not saved.</strong> {cardUploadError} You can still save this lead — only the photo is missing.
+              </div>
             )}
             {errors.length > 0 && <div className={historyStyles.loginError}>{errors[0]}</div>}
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>

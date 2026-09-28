@@ -1,4 +1,4 @@
-import { putFile } from '@/lib/supabaseStorage';
+import { putFile } from '@/lib/fileStorage';
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `${file.name} is larger than 8MB` }, { status: 400 });
       }
       const pathname = `site-visit-images/${viewer.username}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${file.name}`;
-      const { pathname: stored } = await putFile(pathname, file);
+      const { pathname: stored } = await putFile(pathname, file, viewer.username);
       urls.push(`/api/site-visits/image/${stored.split('/').map(encodeURIComponent).join('/')}`);
     }
 

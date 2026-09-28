@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DomainKey, LeadHandoverOutcome, LeadPriority, LeadRecord, LeadSource, UserRole } from '@/lib/types';
-import { LEAD_DOMAIN_TILES, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
+import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
 import { AlertTriangle, Flame, Contact, Share2, UserPlus, UserCheck, Pencil } from 'lucide-react';
 import AppShell from './AppShell';
@@ -12,6 +12,7 @@ import LeadCaptureWizard from './LeadCaptureWizard';
 import LeadBulkImportWizard from './LeadBulkImportWizard';
 import PhoneInput from './ui/PhoneInput';
 import leadStyles from './leadsView.module.css';
+import historyStyles from './quotationHistory.module.css';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
@@ -26,6 +27,10 @@ import Table, { TableColumn, TableWrap } from './ui/Table';
 import Pagination from './ui/Pagination';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import { Field, FieldRow } from './ui/Field';
+import ProjectLeadField from './ui/ProjectLeadField';
+import OpportunityTypeField from './ui/OpportunityTypeField';
+import { useProjectLeads } from './ui/useProjectLeads';
+import { OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 import Input from './ui/Input';
 import Textarea from './ui/Textarea';
 import PriorityBadge from './ui/PriorityBadge';
@@ -102,6 +107,12 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [convertPicker, setConvertPicker] = useState<{ leadId: string; resolve: (ok: boolean) => void } | null>(null);
+  const [convertLeadPick, setConvertLeadPick] = useState('');
+  const [convertType, setConvertType] = useState<OpportunityType | ''>('');
+  const [convertLeadTouched, setConvertLeadTouched] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const projectLeads = useProjectLeads();
   const [q, setQ] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<LeadPriority | ''>('');
   const [interestFilter, setInterestFilter] = useState<DomainKey | ''>('');
@@ -112,7 +123,10 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number; unassigned: number; assignedToMe: number } | null>(null);
   const [metaInfoLead, setMetaInfoLead] = useState<LeadRecord | null>(null);
   const [editingLead, setEditingLead] = useState<LeadRecord | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', company: '', designation: '', mobile: '', email: '', city: '', budget: '', priority: '' as LeadPriority, notes: '' });
+  const [editForm, setEditForm] = useState({
+    name: '', company: '', designation: '', mobile: '', email: '', city: '', budget: '', priority: '' as LeadPriority, notes: '',
+    source: 'manual' as LeadSource, interests: [] as DomainKey[], subInterests: [] as string[], followUpActions: [] as string[]
+  });
   const [savingEdit, setSavingEdit] = useState(false);
 
   // ── Assignment ──────────────────────────────────────────────────────────
@@ -348,15 +362,47 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     loadLeads();
   }
 
-  async function handleConvertToProject(leadId: string): Promise<boolean> {
-    const response = await fetch(`/api/leads/${leadId}/convert-to-project`, { method: 'POST' });
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      toast.error(body?.error || 'Could not convert this lead.');
-      return false;
+  // Every project needs a Project Lead / Mentor, and "To Project" creates the
+  // project outright with no form — so it asks first. Resolves true once the
+  // project exists, false if the picker is cancelled or the request fails
+  // (the failure is toasted here), which is what both callers already expect.
+  function handleConvertToProject(leadId: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      setConvertLeadPick('');
+      setConvertType('');
+      setConvertLeadTouched(false);
+      setConvertPicker({ leadId, resolve });
+    });
+  }
+
+  function cancelConvert() {
+    convertPicker?.resolve(false);
+    setConvertPicker(null);
+  }
+
+  async function submitConvert() {
+    if (!convertPicker || !convertLeadPick || !convertType) return;
+    setConverting(true);
+    try {
+      const response = await fetch(`/api/leads/${convertPicker.leadId}/convert-to-project`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectLeadId: convertLeadPick, opportunityType: convertType })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(body?.error || 'Could not convert this lead.');
+        convertPicker.resolve(false);
+      } else {
+        await loadLeads();
+        convertPicker.resolve(true);
+      }
+      setConvertPicker(null);
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setConverting(false);
     }
-    await loadLeads();
-    return true;
   }
 
   async function handleDelete(lead: LeadRecord) {
@@ -380,13 +426,43 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       city: lead.city,
       budget: lead.budget,
       priority: lead.priority,
-      notes: lead.notes
+      notes: lead.notes,
+      source: lead.source,
+      interests: lead.interests ?? [],
+      subInterests: lead.sub_interests ?? [],
+      followUpActions: lead.follow_up_actions ?? []
     });
     setEditingLead(lead);
   }
 
+  // Turning an area of interest off also drops that area's specifics —
+  // otherwise they'd stay saved on the lead with nothing on screen showing them.
+  function toggleEditInterest(domain: DomainKey) {
+    setEditForm((f) => {
+      const on = f.interests.includes(domain);
+      const dropped = on ? LEAD_SUB_INTERESTS[domain] ?? [] : [];
+      return {
+        ...f,
+        interests: on ? f.interests.filter((d) => d !== domain) : [...f.interests, domain],
+        subInterests: f.subInterests.filter((s) => !dropped.includes(s))
+      };
+    });
+  }
+
+  function toggleEditSubInterest(tag: string) {
+    setEditForm((f) => ({ ...f, subInterests: f.subInterests.includes(tag) ? f.subInterests.filter((t) => t !== tag) : [...f.subInterests, tag] }));
+  }
+
+  function toggleEditFollowUp(tag: string) {
+    setEditForm((f) => ({ ...f, followUpActions: f.followUpActions.includes(tag) ? f.followUpActions.filter((t) => t !== tag) : [...f.followUpActions, tag] }));
+  }
+
   async function handleSaveEdit() {
     if (!editingLead) return;
+    if (!editForm.name.trim() && !editForm.company.trim()) {
+      toast.error('Enter at least a name or a company.');
+      return;
+    }
     setSavingEdit(true);
     try {
       const response = await fetch(`/api/leads/${editingLead.id}`, {
@@ -690,6 +766,36 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
           </>
         )}
 
+        {convertPicker && (
+          <Modal
+            title="Convert to Project"
+            ariaLabel="Convert lead to project"
+            onClose={cancelConvert}
+            dismissible={!converting}
+            footer={
+              <>
+                <ModalCancelButton disabled={converting} onClick={cancelConvert}>Cancel</ModalCancelButton>
+                <ModalOkButton disabled={converting || !convertLeadPick || !convertType} onClick={submitConvert}>{converting ? 'Creating…' : 'Create Project'}</ModalOkButton>
+              </>
+            }
+          >
+            <Field label="Opportunity Type *">
+              <OpportunityTypeField
+                required
+                disabled={converting || !projectLeads}
+                value={convertType}
+                onChange={(type) => {
+                  setConvertLeadPick((current) => nextLeadOnTypeChange(current, convertLeadTouched, type, projectLeads ?? []));
+                  setConvertType(type);
+                }}
+              />
+            </Field>
+            <Field label="Project Lead / Mentor *">
+              <ProjectLeadField required value={convertLeadPick} onChange={(v) => { setConvertLeadTouched(true); setConvertLeadPick(v); }} disabled={converting} />
+            </Field>
+          </Modal>
+        )}
+
         {metaInfoLead && (
           <Modal
             title="Meta Information"
@@ -747,8 +853,15 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               </Field>
             </FieldRow>
             <FieldRow>
-              <Field label="Budget">
-                <Input value={editForm.budget} onChange={(e) => setEditForm((f) => ({ ...f, budget: e.target.value }))} />
+              <Field label="Source">
+                <Select value={editForm.source} onChange={(e) => setEditForm((f) => ({ ...f, source: e.target.value as LeadSource }))}>
+                  {/* Meta Lead Ads is only offered on a lead that already came from
+                      Meta — it's attribution set by the integration, and the server
+                      refuses to stamp it onto any other lead. */}
+                  {(['manual', 'business_card', 'csv_import'] as LeadSource[]).concat(editingLead.source === 'meta_lead_ads' ? ['meta_lead_ads'] : []).map((s) => (
+                    <option key={s} value={s}>{SOURCE_LABEL[s]}</option>
+                  ))}
+                </Select>
               </Field>
               <Field label="Priority">
                 <Select value={editForm.priority} onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value as LeadPriority }))}>
@@ -759,6 +872,76 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 </Select>
               </Field>
             </FieldRow>
+            <Field label="Area of interest">
+              <div className={historyStyles.pillWrap}>
+                {LEAD_DOMAIN_TILES.map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    aria-pressed={editForm.interests.includes(t.key)}
+                    className={`${historyStyles.pillBtn} ${editForm.interests.includes(t.key) ? historyStyles.pillBtnActive : ''}`}
+                    onClick={() => toggleEditInterest(t.key)}
+                  >
+                    <t.icon size={13} className={leadStyles.editIcon} />{t.label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            {editForm.interests.map((domain) => {
+              const options = LEAD_SUB_INTERESTS[domain];
+              const tile = LEAD_DOMAIN_TILES.find((t) => t.key === domain);
+              if (!options || !tile) return null;
+              return (
+                <Field key={domain} label={`Which ${tile.label.toLowerCase()}?`}>
+                  <div className={historyStyles.pillWrap}>
+                    {options.map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        aria-pressed={editForm.subInterests.includes(opt)}
+                        className={`${historyStyles.pillBtn} ${editForm.subInterests.includes(opt) ? historyStyles.pillBtnActive : ''}`}
+                        onClick={() => toggleEditSubInterest(opt)}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              );
+            })}
+            <Field label="Follow-up action">
+              <div className={historyStyles.pillWrap}>
+                {LEAD_FOLLOW_UP_ACTIONS.map((a) => (
+                  <button
+                    key={a.tag}
+                    type="button"
+                    aria-pressed={editForm.followUpActions.includes(a.tag)}
+                    className={`${historyStyles.pillBtn} ${editForm.followUpActions.includes(a.tag) ? historyStyles.pillBtnActive : ''}`}
+                    onClick={() => toggleEditFollowUp(a.tag)}
+                  >
+                    <a.icon size={13} className={leadStyles.editIcon} />{a.tag}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Budget range">
+              {/* Free text stays editable (imported/Meta leads carry their own wording);
+                  the capture wizard's presets are one tap away. */}
+              <div className={historyStyles.pillWrap}>
+                {LEAD_BUDGET_OPTIONS.map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    aria-pressed={editForm.budget === b}
+                    className={`${historyStyles.pillBtn} ${editForm.budget === b ? historyStyles.pillBtnActive : ''}`}
+                    onClick={() => setEditForm((f) => ({ ...f, budget: f.budget === b ? '' : b }))}
+                  >
+                    {b}
+                  </button>
+                ))}
+              </div>
+              <Input value={editForm.budget} placeholder="Or type a budget" onChange={(e) => setEditForm((f) => ({ ...f, budget: e.target.value }))} />
+            </Field>
             <Field label="Notes">
               <Textarea rows={3} value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} />
             </Field>

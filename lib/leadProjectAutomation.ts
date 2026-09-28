@@ -15,6 +15,15 @@ export interface CreateProjectFromLeadOptions {
   // confirm before the project reads as "handled". The manual button's
   // behavior is unchanged: no confirmation step, exactly like today.
   autoCreated: boolean;
+  // Project Lead / Mentor (a user id already validated by the caller via
+  // resolveProjectLead). The manual "To Project" button collects one up front;
+  // the automatic-on-assignment path has nobody to ask, so it starts blank and
+  // the assignee must pick one before confirming the project.
+  projectLeadId?: string;
+  // Distribution / Project — collected together with the lead by the manual
+  // button; blank on the automatic path, where the assignee sets it (and must,
+  // before confirming).
+  opportunityType?: 'distribution' | 'project';
 }
 
 export interface CreateProjectFromLeadResult {
@@ -75,6 +84,9 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     approx_price: '',
     notes: [],
     attachments: [],
+    project_lead_id: opts.projectLeadId || '',
+    project_lead_name: '',
+    opportunity_type: opts.opportunityType || '',
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',
     tms_project_id: '',

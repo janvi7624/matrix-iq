@@ -793,6 +793,17 @@ export interface ProjectRecord {
   attachments: string[];
   timeline: ProjectTimelineEvent[];
   updated_at: string;
+  // Project Lead / Mentor — mandatory on every new project (one of the fixed
+  // leads in lib/projectLeadOptions.ts). '' only on a project that predates the
+  // field, or one auto-created from a lead that's still awaiting its assignee.
+  // The lead sees this project in their own Project Dashboard too (see
+  // lib/projectStore.ts resolveOwnerWhere). _name is display-only, resolved on
+  // read like assigned_technical_person_name.
+  project_lead_id: string;
+  project_lead_name: string;
+  // Distribution vs Project deal — what the Project Lead default follows
+  // (lib/projectLeadOptions.ts). '' on a project that predates the field.
+  opportunity_type: 'distribution' | 'project' | '';
   assigned_technical_person_id: string;
   assigned_technical_person_name: string;
   // See lib/tmsHandoff.ts — links to the TMS project auto-created/kept in

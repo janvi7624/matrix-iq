@@ -148,7 +148,12 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // (see the TASK_PLANNER_MIGRATION_KEY reconciliation below): every
   // isModuleActionAllowed(viewer, 'admin-task-assignment', ...) call site and
   // any Module Manager customization of this row survive the rename.
-  { key: 'admin-task-assignment', label: 'Task Planner', desc: 'Plan, assign and track work across departments and employees.', icon: 'kanban-square', href: '/admin/task-planner', section: 'Administration', order: 12, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  // Lives under Workspace, next to My Tasks and Team Tasks — planning work is
+  // the same daily job as doing it, not an administration setting. The key,
+  // href and visibleToRoles are deliberately unchanged: the key is referenced
+  // by isModuleActionAllowed call sites, and who may open it is a separate
+  // question from where it is listed.
+  { key: 'admin-task-assignment', label: 'Task Planner', desc: 'Plan, assign and track work across departments and employees.', icon: 'kanban-square', href: '/admin/task-planner', section: 'Workspace', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   // Narrower than PRIVILEGED_ROLES (excludes 'manager') — Meta credentials
   // and lead-routing rules are Admin/Super Admin only, same restriction
   // 'audit-log' already uses. See lib/metaConfig.ts.
@@ -311,6 +316,15 @@ const RESECTIONED_TO_HR_KEYS = new Set(['travel-schedule']);
 const OLD_SECTION_FOR_HR = 'Sales';
 const NEW_SECTION_FOR_HR = 'HR';
 
+// Task Planner moved from Administration to Workspace, beside My Tasks and
+// Team Tasks. Same don't-clobber-an-admin-edit guard as every reconciliation
+// here: a row an admin has already re-sectioned through Module Manager keeps
+// their placement, because it no longer holds the old default.
+const OLD_TASK_PLANNER_SECTION = 'Administration';
+const NEW_TASK_PLANNER_SECTION = 'Workspace';
+// After My Tasks (0) and Team Tasks (1).
+const NEW_TASK_PLANNER_ORDER = 2;
+
 // Admin Expenses widened from Super Admin + Admin to also include HR (an HR
 // staff member reported being unable to open it — it's HR-section data
 // entered on employees' behalf, so HR should have always had it). Same
@@ -423,6 +437,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (key === TASK_PLANNER_KEY && plain.href === OLD_TASK_PLANNER_HREF) attrs.href = '/admin/task-planner';
     if (key === TASK_PLANNER_KEY && plain.icon === OLD_TASK_PLANNER_ICON) attrs.icon = 'kanban-square';
     if (key === TASK_PLANNER_KEY && plain.desc === OLD_TASK_PLANNER_DESC) attrs.desc = 'Plan, assign and track work across departments and employees.';
+    if (key === TASK_PLANNER_KEY && plain.section === OLD_TASK_PLANNER_SECTION) { attrs.section = NEW_TASK_PLANNER_SECTION; attrs.order = NEW_TASK_PLANNER_ORDER; }
     if (key === 'admin-expenses' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ADMIN_EXPENSES_ROLES)) attrs.visibleToRoles = NEW_ADMIN_EXPENSES_ROLES;
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }

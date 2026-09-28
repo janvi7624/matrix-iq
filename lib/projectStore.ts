@@ -25,6 +25,8 @@ const FIELDS = [
   { name: 'approx_price', kind: 'decimal' as const },
   { name: 'attachments', kind: 'json' as const },
   { name: 'assigned_technical_person_id', kind: 'nullable' as const },
+  { name: 'project_lead_id', kind: 'nullable' as const },
+  { name: 'opportunity_type', kind: 'nullable' as const },
   { name: 'tms_project_id', kind: 'nullable' as const },
   { name: 'lead_confirmation_status', kind: 'nullable' as const },
   { name: 'confirmed_by', kind: 'nullable' as const },
@@ -77,16 +79,17 @@ function rowToTimelineEvent(plain: Record<string, unknown>): ProjectTimelineEven
 
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
 const assignedTechnicalPersonInclude = { model: db.User, as: 'assignedTechnicalPersonRef', attributes: ['id', 'name'] };
+const projectLeadInclude = { model: db.User, as: 'projectLeadRef', attributes: ['id', 'name'] };
 const notesInclude = { model: db.ProjectNote, as: 'notes' };
 const timelineInclude = { model: db.ProjectTimelineEvent, as: 'timeline' };
-const allIncludes = [creatorInclude, assignedTechnicalPersonInclude, notesInclude, timelineInclude];
+const allIncludes = [creatorInclude, assignedTechnicalPersonInclude, projectLeadInclude, notesInclude, timelineInclude];
 // List views (Dashboard, Projects table, KPIs, search) only ever read the
 // plain project fields — never .notes/.timeline, which for a project with a
 // long history can be the bulk of the row's join cost. toRecord() already
 // defaults both to [] when the include isn't present, so this is a drop-in
 // lighter read for anything that isn't rendering a single project's full
 // history (see findProjectById / performance-review, which still need them).
-const lightIncludes = [creatorInclude, assignedTechnicalPersonInclude];
+const lightIncludes = [creatorInclude, assignedTechnicalPersonInclude, projectLeadInclude];
 
 function toRecord(row: Model): ProjectRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -96,6 +99,7 @@ function toRecord(row: Model): ProjectRecord {
     created_by: (plain.creator as { username?: string } | null)?.username ?? '',
     updated_at: isoOrEmpty(plain.updatedAt),
     assigned_technical_person_name: (plain.assignedTechnicalPersonRef as { name?: string } | null)?.name ?? '',
+    project_lead_name: (plain.projectLeadRef as { name?: string } | null)?.name ?? '',
     notes: ((plain.notes as Record<string, unknown>[]) ?? []).map(rowToNote).sort((a, b) => (a.at < b.at ? -1 : 1)),
     timeline: ((plain.timeline as Record<string, unknown>[]) ?? []).map(rowToTimelineEvent).sort((a, b) => (a.at < b.at ? -1 : 1)),
     // Populated only by the Dashboard read path (see listLastRemarks below,
@@ -142,10 +146,20 @@ async function readAllLight(): Promise<ProjectRecord[]> {
 // lead's "To Project"), so they follow the same rule as everyone else —
 // otherwise a project they own would vanish from their own list, while
 // canAccessProject below still let them open it by id.
+//
+// A project's Lead / Mentor (project_lead_id) sees it too — being named the
+// lead is what puts a project in their own Project Dashboard, on top of the
+// ones they own. Same shape as the assigned technical person branch above.
 async function resolveOwnerWhere(viewerUsername: string): Promise<Record<string, unknown>> {
   const scope = await resolveVisibilityScope(viewerUsername);
   if (!scope.scopedUserIds) return {};
-  return { [Op.or]: [{ created_by: { [Op.in]: scope.scopedUserIds } }, { assigned_technical_person_id: { [Op.in]: scope.scopedUserIds } }] };
+  return {
+    [Op.or]: [
+      { created_by: { [Op.in]: scope.scopedUserIds } },
+      { assigned_technical_person_id: { [Op.in]: scope.scopedUserIds } },
+      { project_lead_id: { [Op.in]: scope.scopedUserIds } }
+    ]
+  };
 }
 
 async function list(viewerUsername: string): Promise<ProjectRecord[]> {
@@ -304,11 +318,12 @@ export async function listLastRemarks(projectIds: string[]): Promise<Record<stri
 // nobody can reach another department's project just by knowing its id.
 // Moved here (from app/api/projects/[id]/route.ts) so the new deadline-
 // extension routes can reuse it too instead of re-implementing it.
-export async function canAccessProject(viewerUsername: string, project: { created_by: string; assigned_technical_person_id: string }): Promise<boolean> {
+export async function canAccessProject(viewerUsername: string, project: { created_by: string; assigned_technical_person_id: string; project_lead_id?: string }): Promise<boolean> {
   const scope = await resolveVisibilityScope(viewerUsername);
   if (scope.seesOrgWide) return true;
   const ids = scope.scopedUserIds ?? [];
   if (project.assigned_technical_person_id && ids.includes(project.assigned_technical_person_id)) return true;
+  if (project.project_lead_id && ids.includes(project.project_lead_id)) return true;
   if (!project.created_by) return false;
   const creator = await db.User.findOne({ where: { username: project.created_by } as never, attributes: ['id'] });
   return creator ? ids.includes(creator.get('id') as string) : false;

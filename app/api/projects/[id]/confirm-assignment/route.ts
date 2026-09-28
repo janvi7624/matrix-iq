@@ -48,6 +48,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ ok: true, clarificationRequested: true });
     }
 
+    // Project Lead / Mentor is mandatory on every project — a project
+    // auto-created from a lead starts without one, so it has to be chosen
+    // before this can be confirmed (a clarification request above doesn't
+    // need it, hence the check sits after that branch).
+    if (!existing.project_lead_id) {
+      return NextResponse.json({ error: 'Select the Project Lead / Mentor before confirming this project' }, { status: 400 });
+    }
+    if (!existing.opportunity_type) {
+      return NextResponse.json({ error: 'Select the Opportunity Type (Distribution or Project) before confirming this project' }, { status: 400 });
+    }
+
     const updated = await projectStore.update(id, {
       lead_confirmation_status: 'confirmed',
       // confirmed_by is a real UUID column (unlike created_by, it has no

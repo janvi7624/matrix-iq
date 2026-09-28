@@ -7,6 +7,8 @@ import { findUserById } from '@/lib/userStore';
 import { requestTechnicalPerson } from '@/lib/projectTechnicalRequest';
 import { findSalesPersonCandidate, notifySalesPersonAssigned, SalesOwnerError } from '@/lib/projectSalesOwner';
 import { isTechnicalRole } from '@/lib/technicalRoles';
+import { resolveProjectLead } from '@/lib/projectLeadStore';
+import { parseOpportunityType } from '@/lib/projectLeadOptions';
 import { getClientIp } from '@/lib/requestIp';
 
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
@@ -84,6 +86,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Approx. Project Price is required and must be a positive number' }, { status: 400 });
   }
 
+  // Project Lead / Mentor — mandatory on every new project, and only ever one
+  // of the fixed leads (lib/projectLeadOptions.ts). The dropdown is a
+  // convenience; this is the actual rule, so a hand-crafted request can't name
+  // anyone else or skip it.
+  const projectLead = await resolveProjectLead(body.projectLeadId);
+  if (!projectLead) {
+    return NextResponse.json({ error: 'Project Lead / Mentor is required — pick one from the list' }, { status: 400 });
+  }
+  // Opportunity Type (Distribution / Project) — what the lead was defaulted
+  // from on the form; required so every project says which kind of deal it is.
+  const opportunityType = parseOpportunityType(body.opportunityType);
+  if (!opportunityType) {
+    return NextResponse.json({ error: 'Opportunity Type is required — Distribution or Project' }, { status: 400 });
+  }
+
   const now = new Date().toISOString();
   // Only a privileged role may attribute a project to someone else (e.g. an
   // Admin entering data on a sales rep's behalf) — otherwise created_by IS
@@ -136,6 +153,9 @@ export async function POST(request: NextRequest) {
     approx_price: approxPrice,
     notes: [],
     attachments: [],
+    project_lead_id: projectLead.id,
+    project_lead_name: projectLead.name,
+    opportunity_type: opportunityType,
     // Never set on creation — see the technical-person request below.
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',

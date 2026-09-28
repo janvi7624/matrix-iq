@@ -43,6 +43,12 @@ module.exports = (sequelize, DataTypes) => {
     approx_price: { type: DataTypes.DECIMAL(14, 2) },
     attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     created_by: { type: DataTypes.UUID },
+    // Project Lead / Mentor — see lib/projectLeadOptions.ts. Mandatory going
+    // forward (enforced in the API, not here); NULL on older projects.
+    project_lead_id: { type: DataTypes.UUID },
+    // 'distribution' | 'project' — drives the Project Lead's default; see
+    // lib/projectLeadOptions.ts. NULL on older projects.
+    opportunity_type: { type: DataTypes.STRING(20) },
     assigned_technical_person_id: { type: DataTypes.UUID },
     // Set the first time a technical person is assigned — see
     // lib/tmsHandoff.ts. Links this Sales project to the TMS project
@@ -64,6 +70,7 @@ module.exports = (sequelize, DataTypes) => {
   Project.associate = (models) => {
     Project.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
     Project.belongsTo(models.User, { foreignKey: 'assigned_technical_person_id', as: 'assignedTechnicalPersonRef' });
+    Project.belongsTo(models.User, { foreignKey: 'project_lead_id', as: 'projectLeadRef' });
     Project.belongsTo(models.TmsProject, { foreignKey: 'tms_project_id', as: 'tmsProject' });
     Project.hasMany(models.ProjectNote, { foreignKey: 'project_id', as: 'notes' });
     Project.hasMany(models.ProjectTimelineEvent, { foreignKey: 'project_id', as: 'timeline' });

@@ -4,10 +4,11 @@ import { leadStore, canWorkLead } from '@/lib/leadStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
-import { DomainKey, LeadPriority, LeadRecord } from '@/lib/types';
+import { DomainKey, LeadPriority, LeadRecord, LeadSource } from '@/lib/types';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITIES: LeadPriority[] = ['hot', 'warm', 'cool', ''];
+const VALID_SOURCES: LeadSource[] = ['manual', 'business_card', 'csv_import', 'meta_lead_ads'];
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -38,6 +39,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (Array.isArray(body.followUpActions)) patch.follow_up_actions = body.followUpActions.filter((s: unknown): s is string => typeof s === 'string');
     if (VALID_PRIORITIES.includes(body.priority)) patch.priority = body.priority;
 
+    // Source (the acquisition channel) is editable like every other detail —
+    // but "Meta Lead Ads" is attribution set by the Meta integration when a
+    // lead actually arrives from it, so nobody can newly stamp it onto a lead
+    // that didn't (a Meta lead can still be re-labelled to something else).
+    if (body.source !== undefined) {
+      if (!VALID_SOURCES.includes(body.source)) return NextResponse.json({ error: 'Invalid lead source' }, { status: 400 });
+      if (body.source === 'meta_lead_ads' && existing.source !== 'meta_lead_ads') {
+        return NextResponse.json({ error: 'A lead can only have the Meta Lead Ads source if it came in from Meta' }, { status: 400 });
+      }
+      patch.source = body.source;
+    }
+
+    // Now that every detail is editable, keep the one rule capture already
+    // enforces: a lead needs at least a name or a company.
+    if (!(patch.name ?? existing.name) && !(patch.company ?? existing.company)) {
+      return NextResponse.json({ error: 'A lead needs at least a name or a company' }, { status: 400 });
+    }
+
     const previousPriority = existing.priority || 'unrated';
     const updated = await leadStore.update(id, patch);
 
@@ -50,6 +69,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         action: `Lead priority changed`,
         previousStatus: previousPriority,
         newStatus: patch.priority || 'unrated',
+        ip: getClientIp(request)
+      });
+    }
+    if (patch.source && patch.source !== existing.source) {
+      await logAudit({
+        by: viewer.username,
+        role: viewer.role,
+        entityType: 'lead',
+        entityId: id,
+        action: 'Lead source changed',
+        previousStatus: existing.source,
+        newStatus: patch.source,
         ip: getClientIp(request)
       });
     }

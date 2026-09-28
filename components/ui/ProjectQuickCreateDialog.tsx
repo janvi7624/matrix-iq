@@ -6,6 +6,10 @@ import { todayDateInputValue } from '@/lib/dateHelpers';
 import { isTechnicalRole } from '@/lib/technicalRoles';
 import PhoneInput from './PhoneInput';
 import ProjectSourceField from './ProjectSourceField';
+import ProjectLeadField from './ProjectLeadField';
+import OpportunityTypeField from './OpportunityTypeField';
+import { useProjectLeads } from './useProjectLeads';
+import { OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 import { useToast } from './ToastProvider';
 import notifyStyles from './notify.module.css';
 import calcStyles from '../calculator.module.css';
@@ -24,6 +28,8 @@ interface ProjectCreateForm {
   email: string;
   address: string;
   salesPersonId: string;
+  projectLeadId: string;
+  opportunityType: OpportunityType | '';
   source: string;
   priority: ProjectPriority;
   expectedClosingDate: string;
@@ -33,8 +39,36 @@ interface ProjectCreateForm {
 
 const EMPTY_FORM: ProjectCreateForm = {
   clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '',
-  salesPersonId: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: '', approxPrice: ''
+  salesPersonId: '', projectLeadId: '', opportunityType: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: '', approxPrice: ''
 };
+
+// Opportunity Type + Project Lead / Mentor. A component of its own (rather than
+// inline in the provider) so the leads list is only fetched when the dialog is
+// actually open — the provider itself is mounted on every page.
+function LeadFields({ form, setForm }: { form: ProjectCreateForm; setForm: React.Dispatch<React.SetStateAction<ProjectCreateForm>> }) {
+  const leads = useProjectLeads();
+  // Once the lead is picked by hand, changing the type no longer moves it.
+  // Local state, so it resets each time the dialog opens (this unmounts on close).
+  const [leadTouched, setLeadTouched] = useState(false);
+  return (
+    <>
+      <div className={calcStyles.field}>
+        <label className={calcStyles.label}>Opportunity Type *</label>
+        <OpportunityTypeField
+          required
+          disabled={!leads}
+          value={form.opportunityType}
+          onChange={(type) => setForm((f) => ({ ...f, opportunityType: type, projectLeadId: nextLeadOnTypeChange(f.projectLeadId, leadTouched, type, leads || []) }))}
+        />
+      </div>
+      <div className={calcStyles.field}>
+        <label className={calcStyles.label}>Project Lead / Mentor *</label>
+        <ProjectLeadField required value={form.projectLeadId} onChange={(v) => { setLeadTouched(true); setForm((f) => ({ ...f, projectLeadId: v })); }} />
+        <span className={calcStyles.lockedHint}>Pre-filled from the type (Distribution: Manoj Menon, Project: Pankaj Sharma) — change if needed.</span>
+      </div>
+    </>
+  );
+}
 
 interface PendingCreate {
   prefill: Partial<ProjectCreateForm>;
@@ -101,6 +135,14 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
     }
     if (isTechnicalCreator && !form.salesPersonId) {
       toast.error('Select the sales person this project is for.');
+      return;
+    }
+    if (!form.opportunityType) {
+      toast.error('Opportunity Type is required.');
+      return;
+    }
+    if (!form.projectLeadId) {
+      toast.error('Project Lead / Mentor is required.');
       return;
     }
     setCreating(true);
@@ -200,6 +242,7 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                     <span className={calcStyles.lockedHint}>The project will be theirs — you&apos;ll be added as its technical person.</span>
                   </div>
                 )}
+                <LeadFields form={form} setForm={setForm} />
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Source *</label>
                   <ProjectSourceField required value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))} />

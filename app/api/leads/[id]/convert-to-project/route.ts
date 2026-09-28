@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { leadStore, canWorkLead } from '@/lib/leadStore';
 import { createProjectFromLead } from '@/lib/leadProjectAutomation';
+import { resolveProjectLead } from '@/lib/projectLeadStore';
+import { parseOpportunityType } from '@/lib/projectLeadOptions';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -28,7 +30,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     if (lead.project_id) return NextResponse.json({ error: 'Already converted to a project' }, { status: 400 });
 
-    const result = await createProjectFromLead(lead, { attributeToUsername: viewer.username, autoCreated: false });
+    // Every project needs a Project Lead / Mentor — this button creates the
+    // project outright with no form, so the caller has to send one.
+    const body = await request.json().catch(() => null);
+    const projectLead = await resolveProjectLead(body?.projectLeadId);
+    if (!projectLead) return NextResponse.json({ error: 'Project Lead / Mentor is required — pick one from the list' }, { status: 400 });
+    const opportunityType = parseOpportunityType(body?.opportunityType);
+    if (!opportunityType) return NextResponse.json({ error: 'Opportunity Type is required — Distribution or Project' }, { status: 400 });
+
+    const result = await createProjectFromLead(lead, { attributeToUsername: viewer.username, autoCreated: false, projectLeadId: projectLead.id, opportunityType });
     if (!result) return NextResponse.json({ error: 'Already converted to a project' }, { status: 400 });
 
     await logAudit({

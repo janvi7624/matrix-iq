@@ -28,6 +28,10 @@ import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
 import ProjectSourceField from './ui/ProjectSourceField';
+import ProjectLeadField from './ui/ProjectLeadField';
+import OpportunityTypeField from './ui/OpportunityTypeField';
+import { useProjectLeads } from './ui/useProjectLeads';
+import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 
 const EMPTY_FORM = {
   clientName: '',
@@ -38,6 +42,8 @@ const EMPTY_FORM = {
   email: '',
   address: '',
   salesPersonId: '',
+  projectLeadId: '',
+  opportunityType: '' as OpportunityType | '',
   source: '',
   priority: 'medium' as ProjectPriority,
   expectedClosingDate: '',
@@ -109,6 +115,22 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Project Lead / Mentor filter — a user id from GET /api/projects/leads.
+  // Picking a lead shows the projects they lead AND the ones they own (see
+  // `filtered` below).
+  const leadsLoaded = useProjectLeads();
+  const leadOptions = useMemo(() => leadsLoaded ?? [], [leadsLoaded]);
+  const [fLead, setFLead] = useState('');
+  const [fType, setFType] = useState<OpportunityType | ''>('');
+
+  // The Opportunity Type pre-fills the Project Lead (Distribution -> Manoj,
+  // Project -> Pankaj) until the person picks a lead by hand — after that the
+  // type never moves it.
+  const [leadTouched, setLeadTouched] = useState(false);
+  function handleOpportunityTypeChange(next: OpportunityType | '') {
+    setForm((f) => ({ ...f, opportunityType: next, projectLeadId: nextLeadOnTypeChange(f.projectLeadId, leadTouched, next, leadOptions) }));
+  }
+
   const [fSalesPerson, setFSalesPerson] = useState('');
   const [fSource, setFSource] = useState('');
   const [fStage, setFStage] = useState<ProjectStage | ''>('');
@@ -165,9 +187,20 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     [fClosingPreset, fClosingFrom, fClosingTo]
   );
 
+  const selectedLead = useMemo(() => leadOptions.find((l) => l.id === fLead) ?? null, [leadOptions, fLead]);
+
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
     return projects.filter((p) => {
+      // Filtering by a lead shows what they LEAD plus what they OWN — a lead
+      // is also a person with projects of their own, and both belong in "their"
+      // view. Nothing matches until the lead options have loaded.
+      if (fLead) {
+        const leads = p.project_lead_id === fLead;
+        const owns = !!selectedLead && (p.created_by === selectedLead.username || p.sales_person === selectedLead.username);
+        if (!leads && !owns) return false;
+      }
+      if (fType && p.opportunity_type !== fType) return false;
       if (fSalesPerson && p.sales_person !== fSalesPerson) return false;
       if (fSource && p.source !== fSource) return false;
       if (fStage && p.stage !== fStage) return false;
@@ -182,7 +215,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       if (q && ![p.id, p.client_name, p.company, p.contact_person].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [projects, fSalesPerson, fSource, fStage, fStatus, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
+  }, [projects, fLead, selectedLead, fType, fSalesPerson, fSource, fStage, fStatus, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
 
   // KPI tiles (Part 1.3) — deliberately derived from `filtered`, never
   // `projects`, so they can never show a stale count against the visible
@@ -214,6 +247,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       toast.error('Select the sales person this project is for.');
       return;
     }
+    if (!form.opportunityType) {
+      toast.error('Opportunity Type is required.');
+      return;
+    }
+    if (!form.projectLeadId) {
+      toast.error('Project Lead / Mentor is required.');
+      return;
+    }
     setCreating(true);
     try {
       const response = await fetch('/api/projects', {
@@ -235,6 +276,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         toast.success(`Project created for ${salesPerson ? salesPerson.name || salesPerson.username : 'the sales person'} — you're its technical person.`);
       }
       setForm(EMPTY_FORM);
+      setLeadTouched(false);
       setShowForm(false);
       await load();
     } catch {
@@ -258,8 +300,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   function handleExportPdf() {
     exportListToPdf(
       'Project Dashboard',
-      ['Client', 'Company', 'Sales Person', 'Source', 'Approx. Price', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
-      filtered.map((p) => [p.client_name, p.company, p.sales_person, p.source || '-', formatMoney(p.approx_price), STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
+      ['Client', 'Company', 'Sales Person', 'Project Lead', 'Source', 'Approx. Price', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
+      filtered.map((p) => [p.client_name, p.company, p.sales_person, p.project_lead_name ? `${p.project_lead_name}${p.opportunity_type ? ` (${OPPORTUNITY_TYPE_LABEL[p.opportunity_type]})` : ''}` : '-', p.source || '-', formatMoney(p.approx_price), STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
       `projects-${new Date().toISOString().slice(0, 10)}.pdf`
     );
   }
@@ -277,8 +319,19 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       )
     },
     { key: 'salesPerson', header: 'Sales Person', headerClassName: historyStyles.colSalesPerson, render: (p) => p.sales_person },
+    {
+      key: 'projectLead',
+      header: 'Project Lead',
+      headerClassName: historyStyles.colProjectLead,
+      render: (p) => (
+        <>
+          {p.project_lead_name || '-'}
+          {p.opportunity_type && <div className={historyStyles.mutedInline}>{OPPORTUNITY_TYPE_LABEL[p.opportunity_type]}</div>}
+        </>
+      )
+    },
     { key: 'source', header: 'Source', headerClassName: historyStyles.colSource, render: (p) => p.source || '-' },
-    { key: 'approxPrice', header: 'Approx. Price', render: (p) => formatMoney(p.approx_price) },
+    { key: 'approxPrice', header: 'Approx. Price', headerClassName: historyStyles.colApproxPrice, render: (p) => formatMoney(p.approx_price) },
     { key: 'stage', header: 'Stage', headerClassName: historyStyles.colStage, render: (p) => STAGE_LABEL[p.stage] },
     {
       key: 'status',
@@ -294,11 +347,12 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     {
       key: 'confirmation',
       header: 'Confirmation',
+      headerClassName: historyStyles.colConfirmation,
       render: (p) =>
         p.lead_confirmation_status === 'pending_confirmation' ? (
-          <StatusBadge tone="pending" label="Pending Confirmation" />
+          <div className={historyStyles.wrapBadge}><StatusBadge tone="pending" label="Pending Confirmation" /></div>
         ) : p.lead_confirmation_status === 'confirmed' ? (
-          <StatusBadge tone="confirmed" label="Confirmed" />
+          <div className={historyStyles.wrapBadge}><StatusBadge tone="confirmed" label="Confirmed" /></div>
         ) : (
           '-'
         )
@@ -324,7 +378,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       // every other column in this table now behaves.
       render: (p) =>
         p.last_remark ? (
-          <span title={`${p.last_remark_by}, ${formatDateTime(p.last_remark_at)}`}>{p.last_remark}</span>
+          <div className={historyStyles.remarkClamp} title={`${p.last_remark_by}, ${formatDateTime(p.last_remark_at)}`}>{p.last_remark}</div>
         ) : (
           <span className={historyStyles.mutedInline}>No remarks yet</span>
         )
@@ -443,6 +497,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                   <span className={calcStyles.lockedHint}>The project will be theirs — you&apos;ll be added as its technical person.</span>
                 </Field>
               )}
+              <Field label="Opportunity Type *">
+                <OpportunityTypeField required disabled={!leadsLoaded} value={form.opportunityType} onChange={handleOpportunityTypeChange} />
+              </Field>
+              <Field label="Project Lead / Mentor *">
+                <ProjectLeadField required value={form.projectLeadId} onChange={(v) => { setLeadTouched(true); setForm((f) => ({ ...f, projectLeadId: v })); }} />
+                <span className={calcStyles.lockedHint}>Pre-filled from the opportunity type (Distribution: Manoj Menon, Project: Pankaj Sharma) — change it if needed.</span>
+              </Field>
               <Field label="Source *">
                 <ProjectSourceField required value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))} />
               </Field>
@@ -494,6 +555,18 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               ))}
             </Select>
           )}
+          <Select auto value={fLead} onChange={(e) => setFLead(e.target.value)}>
+            <option value="">All project leads</option>
+            {leadOptions.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </Select>
+          <Select auto value={fType} onChange={(e) => setFType(e.target.value as OpportunityType | '')}>
+            <option value="">All opportunity types</option>
+            {OPPORTUNITY_TYPES.map((t) => (
+              <option key={t} value={t}>{OPPORTUNITY_TYPE_LABEL[t]}</option>
+            ))}
+          </Select>
           <Select auto value={fSource} onChange={(e) => setFSource(e.target.value)}>
             <option value="">All sources</option>
             {sources.map((s) => (
@@ -542,6 +615,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           </Select>
         </FilterBar>
         {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
+        {!loading && !loadFailed && selectedLead && (
+          <div className={historyStyles.status}>Showing projects led by {selectedLead.name} and projects {selectedLead.name} owns.</div>
+        )}
 
         {loading ? (
           <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={11} /></div>

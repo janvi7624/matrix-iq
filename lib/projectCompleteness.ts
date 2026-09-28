@@ -14,13 +14,25 @@
 // bundle Sequelize/pg for the browser.
 export interface ProjectCompleteness {
   isComplete: boolean;
-  missingFields: Array<'approx_price' | 'expected_closing_date' | 'remarks'>;
+  missingFields: Array<'approx_price' | 'expected_closing_date' | 'remarks' | 'project_lead_id' | 'opportunity_type'>;
 }
 
-export function checkProjectCompleteness(record: { approx_price: number | ''; expected_closing_date: string; remarks: string }): ProjectCompleteness {
+export function checkProjectCompleteness(record: {
+  approx_price: number | '';
+  expected_closing_date: string;
+  remarks: string;
+  project_lead_id: string;
+  opportunity_type: string;
+}): ProjectCompleteness {
   const missingFields: ProjectCompleteness['missingFields'] = [];
   if (record.approx_price === '' || record.approx_price === null || record.approx_price === undefined) missingFields.push('approx_price');
   if (!record.expected_closing_date) missingFields.push('expected_closing_date');
   if (!record.remarks || !record.remarks.trim()) missingFields.push('remarks');
+  // Mandatory on every project — an auto-created-from-lead one starts without
+  // them (there's nobody to ask at assignment time), so it counts as
+  // unfinished until the assignee picks the Opportunity Type and the Project
+  // Lead / Mentor.
+  if (!record.project_lead_id) missingFields.push('project_lead_id');
+  if (!record.opportunity_type) missingFields.push('opportunity_type');
   return { isComplete: missingFields.length === 0, missingFields };
 }

@@ -20,6 +20,8 @@ import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { getClientIp } from '@/lib/requestIp';
 import { canViewForPendingRequest, getTechnicalRequestView, requestTechnicalPerson, TechnicalRequestError } from '@/lib/projectTechnicalRequest';
 import { canAssignSalesPerson } from '@/lib/projectSalesOwner';
+import { resolveProjectLead } from '@/lib/projectLeadStore';
+import { OPPORTUNITY_TYPE_LABEL, parseOpportunityType } from '@/lib/projectLeadOptions';
 import { db } from '@/lib/db';
 
 function toStringArray(value: unknown): string[] {
@@ -144,6 +146,29 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!source) return NextResponse.json({ error: 'Source is required' }, { status: 400 });
       patch.source = source;
     }
+    // Project Lead / Mentor — can be changed to the other fixed lead but never
+    // cleared or set to anyone outside lib/projectLeadOptions.ts.
+    let newProjectLeadName = '';
+    if ('projectLeadId' in body) {
+      const lead = await resolveProjectLead(body.projectLeadId);
+      if (!lead) return NextResponse.json({ error: 'Project Lead / Mentor is required — pick one from the list' }, { status: 400 });
+      if (lead.id !== existing.project_lead_id) {
+        patch.project_lead_id = lead.id;
+        newProjectLeadName = lead.name;
+      }
+    }
+    // Opportunity Type — either value, never cleared. Changing it does NOT
+    // move the lead (that default only applies while a project is being
+    // filled in, on the form); the lead stays whatever it was set to.
+    let newOpportunityTypeLabel = '';
+    if ('opportunityType' in body) {
+      const type = parseOpportunityType(body.opportunityType);
+      if (!type) return NextResponse.json({ error: 'Opportunity Type is required — Distribution or Project' }, { status: 400 });
+      if (type !== existing.opportunity_type) {
+        patch.opportunity_type = type;
+        newOpportunityTypeLabel = OPPORTUNITY_TYPE_LABEL[type];
+      }
+    }
     // Resolved from an actual user id (the UI offers a picker, not free
     // text) so a typo/case mismatch can never silently mislabel this field
     // — see the salesPersonId handling in POST above for the fuller story.
@@ -216,6 +241,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       updated = await projectStore.update(id, patch);
     } else {
       updated = existing;
+    }
+
+    // Recorded after the patch is saved so the project page's Activity Log
+    // shows who was made lead and by whom.
+    if (newProjectLeadName) {
+      updated = await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label: `Project lead set to ${newProjectLeadName}` });
+    }
+    if (newOpportunityTypeLabel) {
+      updated = await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label: `Opportunity type set to ${newOpportunityTypeLabel}` });
     }
 
     if (requestedTechnicalPersonId) {

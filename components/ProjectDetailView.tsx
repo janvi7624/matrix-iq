@@ -64,6 +64,10 @@ import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import ProjectDeadlineExtendModal from './ProjectDeadlineExtendModal';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import ProjectSourceField from './ui/ProjectSourceField';
+import ProjectLeadField from './ui/ProjectLeadField';
+import OpportunityTypeField from './ui/OpportunityTypeField';
+import { useProjectLeads } from './ui/useProjectLeads';
+import { OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 
 interface DetailResponse {
   project: ProjectRecord;
@@ -379,8 +383,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // already accepted them. Local draft + explicit Save (not per-keystroke
   // patching) so typing doesn't fire a request per character or fight the
   // reload this component does after every save.
-  const [detailsDraft, setDetailsDraft] = useState({ clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '', source: '' });
+  const [detailsDraft, setDetailsDraft] = useState({ clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '', source: '', projectLeadId: '', opportunityType: '' as OpportunityType | '' });
   const [savingDetails, setSavingDetails] = useState(false);
+  const projectLeads = useProjectLeads();
 
   // Only re-syncs on the initial load / when navigating to a different
   // project (by id) — NOT on every subsequent patchProject-triggered
@@ -397,7 +402,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       phone: p.phone || '',
       email: p.email || '',
       address: p.address || '',
-      source: p.source || ''
+      source: p.source || '',
+      projectLeadId: p.project_lead_id || '',
+      opportunityType: p.opportunity_type || ''
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.project.id]);
@@ -413,13 +420,23 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       detailsDraft.phone !== (p.phone || '') ||
       detailsDraft.email !== (p.email || '') ||
       detailsDraft.address !== (p.address || '') ||
-      detailsDraft.source !== (p.source || '')
+      detailsDraft.source !== (p.source || '') ||
+      detailsDraft.projectLeadId !== (p.project_lead_id || '') ||
+      detailsDraft.opportunityType !== (p.opportunity_type || '')
     );
   }, [detailsDraft, data?.project]);
 
   async function handleSaveDetails() {
     if (!detailsDraft.source.trim()) {
       toast.error('Source is required.');
+      return;
+    }
+    if (!detailsDraft.opportunityType) {
+      toast.error('Opportunity Type is required.');
+      return;
+    }
+    if (!detailsDraft.projectLeadId) {
+      toast.error('Project Lead / Mentor is required.');
       return;
     }
     setSavingDetails(true);
@@ -432,7 +449,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         phone: detailsDraft.phone.trim(),
         email: detailsDraft.email.trim(),
         address: detailsDraft.address.trim(),
-        source: detailsDraft.source.trim()
+        source: detailsDraft.source.trim(),
+        projectLeadId: detailsDraft.projectLeadId,
+        opportunityType: detailsDraft.opportunityType
       });
       toast.success('Project details updated.');
     } finally {
@@ -880,7 +899,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         {project.lead_confirmation_status && (() => {
           const completeness = checkProjectCompleteness(project);
           if (completeness.isComplete) return null;
-          const FIELD_LABEL: Record<string, string> = { approx_price: 'Approx. Project Price', expected_closing_date: 'Expected Closing Date', remarks: 'Project Description / Remarks' };
+          const FIELD_LABEL: Record<string, string> = { approx_price: 'Approx. Project Price', expected_closing_date: 'Expected Closing Date', remarks: 'Project Description / Remarks', project_lead_id: 'Project Lead / Mentor', opportunity_type: 'Opportunity Type' };
           return (
             <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`} style={{ marginBottom: 16 }}>
               <strong>Complete Project Details</strong> — still missing: {completeness.missingFields.map((f) => FIELD_LABEL[f]).join(', ')}. Use the fields below to fill these in.
@@ -1381,6 +1400,23 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 {canEdit ? (
                   <ProjectSourceField required value={detailsDraft.source} onChange={(v) => setDetailsDraft((d) => ({ ...d, source: v }))} />
                 ) : <div className={calcStyles.small}>{project.source || '-'}</div>}
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Opportunity Type *</label>
+                {canEdit ? (
+                  <OpportunityTypeField
+                    required
+                    disabled={!projectLeads}
+                    value={detailsDraft.opportunityType}
+                    onChange={(type) => setDetailsDraft((d) => ({ ...d, opportunityType: type, projectLeadId: nextLeadOnTypeChange(d.projectLeadId, !!d.projectLeadId, type, projectLeads ?? []) }))}
+                  />
+                ) : <div className={calcStyles.small}>{project.opportunity_type ? OPPORTUNITY_TYPE_LABEL[project.opportunity_type] : '-'}</div>}
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Project Lead / Mentor *</label>
+                {canEdit ? (
+                  <ProjectLeadField required value={detailsDraft.projectLeadId} onChange={(v) => setDetailsDraft((d) => ({ ...d, projectLeadId: v }))} />
+                ) : <div className={calcStyles.small}>{project.project_lead_name || '-'}</div>}
               </div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>

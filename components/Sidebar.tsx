@@ -14,6 +14,7 @@ import { sectionIconFor, resolveModuleIcon, QUICK_ACTION_ICON, CHROME_ICON } fro
 import { REPORT_VIEWER_USERNAME, REPORT_VIEWER_ROLES, REPORT_VIEWER_DEPARTMENT } from '@/lib/adminExpenseReportAccess';
 import { TMS_ROLE_LABEL } from '@/lib/tmsLabels';
 import styles from './sidebar.module.css';
+import { forgetCelebrationPopups } from '@/lib/celebrationPopupSeen';
 
 interface Viewer {
   name: string;
@@ -124,6 +125,9 @@ export default function Sidebar() {
   }
 
   async function handleLogout() {
+    // So the birthday popup shows once on the NEXT login rather than being
+    // suppressed for the rest of the day (lib/celebrationPopupSeen.ts).
+    forgetCelebrationPopups();
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
     router.push('/login');
     router.refresh();
