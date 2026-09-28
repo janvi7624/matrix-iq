@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "node -e \"const fs=require('fs');fs.cpSync('public','.next/standalone/public',{recursive:true});fs.cpSync('.next/static','.next/standalone/.next/static',{recursive:true});\"",
+    "postbuild": "node scripts/postbuild.js",
     "start": "node .next/standalone/server.js",
     "lint": "eslint",
     "test": "vitest run",
