@@ -170,7 +170,10 @@
     cursor: pointer;
 }
 .formControl[type="date"],
-.formControl[type="time"] {
+.formControl[type="time"],
+.formControl[type="month"],
+.formControl[type="week"],
+.formControl[type="datetime-local"] {
     position: relative;
     cursor: pointer;
 }

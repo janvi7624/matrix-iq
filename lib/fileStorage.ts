@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from './db';
 
@@ -170,7 +170,53 @@ async function s3Get(pathname: string): Promise<{ blob: Blob; contentType: strin
   }
 }
 
+/* --------------------------- existence checks -------------------------- */
+
+// One round trip for the database backend; a HEAD per key for s3. Unlike
+// getFile these never download the bytes, so it is cheap enough to ask "which
+// of these bills can still be opened?" across a whole claims list.
+async function dbExisting(pathnames: string[]): Promise<Set<string>> {
+  try {
+    const rows = await sequelize.query<{ path: string }>(
+      `SELECT path FROM file_objects WHERE path = ANY($paths)`,
+      { bind: { paths: pathnames }, type: QueryTypes.SELECT }
+    );
+    return new Set(rows.map((r) => r.path));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[storage] database existence check failed: ${message}`, error);
+    unavailable('Attachments cannot be checked right now — the file store is not reachable. Please report this to IT.');
+  }
+}
+
+async function s3Existing(pathnames: string[]): Promise<Set<string>> {
+  assertS3Configured();
+  const found = new Set<string>();
+  const queue = [...pathnames];
+  const worker = async () => {
+    for (let key = queue.shift(); key !== undefined; key = queue.shift()) {
+      try {
+        await s3().send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+        found.add(key);
+      } catch (error) {
+        if (!isMissingObject(error as Record<string, never>)) asS3Error(error, 'check');
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(8, queue.length) }, worker));
+  return found;
+}
+
 /* ------------------------------ public API ---------------------------- */
+
+// Which of these keys are actually stored. A storage OUTAGE throws
+// StorageUnavailableError rather than reporting everything as missing — the
+// difference between "these bills were lost" and "we can't tell right now".
+export async function filesExist(pathnames: string[]): Promise<Set<string>> {
+  const unique = Array.from(new Set(pathnames.filter(Boolean)));
+  if (!unique.length) return new Set();
+  return storageBackend() === 's3' ? s3Existing(unique) : dbExisting(unique);
+}
 
 // `uploadedBy` is optional so existing call sites keep working unchanged; the
 // database backend records it when given.

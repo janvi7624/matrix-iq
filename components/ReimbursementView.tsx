@@ -5,6 +5,7 @@ import { UserRole, ReimbursementRecord, ReimbursementSheetRecord, ReimbursementS
 import { numberToIndianWords } from '@/lib/numberToWords';
 import AppShell from './AppShell';
 import ReimbursementBulkAddForm from './ReimbursementBulkAddForm';
+import MissingBillsPanel from './MissingBillsPanel';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -505,6 +506,7 @@ export default function ReimbursementView({ currentUser }: Props) {
 
   return (
     <AppShell title="Reimbursement" subtitle="Submit and track monthly expense reimbursement bills.">
+      <MissingBillsPanel />
       {/* Tabs */}
       <div className={styles.mainTabBar}>
         <button type="button" onClick={() => { setTab('my'); setSelectedPending(null); }} className={`${styles.mainTabBtn} ${tab === 'my' ? styles.mainTabBtnActive : ''}`}>

@@ -35,6 +35,9 @@ const RESOLVERS: Record<string, EntityResolver> = {
   marketing_request: { href: () => '/marketing-requests', exists: (id) => existsIn('MarketingRequest', id) },
   project: { href: (id) => `/projects/${id}`, exists: (id) => existsIn('Project', id) },
   reimbursement_sheet: { href: () => '/reimbursement', exists: (id) => existsIn('ReimbursementSheet', id) },
+  // "Please upload your bills again" (lib/missingBills.ts) — entity_id is one of
+  // the affected claims; it opens the Reimbursement page, where the panel lists them all.
+  reimbursement_bill: { href: () => '/reimbursement', exists: (id) => existsIn('Reimbursement', id) },
   tms_project: { href: (id) => `/tms/projects/${id}`, exists: (id) => existsIn('TmsProject', id) },
   tms_bom_request: { href: (id) => `/tms/bom-requests/${id}`, exists: (id) => existsIn('TmsBomRequest', id) },
   tms_procurement: { href: (id) => `/tms/procurement/${id}`, exists: (id) => existsIn('TmsProcurement', id) },

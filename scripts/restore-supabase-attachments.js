@@ -16,8 +16,13 @@
  * If that project is restored from the Supabase dashboard, run this and the
  * 319 business cards and 71 reimbursement bills come back.
  *
- *   node scripts/restore-supabase-attachments.js            # report only
- *   node scripts/restore-supabase-attachments.js --apply    # actually copy
+ *   node scripts/restore-supabase-attachments.js                    # report only
+ *   node scripts/restore-supabase-attachments.js --apply            # copy everything
+ *   node scripts/restore-supabase-attachments.js --only=bills --apply
+ *
+ * --only=bills restores just the reimbursement bills — the ones that matter
+ * for accounts — and skips scanned business cards, which are re-scannable and
+ * were explicitly not worth restoring. --only=cards does the opposite.
  *
  * Safe to re-run: a key already present in the destination is skipped, and
  * nothing is ever deleted from Supabase.
@@ -33,6 +38,15 @@ const { createClient } = require(path.join(ROOT, 'node_modules/@supabase/supabas
 const APPLY = process.argv.includes('--apply');
 const USE_S3 = (process.env.FILE_STORAGE || '').trim().toLowerCase() === 's3';
 const SUPABASE_BUCKET = 'app-files';
+
+const ONLY = (process.argv.find((a) => a.startsWith('--only=')) || '').split('=')[1] || 'all';
+if (!['all', 'bills', 'cards'].includes(ONLY)) {
+  console.error(`--only must be one of: all, bills, cards (got "${ONLY}")`);
+  process.exit(1);
+}
+// Which tables each selection draws from. `bills` is the reimbursement money
+// trail; `cards` is scanned business cards, which can simply be re-scanned.
+const ONLY_TABLES = { bills: ['reimbursements'], cards: ['leads'] };
 
 // The two URL shapes the app stores, both of which encode the storage key.
 const PREFIXES = ['/api/uploads/file/', '/api/site-visits/image/'];
@@ -67,7 +81,9 @@ const SOURCES = [
 
 async function collectKeys(pg) {
   const keys = new Map(); // key -> which column referenced it
+  const allowed = ONLY === 'all' ? null : new Set(ONLY_TABLES[ONLY]);
   for (const src of SOURCES) {
+    if (allowed && !allowed.has(src.table)) continue;
     let rows;
     try {
       rows = (await pg.query(`select "${src.column}" v from "${src.table}" where "${src.column}" is not null`)).rows;
@@ -140,7 +156,8 @@ function makeDestination(pg) {
   await pg.connect();
 
   const destination = makeDestination(pg);
-  console.log(`Destination: ${destination.label}\n`);
+  console.log(`Destination: ${destination.label}`);
+  console.log(`Restoring: ${ONLY === 'all' ? 'every attachment' : ONLY === 'bills' ? 'reimbursement bills only' : 'business cards only'}\n`);
 
   console.log('Scanning the database for referenced attachments…');
   const keys = await collectKeys(pg);

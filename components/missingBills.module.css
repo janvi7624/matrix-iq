@@ -1,0 +1,45 @@
+.card {
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--mx-warning);
+  border-radius: var(--mx-radius-md);
+  background: var(--mx-warning-subtle);
+}
+.title { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--mx-ink); }
+.lead { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--mx-ink-muted); }
+.list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface);
+}
+.itemMain { min-width: 0; flex: 1 1 260px; }
+.itemTitle { font-size: 13.5px; font-weight: 600; color: var(--mx-ink); }
+.itemMeta { margin-top: 2px; font-size: 12px; color: var(--mx-ink-muted); overflow-wrap: anywhere; }
+.uploadBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1.5px solid var(--mx-brand);
+  border-radius: var(--mx-radius-full);
+  background: var(--mx-surface);
+  color: var(--mx-brand);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.uploadBtn:hover { background: var(--mx-brand-subtle); }
+.uploadBtnBusy { opacity: 0.6; pointer-events: none; }
+.hiddenInput { display: none; }
+.people { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; color: var(--mx-ink); }
+.personMeta { color: var(--mx-ink-muted); }
+.tag { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--mx-ink-faint); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.sentNote { font-size: 12.5px; color: var(--mx-ink-muted); }

@@ -16,6 +16,7 @@ import { renderMarketingRequestLifecycleEmail, MarketingRequestLifecycleEmailDat
 import { renderFieldOpsLifecycleEmail, FieldOpsLifecycleEmailData } from './templates/fieldOpsLifecycle';
 import { renderReimbursementLifecycleEmail, ReimbursementLifecycleEmailData } from './templates/reimbursementLifecycle';
 import { renderCelebrationEmail, CelebrationEmailData } from './templates/celebration';
+import { renderMissingBillsEmail, MissingBillsEmailData } from './templates/missingBills';
 import { renderAdminExpenseNoticeEmail, AdminExpenseNoticeEmailData } from './templates/adminExpenseNotice';
 import { renderLeadHandoverEmail, LeadHandoverEmailData } from './templates/leadHandover';
 
@@ -233,6 +234,21 @@ export async function sendReimbursementLifecycleEmail(
     await sendEmail({ to: data.email, subject, html, text });
   } catch (error) {
     console.error(`[email] Reimbursement lifecycle event "${data.event}" processed successfully but the notification email could not be sent:`, error instanceof Error ? error.message : error);
+  }
+}
+
+// "Please upload your bills again" — see lib/missingBills.ts. Never throws, like
+// every sender here; the caller counts it as attempted.
+export async function sendMissingBillsEmail(data: { email: string } & Omit<MissingBillsEmailData, 'reimbursementUrl'>): Promise<void> {
+  if (!data.email) return;
+
+  try {
+    const appUrl = resolveAppUrl();
+    const reimbursementUrl = appUrl ? `${appUrl}/reimbursement` : '/reimbursement';
+    const { subject, html, text } = renderMissingBillsEmail({ name: data.name, bills: data.bills, reimbursementUrl });
+    await sendEmail({ to: data.email, subject, html, text });
+  } catch (error) {
+    console.error('[email] Missing-bills request processed successfully but the notification email could not be sent:', error instanceof Error ? error.message : error);
   }
 }
 
