@@ -6,6 +6,12 @@ import { DemoScheduleRecord, ModuleConfigRecord, ProjectHandoverRecord, ProjectR
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import type { SalesTeamSummaryRow } from '@/lib/salesTeamSummary';
 import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
+import {
+  PROJECT_DEPARTMENTS,
+  PROJECT_DEPARTMENT_LABEL,
+  isCombinedDepartments,
+  matchesDepartmentFilter
+} from '@/lib/projectDepartmentOptions';
 import { formatMoney } from '@/lib/format';
 import AppShell from './AppShell';
 import HealthGauge from './ui/HealthGauge';
@@ -258,6 +264,27 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   useEffect(() => {
     if (showCelebrations) markCelebrationPopupSeen(currentUser.username);
   }, [showCelebrations, currentUser.username]);
+
+  // Projects by delivery department. Uses exactly the same rule as the
+  // Projects dashboard's own Department filter (matchesDepartmentFilter): a
+  // combined AI+AV deal is counted under BOTH, because it genuinely is work
+  // for both teams and showing it under neither — or under a "Combined"
+  // bucket only — would under-count what each department has on. That means
+  // the rows deliberately do NOT sum to the project total, which the caption
+  // in the card says outright so it cannot be mistaken for a miscount.
+  const departmentBreakdown = useMemo(() => {
+    const projects = allProjects ?? [];
+    return {
+      rows: PROJECT_DEPARTMENTS.map((key) => ({
+        key,
+        label: PROJECT_DEPARTMENT_LABEL[key],
+        count: projects.filter((p) => matchesDepartmentFilter(p.departments, key)).length
+      })),
+      combined: projects.filter((p) => isCombinedDepartments(p.departments ?? [])).length,
+      unset: projects.filter((p) => !(p.departments ?? []).length).length,
+      total: projects.length
+    };
+  }, [allProjects]);
 
   const recentProjects = useMemo(() => (allProjects ? [...allProjects].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 3) : null), [allProjects]);
 
@@ -553,6 +580,47 @@ export default function Dashboard({ currentUser }: DashboardProps) {
                     </div>
                   </Link>
                 ))}
+              </div>
+            </div>
+
+            <div className={styles.recentCard}>
+              <div className={styles.recentCardHead}>
+                <h3>Projects by Department</h3>
+                <Link href="/projects">View all &rarr;</Link>
+              </div>
+              <div className={styles.recentList}>
+                {allProjects === null && <div className={styles.recentEmpty}>Loading&hellip;</div>}
+                {allProjects !== null && departmentBreakdown.total === 0 && <div className={styles.recentEmpty}>No projects yet.</div>}
+                {allProjects !== null && departmentBreakdown.total > 0 && (
+                  <>
+                    {departmentBreakdown.rows.map((row) => (
+                      <Link key={row.key} href={`/projects?department=${row.key}`} className={styles.recentRow}>
+                        <div className={styles.recentRowMain}>
+                          <div className={styles.recentRowTitle}>{row.label}</div>
+                        </div>
+                        <div className={styles.recentRowAmount}>{row.count}</div>
+                      </Link>
+                    ))}
+                    {departmentBreakdown.combined > 0 && (
+                      <Link href="/projects?department=combined" className={styles.recentRow}>
+                        <div className={styles.recentRowMain}>
+                          <div className={styles.recentRowTitle}>Combined</div>
+                          <div className={styles.recentRowMeta}>Counted under each of their departments above</div>
+                        </div>
+                        <div className={styles.recentRowAmount}>{departmentBreakdown.combined}</div>
+                      </Link>
+                    )}
+                    {departmentBreakdown.unset > 0 && (
+                      <div className={styles.recentRow}>
+                        <div className={styles.recentRowMain}>
+                          <div className={styles.recentRowTitle}>Not set</div>
+                          <div className={styles.recentRowMeta}>Created before departments were tracked</div>
+                        </div>
+                        <div className={styles.recentRowAmount}>{departmentBreakdown.unset}</div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
 

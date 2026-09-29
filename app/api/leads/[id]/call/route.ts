@@ -7,7 +7,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 // POST — record what came of the qualification call.
 // { outcome: 'suitable' | 'not_suitable' | 'callback', remark, callbackAt }
 // 'suitable' is the only outcome that creates a Sales project, and then also
-// needs projectLeadId + opportunityType (see lib/leadCall.ts); see
+// needs projectLeadId + opportunityType + departments (see lib/leadCall.ts); see
 // lib/leadCall.ts for the rules and who may call this.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -26,7 +26,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         remark: typeof body.remark === 'string' ? body.remark : '',
         callbackAt: typeof body.callbackAt === 'string' ? body.callbackAt : '',
         projectLeadId: typeof body.projectLeadId === 'string' ? body.projectLeadId : '',
-        opportunityType: typeof body.opportunityType === 'string' ? body.opportunityType : ''
+        opportunityType: typeof body.opportunityType === 'string' ? body.opportunityType : '',
+        departments: body.departments
       },
       getClientIp(request)
     );

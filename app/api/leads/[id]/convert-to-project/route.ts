@@ -4,6 +4,7 @@ import { leadStore, canWorkLead } from '@/lib/leadStore';
 import { createProjectFromLead } from '@/lib/leadProjectAutomation';
 import { resolveProjectLead } from '@/lib/projectLeadStore';
 import { parseOpportunityType } from '@/lib/projectLeadOptions';
+import { parseProjectDepartments } from '@/lib/projectDepartmentOptions';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -44,8 +45,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!projectLead) return NextResponse.json({ error: 'Project Lead / Mentor is required — pick one from the list' }, { status: 400 });
     const opportunityType = parseOpportunityType(body?.opportunityType);
     if (!opportunityType) return NextResponse.json({ error: 'Opportunity Type is required — Distribution or Project' }, { status: 400 });
+    // Which department delivers the work — required, same as the Project Lead
+    // and Opportunity Type above: this button creates a project outright.
+    const departments = parseProjectDepartments(body?.departments);
+    if (!departments.length) return NextResponse.json({ error: 'Department is required — AI, AV, Robotics, or a combination' }, { status: 400 });
 
-    const result = await createProjectFromLead(lead, { attributeToUsername: viewer.username, autoCreated: false, projectLeadId: projectLead.id, opportunityType });
+    const result = await createProjectFromLead(lead, { attributeToUsername: viewer.username, autoCreated: false, projectLeadId: projectLead.id, opportunityType, departments });
     if (!result) return NextResponse.json({ error: 'Already converted to a project' }, { status: 400 });
 
     await logAudit({

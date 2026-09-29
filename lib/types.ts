@@ -2,8 +2,11 @@
 // lead-origin list lives beside its labels in lib/leadSources.ts because the
 // API routes and the client both need the values themselves, not just the type.
 import type { LeadOrigin } from './leadSources';
+// Same arrangement: the values live in lib/projectDepartmentOptions.ts
+// because routes and client components need the list itself, not just the type.
+import type { ProjectDepartment } from './projectDepartmentOptions';
 
-export type { LeadOrigin };
+export type { LeadOrigin, ProjectDepartment };
 
 export type DomainKey = 'av' | 'robotics' | 'ai' | 'si' | 'visitiq';
 
@@ -823,6 +826,11 @@ export interface ProjectRecord {
   // demo means no Site Visit, and that is recorded rather than left looking
   // unfinished. Never includes the stage the project is currently on.
   skipped_stages: ProjectStage[];
+  // Delivery department(s) this deal belongs to — see
+  // lib/projectDepartmentOptions.ts. One entry for a single-department
+  // project, two or three for a combined one, empty on projects created
+  // before the field existed (nothing backfills a guess).
+  departments: ProjectDepartment[];
   timeline: ProjectTimelineEvent[];
   updated_at: string;
   // Project Lead / Mentor — mandatory on every new project (one of the fixed

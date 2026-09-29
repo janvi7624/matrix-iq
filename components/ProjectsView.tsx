@@ -32,8 +32,18 @@ import Table, { TableColumn } from './ui/Table';
 import ProjectSourceField from './ui/ProjectSourceField';
 import ProjectLeadField from './ui/ProjectLeadField';
 import OpportunityTypeField from './ui/OpportunityTypeField';
+import ProjectDepartmentField from './ui/ProjectDepartmentField';
 import { useProjectLeads } from './ui/useProjectLeads';
 import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
+import {
+  COMBINED_VALUE,
+  PROJECT_DEPARTMENTS,
+  PROJECT_DEPARTMENT_LABEL,
+  ProjectDepartment,
+  ProjectDepartmentFilter,
+  formatProjectDepartments,
+  matchesDepartmentFilter
+} from '@/lib/projectDepartmentOptions';
 
 const EMPTY_FORM = {
   clientName: '',
@@ -46,6 +56,7 @@ const EMPTY_FORM = {
   salesPersonId: '',
   projectLeadId: '',
   opportunityType: '' as OpportunityType | '',
+  departments: [] as ProjectDepartment[],
   source: '',
   priority: 'medium' as ProjectPriority,
   expectedClosingDate: '',
@@ -128,6 +139,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const leadOptions = useMemo(() => leadsLoaded ?? [], [leadsLoaded]);
   const [fLead, setFLead] = useState('');
   const [fType, setFType] = useState<OpportunityType | ''>('');
+  // AI / AV / Robotics, or 'combined' for the multi-department deals only —
+  // see matchesDepartmentFilter in lib/projectDepartmentOptions.ts.
+  // Seeded from ?department= so the Dashboard's "Projects by Department"
+  // card can link straight into a filtered list — read once on mount, same
+  // approach (and same reason) as fConfirmation's ?filter= deep link below.
+  const [fDepartment, setFDepartment] = useState<ProjectDepartmentFilter>(() => {
+    if (typeof window === 'undefined') return '';
+    const requested = new URLSearchParams(window.location.search).get('department') ?? '';
+    if (requested === COMBINED_VALUE) return COMBINED_VALUE;
+    return (PROJECT_DEPARTMENTS as readonly string[]).includes(requested) ? (requested as ProjectDepartmentFilter) : '';
+  });
 
   // The Opportunity Type pre-fills the Project Lead (Distribution -> Manoj,
   // Project -> Pankaj) until the person picks a lead by hand — after that the
@@ -208,6 +230,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         if (!leads && !owns) return false;
       }
       if (fType && p.opportunity_type !== fType) return false;
+      if (!matchesDepartmentFilter(p.departments, fDepartment)) return false;
       if (fSalesPerson && p.sales_person !== fSalesPerson) return false;
       if (fSource && p.source !== fSource) return false;
       if (fStage && p.stage !== fStage) return false;
@@ -227,7 +250,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       if (q && ![p.id, p.client_name, p.company, p.contact_person].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [projects, fLead, selectedLead, fType, fSalesPerson, fSource, fStage, fStatus, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
+  }, [projects, fLead, selectedLead, fType, fDepartment, fSalesPerson, fSource, fStage, fStatus, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
 
   // Surfaced next to the filter bar so the auto-hide above never looks like
   // data went missing — see the comment in the filter itself.
@@ -292,6 +315,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       toast.error('Project Lead / Mentor is required.');
       return;
     }
+    if (!form.departments.length) {
+      toast.error('Department is required — AI, AV, Robotics, or a combination.');
+      return;
+    }
     setCreating(true);
     try {
       const response = await fetch('/api/projects', {
@@ -337,8 +364,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   function handleExportPdf() {
     exportListToPdf(
       'Project Dashboard',
-      ['Client', 'Company', 'Sales Person', 'Project Lead', 'Source', 'Approx. Price', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
-      filtered.map((p) => [p.client_name, p.company, p.sales_person, p.project_lead_name ? `${p.project_lead_name}${p.opportunity_type ? ` (${OPPORTUNITY_TYPE_LABEL[p.opportunity_type]})` : ''}` : '-', p.source || '-', formatMoney(p.approx_price), STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
+      ['Client', 'Company', 'Sales Person', 'Department', 'Project Lead', 'Source', 'Approx. Price', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
+      filtered.map((p) => [p.client_name, p.company, p.sales_person, formatProjectDepartments(p.departments), p.project_lead_name ? `${p.project_lead_name}${p.opportunity_type ? ` (${OPPORTUNITY_TYPE_LABEL[p.opportunity_type]})` : ''}` : '-', p.source || '-', formatMoney(p.approx_price), STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
       `projects-${new Date().toISOString().slice(0, 10)}.pdf`
     );
   }
@@ -356,6 +383,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       )
     },
     { key: 'salesPerson', header: 'Sales Person', headerClassName: historyStyles.colSalesPerson, render: (p) => p.sales_person },
+    { key: 'department', header: 'Department', headerClassName: historyStyles.colDepartment, render: (p) => formatProjectDepartments(p.departments) },
     {
       key: 'projectLead',
       header: 'Project Lead',
@@ -549,6 +577,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               <Field label="Opportunity Type *">
                 <OpportunityTypeField required disabled={!leadsLoaded} value={form.opportunityType} onChange={handleOpportunityTypeChange} />
               </Field>
+              <Field label="Department *">
+                <ProjectDepartmentField value={form.departments} onChange={(v) => setForm((f) => ({ ...f, departments: v }))} />
+                <span className={calcStyles.lockedHint}>Which team delivers this — pick Combined if it spans more than one.</span>
+              </Field>
               <Field label="Project Lead / Mentor *">
                 <ProjectLeadField required value={form.projectLeadId} onChange={(v) => { setLeadTouched(true); setForm((f) => ({ ...f, projectLeadId: v })); }} />
                 <span className={calcStyles.lockedHint}>Pre-filled from the opportunity type (Distribution: Manoj Menon, Project: Pankaj Sharma) — change it if needed.</span>
@@ -616,6 +648,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               <option key={t} value={t}>{OPPORTUNITY_TYPE_LABEL[t]}</option>
             ))}
           </Select>
+          <Select auto value={fDepartment} onChange={(e) => setFDepartment(e.target.value as ProjectDepartmentFilter)}>
+            <option value="">All departments</option>
+            {PROJECT_DEPARTMENTS.map((d) => (
+              <option key={d} value={d}>{PROJECT_DEPARTMENT_LABEL[d]}</option>
+            ))}
+            <option value={COMBINED_VALUE}>Combined only</option>
+          </Select>
           <Select auto value={fSource} onChange={(e) => setFSource(e.target.value)}>
             <option value="">All sources</option>
             {sources.map((s) => (
@@ -674,7 +713,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         )}
 
         {loading ? (
-          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={14} /></div>
+          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={15} /></div>
         ) : loadFailed ? (
           <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
         ) : (

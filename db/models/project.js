@@ -48,6 +48,10 @@ module.exports = (sequelize, DataTypes) => {
     // ProjectStage values this project has been marked as not needing — e.g.
     // Site Visit when the demo was given virtually.
     skipped_stages: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // Delivery department(s) this project belongs to — 'ai' | 'av' |
+    // 'robotics', see lib/projectDepartmentOptions.ts. A list, so a combined
+    // deal holds more than one; empty on projects predating the field.
+    departments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     created_by: { type: DataTypes.UUID },
     // Project Lead / Mentor — see lib/projectLeadOptions.ts. Mandatory going
     // forward (enforced in the API, not here); NULL on older projects.

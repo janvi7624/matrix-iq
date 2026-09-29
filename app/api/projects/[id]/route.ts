@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseProjectDepartments } from '@/lib/projectDepartmentOptions';
 import { getViewerContext } from '@/lib/viewerContext';
 import { appendProjectTimeline, canAccessProject, findProjectById, projectStore, resolveProjectDeadlineTier } from '@/lib/projectStore';
 import { listForProject as listDeadlineExtensions } from '@/lib/projectDeadlineExtensionStore';
@@ -212,6 +213,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: `The project is on ${invalid[0]} right now, so it can't be marked as not required.` }, { status: 400 });
       }
       patch.skipped_stages = Array.from(new Set(requested));
+    }
+    // Delivery department(s) — AI / AV / Robotics, two-plus for a combined
+    // deal. Only applied when the key is actually present, so every other
+    // edit on this page leaves the existing value alone. Clearing back to
+    // none is allowed: the field is optional, and a project set by mistake
+    // has to be able to go back to blank.
+    if ('departments' in body) {
+      patch.departments = parseProjectDepartments(body.departments);
     }
     if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();

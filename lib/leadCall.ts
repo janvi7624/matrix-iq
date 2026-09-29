@@ -1,6 +1,7 @@
 import { db, isUuid } from './db';
 import { findLeadById, canWorkLead, leadStore } from './leadStore';
 import { createProjectFromLead } from './leadProjectAutomation';
+import { ProjectDepartment, parseProjectDepartments } from './projectDepartmentOptions';
 import { resolveProjectLead } from './projectLeadStore';
 import { parseOpportunityType } from './projectLeadOptions';
 import { findUserByUsername } from './userStore';
@@ -48,6 +49,11 @@ export interface LeadCallInput {
   // created with nobody filling in a form. Ignored otherwise.
   projectLeadId?: string;
   opportunityType?: string;
+  // Delivery department(s) for the project this call creates. Required on
+  // that branch for the same reason projectLeadId and opportunityType are:
+  // this is a project being created, and every project created from now on
+  // names its department. Ignored when no project is being made.
+  departments?: unknown;
 }
 
 export interface LeadCallResult {
@@ -133,13 +139,17 @@ export async function logLeadCall(leadId: string, actor: LeadCallActor, input: L
   // suitable with no project and no way to retry from the same button.
   let newProjectLeadId = '';
   let newOpportunityType: 'distribution' | 'project' | undefined;
+  let newDepartments: ProjectDepartment[] = [];
   if (outcome === 'suitable' && !lead.project_id) {
     const projectLead = await resolveProjectLead(input.projectLeadId);
     if (!projectLead) throw new LeadCallError('Project Lead / Mentor is required — pick one from the list', 400);
     const opportunityType = parseOpportunityType(input.opportunityType);
     if (!opportunityType) throw new LeadCallError('Opportunity Type is required — Distribution or Project', 400);
+    const departments = parseProjectDepartments(input.departments);
+    if (!departments.length) throw new LeadCallError('Department is required — AI, AV, Robotics, or a combination', 400);
     newProjectLeadId = projectLead.id;
     newOpportunityType = opportunityType;
+    newDepartments = departments;
   }
 
   const now = new Date().toISOString();
@@ -163,7 +173,7 @@ export async function logLeadCall(leadId: string, actor: LeadCallActor, input: L
     // fallback when nobody is assigned (a manager qualifying it themselves).
     const owner = lead.assigned_to || actor.username;
     const fresh = await findLeadById(leadId);
-    const result = fresh ? await createProjectFromLead(fresh, { attributeToUsername: owner, autoCreated: false, projectLeadId: newProjectLeadId, opportunityType: newOpportunityType }) : null;
+    const result = fresh ? await createProjectFromLead(fresh, { attributeToUsername: owner, autoCreated: false, projectLeadId: newProjectLeadId, opportunityType: newOpportunityType, departments: newDepartments }) : null;
     if (result) {
       projectId = result.project.id;
       projectCreated = true;

@@ -165,21 +165,26 @@
    added later without one, so they collapsed to zero width and their text
    spilled over the next column ("₹10,00,000" printed on top of "Cold Call",
    one character per line). Project Lead is the 14th column. */
-.colClient { width: 9%; }
+.colClient { width: 8%; }
 .colSalesPerson { width: 6%; }
-.colProjectLead { width: 8%; }
+/* Holds "Robotics" and combined values like "AI + Robotics", so it needs
+   more than the 6% a one-word column gets. The 6% for it was reclaimed from
+   Client, Project Lead, Confirmation, Last Remark and Actions so the widths
+   still total 100% — see the warning above about columns without one. */
+.colDepartment { width: 6%; }
+.colProjectLead { width: 7%; }
 .colSource { width: 6%; }
 .colApproxPrice { width: 7%; }
 .colStage { width: 6%; }
 .colStatus { width: 6%; }
-.colConfirmation { width: 8%; }
+.colConfirmation { width: 7%; }
 .colUpdated { width: 7%; }
 .colNextFollowUp { width: 5%; }
 /* nowrap: at 5% the header split as "Closin / g %". */
 .colClosingPct { width: 6%; white-space: nowrap; }
-.colLastRemark { width: 11%; }
+.colLastRemark { width: 9%; }
 .colProgress { width: 6%; white-space: nowrap; }
-.colActions { width: 9%; }
+.colActions { width: 8%; }
 
 /* A status badge is nowrap by default; in a fixed-width column a long label
    ("Pending Confirmation") would spill into the next column. Let it wrap. */
