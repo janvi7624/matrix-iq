@@ -17,11 +17,14 @@ import type { NextConfig } from "next";
 // times unpredictable. Next's own fallback when no count is configured is 4,
 // so this is its documented default made explicit instead of one-per-core.
 //
-// Four workers is no slower than eleven on a build of this size (the static
-// pass here takes about a second either way) while cutting peak worker memory
-// by roughly two thirds. NEXT_BUILD_CPUS pins it lower still — set it to 2, or
-// 1, on a small build container if this is not enough.
-const DEFAULT_BUILD_WORKERS = 4;
+// Two workers, not the eleven a per-core count gives on this machine. The
+// static pass takes about a second either way on a build this size, so the
+// wall-clock cost is nil, while peak memory is a fraction of what killed the
+// Hostinger builds. It is deliberately conservative rather than tuned: the
+// package.json build script also sets --max-old-space-size, and that ceiling
+// applies to EVERY worker, so worker count multiplies the memory a build can
+// demand. NEXT_BUILD_CPUS raises or lowers it per environment.
+const DEFAULT_BUILD_WORKERS = 2;
 
 function buildWorkerCount(): number {
   const override = Number(process.env.NEXT_BUILD_CPUS);
