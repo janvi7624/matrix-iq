@@ -80,7 +80,22 @@ const nextConfig: NextConfig = {
     proxyClientMaxBodySize: '50mb',
     // See buildWorkerCount() above — sized by free memory, not just cores, so a
     // memory-limited build container cannot fork itself to death.
-    cpus: buildWorkerCount()
+    cpus: buildWorkerCount(),
+    // Paired with `next build --webpack` in package.json. The build is on
+    // webpack rather than Turbopack SPECIFICALLY to survive a memory-limited
+    // container, and this flag only exists for webpack:
+    //
+    // Turbopack compiles in native Rust, outside the V8 heap, so
+    // --max-old-space-size does not constrain it — measured: a Turbopack build
+    // compiled fine under a 256MB heap cap and then died in the static pass,
+    // while the Hostinger builds died DURING compilation with no error at all,
+    // which is what an unconstrained native allocation hitting a cgroup limit
+    // looks like. Webpack compiles inside V8, so the heap ceiling actually
+    // applies to the phase that was failing; verified compiling under a 1GB cap.
+    //
+    // The cost is wall-clock: roughly 70s against Turbopack's 21s here. A build
+    // that finishes slowly beats one that is killed.
+    webpackMemoryOptimizations: true
   }
 };
 
