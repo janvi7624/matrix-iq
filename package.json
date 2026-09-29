@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NODE_OPTIONS='--max-old-space-size=2048' next build",
+    "build": "node scripts/build.js",
     "postbuild": "node scripts/postbuild.js",
     "start": "node .next/standalone/server.js",
     "lint": "eslint",
