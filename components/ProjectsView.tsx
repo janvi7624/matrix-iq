@@ -244,8 +244,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     const won = filtered.filter((p) => p.status === 'won').length;
     const lost = filtered.filter((p) => p.status === 'lost').length;
     const active = filtered.filter((p) => p.status === 'active').length;
+    // The fourth ProjectStatus. Without its own tile the three above don't add
+    // up to Total and an on-hold deal shows in no tile at all — it is neither
+    // Active nor closed, and (unlike Won/Lost) never ages out of the list
+    // either, so it would otherwise sit here indefinitely uncounted.
+    const onHold = filtered.filter((p) => p.status === 'on_hold').length;
     const totalValue = filtered.reduce((sum, p) => sum + (typeof p.approx_price === 'number' ? p.approx_price : 0), 0);
-    return { total: filtered.length, won, lost, active, totalValue };
+    return { total: filtered.length, won, lost, active, onHold, totalValue };
   }, [filtered]);
 
   // A live, non-blocking nudge while the New Project form is open — the
@@ -458,6 +463,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
           <StatTile label="Total (filtered)" value={dashboardKpis.total} />
           <StatTile label="Active" value={dashboardKpis.active} tone="info" />
+          <StatTile label="On Hold" value={dashboardKpis.onHold} tone="warning" />
           <StatTile label="Won" value={dashboardKpis.won} tone="success" />
           <StatTile label="Lost" value={dashboardKpis.lost} tone="danger" />
           <StatTile label="Total Value" value={formatMoney(dashboardKpis.totalValue)} tone="brand" />
