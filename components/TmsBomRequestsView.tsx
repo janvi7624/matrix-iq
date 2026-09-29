@@ -128,9 +128,15 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
   return (
     <AppShell title="BOM Request" subtitle="Bill of materials requests, review, and approval.">
       <div className={historyStyles.actionRow}>
-        <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Cancel' : '+ New BOM Request'}
-        </button>
+        {/* Hidden while the list is genuinely empty — the New button lives in
+            the empty state instead, where the person is already looking. Still
+            shown once the form is open, because this same button is the form's
+            Cancel and hiding it would leave no way out. */}
+        {(records.length > 0 || showForm) && (
+          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : '+ New BOM Request'}
+          </button>
+        )}
         <ToolbarButton onClick={load}>Refresh</ToolbarButton>
       </div>
 
@@ -217,6 +223,7 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
               icon={FileText}
               title={records.length === 0 ? 'No BOM requests yet' : 'No requests match your filters'}
               message={records.length === 0 ? 'Create a request to start tracking material requirements.' : 'Try clearing a filter or search term.'}
+              action={records.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New BOM Request</button> : undefined}
             />
           }
         />

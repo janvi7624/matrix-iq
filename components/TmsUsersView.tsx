@@ -167,9 +167,15 @@ export default function TmsUsersView({ currentUser }: TmsUsersViewProps) {
   return (
     <AppShell title="TMS Users" subtitle="Manage technical team accounts, department, role, and access.">
       <div className={historyStyles.actionRow}>
-        <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Cancel' : '+ New User'}
-        </button>
+        {/* Hidden while the list is genuinely empty — the New button lives in
+            the empty state instead, where the person is already looking. Still
+            shown once the form is open, because this same button is the form's
+            Cancel and hiding it would leave no way out. */}
+        {(users.length > 0 || showForm) && (
+          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : '+ New User'}
+          </button>
+        )}
         <ToolbarButton onClick={load}>Refresh</ToolbarButton>
       </div>
 
@@ -227,7 +233,12 @@ export default function TmsUsersView({ currentUser }: TmsUsersViewProps) {
       ) : loadFailed ? (
         <ErrorState message="Could not load TMS users — check your connection and try again." onRetry={load} />
       ) : users.length === 0 ? (
-        <EmptyState icon={UserIcon} title="No technical users yet" message="Create your first Technical Manager, Team Lead, Engineer, or Technician account." />
+        <EmptyState
+          icon={UserIcon}
+          title="No technical users yet"
+          message="Create your first Technical Manager, Team Lead, Engineer, or Technician account."
+          action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New User</button>}
+        />
       ) : (
         <Table columns={columns} rows={users} rowKey={(u) => u.id} />
       )}

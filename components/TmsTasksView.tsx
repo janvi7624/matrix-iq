@@ -251,9 +251,15 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
   return (
     <AppShell title="TMS Tasks" subtitle="Day-by-day task planning and completion — no time tracking.">
       <div className={historyStyles.actionRow}>
-        <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Cancel' : '+ New Task'}
-        </button>
+        {/* Hidden while the list is genuinely empty — the New button lives in
+            the empty state instead, where the person is already looking. Still
+            shown once the form is open, because this same button is the form's
+            Cancel and hiding it would leave no way out. */}
+        {(tasks.length > 0 || showForm) && (
+          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : '+ New Task'}
+          </button>
+        )}
         <ToolbarButton onClick={load}>Refresh</ToolbarButton>
         <span className={historyStyles.verticalDivider} />
         <ToolbarButton primary={viewMode === 'daily'} onClick={() => setViewMode('daily')}>
@@ -391,6 +397,7 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
               icon={ClipboardList}
               title={tasks.length === 0 ? 'No Tasks Assigned' : 'No tasks here'}
               message={tasks.length === 0 ? "You're currently all caught up." : 'Nothing matches this view — try a different bucket or filter.'}
+              action={tasks.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Task</button> : undefined}
             />
           }
         />
