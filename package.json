@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/build.js",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=2048 next build",
     "postbuild": "node scripts/postbuild.js",
     "start": "node .next/standalone/server.js",
     "lint": "eslint",
@@ -43,6 +43,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^3.2.7",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "playwright": "^1.63.0",
