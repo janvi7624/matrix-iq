@@ -1,4 +1,5 @@
 import { LeadRecord, ProjectRecord } from './types';
+import { ProjectDepartment } from './projectDepartmentOptions';
 import { findLeadById } from './leadStore';
 import { projectStore } from './projectStore';
 import { db } from './db';
@@ -25,6 +26,12 @@ export interface CreateProjectFromLeadOptions {
   // button; blank on the automatic path, where the assignee sets it (and must,
   // before confirming).
   opportunityType?: 'distribution' | 'project';
+  // Delivery department(s) — AI / AV / Robotics, or several for a combined
+  // deal (lib/projectDepartmentOptions.ts). Collected by the manual paths
+  // alongside the lead and opportunity type; empty on the automatic
+  // on-assignment path, where there is nobody to ask and the assignee must
+  // pick one before the project counts as complete.
+  departments?: ProjectDepartment[];
 }
 
 export interface CreateProjectFromLeadResult {
@@ -94,6 +101,13 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     // No stage is pre-marked as skippable; that is a per-project decision
     // taken later (e.g. Site Visit, when the demo turns out to be virtual).
     skipped_stages: [],
+    // Which department delivers this is not derivable from a captured lead
+    // (its `interests` are free-form marketing copy, not a department), so
+    // whoever is at the keyboard picks it. The automatic on-assignment path
+    // has nobody to ask and starts empty — checkProjectCompleteness counts
+    // the project unfinished until the assignee fills it in, exactly like
+    // project_lead_id above.
+    departments: opts.departments ?? [],
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',
     tms_project_id: '',

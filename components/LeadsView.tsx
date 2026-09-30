@@ -31,6 +31,8 @@ import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import { Field, FieldRow } from './ui/Field';
 import ProjectLeadField from './ui/ProjectLeadField';
 import OpportunityTypeField from './ui/OpportunityTypeField';
+import ProjectDepartmentField from './ui/ProjectDepartmentField';
+import { ProjectDepartment } from '@/lib/projectDepartmentOptions';
 import { useProjectLeads } from './ui/useProjectLeads';
 import { OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 import Input from './ui/Input';
@@ -208,6 +210,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [convertPicker, setConvertPicker] = useState<{ leadId: string; resolve: (ok: boolean) => void } | null>(null);
   const [convertLeadPick, setConvertLeadPick] = useState('');
   const [convertType, setConvertType] = useState<OpportunityType | ''>('');
+  const [convertDepartments, setConvertDepartments] = useState<ProjectDepartment[]>([]);
   const [convertLeadTouched, setConvertLeadTouched] = useState(false);
   const [converting, setConverting] = useState(false);
   const projectLeads = useProjectLeads();
@@ -234,7 +237,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
   // ── Qualification call ──────────────────────────────────────────────────
   const [callLead, setCallLead] = useState<LeadRecord | null>(null);
-  const [callForm, setCallForm] = useState<{ outcome: LeadCallOutcome; remark: string; callbackAt: string; opportunityType: OpportunityType | ''; projectLeadId: string }>({ outcome: '', remark: '', callbackAt: '', opportunityType: '', projectLeadId: '' });
+  const [callForm, setCallForm] = useState<{ outcome: LeadCallOutcome; remark: string; callbackAt: string; opportunityType: OpportunityType | ''; projectLeadId: string; departments: ProjectDepartment[] }>({ outcome: '', remark: '', callbackAt: '', opportunityType: '', projectLeadId: '', departments: [] });
   // Once a lead is picked by hand, changing the Opportunity Type stops moving it.
   const [callLeadTouched, setCallLeadTouched] = useState(false);
   const [callError, setCallError] = useState('');
@@ -578,6 +581,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     return new Promise((resolve) => {
       setConvertLeadPick('');
       setConvertType('');
+      setConvertDepartments([]);
       setConvertLeadTouched(false);
       setConvertPicker({ leadId, resolve });
     });
@@ -589,13 +593,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   }
 
   async function submitConvert() {
-    if (!convertPicker || !convertLeadPick || !convertType) return;
+    if (!convertPicker || !convertLeadPick || !convertType || !convertDepartments.length) return;
     setConverting(true);
     try {
       const response = await fetch(`/api/leads/${convertPicker.leadId}/convert-to-project`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectLeadId: convertLeadPick, opportunityType: convertType })
+        body: JSON.stringify({ projectLeadId: convertLeadPick, opportunityType: convertType, departments: convertDepartments })
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
@@ -624,7 +628,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   }
 
   function openCallLead(lead: LeadRecord) {
-    setCallForm({ outcome: lead.call_outcome || '', remark: lead.call_remark || '', callbackAt: lead.callback_at || '', opportunityType: '', projectLeadId: '' });
+    setCallForm({ outcome: lead.call_outcome || '', remark: lead.call_remark || '', callbackAt: lead.callback_at || '', opportunityType: '', projectLeadId: '', departments: [] });
     setCallLeadTouched(false);
     setCallError('');
     setCallLead(lead);
@@ -656,6 +660,10 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       setCallError('Pick the Opportunity Type (Distribution or Project).');
       return;
     }
+    if (createsProject && !callForm.departments.length) {
+      toast.error('Department is required — AI, AV, Robotics, or a combination.');
+      return;
+    }
     if (createsProject && !callForm.projectLeadId) {
       setCallError('Pick the Project Lead / Mentor for the new project.');
       return;
@@ -668,7 +676,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           outcome, remark, callbackAt: outcome === 'callback' ? callForm.callbackAt : '',
-          ...(createsProject ? { opportunityType: callForm.opportunityType, projectLeadId: callForm.projectLeadId } : {})
+          ...(createsProject ? { opportunityType: callForm.opportunityType, projectLeadId: callForm.projectLeadId, departments: callForm.departments } : {})
         })
       });
       const body: { error?: string; lead?: LeadRecord; projectCreated?: boolean } | null = await response.json().catch(() => null);
@@ -1206,7 +1214,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             footer={
               <>
                 <ModalCancelButton disabled={converting} onClick={cancelConvert}>Cancel</ModalCancelButton>
-                <ModalOkButton disabled={converting || !convertLeadPick || !convertType} onClick={submitConvert}>{converting ? 'Creating…' : 'Create Project'}</ModalOkButton>
+                <ModalOkButton disabled={converting || !convertLeadPick || !convertType || !convertDepartments.length} onClick={submitConvert}>{converting ? 'Creating…' : 'Create Project'}</ModalOkButton>
               </>
             }
           >
@@ -1223,6 +1231,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             </Field>
             <Field label="Project Lead / Mentor *">
               <ProjectLeadField required value={convertLeadPick} onChange={(v) => { setConvertLeadTouched(true); setConvertLeadPick(v); }} disabled={converting} />
+            </Field>
+            <Field label="Department *">
+              <ProjectDepartmentField value={convertDepartments} onChange={setConvertDepartments} disabled={converting} />
             </Field>
           </Modal>
         )}
@@ -1310,6 +1321,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                     disabled={savingCall}
                     value={callForm.projectLeadId}
                     onChange={(v) => { setCallLeadTouched(true); setCallForm((f) => ({ ...f, projectLeadId: v })); }}
+                  />
+                </Field>
+                <Field label="Department *">
+                  <ProjectDepartmentField
+                    disabled={savingCall}
+                    value={callForm.departments}
+                    onChange={(v) => setCallForm((f) => ({ ...f, departments: v }))}
                   />
                 </Field>
               </>

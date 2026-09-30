@@ -9,6 +9,7 @@ import { isTechnicalRole } from '@/lib/technicalRoles';
 import { parseProjectIntake, ProjectIntakeError } from '@/lib/projectIntake';
 import { resolveProjectLead } from '@/lib/projectLeadStore';
 import { parseOpportunityType } from '@/lib/projectLeadOptions';
+import { parseProjectDepartments } from '@/lib/projectDepartmentOptions';
 import { getClientIp } from '@/lib/requestIp';
 
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
@@ -100,6 +101,18 @@ export async function POST(request: NextRequest) {
   if (!opportunityType) {
     return NextResponse.json({ error: 'Opportunity Type is required — Distribution or Project' }, { status: 400 });
   }
+  // Delivery department(s) — AI / AV / Robotics, or two-plus for a combined
+  // deal (lib/projectDepartmentOptions.ts). Required HERE, at creation, and
+  // deliberately nowhere else: every project made from now on says which team
+  // delivers it, while the ~133 that predate the field keep working untouched.
+  // Editing one of those (PATCH) still accepts a blank, and
+  // checkProjectCompleteness still does not flag it — otherwise the new rule
+  // would reach backwards and mark most of the pipeline broken over something
+  // nobody was ever asked for.
+  const departments = parseProjectDepartments(body.departments);
+  if (!departments.length) {
+    return NextResponse.json({ error: 'Department is required — AI, AV, Robotics, or a combination' }, { status: 400 });
+  }
 
   // State/city, project name, and the source-conditional referral and tender
   // blocks — see lib/projectIntake.ts.
@@ -178,6 +191,7 @@ export async function POST(request: NextRequest) {
     // No stage is pre-marked as skippable; that is a per-project decision
     // taken later (e.g. Site Visit, when the demo turns out to be virtual).
     skipped_stages: [],
+    departments,
     // Never set on creation — see the technical-person request below.
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',

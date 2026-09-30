@@ -56,6 +56,8 @@ import { checkProjectCompleteness } from '@/lib/projectCompleteness';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import ProjectDepartmentField from './ui/ProjectDepartmentField';
+import { ProjectDepartment, formatProjectDepartments } from '@/lib/projectDepartmentOptions';
 import styles from './projectDetail.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
@@ -455,6 +457,11 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [overviewDraft, setOverviewDraft] = useState<Partial<Record<OverviewField, string>>>({});
   const [savingDetails, setSavingDetails] = useState(false);
   const [savingSkipped, setSavingSkipped] = useState(false);
+  const [savingDepartments, setSavingDepartments] = useState(false);
+  // null = no unsaved edit; an array = what the picker is currently showing,
+  // not yet written. Kept separate from the saved value so ticking the second
+  // box of a combined deal doesn't fire a save of the half-finished pick.
+  const [departmentDraft, setDepartmentDraft] = useState<ProjectDepartment[] | null>(null);
   const projectLeads = useProjectLeads();
 
   const overviewValue = (field: OverviewField): string =>
@@ -527,6 +534,21 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // Kept out of the Overview card's draft on purpose: this is a checkbox, one
   // deliberate click per stage, so there is nothing to type and nothing to lose
   // by saving it straight away.
+  // Saved on the spot rather than through overviewDraft, which is a
+  // string-per-field map and cannot carry a list. Same approach as
+  // toggleSkippedStage below, the other list-valued edit on this page.
+  async function saveDepartments(next: ProjectDepartment[]) {
+    setSavingDepartments(true);
+    try {
+      await patchProject({ departments: next });
+      // Only drop the draft once the write succeeded — a failed save must
+      // leave the person's pick on screen to retry, not silently revert it.
+      setDepartmentDraft(null);
+    } finally {
+      setSavingDepartments(false);
+    }
+  }
+
   async function toggleSkippedStage(stage: ProjectStage, skip: boolean) {
     const current = data?.project.skipped_stages ?? [];
     const next = skip ? [...current, stage] : current.filter((s) => s !== stage);
@@ -924,6 +946,11 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const latestDemo = [...demos].sort((a, b) => (a.scheduled_at < b.scheduled_at ? 1 : -1))[0];
   const technicalTeam = [...new Set([...demos.flatMap((d) => d.technical_members), ...demos.map((d) => d.assigned_technical_person), ...siteVisits.flatMap((v) => v.team_technical)].filter(Boolean))];
   const skippedStages = project.skipped_stages ?? [];
+  // Show Save only once the pick actually differs from what is stored — both
+  // sides are canonically ordered by parseProjectDepartments/the picker, so a
+  // plain join comparison is exact, not order-dependent.
+  const departmentDirty =
+    departmentDraft !== null && departmentDraft.join(',') !== (project.departments ?? []).join(',');
   const salesTeam = [...new Set([project.sales_person, ...siteVisits.flatMap((v) => v.team_sales)].filter(Boolean))];
   // "Change" once the project already has one — correcting a wrong sales
   // person is the everyday case for an admin, and "Assign" reads as if the
@@ -1567,6 +1594,38 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     {(Object.keys(STATUS_LABEL) as ProjectStatus[]).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
                   </select>
                 ) : <div className={calcStyles.small}>{STATUS_LABEL[project.status]}</div>}
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Department</label>
+                {canEdit ? (
+                  <>
+                    <ProjectDepartmentField
+                      value={departmentDraft ?? project.departments ?? []}
+                      disabled={savingDepartments}
+                      onChange={(next) => setDepartmentDraft(next)}
+                    />
+                    {departmentDirty && (
+                      <div className={`${calcStyles.row} ${calcStyles.mt4}`}>
+                        <button
+                          type="button"
+                          className={`${historyStyles.button} ${historyStyles.primary}`}
+                          disabled={savingDepartments}
+                          onClick={() => void saveDepartments(departmentDraft ?? [])}
+                        >
+                          {savingDepartments ? 'Saving…' : 'Save Department'}
+                        </button>
+                        <button
+                          type="button"
+                          className={historyStyles.button}
+                          disabled={savingDepartments}
+                          onClick={() => setDepartmentDraft(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : <div className={calcStyles.small}>{formatProjectDepartments(project.departments)}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Current stage</label>

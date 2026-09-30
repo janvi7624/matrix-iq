@@ -41,4 +41,10 @@ describe('checkProjectCompleteness', () => {
     expect(result.isComplete).toBe(false);
     expect(result.missingFields).toEqual(['approx_price', 'expected_closing_date', 'remarks', 'project_lead_id', 'opportunity_type']);
   });
+
+  // Department is an optional field — the great majority of projects predate
+  // it, so a blank one must NOT make a project read as incomplete.
+  it('never flags a missing department — the field is optional', () => {
+    expect(checkProjectCompleteness(complete)).toEqual({ isComplete: true, missingFields: [] });
+  });
 });

@@ -204,9 +204,15 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   return (
     <AppShell title="TMS Projects" subtitle="Technical execution projects — team, budget, status, and progress.">
       <div className={historyStyles.actionRow}>
-        <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Cancel' : '+ New Project'}
-        </button>
+        {/* Hidden while the list is genuinely empty — the New button lives in
+            the empty state instead, where the person is already looking. Still
+            shown once the form is open, because this same button is the form's
+            Cancel and hiding it would leave no way out. */}
+        {(projects.length > 0 || showForm) && (
+          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : '+ New Project'}
+          </button>
+        )}
         <ToolbarButton onClick={load}>
           Refresh
         </ToolbarButton>

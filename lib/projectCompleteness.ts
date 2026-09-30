@@ -34,5 +34,9 @@ export function checkProjectCompleteness(record: {
   // Lead / Mentor.
   if (!record.project_lead_id) missingFields.push('project_lead_id');
   if (!record.opportunity_type) missingFields.push('opportunity_type');
+  // `departments` is deliberately NOT checked here: it is an optional field,
+  // and the great majority of existing projects predate it — counting it as
+  // missing would mark most of the pipeline incomplete over something nobody
+  // was ever asked for.
   return { isComplete: missingFields.length === 0, missingFields };
 }
