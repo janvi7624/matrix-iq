@@ -36,10 +36,6 @@ module.exports = (sequelize, DataTypes) => {
     gst_amount: { type: DataTypes.DECIMAL(14, 2), allowNull: false, defaultValue: 0 },
     total: { type: DataTypes.DECIMAL(14, 2), allowNull: false, defaultValue: 0 },
     validity_days: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    // Project / Tender Proposal — see the 20260929140000 migration and
-    // lib/quotationProposal.ts. NULL on a Standard/Custom quotation.
-    proposal_kind: { type: DataTypes.STRING(20) },
-    proposal_json: { type: DataTypes.JSONB },
     last_follow_up_at: { type: DataTypes.DATE },
     // Self-referential — points at the ROOT quotation for a revision.
     original_quotation_id: { type: DataTypes.UUID },

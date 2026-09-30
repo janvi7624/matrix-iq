@@ -7,7 +7,6 @@ import { isTechnicalRole } from '@/lib/technicalRoles';
 import { findClosestClient } from '@/lib/clientSimilarity';
 import PhoneInput from './PhoneInput';
 import ProjectSourceField from './ProjectSourceField';
-import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE, ProjectIntakeValues } from './ProjectIntakeFields';
 import ProjectLeadField from './ProjectLeadField';
 import OpportunityTypeField from './OpportunityTypeField';
 import { useProjectLeads } from './useProjectLeads';
@@ -39,22 +38,15 @@ interface ProjectCreateForm {
   approxPrice: string;
 }
 
-// The intake fields are part of this form too, not just the Projects page
-// one: the server requires a referral name for a Referral and a reference
-// number for a GeM / Tender, so offering those sources without these boxes
-// would make the dialog impossible to submit.
-type QuickCreateForm = ProjectCreateForm & ProjectIntakeValues;
-
-const EMPTY_FORM: QuickCreateForm = {
+const EMPTY_FORM: ProjectCreateForm = {
   clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '',
-  salesPersonId: '', projectLeadId: '', opportunityType: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: '', approxPrice: '',
-  ...EMPTY_PROJECT_INTAKE
+  salesPersonId: '', projectLeadId: '', opportunityType: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: '', approxPrice: ''
 };
 
 // Opportunity Type + Project Lead / Mentor. A component of its own (rather than
 // inline in the provider) so the leads list is only fetched when the dialog is
 // actually open — the provider itself is mounted on every page.
-function LeadFields({ form, setForm }: { form: QuickCreateForm; setForm: React.Dispatch<React.SetStateAction<QuickCreateForm>> }) {
+function LeadFields({ form, setForm }: { form: ProjectCreateForm; setForm: React.Dispatch<React.SetStateAction<ProjectCreateForm>> }) {
   const leads = useProjectLeads();
   // Once the lead is picked by hand, changing the type no longer moves it.
   // Local state, so it resets each time the dialog opens (this unmounts on close).
@@ -89,7 +81,7 @@ const ProjectQuickCreateContext = createContext<((prefill?: Partial<ProjectCreat
 export function ProjectQuickCreateProvider({ children }: { children: React.ReactNode }) {
   const toast = useToast();
   const [pending, setPending] = useState<PendingCreate | null>(null);
-  const [form, setForm] = useState<QuickCreateForm>(EMPTY_FORM);
+  const [form, setForm] = useState<ProjectCreateForm>(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; username: string; name: string }[]>([]);
   const [viewer, setViewer] = useState<{ role: string; isPrivileged: boolean } | null>(null);
@@ -302,11 +294,6 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                   <label className={calcStyles.label}>Source *</label>
                   <ProjectSourceField required value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))} />
                 </div>
-                <ProjectIntakeFields
-                  source={form.source}
-                  values={form}
-                  onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
-                />
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Priority</label>
                   <select className={calcStyles.formControl} value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as ProjectPriority }))}>

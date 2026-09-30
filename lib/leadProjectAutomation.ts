@@ -2,7 +2,6 @@ import { LeadRecord, ProjectRecord } from './types';
 import { findLeadById } from './leadStore';
 import { projectStore } from './projectStore';
 import { db } from './db';
-import { emptyProjectIntake } from './projectIntake';
 
 export interface CreateProjectFromLeadOptions {
   // Who the created project is owned by (created_by/sales_person). The
@@ -62,8 +61,6 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     : opts.autoCreated ? 'Lead Assignment' : 'Event Lead Capture';
 
   const project: ProjectRecord = {
-    // None of the intake detail is known when a lead converts automatically.
-    ...emptyProjectIntake(),
     id: `${Date.now()}`,
     created_at: now,
     created_by: opts.attributeToUsername,

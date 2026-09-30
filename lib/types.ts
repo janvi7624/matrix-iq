@@ -1,4 +1,3 @@
-import type { ProposalDetails } from './quotationProposal';
 // Type-only, so this stays a types file with no runtime dependency. The
 // lead-origin list lives beside its labels in lib/leadSources.ts because the
 // API routes and the client both need the values themselves, not just the type.
@@ -220,10 +219,6 @@ export interface QuotationRecord {
   original_quotation_id: string;
   revision_number: number;
   revision_reason: string;
-  // Project / Tender Proposal (lib/quotationProposal.ts). '' and null on a
-  // Standard or Custom quotation, which price line items instead.
-  proposal_kind: 'project' | 'tender' | '';
-  proposal: ProposalDetails | null;
 }
 
 // Lead-temperature tag captured at registration and revisited on every update.
@@ -841,22 +836,6 @@ export interface ProjectRecord {
   // Distribution vs Project deal — what the Project Lead default follows
   // (lib/projectLeadOptions.ts). '' on a project that predates the field.
   opportunity_type: 'distribution' | 'project' | '';
-  // Intake fields (lib/indiaLocations.ts drives state/city; the tender block
-  // is only filled when source is 'GeM / Tender', referral_name only when
-  // source is 'Referral'). '' throughout for a project that predates them.
-  project_name: string;
-  state: string;
-  city: string;
-  referral_name: string;
-  tender_capex: number | '';
-  tender_opex: number | '';
-  tender_ref_number: string;
-  tender_name: string;
-  tender_deadline: string;
-  tender_estimated_value: number | '';
-  tender_pbg: string;
-  tender_emd: number | '';
-  payment_terms: string;
   assigned_technical_person_id: string;
   assigned_technical_person_name: string;
   // See lib/tmsHandoff.ts — links to the TMS project auto-created/kept in

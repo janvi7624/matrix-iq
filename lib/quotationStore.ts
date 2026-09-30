@@ -3,7 +3,6 @@ import { QuotationEffectiveStatus, QuotationRecord, QuotationStatus } from './ty
 import { computeQuotationPrefix, formatQuotationNumber } from './quotationNumber';
 import { DomainKey } from './types';
 import { db, isUuid, sequelize } from './db';
-import type { ProposalDetails } from './quotationProposal';
 import { resolveVisibilityScope } from './departmentScope';
 import { findUserByUsername } from './userStore';
 import { sendQuotationStatusEmail } from './email/notifications';
@@ -61,11 +60,6 @@ function toRecord(row: Model): QuotationRecord {
     gst_amount: Number(plain.gst_amount ?? 0),
     total: Number(plain.total ?? 0),
     validity_days: Number(plain.validity_days ?? 0),
-    proposal_kind: ((plain.proposal_kind as string) ?? '') as QuotationRecord['proposal_kind'],
-    // Returned as a parsed object, unlike products_json which this store hands
-    // back as a string — a proposal is read field by field by the form, not
-    // re-parsed by every caller.
-    proposal: (plain.proposal_json as QuotationRecord['proposal']) ?? null,
     last_follow_up_at: isoOrEmpty(plain.last_follow_up_at),
     follow_up_notes_json: JSON.stringify(followUps),
     original_quotation_id: (plain.original_quotation_id as string) ?? '',
@@ -98,9 +92,6 @@ export interface CreateQuotationInput {
   gstAmount?: number;
   total?: number;
   validityDays?: number;
-  /** Project / Tender Proposal — see lib/quotationProposal.ts. */
-  proposalKind?: 'project' | 'tender' | null;
-  proposal?: ProposalDetails | null;
 }
 
 // Atomically claims the next sequence number for one calendar day, shared
@@ -164,8 +155,6 @@ export async function createQuotation(input: CreateQuotationInput): Promise<Quot
     gst_amount: Number(input.gstAmount) || 0,
     total: Number(input.total) || 0,
     validity_days: Number(input.validityDays) || 7,
-    proposal_kind: input.proposalKind || null,
-    proposal_json: input.proposal ?? null,
     last_follow_up_at: null,
     original_quotation_id: null,
     revision_number: 0,

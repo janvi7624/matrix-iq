@@ -55,20 +55,6 @@ module.exports = (sequelize, DataTypes) => {
     // 'distribution' | 'project' — drives the Project Lead's default; see
     // lib/projectLeadOptions.ts. NULL on older projects.
     opportunity_type: { type: DataTypes.STRING(20) },
-    // Intake fields — see the 20260929120000-project-intake-fields migration.
-    project_name: { type: DataTypes.STRING(255) },
-    state: { type: DataTypes.STRING(120) },
-    city: { type: DataTypes.STRING(120) },
-    referral_name: { type: DataTypes.STRING(255) },
-    tender_capex: { type: DataTypes.DECIMAL(14, 2) },
-    tender_opex: { type: DataTypes.DECIMAL(14, 2) },
-    tender_ref_number: { type: DataTypes.STRING(120) },
-    tender_name: { type: DataTypes.STRING(255) },
-    tender_deadline: { type: DataTypes.DATEONLY },
-    tender_estimated_value: { type: DataTypes.DECIMAL(14, 2) },
-    tender_pbg: { type: DataTypes.STRING(255) },
-    tender_emd: { type: DataTypes.DECIMAL(14, 2) },
-    payment_terms: { type: DataTypes.TEXT },
     assigned_technical_person_id: { type: DataTypes.UUID },
     // Set the first time a technical person is assigned — see
     // lib/tmsHandoff.ts. Links this Sales project to the TMS project

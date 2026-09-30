@@ -6,7 +6,6 @@ import { ProjectPriority, ProjectRecord, UserRecord } from '@/lib/types';
 import { requestTechnicalPerson } from '@/lib/projectTechnicalRequest';
 import { findSalesPersonCandidate, notifySalesPersonAssigned, SalesOwnerError } from '@/lib/projectSalesOwner';
 import { isTechnicalRole } from '@/lib/technicalRoles';
-import { parseProjectIntake, ProjectIntakeError } from '@/lib/projectIntake';
 import { resolveProjectLead } from '@/lib/projectLeadStore';
 import { parseOpportunityType } from '@/lib/projectLeadOptions';
 import { getClientIp } from '@/lib/requestIp';
@@ -101,16 +100,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Opportunity Type is required — Distribution or Project' }, { status: 400 });
   }
 
-  // State/city, project name, and the source-conditional referral and tender
-  // blocks — see lib/projectIntake.ts.
-  let intake;
-  try {
-    intake = parseProjectIntake(body, source);
-  } catch (error) {
-    if (error instanceof ProjectIntakeError) return NextResponse.json({ error: error.message }, { status: 400 });
-    return apiErrorResponse(error);
-  }
-
   const now = new Date().toISOString();
   // Only a privileged role may attribute a project to someone else (e.g. an
   // Admin entering data on a sales rep's behalf) — otherwise created_by IS
@@ -147,7 +136,6 @@ export async function POST(request: NextRequest) {
   const salesPerson = requestedSalesPersonUser ? requestedSalesPersonUser.username : viewer.username;
   const assignedTechnicalPersonId = typeof body.assignedTechnicalPersonId === 'string' ? body.assignedTechnicalPersonId.trim() : '';
   const record: ProjectRecord = {
-    ...intake,
     id: `${Date.now()}`,
     created_at: now,
     created_by: salesPerson,
