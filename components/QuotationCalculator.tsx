@@ -34,6 +34,8 @@ import CustomProductsList from './CustomProductsList';
 import SummaryPanel from './SummaryPanel';
 import { useToast } from './ui/ToastProvider';
 import ProjectSelect from './ui/ProjectSelect';
+import QuotationProposalForm from './QuotationProposalForm';
+import { EMPTY_PROPOSAL, ProposalDetails } from '@/lib/quotationProposal';
 import styles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 
@@ -152,10 +154,18 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
   // customProducts both always count toward "has at least one product," and
   // switching back to Standard (or just expanding the collapsed catalog
   // section) never clears anything, so mixed quotations keep working.
-  const [quotationMode, setQuotationMode] = useState<'standard' | 'custom'>('standard');
+  const [quotationMode, setQuotationMode] = useState<'standard' | 'custom' | 'proposal'>('standard');
+  // Project / Tender Proposal — the third quotation mode (lib/quotationProposal.ts).
+  // Its own state, separate from cartItems/customProducts: a proposal never
+  // prices line items, it records the bid's commercial terms instead.
+  const [proposalValue, setProposalValue] = useState<ProposalDetails>(EMPTY_PROPOSAL);
 
   function goNext() {
-    if (wizardStep === 0 && cartItems.length === 0 && customProducts.length === 0) {
+    if (wizardStep === 0 && quotationMode === 'proposal' && !proposalValue.kind) {
+      setStepError('Choose whether this is a Project Proposal or a Tender Proposal before continuing.');
+      return;
+    }
+    if (wizardStep === 0 && quotationMode !== 'proposal' && cartItems.length === 0 && customProducts.length === 0) {
       setStepError('Add at least one product (standard or custom) to the quote before continuing.');
       return;
     }
@@ -398,6 +408,39 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
   }
 
   function buildQuotationPayload() {
+    // A Proposal carries no line items — the commercial terms and its own
+    // uploaded document (attachmentUrls, already stored via the form) ARE the
+    // quotation. quoteValue (tender-only) becomes the logged total so it
+    // still reports alongside priced quotations; a Project Proposal has none,
+    // so it logs as ₹0 rather than guessing a figure nobody entered.
+    if (quotationMode === 'proposal') {
+      const quoteValue = Number(proposalValue.quoteValue);
+      return {
+        domains: [] as DomainKey[],
+        projectId,
+        preparedBy: details.preparedBy,
+        preparedByPhone: details.preparedByPhone,
+        preparedByEmail: details.preparedByEmail,
+        preparedByUserId: details.preparedByUserId,
+        clientName: details.clientName,
+        clientCompany: details.clientCompany,
+        clientEmail: details.clientEmail,
+        clientPhone: details.clientPhone,
+        clientAddress: details.clientAddress,
+        projectVertical: details.projectVertical,
+        domainSummary: '',
+        productsSummary: proposalValue.kind === 'tender' ? `Tender Proposal — ${proposalValue.tenderRefNumber || 'no ref number'}` : 'Project Proposal',
+        products: [],
+        subtotal: 0,
+        markupPercent: 0,
+        discountTotal: 0,
+        gstAmount: 0,
+        total: Number.isFinite(quoteValue) ? quoteValue : 0,
+        validityDays: details.validityDays,
+        proposalKind: proposalValue.kind || null,
+        proposal: proposalValue
+      };
+    }
     const products = composition.productGroups
       .filter((g) => g.end > g.start)
       .map((g) => ({ label: g.label, lineItems: composition.lineItems.slice(g.start, g.end), remark: g.remark }));
@@ -425,6 +468,29 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
       total: composition.totals.total,
       validityDays: details.validityDays
     };
+  }
+
+  // Backs QuotationProposalForm's onFillProject: a detail typed into the
+  // proposal that the linked project doesn't have yet gets written back to
+  // it, same-origin fields only (see lib/projectIntake.ts) — silently a
+  // no-op with no project selected. PATCH /api/projects/[id] itself only
+  // ever fills a blank field (never overwrites one already set), matching
+  // the form's own guard — this is belt and suspenders, not the only check.
+  async function handleFillProject(patch: Record<string, string | number>) {
+    if (!projectId) return;
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch)
+      });
+      if (!response.ok) return;
+      const updated = await response.json();
+      setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    } catch {
+      // Best-effort — the proposal itself already has the value either way,
+      // this only saves it from having to be typed again on the project.
+    }
   }
 
   async function saveQuotationToServer(): Promise<{ id: string; quotation_number: string } | null> {
@@ -482,6 +548,11 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
     setPdfBusy(true);
     try {
       const record = await saveQuotationToServer();
+      // A Proposal has no line items to lay out a PDF from — its own
+      // commercial document was already uploaded through the form
+      // (proposalValue.attachmentUrls) and IS the deliverable. Logging it is
+      // the whole job here.
+      if (quotationMode === 'proposal') return;
       const quotationNumber = record?.quotation_number || details.quotationNumber || generateDraftQuotationNumber(computeQuotationPrefix(activeDomains));
       await generateQuotationPdf({
         quotationNumber,
@@ -595,7 +666,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
           <div className={historyStyles.wizardCard}>
             <h2 className={historyStyles.wizardCardTitle}><Package size={22} /> Build the Quote</h2>
             <div className={historyStyles.wizardCardHint}>
-              {quotationMode === 'custom'
+              {quotationMode === 'proposal'
+                ? 'Record the commercial terms of a bid and attach the prepared document — no priced line items needed.'
+                : quotationMode === 'custom'
                 ? 'Add one or more custom line items below — no catalog product is required. You can still add standard products too, if this quote is a mix of both.'
                 : 'Pick a product, configure it below, then add it to the quote. Repeat to add more products to the same quote.'}
             </div>
@@ -625,9 +698,21 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
                 >
                   Custom Product Quotation
                 </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={quotationMode === 'proposal'}
+                  className={`${historyStyles.modeToggleBtn} ${quotationMode === 'proposal' ? historyStyles.modeToggleBtnActive : ''}`}
+                  onClick={() => setQuotationMode('proposal')}
+                >
+                  Project / Tender Proposal
+                </button>
               </div>
             </div>
 
+            {/* Shared by every mode: which project (if any) this quotation is
+                for. A Proposal reads its project via ProjectSelect too — the
+                form pre-fills from it and writes missing details back. */}
             <div className={styles.sectionPanel}>
               <div className={`${styles.row} ${styles.columns}`}>
                 <div className={styles.field}>
@@ -656,6 +741,18 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
                   {selectedProject && <div className={styles.small}>Stage: {PROJECT_STAGE_LABEL[selectedProject.stage]}</div>}
                 </div>
               </div>
+            </div>
+
+            {quotationMode === 'proposal' ? (
+              <QuotationProposalForm
+                project={selectedProject}
+                value={proposalValue}
+                onChange={setProposalValue}
+                onFillProject={handleFillProject}
+              />
+            ) : (
+              <>
+              <div className={styles.sectionPanel}>
               {quotationMode === 'custom' ? (
                 <details>
                   <summary className={styles.summaryToggle}>
@@ -843,6 +940,8 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
                 onRemove={(id) => setCustomProducts((prev) => prev.filter((p) => p.id !== id))}
               />
             </div>
+              </>
+            )}
           </div>
         )}
 
@@ -862,21 +961,44 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
         {wizardStep === 2 && (
           <div className={historyStyles.wizardCard}>
             <h2 className={historyStyles.wizardCardTitle}><Send size={22} /> Review &amp; Send</h2>
-            <div className={historyStyles.wizardCardHint}>Check the total below, then save and download the client-ready PDF.</div>
+            <div className={historyStyles.wizardCardHint}>
+              {quotationMode === 'proposal'
+                ? 'A Proposal has no priced line items — its own uploaded document is the deliverable. Check the details below, then log it.'
+                : 'Check the total below, then save and download the client-ready PDF.'}
+            </div>
 
             <div ref={summaryRef}>
-              <SummaryPanel
-                activeResult={activeResult}
-                cartCount={cartItems.length}
-                cartSubtotal={cartTotal}
-                customProductsTotal={customProductsTotal}
-                totals={composition.totals}
-              />
+              {quotationMode === 'proposal' ? (
+                <div className={styles.sectionPanel}>
+                  <div className={styles.small}>Kind</div>
+                  <div>{proposalValue.kind === 'tender' ? 'Tender Proposal' : proposalValue.kind === 'project' ? 'Project Proposal' : '—'}</div>
+                  <div className={styles.small} style={{ marginTop: 8 }}>Client</div>
+                  <div>{details.clientCompany || details.clientName || '—'}</div>
+                  {proposalValue.kind === 'tender' && (
+                    <>
+                      <div className={styles.small} style={{ marginTop: 8 }}>Tender Ref Number</div>
+                      <div>{proposalValue.tenderRefNumber || '—'}</div>
+                      <div className={styles.small} style={{ marginTop: 8 }}>Quote Value</div>
+                      <div>{proposalValue.quoteValue ? `₹${proposalValue.quoteValue}` : '—'}</div>
+                    </>
+                  )}
+                  <div className={styles.small} style={{ marginTop: 8 }}>Attachments</div>
+                  <div>{proposalValue.attachmentUrls.length ? `${proposalValue.attachmentUrls.length} file(s)` : 'None uploaded'}</div>
+                </div>
+              ) : (
+                <SummaryPanel
+                  activeResult={activeResult}
+                  cartCount={cartItems.length}
+                  cartSubtotal={cartTotal}
+                  customProductsTotal={customProductsTotal}
+                  totals={composition.totals}
+                />
+              )}
             </div>
 
             <div className={`${styles.actions} ${styles.actionsSpaced}`}>
               <button type="button" className={styles.btn} disabled={pdfBusy} onClick={handleDownloadPdf}>
-                {pdfBusy ? 'Working…' : 'Save & Download PDF'}
+                {pdfBusy ? 'Working…' : quotationMode === 'proposal' ? 'Save Proposal' : 'Save & Download PDF'}
               </button>
               <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={handleReset}>
                 Start Over

@@ -197,6 +197,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // is always captured (previously this silently overwrote it with zero
     // history). next_follow_up_date is a plain reminder date, unaffected.
     if (typeof body.nextFollowUpDate === 'string') patch.next_follow_up_date = body.nextFollowUpDate;
+    // Intake fields (lib/projectIntake.ts) — accepted individually here,
+    // unlike POST's all-at-once parseProjectIntake, since this is a Proposal
+    // form filling in ONE missing detail (onFillProject in
+    // components/QuotationCalculator.tsx), not resubmitting the whole block.
+    // No required-ness enforced on PATCH; that only ever applies at creation.
+    if (typeof body.project_name === 'string') patch.project_name = body.project_name.trim();
+    if (typeof body.city === 'string') patch.city = body.city.trim();
+    if (typeof body.state === 'string') patch.state = body.state.trim();
+    if (typeof body.payment_terms === 'string') patch.payment_terms = body.payment_terms.trim().slice(0, 2000);
+    if (typeof body.tender_ref_number === 'string') patch.tender_ref_number = body.tender_ref_number.trim().slice(0, 120);
+    if (typeof body.tender_deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.tender_deadline)) patch.tender_deadline = body.tender_deadline;
+    if (typeof body.tender_pbg === 'string') patch.tender_pbg = body.tender_pbg.trim().slice(0, 255);
+    if ('tender_emd' in body) {
+      const num = Number(body.tender_emd);
+      if (Number.isFinite(num) && num >= 0) patch.tender_emd = num;
+    }
+    if ('tender_estimated_value' in body) {
+      const num = Number(body.tender_estimated_value);
+      if (Number.isFinite(num) && num >= 0) patch.tender_estimated_value = num;
+    }
     // Stages marked "not required" — e.g. Site Visit on a deal whose demo was
     // given virtually. Only real forward stages can be skipped: the terminal
     // 'closed_lost' is an outcome rather than a step, and the stage a project

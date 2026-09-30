@@ -34,6 +34,7 @@ import ProjectLeadField from './ui/ProjectLeadField';
 import OpportunityTypeField from './ui/OpportunityTypeField';
 import { useProjectLeads } from './ui/useProjectLeads';
 import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
+import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE } from './ui/ProjectIntakeFields';
 
 const EMPTY_FORM = {
   clientName: '',
@@ -43,6 +44,7 @@ const EMPTY_FORM = {
   phone: '',
   email: '',
   address: '',
+  ...EMPTY_PROJECT_INTAKE,
   salesPersonId: '',
   projectLeadId: '',
   opportunityType: '' as OpportunityType | '',
@@ -587,6 +589,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 />
               </Field>
             </FieldRow>
+            {/* Project name, State/City, and the Referral / Tender blocks that
+                appear only for those sources. */}
+            <ProjectIntakeFields
+              source={form.source}
+              values={form}
+              onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+            />
             <Field label="Remarks">
               <Textarea rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
             </Field>
