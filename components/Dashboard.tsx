@@ -458,8 +458,11 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   );
 
   const [showAllAttention, setShowAllAttention] = useState(false);
-  const visibleAttentionItems = pendingAttentionItems.slice(0, ATTENTION_COMPACT_LIMIT);
-  const hiddenAttentionCount = pendingAttentionItems.length - visibleAttentionItems.length;
+  // The inline list now renders EVERY item and scrolls after
+  // ATTENTION_COMPACT_LIMIT rows (see .attentionScroll), so this count no
+  // longer decides what is rendered — only whether the full-screen drawer is
+  // worth offering, which it still is once the list outgrows the panel.
+  const hiddenAttentionCount = Math.max(0, pendingAttentionItems.length - ATTENTION_COMPACT_LIMIT);
 
   // Only declare "you're all caught up" once every signal this role
   // actually receives has resolved — otherwise a still-loading dashboard
@@ -533,8 +536,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           <div className={styles.attentionHead}>Needs Your Attention</div>
           {pendingAttentionItems.length > 0 ? (
             <>
-              <div className={styles.attentionList}>
-                {visibleAttentionItems.map((item) => (
+              <div className={`${styles.attentionList} ${styles.attentionScroll}`}>
+                {pendingAttentionItems.map((item) => (
                   <AttentionRow key={item.key} item={item} />
                 ))}
               </div>
@@ -874,6 +877,7 @@ function SalesTeamSummaryPanel({ rows }: { rows: SalesTeamSummaryRow[] | null })
           rows={rows}
           rowKey={(row) => row.id}
           tableClassName={styles.summaryTable}
+          wrapClassName={styles.summaryViewport}
           columns={[
             { key: 'name', header: 'Name', render: (row: SalesTeamSummaryRow) => row.name },
             { key: 'leads', header: 'Lead', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.leads },

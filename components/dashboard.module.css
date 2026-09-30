@@ -657,3 +657,34 @@
     background: var(--mx-brand-hover);
     transform: translateY(-1px);
 }
+
+/* Both dashboard queues cap at three rows, then scroll. They sit side by
+   side, so a ten-person sales team made the right-hand card three times the
+   height of the left one and pushed Department Health below the fold. */
+
+/* 57px = .attentionRow's 13px top + 13px bottom padding + its 30px icon +
+   the 1px divider. Kept as a comment rather than a magic number: change the
+   row's padding and this has to move with it. */
+.attentionScroll {
+    max-height: calc(57px * 3);
+    overflow-y: auto;
+}
+
+/* Deliberately NOT reusing .tableViewport from quotationHistory.module.css:
+   that also sets min-width:1420px for the 14-column Projects table, which
+   would force a horizontal scrollbar under this six-column one.
+   Element selectors (not .table) because that class belongs to a different
+   CSS module and its generated name is not addressable from here.
+   `.table` sets overflow:hidden for its rounded corners, which makes the
+   TABLE its own scrollport and lets its sticky <th> scroll away with the
+   rows — the wrapper already carries the radius, so it needn't clip. */
+.summaryViewport {
+    max-height: calc(44px * 4); /* header + 3 rows */
+    overflow-y: auto;
+}
+.summaryViewport table {
+    overflow: visible;
+}
+.summaryViewport table th {
+    z-index: 2;
+}
