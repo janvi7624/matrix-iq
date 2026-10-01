@@ -1233,7 +1233,12 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               <ProjectLeadField required value={convertLeadPick} onChange={(v) => { setConvertLeadTouched(true); setConvertLeadPick(v); }} disabled={converting} />
             </Field>
             <Field label="Department *">
-              <ProjectDepartmentField value={convertDepartments} onChange={setConvertDepartments} disabled={converting} />
+              <ProjectDepartmentField
+                departments={convertDepartments}
+                amounts={{}}
+                onChange={(departments) => setConvertDepartments(departments)}
+                disabled={converting}
+              />
             </Field>
           </Modal>
         )}
@@ -1326,8 +1331,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 <Field label="Department *">
                   <ProjectDepartmentField
                     disabled={savingCall}
-                    value={callForm.departments}
-                    onChange={(v) => setCallForm((f) => ({ ...f, departments: v }))}
+                    departments={callForm.departments}
+                    amounts={{}}
+                    onChange={(departments) => setCallForm((f) => ({ ...f, departments }))}
                   />
                 </Field>
               </>

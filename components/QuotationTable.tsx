@@ -40,26 +40,38 @@ function formatDate(iso: string): string {
   }
 }
 
-function renderProductDetail(productsJson: string): string {
-  let products: ProductDetailGroup[] = [];
+function parseProductGroups(productsJson: string): ProductDetailGroup[] {
   try {
-    products = JSON.parse(productsJson) || [];
+    return JSON.parse(productsJson) || [];
   } catch {
-    /* ignore */
+    return [];
   }
-  if (!products.length) return 'No product detail recorded.';
-  return products
-    .map((group) => {
-      const lines = (group.lineItems || [])
-        .map(
-          (li) =>
-            `  - ${li.description}  |  Qty: ${li.qty} ${li.unit || ''}  |  Rate: ${formatMoney(li.rate)}  |  Amount: ${formatMoney(li.amount)}`
-        )
-        .join('\n');
-      const remarkLine = group.remark && group.remark.trim() ? `\n  Remark: ${group.remark.trim()}` : '';
-      return `${group.label}\n${lines}${remarkLine}`;
-    })
-    .join('\n\n');
+}
+
+function formatDateOnly(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('en-IN');
+  } catch {
+    return iso;
+  }
+}
+
+function formatTimeOnly(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <div>
+      <div className={styles.qdLabel}>{label}</div>
+      <div className={styles.qdValue}>{value}</div>
+    </div>
+  );
 }
 
 // Version History — every revision of one quotation, oldest first, each row
@@ -141,6 +153,10 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
   const notes = parseFollowUpNotes(row.follow_up_notes_json);
   const effectiveStatus = computeEffectiveStatusClient(row);
   const rowRef = useRef<HTMLTableRowElement>(null);
+  // Built once so the visible text and its tooltip can't drift apart.
+  const clientLabel =
+    (row.client_name || row.client_company || '-') +
+    (row.client_company && row.client_name ? ` (${row.client_company})` : '');
 
   useEffect(() => {
     if (highlight) rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -156,23 +172,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
     }
   }
 
-  const detailText = [
-    `Prepared by: ${row.prepared_by || '-'}  |  Phone: ${row.prepared_by_phone || '-'}  |  Email: ${row.prepared_by_email || '-'}`,
-    `Client: ${row.client_name || '-'}  |  Company: ${row.client_company || '-'}  |  Email: ${row.client_email || '-'}  |  Phone: ${row.client_phone || '-'}`,
-    row.client_address ? `Address: ${row.client_address}` : '',
-    row.project_vertical ? `Project vertical: ${row.project_vertical}` : '',
-    `Validity: ${row.validity_days} days`,
-    '',
-    'Products:',
-    renderProductDetail(row.products_json),
-    '',
-    `Subtotal: ${formatMoney(row.subtotal)}  |  Markup: ${row.markup_percent}%  |  Discount: ${formatMoney(row.discount_total)}  |  GST: ${formatMoney(row.gst_amount)}  |  Total: ${formatMoney(row.total)}`,
-    '',
-    notes.length ? 'Follow-up history:' : 'Follow-up history: none yet',
-    ...notes.map((n) => `  - ${formatDate(n.at)} by ${n.by}: ${n.note || '(no note)'}`)
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const productGroups = parseProductGroups(row.products_json);
 
   async function handleLogFollowUp() {
     setBusy(true);
@@ -198,16 +198,18 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
             <span className={`${styles.rolePill} ${styles.rolePillBackoffice} ${styles.revisionTag}`}>Rev {row.revision_number}</span>
           )}
         </td>
-        <td>{formatDate(row.created_at)}</td>
+        <td className={styles.cellDate}>
+          {formatDateOnly(row.created_at)}
+          <span className={styles.cellTime}>{formatTimeOnly(row.created_at)}</span>
+        </td>
         <td>{row.prepared_by || '-'}</td>
         {showSalesPerson && <td>{row.created_by || '-'}</td>}
         <td>
-          {row.client_name || row.client_company || '-'}
-          {row.client_company && row.client_name ? ` (${row.client_company})` : ''}
+          <span className={styles.quotationCellWide} title={clientLabel}>{clientLabel}</span>
         </td>
-        <td>{row.domain_summary || '-'}</td>
-        <td>{row.project_vertical || '-'}</td>
-        <td>{row.products_summary || '-'}</td>
+        <td><span className={styles.quotationCell} title={row.domain_summary || undefined}>{row.domain_summary || '-'}</span></td>
+        <td><span className={styles.quotationCell} title={row.project_vertical || undefined}>{row.project_vertical || '-'}</span></td>
+        <td><span className={styles.quotationCellWide} title={row.products_summary || undefined}>{row.products_summary || '-'}</span></td>
         <td className={styles.amount}>{formatMoney(row.total)}</td>
         <td>
           {onChangeStatus ? (
@@ -263,7 +265,82 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
       {expanded && (
         <tr className={styles.detailsRow}>
           <td colSpan={showSalesPerson ? 13 : 12}>
-            <pre>{detailText}</pre>
+            <div className={styles.qdSection}>
+              <div className={styles.qdSectionTitle}>Prepared By</div>
+              <div className={styles.qdGrid}>
+                <Field label="Name" value={row.prepared_by} />
+                <Field label="Phone" value={row.prepared_by_phone} />
+                <Field label="Email" value={row.prepared_by_email} />
+              </div>
+            </div>
+
+            <div className={styles.qdSection}>
+              <div className={styles.qdSectionTitle}>Client</div>
+              <div className={styles.qdGrid}>
+                <Field label="Contact" value={row.client_name} />
+                <Field label="Company" value={row.client_company} />
+                <Field label="Email" value={row.client_email} />
+                <Field label="Phone" value={row.client_phone} />
+                <Field label="Address" value={row.client_address} />
+                <Field label="Project vertical" value={row.project_vertical} />
+                <Field label="Validity" value={`${row.validity_days} days`} />
+              </div>
+            </div>
+
+            <div className={styles.qdSection}>
+              <div className={styles.qdSectionTitle}>Products</div>
+              {productGroups.length === 0 ? (
+                <div className={styles.qdEmpty}>No product detail recorded.</div>
+              ) : (
+                productGroups.map((group, gi) => (
+                  <div key={`${group.label}-${gi}`} className={styles.qdGroup}>
+                    <div className={styles.qdGroupName}>{group.label}</div>
+                    {group.remark && group.remark.trim() && <div className={styles.qdGroupRemark}>{group.remark.trim()}</div>}
+                    <table className={styles.qdItems}>
+                      <thead>
+                        <tr>
+                          <th>Description</th>
+                          <th className={styles.qdNum}>Qty</th>
+                          <th className={styles.qdNum}>Rate</th>
+                          <th className={styles.qdNum}>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(group.lineItems || []).map((li, li_i) => (
+                          <tr key={`${li.description}-${li_i}`}>
+                            <td>{li.description}</td>
+                            <td className={styles.qdNum}>{li.qty} {li.unit || ''}</td>
+                            <td className={styles.qdNum}>{formatMoney(li.rate)}</td>
+                            <td className={styles.qdNum}>{formatMoney(li.amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))
+              )}
+              <div className={styles.qdTotals}>
+                <span className={styles.qdTotalItem}>Subtotal <b>{formatMoney(row.subtotal)}</b></span>
+                <span className={styles.qdTotalItem}>Markup <b>{row.markup_percent}%</b></span>
+                <span className={styles.qdTotalItem}>Discount <b>{formatMoney(row.discount_total)}</b></span>
+                <span className={styles.qdTotalItem}>GST <b>{formatMoney(row.gst_amount)}</b></span>
+                <span className={styles.qdGrandTotal}>Total <b>{formatMoney(row.total)}</b></span>
+              </div>
+            </div>
+
+            <div className={styles.qdSection}>
+              <div className={styles.qdSectionTitle}>Follow-up History</div>
+              {notes.length === 0 ? (
+                <div className={styles.qdEmpty}>No follow-ups logged yet.</div>
+              ) : (
+                notes.map((n, ni) => (
+                  <div key={`${n.at}-${ni}`} className={styles.qdFollowUp}>
+                    <div>{n.note || <span className={styles.qdEmpty}>(no note)</span>}</div>
+                    <div className={styles.qdFollowUpMeta}>{formatDate(n.at)} · {n.by}</div>
+                  </div>
+                ))
+              )}
+            </div>
             <div className={styles.followUpForm}>
               <input
                 type="text"
@@ -276,7 +353,9 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
               </button>
             </div>
             <div className={styles.navGroupLabel}>Version History</div>
-            <VersionHistory quotationId={row.id} />
+            <div className={styles.versionTableWrap}>
+              <VersionHistory quotationId={row.id} />
+            </div>
           </td>
         </tr>
       )}
@@ -295,7 +374,7 @@ interface QuotationTableProps {
 
 export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus, highlightId }: QuotationTableProps) {
   return (
-    <TableWrap>
+    <TableWrap className={styles.quotationViewport}>
     <table className={styles.table}>
       <thead>
         <tr>

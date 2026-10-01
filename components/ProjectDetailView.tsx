@@ -57,7 +57,7 @@ import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import ProjectDepartmentField from './ui/ProjectDepartmentField';
-import { ProjectDepartment, formatProjectDepartments } from '@/lib/projectDepartmentOptions';
+import { DepartmentAmounts, ProjectDepartment, formatProjectDepartments } from '@/lib/projectDepartmentOptions';
 import styles from './projectDetail.module.css';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { useToast } from './ui/ToastProvider';
@@ -462,6 +462,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // not yet written. Kept separate from the saved value so ticking the second
   // box of a combined deal doesn't fire a save of the half-finished pick.
   const [departmentDraft, setDepartmentDraft] = useState<ProjectDepartment[] | null>(null);
+  const [departmentAmountDraft, setDepartmentAmountDraft] = useState<DepartmentAmounts | null>(null);
   const projectLeads = useProjectLeads();
 
   const overviewValue = (field: OverviewField): string =>
@@ -537,13 +538,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // Saved on the spot rather than through overviewDraft, which is a
   // string-per-field map and cannot carry a list. Same approach as
   // toggleSkippedStage below, the other list-valued edit on this page.
-  async function saveDepartments(next: ProjectDepartment[]) {
+  async function saveDepartments(next: ProjectDepartment[], nextAmounts: DepartmentAmounts) {
     setSavingDepartments(true);
     try {
-      await patchProject({ departments: next });
+      await patchProject({ departments: next, departmentAmounts: nextAmounts });
       // Only drop the draft once the write succeeded — a failed save must
       // leave the person's pick on screen to retry, not silently revert it.
       setDepartmentDraft(null);
+      setDepartmentAmountDraft(null);
     } finally {
       setSavingDepartments(false);
     }
@@ -949,8 +951,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // Show Save only once the pick actually differs from what is stored — both
   // sides are canonically ordered by parseProjectDepartments/the picker, so a
   // plain join comparison is exact, not order-dependent.
+  // Dirty when either the department list OR the split changed — editing only
+  // an amount has to offer Save too.
   const departmentDirty =
-    departmentDraft !== null && departmentDraft.join(',') !== (project.departments ?? []).join(',');
+    (departmentDraft !== null && departmentDraft.join(',') !== (project.departments ?? []).join(',')) ||
+    (departmentAmountDraft !== null &&
+      JSON.stringify(departmentAmountDraft) !== JSON.stringify(project.department_amounts ?? {}));
   const salesTeam = [...new Set([project.sales_person, ...siteVisits.flatMap((v) => v.team_sales)].filter(Boolean))];
   // "Change" once the project already has one — correcting a wrong sales
   // person is the everyday case for an admin, and "Assign" reads as if the
@@ -1600,9 +1606,13 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 {canEdit ? (
                   <>
                     <ProjectDepartmentField
-                      value={departmentDraft ?? project.departments ?? []}
+                      departments={departmentDraft ?? project.departments ?? []}
+                      amounts={departmentAmountDraft ?? project.department_amounts ?? {}}
                       disabled={savingDepartments}
-                      onChange={(next) => setDepartmentDraft(next)}
+                      onChange={(departments, amounts) => {
+                        setDepartmentDraft(departments);
+                        setDepartmentAmountDraft(amounts);
+                      }}
                     />
                     {departmentDirty && (
                       <div className={`${calcStyles.row} ${calcStyles.mt4}`}>
@@ -1610,7 +1620,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                           type="button"
                           className={`${historyStyles.button} ${historyStyles.primary}`}
                           disabled={savingDepartments}
-                          onClick={() => void saveDepartments(departmentDraft ?? [])}
+                          onClick={() => void saveDepartments(departmentDraft ?? project.departments ?? [], departmentAmountDraft ?? project.department_amounts ?? {})}
                         >
                           {savingDepartments ? 'Saving…' : 'Save Department'}
                         </button>
@@ -1618,7 +1628,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                           type="button"
                           className={historyStyles.button}
                           disabled={savingDepartments}
-                          onClick={() => setDepartmentDraft(null)}
+                          onClick={() => { setDepartmentDraft(null); setDepartmentAmountDraft(null); }}
                         >
                           Cancel
                         </button>

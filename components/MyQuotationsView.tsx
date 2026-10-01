@@ -15,6 +15,9 @@ import FilterBar from './ui/FilterBar';
 import Select from './ui/Select';
 import Input from './ui/Input';
 import ToolbarButton, { ToolbarLink } from './ui/ToolbarButton';
+import Table from './ui/Table';
+import { formatMoney } from '@/lib/format';
+import { computeEffectiveStatusClient } from '@/lib/quotationStatus';
 
 const STATUS_OPTIONS: { value: QuotationEffectiveStatus; label: string }[] = [
   { value: 'draft', label: 'Draft' },
@@ -23,6 +26,18 @@ const STATUS_OPTIONS: { value: QuotationEffectiveStatus; label: string }[] = [
   { value: 'rejected', label: 'Rejected' },
   { value: 'expired', label: 'Expired' }
 ];
+
+interface QuotationSummaryRow {
+  name: string;
+  /** The appended team-wide row, styled as a footer rather than a person. */
+  isTotal?: boolean;
+  value: number;
+  total: number;
+  draft: number;
+  sent: number;
+  approved: number;
+  followUps: number;
+}
 
 interface CurrentViewer {
   username: string;
@@ -105,6 +120,55 @@ export default function MyQuotationsView() {
 
   const visibleRows = useMemo(() => (followUpOnly ? rows.filter((r) => needsFollowUp(r)) : rows), [rows, followUpOnly]);
 
+  // Per-person roll-up for Sales leadership. Built from `rows` — what the
+  // search actually returned — not `visibleRows`, so switching the
+  // "needs follow-up only" view filter re-scopes the TABLE without silently
+  // rewriting the summary underneath it.
+  //
+  // Status comes from computeEffectiveStatusClient, the same function the
+  // table's Status column uses. Reading `r.status` would be wrong: 'expired'
+  // is derived from the validity window and never stored, so a lapsed
+  // quotation would be counted as whatever it was last saved as and the
+  // summary would disagree with the rows below it.
+  const teamSummary = useMemo(() => {
+    const byPerson = new Map<string, QuotationSummaryRow>();
+    for (const r of rows) {
+      const who = r.created_by || r.prepared_by || 'Unattributed';
+      let row = byPerson.get(who);
+      if (!row) {
+        row = { name: who, value: 0, total: 0, draft: 0, sent: 0, approved: 0, followUps: 0 };
+        byPerson.set(who, row);
+      }
+      row.total += 1;
+      row.value += typeof r.total === 'number' ? r.total : 0;
+      const effective = computeEffectiveStatusClient(r);
+      if (effective === 'draft') row.draft += 1;
+      else if (effective === 'sent') row.sent += 1;
+      else if (effective === 'approved') row.approved += 1;
+      if (needsFollowUp(r)) row.followUps += 1;
+    }
+    // Highest quote value first — a name-sorted list tells a manager nothing
+    // at a glance. Name breaks ties so the order is stable.
+    const people = [...byPerson.values()].sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+    if (people.length < 2) return people;
+    // A team-wide row, so the question "what did we quote in total" doesn't
+    // need mental arithmetic. Only worth showing once there's more than one
+    // person to add up.
+    const totals: QuotationSummaryRow = {
+      name: 'Team total',
+      isTotal: true,
+      value: people.reduce((n, r) => n + r.value, 0),
+      total: people.reduce((n, r) => n + r.total, 0),
+      draft: people.reduce((n, r) => n + r.draft, 0),
+      sent: people.reduce((n, r) => n + r.sent, 0),
+      approved: people.reduce((n, r) => n + r.approved, 0),
+      followUps: people.reduce((n, r) => n + r.followUps, 0)
+    };
+    return [...people, totals];
+  }, [rows]);
+
+  const peopleCount = teamSummary.filter((r) => !r.isTotal).length;
+
   const salesPeople = useMemo(() => {
     const set = new Set<string>();
     for (const r of rows) {
@@ -167,6 +231,64 @@ export default function MyQuotationsView() {
 
   return (
     <AppShell title="Existing Quotations" subtitle={subtitle}>
+      {/* Sales leadership only — a rep looking at their own quotations has
+          no use for a one-row table of themselves. */}
+      {isPrivileged && teamSummary.length > 0 && (
+        <div className={historyStyles.teamSummaryCard}>
+          <div className={historyStyles.teamSummaryHead}>
+            <h3 className={historyStyles.teamSummaryTitle}>Sales Team Summary</h3>
+            <span className={historyStyles.teamSummaryMeta}>
+              {peopleCount} {peopleCount === 1 ? 'person' : 'people'} · {rows.length} quotation{rows.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <Table
+            rows={teamSummary}
+            rowKey={(row) => row.name}
+            tableClassName={historyStyles.teamSummaryTable}
+            wrapClassName={historyStyles.teamSummaryViewport}
+            rowClassName={(row) => (row.isTotal ? historyStyles.teamSummaryTotalRow : undefined)}
+            columns={[
+              { key: 'name', header: 'Sales Team', render: (row) => row.name },
+              {
+                key: 'value',
+                header: 'Quote Value',
+                headerClassName: historyStyles.teamSummaryNum,
+                cellClassName: historyStyles.teamSummaryNum,
+                render: (row) => formatMoney(row.value)
+              },
+              ...([
+                { key: 'total', header: 'Total Quotes', pick: (row: QuotationSummaryRow) => row.total },
+                { key: 'draft', header: 'Draft', pick: (row: QuotationSummaryRow) => row.draft },
+                { key: 'sent', header: 'Sent', pick: (row: QuotationSummaryRow) => row.sent },
+                { key: 'approved', header: 'Approved', pick: (row: QuotationSummaryRow) => row.approved }
+              ].map((c) => ({
+                key: c.key,
+                header: c.header,
+                headerClassName: historyStyles.teamSummaryNum,
+                cellClassName: historyStyles.teamSummaryNum,
+                // A zero is greyed rather than printed at full strength, so
+                // the eye lands on the columns that actually have something.
+                render: (row: QuotationSummaryRow) => (
+                  <span className={c.pick(row) === 0 ? historyStyles.teamSummaryZero : undefined}>{c.pick(row)}</span>
+                )
+              }))),
+              {
+                key: 'followUps',
+                header: 'Follow-ups Due',
+                headerClassName: historyStyles.teamSummaryNum,
+                cellClassName: historyStyles.teamSummaryNum,
+                // The one actionable number in the table — called out in the
+                // danger colour when there is anything outstanding.
+                render: (row) => (
+                  <span className={row.followUps > 0 ? historyStyles.teamSummaryFlag : historyStyles.teamSummaryZero}>
+                    {row.followUps}
+                  </span>
+                )
+              }
+            ]}
+          />
+        </div>
+      )}
       <FilterBar>
         <input
           type="text"

@@ -666,6 +666,7 @@
    the 1px divider. Kept as a comment rather than a magic number: change the
    row's padding and this has to move with it. */
 .attentionScroll {
+    composes: mx-visible-scroll from global;
     max-height: calc(57px * 3);
     overflow-y: auto;
 }
@@ -679,6 +680,7 @@
    TABLE its own scrollport and lets its sticky <th> scroll away with the
    rows — the wrapper already carries the radius, so it needn't clip. */
 .summaryViewport {
+    composes: mx-visible-scroll from global;
     max-height: calc(44px * 4); /* header + 3 rows */
     overflow-y: auto;
 }

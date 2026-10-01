@@ -2,8 +2,20 @@
    controls, buttons, toggle, modal chrome) comes from the legacy .module.css
    files the individual ui/ primitives already wrap. */
 
-.selectAuto {
+/* Doubled class on purpose — this is a specificity fix, not a typo.
+   Select/Input put this class AND calculator.module.css's .formControl
+   (width:100%) on the same element. Both are a single class, so the winner
+   is decided by which stylesheet comes last — and that order differs
+   between the dev server's per-module injection and the production bundle.
+   In production .formControl won, so every toolbar filter went full width
+   and stacked one per line instead of sitting inline.
+   `.selectAuto.selectAuto` scores 0,2,0 and therefore beats .formControl
+   whatever order the two files end up in. Preferred over !important, which
+   would also block a caller's own deliberate width override. */
+.selectAuto.selectAuto {
     width: auto;
+    /* Don't let a flex row stretch them back to full width either. */
+    flex: 0 0 auto;
 }
 
 .modalFooter {

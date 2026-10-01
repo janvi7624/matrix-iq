@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FileText, Layers, Paperclip, ShoppingCart, Check } from 'lucide-react';
-import { DeadlineExtensionReason, DeadlineExtensionStatus, TmsBomRequestRecord, TmsDeadlineExtensionRecord, TmsPriority, TmsProcurementRecord, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
+import { DeadlineExtensionReason, DeadlineExtensionStatus, TmsBomRequestRecord, TmsDeadlineExtensionRecord, TmsPriority, TmsProcurementRecord, TmsProjectPhaseRecord, TmsProjectPhaseStatus, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
@@ -12,6 +12,7 @@ import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import PriorityBadge from './ui/PriorityBadge';
 import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useToast } from './ui/ToastProvider';
+import { useConfirm } from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
 import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
@@ -25,6 +26,17 @@ import { classifyDeadline, DEADLINE_BUCKET_BAND, DEADLINE_BUCKET_LABEL } from '@
 import { BAND_COLOR } from './ui/HealthGauge';
 import { AuditLogEntry } from '@/lib/types';
 import styles from './tmsDetail.module.css';
+
+const PHASE_LABEL: Record<TmsProjectPhaseStatus, string> = {
+  pending: 'Pending',
+  in_progress: 'In Progress',
+  completed: 'Completed'
+};
+const PHASE_TONE: Record<TmsProjectPhaseStatus, StatusTone> = {
+  pending: 'pending',
+  in_progress: 'confirmed',
+  completed: 'won'
+};
 
 const EXTENSION_STATUS_LABEL: Record<DeadlineExtensionStatus, string> = {
   pending_manager: 'Pending Manager Approval',
@@ -93,6 +105,7 @@ interface DetailResponse {
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'tasks', label: 'Tasks' },
+  { key: 'phases', label: 'Phases' },
   { key: 'bom', label: 'BOM Requests' },
   { key: 'procurement', label: 'Procurement' },
   { key: 'team', label: 'Team' },
@@ -129,6 +142,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
   const isAdminTier = currentUser.role === 'admin' || currentUser.role === 'superadmin';
   const isManagerTier = TMS_MANAGER_TIER_ROLES.has(currentUser.role) && !isAdminTier;
   const toast = useToast();
+  const confirm = useConfirm();
   const [data, setData] = useState<DetailResponse | null>(null);
   const [showExtendDeadline, setShowExtendDeadline] = useState(false);
   const [status, setStatus] = useState('Loading...');
@@ -138,6 +152,82 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
   const [editForm, setEditForm] = useState<{ status: TmsProjectStatus; priority: TmsPriority; progressPercent: number; remarks: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<PersonPickerOption[]>([]);
+
+  // Phase-wise delivery. Loaded separately from the project detail rather
+  // than folded into it, so adding or completing a phase refreshes just this
+  // list instead of re-fetching tasks, BOM and procurement with it.
+  const [phases, setPhases] = useState<TmsProjectPhaseRecord[] | null>(null);
+  const [phaseForm, setPhaseForm] = useState({ name: '', description: '', expectedEndDate: '' });
+  const [phaseBusy, setPhaseBusy] = useState(false);
+
+  async function loadPhases() {
+    try {
+      const response = await fetch(`/api/tms/projects/${projectId}/phases`);
+      setPhases(response.ok ? await response.json() : []);
+    } catch {
+      setPhases([]);
+    }
+  }
+
+  async function addPhase() {
+    if (!phaseForm.name.trim()) {
+      toast.error('Phase name is required.');
+      return;
+    }
+    setPhaseBusy(true);
+    try {
+      const response = await fetch(`/api/tms/projects/${projectId}/phases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(phaseForm)
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || String(response.status));
+      setPhaseForm({ name: '', description: '', expectedEndDate: '' });
+      await loadPhases();
+      toast.success('Phase added.');
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : 'Could not add this phase.');
+    } finally {
+      setPhaseBusy(false);
+    }
+  }
+
+  async function patchPhase(id: string, patch: Record<string, unknown>) {
+    setPhaseBusy(true);
+    try {
+      const response = await fetch(`/api/tms/project-phases/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch)
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || String(response.status));
+      await loadPhases();
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : 'Could not update this phase.');
+    } finally {
+      setPhaseBusy(false);
+    }
+  }
+
+  async function deletePhase(phase: TmsProjectPhaseRecord) {
+    if (!(await confirm({ message: `Delete phase "${phase.name}"? This cannot be undone.`, danger: true }))) return;
+    setPhaseBusy(true);
+    try {
+      const response = await fetch(`/api/tms/project-phases/${phase.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || String(response.status));
+      }
+      await loadPhases();
+      toast.success('Phase deleted.');
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : 'Could not delete this phase.');
+    } finally {
+      setPhaseBusy(false);
+    }
+  }
   const [editingTeam, setEditingTeam] = useState(false);
   const [teamEditIds, setTeamEditIds] = useState<string[]>([]);
   const [savingTeam, setSavingTeam] = useState(false);
@@ -171,6 +261,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
 
   useEffect(() => {
     load();
+    loadPhases();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
@@ -467,6 +558,107 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           </table>
           </div>
         )
+      )}
+
+      {tab === 'phases' && (
+        <div className={calcStyles.sectionPanel}>
+          <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Delivery Phases</div>
+          <div className={calcStyles.small}>
+            For a project delivered in stages — each phase carries its own expected end date, separate from the project&apos;s overall deadline.
+          </div>
+
+          <FieldRow className={calcStyles.mt12}>
+            <Field label="Phase name *">
+              <Input
+                value={phaseForm.name}
+                disabled={phaseBusy}
+                placeholder="e.g. Phase 1 — Site survey"
+                onChange={(e) => setPhaseForm((f) => ({ ...f, name: e.target.value }))}
+              />
+            </Field>
+            <Field label="Expected end date">
+              <Input
+                type="date"
+                value={phaseForm.expectedEndDate}
+                disabled={phaseBusy}
+                onChange={(e) => setPhaseForm((f) => ({ ...f, expectedEndDate: e.target.value }))}
+              />
+            </Field>
+          </FieldRow>
+          <Field label="Description">
+            <Textarea
+              rows={2}
+              value={phaseForm.description}
+              disabled={phaseBusy}
+              placeholder="What is delivered in this phase (optional)."
+              onChange={(e) => setPhaseForm((f) => ({ ...f, description: e.target.value }))}
+            />
+          </Field>
+          <button type="button" className={calcStyles.btn} disabled={phaseBusy} onClick={() => void addPhase()}>
+            {phaseBusy ? 'Saving…' : '+ Add Phase'}
+          </button>
+
+          {phases === null ? (
+            <div className={`${calcStyles.small} ${calcStyles.mt12}`}>Loading phases…</div>
+          ) : phases.length === 0 ? (
+            <EmptyState
+              icon={Layers}
+              title="No phases yet"
+              message="Add a phase above if this project is delivered in stages."
+            />
+          ) : (
+            <div className={calcStyles.mt12}>
+              {phases.map((phase, index) => {
+                // Overdue only matters while the phase is still open — a
+                // completed phase that ran late is history, not an alarm.
+                const overdue =
+                  phase.status !== 'completed' &&
+                  !!phase.expected_end_date &&
+                  phase.expected_end_date < new Date().toISOString().slice(0, 10);
+                return (
+                  <div key={phase.id} className={styles.phaseRow}>
+                    <div className={styles.phaseIndex}>{index + 1}</div>
+                    <div className={styles.phaseBody}>
+                      <div className={styles.phaseTop}>
+                        <span className={styles.phaseName}>{phase.name}</span>
+                        <StatusBadge tone={PHASE_TONE[phase.status]} label={PHASE_LABEL[phase.status]} />
+                        {overdue && <StatusBadge tone="lost" label="Overdue" />}
+                      </div>
+                      {phase.description && <div className={styles.phaseDesc}>{phase.description}</div>}
+                      <div className={styles.phaseMeta}>
+                        {phase.expected_end_date ? `Expected ${formatDate(phase.expected_end_date)}` : 'No expected date set'}
+                        {phase.completed_at ? ` · Completed ${formatDate(phase.completed_at)}` : ''}
+                        {phase.created_by_name ? ` · Added by ${phase.created_by_name}` : ''}
+                      </div>
+                    </div>
+                    <div className={styles.phaseActions}>
+                      <Select
+                        auto
+                        value={phase.status}
+                        disabled={phaseBusy}
+                        onChange={(e) => void patchPhase(phase.id, { status: e.target.value as TmsProjectPhaseStatus })}
+                      >
+                        {(Object.keys(PHASE_LABEL) as TmsProjectPhaseStatus[]).map((st) => (
+                          <option key={st} value={st}>{PHASE_LABEL[st]}</option>
+                        ))}
+                      </Select>
+                      <Input
+                        auto
+                        type="date"
+                        value={phase.expected_end_date}
+                        disabled={phaseBusy}
+                        onChange={(e) => void patchPhase(phase.id, { expectedEndDate: e.target.value })}
+                      />
+                      <ToolbarButton disabled={phaseBusy} onClick={() => void deletePhase(phase)}>
+                        Delete
+                      </ToolbarButton>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {tab === 'bom' && (

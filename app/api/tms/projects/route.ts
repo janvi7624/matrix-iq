@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createPhase } from '@/lib/tmsProjectPhaseStore';
 import { getTmsViewer, requireTmsAction, TMS_DEPARTMENTS } from '@/lib/tmsAccess';
 import { tmsProjectStore, nextTmsProjectCode } from '@/lib/tmsProjectStore';
 import { findDepartmentById } from '@/lib/departmentStore';
@@ -93,6 +94,28 @@ export async function POST(request: NextRequest) {
 
   try {
     const created = await tmsProjectStore.create(record);
+
+    // Delivery phases entered on the create form, in the order they were
+    // listed. Created AFTER the project because each needs its id, and
+    // best-effort on purpose: a phase that fails to save must not undo a
+    // project that already exists — the Phases tab can add it afterwards.
+    // Named phases only; a blank row left behind on the form is skipped
+    // rather than stored as an untitled phase.
+    if (Array.isArray(body.phases)) {
+      for (const raw of body.phases as unknown[]) {
+        const phase = raw as { name?: unknown; description?: unknown; expectedEndDate?: unknown };
+        const phaseName = typeof phase?.name === 'string' ? phase.name.trim() : '';
+        if (!phaseName) continue;
+        await createPhase({
+          tmsProjectId: created.id,
+          name: phaseName,
+          description: typeof phase.description === 'string' ? phase.description : '',
+          expectedEndDate: typeof phase.expectedEndDate === 'string' ? phase.expectedEndDate : '',
+          createdByUserId: viewer.userId
+        }).catch(() => null);
+      }
+    }
+
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

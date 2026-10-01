@@ -118,11 +118,14 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
   return (
     <AppShell title="Procurement" subtitle="Purchase and delivery tracking from approved BOM requests.">
       <div className={historyStyles.actionRow}>
-        {/* Hidden while the list is genuinely empty — the New button lives in
-            the empty state instead, where the person is already looking. Still
-            shown once the form is open, because this same button is the form's
-            Cancel and hiding it would leave no way out. */}
-        {(records.length > 0 || showForm) && (
+        {/* Hidden whenever the table is showing its empty state, because that
+            state carries the New button itself — two of the same button on
+            one screen is worse than none. Keyed on the FILTERED rows, not the
+            full list: a bucket or filter that matches nothing still renders
+            the empty state, so the header button has to stand down then too.
+            Still shown once the form is open, because this same button is the
+            form's Cancel and hiding it would leave no way out. */}
+        {(loading || filtered.length > 0 || showForm) && (
           <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
             {showForm ? 'Cancel' : '+ New Procurement Entry'}
           </button>
@@ -200,7 +203,7 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
               icon={ShoppingCart}
               title={records.length === 0 ? 'No procurement records yet' : 'No records match your filters'}
               message={records.length === 0 ? 'Approved BOM requests sent to procurement will appear here, or add one manually.' : 'Try clearing a filter or search term.'}
-              action={records.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Procurement Entry</button> : undefined}
+              action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Procurement Entry</button>}
             />
           }
         />

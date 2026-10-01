@@ -25,7 +25,17 @@ import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
 
+interface PhaseDraft {
+  name: string;
+  description: string;
+  expectedEndDate: string;
+}
+
 const EMPTY_FORM = {
+  // Delivery phases planned up front. Optional — a project delivered in one
+  // go simply leaves this empty, and phases can still be added later from
+  // the project's own Phases tab.
+  phases: [] as PhaseDraft[],
   name: '',
   clientName: '',
   clientContact: '',
@@ -151,6 +161,12 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       toast.error('Select at least 2 departments for a combined project.');
       return;
     }
+    // A row with a date but no name is half-filled, not a phase — refusing
+    // beats silently dropping it, which would look like the phase saved.
+    if (form.phases.some((p) => !p.name.trim() && (p.expectedEndDate || p.description.trim()))) {
+      toast.error('Give every delivery phase a name, or remove the empty row.');
+      return;
+    }
     setCreating(true);
     try {
       const response = await fetch('/api/tms/projects', {
@@ -204,11 +220,14 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   return (
     <AppShell title="TMS Projects" subtitle="Technical execution projects — team, budget, status, and progress.">
       <div className={historyStyles.actionRow}>
-        {/* Hidden while the list is genuinely empty — the New button lives in
-            the empty state instead, where the person is already looking. Still
-            shown once the form is open, because this same button is the form's
-            Cancel and hiding it would leave no way out. */}
-        {(projects.length > 0 || showForm) && (
+        {/* Hidden whenever the table is showing its empty state, because that
+            state carries the New button itself — two of the same button on
+            one screen is worse than none. Keyed on the FILTERED rows, not the
+            full list: a bucket or filter that matches nothing still renders
+            the empty state, so the header button has to stand down then too.
+            Still shown once the form is open, because this same button is the
+            form's Cancel and hiding it would leave no way out. */}
+        {(loading || filtered.length > 0 || showForm) && (
           <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
             {showForm ? 'Cancel' : '+ New Project'}
           </button>
@@ -319,6 +338,57 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
           <Field label="Notes / Remarks">
             <Textarea rows={2} value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} />
           </Field>
+          <div className={calcStyles.phasePlanBox}>
+            <div className={calcStyles.phasePlanHead}>
+              <span className={calcStyles.label}>Delivery Phases</span>
+              <ToolbarButton
+                disabled={creating}
+                onClick={() =>
+                  setForm((f) => ({ ...f, phases: [...f.phases, { name: '', description: '', expectedEndDate: '' }] }))
+                }
+              >
+                + Add Phase
+              </ToolbarButton>
+            </div>
+            <div className={calcStyles.small}>
+              Optional — only if this project is delivered in stages. Each phase gets its own expected end date, separate from the project deadline.
+            </div>
+            {form.phases.map((phase, index) => (
+              <div key={index} className={calcStyles.phasePlanRow}>
+                <span className={calcStyles.phasePlanIndex}>{index + 1}</span>
+                <Input
+                  placeholder="Phase name, e.g. Site survey"
+                  value={phase.name}
+                  disabled={creating}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      phases: f.phases.map((p, i) => (i === index ? { ...p, name: e.target.value } : p))
+                    }))
+                  }
+                />
+                <Input
+                  auto
+                  type="date"
+                  value={phase.expectedEndDate}
+                  disabled={creating}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      phases: f.phases.map((p, i) => (i === index ? { ...p, expectedEndDate: e.target.value } : p))
+                    }))
+                  }
+                />
+                <ToolbarButton
+                  disabled={creating}
+                  onClick={() => setForm((f) => ({ ...f, phases: f.phases.filter((_, i) => i !== index) }))}
+                >
+                  Remove
+                </ToolbarButton>
+              </div>
+            ))}
+          </div>
+
           <SubmitButton disabled={creating}>{creating ? 'Creating…' : 'Create project'}</SubmitButton>
         </form>
       )}
@@ -365,7 +435,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
               icon={Layers}
               title={projects.length === 0 ? 'No TMS projects yet' : 'No projects match your filters'}
               message={projects.length === 0 ? 'Create your first technical project to start assigning tasks and tracking work.' : 'Try clearing a filter or search term.'}
-              action={projects.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Project</button> : undefined}
+              action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Project</button>}
             />
           }
         />

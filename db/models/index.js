@@ -44,6 +44,7 @@ const modelDefiners = [
   require('./tmsBomRequest.js'),
   require('./tmsProcurement.js'),
   require('./tmsProjectDeadlineExtension.js'),
+  require('./tmsProjectPhase.js'),
   require('./tmsProjectDepartment.js'),
   require('./tmsTaskUpdate.js'),
   require('./auditLog.js'),

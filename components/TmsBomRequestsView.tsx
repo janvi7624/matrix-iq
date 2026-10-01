@@ -128,11 +128,14 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
   return (
     <AppShell title="BOM Request" subtitle="Bill of materials requests, review, and approval.">
       <div className={historyStyles.actionRow}>
-        {/* Hidden while the list is genuinely empty — the New button lives in
-            the empty state instead, where the person is already looking. Still
-            shown once the form is open, because this same button is the form's
-            Cancel and hiding it would leave no way out. */}
-        {(records.length > 0 || showForm) && (
+        {/* Hidden whenever the table is showing its empty state, because that
+            state carries the New button itself — two of the same button on
+            one screen is worse than none. Keyed on the FILTERED rows, not the
+            full list: a bucket or filter that matches nothing still renders
+            the empty state, so the header button has to stand down then too.
+            Still shown once the form is open, because this same button is the
+            form's Cancel and hiding it would leave no way out. */}
+        {(loading || filtered.length > 0 || showForm) && (
           <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
             {showForm ? 'Cancel' : '+ New BOM Request'}
           </button>
@@ -223,7 +226,7 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
               icon={FileText}
               title={records.length === 0 ? 'No BOM requests yet' : 'No requests match your filters'}
               message={records.length === 0 ? 'Create a request to start tracking material requirements.' : 'Try clearing a filter or search term.'}
-              action={records.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New BOM Request</button> : undefined}
+              action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New BOM Request</button>}
             />
           }
         />

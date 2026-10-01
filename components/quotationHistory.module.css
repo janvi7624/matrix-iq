@@ -128,7 +128,13 @@
 .statusPill { display: inline-block; padding: 3px 10px; border-radius: var(--mx-radius-full); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
 .statusPillActive { background: var(--mx-success-subtle); color: var(--mx-success); }
 .statusPillInactive { background: rgba(107, 114, 128, 0.14); color: var(--mx-ink-muted); }
-.tableWrap { overflow-x: auto; border-radius: var(--mx-radius-sm); }
+.tableWrap {
+    /* Every table in the app scrolls through this wrapper, so the visible
+       scrollbar is opted into once, here, rather than per view. */
+    composes: mx-visible-scroll from global;
+    overflow-x: auto;
+    border-radius: var(--mx-radius-sm);
+}
 
 /* Opt-in via Table's `tableClassName` — table-layout:auto (the .table
    default above) sizes every column to fit its content on one line, which
@@ -167,8 +173,7 @@
    one character per line). Project Lead is the 14th column. */
 .colClient { width: 8%; }
 .colSalesPerson { width: 6%; }
-/* Holds "Robotics" and combined values like "AI + Robotics", so it needs
-   more than the 6% a one-word column gets. The 6% for it was reclaimed from
+/* Holds "Robotics", the longest of the three department labels. The 6% for it was reclaimed from
    Client, Project Lead, Confirmation, Last Remark and Actions so the widths
    still total 100% — see the warning above about columns without one. */
 .colDepartment { width: 6%; }
@@ -202,7 +207,11 @@
       the bottom of the visible table, and .table th's existing
       position:sticky finally has a scroll container to stick to — the header
       row stays put while the rows move. */
-.tableViewport { max-height: min(72vh, 780px); overflow: auto; }
+.tableViewport {
+    composes: mx-visible-scroll from global;
+    max-height: min(72vh, 780px);
+    overflow: auto;
+}
 /* .table sets overflow:hidden (for its rounded corners), which makes the
    TABLE the scrollport for its own sticky <th> — so the header scrolled away
    with the rows. The wrapper already carries the radius, so the table doesn't
@@ -1357,3 +1366,222 @@
    doesn't import), so the loading/error/empty states silently rendered
    unstyled. Added to match calculator.module.css's `.small` exactly. */
 .small { font-size: 0.92rem; color: #94a3b8; }
+
+/* ---- Existing Quotations (components/QuotationTable.tsx) ----
+   This table previously rendered in a bare .tableWrap, which is overflow-x
+   only: with no height cap the horizontal scrollbar sat below the LAST row,
+   so with 40 quotations you had to scroll to the bottom of the page before
+   you could scroll sideways — and .table th's position:sticky had no scroll
+   container to stick to, so the header scrolled away with the rows.
+
+   Deliberately its own class rather than reusing .tableViewport: that one
+   carries min-width:1420px sized for the Project Dashboard's column set, and
+   moves every time a column is added there. This table has its own 13. */
+.quotationViewport {
+    composes: mx-visible-scroll from global;
+    max-height: min(68vh, 720px);
+    overflow: auto;
+}
+/* .table sets overflow:hidden for its rounded corners, which makes the TABLE
+   its own scrollport and defeats the sticky header. The wrapper already
+   carries the radius, so the table needn't clip. */
+.quotationViewport .table {
+    min-width: 1180px;
+    overflow: visible;
+}
+.quotationViewport .table th {
+    z-index: 2;
+}
+/* On a short screen the filter bar above leaves little room. */
+@media (max-height: 900px) {
+    .quotationViewport { max-height: 58vh; }
+}
+
+/* Client / Domain / Vertical / Products are free text and were routinely
+   long enough to stretch one column across half the table, squeezing Total
+   and Status into unreadable slivers. Clamped to one line with an ellipsis;
+   the full value stays available as a tooltip, and the expanded row below
+   shows all of it anyway. */
+.quotationCell {
+    display: block;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.quotationCellWide {
+    composes: quotationCell;
+    max-width: 260px;
+}
+
+/* The expanded detail is pre-formatted text — a long unbroken product code
+   or URL would otherwise push the whole table wider. */
+.detailsRow pre {
+    overflow-wrap: anywhere;
+}
+/* Version History is its own 8-column table inside an already-scrolling
+   cell; give it a scroller of its own so it never widens the parent. */
+.versionTableWrap {
+    composes: mx-visible-scroll from global;
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+/* ---- Sales Team Summary on Existing Quotations (leadership only) ----
+   Same card shell as the Dashboard's own Sales Team Summary, so a manager
+   reads the two as one report rather than two unrelated tables. */
+.teamSummaryCard {
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg);
+    box-shadow: var(--mx-shadow-sm);
+    padding: 16px 18px;
+    margin-bottom: 16px;
+    min-width: 0;
+}
+.teamSummaryHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.teamSummaryTitle {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--mx-ink);
+    margin: 0;
+}
+.teamSummaryMeta {
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+}
+.teamSummaryNum {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+/* Right-alignment has to out-specify the shared table's own
+   `.table th, .table td { text-align: left }` (0,1,1) — a bare class is
+   0,1,0 and loses whichever stylesheet loads first. Scoped through the table
+   class, the same fix dashboard.module.css documents for .summaryNum. */
+.teamSummaryTable th.teamSummaryNum,
+.teamSummaryTable td.teamSummaryNum {
+    text-align: right;
+}
+/* A fifteen-person team would otherwise push the filters and the quotation
+   list itself off the screen. */
+.teamSummaryViewport {
+    composes: mx-visible-scroll from global;
+    max-height: 280px;
+    overflow: auto;
+}
+.teamSummaryViewport table { overflow: visible; }
+.teamSummaryViewport table th { z-index: 2; }
+/* Team-wide row — reads as a footer rather than another person.
+   `tr.` is needed to match `.table tr:hover td`'s specificity (0,2,2);
+   without the element the hover background would win and the row would
+   lose its tint on mouseover. */
+.teamSummaryTable tr.teamSummaryTotalRow td {
+    font-weight: 700;
+    background: var(--mx-surface-sunken);
+    border-top: 2px solid var(--mx-border-strong);
+}
+/* Follow-ups outstanding is the one number here that asks for action. */
+.teamSummaryFlag {
+    color: var(--mx-danger);
+    font-weight: 700;
+}
+.teamSummaryZero {
+    color: var(--mx-ink-faint);
+}
+
+/* ---- Expanded quotation detail ----
+   Was a single <pre> dump: "Prepared by: X | Phone: Y | Email: Z" and the
+   whole product list as pipe-separated monospace text, which overflowed
+   sideways and could not be scanned. Now real structure. */
+.qdSection + .qdSection { margin-top: 16px; }
+.qdSectionTitle {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--mx-ink-faint);
+    margin-bottom: 7px;
+}
+.qdGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px 20px;
+}
+.qdLabel {
+    font-size: 11px;
+    color: var(--mx-ink-faint);
+    margin-bottom: 1px;
+}
+.qdValue {
+    font-size: 13px;
+    color: var(--mx-ink);
+    /* A long address or product code must wrap rather than widen the table. */
+    overflow-wrap: anywhere;
+}
+.qdGroup + .qdGroup { margin-top: 10px; }
+.qdGroupName {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--mx-ink);
+    margin-bottom: 4px;
+}
+.qdGroupRemark {
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+    font-style: italic;
+    margin-bottom: 4px;
+}
+.qdItems { width: 100%; border-collapse: collapse; }
+.qdItems th {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--mx-ink-faint);
+    text-align: left;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--mx-border);
+}
+.qdItems td {
+    font-size: 12.5px;
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--mx-border);
+    vertical-align: top;
+}
+/* Out-specifies .qdItems th/td's text-align:left (0,1,1) — a bare class
+   would lose. Same trap as .teamSummaryNum above. */
+.qdItems th.qdNum,
+.qdItems td.qdNum {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.qdTotals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    align-items: baseline;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--mx-border);
+}
+.qdTotalItem { font-size: 12.5px; color: var(--mx-ink-muted); }
+.qdTotalItem b { color: var(--mx-ink); font-variant-numeric: tabular-nums; }
+.qdGrandTotal { margin-left: auto; font-size: 14px; color: var(--mx-ink); }
+.qdGrandTotal b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.qdFollowUp {
+    font-size: 12.5px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--mx-border);
+}
+.qdFollowUp:last-child { border-bottom: none; }
+.qdFollowUpMeta { color: var(--mx-ink-faint); font-size: 11.5px; }
+.qdEmpty { font-size: 12.5px; color: var(--mx-ink-faint); }
+/* Date column: keep the timestamp on two tidy lines instead of wrapping
+   "29/9/2026, 2:40:04 pm" mid-value and doubling every row's height. */
+.cellDate { white-space: nowrap; }
+.cellTime { display: block; font-size: 11.5px; color: var(--mx-ink-faint); white-space: nowrap; }
