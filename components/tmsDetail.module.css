@@ -57,3 +57,46 @@
 .pipelineConnector { width: 32px; height: 2px; background: var(--mx-border); margin-bottom: 16px; }
 .pipelineConnectorDone { background: var(--mx-success); }
 .pipelineSideBadge { margin-left: 12px; margin-bottom: 16px; }
+
+/* ---- Delivery phases (components/TmsProjectDetailView.tsx) ----
+   A numbered list rather than a table: a phase is a short labelled step with
+   its own date and controls, and a table row would spread four short values
+   across the full width with the controls stranded at the far edge. */
+.phaseRow {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--mx-border);
+}
+.phaseRow:last-child { border-bottom: none; }
+.phaseIndex {
+    flex: 0 0 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.phaseBody { flex: 1 1 auto; min-width: 0; }
+.phaseTop {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.phaseName { font-size: 13.5px; font-weight: 600; color: var(--mx-ink); }
+.phaseDesc { font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 3px; overflow-wrap: anywhere; }
+.phaseMeta { font-size: 11.5px; color: var(--mx-ink-faint); margin-top: 4px; }
+/* Wraps under the body on a narrow screen rather than squeezing the name. */
+.phaseActions {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}

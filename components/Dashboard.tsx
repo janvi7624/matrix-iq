@@ -9,7 +9,7 @@ import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
 import {
   PROJECT_DEPARTMENTS,
   PROJECT_DEPARTMENT_LABEL,
-  isCombinedDepartments,
+  departmentValueOf,
   matchesDepartmentFilter
 } from '@/lib/projectDepartmentOptions';
 import { formatMoney } from '@/lib/format';
@@ -265,23 +265,26 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (showCelebrations) markCelebrationPopupSeen(currentUser.username);
   }, [showCelebrations, currentUser.username]);
 
-  // Projects by delivery department. Uses exactly the same rule as the
-  // Projects dashboard's own Department filter (matchesDepartmentFilter): a
-  // combined AI+AV deal is counted under BOTH, because it genuinely is work
-  // for both teams and showing it under neither — or under a "Combined"
-  // bucket only — would under-count what each department has on. That means
-  // the rows deliberately do NOT sum to the project total, which the caption
-  // in the card says outright so it cannot be mistaken for a miscount.
+  // Projects by delivery department, with each department's share of the
+  // value beside its count. A project spanning AI and AV is counted under
+  // BOTH — it genuinely is work for both teams — so the COUNTS deliberately
+  // do not sum to the project total, which the card says outright rather
+  // than leaving it to look like a miscount. The VALUES do sum, because
+  // departmentValueOf gives each department only its own slice.
+  //
+  // Uses the same two functions as the Projects dashboard's own filter and
+  // Total Value tile, so the card and that page can never disagree.
   const departmentBreakdown = useMemo(() => {
     const projects = allProjects ?? [];
     return {
       rows: PROJECT_DEPARTMENTS.map((key) => ({
         key,
         label: PROJECT_DEPARTMENT_LABEL[key],
-        count: projects.filter((p) => matchesDepartmentFilter(p.departments, key)).length
+        count: projects.filter((p) => matchesDepartmentFilter(p.departments, key)).length,
+        value: projects.reduce((sum, p) => sum + departmentValueOf(p, key), 0)
       })),
-      combined: projects.filter((p) => isCombinedDepartments(p.departments ?? [])).length,
       unset: projects.filter((p) => !(p.departments ?? []).length).length,
+      multi: projects.filter((p) => (p.departments ?? []).length > 1).length,
       total: projects.length
     };
   }, [allProjects]);
@@ -600,18 +603,20 @@ export default function Dashboard({ currentUser }: DashboardProps) {
                       <Link key={row.key} href={`/projects?department=${row.key}`} className={styles.recentRow}>
                         <div className={styles.recentRowMain}>
                           <div className={styles.recentRowTitle}>{row.label}</div>
+                          <div className={styles.recentRowMeta}>{formatMoney(row.value)}</div>
                         </div>
                         <div className={styles.recentRowAmount}>{row.count}</div>
                       </Link>
                     ))}
-                    {departmentBreakdown.combined > 0 && (
-                      <Link href="/projects?department=combined" className={styles.recentRow}>
+                    {departmentBreakdown.multi > 0 && (
+                      <div className={styles.recentRow}>
                         <div className={styles.recentRowMain}>
-                          <div className={styles.recentRowTitle}>Combined</div>
-                          <div className={styles.recentRowMeta}>Counted under each of their departments above</div>
+                          <div className={styles.recentRowMeta}>
+                            {departmentBreakdown.multi} project{departmentBreakdown.multi === 1 ? ' spans' : 's span'} more than one
+                            department and {departmentBreakdown.multi === 1 ? 'is' : 'are'} counted under each — values are split, counts are not.
+                          </div>
                         </div>
-                        <div className={styles.recentRowAmount}>{departmentBreakdown.combined}</div>
-                      </Link>
+                      </div>
                     )}
                     {departmentBreakdown.unset > 0 && (
                       <div className={styles.recentRow}>

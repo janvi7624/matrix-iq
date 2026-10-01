@@ -9,7 +9,7 @@ import { isTechnicalRole } from '@/lib/technicalRoles';
 import { parseProjectIntake, ProjectIntakeError } from '@/lib/projectIntake';
 import { resolveProjectLead } from '@/lib/projectLeadStore';
 import { parseOpportunityType } from '@/lib/projectLeadOptions';
-import { parseProjectDepartments } from '@/lib/projectDepartmentOptions';
+import { parseDepartmentAmounts, parseProjectDepartments, sumDepartmentAmounts } from '@/lib/projectDepartmentOptions';
 import { getClientIp } from '@/lib/requestIp';
 
 const VALID_PRIORITY: ProjectPriority[] = ['low', 'medium', 'high'];
@@ -101,8 +101,8 @@ export async function POST(request: NextRequest) {
   if (!opportunityType) {
     return NextResponse.json({ error: 'Opportunity Type is required — Distribution or Project' }, { status: 400 });
   }
-  // Delivery department(s) — AI / AV / Robotics, or two-plus for a combined
-  // deal (lib/projectDepartmentOptions.ts). Required HERE, at creation, and
+  // Delivery department — AI, AV or Robotics, exactly one
+  // (lib/projectDepartmentOptions.ts). Required HERE, at creation, and
   // deliberately nowhere else: every project made from now on says which team
   // delivers it, while the ~133 that predate the field keep working untouched.
   // Editing one of those (PATCH) still accepts a blank, and
@@ -111,7 +111,14 @@ export async function POST(request: NextRequest) {
   // nobody was ever asked for.
   const departments = parseProjectDepartments(body.departments);
   if (!departments.length) {
-    return NextResponse.json({ error: 'Department is required — AI, AV, Robotics, or a combination' }, { status: 400 });
+    return NextResponse.json({ error: 'Department is required — pick at least one of AI, AV or Robotics' }, { status: 400 });
+  }
+  // Per-department value split. Only meaningful across several departments —
+  // a single-department project's share IS its approx_price, and storing it
+  // twice just gives it a second place to go stale.
+  const departmentAmounts = departments.length > 1 ? parseDepartmentAmounts(body.departmentAmounts, departments) : {};
+  if (departments.length > 1 && departments.some((d) => !departmentAmounts[d])) {
+    return NextResponse.json({ error: 'Enter an approx. value for each department on a multi-department project' }, { status: 400 });
   }
 
   // State/city, project name, and the source-conditional referral and tender
@@ -192,6 +199,7 @@ export async function POST(request: NextRequest) {
     // taken later (e.g. Site Visit, when the demo turns out to be virtual).
     skipped_stages: [],
     departments,
+    department_amounts: departmentAmounts,
     // Never set on creation — see the technical-person request below.
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',

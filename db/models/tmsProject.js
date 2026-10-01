@@ -45,6 +45,7 @@ module.exports = (sequelize, DataTypes) => {
     TmsProject.hasMany(models.TmsBomRequest, { foreignKey: 'project_id', as: 'bomRequests' });
     TmsProject.hasMany(models.TmsProcurement, { foreignKey: 'project_id', as: 'procurements' });
     TmsProject.hasMany(models.TmsProjectDeadlineExtension, { foreignKey: 'tms_project_id', as: 'deadlineExtensions' });
+    TmsProject.hasMany(models.TmsProjectPhase, { foreignKey: 'tms_project_id', as: 'phases' });
     TmsProject.belongsToMany(models.Department, { through: models.TmsProjectDepartment, foreignKey: 'tms_project_id', otherKey: 'department_id', as: 'departments' });
   };
 

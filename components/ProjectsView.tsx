@@ -37,13 +37,16 @@ import { useProjectLeads } from './ui/useProjectLeads';
 import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE } from './ui/ProjectIntakeFields';
 import {
-  COMBINED_VALUE,
+  DepartmentAmounts,
   PROJECT_DEPARTMENTS,
   PROJECT_DEPARTMENT_LABEL,
   ProjectDepartment,
   ProjectDepartmentFilter,
+  departmentValueOf,
   formatProjectDepartments,
-  matchesDepartmentFilter
+  isProjectDepartment,
+  matchesDepartmentFilter,
+  sumDepartmentAmounts
 } from '@/lib/projectDepartmentOptions';
 
 const EMPTY_FORM = {
@@ -59,6 +62,7 @@ const EMPTY_FORM = {
   projectLeadId: '',
   opportunityType: '' as OpportunityType | '',
   departments: [] as ProjectDepartment[],
+  departmentAmounts: {} as DepartmentAmounts,
   source: '',
   priority: 'medium' as ProjectPriority,
   expectedClosingDate: '',
@@ -141,16 +145,15 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const leadOptions = useMemo(() => leadsLoaded ?? [], [leadsLoaded]);
   const [fLead, setFLead] = useState('');
   const [fType, setFType] = useState<OpportunityType | ''>('');
-  // AI / AV / Robotics, or 'combined' for the multi-department deals only —
-  // see matchesDepartmentFilter in lib/projectDepartmentOptions.ts.
+  // AI / AV / Robotics, or '' for all — see matchesDepartmentFilter in
+  // lib/projectDepartmentOptions.ts.
   // Seeded from ?department= so the Dashboard's "Projects by Department"
   // card can link straight into a filtered list — read once on mount, same
   // approach (and same reason) as fConfirmation's ?filter= deep link below.
   const [fDepartment, setFDepartment] = useState<ProjectDepartmentFilter>(() => {
     if (typeof window === 'undefined') return '';
     const requested = new URLSearchParams(window.location.search).get('department') ?? '';
-    if (requested === COMBINED_VALUE) return COMBINED_VALUE;
-    return (PROJECT_DEPARTMENTS as readonly string[]).includes(requested) ? (requested as ProjectDepartmentFilter) : '';
+    return isProjectDepartment(requested) ? requested : '';
   });
 
   // The Opportunity Type pre-fills the Project Lead (Distribution -> Manoj,
@@ -274,9 +277,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     // Active nor closed, and (unlike Won/Lost) never ages out of the list
     // either, so it would otherwise sit here indefinitely uncounted.
     const onHold = filtered.filter((p) => p.status === 'on_hold').length;
-    const totalValue = filtered.reduce((sum, p) => sum + (typeof p.approx_price === 'number' ? p.approx_price : 0), 0);
+    // Follows the Department filter: unfiltered this is the whole 50L of an
+    // AI+AV project, filtered to AI it is AI's 27L share. Same function the
+    // Approx. Price column uses, so the tile can never disagree with the rows
+    // adding up to it.
+    const totalValue = filtered.reduce((sum, p) => sum + departmentValueOf(p, fDepartment), 0);
     return { total: filtered.length, won, lost, active, onHold, totalValue };
-  }, [filtered]);
+  }, [filtered, fDepartment]);
 
   // A live, non-blocking nudge while the New Project form is open — the
   // typed client name/company against every existing project, so a rep
@@ -315,6 +322,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     }
     if (!form.projectLeadId) {
       toast.error('Project Lead / Mentor is required.');
+      return;
+    }
+    if (form.departments.length > 1 && form.departments.some((d) => !form.departmentAmounts[d])) {
+      toast.error('Enter an approx. value for each department on a multi-department project.');
       return;
     }
     if (!form.departments.length) {
@@ -398,7 +409,24 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       )
     },
     { key: 'source', header: 'Source', headerClassName: historyStyles.colSource, render: (p) => p.source || '-' },
-    { key: 'approxPrice', header: 'Approx. Price', headerClassName: historyStyles.colApproxPrice, render: (p) => formatMoney(p.approx_price) },
+    {
+      key: 'approxPrice',
+      // Header names what is actually being shown: filtering to AI turns this
+      // column into AI's share, not the project's full value, so the rows add
+      // up to the Total Value tile above them.
+      header: fDepartment ? `${PROJECT_DEPARTMENT_LABEL[fDepartment]} Value` : 'Approx. Price',
+      headerClassName: historyStyles.colApproxPrice,
+      render: (p) => (
+        <>
+          {formatMoney(departmentValueOf(p, fDepartment))}
+          {/* On a split project the full value stays visible, so a filtered
+              view never looks like the deal shrank. */}
+          {fDepartment && (p.departments?.length ?? 0) > 1 && (
+            <div className={historyStyles.mutedInline}>of {formatMoney(p.approx_price)}</div>
+          )}
+        </>
+      )
+    },
     { key: 'stage', header: 'Stage', headerClassName: historyStyles.colStage, render: (p) => STAGE_LABEL[p.stage] },
     {
       key: 'status',
@@ -500,9 +528,16 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         </div>
 
         <div className={historyStyles.actionRow}>
-          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : '+ New Project'}
-          </button>
+          {/* Hidden whenever the table is showing its empty state, because that
+              state carries the New button itself. Keyed on the FILTERED rows,
+              so a filter matching nothing stands this one down too. Still
+              shown while loading (the empty state isn't up yet) and whenever
+              the form is open, since this same button is its Cancel. */}
+          {(loading || filtered.length > 0 || showForm) && (
+            <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
+              {showForm ? 'Cancel' : '+ New Project'}
+            </button>
+          )}
           <ToolbarButton onClick={handleExportPdf}>
             Export PDF
           </ToolbarButton>
@@ -580,8 +615,24 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 <OpportunityTypeField required disabled={!leadsLoaded} value={form.opportunityType} onChange={handleOpportunityTypeChange} />
               </Field>
               <Field label="Department *">
-                <ProjectDepartmentField value={form.departments} onChange={(v) => setForm((f) => ({ ...f, departments: v }))} />
-                <span className={calcStyles.lockedHint}>Which team delivers this — pick Combined if it spans more than one.</span>
+                <ProjectDepartmentField
+                  departments={form.departments}
+                  amounts={form.departmentAmounts}
+                  onChange={(departments, departmentAmounts) =>
+                    setForm((f) => ({
+                      ...f,
+                      departments,
+                      departmentAmounts,
+                      // With a split entered, the project's Approx. Price IS
+                      // the sum of the parts — written straight back so the
+                      // two can never be saved as different numbers.
+                      approxPrice: departments.length > 1 ? String(sumDepartmentAmounts(departmentAmounts) || '') : f.approxPrice
+                    }))
+                  }
+                />
+                <span className={calcStyles.lockedHint}>
+                  Tick every team working this deal. Pick more than one and you can split the value between them.
+                </span>
               </Field>
               <Field label="Project Lead / Mentor *">
                 <ProjectLeadField required value={form.projectLeadId} onChange={(v) => { setLeadTouched(true); setForm((f) => ({ ...f, projectLeadId: v })); }} />
@@ -662,7 +713,6 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             {PROJECT_DEPARTMENTS.map((d) => (
               <option key={d} value={d}>{PROJECT_DEPARTMENT_LABEL[d]}</option>
             ))}
-            <option value={COMBINED_VALUE}>Combined only</option>
           </Select>
           <Select auto value={fSource} onChange={(e) => setFSource(e.target.value)}>
             <option value="">All sources</option>
@@ -738,7 +788,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 icon={FolderKanban}
                 title={projects.length === 0 ? 'No projects yet' : 'No projects match your filters'}
                 message={projects.length === 0 ? (isTechnicalCreator ? "Projects you're assigned to as technical lead show up here — or create one for a sales person when needed." : 'Create your first project to start tracking it through the pipeline.') : 'Try clearing a filter or search term.'}
-                action={projects.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>+ New Project</button> : undefined}
+                action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Project</button>}
               />
             }
           />

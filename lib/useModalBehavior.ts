@@ -10,6 +10,45 @@ import { RefObject, useEffect, useRef } from 'react';
 // target) and Escape would close both at once instead of just the top one.
 const modalStack: symbol[] = [];
 
+// The body scroll lock is reference-counted at MODULE level, because it is a
+// property of the document, not of any one modal.
+//
+// It used to be a per-instance snapshot: each modal remembered
+// document.body.style.overflow on open and wrote it back on close. That
+// breaks the moment modals nest (the same case modalStack above exists for).
+// The inner modal snapshots the OUTER one's 'hidden', and when both unmount
+// together — which is what a route change does — React destroys the parent's
+// effect before the child's, so the child writes 'hidden' back last and the
+// page it navigated TO loads unscrollable.
+//
+// Concretely: Dashboard -> Department Health -> a person -> one of their
+// projects left /projects/[id] with no scrollbar until a hard refresh, since
+// only a reload clears the stale inline style.
+//
+// Counting instead of snapshotting makes the result independent of cleanup
+// order: the lock is applied on the first acquire and released only on the
+// last, whichever modal happens to go first.
+let scrollLockCount = 0;
+let overflowBeforeFirstLock = '';
+
+function lockBodyScroll(): void {
+  if (scrollLockCount === 0) {
+    overflowBeforeFirstLock = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  scrollLockCount += 1;
+}
+
+function unlockBodyScroll(): void {
+  // Floored at zero so a double-invoked cleanup (React 18 StrictMode mounts
+  // effects twice in development) can't drive the count negative and leave
+  // the next real lock unable to reach zero again.
+  scrollLockCount = Math.max(0, scrollLockCount - 1);
+  if (scrollLockCount === 0) {
+    document.body.style.overflow = overflowBeforeFirstLock;
+  }
+}
+
 // The three things every modal in this app needs and which most of them were
 // missing: Escape from anywhere (not just while one specific input has focus),
 // a Tab focus trap so keyboard users can't wander into the page behind, and a
@@ -67,11 +106,10 @@ export function useModalBehavior(onClose: () => void): RefObject<HTMLDivElement 
     // Capture phase so Escape reaches this before any inner control that also
     // listens for it (e.g. a search input that clears on Escape).
     document.addEventListener('keydown', onKeyDown, true);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
-      document.body.style.overflow = previousOverflow;
+      unlockBodyScroll();
     };
   }, [onClose]);
 

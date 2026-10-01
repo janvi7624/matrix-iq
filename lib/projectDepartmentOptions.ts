@@ -1,21 +1,17 @@
-// Which delivery department(s) a Sales project belongs to — AI, AV or
-// Robotics. A fixed short list on purpose, same reasoning as
-// lib/projectLeadOptions.ts: these are the three technical departments a deal
-// is actually delivered by, and they are the same three lib/domainLeads.ts
-// already routes demo requests to (DOMAIN_DEPARTMENT there maps av/robotics/ai
-// onto the real Department rows).
+// Which delivery department(s) a Sales project belongs to — AI, AV, Robotics,
+// or several at once — and how much of the project's value belongs to each.
 //
-// Deliberately NOT a foreign key into the org-wide `departments` table: that
-// one also holds Sales, HR, Accounts, Purchase and the rest, none of which a
-// project can belong to, and it is administered independently (a Super Admin
-// renaming or deactivating "HR" must never affect what a deal is for).
+// A fixed short list on purpose, same reasoning as lib/projectLeadOptions.ts:
+// these are the three technical departments a deal is actually delivered by,
+// and they are the same three lib/domainLeads.ts already routes demo requests
+// to. Deliberately NOT a foreign key into the org-wide `departments` table,
+// which also holds Sales, HR, Accounts and the rest.
 //
-// Stored as an ARRAY (projects.departments, JSONB) rather than a single
-// column, so a deal spanning two departments stays one project with both
-// rather than a duplicate row per department. "Combined" is not a stored
-// value — it is simply a selection of length > 1, which is why filtering and
-// display both derive it instead of trusting a separate flag that could drift
-// out of step with the list.
+// A 50L Adani deal split AI 27L / AV 23L is ONE project carrying both
+// departments and both amounts — not two projects, and not one project whose
+// value has to be guessed at per department. The split is what lets the
+// Projects dashboard answer "what is AI's pipeline worth" (27L) and "what is
+// the whole pipeline worth" (50L) from the same row.
 //
 // Pure/dependency-free so client components can import it directly.
 export const PROJECT_DEPARTMENTS = ['ai', 'av', 'robotics'] as const;
@@ -27,11 +23,9 @@ export const PROJECT_DEPARTMENT_LABEL: Record<ProjectDepartment, string> = {
   robotics: 'Robotics'
 };
 
-// What the picker is currently showing: one department, "Combined" (two or
-// three), or nothing chosen yet.
-export type ProjectDepartmentMode = ProjectDepartment | 'combined' | '';
-
-export const COMBINED_VALUE = 'combined';
+// Value per department, in rupees. Partial because a project that predates
+// this field has none, and a single-department project needs no split.
+export type DepartmentAmounts = Partial<Record<ProjectDepartment, number>>;
 
 export function isProjectDepartment(value: unknown): value is ProjectDepartment {
   return typeof value === 'string' && (PROJECT_DEPARTMENTS as readonly string[]).includes(value);
@@ -39,47 +33,79 @@ export function isProjectDepartment(value: unknown): value is ProjectDepartment 
 
 // Server-side gate for a client-supplied list — the dropdown is a
 // convenience, this is the actual rule. Unknown entries are dropped rather
-// than rejected outright, duplicates collapse, and the result is ordered by
-// PROJECT_DEPARTMENTS so "AI + AV" and "AV + AI" store identically and
-// compare equal everywhere downstream.
+// than rejected, duplicates collapse, and the result is ordered by
+// PROJECT_DEPARTMENTS so "AI + AV" and "AV + AI" store identically.
 export function parseProjectDepartments(value: unknown): ProjectDepartment[] {
-  if (!Array.isArray(value)) return [];
-  const picked = new Set(value.filter(isProjectDepartment));
+  const candidates = Array.isArray(value) ? value : [value];
+  const picked = new Set(candidates.filter(isProjectDepartment));
   return PROJECT_DEPARTMENTS.filter((d) => picked.has(d));
 }
 
-// Two or more departments on one deal.
-export function isCombinedDepartments(list: readonly ProjectDepartment[]): boolean {
-  return list.length > 1;
+// Amounts are only ever kept for departments the project actually has, so the
+// two can never drift into "AV is owed 23L on a project that isn't AV's".
+// Anything unparseable, negative or zero is dropped rather than stored as 0,
+// which would read as "this department's share is nil" instead of "not set".
+export function parseDepartmentAmounts(value: unknown, departments: readonly ProjectDepartment[]): DepartmentAmounts {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const source = value as Record<string, unknown>;
+  const out: DepartmentAmounts = {};
+  for (const department of departments) {
+    const raw = source[department];
+    const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+    if (Number.isFinite(num) && num > 0) out[department] = num;
+  }
+  return out;
 }
 
-// Display string for a project's departments: "AI", or "AI + Robotics" for a
-// combined one. '-' when nothing is set (every project created before this
-// field existed).
+export function sumDepartmentAmounts(amounts: DepartmentAmounts | undefined | null): number {
+  if (!amounts) return 0;
+  return PROJECT_DEPARTMENTS.reduce((total, d) => total + (amounts[d] ?? 0), 0);
+}
+
+export function isMultiDepartment(list: readonly ProjectDepartment[] | undefined | null): boolean {
+  return (list?.length ?? 0) > 1;
+}
+
+// Display string: "AI", or "AI + AV" for a project spanning several. '-' when
+// nothing is set (every project created before this field existed).
 export function formatProjectDepartments(list: readonly ProjectDepartment[] | undefined | null): string {
   if (!list || !list.length) return '-';
   return list.map((d) => PROJECT_DEPARTMENT_LABEL[d]).join(' + ');
 }
 
-// What the picker should show for an already-saved project.
-export function departmentModeFor(list: readonly ProjectDepartment[] | undefined | null): ProjectDepartmentMode {
-  if (!list || !list.length) return '';
-  if (list.length > 1) return COMBINED_VALUE;
-  return list[0];
-}
+export type ProjectDepartmentFilter = ProjectDepartment | '';
 
-// The Projects dashboard filter. Picking a single department shows every deal
-// that department works on — including combined ones, since a combined AI+AV
-// deal genuinely IS AI work and hiding it from the AI filter would under-count
-// that department. 'combined' narrows to the multi-department deals only.
-export type ProjectDepartmentFilter = ProjectDepartment | 'combined' | '';
-
+// A project matches a department filter when that department is one of its
+// own — a 50L AI+AV deal IS AI work and must appear under the AI filter.
 export function matchesDepartmentFilter(
   list: readonly ProjectDepartment[] | undefined | null,
   filter: ProjectDepartmentFilter
 ): boolean {
   if (!filter) return true;
-  const departments = list ?? [];
-  if (filter === COMBINED_VALUE) return isCombinedDepartments(departments);
-  return departments.includes(filter);
+  return (list ?? []).includes(filter);
+}
+
+// How much of a project's value to count, given the active department filter.
+//
+// Unfiltered, that is the project's own approx_price — the whole 50L. Filtered
+// to AI, it is AI's share of it — 27L. This is the one function the dashboard's
+// Total Value tile and the Approx. Price column both go through, so a filtered
+// view can never show a total that disagrees with the rows making it up.
+//
+// Falls back to the full price when a project carries no split at all: a
+// single-department project has nothing to divide, and one predating this
+// field would otherwise silently drop out of its own department's total.
+export function departmentValueOf(
+  project: { approx_price: number | ''; departments?: readonly ProjectDepartment[]; department_amounts?: DepartmentAmounts },
+  filter: ProjectDepartmentFilter
+): number {
+  const price = typeof project.approx_price === 'number' ? project.approx_price : 0;
+  if (!filter) return price;
+  if (!matchesDepartmentFilter(project.departments, filter)) return 0;
+  const share = project.department_amounts?.[filter];
+  if (typeof share === 'number') return share;
+  // No split recorded: credit the whole price only when this department is
+  // the project's sole one, otherwise we would count the full 50L under AI
+  // AND again under AV.
+  return (project.departments?.length ?? 0) > 1 ? 0 : price;
 }

@@ -27,6 +27,7 @@ const FIELDS = [
   { name: 'attachments', kind: 'json' as const },
   { name: 'skipped_stages', kind: 'json' as const },
   { name: 'departments', kind: 'json' as const },
+  { name: 'department_amounts', kind: 'json' as const },
   { name: 'assigned_technical_person_id', kind: 'nullable' as const },
   { name: 'project_lead_id', kind: 'nullable' as const },
   { name: 'opportunity_type', kind: 'nullable' as const },
@@ -307,6 +308,7 @@ function normalizeProject(project: ProjectRecord): ProjectRecord {
     attachments: project.attachments ?? [],
     skipped_stages: project.skipped_stages ?? [],
     departments: project.departments ?? [],
+    department_amounts: project.department_amounts ?? {},
     timeline: project.timeline ?? [],
     source: project.source ?? ''
   };

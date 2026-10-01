@@ -5,9 +5,9 @@ import type { ProposalDetails } from './quotationProposal';
 import type { LeadOrigin } from './leadSources';
 // Same arrangement: the values live in lib/projectDepartmentOptions.ts
 // because routes and client components need the list itself, not just the type.
-import type { ProjectDepartment } from './projectDepartmentOptions';
+import type { DepartmentAmounts, ProjectDepartment } from './projectDepartmentOptions';
 
-export type { LeadOrigin, ProjectDepartment };
+export type { LeadOrigin, ProjectDepartment, DepartmentAmounts };
 
 export type DomainKey = 'av' | 'robotics' | 'ai' | 'si' | 'visitiq';
 
@@ -832,10 +832,14 @@ export interface ProjectRecord {
   // unfinished. Never includes the stage the project is currently on.
   skipped_stages: ProjectStage[];
   // Delivery department(s) this deal belongs to — see
-  // lib/projectDepartmentOptions.ts. One entry for a single-department
-  // project, two or three for a combined one, empty on projects created
-  // before the field existed (nothing backfills a guess).
+  // lib/projectDepartmentOptions.ts. Several when the deal spans departments;
+  // empty on projects created before the field existed (nothing backfills).
   departments: ProjectDepartment[];
+  // How much of approx_price belongs to each of those departments — the 27L
+  // of a 50L AI+AV deal that is AI's. Empty for a single-department project,
+  // which has nothing to divide (departmentValueOf falls back to the full
+  // approx_price there).
+  department_amounts: DepartmentAmounts;
   timeline: ProjectTimelineEvent[];
   updated_at: string;
   // Project Lead / Mentor — mandatory on every new project (one of the fixed
@@ -1595,6 +1599,26 @@ export interface RoleRecord {
 export type TmsProjectStatus = 'planning' | 'not_started' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
 export type TmsPriority = 'low' | 'medium' | 'high';
 export type TmsProjectType = 'department' | 'combined';
+
+// Phase-wise delivery — see lib/tmsProjectPhaseStore.ts. A phase's
+// expected_end_date is ITS OWN deadline; TmsProjectRecord.deadline remains
+// the whole project's and is unaffected by phases.
+export type TmsProjectPhaseStatus = 'pending' | 'in_progress' | 'completed';
+
+export interface TmsProjectPhaseRecord {
+  id: string;
+  tms_project_id: string;
+  name: string;
+  description: string;
+  expected_end_date: string;
+  /** Delivery order, not creation order — phases get reordered. */
+  sequence: number;
+  status: TmsProjectPhaseStatus;
+  /** Stamped when status becomes 'completed', cleared on reopen. */
+  completed_at: string;
+  created_by_name: string;
+  created_at: string;
+}
 
 export interface TmsProjectRecord {
   id: string;

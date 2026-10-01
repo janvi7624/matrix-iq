@@ -26,8 +26,8 @@ export interface CreateProjectFromLeadOptions {
   // button; blank on the automatic path, where the assignee sets it (and must,
   // before confirming).
   opportunityType?: 'distribution' | 'project';
-  // Delivery department(s) — AI / AV / Robotics, or several for a combined
-  // deal (lib/projectDepartmentOptions.ts). Collected by the manual paths
+  // Delivery department — AI, AV or Robotics, exactly one
+  // (lib/projectDepartmentOptions.ts). Collected by the manual paths
   // alongside the lead and opportunity type; empty on the automatic
   // on-assignment path, where there is nobody to ask and the assignee must
   // pick one before the project counts as complete.
@@ -108,6 +108,9 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     // the project unfinished until the assignee fills it in, exactly like
     // project_lead_id above.
     departments: opts.departments ?? [],
+    // No split to record: a lead converts into a single-department project,
+    // and departmentValueOf falls back to approx_price for those anyway.
+    department_amounts: {},
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',
     tms_project_id: '',

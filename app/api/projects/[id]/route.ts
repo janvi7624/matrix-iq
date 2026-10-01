@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parseProjectDepartments } from '@/lib/projectDepartmentOptions';
+import { parseDepartmentAmounts, parseProjectDepartments } from '@/lib/projectDepartmentOptions';
 import { getViewerContext } from '@/lib/viewerContext';
 import { appendProjectTimeline, canAccessProject, findProjectById, projectStore, resolveProjectDeadlineTier } from '@/lib/projectStore';
 import { listForProject as listDeadlineExtensions } from '@/lib/projectDeadlineExtensionStore';
@@ -234,13 +234,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
       patch.skipped_stages = Array.from(new Set(requested));
     }
-    // Delivery department(s) — AI / AV / Robotics, two-plus for a combined
-    // deal. Only applied when the key is actually present, so every other
+    // Delivery department — AI, AV or Robotics, exactly one. Only applied
+    // when the key is actually present, so every other
     // edit on this page leaves the existing value alone. Clearing back to
     // none is allowed: the field is optional, and a project set by mistake
     // has to be able to go back to blank.
     if ('departments' in body) {
-      patch.departments = parseProjectDepartments(body.departments);
+      const nextDepartments = parseProjectDepartments(body.departments);
+      patch.departments = nextDepartments;
+      // Re-parsed against the NEW department list, so dropping a department
+      // drops its share with it rather than leaving an orphaned amount.
+      patch.department_amounts =
+        nextDepartments.length > 1
+          ? parseDepartmentAmounts(
+              'departmentAmounts' in body ? body.departmentAmounts : existing.department_amounts,
+              nextDepartments
+            )
+          : {};
     }
     if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();

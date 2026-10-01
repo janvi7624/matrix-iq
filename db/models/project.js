@@ -49,9 +49,13 @@ module.exports = (sequelize, DataTypes) => {
     // Site Visit when the demo was given virtually.
     skipped_stages: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     // Delivery department(s) this project belongs to — 'ai' | 'av' |
-    // 'robotics', see lib/projectDepartmentOptions.ts. A list, so a combined
-    // deal holds more than one; empty on projects predating the field.
+    // 'robotics', see lib/projectDepartmentOptions.ts. A list, so a deal
+    // spanning two departments holds both; empty on projects predating it.
     departments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // How much of approx_price belongs to each of those departments, e.g.
+    // { "ai": 2700000, "av": 2300000 } on a 50L deal. Empty for a
+    // single-department project, which has nothing to divide.
+    department_amounts: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
     created_by: { type: DataTypes.UUID },
     // Project Lead / Mentor — see lib/projectLeadOptions.ts. Mandatory going
     // forward (enforced in the API, not here); NULL on older projects.
