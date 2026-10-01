@@ -122,7 +122,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'hr-tasks', label: 'HR Tasks', desc: 'Daily tasks, assignment, submission, and review for the HR team.', icon: 'clipboard-list', href: '/hr/tasks', section: 'HR', order: 5, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   { key: 'hr-employees', label: 'Employees', desc: 'Active employee directory.', icon: 'users', href: '/hr/employees', section: 'HR', order: 6, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   { key: 'hr-reports', label: 'HR Reports', desc: 'Daily task, monthly performance, and employee work reports.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
-  { key: 'hr-settings', label: 'HR Settings', desc: 'Task categories and recurring task templates.', icon: 'settings', href: '/hr/settings', section: 'HR', order: 10, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-settings', label: 'HR Settings', desc: 'Task categories for HR Tasks.', icon: 'settings', href: '/hr/settings', section: 'HR', order: 10, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
   // SALES_ROLES_WITH_TMS, not ALL_ROLES: a technical-manager/team-lead/
   // technician can be assigned tasks like anyone else, and with ALL_ROLES

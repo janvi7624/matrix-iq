@@ -56,9 +56,7 @@ function toRecord(row: Model): GeneralTaskRecord {
     reviewer_username: reviewer?.username ?? '',
     project_name: project ? project.client_name || project.company || '' : '',
     tms_project_name: tmsProject?.name ?? '',
-    updated_at: isoOrEmpty(plain.updatedAt),
-    recurrence_template_id: (plain.recurrence_template_id as string) ?? '',
-    recurrence_period_key: (plain.recurrence_period_key as string) ?? ''
+    updated_at: isoOrEmpty(plain.updatedAt)
   };
   for (const { name, kind = 'string' } of FIELDS) {
     const raw = plain[name];
@@ -182,8 +180,6 @@ async function create(input: {
   attachments?: string[];
   labels?: string[];
   createdByUsername: string;
-  recurrenceTemplateId?: string;
-  recurrencePeriodKey?: string;
   // Lets bulk assignment (department-wide / selected-employees) wrap every
   // created row in one atomic transaction — see app/api/admin/task-assignment.
   transaction?: Transaction;
@@ -208,9 +204,7 @@ async function create(input: {
       deadline: input.deadline,
       remarks: input.remarks || '',
       attachments: input.attachments || [],
-      labels: input.labels || [],
-      recurrence_template_id: input.recurrenceTemplateId || null,
-      recurrence_period_key: input.recurrencePeriodKey || null
+      labels: input.labels || []
     } as never,
     { transaction: input.transaction }
   );

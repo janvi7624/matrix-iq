@@ -1886,8 +1886,6 @@ export interface GeneralTaskRecord {
   remarks: string;
   attachments: string[];
   labels: string[];
-  recurrence_template_id: string;
-  recurrence_period_key: string;
   updated_at: string;
 }
 
@@ -1919,27 +1917,6 @@ export interface HrTaskCategoryRecord {
   name: string;
   active: boolean;
   order: number;
-}
-
-export type HrRecurrenceType = 'daily' | 'weekly' | 'monthly';
-
-export interface HrRecurringTaskTemplateRecord {
-  id: string;
-  title: string;
-  description: string;
-  department_id: string;
-  department_name: string;
-  assignee_id: string;
-  assignee_name: string;
-  category_id: string;
-  category_name: string;
-  priority: GeneralTaskPriority;
-  requires_review: boolean;
-  recurrence_type: HrRecurrenceType;
-  recurrence_config: { weekday?: number; dayOfMonth?: number };
-  active: boolean;
-  created_by: string;
-  created_at: string;
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'half_day' | 'on_leave' | 'holiday' | 'wfh';

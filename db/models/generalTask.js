@@ -27,9 +27,7 @@ module.exports = (sequelize, DataTypes) => {
     deadline: { type: DataTypes.DATEONLY, allowNull: false },
     remarks: { type: DataTypes.TEXT },
     attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
-    labels: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
-    recurrence_template_id: { type: DataTypes.UUID },
-    recurrence_period_key: { type: DataTypes.STRING }
+    labels: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
   }, {
     tableName: 'general_tasks',
     underscored: true,
@@ -43,7 +41,6 @@ module.exports = (sequelize, DataTypes) => {
     GeneralTask.belongsTo(models.User, { foreignKey: 'reviewer_id', as: 'reviewer' });
     GeneralTask.belongsTo(models.Project, { foreignKey: 'project_id', as: 'project' });
     GeneralTask.belongsTo(models.TmsProject, { foreignKey: 'tms_project_id', as: 'tmsProject' });
-    GeneralTask.belongsTo(models.HrRecurringTaskTemplate, { foreignKey: 'recurrence_template_id', as: 'recurrenceTemplate' });
     GeneralTask.hasMany(models.GeneralTaskUpdate, { foreignKey: 'task_id', as: 'updates' });
     GeneralTask.hasMany(models.GeneralTaskDeadlineChange, { foreignKey: 'task_id', as: 'deadlineChanges' });
   };

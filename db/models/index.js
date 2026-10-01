@@ -65,7 +65,6 @@ const modelDefiners = [
   require('./metaWebhookEvent.js'),
   require('./salesTarget.js'),
   require('./hrTaskCategory.js'),
-  require('./hrRecurringTaskTemplate.js'),
   require('./generalTask.js'),
   require('./generalTaskUpdate.js'),
   require('./generalTaskDeadlineChange.js'),

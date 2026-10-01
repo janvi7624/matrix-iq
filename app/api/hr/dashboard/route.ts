@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { requireHrModule } from '@/lib/hrAccess';
 import { generalTaskStore } from '@/lib/generalTaskStore';
-import { ensureRecurringInstancesForToday } from '@/lib/hrRecurringTaskStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { GeneralTaskRecord } from '@/lib/types';
 
@@ -22,7 +21,6 @@ export async function GET(request: NextRequest) {
   if (!(await requireHrModule(viewer, 'hr-tasks'))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
-    await ensureRecurringInstancesForToday();
     const tasks = await generalTaskStore.list(viewer, { sourceModule: 'hr' });
     const today = todayIso();
 
