@@ -6,6 +6,7 @@ import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
 import { OfficeOperationExpenseRecord } from '@/lib/types';
 import { exportOfficeOperationExpensesXlsx } from '@/lib/officeOperationExpenseXlsx';
+import { OFFICE_LOCATIONS } from '@/lib/officeOperationExpenseOptions';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './officeOperationExpenses.module.css';
@@ -41,6 +42,7 @@ function formatSrNo(n: number): string {
 
 const emptyForm = {
   date: '',
+  officeLocation: '',
   usecase: '',
   usecaseDetail: '',
   itemName: '',
@@ -144,6 +146,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     setEditId(record.id);
     setForm({
       date: record.date,
+      officeLocation: record.office_location,
       usecase: record.usecase,
       usecaseDetail: record.usecase_detail,
       itemName: record.item_name,
@@ -180,6 +183,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     e.preventDefault();
 
     if (!form.date) { toast.error('Select a date'); return; }
+    if (!form.officeLocation) { toast.error('Select the office location'); return; }
     if (!form.usecase) { toast.error('Select a category'); return; }
     if (usecaseSubs && !form.usecaseDetail) { toast.error(`Select which ${form.usecase.toLowerCase()} this is`); return; }
     if (usecaseIsFreeText && !form.usecaseDetail.trim()) { toast.error('Describe the category'); return; }
@@ -194,6 +198,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     try {
       const payload = {
         date: form.date,
+        officeLocation: form.officeLocation,
         usecase: form.usecase,
         usecaseDetail: usecaseSubs || usecaseIsFreeText ? form.usecaseDetail : '',
         itemName: form.itemName,
@@ -303,6 +308,28 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
               <div>
                 <label className={styles.fieldLabel}>Date *</label>
                 <input type="date" className={`${calcStyles.formControl} ${styles.fullWidth}`} value={form.date} onChange={(e) => setField('date', e.target.value)} />
+              </div>
+
+              <div>
+                <label className={styles.fieldLabel}>Office Location *</label>
+                {/* Same segmented-pill control as the Quotation type toggle
+                    (historyStyles.modeToggle) — the app's one established look
+                    for "pick one of a few options", reused here instead of a
+                    plain radio list. */}
+                <div className={historyStyles.modeToggle} role="radiogroup" aria-label="Office Location">
+                  {OFFICE_LOCATIONS.map((loc) => (
+                    <button
+                      key={loc}
+                      type="button"
+                      role="radio"
+                      aria-checked={form.officeLocation === loc}
+                      className={`${historyStyles.modeToggleBtn} ${form.officeLocation === loc ? historyStyles.modeToggleBtnActive : ''}`}
+                      onClick={() => setField('officeLocation', loc)}
+                    >
+                      {loc}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
@@ -446,6 +473,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                 <tr>
                   <th>Sr No.</th>
                   <th>Date</th>
+                  <th>Office</th>
                   <th>Category</th>
                   <th>Expense Head</th>
                   <th style={{ textAlign: 'right' }}>Qty</th>
@@ -461,6 +489,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                   <tr key={record.id}>
                     <td className={styles.srNoCell}>{formatSrNo(record.sr_no)}</td>
                     <td className={styles.nowrap}>{formatDate(record.date)}</td>
+                    <td className={styles.nowrap}>{record.office_location || '—'}</td>
                     <td>
                       {/* Detail sits inline beside the usecase badge, matching
                           the Expense Head / sub-category pairing below. */}

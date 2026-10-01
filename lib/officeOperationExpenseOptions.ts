@@ -97,3 +97,13 @@ export function isValidUsecase(value: string): boolean {
 export function isValidItem(value: string): boolean {
   return (OFFICE_EXPENSE_ITEMS as readonly string[]).includes(value);
 }
+
+// Which office this expense was incurred for/by. Required on every new entry
+// (see lib/officeOperationExpenseValidation.ts); historical entries predate
+// it and store '' — see the migration.
+export const OFFICE_LOCATIONS = ['Ahmedabad', 'Mumbai'] as const;
+export type OfficeLocation = (typeof OFFICE_LOCATIONS)[number];
+
+export function isValidOfficeLocation(value: string): value is OfficeLocation {
+  return (OFFICE_LOCATIONS as readonly string[]).includes(value);
+}

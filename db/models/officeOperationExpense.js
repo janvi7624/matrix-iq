@@ -20,6 +20,10 @@ module.exports = (sequelize, DataTypes) => {
     amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     description: { type: DataTypes.TEXT },
     remarks: { type: DataTypes.TEXT },
+    // Ahmedabad / Mumbai — required going forward (see
+    // lib/officeOperationExpenseValidation.ts), nullable here only because
+    // entries from before this field existed have nothing to put in it.
+    office_location: { type: DataTypes.STRING(20) },
     // Accounts Payment Queue — see db/migrations/20260912180200-office-expense-payment-fields.js
     payment_status: { type: DataTypes.STRING(20) },
     paid_at: { type: DataTypes.DATE },

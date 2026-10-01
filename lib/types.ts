@@ -1840,6 +1840,9 @@ export interface OfficeOperationExpenseRecord {
   amount: number;
   description: string;
   remarks: string;
+  // Ahmedabad / Mumbai (lib/officeOperationExpenseOptions.ts). '' on an entry
+  // that predates this field.
+  office_location: string;
 }
 
 // ---------------------------------------------------------------------------

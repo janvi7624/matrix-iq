@@ -43,7 +43,8 @@ function toRecord(row: Model, position?: number): OfficeOperationExpenseRecord {
     item_qty: p.item_qty === null || p.item_qty === undefined ? null : Number(p.item_qty),
     amount: Number(p.amount) || 0,
     description: (p.description as string) ?? '',
-    remarks: (p.remarks as string) ?? ''
+    remarks: (p.remarks as string) ?? '',
+    office_location: (p.office_location as string) ?? ''
   };
 }
 
@@ -59,13 +60,14 @@ export interface OfficeOperationExpenseInput {
   amount: number;
   description: string;
   remarks: string;
+  office_location: string;
 }
 
 // Every field a client is allowed to change on an existing row. `sr_no`,
 // `created_by`, and the timestamps are absent on purpose — the serial is
 // DB-assigned and permanent, and attribution shouldn't be rewritable from a
 // PATCH body (same allow-list approach as lib/reimbursementStore.ts's update).
-const EDITABLE_FIELDS = ['date', 'usecase', 'usecase_detail', 'item_name', 'item_sub_names', 'item_qty', 'amount', 'description', 'remarks'];
+const EDITABLE_FIELDS = ['date', 'usecase', 'usecase_detail', 'item_name', 'item_sub_names', 'item_qty', 'amount', 'description', 'remarks', 'office_location'];
 
 // This module is HR-only (see lib/officeOperationExpenseAccess.ts), so there's
 // no own-records-vs-everyone scoping to apply the way the org-wide modules
@@ -114,6 +116,7 @@ async function create(viewerUsername: string, data: OfficeOperationExpenseInput)
     amount: data.amount,
     description: data.description,
     remarks: data.remarks,
+    office_location: data.office_location,
     // Accounts Payment Queue — every new entry starts life awaiting Accounts
     // confirmation; historical rows were backfilled to 'paid' by the
     // migration that added this column (see

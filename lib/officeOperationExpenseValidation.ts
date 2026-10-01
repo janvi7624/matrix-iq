@@ -5,6 +5,7 @@ import {
   USECASE_FREE_TEXT,
   USECASE_SUB_OPTIONS,
   isValidItem,
+  isValidOfficeLocation,
   isValidUsecase
 } from './officeOperationExpenseOptions';
 import { listActiveDepartments } from './departmentStore';
@@ -23,6 +24,7 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
   const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
   const date = str(body.date);
+  const officeLocation = str(body.officeLocation);
   const usecase = str(body.usecase);
   const usecaseDetail = str(body.usecaseDetail);
   const itemName = str(body.itemName);
@@ -51,6 +53,8 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
   }
 
   if (!date) return { error: 'Date is required' };
+  if (!officeLocation) return { error: 'Office Location is required' };
+  if (!isValidOfficeLocation(officeLocation)) return { error: `"${officeLocation}" is not a valid office location` };
   if (!usecase) return { error: 'Category is required' };
   if (!isValidUsecase(usecase)) return { error: `"${usecase}" is not a valid category` };
   if (!itemName) return { error: 'Expense Head is required' };
@@ -75,6 +79,7 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
   return {
     data: {
       date,
+      office_location: officeLocation,
       usecase,
       usecase_detail: usecaseHasDetail ? usecaseDetail : '',
       item_name: itemName,

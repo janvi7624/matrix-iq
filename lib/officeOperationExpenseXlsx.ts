@@ -53,6 +53,7 @@ interface ColumnDef {
 const COLUMNS: ColumnDef[] = [
   { header: 'Sr No.', width: 9, center: true, value: (r) => String(r.sr_no).padStart(4, '0') },
   { header: 'Date', width: 13, center: true, value: (r) => fmtDate(r.date) },
+  { header: 'Office', width: 11, center: true, value: (r) => r.office_location || '—' },
   // Usecase sits beside Date now that entries are no longer grouped by it. Any
   // legacy usecase_detail is appended so nothing recorded is dropped, even
   // though no current usecase can produce one.
