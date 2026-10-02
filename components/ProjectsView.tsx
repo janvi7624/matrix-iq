@@ -35,7 +35,7 @@ import OpportunityTypeField from './ui/OpportunityTypeField';
 import ProjectDepartmentField from './ui/ProjectDepartmentField';
 import { useProjectLeads } from './ui/useProjectLeads';
 import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
-import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE } from './ui/ProjectIntakeFields';
+import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE, ProjectLocationFields } from './ui/ProjectIntakeFields';
 import {
   DepartmentAmounts,
   PROJECT_DEPARTMENTS,
@@ -581,6 +581,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 <Input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
               </Field>
             </FieldRow>
+            {/* Project name and where the client is — right after Address,
+                where it reads naturally. */}
+            <ProjectLocationFields values={form} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} />
             <FieldRow>
               <Field label="Alternate Contact Name (optional)">
                 <Input value={form.contactPerson} onChange={(e) => setForm((f) => ({ ...f, contactPerson: e.target.value }))} />
@@ -672,8 +675,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 />
               </Field>
             </FieldRow>
-            {/* Project name, State/City, and the Referral / Tender blocks that
-                appear only for those sources. */}
+            {/* Referral / Tender blocks — only for those sources, so they stay
+                next to Source rather than up by Address. */}
             <ProjectIntakeFields
               source={form.source}
               values={form}
