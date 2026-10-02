@@ -87,7 +87,7 @@
 .searchInput {
     width: 100%;
     box-sizing: border-box;
-    min-height: 44px;
+    min-height: var(--mx-control-h);
     padding: 10px 38px 10px 36px;
     border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-sm);
@@ -120,14 +120,16 @@
 .searchClear:hover { background: var(--mx-gray-100); color: var(--mx-ink); }
 
 .filterSelect {
-    min-height: 44px;
+    min-height: var(--mx-control-h);
     box-sizing: border-box;
-    padding: 10px 12px;
+    padding: 12px 14px;
     border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-sm);
     background: var(--mx-surface);
     color: var(--mx-ink);
-    font-size: 14px;
+    /* Was 14px beside a 16px .searchInput; 16px also stops iOS Safari
+       zooming the page when the select is tapped. */
+    font-size: 16px;
     font-family: inherit;
     cursor: pointer;
     /* A <select>'s intrinsic width is its widest <option>, and department /

@@ -26,7 +26,18 @@ import Input from './ui/Input';
 import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import SubmitButton from './ui/SubmitButton';
-import FilterBar from './ui/FilterBar';
+import FilterPanel, {
+  ActiveFilter,
+  FilterDatePair,
+  FilterField,
+  FilterGrid,
+  FilterMeta,
+  FilterPrimaryRow,
+  FilterSearch,
+  FilterSubRange,
+  FilterToggle,
+  filterPanelStyles,
+} from './ui/FilterPanel';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
 import ProjectSourceField from './ui/ProjectSourceField';
@@ -73,6 +84,34 @@ const EMPTY_FORM = {
 
 const STATUS_LABEL: Record<ProjectStatus, string> = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost' };
 const PRIORITY_LABEL: Record<ProjectPriority, string> = { low: 'Low', medium: 'Medium', high: 'High' };
+// Captions for the closing-date presets. The old options spelled the filter
+// name into every row ("Closing Date: All", "Closing Today") because a bare
+// dropdown in a flat bar had nothing else to say what it was; inside a
+// captioned field the prefix is noise.
+const CLOSING_PRESET_LABEL: Record<ClosingDatePreset, string> = {
+  all: 'All',
+  today: 'Today',
+  this_week: 'This week',
+  this_month: 'This month',
+  next_7: 'Next 7 days',
+  next_30: 'Next 30 days',
+  custom: 'Custom range…',
+};
+const CONFIRMATION_LABEL: Record<string, string> = {
+  pending_confirmation: 'Pending confirmation',
+  confirmed: 'Confirmed',
+};
+// Search, Stage and Status live in the always-visible primary row; everything
+// else sits behind the Filters toggle, so only the rest counts toward its
+// badge.
+const QUICK_FILTER_KEYS = new Set(['search', 'stage', 'status']);
+
+function projectCountLabel(loading: boolean, shown: number, total: number): string {
+  if (loading) return 'Loading projects…';
+  if (total === 0) return 'No projects yet';
+  if (shown === total) return `${total} project${total === 1 ? '' : 's'}`;
+  return `Showing ${shown} of ${total} projects`;
+}
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -115,7 +154,6 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const isTechnicalCreator = !isPrivileged && isTechnicalRole(currentUser.role);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [status, setStatus] = useState('Loading...');
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -185,9 +223,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     const params = new URLSearchParams(window.location.search);
     return params.get('filter') === 'pending_confirmation' ? 'pending_confirmation' : '';
   });
+  // Nine of the fourteen filters sit behind the Filters toggle. It starts open
+  // when a deep link arrived with one of those already applied (Dashboard's
+  // department cards and its "awaiting your confirmation" item both do), so
+  // the panel never starts collapsed over a filter the user did not set.
+  const [showFilters, setShowFilters] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return isProjectDepartment(params.get('department') ?? '') || params.get('filter') === 'pending_confirmation';
+  });
 
   async function load() {
-    setStatus('Loading...');
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -195,10 +241,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       if (!response.ok) throw new Error(String(response.status));
       const data: ProjectRecord[] = await response.json();
       setProjects(data);
-      setStatus(data.length ? `${data.length} project${data.length === 1 ? '' : 's'} found.` : '');
       setLoaded(true);
     } catch {
-      setStatus('Could not reach the projects API. Try refreshing.');
       setLoadFailed(true);
     } finally {
       setLoading(false);
@@ -221,6 +265,58 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   );
 
   const selectedLead = useMemo(() => leadOptions.find((l) => l.id === fLead) ?? null, [leadOptions, fLead]);
+
+  // One entry per filter that is actually narrowing the list, each able to
+  // clear just itself. Rendered as chips under the panel, which is what makes
+  // collapsing the grid safe: a filter hidden behind the toggle is still
+  // visible, and still removable, as a chip.
+  const activeFilters = useMemo<ActiveFilter[]>(() => {
+    const out: ActiveFilter[] = [];
+    if (fSearch.trim()) out.push({ key: 'search', label: 'Search', value: fSearch.trim(), clear: () => setFSearch('') });
+    if (fStage) out.push({ key: 'stage', label: 'Stage', value: STAGE_LABEL[fStage], clear: () => setFStage('') });
+    if (fStatus) out.push({ key: 'status', label: 'Status', value: STATUS_LABEL[fStatus], clear: () => setFStatus('') });
+    if (fSalesPerson) out.push({ key: 'salesPerson', label: 'Sales person', value: fSalesPerson, clear: () => setFSalesPerson('') });
+    if (fLead) out.push({ key: 'lead', label: 'Project lead', value: selectedLead?.name ?? fLead, clear: () => setFLead('') });
+    if (fType) out.push({ key: 'type', label: 'Opportunity', value: OPPORTUNITY_TYPE_LABEL[fType], clear: () => setFType('') });
+    if (fDepartment) out.push({ key: 'department', label: 'Department', value: PROJECT_DEPARTMENT_LABEL[fDepartment], clear: () => setFDepartment('') });
+    if (fSource) out.push({ key: 'source', label: 'Source', value: fSource, clear: () => setFSource('') });
+    if (fPriority) out.push({ key: 'priority', label: 'Priority', value: PRIORITY_LABEL[fPriority], clear: () => setFPriority('') });
+    if (fConfirmation) out.push({ key: 'confirmation', label: 'Confirmation', value: CONFIRMATION_LABEL[fConfirmation] ?? fConfirmation, clear: () => setFConfirmation('') });
+    if (fFrom || fTo) out.push({ key: 'created', label: 'Created', value: `${fFrom || 'any'} → ${fTo || 'any'}`, clear: () => { setFFrom(''); setFTo(''); } });
+    if (fClosingPreset !== 'all') {
+      out.push({
+        key: 'closing',
+        label: 'Closing',
+        value: fClosingPreset === 'custom' ? `${fClosingFrom || 'any'} → ${fClosingTo || 'any'}` : CLOSING_PRESET_LABEL[fClosingPreset],
+        clear: () => { setFClosingPreset('all'); setFClosingFrom(''); setFClosingTo(''); },
+      });
+    }
+    return out;
+  }, [fSearch, fStage, fStatus, fSalesPerson, fLead, selectedLead, fType, fDepartment, fSource, fPriority, fConfirmation, fFrom, fTo, fClosingPreset, fClosingFrom, fClosingTo]);
+
+  const advancedActiveCount = activeFilters.filter((f) => !QUICK_FILTER_KEYS.has(f.key)).length;
+
+  function clearAllFilters() {
+    setFSearch('');
+    setFStage('');
+    setFStatus('');
+    setFSalesPerson('');
+    setFLead('');
+    setFType('');
+    setFDepartment('');
+    setFSource('');
+    setFPriority('');
+    setFConfirmation('');
+    setFFrom('');
+    setFTo('');
+    setFClosingPreset('all');
+    setFClosingFrom('');
+    setFClosingTo('');
+  }
+
+  // The two primary-row filters have no caption to tint, so they carry the
+  // active class themselves.
+  const quickClass = (active: boolean) => [filterPanelStyles.quick, active ? filterPanelStyles.controlActive : ''].filter(Boolean).join(' ');
 
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
@@ -689,96 +785,139 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           </form>
         )}
 
-        <FilterBar>
-          <input type="text" placeholder="Search client, company, project ID…" value={fSearch} onChange={(e) => setFSearch(e.target.value)} />
-          {isPrivileged && (
-            <Select auto value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
-              <option value="">All sales people</option>
-              {salesPeople.map((s) => (
-                <option key={s} value={s}>{s}</option>
+        <FilterPanel>
+          <FilterPrimaryRow>
+            <FilterSearch
+              id="projectFilterSearch"
+              label="Search projects"
+              placeholder="Search client, company, project ID…"
+              value={fSearch}
+              onChange={setFSearch}
+            />
+            {/* Stage and Status stay out in the open: they are the two this
+                dashboard is driven by day to day. */}
+            <Select
+              aria-label="Filter by stage"
+              className={quickClass(!!fStage)}
+              value={fStage}
+              onChange={(e) => setFStage(e.target.value as ProjectStage | '')}
+            >
+              <option value="">All stages</option>
+              {FORWARD_STAGES.concat('closed_lost').map((s) => (
+                <option key={s} value={s}>{STAGE_LABEL[s]}</option>
               ))}
             </Select>
+            <Select
+              aria-label="Filter by status"
+              className={quickClass(!!fStatus)}
+              value={fStatus}
+              onChange={(e) => setFStatus(e.target.value as ProjectStatus | '')}
+            >
+              <option value="">All statuses</option>
+              {(Object.keys(STATUS_LABEL) as ProjectStatus[]).map((s) => (
+                <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+              ))}
+            </Select>
+            <FilterToggle
+              open={showFilters}
+              onToggle={() => setShowFilters((open) => !open)}
+              activeCount={advancedActiveCount}
+              controls="projectFilterGrid"
+            />
+          </FilterPrimaryRow>
+
+          {showFilters && (
+            <FilterGrid id="projectFilterGrid">
+              {isPrivileged && (
+                <FilterField label="Sales person" active={!!fSalesPerson} htmlFor="pfSalesPerson">
+                  <Select id="pfSalesPerson" value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
+                    <option value="">All sales people</option>
+                    {salesPeople.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </Select>
+                </FilterField>
+              )}
+              <FilterField label="Project lead" active={!!fLead} htmlFor="pfLead">
+                <Select id="pfLead" value={fLead} onChange={(e) => setFLead(e.target.value)}>
+                  <option value="">All project leads</option>
+                  {leadOptions.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </Select>
+              </FilterField>
+              <FilterField label="Opportunity type" active={!!fType} htmlFor="pfType">
+                <Select id="pfType" value={fType} onChange={(e) => setFType(e.target.value as OpportunityType | '')}>
+                  <option value="">All opportunity types</option>
+                  {OPPORTUNITY_TYPES.map((t) => (
+                    <option key={t} value={t}>{OPPORTUNITY_TYPE_LABEL[t]}</option>
+                  ))}
+                </Select>
+              </FilterField>
+              <FilterField label="Department" active={!!fDepartment} htmlFor="pfDepartment">
+                <Select id="pfDepartment" value={fDepartment} onChange={(e) => setFDepartment(e.target.value as ProjectDepartmentFilter)}>
+                  <option value="">All departments</option>
+                  {PROJECT_DEPARTMENTS.map((d) => (
+                    <option key={d} value={d}>{PROJECT_DEPARTMENT_LABEL[d]}</option>
+                  ))}
+                </Select>
+              </FilterField>
+              <FilterField label="Source" active={!!fSource} htmlFor="pfSource">
+                <Select id="pfSource" value={fSource} onChange={(e) => setFSource(e.target.value)}>
+                  <option value="">All sources</option>
+                  {sources.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </Select>
+              </FilterField>
+              <FilterField label="Priority" active={!!fPriority} htmlFor="pfPriority">
+                <Select id="pfPriority" value={fPriority} onChange={(e) => setFPriority(e.target.value as ProjectPriority | '')}>
+                  <option value="">All priorities</option>
+                  {(Object.keys(PRIORITY_LABEL) as ProjectPriority[]).map((p) => (
+                    <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>
+                  ))}
+                </Select>
+              </FilterField>
+              <FilterField label="Confirmation" active={!!fConfirmation} htmlFor="pfConfirmation">
+                <Select id="pfConfirmation" value={fConfirmation} onChange={(e) => setFConfirmation(e.target.value)}>
+                  <option value="">All confirmations</option>
+                  <option value="pending_confirmation">Pending Confirmation</option>
+                  <option value="confirmed">Confirmed</option>
+                </Select>
+              </FilterField>
+              {/* Created and Closing each pair their two pickers inside one
+                  captioned field, so a range reads as a range — these were
+                  four loose date inputs with tiny inline captions. */}
+              <FilterField label="Created" active={!!(fFrom || fTo)} htmlFor="pfCreatedFrom">
+                <FilterDatePair
+                  from={<Input id="pfCreatedFrom" type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} aria-label="Created from" />}
+                  to={<Input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} aria-label="Created to" />}
+                />
+              </FilterField>
+              <FilterField label="Closing date" active={fClosingPreset !== 'all'} htmlFor="pfClosing">
+                <Select id="pfClosing" value={fClosingPreset} onChange={(e) => setFClosingPreset(e.target.value as ClosingDatePreset)}>
+                  {(Object.keys(CLOSING_PRESET_LABEL) as ClosingDatePreset[]).map((p) => (
+                    <option key={p} value={p}>{CLOSING_PRESET_LABEL[p]}</option>
+                  ))}
+                </Select>
+                {fClosingPreset === 'custom' && (
+                  <FilterSubRange>
+                    <FilterDatePair
+                      from={<Input type="date" value={fClosingFrom} onChange={(e) => setFClosingFrom(e.target.value)} aria-label="Closing date from" />}
+                      to={<Input type="date" value={fClosingTo} onChange={(e) => setFClosingTo(e.target.value)} aria-label="Closing date to" />}
+                    />
+                  </FilterSubRange>
+                )}
+              </FilterField>
+            </FilterGrid>
           )}
-          <Select auto value={fLead} onChange={(e) => setFLead(e.target.value)}>
-            <option value="">All project leads</option>
-            {leadOptions.map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
-          </Select>
-          <Select auto value={fType} onChange={(e) => setFType(e.target.value as OpportunityType | '')}>
-            <option value="">All opportunity types</option>
-            {OPPORTUNITY_TYPES.map((t) => (
-              <option key={t} value={t}>{OPPORTUNITY_TYPE_LABEL[t]}</option>
-            ))}
-          </Select>
-          <Select auto value={fDepartment} onChange={(e) => setFDepartment(e.target.value as ProjectDepartmentFilter)}>
-            <option value="">All departments</option>
-            {PROJECT_DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>{PROJECT_DEPARTMENT_LABEL[d]}</option>
-            ))}
-          </Select>
-          <Select auto value={fSource} onChange={(e) => setFSource(e.target.value)}>
-            <option value="">All sources</option>
-            {sources.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </Select>
-          <Select auto value={fStage} onChange={(e) => setFStage(e.target.value as ProjectStage | '')}>
-            <option value="">All stages</option>
-            {FORWARD_STAGES.concat('closed_lost').map((s) => (
-              <option key={s} value={s}>{STAGE_LABEL[s]}</option>
-            ))}
-          </Select>
-          <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as ProjectStatus | '')}>
-            <option value="">All statuses</option>
-            {(Object.keys(STATUS_LABEL) as ProjectStatus[]).map((s) => (
-              <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-            ))}
-          </Select>
-          <Select auto value={fPriority} onChange={(e) => setFPriority(e.target.value as ProjectPriority | '')}>
-            <option value="">All priorities</option>
-            {(Object.keys(PRIORITY_LABEL) as ProjectPriority[]).map((p) => (
-              <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>
-            ))}
-          </Select>
-          {/* Filters by when the project was CREATED — unlabeled before, so
-              the two bare date pickers were indistinguishable at a glance. */}
-          <span className={historyStyles.filterDateGroup}>
-            <span className={historyStyles.filterDateGroupLabel}>Created from</span>
-            <Input auto type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} title="Created from" />
-          </span>
-          <span className={historyStyles.filterDateGroup}>
-            <span className={historyStyles.filterDateGroupLabel}>to</span>
-            <Input auto type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title="Created to" />
-          </span>
-          <Select auto value={fClosingPreset} onChange={(e) => setFClosingPreset(e.target.value as ClosingDatePreset)}>
-            <option value="all">Closing Date: All</option>
-            <option value="today">Closing Today</option>
-            <option value="this_week">Closing This Week</option>
-            <option value="this_month">Closing This Month</option>
-            <option value="next_7">Closing Next 7 Days</option>
-            <option value="next_30">Closing Next 30 Days</option>
-            <option value="custom">Closing: Custom Range…</option>
-          </Select>
-          {fClosingPreset === 'custom' && (
-            <>
-              <span className={historyStyles.filterDateGroup}>
-                <span className={historyStyles.filterDateGroupLabel}>From</span>
-                <Input auto type="date" value={fClosingFrom} onChange={(e) => setFClosingFrom(e.target.value)} title="Closing date from" />
-              </span>
-              <span className={historyStyles.filterDateGroup}>
-                <span className={historyStyles.filterDateGroupLabel}>To</span>
-                <Input auto type="date" value={fClosingTo} onChange={(e) => setFClosingTo(e.target.value)} title="Closing date to" />
-              </span>
-            </>
-          )}
-          <Select auto value={fConfirmation} onChange={(e) => setFConfirmation(e.target.value)}>
-            <option value="">All confirmations</option>
-            <option value="pending_confirmation">Pending Confirmation</option>
-            <option value="confirmed">Confirmed</option>
-          </Select>
-        </FilterBar>
-        {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
+
+          <FilterMeta
+            count={projectCountLabel(loading, filtered.length, projects.length)}
+            activeFilters={activeFilters}
+            onClearAll={clearAllFilters}
+          />
+        </FilterPanel>
         {!loading && !loadFailed && selectedLead && (
           <div className={historyStyles.status}>Showing projects led by {selectedLead.name} and projects {selectedLead.name} owns.</div>
         )}

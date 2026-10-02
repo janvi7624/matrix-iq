@@ -23,7 +23,8 @@
 
 .filterRow {
   display: flex;
-  gap: 8px;
+  /* 10px matches quotationHistory's .toolbar, the app's other filter row. */
+  gap: 10px;
   align-items: center;
   flex-wrap: wrap;
 }

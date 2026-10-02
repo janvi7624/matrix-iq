@@ -81,18 +81,50 @@
     color: var(--mx-ink-muted);
     white-space: nowrap;
 }
-.toolbar input[type="text"] {
+/* Every control in a filter bar shares one height, so the row reads as a
+   single band rather than a ragged line. <Select>/<Input> bring .formControl
+   with them; these rules cover the bare search input, bare selects, and the
+   date pickers inside a .filterDateGroup.
+   Child selectors, not descendants: a dropdown panel opened from inside the
+   bar has its own option rows, and the "Needs follow-up only" checkbox sits
+   inside a label here — none of those should be stretched to control height.
+   The :not() guards keep that true even if a checkbox is later dropped
+   directly into a bar. */
+.toolbar > input:not([type="checkbox"]):not([type="radio"]),
+.toolbar > select,
+.toolbar .filterDateGroup > input {
+    min-height: var(--mx-control-h);
+    box-sizing: border-box;
+}
+/* The search box was the odd one out: 44px against .formControl's 46px, an
+   8px radius against --mx-radius-sm's 9px, and a hardcoded #d1d5db border.
+   That hex equals --mx-border-strong today, which is exactly why the drift
+   was easy to miss — it would have diverged the moment the token changed.
+   These declarations mirror .formControl, and --mx-control-h ties the
+   heights together from here on. */
+.toolbar > input[type="text"],
+.toolbar > input[type="search"] {
+    /* The search box is the one control that absorbs the row's spare width. */
     flex: 1;
     min-width: 220px;
-    min-height: 44px;
-    box-sizing: border-box;
-    padding: 10px 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    /* 16px stops iOS Safari auto-zooming the page on focus, as .formControl does. */
     font-size: 16px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+}
+.toolbar > input[type="text"]:focus,
+.toolbar > input[type="search"]:focus {
+    border-color: var(--mx-brand);
+    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
 }
 .button {
-    min-height: 44px;
+    min-height: var(--mx-control-h);
     box-sizing: border-box;
     padding: 11px 18px;
     border-radius: var(--mx-radius-sm);
@@ -1170,6 +1202,9 @@
         align-items: stretch;
     }
     .toolbar > * { width: 100%; }
+    /* A .filterDateGroup is a caption + input pair; the input inside it needs
+       stretching too, or the group goes full width around a narrow input. */
+    .toolbar .filterDateGroup > input { flex: 1; min-width: 0; }
     .table th, .table td {
         padding: 9px 10px;
         font-size: 12.5px;

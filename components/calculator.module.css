@@ -142,7 +142,7 @@
 .formControl {
     width: 100%;
     box-sizing: border-box;
-    min-height: 46px;
+    min-height: var(--mx-control-h);
     padding: 12px 14px;
     border-radius: var(--mx-radius-sm);
     border: 1px solid var(--mx-border-strong);
