@@ -65,6 +65,22 @@
     flex-wrap: wrap;
     align-items: center;
 }
+/* A From/To (or similar) date-range pair in a FilterBar toolbar — two bare
+   type="date" inputs read identically at a glance, so each gets a small
+   caption glued to it (Project Dashboard's Created and Closing Date custom
+   range filters). Grouped in one inline-flex so the pair wraps as a unit
+   instead of a label drifting from its input on a narrow screen. */
+.filterDateGroup {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.filterDateGroupLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+    white-space: nowrap;
+}
 .toolbar input[type="text"] {
     flex: 1;
     min-width: 220px;

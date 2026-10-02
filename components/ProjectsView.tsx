@@ -741,8 +741,16 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>
             ))}
           </Select>
-          <Input auto type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
-          <Input auto type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} />
+          {/* Filters by when the project was CREATED — unlabeled before, so
+              the two bare date pickers were indistinguishable at a glance. */}
+          <span className={historyStyles.filterDateGroup}>
+            <span className={historyStyles.filterDateGroupLabel}>Created from</span>
+            <Input auto type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} title="Created from" />
+          </span>
+          <span className={historyStyles.filterDateGroup}>
+            <span className={historyStyles.filterDateGroupLabel}>to</span>
+            <Input auto type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title="Created to" />
+          </span>
           <Select auto value={fClosingPreset} onChange={(e) => setFClosingPreset(e.target.value as ClosingDatePreset)}>
             <option value="all">Closing Date: All</option>
             <option value="today">Closing Today</option>
@@ -754,8 +762,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           </Select>
           {fClosingPreset === 'custom' && (
             <>
-              <Input auto type="date" value={fClosingFrom} onChange={(e) => setFClosingFrom(e.target.value)} />
-              <Input auto type="date" value={fClosingTo} onChange={(e) => setFClosingTo(e.target.value)} />
+              <span className={historyStyles.filterDateGroup}>
+                <span className={historyStyles.filterDateGroupLabel}>From</span>
+                <Input auto type="date" value={fClosingFrom} onChange={(e) => setFClosingFrom(e.target.value)} title="Closing date from" />
+              </span>
+              <span className={historyStyles.filterDateGroup}>
+                <span className={historyStyles.filterDateGroupLabel}>To</span>
+                <Input auto type="date" value={fClosingTo} onChange={(e) => setFClosingTo(e.target.value)} title="Closing date to" />
+              </span>
             </>
           )}
           <Select auto value={fConfirmation} onChange={(e) => setFConfirmation(e.target.value)}>
