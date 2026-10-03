@@ -829,31 +829,43 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     { key: 'designation', header: 'Designation', render: (l) => l.designation || '-' },
     { key: 'mobile', header: 'Mobile', cellClassName: leadStyles.num, render: (l) => l.mobile || '-' },
     { key: 'email', header: 'Email', render: (l) => l.email || '-' },
-    {
-      key: 'interests',
-      header: 'Interests',
-      render: (l) =>
-        l.interests.length > 0 ? (
-          <div className={leadStyles.interestIcons}>
-            {l.interests.map((d) => {
-              const tile = LEAD_DOMAIN_TILES.find((t) => t.key === d);
-              const Icon = tile?.icon;
-              return Icon ? <Icon key={d} size={14} /> : <span key={d}>{d}</span>;
-            })}
-          </div>
-        ) : (
-          '-'
-        )
-    },
-    {
-      key: 'priority',
-      header: 'Priority',
-      render: (l) => {
-        if (!l.priority) return <span className={leadStyles.emptyCell}>-</span>;
-        const Icon = LEAD_PRIORITY_META[l.priority].icon;
-        return <PriorityBadge tone={l.priority} icon={<Icon size={12} />} label={l.priority.toUpperCase()} />;
-      }
-    },
+    // Meta's lead-gen forms carry no domain-interest or hot/warm/cool concept
+    // (every Meta lead is created with interests: [] and priority: '' — see
+    // lib/metaLeadIngest.ts), so those two columns are dead weight once the
+    // table is filtered down to Meta leads only. Form/Campaign are the
+    // attribution that's actually populated for that slice.
+    ...(sourceFilter === 'meta_lead_ads'
+      ? [
+          { key: 'metaForm', header: 'Form', render: (l: LeadRecord) => l.meta_form_name || '-' },
+          { key: 'metaCampaign', header: 'Campaign', render: (l: LeadRecord) => l.meta_campaign_name || '-' }
+        ]
+      : [
+          {
+            key: 'interests',
+            header: 'Interests',
+            render: (l: LeadRecord) =>
+              l.interests.length > 0 ? (
+                <div className={leadStyles.interestIcons}>
+                  {l.interests.map((d) => {
+                    const tile = LEAD_DOMAIN_TILES.find((t) => t.key === d);
+                    const Icon = tile?.icon;
+                    return Icon ? <Icon key={d} size={14} /> : <span key={d}>{d}</span>;
+                  })}
+                </div>
+              ) : (
+                '-'
+              )
+          },
+          {
+            key: 'priority',
+            header: 'Priority',
+            render: (l: LeadRecord) => {
+              if (!l.priority) return <span className={leadStyles.emptyCell}>-</span>;
+              const Icon = LEAD_PRIORITY_META[l.priority].icon;
+              return <PriorityBadge tone={l.priority} icon={<Icon size={12} />} label={l.priority.toUpperCase()} />;
+            }
+          }
+        ]),
     // Two columns, because they answer different questions: where the lead
     // came from (what sales reports on) and how it got in (the camera icon
     // that tells a rep this row came off a scanned card).
