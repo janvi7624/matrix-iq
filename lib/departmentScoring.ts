@@ -11,7 +11,23 @@ import { marketingRequestStore } from './marketingRequestStore';
 import { tmsBomRequestStore } from './tmsBomRequestStore';
 import { deliveryChallanStore } from './deliveryChallanStore';
 import { needsFollowUp } from './followUp';
-import { ProjectRecord, QuotationRecord, MarketingRequestRecord, TmsBomRequestRecord } from './types';
+import { tmsProjectStore } from './tmsProjectStore';
+import { tmsTaskStore } from './tmsTaskStore';
+import { tmsProcurementStore } from './tmsProcurementStore';
+import { db } from './db';
+import { generalTaskStore } from './generalTaskStore';
+import { getAllPaymentItems } from './accountsPaymentStore';
+import {
+  GeneralTaskRecord,
+  MarketingRequestRecord,
+  PaymentQueueItem,
+  ProjectRecord,
+  QuotationRecord,
+  TmsBomRequestRecord,
+  TmsProcurementRecord,
+  TmsProjectRecord,
+  TmsTaskRecord
+} from './types';
 
 // Several department scorers below need the same org-wide dataset (e.g.
 // every department mapped to scoreSalesTeam/scoreTechTeam runs once per
@@ -27,6 +43,15 @@ export interface ScoringDataCache {
   quotations?: Promise<QuotationRecord[]>;
   marketingRequests?: Promise<MarketingRequestRecord[]>;
   tmsBomRequests?: Promise<TmsBomRequestRecord[]>;
+  // AV, Robotics, AI and R&D all score off the same technical work set —
+  // four departments, one query each, exactly what this cache exists for.
+  tmsProjects?: Promise<TmsProjectRecord[]>;
+  tmsTasks?: Promise<TmsTaskRecord[]>;
+  tmsProcurements?: Promise<TmsProcurementRecord[]>;
+  reimbursementSheets?: Promise<HrSheetRow[]>;
+  adminExpenseEntries?: Promise<HrAdminEntryRow[]>;
+  hrTasks?: Promise<GeneralTaskRecord[]>;
+  paymentItems?: Promise<PaymentQueueItem[]>;
 }
 
 function getProjects(cache: ScoringDataCache): Promise<ProjectRecord[]> {
@@ -47,6 +72,72 @@ function getMarketingRequests(cache: ScoringDataCache): Promise<MarketingRequest
 function getTmsBomRequests(cache: ScoringDataCache): Promise<TmsBomRequestRecord[]> {
   if (!cache.tmsBomRequests) cache.tmsBomRequests = tmsBomRequestStore.list();
   return cache.tmsBomRequests;
+}
+
+function getTmsProjects(cache: ScoringDataCache): Promise<TmsProjectRecord[]> {
+  if (!cache.tmsProjects) cache.tmsProjects = tmsProjectStore.readAll();
+  return cache.tmsProjects;
+}
+
+function getTmsTasks(cache: ScoringDataCache): Promise<TmsTaskRecord[]> {
+  if (!cache.tmsTasks) cache.tmsTasks = tmsTaskStore.readAll();
+  return cache.tmsTasks;
+}
+
+// HR's approval queue reads two tables directly rather than through a store:
+// neither has an unscoped "every row" reader, and adding one to each purely
+// for scoring would be more surface than a pair of narrow reads here.
+interface HrSheetRow {
+  id: string;
+  sheet_code: string | null;
+  status: string;
+  manager_action_at: unknown;
+  hr_reviewer_id: string | null;
+  hr_reviewed_at: unknown;
+  created_at: unknown;
+}
+interface HrAdminEntryRow {
+  id: string;
+  approval_status: string;
+  approved_by: string | null;
+  approved_at: unknown;
+  created_at: unknown;
+}
+
+function getReimbursementSheets(cache: ScoringDataCache): Promise<HrSheetRow[]> {
+  if (!cache.reimbursementSheets) {
+    cache.reimbursementSheets = db.ReimbursementSheet.findAll({
+      attributes: ['id', 'sheet_code', 'status', 'manager_action_at', 'hr_reviewer_id', 'hr_reviewed_at', 'created_at']
+    }).then((rows) => rows.map((r) => r.get({ plain: true }) as unknown as HrSheetRow));
+  }
+  return cache.reimbursementSheets;
+}
+
+function getAdminExpenseEntries(cache: ScoringDataCache): Promise<HrAdminEntryRow[]> {
+  if (!cache.adminExpenseEntries) {
+    // Admin Expenses are reimbursements flagged is_admin_entry — see
+    // lib/accountsPaymentStore.ts's loadAdminExpenseSheets.
+    cache.adminExpenseEntries = db.Reimbursement.findAll({
+      where: { is_admin_entry: true } as never,
+      attributes: ['id', 'approval_status', 'approved_by', 'approved_at', 'created_at']
+    }).then((rows) => rows.map((r) => r.get({ plain: true }) as unknown as HrAdminEntryRow));
+  }
+  return cache.adminExpenseEntries;
+}
+
+function getTmsProcurements(cache: ScoringDataCache): Promise<TmsProcurementRecord[]> {
+  if (!cache.tmsProcurements) cache.tmsProcurements = tmsProcurementStore.list();
+  return cache.tmsProcurements;
+}
+
+function getHrTasks(cache: ScoringDataCache): Promise<GeneralTaskRecord[]> {
+  if (!cache.hrTasks) cache.hrTasks = generalTaskStore.readAllBySourceModule('hr');
+  return cache.hrTasks;
+}
+
+function getPaymentItems(cache: ScoringDataCache): Promise<PaymentQueueItem[]> {
+  if (!cache.paymentItems) cache.paymentItems = getAllPaymentItems();
+  return cache.paymentItems;
 }
 
 export type ScoreBand = 'red' | 'yellow' | 'green' | 'na';
@@ -90,6 +181,10 @@ export interface ScoreResult {
 export interface TeamMember {
   id: string;
   username: string;
+  /** Display name — the Accounts payment queue records who paid by name, not
+   *  username, so matching there needs this. Optional so existing callers
+   *  that only have id/username keep compiling. */
+  name?: string;
 }
 
 const NO_FORMULA = 'No health metric is defined for this department yet.';
@@ -110,6 +205,19 @@ export function scoreBand(score: number): 'red' | 'yellow' | 'green' {
   if (score >= 70) return 'green';
   if (score >= 40) return 'yellow';
   return 'red';
+}
+
+// Several record fields are typed as `string` but arrive as a Date at
+// runtime: a store's toRecord passes 'nullable' fields straight through, and
+// a DataTypes.DATE column therefore reaches here as a Date object
+// (projects.closed_at, demo_schedule.scheduled_at), while PaymentQueueItem's
+// paidAt is a string from some of its five sources and a Date from others.
+// Calling .slice() on those throws — which is exactly what took the whole
+// Department Health section down. Normalise rather than trust the type.
+function dateOnly(value: unknown): string {
+  if (!value) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
 }
 
 function average(nums: number[]): number | null {
@@ -215,34 +323,154 @@ async function scoreSalesTeam(team: TeamMember[], cache: ScoringDataCache): Prom
 // aren't past their expected closing date.
 // ---------------------------------------------------------------------------
 const TECH_FORMULA =
-  'The share of each engineer’s actively-assigned projects that have not passed their expected closing date, averaged across the team.';
+  'Everything the team owns in TMS — projects, tasks, BOM requests and procurement — as the share that is ON SCHEDULE: delivered by its end date, or still open and not yet due. Work delivered late, open past its date, or open with no end date at all counts against it.';
+
+// AI, AV, Robotics and R&D are the TMS departments, so their health is the
+// whole TMS module and nothing outside it:
+//
+//   • TMS projects    managed or on the team of        → deadline
+//   • TMS tasks       assigned to them                 → due_date
+//   • BOM requests    they raised                      → required_date
+//   • Procurement     they raised                      → expected_delivery_date
+//
+// Anyone working a project contributes: project membership counts, not just
+// management, so a project's delivery lands on everyone on it.
+//
+// Pooled into ONE rate per person rather than four averaged rates, so someone
+// with 12 projects and 1 BOM isn't scored as if those were equal bodies of work.
+//
+// Sales projects and demos were part of this and are deliberately gone: this
+// is the TMS module's health, and that work belongs to the Sales pipeline.
+interface TechWorkItem {
+  id: string;
+  label: string;
+  /** '' when no end date has been set — see the undated rule in the scorer. */
+  due: string;
+  /** Completion date once finished; '' while still open. */
+  doneOn: string;
+  done: boolean;
+  cancelled: boolean;
+  href: string;
+}
+
+const BOM_DONE_STATUSES = new Set(['received', 'completed']);
+const BOM_DEAD_STATUSES = new Set(['rejected']);
 
 async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promise<ScoreResult> {
   if (!team.length) return naResult(team, TECH_FORMULA);
-  const allProjects = await getProjects(cache);
+  const [tmsProjects, tmsTasks, bomRequests, procurements] = await Promise.all([
+    getTmsProjects(cache),
+    getTmsTasks(cache),
+    getTmsBomRequests(cache),
+    getTmsProcurements(cache)
+  ]);
   const today = new Date().toISOString().slice(0, 10);
 
-  let totalActive = 0, totalDelayed = 0;
+  function itemsFor(memberId: string): TechWorkItem[] {
+    const items: TechWorkItem[] = [];
+
+    for (const p of tmsProjects) {
+      // Managing it OR being on its team both count — delivery is the team's
+      // result, so it lands on everyone working the project.
+      if (p.project_manager_id !== memberId && !p.team_member_ids.includes(memberId)) continue;
+      // deadline falls back to the estimate: the create route seeds one from
+      // the other, but an older or oddly-edited project can carry only the estimate.
+      // Undated work is KEPT (see the scoring rule below), not skipped.
+      const due = dateOnly(p.deadline) || dateOnly(p.estimated_close_date);
+      items.push({ id: `tmsp:${p.id}`, label: `${p.project_code} — ${p.name}`, due, doneOn: dateOnly(p.actual_close_date), done: p.status === 'completed', cancelled: p.status === 'cancelled', href: `/tms/projects/${p.id}` });
+    }
+
+    for (const t of tmsTasks) {
+      if (t.assignee_id !== memberId) continue;
+      const due = dateOnly(t.due_date);
+      items.push({ id: `tmst:${t.id}`, label: t.name, due, doneOn: dateOnly(t.completion_date), done: t.status === 'completed', cancelled: t.status === 'cancelled', href: `/tms/tasks/${t.id}` });
+    }
+
+    for (const b of bomRequests) {
+      if (b.requested_by_id !== memberId) continue;
+      const due = dateOnly(b.required_date);
+      items.push({ id: `bom:${b.id}`, label: `${b.bom_request_code} — ${b.item_name}`, due, doneOn: dateOnly(b.received_at), done: BOM_DONE_STATUSES.has(b.status), cancelled: BOM_DEAD_STATUSES.has(b.status), href: `/tms/bom-requests/${b.id}` });
+    }
+
+    return items;
+  }
+
+  // Procurement rows carry no requester id — created_by is a resolved username
+  // (see lib/tmsProcurementStore.ts) — so it is matched separately from the
+  // id-keyed sources above rather than forcing both into one loop.
+  function procurementItemsFor(username: string): TechWorkItem[] {
+    const out: TechWorkItem[] = [];
+    for (const pr of procurements) {
+      if (pr.created_by !== username) continue;
+      const due = dateOnly(pr.expected_delivery_date) || dateOnly(pr.required_date);
+      out.push({ id: `proc:${pr.id}`, label: `${pr.procurement_code} — ${pr.item_name}`, due, doneOn: dateOnly(pr.actual_delivery_date), done: !!pr.actual_delivery_date, cancelled: false, href: `/tms/procurement/${pr.id}` });
+    }
+    return out;
+  }
+
+  let totalOnTime = 0, totalLate = 0, totalOverdueOpen = 0, totalUndated = 0;
 
   const members: MemberScore[] = team.map((m) => {
-    const assigned = allProjects.filter((p) => p.assigned_technical_person_id === m.id && p.status === 'active');
-    const delayed = assigned.filter((p) => p.expected_closing_date && p.expected_closing_date < today);
-    const delayedIds = new Set(delayed.map((p) => p.id));
-    const onTrack = assigned.filter((p) => !delayedIds.has(p.id));
-    totalActive += assigned.length; totalDelayed += delayed.length;
-    const projectItem = (p: ProjectRecord): DrilldownItem => ({ id: p.id, label: p.client_name || p.company || `Project ${p.id}`, sublabel: p.expected_closing_date || '', href: `/projects/${p.id}` });
+    const items = [...itemsFor(m.id), ...procurementItemsFor(m.username)];
+
+    let onTime = 0, late = 0, overdueOpen = 0, undated = 0;
+    const onTimeItems: TechWorkItem[] = [], lateItems: TechWorkItem[] = [], overdueOpenItems: TechWorkItem[] = [], undatedItems: TechWorkItem[] = [];
+    items.forEach((i) => {
+      if (i.cancelled) return;
+      if (i.done) {
+        // Delivered. With no end date on record there is nothing to have been
+        // late against, so it counts as on time — the absence of a plan is a
+        // planning failure, not a delivery one, and the undated bucket below
+        // is where that gets charged.
+        if (!i.due) { onTime += 1; onTimeItems.push(i); return; }
+        // Finished without a recorded completion date can't be judged either
+        // way, so it is left out rather than assumed on time or late.
+        if (!i.doneOn) return;
+        if (i.doneOn <= i.due) { onTime += 1; onTimeItems.push(i); }
+        else { late += 1; lateItems.push(i); }
+      } else if (!i.due) {
+        // Still open with no committed end date. This used to be skipped,
+        // which is why a department whose projects had no dates read N/A
+        // however much work it was carrying. Open work nobody has committed
+        // a date to is a real risk, so it counts against the score — and
+        // setting the date is what moves it out of this bucket.
+        undated += 1;
+        undatedItems.push(i);
+      } else if (i.due < today) {
+        overdueOpen += 1;
+        overdueOpenItems.push(i);
+      } else {
+        // Open, dated, and not yet due — ON SCHEDULE. This used to be
+        // excluded as "nothing to judge yet", which left a department whose
+        // work was all still running ahead of its dates reading N/A no matter
+        // how much of it there was. A health gauge should say "on track"
+        // there, not "no data": being inside your deadline is a real, good
+        // state, and the late/overdue/undated buckets are what make it fall.
+        onTime += 1;
+        onTimeItems.push(i);
+      }
+    });
+
+    totalOnTime += onTime; totalLate += late; totalOverdueOpen += overdueOpen; totalUndated += undated;
+    const denominator = onTime + late + overdueOpen + undated;
+    const toDrilldown = (i: TechWorkItem): DrilldownItem => ({ id: i.id, label: i.label, sublabel: i.due ? `due ${i.due}` : 'no end date set', href: i.href });
     return {
       id: m.id,
       username: m.username,
-      score: rounded(pct(assigned.length - delayed.length, assigned.length)),
+      score: rounded(pct(onTime, denominator)),
       metrics: [
-        { label: 'On-track projects', value: `${assigned.length - delayed.length} / ${assigned.length}`, items: onTrack.map(projectItem) },
-        { label: 'Overdue projects', value: String(delayed.length), items: delayed.map(projectItem) }
+        { label: 'On schedule', value: `${onTime} / ${denominator}`, items: onTimeItems.map(toDrilldown) },
+        { label: 'Delivered late', value: String(late), items: lateItems.map(toDrilldown) },
+        { label: 'Open past due', value: String(overdueOpen), items: overdueOpenItems.map(toDrilldown) },
+        { label: 'No end date set', value: String(undated), items: undatedItems.map(toDrilldown) }
       ]
     };
   });
 
-  const breakdown: BreakdownRow[] = [{ label: 'On-track projects', value: `${totalActive - totalDelayed} / ${totalActive}` }];
+  const breakdown: BreakdownRow[] = [
+    { label: 'TMS work on schedule', value: `${totalOnTime} / ${totalOnTime + totalLate + totalOverdueOpen + totalUndated}` },
+    { label: 'Open with no end date', value: String(totalUndated) }
+  ];
   return finalize(members, breakdown, TECH_FORMULA);
 }
 
@@ -343,7 +571,6 @@ async function scoreBackOfficeTeam(team: TeamMember[], _cache: ScoringDataCache)
 // Accounts — % of finance-approved BOM requests this member marked paid
 // within 3 days.
 // ---------------------------------------------------------------------------
-const ACCOUNTS_TARGET_DAYS = 3;
 const ADMINISTRATION_TARGET_DAYS = 2;
 
 function daysBetween(fromIso: string, toIso: string): number {
@@ -351,37 +578,60 @@ function daysBetween(fromIso: string, toIso: string): number {
 }
 
 const ACCOUNTS_FORMULA =
-  `The share of finance-approved BOM requests each member marked as paid within ${ACCOUNTS_TARGET_DAYS} days of that approval, averaged across the team.`;
+  'The share of payment-queue items settled by their due date, averaged across the team. Items still unpaid past their due date count against everyone, since the queue is the team’s shared responsibility.';
 
+// Accounts works the Accounts module — the payment queue aggregating
+// Reimbursement, Admin Expenses, Office Operation Expenses, TMS BOM Requests
+// and Travel Schedule. (This previously scored only BOM approval timing,
+// which is one of five sources and not where most of the team's work is.)
+//
+// A paid item is credited to whoever paid it; `paidBy` on a queue item is a
+// display NAME, not a username, so matching uses TeamMember.name.
+//
+// Unpaid-past-due items have no owner — nobody has acted on them yet — so
+// they are charged to EVERY member's denominator. That is deliberate: a queue
+// nobody touches would otherwise score 100% (or N/A) because only completed
+// work is measurable, which is exactly the "fast when acting, never acting"
+// blind spot a payment-queue metric must not have.
 async function scoreAccountsTeam(team: TeamMember[], cache: ScoringDataCache): Promise<ScoreResult> {
   if (!team.length) return naResult(team, ACCOUNTS_FORMULA);
-  const all = await getTmsBomRequests(cache);
-  let totalOnTime = 0, totalHandled = 0;
+  const items = await getPaymentItems(cache);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const backlog = items.filter((i) => i.status !== 'paid' && i.dueDate && i.dueDate < today);
+  const paymentItem = (i: PaymentQueueItem): DrilldownItem => ({
+    id: i.paymentId,
+    label: `${i.sourceLabel} — ${i.payee}`,
+    sublabel: i.dueDate ? `due ${i.dueDate}` : i.status,
+    href: '/accounts/payments'
+  });
+
+  let totalOnTime = 0, totalLate = 0;
 
   const members: MemberScore[] = team.map((m) => {
-    const handled = all.filter((r) => r.payment_marked_by_id === m.id && r.finance_reviewed_at);
-    const onTime = handled.filter((r) => daysBetween(r.finance_reviewed_at, r.payment_marked_at) <= ACCOUNTS_TARGET_DAYS);
-    totalOnTime += onTime.length; totalHandled += handled.length;
-    const bomItem = (r: TmsBomRequestRecord): DrilldownItem => ({ id: r.id, label: `${r.bom_request_code} — ${r.item_name}`, sublabel: r.project_name, href: `/tms/bom-requests/${r.id}` });
+    const paid = items.filter((i) => i.status === 'paid' && i.paidAt && i.paidBy && m.name && i.paidBy === m.name);
+    const onTimeItems = paid.filter((i) => !i.dueDate || dateOnly(i.paidAt) <= i.dueDate);
+    const lateItems = paid.filter((i) => i.dueDate && dateOnly(i.paidAt) > i.dueDate);
+    totalOnTime += onTimeItems.length; totalLate += lateItems.length;
     return {
       id: m.id,
       username: m.username,
-      score: rounded(pct(onTime.length, handled.length)),
+      score: rounded(pct(onTimeItems.length, onTimeItems.length + lateItems.length + backlog.length)),
       metrics: [
-        { label: `Paid within ${ACCOUNTS_TARGET_DAYS} days`, value: `${onTime.length} / ${handled.length}`, items: onTime.map(bomItem) },
-        { label: 'Payments handled', value: String(handled.length), items: handled.map(bomItem) }
+        { label: 'Paid by due date', value: `${onTimeItems.length} / ${onTimeItems.length + lateItems.length + backlog.length}`, items: onTimeItems.map(paymentItem) },
+        { label: 'Paid late', value: String(lateItems.length), items: lateItems.map(paymentItem) },
+        { label: 'Team backlog past due', value: String(backlog.length), items: backlog.map(paymentItem) }
       ]
     };
   });
 
-  const breakdown: BreakdownRow[] = [{ label: `Payments marked within ${ACCOUNTS_TARGET_DAYS} days`, value: `${totalOnTime} / ${totalHandled}` }];
+  const breakdown: BreakdownRow[] = [
+    { label: 'Paid by due date', value: `${totalOnTime} / ${totalOnTime + totalLate + backlog.length}` },
+    { label: 'Unpaid past due', value: String(backlog.length) }
+  ];
   return finalize(members, breakdown, ACCOUNTS_FORMULA);
 }
 
-// ---------------------------------------------------------------------------
-// Administration — % of technical-manager-approved BOM requests this member
-// admin-approved within 2 days.
-// ---------------------------------------------------------------------------
 const ADMINISTRATION_FORMULA =
   `The share of technical-manager-approved BOM requests each member admin-approved within ${ADMINISTRATION_TARGET_DAYS} days, averaged across the team.`;
 
@@ -414,16 +664,130 @@ async function scoreAdministrationTeam(team: TeamMember[], cache: ScoringDataCac
 // Registry — add one more entry here when a department gets a real metric;
 // anything not listed renders the neutral "not enough data" gauge state.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// HR — everything the HR module puts on their desk.
+const HR_APPROVAL_TARGET_DAYS = 3;
+
+const HR_FORMULA =
+  `HR’s own queue — reimbursement sheets they approved, admin-expense entries they approved, and their HR tasks — counted as delivered when handled within ${HR_APPROVAL_TARGET_DAYS} days or by the task deadline. Anything still awaiting an HR decision past that window counts against the whole team.`;
+
+// HR is measured on the HR module's work, not on anything Sales- or TMS-side:
+//
+//   • Reimbursement sheets  they HR-reviewed    → within N days of manager approval
+//   • Admin expense entries they approved       → within N days of submission
+//   • HR tasks              assigned to them    → by deadline
+//   • Pending HR approvals  nobody has actioned → charged to the whole team
+//
+// That last one is the point of including it. Only completed work carries a
+// timestamp, so a queue nobody touches would otherwise score 100% or N/A —
+// the "fast when acting, never acting" blind spot. A sheet sitting unapproved
+// past the window is HR's failure collectively, so it lands on every member,
+// exactly as the Accounts payment backlog does.
+const HR_DONE_STATUSES = new Set(['completed', 'approved']);
+const HR_CLOSED_STATUSES = new Set(['completed', 'approved', 'cancelled', 'rejected']);
+
+async function scoreHrTeam(team: TeamMember[], cache: ScoringDataCache): Promise<ScoreResult> {
+  if (!team.length) return naResult(team, HR_FORMULA);
+  const [tasks, sheets, adminEntries] = await Promise.all([
+    getHrTasks(cache),
+    getReimbursementSheets(cache),
+    getAdminExpenseEntries(cache)
+  ]);
+  const today = new Date().toISOString().slice(0, 10);
+  const windowAgo = new Date(Date.now() - HR_APPROVAL_TARGET_DAYS * 86_400_000).toISOString().slice(0, 10);
+
+  // Shared backlog: awaiting an HR decision for longer than the window.
+  const pendingSheets = sheets.filter((r) => r.status === 'manager_approved' && dateOnly(r.manager_action_at) && dateOnly(r.manager_action_at) < windowAgo);
+  const pendingAdmin = adminEntries.filter((r) => r.approval_status === 'pending' && dateOnly(r.created_at) < windowAgo);
+  const backlog = pendingSheets.length + pendingAdmin.length;
+  const backlogItems: DrilldownItem[] = [
+    ...pendingSheets.map((r) => ({ id: `sheet:${r.id}`, label: `Reimbursement ${r.sheet_code || r.id}`, sublabel: 'awaiting HR approval', href: '/reimbursement' })),
+    ...pendingAdmin.map((r) => ({ id: `adm:${r.id}`, label: `Admin expense ${r.id}`, sublabel: 'awaiting HR approval', href: '/admin-expenses' }))
+  ];
+
+  let totalOnTime = 0, totalLate = 0, totalOverdue = 0;
+
+  const members: MemberScore[] = team.map((m) => {
+    let onTime = 0, late = 0, overdueOpen = 0;
+    const onTimeItems: DrilldownItem[] = [], lateItems: DrilldownItem[] = [], overdueItems: DrilldownItem[] = [];
+
+    // 1. Reimbursement sheets this person HR-approved.
+    sheets
+      .filter((r) => r.hr_reviewer_id === m.id && r.hr_reviewed_at)
+      .forEach((r) => {
+        const from = dateOnly(r.manager_action_at) || dateOnly(r.created_at);
+        const item: DrilldownItem = { id: `sheet:${r.id}`, label: `Reimbursement ${r.sheet_code || r.id}`, sublabel: `approved ${dateOnly(r.hr_reviewed_at)}`, href: '/reimbursement' };
+        if (!from || daysBetween(from, dateOnly(r.hr_reviewed_at)) <= HR_APPROVAL_TARGET_DAYS) { onTime += 1; onTimeItems.push(item); }
+        else { late += 1; lateItems.push(item); }
+      });
+
+    // 2. Admin expense entries this person approved.
+    adminEntries
+      .filter((r) => r.approved_by === m.id && r.approved_at)
+      .forEach((r) => {
+        const item: DrilldownItem = { id: `adm:${r.id}`, label: `Admin expense ${r.id}`, sublabel: `approved ${dateOnly(r.approved_at)}`, href: '/admin-expenses' };
+        if (daysBetween(dateOnly(r.created_at), dateOnly(r.approved_at)) <= HR_APPROVAL_TARGET_DAYS) { onTime += 1; onTimeItems.push(item); }
+        else { late += 1; lateItems.push(item); }
+      });
+
+    // 3. Their HR tasks. general_tasks has no completion timestamp, so
+    //    updated_at stands in — the same compromise scoreMarketingTeam makes.
+    tasks
+      .filter((t) => t.assignee_id === m.id && t.deadline)
+      .forEach((t) => {
+        const item: DrilldownItem = { id: `task:${t.id}`, label: t.title, sublabel: `due ${t.deadline}`, href: `/my-tasks/${t.id}` };
+        if (HR_DONE_STATUSES.has(t.status)) {
+          if (dateOnly(t.updated_at) <= t.deadline) { onTime += 1; onTimeItems.push(item); }
+          else { late += 1; lateItems.push(item); }
+        } else if (!HR_CLOSED_STATUSES.has(t.status) && t.deadline < today) {
+          overdueOpen += 1;
+          overdueItems.push(item);
+        }
+      });
+
+    totalOnTime += onTime; totalLate += late; totalOverdue += overdueOpen;
+    const denominator = onTime + late + overdueOpen + backlog;
+    return {
+      id: m.id,
+      username: m.username,
+      score: rounded(pct(onTime, denominator)),
+      metrics: [
+        { label: 'Handled on time', value: `${onTime} / ${denominator}`, items: onTimeItems },
+        { label: 'Handled late', value: String(late), items: lateItems },
+        { label: 'Own work past deadline', value: String(overdueOpen), items: overdueItems },
+        { label: 'Team awaiting HR approval', value: String(backlog), items: backlogItems }
+      ]
+    };
+  });
+
+  const breakdown: BreakdownRow[] = [
+    { label: 'Handled on time', value: `${totalOnTime} / ${totalOnTime + totalLate + totalOverdue + backlog}` },
+    { label: 'Awaiting HR approval', value: String(backlog) }
+  ];
+  return finalize(members, breakdown, HR_FORMULA);
+}
+
 const DEPARTMENT_SCORERS: Record<string, (team: TeamMember[], cache: ScoringDataCache) => Promise<ScoreResult>> = {
+  // Each department is scored on the module it actually works in.
   Sales: scoreSalesTeam,
   'GEM - Sales': scoreSalesTeam,
+  // TMS departments — scored on TMS tasks, not the Sales pipeline. R&D is a
+  // TMS department too and was previously missing here entirely, so its gauge
+  // always read N/A regardless of what the team had done.
   AV: scoreTechTeam,
   Robotics: scoreTechTeam,
   AI: scoreTechTeam,
+  'R&D': scoreTechTeam,
   Marketing: scoreMarketingTeam,
   'Back Office': scoreBackOfficeTeam,
+  // Accounts module (the payment queue), not BOM approval timing.
   Accounts: scoreAccountsTeam,
-  Administration: scoreAdministrationTeam
+  Administration: scoreAdministrationTeam,
+  // HR module's task engine. Both spellings are registered because the
+  // seeded department is "HR" while this install's is "HR & Admin" — keying
+  // off one name alone would silently leave the other unscored.
+  HR: scoreHrTeam,
+  'HR & Admin': scoreHrTeam
 };
 
 // `cache` is optional so a single self-only lookup (dashboard/health's
