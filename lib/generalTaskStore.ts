@@ -94,6 +94,21 @@ async function list(viewer: ViewerContext, filters: { sourceModule?: GeneralTask
   return rows.map(toRecord);
 }
 
+// Unscoped read of one module's tasks — for Department Health scoring
+// (lib/departmentScoring.ts), which computes a whole department's average and
+// therefore must see every member's tasks regardless of who is looking at the
+// gauge. Deliberately separate from list() above, whose visibility scoping is
+// exactly what a score must NOT inherit: a viewer-scoped read would give two
+// people different numbers for the same department.
+async function readAllBySourceModule(sourceModule: GeneralTaskSourceModule): Promise<GeneralTaskRecord[]> {
+  const rows = await db.GeneralTask.findAll({
+    where: { source_module: sourceModule } as never,
+    include: ALL_INCLUDES,
+    order: [['deadline', 'ASC']]
+  });
+  return rows.map(toRecord);
+}
+
 // Every task assigned to this exact user (their unified "My Tasks" inbox,
 // admin- and hr-sourced alike) — deliberately not also matching created_by,
 // same reasoning as tmsTaskStore.ts's listForAssignee.
@@ -221,7 +236,7 @@ async function update(id: string, patch: Record<string, unknown>): Promise<Gener
   return toRecord(withAssoc as Model);
 }
 
-export const generalTaskStore = { list, listForAssignee, findById, create, update };
+export const generalTaskStore = { list, readAllBySourceModule, listForAssignee, findById, create, update };
 
 // --- Status transitions ------------------------------------------------
 

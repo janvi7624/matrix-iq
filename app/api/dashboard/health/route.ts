@@ -10,9 +10,33 @@ import { db } from '@/lib/db';
 async function teamFor(departmentId: string): Promise<TeamMember[]> {
   const rows = await db.User.findAll({
     where: { departmentId, status: 'active' } as never,
-    attributes: ['id', 'username']
+    // `name` is needed by the Accounts scorer, whose payment-queue records
+    // identify who paid by display name rather than username.
+    attributes: ['id', 'username', 'name']
   });
-  return rows.map((r) => ({ id: r.get('id') as string, username: r.get('username') as string }));
+  return rows.map((r) => ({ id: r.get('id') as string, username: r.get('username') as string, name: (r.get('name') as string) || '' }));
+}
+
+// One department's data problem must not blank the whole Department Health
+// section: Promise.all rejects as a unit, so a single scorer throwing used to
+// take every other gauge down with it and the dashboard rendered nothing at
+// all (the section is hidden when gauges is empty). Each department is now
+// scored independently and a failure degrades to that one gauge reading N/A.
+// The error is logged rather than swallowed, so a real fault is still visible
+// in the server output instead of silently becoming "no data".
+async function safeScore(departmentName: string, team: TeamMember[], cache: ScoringDataCache) {
+  try {
+    return await computeDepartmentScore(departmentName, team, cache);
+  } catch (error) {
+    console.error(`[dashboard/health] scoring "${departmentName}" failed:`, error);
+    return {
+      score: 0,
+      band: 'na' as const,
+      breakdown: [],
+      members: [],
+      formula: 'This department’s health could not be calculated — see the server log.'
+    };
+  }
 }
 
 // Dashboard traffic-light gauges: an org-wide viewer gets one gauge per
@@ -38,7 +62,7 @@ export async function GET(request: NextRequest) {
       const gauges = await Promise.all(
         departments.map(async (d) => ({
           department: d.name,
-          ...(await computeDepartmentScore(d.name, await teamFor(d.id), cache))
+          ...(await safeScore(d.name, await teamFor(d.id), cache))
         }))
       );
       return NextResponse.json({ scope: 'org', gauges });
@@ -50,15 +74,15 @@ export async function GET(request: NextRequest) {
       const gauges = await Promise.all(
         managed.map(async (d) => ({
           department: d.name,
-          ...(await computeDepartmentScore(d.name, await teamFor(d.id), cache))
+          ...(await safeScore(d.name, await teamFor(d.id), cache))
         }))
       );
       return NextResponse.json({ scope: 'department', gauges });
     }
 
     const deptInfo = await findUserNameAndDeptByUsername(viewer.username);
-    const selfTeam: TeamMember[] = [{ id: viewer.userId, username: viewer.username }];
-    const result = await computeDepartmentScore(deptInfo?.department || '', selfTeam);
+    const selfTeam: TeamMember[] = [{ id: viewer.userId, username: viewer.username, name: deptInfo?.name || '' }];
+    const result = await safeScore(deptInfo?.department || '', selfTeam, {});
     return NextResponse.json({ scope: 'self', gauges: [{ department: deptInfo?.department || 'You', ...result }] });
   } catch (error) {
     return apiErrorResponse(error);

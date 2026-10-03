@@ -93,6 +93,17 @@ async function toRecords(rows: Model[]): Promise<TmsProjectRecord[]> {
 // visible to EVERY member department's manager, not just its primary one);
 // engineer/technician see only projects they created, manage, or are a team
 // member on (department-agnostic, unaffected by combined projects).
+// Unscoped read of every TMS project — for Department Health scoring
+// (lib/departmentScoring.ts), which averages a whole department and so must
+// see every member's projects regardless of who is looking at the gauge.
+// Deliberately separate from list() below, whose viewer scoping is exactly
+// what a score must NOT inherit: it would give two people different numbers
+// for the same department.
+async function readAll(): Promise<TmsProjectRecord[]> {
+  const rows = await db.TmsProject.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
+  return toRecords(rows);
+}
+
 async function list(viewer: TmsViewer): Promise<TmsProjectRecord[]> {
   if (viewer.isPrivileged) {
     const rows = await db.TmsProject.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
@@ -239,7 +250,7 @@ export async function computeTaskDerivedProgress(tmsProjectId: string): Promise<
   return Math.round((completed / tasks.length) * 100);
 }
 
-export const tmsProjectStore = { list, findById, create, update, remove };
+export const tmsProjectStore = { list, readAll, findById, create, update, remove };
 
 // TMS-PRJ-<seq> — same "read everything, find the max sequence, +1" approach
 // as lib/deliveryChallanStore.ts's nextDcNumber().
