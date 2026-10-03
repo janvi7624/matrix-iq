@@ -117,7 +117,20 @@ export interface IngestContext {
   rawPayloadForLog?: unknown;
 }
 
-export type IngestStatus = 'created' | 'merged' | 'ignored_duplicate' | 'failed';
+export type IngestStatus = 'created' | 'merged' | 'ignored_duplicate' | 'ignored_test_lead' | 'failed';
+
+// Meta stamps every field of a lead generated via a Page's own "Test Lead"
+// / Ads Manager preview flow with this exact literal marker (confirmed
+// against a real one: field values like "<test lead: dummy data for
+// full_name>", email "test@meta.com"). These are real leadgen_ids that
+// really exist on Meta's side — fetching them succeeds — but they carry no
+// real contact and have no business being in Sales' queue as an actual
+// enquiry.
+const META_TEST_LEAD_MARKER = '<test lead: dummy data for';
+
+function isMetaTestLead(fieldData: MetaLeadFieldDatum[]): boolean {
+  return fieldData.some((f) => (f.values || []).some((v) => typeof v === 'string' && v.toLowerCase().includes(META_TEST_LEAD_MARKER)));
+}
 
 export interface IngestResult {
   status: IngestStatus;
@@ -176,12 +189,22 @@ export async function ingestMetaLead(leadgenId: string, context: IngestContext =
     return { status: 'failed', error: 'Could not retrieve lead details from Meta.' };
   }
 
-  const normalized = normalizeMetaFields(details.fieldData);
-  const owner = await resolveOwnerUser(details.campaignId);
-  if (!owner) {
-    await event.update({ status: 'failed', last_error: 'No default owner configured for Meta leads (Administration → Meta Lead Integration).', attempts });
-    return { status: 'failed', error: 'No default owner is configured for Meta leads yet.' };
+  if (isMetaTestLead(details.fieldData)) {
+    await event.update({ status: 'ignored_test_lead', attempts });
+    return { status: 'ignored_test_lead' };
   }
+
+  const normalized = normalizeMetaFields(details.fieldData);
+  // No owner resolvable (campaign/round-robin found nobody, and no default
+  // owner is configured) no longer fails the import — the lead is created
+  // anyway, same as any other lead nobody has claimed yet: created_by/
+  // assigned_to both stay unset (createOrMergeLead -> the generic record
+  // store already turns an unresolvable/blank username into created_by
+  // NULL, same fallback lib/projectStore.ts's create() uses), and it shows
+  // in Leads as "Unassigned — Take it" for a manager to route by hand.
+  // Losing a real lead because nobody had configured routing yet would be
+  // strictly worse than landing it unowned.
+  const owner = await resolveOwnerUser(details.campaignId);
 
   let result: Awaited<ReturnType<typeof createOrMergeLead>>;
   try {
@@ -217,7 +240,7 @@ export async function ingestMetaLead(leadgenId: string, context: IngestContext =
           rawFieldData: details.fieldData
         }
       },
-      owner.username
+      owner?.username || ''
     );
   } catch (err) {
     // Two concurrent webhook deliveries for the same brand-new leadgen_id
@@ -242,8 +265,11 @@ export async function ingestMetaLead(leadgenId: string, context: IngestContext =
   const platformLabel = details.platform === 'ig' ? 'Instagram' : 'Facebook';
   const label = details.campaignName || details.formName || 'Lead Ad';
   await logAudit({
-    by: owner.username,
-    role: owner.role,
+    // No real actor behind an automated import with nobody configured to
+    // own it — 'system' rather than impersonating a real username that had
+    // nothing to do with this lead.
+    by: owner?.username || 'system',
+    role: owner?.role || 'system',
     entityType: 'meta_lead',
     entityId: result.record.id,
     action: result.merged
@@ -255,13 +281,18 @@ export async function ingestMetaLead(leadgenId: string, context: IngestContext =
     ip: ''
   });
 
-  await notifyUsers([owner.username], {
-    title: result.merged ? 'Meta lead merged into an existing lead' : 'New Meta lead assigned to you',
-    body: `${result.record.name || result.record.company || 'A new lead'} via ${platformLabel} — ${label}`,
-    type: 'meta_lead_assigned',
-    entityType: 'lead',
-    entityId: result.record.id
-  });
+  // Nobody to tell when the lead landed unassigned — it shows up in the
+  // Leads list's own "Unassigned — Take it" state instead, same as any
+  // other unclaimed lead.
+  if (owner) {
+    await notifyUsers([owner.username], {
+      title: result.merged ? 'Meta lead merged into an existing lead' : 'New Meta lead assigned to you',
+      body: `${result.record.name || result.record.company || 'A new lead'} via ${platformLabel} — ${label}`,
+      type: 'meta_lead_assigned',
+      entityType: 'lead',
+      entityId: result.record.id
+    });
+  }
 
   await event.update({ status: 'processed', resulting_lead_id: result.record.id, processed_at: new Date(), attempts });
 

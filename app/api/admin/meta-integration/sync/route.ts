@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       const formId = (row.get('form_id') as string) || undefined;
       const result = await ingestMetaLead(leadgenId, { pageId, formId });
       if (result.status === 'created' || result.status === 'merged') processed++;
-      else if (result.status === 'ignored_duplicate') skipped++;
+      else if (result.status === 'ignored_duplicate' || result.status === 'ignored_test_lead') skipped++;
       else failed++;
     }
 
