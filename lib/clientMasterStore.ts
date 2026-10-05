@@ -18,6 +18,7 @@ export const CALL_OUTCOME_LABEL: Record<LeadCallOutcome, string> = {
   '': 'Not called yet',
   suitable: 'Suitable',
   not_suitable: 'Not suitable',
+  completed: 'Completed',
   callback: 'Call back'
 };
 

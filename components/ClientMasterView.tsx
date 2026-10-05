@@ -47,16 +47,16 @@ const PRIORITY_TONE: Record<ProjectPriority, PriorityTone> = { low: 'cool', medi
 // imported for real here (it pulls in Sequelize), so the four labels are
 // repeated rather than dragging the server layer into the client bundle.
 const CALL_OUTCOME_LABEL: Record<LeadCallOutcome, string> = {
-  '': 'Not called yet', suitable: 'Suitable', not_suitable: 'Not suitable', callback: 'Call back'
+  '': 'Not called yet', suitable: 'Suitable', not_suitable: 'Not suitable', completed: 'Completed', callback: 'Call back'
 };
 const CALL_OUTCOME_TONE: Record<Exclude<LeadCallOutcome, ''>, StatusTone> = {
-  suitable: 'won', not_suitable: 'lost', callback: 'pending'
+  suitable: 'won', not_suitable: 'lost', completed: 'done', callback: 'pending'
 };
 
 type ActiveFilter = '' | 'has' | 'none';
 type HandlerFilter = '' | 'has' | 'none';
 type TypeFilter = '' | 'customer' | 'prospect';
-type OutcomeFilter = '' | 'not_called' | 'suitable' | 'not_suitable' | 'callback';
+type OutcomeFilter = '' | 'not_called' | 'suitable' | 'not_suitable' | 'completed' | 'callback';
 type SortKey = 'name' | 'company' | 'owner' | 'projects' | 'updated' | 'created';
 
 const SORT_LABEL: Record<SortKey, string> = {
@@ -609,6 +609,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
           <option value="not_called">Not called yet</option>
           <option value="suitable">Suitable</option>
           <option value="not_suitable">Not suitable</option>
+          <option value="completed">Completed</option>
           <option value="callback">Call back</option>
         </Select>
         <Input auto type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="Created from" />

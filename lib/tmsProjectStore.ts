@@ -93,6 +93,32 @@ async function toRecords(rows: Model[]): Promise<TmsProjectRecord[]> {
 // visible to EVERY member department's manager, not just its primary one);
 // engineer/technician see only projects they created, manage, or are a team
 // member on (department-agnostic, unaffected by combined projects).
+// A TMS project created off the back of a Sales assignment only belongs in
+// TMS once that deal is actually won. syncTmsProjectForAssignment
+// (lib/tmsHandoff.ts) creates one the moment a technical person is assigned,
+// which happens while the deal is still being chased — so TMS filled up with
+// projects for deals still in progress, and kept the ones that were lost.
+// Those carry no manager and no dates, so they also dragged the department
+// health gauge down (see lib/departmentScoring.ts).
+//
+// Only projects LINKED to a Sales project are judged: a project created
+// natively in TMS has no linked deal and is always visible.
+//
+// findById is deliberately NOT filtered — an existing deep link, and any task
+// or BOM already raised under one of these, must still resolve.
+async function hideUnwonSalesProjects(records: TmsProjectRecord[]): Promise<TmsProjectRecord[]> {
+  if (!records.length) return records;
+  const links = await db.Project.findAll({
+    where: { tms_project_id: records.map((r) => r.id) } as never,
+    attributes: ['tms_project_id', 'status']
+  });
+  const blocked = new Set<string>();
+  for (const link of links) {
+    if ((link.get('status') as string) !== 'won') blocked.add(link.get('tms_project_id') as string);
+  }
+  return blocked.size ? records.filter((r) => !blocked.has(r.id)) : records;
+}
+
 // Unscoped read of every TMS project — for Department Health scoring
 // (lib/departmentScoring.ts), which averages a whole department and so must
 // see every member's projects regardless of who is looking at the gauge.
@@ -101,10 +127,16 @@ async function toRecords(rows: Model[]): Promise<TmsProjectRecord[]> {
 // for the same department.
 async function readAll(): Promise<TmsProjectRecord[]> {
   const rows = await db.TmsProject.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
-  return toRecords(rows);
+  return hideUnwonSalesProjects(await toRecords(rows));
 }
 
+// Both reads go through hideUnwonSalesProjects, so the scoped list and the
+// unscoped scoring read can never disagree about what exists in TMS.
 async function list(viewer: TmsViewer): Promise<TmsProjectRecord[]> {
+  return hideUnwonSalesProjects(await listForViewer(viewer));
+}
+
+async function listForViewer(viewer: TmsViewer): Promise<TmsProjectRecord[]> {
   if (viewer.isPrivileged) {
     const rows = await db.TmsProject.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
     return toRecords(rows);

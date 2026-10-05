@@ -323,7 +323,7 @@ async function scoreSalesTeam(team: TeamMember[], cache: ScoringDataCache): Prom
 // aren't past their expected closing date.
 // ---------------------------------------------------------------------------
 const TECH_FORMULA =
-  'Everything the team owns in TMS — projects, tasks, BOM requests and procurement — as the share that is ON SCHEDULE: delivered by its end date, or still open and not yet due. Work delivered late, open past its date, or open with no end date at all counts against it.';
+  'Everything the team owns in TMS — projects, tasks, BOM requests and procurement — as the share that is ON SCHEDULE: delivered by its end date, or still open and not yet due. Work delivered late, open past its date, or open with no end date at all counts against it. Projects still in planning with no end date set are listed but not scored — nothing has been committed to yet.';
 
 // AI, AV, Robotics and R&D are the TMS departments, so their health is the
 // whole TMS module and nothing outside it:
@@ -350,6 +350,12 @@ interface TechWorkItem {
   doneOn: string;
   done: boolean;
   cancelled: boolean;
+  /**
+   * Created but never actually set up: a TMS project still in 'planning' with
+   * no end date of any kind. Reported, but kept out of the score — see the
+   * scorer for why.
+   */
+  unplanned?: boolean;
   href: string;
 }
 
@@ -377,7 +383,19 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
       // the other, but an older or oddly-edited project can carry only the estimate.
       // Undated work is KEPT (see the scoring rule below), not skipped.
       const due = dateOnly(p.deadline) || dateOnly(p.estimated_close_date);
-      items.push({ id: `tmsp:${p.id}`, label: `${p.project_code} — ${p.name}`, due, doneOn: dateOnly(p.actual_close_date), done: p.status === 'completed', cancelled: p.status === 'cancelled', href: `/tms/projects/${p.id}` });
+      // 'planning' is the status every TMS project is CREATED with
+      // (db/models/tmsProject.js defaults to it). A project still sitting
+      // there with no end date of any kind has not been handed over or
+      // committed to by this department — in practice these are sales
+      // enquiries entered as projects and left alone, one per client, with no
+      // manager and a single engineer attached. Counting them made the
+      // engineer absorb someone else's unfinished data entry and dragged the
+      // whole department's gauge down.
+      // Narrow on purpose: the moment ANY end date is set it scores normally,
+      // so real work cannot hide in planning, and a dated planning project
+      // that blows its date still counts as overdue.
+      const unplanned = p.status === 'planning' && !due;
+      items.push({ id: `tmsp:${p.id}`, label: `${p.project_code} — ${p.name}`, due, doneOn: dateOnly(p.actual_close_date), done: p.status === 'completed', cancelled: p.status === 'cancelled', unplanned, href: `/tms/projects/${p.id}` });
     }
 
     for (const t of tmsTasks) {
@@ -408,15 +426,19 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
     return out;
   }
 
-  let totalOnTime = 0, totalLate = 0, totalOverdueOpen = 0, totalUndated = 0;
+  let totalOnTime = 0, totalLate = 0, totalOverdueOpen = 0, totalUndated = 0, totalUnplanned = 0;
 
   const members: MemberScore[] = team.map((m) => {
     const items = [...itemsFor(m.id), ...procurementItemsFor(m.username)];
 
-    let onTime = 0, late = 0, overdueOpen = 0, undated = 0;
-    const onTimeItems: TechWorkItem[] = [], lateItems: TechWorkItem[] = [], overdueOpenItems: TechWorkItem[] = [], undatedItems: TechWorkItem[] = [];
+    let onTime = 0, late = 0, overdueOpen = 0, undated = 0, unplanned = 0;
+    const onTimeItems: TechWorkItem[] = [], lateItems: TechWorkItem[] = [], overdueOpenItems: TechWorkItem[] = [], undatedItems: TechWorkItem[] = [], unplannedItems: TechWorkItem[] = [];
     items.forEach((i) => {
       if (i.cancelled) return;
+      // Counted and shown, but never in the denominator: this is work that
+      // has not been handed over yet, so it is not this team's delivery
+      // record either way. It stays visible so it cannot quietly pile up.
+      if (i.unplanned) { unplanned += 1; unplannedItems.push(i); return; }
       if (i.done) {
         // Delivered. With no end date on record there is nothing to have been
         // late against, so it counts as on time — the absence of a plan is a
@@ -451,7 +473,7 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
       }
     });
 
-    totalOnTime += onTime; totalLate += late; totalOverdueOpen += overdueOpen; totalUndated += undated;
+    totalOnTime += onTime; totalLate += late; totalOverdueOpen += overdueOpen; totalUndated += undated; totalUnplanned += unplanned;
     const denominator = onTime + late + overdueOpen + undated;
     const toDrilldown = (i: TechWorkItem): DrilldownItem => ({ id: i.id, label: i.label, sublabel: i.due ? `due ${i.due}` : 'no end date set', href: i.href });
     return {
@@ -462,7 +484,8 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
         { label: 'On schedule', value: `${onTime} / ${denominator}`, items: onTimeItems.map(toDrilldown) },
         { label: 'Delivered late', value: String(late), items: lateItems.map(toDrilldown) },
         { label: 'Open past due', value: String(overdueOpen), items: overdueOpenItems.map(toDrilldown) },
-        { label: 'No end date set', value: String(undated), items: undatedItems.map(toDrilldown) }
+        { label: 'No end date set', value: String(undated), items: undatedItems.map(toDrilldown) },
+        { label: 'In planning (not scored)', value: String(unplanned), items: unplannedItems.map(toDrilldown) }
       ]
     };
   });
@@ -471,6 +494,13 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
     { label: 'TMS work on schedule', value: `${totalOnTime} / ${totalOnTime + totalLate + totalOverdueOpen + totalUndated}` },
     { label: 'Open with no end date', value: String(totalUndated) }
   ];
+  // Shown only when there are any, so a department that keeps its projects
+  // set up properly does not carry a permanent zero row. These are excluded
+  // from the ratio above, and naming them is what keeps the exclusion honest
+  // rather than invisible.
+  if (totalUnplanned > 0) {
+    breakdown.push({ label: 'In planning, no end date (not scored)', value: String(totalUnplanned) });
+  }
   return finalize(members, breakdown, TECH_FORMULA);
 }
 
@@ -684,7 +714,7 @@ const HR_FORMULA =
 // past the window is HR's failure collectively, so it lands on every member,
 // exactly as the Accounts payment backlog does.
 const HR_DONE_STATUSES = new Set(['completed', 'approved']);
-const HR_CLOSED_STATUSES = new Set(['completed', 'approved', 'cancelled', 'rejected']);
+const HR_CLOSED_STATUSES = new Set(['completed', 'approved', 'cancelled', 'rejected', 'declined']);
 
 async function scoreHrTeam(team: TeamMember[], cache: ScoringDataCache): Promise<ScoreResult> {
   if (!team.length) return naResult(team, HR_FORMULA);

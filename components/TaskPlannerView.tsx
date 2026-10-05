@@ -79,6 +79,11 @@ const BOARD_COLUMNS: { key: string; label: string; statuses: GeneralTaskStatus[]
   { key: 'in_progress', label: 'In Progress', statuses: ['in_progress'] },
   { key: 'under_review', label: 'Under Review', statuses: ['under_review'] },
   { key: 'rework_required', label: 'Rework Required', statuses: ['rework_required'] },
+  // Its own column rather than folded into "Rejected / Cancelled": those are
+  // terminal, whereas a declined task is waiting on a manager to reassign it.
+  // Not a drop target — planDrop returns null for it, and the route rejects
+  // anyone but the assignee anyway.
+  { key: 'declined', label: 'Declined', statuses: ['declined'] },
   { key: 'done', label: 'Completed', statuses: ['completed', 'approved'] },
   { key: 'closed', label: 'Rejected / Cancelled', statuses: ['rejected', 'cancelled'] }
 ];

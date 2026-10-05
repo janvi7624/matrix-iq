@@ -97,12 +97,13 @@ type LoggedCallOutcome = Exclude<LeadCallOutcome, ''>;
 const CALL_OUTCOME_META: Record<LoggedCallOutcome, { label: string; hint: string; tone: StatusTone }> = {
   suitable: { label: 'Suitable', hint: 'Converts this lead into a Sales project.', tone: 'confirmed' },
   not_suitable: { label: 'Not suitable', hint: 'Stays a contact — a reason is required.', tone: 'cancelled' },
+  completed: { label: 'Completed', hint: 'Resolved, no project needed — stays a contact.', tone: 'done' },
   callback: { label: 'Call back later', hint: 'Stays in the queue with a date.', tone: 'done' }
 };
 
 const CALL_OUTCOMES = LEAD_CALL_OUTCOMES.filter((o): o is LoggedCallOutcome => o !== '');
 
-type CallFilter = '' | 'to-call' | 'suitable' | 'not_suitable' | 'callback-due';
+type CallFilter = '' | 'to-call' | 'suitable' | 'not_suitable' | 'completed' | 'callback-due';
 
 // The rep's queue: handed to somebody, nobody has called yet, and it isn't
 // already a project. Identical to what lib/leadCall.ts's computeLeadCallStats
@@ -482,15 +483,17 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     let toCall = 0;
     let suitable = 0;
     let notSuitable = 0;
+    let completed = 0;
     let callbackDue = 0;
     for (const lead of leads) {
       if (lead.call_outcome === 'suitable') suitable += 1;
       else if (lead.call_outcome === 'not_suitable') notSuitable += 1;
+      else if (lead.call_outcome === 'completed') completed += 1;
       else if (lead.call_outcome === 'callback') {
         if (lead.callback_at && lead.callback_at <= todayKey) callbackDue += 1;
       } else if (leadIsMyCall(lead, currentUser.username, canAssign)) toCall += 1;
     }
-    return { toCall, suitable, notSuitable, callbackDue };
+    return { toCall, suitable, notSuitable, completed, callbackDue };
   }, [leads, todayKey, currentUser.username, canAssign]);
 
   const totalPages = Math.max(1, Math.ceil(visibleLeads.length / PAGE_SIZE));
@@ -733,7 +736,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
           ? body?.projectCreated ? 'Marked suitable — project created.' : 'Marked suitable — it already has a project.'
           : outcome === 'not_suitable'
             ? 'Marked not suitable — kept as a contact.'
-            : `Call back on ${formatDay(callForm.callbackAt)}.`
+            : outcome === 'completed'
+              ? 'Marked completed.'
+              : `Call back on ${formatDay(callForm.callbackAt)}.`
       );
       // Only when the response didn't carry the row back (older server, odd
       // proxy) is a full reload still needed to avoid showing stale state.
@@ -1035,6 +1040,15 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               ariaPressed={callFilter === 'not_suitable'}
             />
             <StatTile
+              value={callStats.completed}
+              label="Completed"
+              tone="success"
+              icon={<CheckCircle2 size={18} />}
+              onClick={() => toggleCallFilter('completed')}
+              active={callFilter === 'completed'}
+              ariaPressed={callFilter === 'completed'}
+            />
+            <StatTile
               value={callStats.callbackDue}
               label="Call-back Due"
               tone="danger"
@@ -1045,7 +1059,16 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             />
             {stats && (
               <>
-                <StatTile value={stats.hot} label="Hot Leads" tone="danger" icon={<Flame size={20} />} iconPosition="after" />
+                <StatTile
+                  value={stats.hot}
+                  label="Hot Leads"
+                  tone="danger"
+                  icon={<Flame size={20} />}
+                  iconPosition="after"
+                  onClick={() => { setMode('list'); setPriorityFilter((v) => (v === 'hot' ? '' : 'hot')); }}
+                  active={priorityFilter === 'hot'}
+                  ariaPressed={priorityFilter === 'hot'}
+                />
                 {/* A sales manager's actual queue: what has come in and still
                     needs routing to a rep. One tap filters the list to it. */}
                 <StatTile

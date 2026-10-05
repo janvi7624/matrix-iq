@@ -90,6 +90,17 @@
    inside a label here — none of those should be stretched to control height.
    The :not() guards keep that true even if a checkbox is later dropped
    directly into a bar. */
+/* For a filter select whose options are people, clients or other free text:
+   a select's intrinsic width is its widest option, and min-width:auto on a
+   flex item beats max-width, so one long "Name — Department" label would
+   widen the whole bar past the page. The box itself still comes from
+   .formControl via <Select>. */
+.filterSelectCapped {
+    flex: 0 1 210px;
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
+}
 .toolbar > input:not([type="checkbox"]):not([type="radio"]),
 .toolbar > select,
 .toolbar .filterDateGroup > input {

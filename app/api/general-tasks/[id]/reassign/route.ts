@@ -31,7 +31,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!belongs) return NextResponse.json({ error: 'The new employee must be an active member of this task\'s department' }, { status: 400 });
 
     const previousAssigneeName = task.assignee_name;
-    const updated = await generalTaskStore.update(id, { assignee_id: newAssigneeId, status: task.status === 'rework_required' || task.status === 'in_progress' ? 'pending' : task.status });
+    // A declined task resets to pending alongside rework_required and
+    // in_progress: handing it to someone new has to give them a fresh task
+    // to start, not one still carrying the previous assignee's refusal.
+    const RESET_TO_PENDING = ['rework_required', 'in_progress', 'declined'];
+    const updated = await generalTaskStore.update(id, { assignee_id: newAssigneeId, status: RESET_TO_PENDING.includes(task.status) ? 'pending' : task.status });
 
     await logAudit({
       by: viewer.username,

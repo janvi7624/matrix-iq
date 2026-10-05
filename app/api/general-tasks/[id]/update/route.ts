@@ -6,13 +6,13 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 
-const VALID_ACTIONS = ['start', 'submit', 'reopen'] as const;
+const VALID_ACTIONS = ['start', 'submit', 'reopen', 'decline'] as const;
 type AssigneeAction = (typeof VALID_ACTIONS)[number];
 
-const ACTION_STATUS: Record<AssigneeAction, string> = { start: 'in_progress', submit: 'under_review', reopen: 'in_progress' };
+const ACTION_STATUS: Record<AssigneeAction, string> = { start: 'in_progress', submit: 'under_review', reopen: 'in_progress', decline: 'declined' };
 
 // Assignee-only: start / submit-for-review (or straight-to-completed when
-// the task doesn't require review) / reopen after rework. This is the ONLY
+// the task doesn't require review) / reopen after rework / decline. This is the ONLY
 // route that can move a task through these transitions — never the generic
 // PATCH — and it enforces isValidAssigneeTransition itself, not just the UI.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -38,6 +38,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (action === 'submit' && !workSummary) {
       return NextResponse.json({ error: 'A work summary is required to submit this task' }, { status: 400 });
     }
+    // A decline without a reason is the thing this feature exists to avoid:
+    // whoever has to re-route the task needs to know why it came back.
+    // Enforced here, not only in the dialog.
+    if (action === 'decline' && !remarks) {
+      return NextResponse.json({ error: 'A reason is required to deny this task' }, { status: 400 });
+    }
 
     const nextStatus = action === 'submit' && !task.requires_review ? 'completed' : ACTION_STATUS[action];
 
@@ -55,7 +61,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ip: getClientIp(request)
     });
 
-    if (nextStatus === 'under_review') {
+    if (nextStatus === 'declined') {
+      // Goes to whoever can actually act on it: the reviewer (who defaults to
+      // the creator) and the creator, de-duplicated so one person who is both
+      // doesn't get it twice. Without this the task would just sit in the
+      // Declined column until somebody happened to look.
+      const recipients = [...new Set([task.reviewer_username, task.created_by].filter((u): u is string => !!u && u !== viewer.username))];
+      if (recipients.length) {
+        await notifyUsers(recipients, {
+          title: 'Task Denied by Assignee',
+          body: `"${task.title}"\nDenied by: ${viewer.name}\nReason: ${remarks}`,
+          type: 'general_task_declined',
+          entityType: 'general_task',
+          entityId: id
+        });
+      }
+    } else if (nextStatus === 'under_review') {
       // reviewer_username is set at creation (defaults to the creator — see
       // generalTaskStore.create) so this is always resolvable without a
       // fallback lookup.

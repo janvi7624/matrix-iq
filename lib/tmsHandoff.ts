@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { db } from './db';
 import { tmsProjectStore, nextTmsProjectCode } from './tmsProjectStore';
 import { projectStore } from './projectStore';
@@ -66,4 +67,26 @@ export async function syncTmsProjectForAssignment(project: ProjectRecord, assign
   };
   const created = await tmsProjectStore.create(draft);
   await projectStore.update(project.id, { tms_project_id: created.id });
+}
+
+// The other direction of the same bridge: once a technical person has been
+// assigned (above) and a TMS project exists, nothing else ever touches
+// tms_projects again — so if the Sales deal is later closed as Lost, the TMS
+// side has no way to know. Left alone, that project (and any tasks already
+// raised under it) keeps counting as an "Active Project"/"Pending Task" on
+// every TMS dashboard forever, since those are computed purely from
+// tms_projects.status / tms_tasks.status, not from the linked Sales project's
+// stage. Best-effort, same as syncTmsProjectForAssignment: every call site
+// wraps this in try/catch so a TMS-side failure never blocks the Sales side
+// from closing the deal.
+export async function cancelTmsProjectForLostDeal(tmsProjectId: string): Promise<void> {
+  if (!tmsProjectId) return;
+  const tmsProject = await tmsProjectStore.findById(tmsProjectId);
+  if (!tmsProject || tmsProject.status === 'completed' || tmsProject.status === 'cancelled') return;
+
+  await tmsProjectStore.update(tmsProjectId, { status: 'cancelled' });
+  await db.TmsTask.update(
+    { status: 'cancelled' } as never,
+    { where: { project_id: tmsProjectId, status: { [Op.notIn]: ['completed', 'cancelled'] } } as never }
+  );
 }
