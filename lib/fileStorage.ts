@@ -212,10 +212,33 @@ async function s3Existing(pathnames: string[]): Promise<Set<string>> {
 // Which of these keys are actually stored. A storage OUTAGE throws
 // StorageUnavailableError rather than reporting everything as missing — the
 // difference between "these bills were lost" and "we can't tell right now".
+//
+// Checks the OTHER backend too for whatever the primary doesn't have, before
+// giving up on it. This is the guard the 90-bill incident (2026-10) didn't
+// have: FILE_STORAGE got switched database -> s3 without migrate-files-to-s3.js
+// having copied everything first, so files that were only ever written to the
+// database became permanently "missing" the moment s3 became primary, even
+// though they still existed right where they were left. A future switch in
+// either direction now degrades to "found in the other backend" instead of
+// silently orphaning files again. Checking twice only costs anything on an
+// actual miss — a healthy, fully-migrated deployment never touches the
+// fallback path. If the fallback backend errors or isn't configured at all,
+// that's swallowed and the primary's answer stands; only the primary's own
+// errors still surface as a real outage.
 export async function filesExist(pathnames: string[]): Promise<Set<string>> {
   const unique = Array.from(new Set(pathnames.filter(Boolean)));
   if (!unique.length) return new Set();
-  return storageBackend() === 's3' ? s3Existing(unique) : dbExisting(unique);
+  const primaryIsS3 = storageBackend() === 's3';
+  const found = await (primaryIsS3 ? s3Existing(unique) : dbExisting(unique));
+  const remaining = unique.filter((p) => !found.has(p));
+  if (!remaining.length) return found;
+  try {
+    const fromOther = await (primaryIsS3 ? dbExisting(remaining) : s3Existing(remaining));
+    fromOther.forEach((p) => found.add(p));
+  } catch {
+    // Other backend not configured/reachable — primary's result stands.
+  }
+  return found;
 }
 
 // `uploadedBy` is optional so existing call sites keep working unchanged; the
@@ -230,6 +253,17 @@ export async function putFile(pathname: string, file: File, uploadedBy = ''): Pr
   return { pathname };
 }
 
+// Same other-backend fallback as filesExist, and for the same reason: a file
+// left behind by a FILE_STORAGE switch should still open, not 404. Only tried
+// on a clean "not found" from the primary — an outage there (StorageUnavailableError)
+// still propagates immediately rather than being masked by a fallback miss.
 export async function getFile(pathname: string): Promise<{ blob: Blob; contentType: string } | null> {
-  return storageBackend() === 's3' ? s3Get(pathname) : dbGet(pathname);
+  const primaryIsS3 = storageBackend() === 's3';
+  const result = await (primaryIsS3 ? s3Get(pathname) : dbGet(pathname));
+  if (result) return result;
+  try {
+    return await (primaryIsS3 ? dbGet(pathname) : s3Get(pathname));
+  } catch {
+    return null;
+  }
 }

@@ -124,6 +124,11 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [records, setRecords] = useState<ReimbursementRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [totalInWords, setTotalInWords] = useState('');
+  // Bills someone else added that name this viewer. Kept OUT of records on
+  // purpose — records drives the Monthly Total, the entry count, the empty
+  // state and the Submit/Export gates, and folding other people's bills into
+  // all of those is the bug being fixed here.
+  const [companionNotices, setCompanionNotices] = useState<{ id: string; date: string; description: string; claimedByName: string }[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -205,13 +210,14 @@ export default function ReimbursementView({ currentUser }: Props) {
 
   const fetchRecords = useCallback(() => {
     setLoading(true);
-    fetch(`/api/reimbursement?year=${year}&month=${month}&own=true`)
+    fetch(`/api/reimbursement?year=${year}&month=${month}`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data) {
           setRecords(data.records ?? []);
           setTotal(data.total ?? 0);
           setTotalInWords(data.totalInWords ?? '');
+          setCompanionNotices(data.companionNotices ?? []);
         }
       })
       .finally(() => setLoading(false));
@@ -428,7 +434,7 @@ export default function ReimbursementView({ currentUser }: Props) {
     if (form.descriptionType === 'Conveyance' && !form.vehicleType) { toast.error('Please select vehicle type (2 Wheeler or 4 Wheeler).'); return; }
     if (form.descriptionType === 'Conveyance' && (!form.fromLocation.trim() || !form.toLocation.trim())) { toast.error('From and To are required for Conveyance.'); return; }
     if (form.descriptionType === 'Conveyance' && form.vehicleType !== 'Cab' && !form.kilometers) { toast.error('Kilometers is required for 2 Wheeler / 4 Wheeler.'); return; }
-    if (!form.employeeIds.length) { toast.error('Please select at least one employee.'); return; }
+    if (!form.employeeIds.length) { toast.error('Add at least yourself.'); return; }
     const attachmentOptional = form.descriptionType === 'Conveyance' && (form.vehicleType === '2 Wheeler' || form.vehicleType === '4 Wheeler');
     if (!attachmentOptional && !form.attachmentUrls.length) { toast.error('Please attach at least one bill proof.'); return; }
 
@@ -882,7 +888,11 @@ export default function ReimbursementView({ currentUser }: Props) {
             </div>
 
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Employee(s) *</label>
+              <label className={calcStyles.label}>Who was present</label>
+              <div className={calcStyles.small}>
+                The full amount is reimbursed to you, the person who paid. Naming colleagues records
+                who was there — it does not pay them.
+              </div>
               {(form.employeeIds.length > 0 || form.guestNames.length > 0) && (
                 <div className={styles.employeePillsWrap}>
                   {form.employeeIds.map((id) => {
@@ -913,7 +923,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                   e.target.value = '';
                 }}
               >
-                <option value="">— Add companion (optional) —</option>
+                <option value="">— Add someone who was with you (optional) —</option>
                 {users.filter((u) => !form.employeeIds.includes(u.id)).map((u) => (
                   <option key={u.id} value={u.id}>{u.name || u.username}</option>
                 ))}
@@ -1055,7 +1065,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                   <th>#</th>
                   <th>Date</th>
                   <th>Description</th>
-                  <th>Employee(s)</th>
+                  <th>Present</th>
                   <th>From</th>
                   <th>To</th>
                   <th>KM</th>
@@ -1124,6 +1134,28 @@ export default function ReimbursementView({ currentUser }: Props) {
             </table>
           </div>
         </>
+      )}
+
+      {/* Bills somebody else added that name you. Deliberately read-only and
+          amount-free: these used to sit in the table above with their amount
+          added into your Monthly Total, which is what made one bill look like
+          it was being paid to two people. The note stays so that nobody files
+          a second claim for a bill that is already being reimbursed. */}
+      {companionNotices.length > 0 && (
+        <div className={calcStyles.sectionPanel}>
+          <div className={calcStyles.h2}>You were named on these bills</div>
+          <div className={calcStyles.small}>
+            These record you as present. Whoever paid is being reimbursed in full, so there is nothing
+            for you to claim here — please don&apos;t add your own entry for the same bill.
+          </div>
+          <ul>
+            {companionNotices.map((notice) => (
+              <li key={notice.id} className={calcStyles.small}>
+                {formatDate(notice.date)} — {notice.description || 'No description'} · claimed in full by {notice.claimedByName}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
         </>
       )}
@@ -1377,7 +1409,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                         <th>#</th>
                         <th>Date</th>
                         <th>Description</th>
-                        <th>Employee(s)</th>
+                        <th>Present</th>
                         <th>From</th>
                         <th>To</th>
                         <th>KM</th>
@@ -1654,7 +1686,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                         <th>#</th>
                         <th>Date</th>
                         <th>Description</th>
-                        <th>Employee(s)</th>
+                        <th>Present</th>
                         <th>From</th>
                         <th>To</th>
                         <th>KM</th>
