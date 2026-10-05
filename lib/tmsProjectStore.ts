@@ -1,7 +1,7 @@
 import { Model, Op } from 'sequelize';
 import { TmsProjectRecord } from './types';
 import { db, isUuid } from './db';
-import { isTmsManagerTier, TmsViewer } from './tmsAccess';
+import { isTmsAdminTier, isTmsManagerTier, tmsTeamDepartmentIds, TmsViewer } from './tmsAccess';
 
 const FIELDS = [
   { name: 'project_code' },
@@ -137,14 +137,20 @@ async function list(viewer: TmsViewer): Promise<TmsProjectRecord[]> {
 }
 
 async function listForViewer(viewer: TmsViewer): Promise<TmsProjectRecord[]> {
-  if (viewer.isPrivileged) {
+  // Admin / superadmin only — was viewer.isPrivileged, which also let the
+  // 'manager' role read every department's projects. See isTmsAdminTier.
+  if (isTmsAdminTier(viewer)) {
     const rows = await db.TmsProject.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
     return toRecords(rows);
   }
 
-  if (isTmsManagerTier(viewer)) {
-    if (!viewer.departmentId) return [];
-    const memberships = await db.TmsProjectDepartment.findAll({ where: { department_id: viewer.departmentId } as never, attributes: ['tms_project_id'] });
+  // Manager tier: technical-manager / team-lead as before, and now the
+  // 'manager' role too, which lands here instead of on the branch above so
+  // it sees its own team and no further.
+  if (isTmsManagerTier(viewer) || viewer.isPrivileged) {
+    const teamDepartmentIds = await tmsTeamDepartmentIds(viewer);
+    if (!teamDepartmentIds.length) return [];
+    const memberships = await db.TmsProjectDepartment.findAll({ where: { department_id: teamDepartmentIds } as never, attributes: ['tms_project_id'] });
     const projectIds = memberships.map((m) => m.get('tms_project_id') as string);
     if (!projectIds.length) return [];
     const rows = await db.TmsProject.findAll({

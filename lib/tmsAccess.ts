@@ -7,7 +7,7 @@ import { ModulePermissionAction } from './types';
 import { db } from './db';
 import { TmsModuleKey } from './tmsConstants';
 import { getAppConfig } from './appConfigStore';
-import { listDepartmentManagers } from './departmentStore';
+import { departmentsManagedBy, listDepartmentManagers } from './departmentStore';
 
 // TMS (Technical Management System) — a self-contained module gated on BOTH
 // department (Robotics/AI/AV/R&D) and role/action permission. See the
@@ -53,6 +53,35 @@ export function isTmsManagerTier(viewer: TmsViewer): boolean {
   return viewer.role === 'technical-manager' || viewer.role === 'team-lead';
 }
 
+// The one tier that sees every department's TMS work.
+//
+// Deliberately NOT viewer.isPrivileged, even though that reads like the same
+// thing: that flag is also true for the 'manager' role, which is how a sales
+// manager ended up able to see Robotics' tasks and projects. The agreed
+// policy is admin/superadmin see everything, a manager sees their own team,
+// and a team member sees only what they own or were assigned.
+//
+// Role keys rather than a stored flag, because the distinction being drawn
+// here is exactly the one isPrivileged does not make. If a new top-level role
+// is ever added it has to be named here on purpose — which is the safer
+// failure direction for a visibility rule.
+export function isTmsAdminTier(viewer: TmsViewer): boolean {
+  return viewer.role === 'admin' || viewer.role === 'superadmin';
+}
+
+// "Their team", for row scoping: every department the viewer manages, plus
+// the one they belong to. Department.managerIds is the same definition
+// canAssignLeads and resolveVisibilityScope already use, so a manager of
+// another department — or of several — is covered without a second concept.
+// Empty for someone with no department and nothing to manage, which scopes
+// them down to their own records rather than up to everything.
+export async function tmsTeamDepartmentIds(viewer: TmsViewer): Promise<string[]> {
+  const ids = new Set<string>();
+  if (viewer.departmentId) ids.add(viewer.departmentId);
+  for (const dept of await departmentsManagedBy(viewer.username)) ids.add(dept.id);
+  return Array.from(ids);
+}
+
 // Combined gate: module enabled + role-visible + department-visible (or
 // privileged). This is the SAME check that decides whether the sidebar tile
 // shows up (isModuleAccessAllowed) — reused here so "can't see it" and
@@ -73,6 +102,13 @@ export async function requireTmsAction(viewer: TmsViewer, moduleKey: TmsModuleKe
 export async function canManageAllTmsTasks(viewer: TmsViewer): Promise<boolean> {
   if (viewer.isPrivileged) return true;
   return isModuleActionAllowed(viewer, 'tms-tasks', 'manage');
+}
+
+// Same shape as canManageAllTmsTasks, for BOM Requests' own department_id
+// scoping in lib/tmsBomRequestStore.ts's list().
+export async function canManageAllTmsBomRequests(viewer: TmsViewer): Promise<boolean> {
+  if (viewer.isPrivileged) return true;
+  return isModuleActionAllowed(viewer, 'tms-bom-requests', 'manage');
 }
 
 // The 3-tier approval chain a deadline-extension REQUEST climbs: a plain

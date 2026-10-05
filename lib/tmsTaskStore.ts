@@ -1,7 +1,7 @@
 import { Model, Op } from 'sequelize';
 import { TmsTaskRecord, TmsTaskStatus, TmsTaskUpdateRecord } from './types';
 import { db, isUuid } from './db';
-import { canManageAllTmsTasks, TmsViewer } from './tmsAccess';
+import { canManageAllTmsTasks, isTmsAdminTier, tmsTeamDepartmentIds, TmsViewer } from './tmsAccess';
 import { EngineerTaskAction } from './tmsLabels';
 
 export type { EngineerTaskAction };
@@ -65,16 +65,34 @@ async function readAll(): Promise<TmsTaskRecord[]> {
   return rows.map(toRecord);
 }
 
-// Row-level visibility: the one deliberate restriction in TMS — Engineer/
-// Technician (no `manage` on tms-tasks) see only tasks assigned to or
-// created by them; Team Lead/Technical Manager/privileged viewers see every
-// task. See lib/tmsAccess.ts's canManageAllTmsTasks and the TMS plan §3.5.
+// Row-level visibility, in three tiers:
+//
+//   • Admin / superadmin            every task, every department
+//   • Team Lead / Technical Manager their OWN department's tasks, plus their own
+//   • Engineer / Technician         only tasks assigned to or created by them
+//
+// The middle tier used to get readAll() as well, which is why a task raised
+// by Robotics was visible to every AI and AV manager — the same
+// cross-department leak that canAccessTmsProjectRow in lib/tmsProjectStore.ts
+// already closes on the project side ("a Robotics Manager must not be able to
+// manipulate an AV-only project"). tms_tasks.department_id is a real FK, so
+// this scopes on it directly rather than joining back through the project.
+//
+// A manager-tier viewer with no department on file falls through to their own
+// tasks only — deliberately not "everything", since an unset department is
+// missing information, not permission.
 async function list(viewer: TmsViewer): Promise<TmsTaskRecord[]> {
-  if (await canManageAllTmsTasks(viewer)) return readAll();
+  if (isTmsAdminTier(viewer)) return readAll();
 
   const ownId = viewer.userId || '00000000-0000-0000-0000-000000000000';
+  const scopes: Record<string, unknown>[] = [{ assignee_id: ownId }, { created_by: ownId }];
+  if (await canManageAllTmsTasks(viewer)) {
+    const teamDepartmentIds = await tmsTeamDepartmentIds(viewer);
+    if (teamDepartmentIds.length) scopes.push({ department_id: teamDepartmentIds });
+  }
+
   const rows = await db.TmsTask.findAll({
-    where: { [Op.or]: [{ assignee_id: ownId }, { created_by: ownId }] } as never,
+    where: { [Op.or]: scopes } as never,
     include: ALL_INCLUDES,
     order: [['due_date', 'ASC']]
   });
@@ -147,14 +165,28 @@ async function remove(id: string, viewerIsPrivilegedOrManages: boolean): Promise
 }
 
 // Shared by both app/api/tms/tasks/[id]/route.ts (manager PATCH) and
-// app/api/tms/tasks/[id]/update/route.ts (engineer action) — a task's own
-// record has no owner/department scope check beyond the module gate; this is
-// the one shared re-derivation of "own or can-manage-all".
-export async function canAccessTask(viewer: TmsViewer, task: { assignee_id: string; created_by: string }): Promise<boolean> {
-  if (await canManageAllTmsTasks(viewer)) return true;
+// app/api/tms/tasks/[id]/update/route.ts (engineer action) — the one shared
+// re-derivation of who may act on a single task. Mirrors list()'s tiers on
+// purpose: previously anyone passing the manage-all gate could PATCH any
+// task in any department just by knowing its id, even one that never
+// appeared in their own list.
+export async function canAccessTask(
+  viewer: TmsViewer,
+  task: { assignee_id: string; created_by: string; department_id: string }
+): Promise<boolean> {
   // created_by is a resolved username (see toRecord above); assignee_id
   // stays the raw FK, hence comparing against viewer.userId, not viewer.username.
-  return task.created_by === viewer.username || task.assignee_id === viewer.userId;
+  if (task.created_by === viewer.username || task.assignee_id === viewer.userId) return true;
+  if (isTmsAdminTier(viewer)) return true;
+  if (!(await canManageAllTmsTasks(viewer))) return false;
+  // Manager tier, scoped to their own team. A task with no department cannot
+  // be scoped, so it stays with its creator, its assignee and the admins —
+  // fail closed, since this is a permission decision. department_id is a
+  // required parameter precisely so a caller cannot reach this by omission:
+  // every task created through the API inherits its project's department
+  // (NOT NULL), so an empty one means a legacy or hand-edited row.
+  if (!task.department_id) return false;
+  return (await tmsTeamDepartmentIds(viewer)).includes(task.department_id);
 }
 
 const ACTION_STATUS: Record<EngineerTaskAction, TmsTaskStatus> = {

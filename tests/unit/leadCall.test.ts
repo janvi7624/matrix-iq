@@ -68,7 +68,7 @@ describe('computeLeadCallStats — toCall (the queue a rep has to ring)', () => 
 
   it('does not count an unassigned lead — nobody has been asked to ring it', () => {
     const stats = computeLeadCallStats([makeLead()], TODAY);
-    expect(stats).toEqual({ toCall: 0, suitable: 0, notSuitable: 0, callbackDue: 0 });
+    expect(stats).toEqual({ toCall: 0, suitable: 0, notSuitable: 0, completed: 0, callbackDue: 0 });
   });
 
   it('does not count an assigned lead that already has a project (converted before the call step existed)', () => {
@@ -106,7 +106,12 @@ describe('computeLeadCallStats — verdicts', () => {
 
   it('still counts a "suitable" lead whose project creation has not landed yet', () => {
     const stats = computeLeadCallStats([assigned({ call_outcome: 'suitable', project_id: '' })], TODAY);
-    expect(stats).toEqual({ toCall: 0, suitable: 1, notSuitable: 0, callbackDue: 0 });
+    expect(stats).toEqual({ toCall: 0, suitable: 1, notSuitable: 0, completed: 0, callbackDue: 0 });
+  });
+
+  it('counts a "completed" call as its own verdict, not as still-to-call', () => {
+    const stats = computeLeadCallStats([assigned({ call_outcome: 'completed' })], TODAY);
+    expect(stats).toEqual({ toCall: 0, suitable: 0, notSuitable: 0, completed: 1, callbackDue: 0 });
   });
 });
 
@@ -135,12 +140,12 @@ describe('computeLeadCallStats — callbackDue', () => {
     // A dateless call-back can never come due, so counting it only under
     // callbackDue would drop it out of every tile — nobody would chase it.
     const stats = computeLeadCallStats([assigned({ call_outcome: 'callback', callback_at: '' })], TODAY);
-    expect(stats).toEqual({ toCall: 1, suitable: 0, notSuitable: 0, callbackDue: 0 });
+    expect(stats).toEqual({ toCall: 1, suitable: 0, notSuitable: 0, completed: 0, callbackDue: 0 });
   });
 
   it('…but only when it is still somebody\'s to chase', () => {
     const unassignedNoDate = computeLeadCallStats([{ ...assigned({ call_outcome: 'callback', callback_at: '' }), assigned_to_id: '', assigned_to: '' }], TODAY);
-    expect(unassignedNoDate).toEqual({ toCall: 0, suitable: 0, notSuitable: 0, callbackDue: 0 });
+    expect(unassignedNoDate).toEqual({ toCall: 0, suitable: 0, notSuitable: 0, completed: 0, callbackDue: 0 });
   });
 
   it('uses the real current date when no "today" is passed', () => {
@@ -153,10 +158,10 @@ describe('computeLeadCallStats — callbackDue', () => {
 
 describe('computeLeadCallStats — the expo funnel as a whole', () => {
   it('returns all zeros for an empty list', () => {
-    expect(computeLeadCallStats([], TODAY)).toEqual({ toCall: 0, suitable: 0, notSuitable: 0, callbackDue: 0 });
+    expect(computeLeadCallStats([], TODAY)).toEqual({ toCall: 0, suitable: 0, notSuitable: 0, completed: 0, callbackDue: 0 });
   });
 
-  it('splits a batch of cards across the four buckets, counting each lead once', () => {
+  it('splits a batch of cards across the five buckets, counting each lead once', () => {
     const leads = [
       makeLead({ id: '1' }), // captured, not assigned yet
       assigned({ id: '2' }), // waiting on a call
@@ -164,15 +169,16 @@ describe('computeLeadCallStats — the expo funnel as a whole', () => {
       assigned({ id: '4', call_outcome: 'suitable', project_id: 'proj-1' }),
       assigned({ id: '5', call_outcome: 'not_suitable', call_remark: 'No requirement' }),
       assigned({ id: '6', call_outcome: 'callback', callback_at: '2026-09-23' }),
-      assigned({ id: '7', call_outcome: 'callback', callback_at: '2026-10-05' })
+      assigned({ id: '7', call_outcome: 'callback', callback_at: '2026-10-05' }),
+      assigned({ id: '8', call_outcome: 'completed' })
     ];
-    expect(computeLeadCallStats(leads, TODAY)).toEqual({ toCall: 2, suitable: 1, notSuitable: 1, callbackDue: 1 });
+    expect(computeLeadCallStats(leads, TODAY)).toEqual({ toCall: 2, suitable: 1, notSuitable: 1, completed: 1, callbackDue: 1 });
   });
 });
 
 describe('LEAD_CALL_OUTCOMES (what the call form may submit)', () => {
-  it('lists exactly the three recordable verdicts', () => {
-    expect(LEAD_CALL_OUTCOMES).toEqual(['suitable', 'not_suitable', 'callback']);
+  it('lists exactly the four recordable verdicts', () => {
+    expect(LEAD_CALL_OUTCOMES).toEqual(['suitable', 'not_suitable', 'completed', 'callback']);
   });
 
   it('excludes the empty outcome — "not called yet" is a state, never something a rep submits', () => {

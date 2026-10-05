@@ -9,6 +9,7 @@ import { findClosestClient } from '@/lib/clientSimilarity';
 import { CLOSED_PROJECT_HIDE_AFTER_DAYS, isAgedClosedProject } from '@/lib/projectVisibility';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { exportListToPdf } from '@/lib/exportPdf';
+import { formatMoneyCompact } from '@/lib/format';
 import { isTechnicalRole } from '@/lib/technicalRoles';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
@@ -160,6 +161,18 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+  // Last Remark used to expand on row :hover — a long remark ballooned the
+  // row the instant the pointer crossed it anywhere (not just the cell), so
+  // just reaching another button in that row made the layout jump. Click is
+  // deliberate and stays put, so it's a plain per-row toggle instead.
+  const [expandedRemarkIds, setExpandedRemarkIds] = useState<Set<string>>(new Set());
+  function toggleRemarkExpanded(id: string) {
+    setExpandedRemarkIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!isPrivileged && !isTechnicalCreator) return;
@@ -318,9 +331,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // active class themselves.
   const quickClass = (active: boolean) => [filterPanelStyles.quick, active ? filterPanelStyles.controlActive : ''].filter(Boolean).join(' ');
 
-  const filtered = useMemo(() => {
+  // Every filter EXCEPT status. The status tiles count off this, so picking
+  // one does not zero the others — otherwise clicking "Won" would leave
+  // Active/On Hold/Lost all reading 0 and there would be no way to click
+  // onwards. Standard faceted-filter behaviour: each tile answers "how many
+  // would I get if I picked this", which is exactly what it then shows.
+  const filteredExceptStatus = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
-    const now = new Date();
     return projects.filter((p) => {
       // Filtering by a lead shows what they LEAD plus what they OWN — a lead
       // is also a person with projects of their own, and both belong in "their"
@@ -335,12 +352,6 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       if (fSalesPerson && p.sales_person !== fSalesPerson) return false;
       if (fSource && p.source !== fSource) return false;
       if (fStage && p.stage !== fStage) return false;
-      if (fStatus && p.status !== fStatus) return false;
-      // No explicit Won/Lost pick -> a deal closed long ago drops out of the
-      // default view (it was piling up alongside everything still active).
-      // Filtering the Status dropdown to Won or Lost still shows every one
-      // of them, however old — see lib/projectVisibility.ts.
-      if (!fStatus && isAgedClosedProject(p, now)) return false;
       if (fPriority && p.priority !== fPriority) return false;
       if (fFrom && p.created_at.slice(0, 10) < fFrom) return false;
       if (fTo && p.created_at.slice(0, 10) > fTo) return false;
@@ -351,7 +362,20 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       if (q && ![p.id, p.client_name, p.company, p.contact_person].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [projects, fLead, selectedLead, fType, fDepartment, fSalesPerson, fSource, fStage, fStatus, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
+  }, [projects, fLead, selectedLead, fType, fDepartment, fSalesPerson, fSource, fStage, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
+
+  const filtered = useMemo(() => {
+    const now = new Date();
+    return filteredExceptStatus.filter((p) => {
+      if (fStatus) return p.status === fStatus;
+      // No explicit Won/Lost pick -> a deal closed long ago drops out of the
+      // default view (it was piling up alongside everything still active).
+      // Picking Won or Lost still shows every one of them, however old — see
+      // lib/projectVisibility.ts. Unchanged behaviour, just relocated so the
+      // clause sits with the status test it depends on.
+      return !isAgedClosedProject(p, now);
+    });
+  }, [filteredExceptStatus, fStatus]);
 
   // Surfaced next to the filter bar so the auto-hide above never looks like
   // data went missing — see the comment in the filter itself.
@@ -365,21 +389,25 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // `projects`, so they can never show a stale count against the visible
   // table the way a separately-fetched/separately-computed KPI could.
   const dashboardKpis = useMemo(() => {
-    const won = filtered.filter((p) => p.status === 'won').length;
-    const lost = filtered.filter((p) => p.status === 'lost').length;
-    const active = filtered.filter((p) => p.status === 'active').length;
+    // Status counts come from filteredExceptStatus, so each tile shows what
+    // clicking it will produce — including aged Won/Lost deals, which the
+    // default view hides but a Won/Lost pick reveals. Total and Total Value
+    // stay on filtered: those describe the list as it currently stands.
+    const won = filteredExceptStatus.filter((p) => p.status === 'won').length;
+    const lost = filteredExceptStatus.filter((p) => p.status === 'lost').length;
+    const active = filteredExceptStatus.filter((p) => p.status === 'active').length;
     // The fourth ProjectStatus. Without its own tile the three above don't add
     // up to Total and an on-hold deal shows in no tile at all — it is neither
     // Active nor closed, and (unlike Won/Lost) never ages out of the list
     // either, so it would otherwise sit here indefinitely uncounted.
-    const onHold = filtered.filter((p) => p.status === 'on_hold').length;
+    const onHold = filteredExceptStatus.filter((p) => p.status === 'on_hold').length;
     // Follows the Department filter: unfiltered this is the whole 50L of an
     // AI+AV project, filtered to AI it is AI's 27L share. Same function the
     // Approx. Price column uses, so the tile can never disagree with the rows
     // adding up to it.
     const totalValue = filtered.reduce((sum, p) => sum + departmentValueOf(p, fDepartment), 0);
     return { total: filtered.length, won, lost, active, onHold, totalValue };
-  }, [filtered, fDepartment]);
+  }, [filtered, filteredExceptStatus, fDepartment]);
 
   // A live, non-blocking nudge while the New Project form is open — the
   // typed client name/company against every existing project, so a rep
@@ -566,10 +594,18 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       // Wraps onto multiple lines within its fixed-width column instead of
       // .truncateCell's single-line ellipsis — the row grows taller for a
       // long remark rather than the column growing wider, matching how
-      // every other column in this table now behaves.
+      // every other column in this table now behaves. Click toggles the full
+      // text open/closed (see expandedRemarkIds above) — no longer hover.
       render: (p) =>
         p.last_remark ? (
-          <div className={historyStyles.remarkClamp} title={`${p.last_remark_by}, ${formatDateTime(p.last_remark_at)}`}>{p.last_remark}</div>
+          <button
+            type="button"
+            className={`${historyStyles.remarkClamp} ${expandedRemarkIds.has(p.id) ? historyStyles.remarkClampExpanded : ''}`}
+            onClick={() => toggleRemarkExpanded(p.id)}
+            title={`${p.last_remark_by}, ${formatDateTime(p.last_remark_at)}`}
+          >
+            {p.last_remark}
+          </button>
         ) : (
           <span className={historyStyles.mutedInline}>No remarks yet</span>
         )
@@ -615,12 +651,40 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   return (
     <AppShell title="Project Dashboard" subtitle="Every sales project, site visit to close, in one pipeline.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
-          <StatTile label="Total (filtered)" value={dashboardKpis.total} />
-          <StatTile label="Active" value={dashboardKpis.active} tone="info" />
-          <StatTile label="On Hold" value={dashboardKpis.onHold} tone="warning" />
-          <StatTile label="Won" value={dashboardKpis.won} tone="success" />
-          <StatTile label="Lost" value={dashboardKpis.lost} tone="danger" />
-          <StatTile label="Total Value" value={formatMoney(dashboardKpis.totalValue)} tone="brand" />
+          {/* Each status tile is the Status filter: clicking sets it, clicking
+              the same one again clears it. Total clears it outright. Total
+              Value is a sum, not a subset of rows, so it stays a plain tile —
+              there is nothing for it to filter to. */}
+          <StatTile
+            label="Total (filtered)"
+            value={dashboardKpis.total}
+            onClick={() => setFStatus('')}
+            active={!fStatus}
+            ariaPressed={!fStatus}
+          />
+          {([
+            ['active', 'Active', dashboardKpis.active, 'info'],
+            ['on_hold', 'On Hold', dashboardKpis.onHold, 'warning'],
+            ['won', 'Won', dashboardKpis.won, 'success'],
+            ['lost', 'Lost', dashboardKpis.lost, 'danger']
+          ] as [ProjectStatus, string, number, 'info' | 'warning' | 'success' | 'danger'][]).map(([status, label, value, tone]) => (
+            <StatTile
+              key={status}
+              label={label}
+              value={value}
+              tone={tone}
+              onClick={() => setFStatus((current) => (current === status ? '' : status))}
+              active={fStatus === status}
+              ariaPressed={fStatus === status}
+            />
+          ))}
+          {/* Short form in the tile, exact figure on hover: the full value runs
+              to eighteen characters and used to render outside the box. */}
+          <StatTile
+            label="Total Value"
+            value={<span title={formatMoney(dashboardKpis.totalValue)}>{formatMoneyCompact(dashboardKpis.totalValue)}</span>}
+            tone="brand"
+          />
         </div>
 
         <div className={historyStyles.actionRow}>

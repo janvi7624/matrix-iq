@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
     const [projects, tasks, bomRequests, procurements] = await Promise.all([
       tmsProjectStore.list(viewer),
       tmsTaskStore.list(viewer),
-      tmsBomRequestStore.list(),
-      tmsProcurementStore.list()
+      tmsBomRequestStore.list(viewer),
+      tmsProcurementStore.list(viewer)
     ]);
 
     return NextResponse.json({ projects, tasks, bomRequests, procurements });

@@ -1,7 +1,8 @@
-import { Model } from 'sequelize';
+import { Model, Op } from 'sequelize';
 import { TmsBomRequestRecord } from './types';
 import { db, isUuid, sequelize } from './db';
 import { nextTmsProcurementCode } from './tmsProcurementStore';
+import { TmsViewer, isTmsAdminTier, canManageAllTmsBomRequests, tmsTeamDepartmentIds } from './tmsAccess';
 
 const FIELDS = [
   { name: 'bom_request_code' },
@@ -93,12 +94,42 @@ function toRecord(row: Model): TmsBomRequestRecord {
   return record as unknown as TmsBomRequestRecord;
 }
 
-// Row-level visibility: no filter beyond the module/action gate already
-// checked at the route level — every viewer who can view tms-bom-requests
-// sees the full flat pool (same "any of the 4 technical departments
-// collaborates on the same pool" rule as Projects/Procurement).
-async function list(): Promise<TmsBomRequestRecord[]> {
+// Unscoped read of every BOM request — for Accounts' cross-department payment
+// queue (lib/accountsPaymentStore.ts) and Department Health scoring
+// (lib/departmentScoring.ts), and for a project-detail page that has already
+// authorized the viewer for that one project (app/api/tms/projects/[id])  and
+// just filters this down to it. Same "unscoped reader kept separate from the
+// viewer-scoped one" split as lib/tmsProjectStore.ts's readAll()/list().
+async function readAll(): Promise<TmsBomRequestRecord[]> {
   const rows = await db.TmsBomRequest.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
+  return rows.map(toRecord);
+}
+
+// Row-level visibility: admin/superadmin see everything; technical-manager/
+// team-lead (or anyone else granted manage:true on tms-bom-requests) see
+// every request touching their own department's team — department_id is a
+// real FK here, same as tms_tasks, so this scopes on it directly rather than
+// joining back through the project (see lib/tmsTaskStore.ts's list() for the
+// identical shape). Everyone else sees only what they requested or created.
+// This used to be an unscoped flat pool shared across every technical
+// department regardless of viewer — that was a real bug (any engineer in any
+// department could see every other department's BOM requests), not a
+// deliberate "they all share one pool" design.
+async function list(viewer: TmsViewer): Promise<TmsBomRequestRecord[]> {
+  if (isTmsAdminTier(viewer)) return readAll();
+
+  const ownId = viewer.userId || '00000000-0000-0000-0000-000000000000';
+  const scopes: Record<string, unknown>[] = [{ requested_by_id: ownId }, { created_by: ownId }];
+  if (await canManageAllTmsBomRequests(viewer)) {
+    const teamDepartmentIds = await tmsTeamDepartmentIds(viewer);
+    if (teamDepartmentIds.length) scopes.push({ department_id: teamDepartmentIds });
+  }
+
+  const rows = await db.TmsBomRequest.findAll({
+    where: { [Op.or]: scopes } as never,
+    include: ALL_INCLUDES,
+    order: [['created_at', 'DESC']]
+  });
   return rows.map(toRecord);
 }
 
@@ -282,7 +313,7 @@ async function remove(id: string, viewerIsPrivilegedOrManages: boolean): Promise
   return true;
 }
 
-export const tmsBomRequestStore = { list, findById, create, update, submit, decide, adminDecide, financeDecide, markPaymentDone, markReceived, sendToProcurement, remove };
+export const tmsBomRequestStore = { list, readAll, findById, create, update, submit, decide, adminDecide, financeDecide, markPaymentDone, markReceived, sendToProcurement, remove };
 
 // BOM-<seq> — same "read everything, find the max sequence, +1" approach as
 // lib/deliveryChallanStore.ts's nextDcNumber().

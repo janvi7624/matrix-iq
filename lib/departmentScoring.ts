@@ -70,7 +70,7 @@ function getMarketingRequests(cache: ScoringDataCache): Promise<MarketingRequest
 }
 
 function getTmsBomRequests(cache: ScoringDataCache): Promise<TmsBomRequestRecord[]> {
-  if (!cache.tmsBomRequests) cache.tmsBomRequests = tmsBomRequestStore.list();
+  if (!cache.tmsBomRequests) cache.tmsBomRequests = tmsBomRequestStore.readAll();
   return cache.tmsBomRequests;
 }
 
@@ -126,7 +126,7 @@ function getAdminExpenseEntries(cache: ScoringDataCache): Promise<HrAdminEntryRo
 }
 
 function getTmsProcurements(cache: ScoringDataCache): Promise<TmsProcurementRecord[]> {
-  if (!cache.tmsProcurements) cache.tmsProcurements = tmsProcurementStore.list();
+  if (!cache.tmsProcurements) cache.tmsProcurements = tmsProcurementStore.readAll();
   return cache.tmsProcurements;
 }
 

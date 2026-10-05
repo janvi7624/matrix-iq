@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const task = await tmsTaskStore.findById(id);
     if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-    if (!(await canAccessTask(viewer, { assignee_id: task.assignee_id, created_by: task.created_by }))) {
+    if (!(await canAccessTask(viewer, { assignee_id: task.assignee_id, created_by: task.created_by, department_id: task.department_id }))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const activity = await listAuditLog('tms_task', id);
@@ -46,7 +46,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const existing = await tmsTaskStore.findById(id);
     if (!existing) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-    if (!(await canAccessTask(viewer, { assignee_id: existing.assignee_id, created_by: existing.created_by }))) {
+    if (!(await canAccessTask(viewer, { assignee_id: existing.assignee_id, created_by: existing.created_by, department_id: existing.department_id }))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

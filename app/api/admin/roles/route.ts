@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { createRole, listRoles } from '@/lib/roleStore';
+import { canViewRole } from '@/lib/permissions';
 import { RolePermissions } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -30,10 +31,18 @@ function parsePermissions(body: unknown): RolePermissions | undefined {
 }
 
 // Base auth + admin-area gating happens in proxy.ts (matcher: /api/admin/:path*).
-export async function GET() {
+// The superadmin role itself is additionally hidden from every non-superadmin
+// viewer here — same canViewRole() rule that already hides superadmin
+// accounts everywhere else (lib/permissions.ts) — so it can't be seen,
+// selected, or (via the [id] route's PATCH guard) edited through Role
+// Management, Module Manager, Custom Modules, or the user role picker, all of
+// which source their role list from this one endpoint.
+export async function GET(request: NextRequest) {
   try {
+    const session = await getSessionFromRequest(request);
     const roles = await listRoles();
-    return NextResponse.json(roles);
+    const visible = roles.filter((r) => canViewRole(session?.role || '', r.key));
+    return NextResponse.json(visible);
   } catch (error) {
     return apiErrorResponse(error);
   }

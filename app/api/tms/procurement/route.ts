@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   if (!(await requireTmsAction(viewer, 'tms-procurement', 'view'))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
-    const records = await tmsProcurementStore.list();
+    const records = await tmsProcurementStore.list(viewer);
     return NextResponse.json(records);
   } catch (error) {
     return apiErrorResponse(error);

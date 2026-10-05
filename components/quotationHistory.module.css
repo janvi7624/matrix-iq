@@ -212,12 +212,17 @@
 
 /* A long free-text cell (the Project Dashboard's Last Remark) is cut to two
    lines so one project with a ten-line remark can't fill the whole screen and
-   make the list look like it holds a single project. The row expands to show
-   the full text only while it's hovered (or focused, for keyboard users) and
-   collapses back the moment the pointer leaves. */
-.remarkClamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-.tableFixed tbody tr:hover .remarkClamp,
-.tableFixed tbody tr:focus-within .remarkClamp { display: block; -webkit-line-clamp: unset; line-clamp: unset; overflow: visible; }
+   make the list look like it holds a single project. Used to expand on
+   row :hover, but that fired from anywhere on the row — reaching another
+   button in a long row made the cell balloon open and the layout jump. Now a
+   plain click toggles .remarkClampExpanded, so it only opens when asked and
+   stays open until clicked again. */
+.remarkClamp {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+    background: none; border: none; padding: 0; margin: 0; width: 100%;
+    font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.remarkClampExpanded { display: block; -webkit-line-clamp: unset; line-clamp: unset; overflow: visible; }
 
 /* Project Dashboard's 14-column layout (components/ProjectsView.tsx) — one
    set of percentages, applied via each column's headerClassName, summing to

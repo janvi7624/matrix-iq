@@ -1,6 +1,8 @@
 import { Model } from 'sequelize';
 import { TmsProcurementRecord } from './types';
 import { db, isUuid } from './db';
+import { TmsViewer, isTmsAdminTier } from './tmsAccess';
+import { tmsProjectStore } from './tmsProjectStore';
 
 const FIELDS = [
   { name: 'procurement_code' },
@@ -59,10 +61,37 @@ function toRecord(row: Model): TmsProcurementRecord {
   return record as unknown as TmsProcurementRecord;
 }
 
-// Row-level visibility: no filter beyond the module/action gate already
-// checked at the route level — same flat-pool rule as Projects/BOM Requests.
-async function list(): Promise<TmsProcurementRecord[]> {
+// Unscoped read of every procurement row — for Accounts' cross-department
+// payment queue, Department Health scoring, and a project-detail page that
+// has already authorized the viewer for that one project and just filters
+// this down to it. Same "unscoped reader kept separate from the viewer-scoped
+// one" split as lib/tmsProjectStore.ts's readAll()/list().
+async function readAll(): Promise<TmsProcurementRecord[]> {
   const rows = await db.TmsProcurement.findAll({ include: ALL_INCLUDES, order: [['created_at', 'DESC']] });
+  return rows.map(toRecord);
+}
+
+// Row-level visibility: TmsProcurement carries no department_id of its own
+// (only project_id), so it inherits visibility from the linked project rather
+// than a second, independent department check — if you can't see the project
+// (via tmsProjectStore's own admin/manager/own-work 3-tier scoping), you
+// can't see its procurement either. This used to be an unscoped flat pool
+// shared across every technical department regardless of viewer — that was a
+// real bug (any engineer in any department could see every other
+// department's procurement), not a deliberate "they all share one pool"
+// design.
+async function list(viewer: TmsViewer): Promise<TmsProcurementRecord[]> {
+  if (isTmsAdminTier(viewer)) return readAll();
+
+  const visibleProjects = await tmsProjectStore.list(viewer);
+  const projectIds = visibleProjects.map((p) => p.id);
+  if (!projectIds.length) return [];
+
+  const rows = await db.TmsProcurement.findAll({
+    where: { project_id: projectIds } as never,
+    include: ALL_INCLUDES,
+    order: [['created_at', 'DESC']]
+  });
   return rows.map(toRecord);
 }
 
@@ -126,7 +155,7 @@ async function remove(id: string, viewerIsPrivilegedOrManages: boolean): Promise
   return true;
 }
 
-export const tmsProcurementStore = { list, findById, create, update, remove };
+export const tmsProcurementStore = { list, readAll, findById, create, update, remove };
 
 // PROC-<seq> — same "read everything, find the max sequence, +1" approach as
 // lib/deliveryChallanStore.ts's nextDcNumber().
