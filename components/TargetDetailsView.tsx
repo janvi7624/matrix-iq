@@ -129,29 +129,41 @@ export default function TargetDetailsView() {
   const load = () => setReloadKey((k) => k + 1);
 
   return (
-    <AppShell title="Target Details" subtitle="Sales Team targets vs achievement, by period.">
+    <AppShell
+      title="Target Details"
+      subtitle={data?.displayPeriod ? `Sales Team targets vs achievement — showing ${data.displayPeriod}` : 'Sales Team targets vs achievement, by period.'}
+    >
       <div className={styles.tabRow}>
         <button type="button" className={tab === 'overview' ? styles.tabActive : styles.tab} onClick={() => setTab('overview')}>Overview</button>
         <button type="button" className={tab === 'weekly' ? styles.tabActive : styles.tab} onClick={() => setTab('weekly')}>Weekly Update</button>
       </div>
 
       <div className={historyStyles.toolbar}>
-        <select className={calcStyles.formControl} value={periodType} onChange={(e) => handlePeriodTypeChange(e.target.value as TargetPeriodType)} aria-label="Target Period">
-          {(Object.keys(PERIOD_TYPE_LABEL) as TargetPeriodType[]).map((pt) => (
-            <option key={pt} value={pt}>{PERIOD_TYPE_LABEL[pt]}</option>
-          ))}
-        </select>
-        <select className={calcStyles.formControl} value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)} aria-label="Fiscal Year">
-          {fiscalYearOptions().map((fy) => (
-            <option key={fy} value={fy}>FY {fy}</option>
-          ))}
-        </select>
-        {periodType !== 'annual' && (
-          <select className={calcStyles.formControl} value={periodKey} onChange={(e) => setPeriodKey(e.target.value)} aria-label="Period">
-            {periodOptions.map((p) => (
-              <option key={p.key} value={p.key}>{p.label}</option>
+        <span className={historyStyles.filterDateGroup}>
+          <label className={historyStyles.filterDateGroupLabel} htmlFor="targetPeriodType">View by</label>
+          <select id="targetPeriodType" className={calcStyles.formControl} value={periodType} onChange={(e) => handlePeriodTypeChange(e.target.value as TargetPeriodType)}>
+            {(Object.keys(PERIOD_TYPE_LABEL) as TargetPeriodType[]).map((pt) => (
+              <option key={pt} value={pt}>{PERIOD_TYPE_LABEL[pt]}</option>
             ))}
           </select>
+        </span>
+        <span className={historyStyles.filterDateGroup}>
+          <label className={historyStyles.filterDateGroupLabel} htmlFor="targetFiscalYear">Year</label>
+          <select id="targetFiscalYear" className={calcStyles.formControl} value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)}>
+            {fiscalYearOptions().map((fy) => (
+              <option key={fy} value={fy}>FY {fy}</option>
+            ))}
+          </select>
+        </span>
+        {periodType !== 'annual' && (
+          <span className={historyStyles.filterDateGroup}>
+            <label className={historyStyles.filterDateGroupLabel} htmlFor="targetPeriodKey">Period</label>
+            <select id="targetPeriodKey" className={calcStyles.formControl} value={periodKey} onChange={(e) => setPeriodKey(e.target.value)}>
+              {periodOptions.map((p) => (
+                <option key={p.key} value={p.key}>{p.label}</option>
+              ))}
+            </select>
+          </span>
         )}
         <ToolbarButton onClick={load}>Refresh</ToolbarButton>
       </div>
@@ -194,8 +206,20 @@ export default function TargetDetailsView() {
           defaultFiscalYear={fiscalYear}
           defaultPeriodKey={periodKey}
           onClose={() => setFormTarget(null)}
-          onSaved={() => {
+          onSaved={(saved) => {
             setFormTarget(null);
+            // Follow the target to wherever it was saved. The dialog can save
+            // to a different period type than the page is showing, and the
+            // list query matches period_type AND period_start exactly
+            // (lib/salesTargetStore.ts listSalesTargets), so landing back on
+            // the old period shows the new target nowhere at all.
+            setPeriodType(saved.periodType);
+            setFiscalYear(saved.fiscalYear);
+            setPeriodKey(saved.periodKey);
+            // Bumped as well as the three above: if the target was saved to
+            // the period already on screen, none of those setters change
+            // anything and the fetch effect would not re-run, leaving the new
+            // figure off the page.
             load();
           }}
         />

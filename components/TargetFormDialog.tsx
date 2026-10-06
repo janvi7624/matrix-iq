@@ -25,7 +25,12 @@ interface TargetFormDialogProps {
   defaultFiscalYear: string;
   defaultPeriodKey: string;
   onClose: () => void;
-  onSaved: () => void;
+  /**
+   * Reports WHERE the target was saved, not just that it was. The dialog's
+   * period selector is independent of the page's, so without this the caller
+   * cannot know which period to show and silently reloads the wrong one.
+   */
+  onSaved: (saved: { periodType: TargetPeriodType; fiscalYear: string; periodKey: string }) => void;
 }
 
 export default function TargetFormDialog({
@@ -85,7 +90,7 @@ export default function TargetFormDialog({
         return;
       }
       toast.success(isEdit ? 'Target updated.' : 'Target created.');
-      onSaved();
+      onSaved({ periodType, fiscalYear, periodKey });
     } catch {
       setError('Could not reach the server. Please try again.');
     } finally {
