@@ -5,6 +5,7 @@ import {
   DepartmentAmounts,
   PROJECT_DEPARTMENTS,
   PROJECT_DEPARTMENT_LABEL,
+  PROJECT_DEPARTMENT_FULL_LABEL,
   ProjectDepartment,
   sumDepartmentAmounts
 } from '@/lib/projectDepartmentOptions';
@@ -52,8 +53,11 @@ export default function ProjectDepartmentField({ departments, amounts, onChange,
   return (
     <>
       <div className={calcStyles.deptPickRow}>
+        {/* `title`, not an inline expansion: this row has to stay short
+            enough for all four chips to sit side by side, and "SI" alone
+            isn't self-explanatory to someone meeting it for the first time. */}
         {PROJECT_DEPARTMENTS.map((d) => (
-          <label key={d} className={calcStyles.deptPickChip}>
+          <label key={d} className={calcStyles.deptPickChip} title={PROJECT_DEPARTMENT_FULL_LABEL[d]}>
             <input
               type="checkbox"
               disabled={disabled}

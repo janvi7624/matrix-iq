@@ -13,8 +13,30 @@ const ROSTER: Roster = [
   { id: 'u-vikram', username: 'vikram', name: 'Vikram S' }
 ];
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+function daysAgo(days: number): string {
+  return new Date(Date.now() - days * DAY_MS).toISOString();
+}
+
 function lead(overrides: Partial<Leads[number]> = {}): Leads[number] {
-  return { created_by: 'asha', assigned_to: '', ...overrides };
+  return {
+    created_by: 'asha',
+    assigned_to: '',
+    assigned_to_id: '',
+    assigned_at: '',
+    created_at: daysAgo(1),
+    follow_up_actions: [],
+    project_id: '',
+    call_outcome: '',
+    called_at: '',
+    callback_at: '',
+    ...overrides
+  };
+}
+
+// A lead sitting in someone's call queue: handed over, nobody has called.
+function assignedLead(to: string, overrides: Partial<Leads[number]> = {}): Leads[number] {
+  return lead({ assigned_to: to, assigned_to_id: `id-${to}`, assigned_at: daysAgo(1), ...overrides });
 }
 
 function project(overrides: Partial<Projects[number]> = {}): Projects[number] {
@@ -35,7 +57,7 @@ describe('buildSalesTeamSummary', () => {
   it('returns one zeroed row per roster member and nothing else', () => {
     const rows = buildSalesTeamSummary(ROSTER, [], [], []);
     expect(rows.map((r) => r.username).sort()).toEqual(['asha', 'vikram']);
-    expect(rows.every((r) => r.leads === 0 && r.enquiries === 0 && r.quotations === 0 && r.billing === 0 && r.won === 0 && r.lost === 0)).toBe(true);
+    expect(rows.every((r) => r.leads === 0 && r.toCall === 0 && r.unattended === 0 && r.enquiries === 0 && r.quotations === 0 && r.billing === 0 && r.won === 0 && r.lost === 0)).toBe(true);
   });
 
   it('credits a lead to its assignee, falling back to the capturer while unassigned', () => {
@@ -60,6 +82,60 @@ describe('buildSalesTeamSummary', () => {
       [quotation({ created_by: 'outsider', status: 'approved', project_id: 'p9', total: 500 })]
     );
     expect(rows.reduce((n, r) => n + r.leads + r.enquiries + r.quotations + r.billing, 0)).toBe(0);
+  });
+
+  it('counts an assigned, uncalled, unconverted lead as To Call — for the assignee only', () => {
+    const rows = buildSalesTeamSummary(
+      ROSTER,
+      [
+        assignedLead('vikram'),
+        assignedLead('vikram', { created_by: 'asha' }),
+        // Nobody owns it yet — the manager's "to assign" queue, not a rep's
+        // call queue.
+        lead({ assigned_to: '', assigned_to_id: '' })
+      ],
+      [],
+      []
+    );
+    expect(rowFor(rows, 'vikram').toCall).toBe(2);
+    expect(rowFor(rows, 'asha').toCall).toBe(0);
+  });
+
+  it('drops a lead out of To Call once it is called or converted', () => {
+    const rows = buildSalesTeamSummary(
+      ROSTER,
+      [
+        assignedLead('asha', { call_outcome: 'suitable', called_at: daysAgo(1) }),
+        assignedLead('asha', { call_outcome: 'not_suitable', called_at: daysAgo(1) }),
+        assignedLead('asha', { project_id: 'p-1' }),
+        assignedLead('asha')
+      ],
+      [],
+      []
+    );
+    expect(rowFor(rows, 'asha').toCall).toBe(1);
+  });
+
+  it('flags the overdue slice of the queue as Unattended, a subset of To Call', () => {
+    const rows = buildSalesTeamSummary(
+      ROSTER,
+      [
+        // Past the 3-day SLA with no call.
+        assignedLead('asha', { assigned_at: daysAgo(9), created_at: daysAgo(10) }),
+        // Assigned yesterday — still inside the SLA.
+        assignedLead('asha'),
+        // Call-back promised for yesterday and missed.
+        assignedLead('asha', { call_outcome: 'callback', called_at: daysAgo(5), callback_at: new Date(Date.now() - DAY_MS).toISOString().slice(0, 10) })
+      ],
+      [],
+      []
+    );
+    const asha = rowFor(rows, 'asha');
+    expect(asha.unattended).toBe(2);
+    // The callback one has an outcome, so it is overdue without being "to
+    // call" — the two columns answer different questions.
+    expect(asha.toCall).toBe(2);
+    expect(asha.leads).toBe(3);
   });
 
   it('counts projects as enquiries and splits won/lost off the same pass', () => {

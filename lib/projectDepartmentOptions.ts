@@ -1,11 +1,14 @@
 // Which delivery department(s) a Sales project belongs to — AI, AV, Robotics,
-// or several at once — and how much of the project's value belongs to each.
+// SI, or several at once — and how much of the project's value belongs to
+// each.
 //
 // A fixed short list on purpose, same reasoning as lib/projectLeadOptions.ts:
-// these are the three technical departments a deal is actually delivered by,
-// and they are the same three lib/domainLeads.ts already routes demo requests
-// to. Deliberately NOT a foreign key into the org-wide `departments` table,
-// which also holds Sales, HR, Accounts and the rest.
+// these are the technical departments a deal is actually delivered by, and
+// their keys are the same ones lib/types.ts's DomainKey already uses for lead
+// interests, site visits and quotations ('si' = System Integrator — see
+// lib/leadInterestOptions.ts, where it is spelled out in full on the capture
+// tile). Deliberately NOT a foreign key into the org-wide `departments`
+// table, which also holds Sales, HR, Accounts and the rest.
 //
 // A 50L Adani deal split AI 27L / AV 23L is ONE project carrying both
 // departments and both amounts — not two projects, and not one project whose
@@ -14,13 +17,31 @@
 // the whole pipeline worth" (50L) from the same row.
 //
 // Pure/dependency-free so client components can import it directly.
-export const PROJECT_DEPARTMENTS = ['ai', 'av', 'robotics'] as const;
+// Order matters: it is the order checkboxes, filters and the "AI + SI"
+// display string all follow, and parseProjectDepartments normalizes to it so
+// the same pair always stores identically.
+export const PROJECT_DEPARTMENTS = ['ai', 'av', 'robotics', 'si'] as const;
 export type ProjectDepartment = (typeof PROJECT_DEPARTMENTS)[number];
 
+// Short labels — these appear in a checkbox row, a filter dropdown, a column
+// header ("SI Value") and a joined chip ("AI + SI"), none of which can carry
+// an expansion. PROJECT_DEPARTMENT_FULL_LABEL below is for the one place
+// there is room for it.
 export const PROJECT_DEPARTMENT_LABEL: Record<ProjectDepartment, string> = {
   ai: 'AI',
   av: 'AV',
-  robotics: 'Robotics'
+  robotics: 'Robotics',
+  si: 'SI'
+};
+
+// Spelled out, for the checkbox tooltip — "SI" alone isn't self-explanatory
+// to someone who hasn't met it before, and the short label is the only thing
+// most of the UI has room to show.
+export const PROJECT_DEPARTMENT_FULL_LABEL: Record<ProjectDepartment, string> = {
+  ai: 'AI',
+  av: 'AV',
+  robotics: 'Robotics',
+  si: 'System Integrator'
 };
 
 // Value per department, in rupees. Partial because a project that predates

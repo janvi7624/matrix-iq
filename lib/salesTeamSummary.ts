@@ -1,5 +1,6 @@
 import { LeadRecord, ProjectRecord, QuotationRecord } from './types';
 import { SALES_DEPARTMENTS } from './technicalRoles';
+import { isLeadUnattended } from './followUp';
 
 // Plain data/helpers only — no db import, so the Dashboard client component
 // can pull the SalesTeamSummaryRow type straight out of here.
@@ -35,13 +36,18 @@ export function isSalesLeadership(input: {
 }
 
 // One row per member of the Sales roster, reading left to right as the
-// funnel they actually work: Lead -> Enquiry -> Quotation -> Billing ->
-// Won/Lost.
+// funnel they actually work: Lead -> To Call -> Enquiry -> Quotation ->
+// Billing -> Won/Lost, with Unattended flagging the part of the call queue
+// that has gone past its SLA.
 export interface SalesTeamSummaryRow {
   id: string;
   username: string;
   name: string;
   leads: number;
+  /** Assigned to them, nobody has logged the qualification call yet. */
+  toCall: number;
+  /** The overdue slice of that queue — a SUBSET of toCall, not a separate pile. */
+  unattended: number;
   enquiries: number;
   quotations: number;
   billing: number;
@@ -61,7 +67,19 @@ export interface SalesTeamSummaryRow {
 // own team's figures here.
 export function buildSalesTeamSummary(
   roster: { id: string; username: string; name: string }[],
-  leads: Pick<LeadRecord, 'created_by' | 'assigned_to'>[],
+  leads: Pick<
+    LeadRecord,
+    | 'created_by'
+    | 'assigned_to'
+    | 'assigned_to_id'
+    | 'assigned_at'
+    | 'created_at'
+    | 'follow_up_actions'
+    | 'project_id'
+    | 'call_outcome'
+    | 'called_at'
+    | 'callback_at'
+  >[],
   projects: Pick<ProjectRecord, 'id' | 'created_by' | 'status'>[],
   quotations: Pick<QuotationRecord, 'created_by' | 'status' | 'project_id' | 'total'>[]
 ): SalesTeamSummaryRow[] {
@@ -72,6 +90,8 @@ export function buildSalesTeamSummary(
       username: member.username,
       name: member.name || member.username,
       leads: 0,
+      toCall: 0,
+      unattended: 0,
       enquiries: 0,
       quotations: 0,
       billing: 0,
@@ -87,9 +107,23 @@ export function buildSalesTeamSummary(
   // captured it while it's still unassigned. Same attribution
   // computeMetaLeadAnalytics uses for its per-user breakdown, so the two
   // never disagree about who a lead belongs to.
+  //
+  // To Call / Unattended are the SAME queue the Leads module shows, counted
+  // here per rep: "to call" is leadNeedsCall in components/LeadsView.tsx
+  // (handed to someone, no call logged, not already a project) and
+  // "unattended" is lib/followUp.ts's isLeadUnattended — the slice of that
+  // queue past the call-back date or the SLA. Unattended is therefore a
+  // subset of To Call, not a column to add to it. Both are credited to the
+  // ASSIGNEE only: neither question has an answer for a lead nobody owns
+  // yet (that is the manager's "To Assign" queue instead).
   for (const lead of leads) {
     const row = byUsername.get(lead.assigned_to || lead.created_by);
     if (row) row.leads += 1;
+
+    const owner = lead.assigned_to ? byUsername.get(lead.assigned_to) : undefined;
+    if (!owner) continue;
+    if (!lead.call_outcome && !lead.project_id) owner.toCall += 1;
+    if (isLeadUnattended(lead)) owner.unattended += 1;
   }
 
   // Enquiry: a Project row — what a lead is promoted into once it's a real

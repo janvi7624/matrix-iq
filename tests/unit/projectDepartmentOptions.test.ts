@@ -11,8 +11,16 @@ import {
   parseProjectDepartments
 } from '../../lib/projectDepartmentOptions';
 
+describe('PROJECT_DEPARTMENTS', () => {
+  // Pinned: the keys are stored in projects.departments as JSONB and reused
+  // as DomainKey elsewhere, so renaming one silently orphans existing rows.
+  it('is the four delivery departments, in display order', () => {
+    expect([...PROJECT_DEPARTMENTS]).toEqual(['ai', 'av', 'robotics', 'si']);
+  });
+});
+
 describe('parseProjectDepartments', () => {
-  it('accepts each of the three real departments', () => {
+  it('accepts each of the real departments', () => {
     for (const d of PROJECT_DEPARTMENTS) {
       expect(parseProjectDepartments([d])).toEqual([d]);
     }
@@ -21,6 +29,11 @@ describe('parseProjectDepartments', () => {
   it('accepts a bare string as well as the stored array form', () => {
     expect(parseProjectDepartments('av')).toEqual(['av']);
     expect(parseProjectDepartments(['av'])).toEqual(['av']);
+  });
+
+  it('normalizes order so the same pair always stores identically', () => {
+    expect(parseProjectDepartments(['si', 'ai'])).toEqual(['ai', 'si']);
+    expect(parseProjectDepartments(['si', 'si', 'robotics'])).toEqual(['robotics', 'si']);
   });
 
   it('drops anything not on the fixed list rather than trusting the client', () => {

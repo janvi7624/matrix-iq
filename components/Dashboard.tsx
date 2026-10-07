@@ -893,6 +893,24 @@ function SalesTeamSummaryPanel({ rows }: { rows: SalesTeamSummaryRow[] | null })
           columns={[
             { key: 'name', header: 'Name', render: (row: SalesTeamSummaryRow) => row.name },
             { key: 'leads', header: 'Lead', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.leads },
+            // The rep's open call queue, and the overdue slice of it. A zero
+            // reads as a dash: in a column that only matters when it ISN'T
+            // zero, a wall of 0s hides the handful of rows that need action.
+            {
+              key: 'toCall',
+              header: 'To Call',
+              headerClassName: styles.summaryNum,
+              cellClassName: styles.summaryNum,
+              render: (row: SalesTeamSummaryRow) => (row.toCall ? row.toCall : '\u2014')
+            },
+            {
+              key: 'unattended',
+              header: 'Unattended',
+              headerClassName: styles.summaryNum,
+              cellClassName: styles.summaryNum,
+              render: (row: SalesTeamSummaryRow) =>
+                row.unattended ? <span className={styles.summaryAlert}>{row.unattended}</span> : '\u2014'
+            },
             { key: 'enquiries', header: 'Enquiry', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.enquiries },
             { key: 'quotations', header: 'Quotation', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.quotations },
             {
