@@ -539,6 +539,13 @@
 .summaryTable td.summaryNum {
     text-align: right;
 }
+/* An overdue call queue is the one figure in this table that is a problem
+   rather than a measurement, so it reads as one. */
+.summaryAlert {
+    color: var(--mx-danger);
+    font-weight: var(--mx-weight-bold);
+}
+
 /* Won and Lost both belong in one Status cell — a rep usually has some of
    each, and two badges read faster than a "3 / 1" that needs a legend. */
 .summaryStatus {

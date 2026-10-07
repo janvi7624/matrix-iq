@@ -28,6 +28,7 @@ import { hasSeenCelebrationPopup, markCelebrationPopupSeen } from '@/lib/celebra
 import Table from './ui/Table';
 import StatusBadge from './ui/StatusBadge';
 import EmptyState from './ui/EmptyState';
+import CelebrationsSection from './CelebrationsSection';
 import styles from './dashboard.module.css';
 
 // How many rows the Dashboard panel itself shows before collapsing the rest
@@ -768,6 +769,12 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         />
       )}
 
+      {/* Upcoming birthdays / work anniversaries — used to be its own
+          "HR Dashboard" page; it's a whole-company thing, not an HR one, so
+          it lives here now. See components/CelebrationsSection.tsx. */}
+      <div className={styles.sectionHeading}>Celebrations</div>
+      <CelebrationsSection />
+
       <div className={styles.kpiGrid}>
         <Link href="/analytics" className={styles.kpiCard}>
           <div className={styles.kpiValue}><ANALYTICS_ICON size={22} /></div>
@@ -886,6 +893,24 @@ function SalesTeamSummaryPanel({ rows }: { rows: SalesTeamSummaryRow[] | null })
           columns={[
             { key: 'name', header: 'Name', render: (row: SalesTeamSummaryRow) => row.name },
             { key: 'leads', header: 'Lead', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.leads },
+            // The rep's open call queue, and the overdue slice of it. A zero
+            // reads as a dash: in a column that only matters when it ISN'T
+            // zero, a wall of 0s hides the handful of rows that need action.
+            {
+              key: 'toCall',
+              header: 'To Call',
+              headerClassName: styles.summaryNum,
+              cellClassName: styles.summaryNum,
+              render: (row: SalesTeamSummaryRow) => (row.toCall ? row.toCall : '\u2014')
+            },
+            {
+              key: 'unattended',
+              header: 'Unattended',
+              headerClassName: styles.summaryNum,
+              cellClassName: styles.summaryNum,
+              render: (row: SalesTeamSummaryRow) =>
+                row.unattended ? <span className={styles.summaryAlert}>{row.unattended}</span> : '\u2014'
+            },
             { key: 'enquiries', header: 'Enquiry', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.enquiries },
             { key: 'quotations', header: 'Quotation', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.quotations },
             {

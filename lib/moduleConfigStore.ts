@@ -49,7 +49,7 @@ const TMS_DEPARTMENT_LIST: string[] = [...TMS_DEPARTMENTS];
 // the list. Listing the key here routes it through HR_MODULE_ROLES instead of
 // viewer.isPrivileged.
 const HR_MODULE_ROLES: UserRole[] = ['hr', 'superadmin', 'admin'];
-const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-tasks', 'hr-employees', 'hr-reports', 'hr-settings']);
+const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-employees', 'hr-reports']);
 
 // Accounts, for exactly the same reason. The payment queue is the Accounts
 // team's and the admins' — it previously listed 'manager' in visibleToRoles
@@ -108,7 +108,6 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // Visible to every TMS role too (not just ALL_ROLES) — HR Dashboard,
   // Travel Schedule, and Reimbursement apply to technical-manager/team-lead/
   // technician accounts just as much as everyone else.
-  { key: 'hr-dashboard', label: 'HR Dashboard', desc: 'Upcoming birthdays and work anniversaries.', icon: 'cake', href: '/hr-dashboard', section: 'HR', order: 0, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'reimbursement', label: 'Reimbursement', desc: 'Submit and track expense reimbursement bills.', icon: 'receipt-indian-rupee', href: '/reimbursement', section: 'HR', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'admin-expenses', label: 'Admin Expenses', desc: 'Add hotel & ticket expenses split across employees.', icon: 'briefcase', href: '/admin-expenses', section: 'HR', order: 3, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin', 'hr'] },
@@ -122,10 +121,8 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'accounts-payments', label: 'Payments', desc: 'Every pending, on-hold, and completed payment across every module — the Accounts team\'s single payment queue.', icon: 'receipt-indian-rupee', href: '/accounts/payments', section: 'Accounts', order: 0, enabled: true, isCustom: false, visibleToRoles: ACCOUNTS_MODULE_ROLES },
   // HR operational task engine — HR_RESTRICTED_KEYS keeps these HR + Admin +
   // Super Admin only (not every department's generic 'manager' role).
-  { key: 'hr-tasks', label: 'HR Tasks', desc: 'Daily tasks, assignment, submission, and review for the HR team.', icon: 'clipboard-list', href: '/hr/tasks', section: 'HR', order: 5, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   { key: 'hr-employees', label: 'Employees', desc: 'Active employee directory.', icon: 'users', href: '/hr/employees', section: 'HR', order: 6, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
-  { key: 'hr-reports', label: 'HR Reports', desc: 'Daily task, monthly performance, and employee work reports.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
-  { key: 'hr-settings', label: 'HR Settings', desc: 'Task categories for HR Tasks.', icon: 'settings', href: '/hr/settings', section: 'HR', order: 10, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-reports', label: 'HR Expense Report', desc: 'Reimbursement, admin expense, and office operation spend by period, employee, or department.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
   // SALES_ROLES_WITH_TMS, not ALL_ROLES: a technical-manager/team-lead/
   // technician can be assigned tasks like anyone else, and with ALL_ROLES
@@ -397,7 +394,7 @@ const OLD_ACCOUNTS_PAYMENTS_ROLES: UserRole[] = ['superadmin', 'admin', 'manager
 // snapshot of ALL_ROLES (not `= ALL_ROLES`), same don't-clobber-an-admin-edit
 // guard as every reconciliation above.
 const OLD_ALL_ROLES_SNAPSHOT: UserRole[] = ['superadmin', 'admin', 'manager', 'engineer', 'backoffice', 'user', 'marketing', 'accounts', 'hr'];
-const HR_SECTION_TMS_ACCESS_KEYS = new Set(['hr-dashboard', 'travel-schedule', 'reimbursement']);
+const HR_SECTION_TMS_ACCESS_KEYS = new Set(['travel-schedule', 'reimbursement']);
 
 // Existing Quotations widened to every TMS role too — technical staff may
 // now create quotations (lib/technicalRoles.ts), but ALL_ROLES left
@@ -423,6 +420,16 @@ const OLD_TASK_PLANNER_LABEL = 'Assign Task';
 const OLD_TASK_PLANNER_HREF = '/admin/task-assignment';
 const OLD_TASK_PLANNER_ICON = 'send';
 const OLD_TASK_PLANNER_DESC = 'Assign a task to any employee in any department.';
+
+// "HR Reports" (daily/monthly/employee HR-TASK reports) was rebuilt as the
+// HR Expense Report over Reimbursement + Admin Expense + Office Operation
+// spend, after the HR Tasks module it used to report on was removed. Same
+// key and href, so only the label/desc change — and only while the row
+// still holds the exact old defaults, so an admin's own Module Manager edit
+// is never clobbered.
+const HR_REPORTS_KEY = 'hr-reports';
+const OLD_HR_REPORTS_LABEL = 'HR Reports';
+const OLD_HR_REPORTS_DESC = 'Daily task, monthly performance, and employee work reports.';
 
 function sameRoles(a: UserRole[], b: UserRole[]): boolean {
   if (a.length !== b.length) return false;
@@ -510,6 +517,8 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (key === TASK_PLANNER_KEY && plain.icon === OLD_TASK_PLANNER_ICON) attrs.icon = 'kanban-square';
     if (key === TASK_PLANNER_KEY && plain.desc === OLD_TASK_PLANNER_DESC) attrs.desc = 'Plan, assign and track work across departments and employees.';
     if (key === TASK_PLANNER_KEY && plain.section === OLD_TASK_PLANNER_SECTION) { attrs.section = NEW_TASK_PLANNER_SECTION; attrs.order = NEW_TASK_PLANNER_ORDER; }
+    if (key === HR_REPORTS_KEY && plain.label === OLD_HR_REPORTS_LABEL) attrs.label = 'HR Expense Report';
+    if (key === HR_REPORTS_KEY && plain.desc === OLD_HR_REPORTS_DESC) attrs.desc = 'Reimbursement, admin expense, and office operation spend by period, employee, or department.';
     if (key === 'admin-expenses' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ADMIN_EXPENSES_ROLES)) attrs.visibleToRoles = NEW_ADMIN_EXPENSES_ROLES;
     if (ACCOUNTS_RESTRICTED_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ACCOUNTS_PAYMENTS_ROLES)) attrs.visibleToRoles = ACCOUNTS_MODULE_ROLES;
     if (Object.keys(attrs).length) await row.update(attrs as never);

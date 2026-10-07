@@ -1,11 +1,14 @@
 // Which delivery department(s) a Sales project belongs to — AI, AV, Robotics,
-// or several at once — and how much of the project's value belongs to each.
+// SI, or several at once — and how much of the project's value belongs to
+// each.
 //
 // A fixed short list on purpose, same reasoning as lib/projectLeadOptions.ts:
-// these are the three technical departments a deal is actually delivered by,
-// and they are the same three lib/domainLeads.ts already routes demo requests
-// to. Deliberately NOT a foreign key into the org-wide `departments` table,
-// which also holds Sales, HR, Accounts and the rest.
+// these are the technical departments a deal is actually delivered by, and
+// their keys are the same ones lib/types.ts's DomainKey already uses for lead
+// interests, site visits and quotations ('si' = System Integrator — see
+// lib/leadInterestOptions.ts, where it is spelled out in full on the capture
+// tile). Deliberately NOT a foreign key into the org-wide `departments`
+// table, which also holds Sales, HR, Accounts and the rest.
 //
 // A 50L Adani deal split AI 27L / AV 23L is ONE project carrying both
 // departments and both amounts — not two projects, and not one project whose
@@ -21,6 +24,10 @@
 export const PROJECT_DEPARTMENTS = ['ai', 'av', 'robotics', 'other'] as const;
 export type ProjectDepartment = (typeof PROJECT_DEPARTMENTS)[number];
 
+// Short labels — these appear in a checkbox row, a filter dropdown, a column
+// header ("SI Value") and a joined chip ("AI + SI"), none of which can carry
+// an expansion. PROJECT_DEPARTMENT_FULL_LABEL below is for the one place
+// there is room for it.
 export const PROJECT_DEPARTMENT_LABEL: Record<ProjectDepartment, string> = {
   ai: 'AI',
   av: 'AV',

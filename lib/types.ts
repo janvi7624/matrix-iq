@@ -1953,13 +1953,6 @@ export interface GeneralTaskDeadlineChangeRecord {
   createdAt: string;
 }
 
-export interface HrTaskCategoryRecord {
-  id: string;
-  name: string;
-  active: boolean;
-  order: number;
-}
-
 export type AttendanceStatus = 'present' | 'absent' | 'half_day' | 'on_leave' | 'holiday' | 'wfh';
 
 export interface AttendanceRecordEntry {
