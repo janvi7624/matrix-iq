@@ -49,7 +49,7 @@ const TMS_DEPARTMENT_LIST: string[] = [...TMS_DEPARTMENTS];
 // the list. Listing the key here routes it through HR_MODULE_ROLES instead of
 // viewer.isPrivileged.
 const HR_MODULE_ROLES: UserRole[] = ['hr', 'superadmin', 'admin'];
-const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-tasks', 'hr-employees', 'hr-reports', 'hr-settings']);
+const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-employees', 'hr-reports']);
 
 // Accounts, for exactly the same reason. The payment queue is the Accounts
 // team's and the admins' — it previously listed 'manager' in visibleToRoles
@@ -105,7 +105,6 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // Visible to every TMS role too (not just ALL_ROLES) — HR Dashboard,
   // Travel Schedule, and Reimbursement apply to technical-manager/team-lead/
   // technician accounts just as much as everyone else.
-  { key: 'hr-dashboard', label: 'HR Dashboard', desc: 'Upcoming birthdays and work anniversaries.', icon: 'cake', href: '/hr-dashboard', section: 'HR', order: 0, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'reimbursement', label: 'Reimbursement', desc: 'Submit and track expense reimbursement bills.', icon: 'receipt-indian-rupee', href: '/reimbursement', section: 'HR', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'admin-expenses', label: 'Admin Expenses', desc: 'Add hotel & ticket expenses split across employees.', icon: 'briefcase', href: '/admin-expenses', section: 'HR', order: 3, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin', 'hr'] },
@@ -119,10 +118,8 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'accounts-payments', label: 'Payments', desc: 'Every pending, on-hold, and completed payment across every module — the Accounts team\'s single payment queue.', icon: 'receipt-indian-rupee', href: '/accounts/payments', section: 'Accounts', order: 0, enabled: true, isCustom: false, visibleToRoles: ACCOUNTS_MODULE_ROLES },
   // HR operational task engine — HR_RESTRICTED_KEYS keeps these HR + Admin +
   // Super Admin only (not every department's generic 'manager' role).
-  { key: 'hr-tasks', label: 'HR Tasks', desc: 'Daily tasks, assignment, submission, and review for the HR team.', icon: 'clipboard-list', href: '/hr/tasks', section: 'HR', order: 5, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   { key: 'hr-employees', label: 'Employees', desc: 'Active employee directory.', icon: 'users', href: '/hr/employees', section: 'HR', order: 6, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   { key: 'hr-reports', label: 'HR Reports', desc: 'Daily task, monthly performance, and employee work reports.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
-  { key: 'hr-settings', label: 'HR Settings', desc: 'Task categories for HR Tasks.', icon: 'settings', href: '/hr/settings', section: 'HR', order: 10, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
   // SALES_ROLES_WITH_TMS, not ALL_ROLES: a technical-manager/team-lead/
   // technician can be assigned tasks like anyone else, and with ALL_ROLES
@@ -234,10 +231,12 @@ const OLD_DEFAULT_LABELS: Record<string, string> = {
   leads: 'Lead Capture'
 };
 
-// CRM was merged into Projects (section 23) — its own module tile/route no
-// longer exists, so strip it from any already-persisted config instead of
-// leaving a dead tile pointing at a removed page.
-const RETIRED_KEYS = new Set(['crm', 'hr-attendance', 'hr-leave', 'leave']);
+// Modules whose tile/route no longer exists — CRM was merged into Projects
+// (section 23); HR Settings was dropped outright; HR Dashboard's celebrations
+// moved onto the main dashboard (components/CelebrationsSection.tsx). Strip
+// them from any already-persisted config instead of leaving a dead tile
+// pointing at a removed page.
+const RETIRED_KEYS = new Set(['crm', 'hr-attendance', 'hr-leave', 'leave', 'hr-settings', 'hr-dashboard', 'hr-tasks']);
 
 // The Dashboard section these modules used to be grouped under was literally
 // named "CRM" — renamed to "Sales Pipeline" now that CRM itself is gone, so
@@ -363,7 +362,7 @@ const OLD_ACCOUNTS_PAYMENTS_ROLES: UserRole[] = ['superadmin', 'admin', 'manager
 // snapshot of ALL_ROLES (not `= ALL_ROLES`), same don't-clobber-an-admin-edit
 // guard as every reconciliation above.
 const OLD_ALL_ROLES_SNAPSHOT: UserRole[] = ['superadmin', 'admin', 'manager', 'engineer', 'backoffice', 'user', 'marketing', 'accounts', 'hr'];
-const HR_SECTION_TMS_ACCESS_KEYS = new Set(['hr-dashboard', 'travel-schedule', 'reimbursement']);
+const HR_SECTION_TMS_ACCESS_KEYS = new Set(['travel-schedule', 'reimbursement']);
 
 // Existing Quotations widened to every TMS role too — technical staff may
 // now create quotations (lib/technicalRoles.ts), but ALL_ROLES left

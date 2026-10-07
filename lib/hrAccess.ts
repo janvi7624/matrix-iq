@@ -12,7 +12,7 @@ import { listDepartmentManagers, findHrManagers } from './departmentStore';
 // app/hr/attendance and app/hr/leave pages (redirected away by
 // requireHrPage once the key no longer resolves) keep type-checking rather
 // than being force-deleted along with the module removal.
-export const HR_MODULE_KEYS = ['hr-tasks', 'hr-employees', 'hr-attendance', 'hr-leave', 'hr-reports', 'hr-settings'] as const;
+export const HR_MODULE_KEYS = ['hr-employees', 'hr-attendance', 'hr-leave', 'hr-reports'] as const;
 export type HrModuleKey = (typeof HR_MODULE_KEYS)[number];
 
 // "HR manager" reuses the SAME definition Reimbursement's HR-decide/

@@ -1,4 +1,6 @@
-/* components/HrDashboardView.tsx — was entirely inline style={{}} objects.
+/* components/CelebrationsSection.tsx — the upcoming birthdays /
+   work anniversaries block on the main dashboard (was the standalone HR
+   Dashboard page, since removed).
    .toneBrand/.toneInfo/.toneWarning/.toneSuccess set --tone-color/--tone-bg
    custom properties that cascade down to every descendant automatically —
    apply the tone class once on the outer wrapper (StatCard, a celebration

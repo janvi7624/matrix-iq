@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { FileSpreadsheet } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { ModuleConfigRecord, UserRole } from '@/lib/types';
 import { BRAND } from '@/lib/branding';
@@ -11,7 +10,6 @@ import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
 import { sectionIconFor, resolveModuleIcon, QUICK_ACTION_ICON, CHROME_ICON } from '@/lib/icons';
-import { REPORT_VIEWER_USERNAME, REPORT_VIEWER_ROLES, REPORT_VIEWER_DEPARTMENT } from '@/lib/adminExpenseReportAccess';
 import { TMS_ROLE_LABEL } from '@/lib/tmsLabels';
 import styles from './sidebar.module.css';
 import { forgetCelebrationPopups } from '@/lib/celebrationPopupSeen';
@@ -126,11 +124,6 @@ export default function Sidebar() {
     return QUICK_ACTION_KEYS.map((key) => byKey.get(key)).filter((m): m is ModuleConfigRecord => !!m);
   }, [modules]);
 
-  const canViewAdminExpenseReport =
-    viewer?.username === REPORT_VIEWER_USERNAME ||
-    (!!viewer?.role && REPORT_VIEWER_ROLES.includes(viewer.role)) ||
-    viewer?.department === REPORT_VIEWER_DEPARTMENT;
-
   function isActive(href: string): boolean {
     if (href === '/') return pathname === '/';
     return pathname === href || pathname.startsWith(`${href}/`);
@@ -204,24 +197,6 @@ export default function Sidebar() {
                         </Link>
                       );
                     })}
-                    {/* Not a ModuleConfig-driven tile (its access rule — a
-                        named person OR admin/superadmin OR the
-                        Administration department — isn't expressible as
-                        ModuleConfig's role/department visibility alone,
-                        since Hardik himself is neither), but it belongs
-                        alongside Admin Expenses/HR Reports visually, so it
-                        renders as an extra tile inside the HR section
-                        instead of a separate top-level link. */}
-                    {section.label === 'HR' && canViewAdminExpenseReport && (
-                      <Link
-                        href="/admin-expense-report"
-                        className={`${styles.link} ${isActive('/admin-expense-report') ? styles.linkActive : ''}`}
-                        data-tooltip="Admin Expense Report"
-                      >
-                        <span className={styles.linkIcon}><FileSpreadsheet size={16} /></span>
-                        <span className={styles.linkLabel}>Admin Expense Report</span>
-                      </Link>
-                    )}
                   </>
                 )}
               </div>

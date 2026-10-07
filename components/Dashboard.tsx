@@ -28,6 +28,7 @@ import { hasSeenCelebrationPopup, markCelebrationPopupSeen } from '@/lib/celebra
 import Table from './ui/Table';
 import StatusBadge from './ui/StatusBadge';
 import EmptyState from './ui/EmptyState';
+import CelebrationsSection from './CelebrationsSection';
 import styles from './dashboard.module.css';
 
 // How many rows the Dashboard panel itself shows before collapsing the rest
@@ -767,6 +768,12 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           myProjects={allProjects || []}
         />
       )}
+
+      {/* Upcoming birthdays / work anniversaries — used to be its own
+          "HR Dashboard" page; it's a whole-company thing, not an HR one, so
+          it lives here now. See components/CelebrationsSection.tsx. */}
+      <div className={styles.sectionHeading}>Celebrations</div>
+      <CelebrationsSection />
 
       <div className={styles.kpiGrid}>
         <Link href="/analytics" className={styles.kpiCard}>
