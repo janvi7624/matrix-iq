@@ -1,0 +1,226 @@
+/* HR Expense Report — the result is a matrix (one row per employee /
+   department / expense type, one column per period), which is a shape the
+   app's generic .table isn't built for: it needs a two-level header, a
+   pinned label column, a pinned totals row, and a visual break between the
+   period block and the per-type block. So the matrix has its own rules here
+   rather than fighting quotationHistory.module.css's defaults; the filter
+   panel further down shares its card chrome. */
+
+.panel {
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-xl);
+    box-shadow: var(--mx-shadow-xs);
+    overflow: hidden;
+    margin-top: 18px;
+}
+
+.panelHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--mx-border);
+}
+.panelTitle { font-size: 14px; font-weight: var(--mx-weight-bold); color: var(--mx-ink); }
+.panelMeta { font-size: 12px; color: var(--mx-ink-muted); }
+
+/* The scrollport for the sticky header/footer/label column. Both axes:
+   a 12-month matrix is wider than the page, and a 60-employee one taller. */
+.scroller {
+    composes: mx-visible-scroll from global;
+    overflow: auto;
+    max-height: min(70vh, 760px);
+}
+
+.matrix {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+.matrix th, .matrix td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--mx-border);
+    white-space: nowrap;
+    background: var(--mx-surface);
+}
+
+/* ── TWO-ROW HEADER ──
+   Row 1 names the blocks (Period / By Expense Type), row 2 the columns.
+   The `top` offsets are the first row's own height, so they must stay in
+   step with .groupHead's height below. */
+.groupHead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    height: 30px;
+    padding: 0 12px;
+    background: var(--mx-surface-sunken);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mx-ink-muted);
+    text-align: center;
+}
+.colHead th {
+    position: sticky;
+    top: 30px;
+    z-index: 3;
+    background: var(--mx-surface-sunken);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--mx-ink);
+    text-align: right;
+}
+
+/* The label column stays put while the period columns scroll past it. */
+.labelCell {
+    position: sticky;
+    left: 0;
+    min-width: 230px;
+    text-align: left;
+}
+td.labelCell { z-index: 1; }
+.groupHead th.labelCell, .colHead th.labelCell { z-index: 4; background: var(--mx-surface-sunken); text-align: left; }
+
+.rowLabel { display: flex; align-items: center; gap: 10px; }
+.avatar {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-info-subtle);
+    color: var(--mx-info);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.rowName { display: block; font-weight: var(--mx-weight-semibold); color: var(--mx-ink); }
+.rowSub { display: block; font-size: 11px; color: var(--mx-ink-muted); margin-top: 1px; white-space: nowrap; }
+
+.num { text-align: right; }
+/* A zero in a money matrix is noise — rendered as a muted dash instead. */
+.zero { color: var(--mx-ink-faint); }
+.count { text-align: right; color: var(--mx-ink-muted); }
+
+/* Where one block of columns ends and the next begins. */
+.blockStart { border-left: 1px solid var(--mx-border); }
+
+.matrix tbody tr:nth-child(even) th, .matrix tbody tr:nth-child(even) td { background: var(--mx-surface-sunken); }
+.matrix tbody tr:hover th, .matrix tbody tr:hover td { background: var(--mx-brand-subtle); }
+
+/* Total column: the figure alone, emphasised against the period cells
+   beside it. */
+.totalCell { text-align: right; font-weight: var(--mx-weight-bold); color: var(--mx-ink); }
+
+/* Pinned to the bottom of the scrollport: on a long list the grand total is
+   the one row you always want in view. */
+.totalRow th, .totalRow td {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--mx-surface-sunken);
+    border-top: 2px solid var(--mx-border);
+    border-bottom: none;
+    font-weight: var(--mx-weight-bold);
+    color: var(--mx-ink);
+}
+.totalRow th.labelCell { z-index: 3; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
+
+.note { font-size: 12px; color: var(--mx-ink-muted); margin: 12px 2px 0; line-height: 1.55; }
+
+/* ── FILTER PANEL ───────────────────────────────────────────────────────
+   A labelled card rather than a flat row of bare dropdowns: with eight
+   controls, "what does this one do?" can't be left to the selected value
+   alone. The grid auto-fits, so the same markup is 4-up on a desktop and
+   1-up on a phone, and the footer carries what the filters currently add
+   up to next to the actions that act on it. */
+.filters {
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-xl);
+    box-shadow: var(--mx-shadow-xs);
+    padding: 16px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.filterGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px 14px;
+}
+
+.filterField {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    /* Without this a long employee name stretches its own grid column. */
+    min-width: 0;
+}
+
+.filterLabel {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mx-ink-muted);
+}
+
+.filterFooter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    border-top: 1px dashed var(--mx-border);
+    padding-top: 12px;
+}
+
+.filterSummary {
+    font-size: 12.5px;
+    color: var(--mx-ink-muted);
+    min-width: 0;
+}
+.filterSummary strong { color: var(--mx-ink); font-weight: var(--mx-weight-semibold); }
+
+.filterActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Reads as a filter chip rather than a stray form checkbox — :has() styles
+   the whole pill from the input's own checked state, so the label stays a
+   plain <label>+<input> and keeps its native keyboard behaviour. */
+.toggleChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-full);
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color var(--mx-duration-base) var(--mx-ease), background var(--mx-duration-base) var(--mx-ease), color var(--mx-duration-base) var(--mx-ease);
+}
+.toggleChip:hover { border-color: var(--mx-brand); }
+.toggleChip input { accent-color: var(--mx-brand); cursor: pointer; margin: 0; }
+.toggleChip:has(input:checked) {
+    background: var(--mx-brand-subtle);
+    border-color: var(--mx-brand);
+    color: var(--mx-brand);
+    font-weight: var(--mx-weight-semibold);
+}

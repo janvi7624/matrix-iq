@@ -119,7 +119,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // HR operational task engine — HR_RESTRICTED_KEYS keeps these HR + Admin +
   // Super Admin only (not every department's generic 'manager' role).
   { key: 'hr-employees', label: 'Employees', desc: 'Active employee directory.', icon: 'users', href: '/hr/employees', section: 'HR', order: 6, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
-  { key: 'hr-reports', label: 'HR Reports', desc: 'Daily task, monthly performance, and employee work reports.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-reports', label: 'HR Expense Report', desc: 'Reimbursement, admin expense, and office operation spend by period, employee, or department.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
   // SALES_ROLES_WITH_TMS, not ALL_ROLES: a technical-manager/team-lead/
   // technician can be assigned tasks like anyone else, and with ALL_ROLES
@@ -389,6 +389,16 @@ const OLD_TASK_PLANNER_HREF = '/admin/task-assignment';
 const OLD_TASK_PLANNER_ICON = 'send';
 const OLD_TASK_PLANNER_DESC = 'Assign a task to any employee in any department.';
 
+// "HR Reports" (daily/monthly/employee HR-TASK reports) was rebuilt as the
+// HR Expense Report over Reimbursement + Admin Expense + Office Operation
+// spend, after the HR Tasks module it used to report on was removed. Same
+// key and href, so only the label/desc change — and only while the row
+// still holds the exact old defaults, so an admin's own Module Manager edit
+// is never clobbered.
+const HR_REPORTS_KEY = 'hr-reports';
+const OLD_HR_REPORTS_LABEL = 'HR Reports';
+const OLD_HR_REPORTS_DESC = 'Daily task, monthly performance, and employee work reports.';
+
 function sameRoles(a: UserRole[], b: UserRole[]): boolean {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
@@ -469,6 +479,8 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (key === TASK_PLANNER_KEY && plain.icon === OLD_TASK_PLANNER_ICON) attrs.icon = 'kanban-square';
     if (key === TASK_PLANNER_KEY && plain.desc === OLD_TASK_PLANNER_DESC) attrs.desc = 'Plan, assign and track work across departments and employees.';
     if (key === TASK_PLANNER_KEY && plain.section === OLD_TASK_PLANNER_SECTION) { attrs.section = NEW_TASK_PLANNER_SECTION; attrs.order = NEW_TASK_PLANNER_ORDER; }
+    if (key === HR_REPORTS_KEY && plain.label === OLD_HR_REPORTS_LABEL) attrs.label = 'HR Expense Report';
+    if (key === HR_REPORTS_KEY && plain.desc === OLD_HR_REPORTS_DESC) attrs.desc = 'Reimbursement, admin expense, and office operation spend by period, employee, or department.';
     if (key === 'admin-expenses' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ADMIN_EXPENSES_ROLES)) attrs.visibleToRoles = NEW_ADMIN_EXPENSES_ROLES;
     if (ACCOUNTS_RESTRICTED_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ACCOUNTS_PAYMENTS_ROLES)) attrs.visibleToRoles = ACCOUNTS_MODULE_ROLES;
     if (Object.keys(attrs).length) await row.update(attrs as never);
