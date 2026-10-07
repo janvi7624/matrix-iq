@@ -11,6 +11,12 @@ export const DEPARTMENT_TO_SECTION: Record<string, string> = {
   'Back Office': 'Operations',
   Accounts: 'Administration',
   HR: 'HR',
+  // This install's actual HR/Admin department is named "HR & Admin", not the
+  // seeded "HR" — lib/departmentScoring.ts already registers both spellings
+  // for the same reason. Without this, primarySectionForDepartment() returns
+  // null for anyone in it, so no section pre-expands and the HR section
+  // (Admin Expense Report, Reimbursement, etc.) sits collapsed by default.
+  'HR & Admin': 'HR',
   Purchase: 'Administration',
   Inventory: 'Administration',
   Management: 'Administration',

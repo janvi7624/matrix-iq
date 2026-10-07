@@ -355,7 +355,9 @@ export default function ProductCatalogPage() {
       body: JSON.stringify({ catalog: catalogId, productKey, name, fields })
     });
     if (!response.ok) {
-      toast.error('Could not save this change.');
+      const body = await response.json().catch(() => ({} as { error?: string }));
+      const reason = typeof body.error === 'string' && body.error ? body.error : `HTTP ${response.status}`;
+      toast.error(`Could not save this change — ${reason}`);
       return;
     }
     await load();
@@ -364,7 +366,9 @@ export default function ProductCatalogPage() {
   async function handleReset(overrideId: string) {
     const response = await fetch(`/api/admin/product-overrides/${overrideId}`, { method: 'DELETE' });
     if (!response.ok) {
-      toast.error('Could not reset this product.');
+      const body = await response.json().catch(() => ({} as { error?: string }));
+      const reason = typeof body.error === 'string' && body.error ? body.error : `HTTP ${response.status}`;
+      toast.error(`Could not reset this product — ${reason}`);
       return;
     }
     await load();
