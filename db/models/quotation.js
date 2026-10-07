@@ -36,6 +36,13 @@ module.exports = (sequelize, DataTypes) => {
     gst_amount: { type: DataTypes.DECIMAL(14, 2), allowNull: false, defaultValue: 0 },
     total: { type: DataTypes.DECIMAL(14, 2), allowNull: false, defaultValue: 0 },
     validity_days: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    // Whether the quoted price already covers delivery, and whether it
+    // already covers installation. Independent, because "delivered but
+    // installation chargeable" is a real position. false = the long-standing
+    // behaviour ("will be extra"), so existing quotations keep the wording
+    // they were issued with.
+    freight_included: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    installation_included: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     // Project / Tender Proposal — see the 20260929140000 migration and
     // lib/quotationProposal.ts. NULL on a Standard/Custom quotation.
     proposal_kind: { type: DataTypes.STRING(20) },

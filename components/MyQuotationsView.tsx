@@ -47,7 +47,13 @@ interface CurrentViewer {
 
 const ORG_WIDE_ROLES = new Set(['superadmin', 'admin']);
 
-export default function MyQuotationsView() {
+interface MyQuotationsViewProps {
+  /** Renders without its own AppShell/Sidebar — for hosting inside a tabbed
+      parent page (see components/QuotationsView.tsx) instead of as its own route. */
+  embedded?: boolean;
+}
+
+export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {}) {
   // Set when arriving from a "view this quotation" link elsewhere (e.g. the
   // Dashboard's Recent Quotations card) — passed straight through to
   // QuotationTable so it can auto-expand and scroll to that one row instead
@@ -229,8 +235,8 @@ export default function MyQuotationsView() {
       ? 'Quotations across your department — with versions, status, and follow-ups.'
       : "Quotations you've created — with versions, status, and follow-ups.";
 
-  return (
-    <AppShell title="Existing Quotations" subtitle={subtitle}>
+  const content = (
+    <>
       {/* Sales leadership only — a rep looking at their own quotations has
           no use for a one-row table of themselves. */}
       {isPrivileged && teamSummary.length > 0 && (
@@ -370,6 +376,13 @@ export default function MyQuotationsView() {
           />
         )
       )}
+    </>
+  );
+
+  if (embedded) return content;
+  return (
+    <AppShell title="Existing Quotations" subtitle={subtitle}>
+      {content}
     </AppShell>
   );
 }

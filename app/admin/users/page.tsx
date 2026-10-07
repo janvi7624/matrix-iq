@@ -8,6 +8,8 @@ import { DepartmentRecord, PublicUser, RoleRecord, UserRole } from '@/lib/types'
 import AppShell from '@/components/AppShell';
 import EmployeeDirectory, { type UserActivity } from '@/components/EmployeeDirectory';
 import EmployeeEditDialog, { type EmployeeEditPayload } from '@/components/ui/EmployeeEditDialog';
+import EmployeeExitView from '@/components/EmployeeExitView';
+import Modal from '@/components/ui/Modal';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import PhoneInput from '@/components/ui/PhoneInput';
@@ -177,6 +179,13 @@ export default function ManageUsersPage() {
   const [createError, setCreateError] = useState('');
 
   const [editingUser, setEditingUser] = useState<PublicUser | null>(null);
+  // Employee Exit, opened pre-scoped to one row instead of its own nav entry
+  // — the Administration sidebar also still carries a standalone "Employee
+  // Exit" tile (not absorbed like the other merges here), since that page's
+  // own access check (resolveVisibilityScope — any department manager who
+  // manages more than just themself) is broader than this page's
+  // PRIVILEGED_ROLES gate; hiding it would cut off a real, narrower audience.
+  const [exitingUser, setExitingUser] = useState<PublicUser | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
 
@@ -507,7 +516,8 @@ export default function ManageUsersPage() {
                 { label: 'Edit details', onClick: () => { setEditError(''); setEditingUser(user); } },
                 { label: 'Reset password', onClick: () => resetPassword(user) },
                 { label: 'Resend welcome email', onClick: () => resendWelcomeEmail(user) },
-                { label: user.status === 'active' ? 'Deactivate' : 'Activate', onClick: () => toggleStatus(user) }
+                { label: user.status === 'active' ? 'Deactivate' : 'Activate', onClick: () => toggleStatus(user) },
+                ...(user.status === 'active' ? [{ label: 'Exit employee', onClick: () => setExitingUser(user) }] : [])
               ]
             : []),
           ...(isSuperadmin ? [{ label: 'Delete employee', onClick: () => handleDelete(user), danger: true }] : [])
@@ -633,6 +643,24 @@ export default function ManageUsersPage() {
           onSave={handleSaveEdit}
           onClose={() => { setEditingUser(null); setEditError(''); }}
         />
+      )}
+
+      {exitingUser && (
+        <Modal
+          title={`Exit ${exitingUser.name || exitingUser.username}`}
+          ariaLabel="Employee exit"
+          onClose={() => setExitingUser(null)}
+          size="wide"
+        >
+          <EmployeeExitView
+            embedded
+            initialEmployeeId={exitingUser.id}
+            onDone={() => {
+              setExitingUser(null);
+              loadUsers();
+            }}
+          />
+        </Modal>
       )}
     </AppShell>
   );

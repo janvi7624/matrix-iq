@@ -5,8 +5,12 @@ import Link from 'next/link';
 import { Layers } from 'lucide-react';
 import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsProjectStatus, TmsProjectType, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS } from '@/lib/tmsConstants';
-import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_ROLE_LABEL } from '@/lib/tmsLabels';
+import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_ROLE_LABEL, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
+import dashboardStyles from './dashboard.module.css';
+import tmsDashboardStyles from './tmsDashboard.module.css';
+import Modal from './ui/Modal';
+import TmsGuideModal, { useTmsGuideAutoShow } from './TmsGuideModal';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
@@ -61,12 +65,23 @@ function formatDate(iso: string): string {
   }
 }
 
+function addDays(iso: string, days: number): string {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 interface TmsProjectsViewProps {
   currentUser: { username: string; role: UserRole };
 }
 
 export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   void currentUser;
+  // Moved here from the old TMS Dashboard (now merged into this page) — the
+  // onboarding guide needs a home since this is now the first TMS page most
+  // viewers land on.
+  const [autoShowGuide, dismissAutoGuide] = useTmsGuideAutoShow();
+  const [showGuide, setShowGuide] = useState(false);
   const toast = useToast();
   const [projects, setProjects] = useState<TmsProjectRecord[]>([]);
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
@@ -242,8 +257,71 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     { key: 'actions', header: '', render: (p) => <Link className={historyStyles.button} href={`/tms/projects/${p.id}`}>View</Link> }
   ];
 
+  // Moved here from the old TMS Dashboard, now merged into this page (same
+  // "stat tiles above the list" shape as the Sales Project Dashboard,
+  // components/ProjectsView.tsx) — same bucket logic, computed over this
+  // page's own already-loaded `projects` instead of a dashboard-wide fetch.
+  // See ABSORBED_INTO_MERGED_PAGE in lib/moduleConfigStore.ts.
+  const projectStats = useMemo(() => {
+    const date = todayIso();
+    const active = projects.filter((p) => p.status !== 'completed' && p.status !== 'cancelled');
+    const completed = projects.filter((p) => p.status === 'completed');
+    const nearDeadline = active.filter((p) => p.estimated_close_date && p.estimated_close_date >= date && p.estimated_close_date <= addDays(date, 7));
+    const delayed = active.filter((p) => p.estimated_close_date && p.estimated_close_date < date);
+    return {
+      total: projects.length,
+      active: active.length, activeItems: active,
+      completed: completed.length, completedItems: completed,
+      nearDeadline: nearDeadline.length, nearDeadlineItems: nearDeadline,
+      delayed: delayed.length, delayedItems: delayed
+    };
+  }, [projects]);
+
+  interface DrilldownItem { id: string; label: string; sublabel: string; href: string }
+  const [drilldown, setDrilldown] = useState<{ title: string; items: DrilldownItem[] } | null>(null);
+  function showProjects(title: string, items: TmsProjectRecord[]) {
+    setDrilldown({ title, items: items.map((p) => ({ id: p.id, label: p.name || p.client_name || p.project_code, sublabel: TMS_PROJECT_STATUS_LABEL[p.status] || p.status, href: `/tms/projects/${p.id}` })) });
+  }
+
   return (
-    <AppShell title="TMS Projects" subtitle="Technical execution projects — team, budget, status, and progress.">
+    <AppShell title="TMS Dashboard" subtitle="Technical execution projects — team, budget, status, and progress.">
+      <div className={tmsDashboardStyles.headerRow}>
+        <span />
+        <button type="button" onClick={() => setShowGuide(true)} className={tmsDashboardStyles.guideLink}>
+          How TMS Works
+        </button>
+      </div>
+      {(autoShowGuide || showGuide) && (
+        <TmsGuideModal
+          onClose={() => {
+            dismissAutoGuide();
+            setShowGuide(false);
+          }}
+        />
+      )}
+      <div className={dashboardStyles.kpiGrid}>
+        <div className={dashboardStyles.kpiCard}>
+          <div className={dashboardStyles.kpiValue}>{projectStats.total}</div>
+          <div className={dashboardStyles.kpiLabel}>Total Projects</div>
+        </div>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Active Projects', projectStats.activeItems)}>
+          <div className={dashboardStyles.kpiValue}>{projectStats.active}</div>
+          <div className={dashboardStyles.kpiLabel}>Active Projects</div>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Completed Projects', projectStats.completedItems)}>
+          <div className={dashboardStyles.kpiValue}>{projectStats.completed}</div>
+          <div className={dashboardStyles.kpiLabel}>Completed Projects</div>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Near Deadline', projectStats.nearDeadlineItems)}>
+          <div className={dashboardStyles.kpiValue}>{projectStats.nearDeadline}</div>
+          <div className={dashboardStyles.kpiLabel}>Near Deadline</div>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Delayed Projects', projectStats.delayedItems)}>
+          <div className={dashboardStyles.kpiValue}>{projectStats.delayed}</div>
+          <div className={dashboardStyles.kpiLabel}>Delayed Projects</div>
+        </button>
+      </div>
+
       <div className={historyStyles.actionRow}>
         {/* Hidden whenever the table is showing its empty state, because that
             state carries the New button itself — two of the same button on
@@ -479,6 +557,25 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
             />
           }
         />
+      )}
+
+      {drilldown && (
+        <Modal title={drilldown.title} ariaLabel={drilldown.title} onClose={() => setDrilldown(null)}>
+          {drilldown.items.length === 0 ? (
+            <p className={calcStyles.small}>Nothing in this bucket.</p>
+          ) : (
+            <ul className={tmsDashboardStyles.drilldownList}>
+              {drilldown.items.map((item) => (
+                <li key={item.id}>
+                  <Link href={item.href} className={tmsDashboardStyles.drilldownRow} onClick={() => setDrilldown(null)}>
+                    <span className={tmsDashboardStyles.drilldownLabel}>{item.label}</span>
+                    <span className={tmsDashboardStyles.drilldownSublabel}>{item.sublabel}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Modal>
       )}
     </AppShell>
   );

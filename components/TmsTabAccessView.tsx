@@ -18,9 +18,12 @@ const PERMISSION_ACTIONS: { key: ModulePermissionAction; label: string }[] = [
 
 interface TmsTabAccessViewProps {
   currentUser: { username: string; role: UserRole };
+  /** Renders without its own AppShell/Sidebar — for hosting inside a tabbed
+      parent page (see components/TmsTeamView.tsx) instead of as its own route. */
+  embedded?: boolean;
 }
 
-export default function TmsTabAccessView({ currentUser }: TmsTabAccessViewProps) {
+export default function TmsTabAccessView({ currentUser, embedded }: TmsTabAccessViewProps) {
   void currentUser;
   const toast = useToast();
   const [roles, setRoles] = useState<RoleRecord[]>([]);
@@ -66,8 +69,8 @@ export default function TmsTabAccessView({ currentUser }: TmsTabAccessViewProps)
     }
   }
 
-  return (
-    <AppShell title="TMS Tab Access" subtitle="Configure which TMS roles can view, create, edit, delete, approve, or manage each tab.">
+  const content = (
+    <>
       <div className={historyStyles.status}>{status}</div>
 
       <div className={historyStyles.permTableScroll}>
@@ -108,6 +111,13 @@ export default function TmsTabAccessView({ currentUser }: TmsTabAccessViewProps)
           </tbody>
         </table>
       </div>
+    </>
+  );
+
+  if (embedded) return content;
+  return (
+    <AppShell title="TMS Tab Access" subtitle="Configure which TMS roles can view, create, edit, delete, approve, or manage each tab.">
+      {content}
     </AppShell>
   );
 }

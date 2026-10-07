@@ -1,7 +1,11 @@
-import { requireTmsPage } from '@/lib/tmsPageGuard';
-import TmsDashboardView from '@/components/TmsDashboardView';
+import { redirect } from 'next/navigation';
 
-export default async function TmsDashboardPage() {
-  const viewer = await requireTmsPage('tms-dashboard');
-  return <TmsDashboardView currentUser={{ id: viewer.id, username: viewer.username, name: viewer.name, role: viewer.role }} />;
+// Merged into /tms/projects (see components/TmsProjectsView.tsx, which now
+// carries the project stat tiles the old TMS Dashboard showed) — kept as a
+// redirect so any existing bookmark/link to this URL still lands on the
+// right page. The rest of the old Dashboard's content (My Tasks/Team
+// Overview, BOM Overview, Procurement Overview) moved onto their own
+// matching pages — see ABSORBED_INTO_MERGED_PAGE in lib/moduleConfigStore.ts.
+export default function TmsDashboardPage() {
+  redirect('/tms/projects');
 }

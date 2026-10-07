@@ -90,7 +90,10 @@ const SALES_ROLES_WITH_TMS: UserRole[] = [...ALL_ROLES, ...TMS_ROLE_KEYS];
 // adds it via Module Manager.
 const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: 'folder-kanban', href: '/projects', section: 'Sales', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
-  { key: 'quotation', label: 'New Quotation', desc: 'Create a new quotation — AV, Robotics, AI Video Analytics, System Integration & VisitIQ VMS.', icon: 'file-text', href: '/quotation', section: 'Sales', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  // my-quotations absorbed as a second tab on this same page — see
+  // ABSORBED_INTO_MERGED_PAGE; key/visibleToRoles unchanged so each tab's own
+  // permission data is untouched.
+  { key: 'quotation', label: 'Quotations', desc: "Create a new quotation, or search and follow up on quotations you've already created.", icon: 'file-text', href: '/quotation', section: 'Sales', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   // SALES_ROLES_WITH_TMS (not ALL_ROLES) — technical staff can issue
   // quotations too, and need the nav entry to find them again. See
   // MY_QUOTATIONS_TMS_ACCESS_KEY below.
@@ -154,7 +157,10 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'targets', label: 'Target Details', desc: 'Sales targets vs achievement, by employee and period.', icon: 'target', href: '/targets', section: 'Reports', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'analytics', label: 'Analytics', desc: 'Quotation, project, and pipeline performance at a glance.', icon: 'trending-up', href: '/analytics', section: 'Reports', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'audit-log', label: 'Audit Log', desc: 'Every status-changing action across the Back Office workflow.', icon: 'clock', href: '/admin/audit-log', section: 'Administration', order: 4, enabled: true, isCustom: false, visibleToRoles: ['superadmin'] },
-  { key: 'product-master', label: 'Product Master', desc: 'Manage the product catalog used across quotations.', icon: 'tag', href: '/admin/products', section: 'Administration', order: 5, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  // product-catalog-overrides absorbed as a second tab on this same page —
+  // see ABSORBED_INTO_MERGED_PAGE; key/visibleToRoles unchanged so each tab's
+  // own permission data is untouched.
+  { key: 'product-master', label: 'Products', desc: 'Manage quotation products, and rename or reprice any AV, Robotics, AI Analytics & VisitIQ catalog item.', icon: 'tag', href: '/admin/products', section: 'Administration', order: 5, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'product-catalog-overrides', label: 'Product Catalog', desc: 'Rename or reprice any AV, Robotics, AI Analytics & VisitIQ product used in quotations.', icon: 'dollar-sign', href: '/admin/product-catalog', section: 'Administration', order: 6, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'app-settings', label: 'Application Settings', desc: 'Company details, tax, terms, and numbering.', icon: 'settings', href: '/admin/settings', section: 'Administration', order: 7, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'module-manager', label: 'Module Manager', desc: 'Enable, disable, rename, and reorder every module.', icon: 'puzzle', href: '/admin/modules', section: 'Administration', order: 8, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -180,12 +186,21 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // lib/tmsAccess.ts. visibleToRoles covers the 4 TMS roles + privileged
   // roles (who bypass the department gate below); visibleToDepartments is
   // the department gate itself, checked by departmentAllowsModule().
-  { key: 'tms-dashboard', label: 'TMS Dashboard', desc: 'Project, task, BOM, and procurement overview for the Technical Team.', icon: 'layout-dashboard', href: '/tms', section: 'TMS', order: 1, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
-  { key: 'tms-projects', label: 'Projects', desc: 'Technical execution projects — team, budget, status, and progress.', icon: 'layers', href: '/tms/projects', section: 'TMS', order: 2, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
+  // tms-dashboard absorbed into this page — its project-stat tiles now sit
+  // above this table (components/TmsProjectsView.tsx), and its task/BOM/
+  // procurement content moved onto those modules' own pages. See
+  // ABSORBED_INTO_MERGED_PAGE. Took over tms-dashboard's old order (1) and
+  // icon; key/visibleToRoles unchanged so this row's own permission data is
+  // untouched.
+  { key: 'tms-projects', label: 'TMS Dashboard', desc: 'Project, task, BOM, and procurement overview for the Technical Team.', icon: 'layout-dashboard', href: '/tms/projects', section: 'TMS', order: 1, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
+  { key: 'tms-dashboard', label: 'TMS Dashboard', desc: 'Project, task, BOM, and procurement overview for the Technical Team.', icon: 'layout-dashboard', href: '/tms', section: 'TMS', order: 2, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
   { key: 'tms-tasks', label: 'Tasks', desc: 'Day-by-day task tracking with a Daily Task View.', icon: 'clipboard-list', href: '/tms/tasks', section: 'TMS', order: 3, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
   { key: 'tms-bom-requests', label: 'BOM Request', desc: 'Bill of materials requests, review, and approval.', icon: 'list', href: '/tms/bom-requests', section: 'TMS', order: 4, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
   { key: 'tms-procurement', label: 'Procurement', desc: 'Purchase and delivery tracking from approved BOM requests.', icon: 'shopping-cart', href: '/tms/procurement', section: 'TMS', order: 5, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES.filter((r) => r !== 'technician'), visibleToDepartments: TMS_DEPARTMENT_LIST },
-  { key: 'tms-users', label: 'Users', desc: 'Manage technical team accounts, department, role, and project access.', icon: 'user', href: '/tms/users', section: 'TMS', order: 6, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
+  // href repointed to the merged /tms/team page (Users + Tab Access as two
+  // tabs — see ABSORBED_INTO_MERGED_PAGE above); key/visibleToRoles unchanged
+  // so this row's own permission data is untouched.
+  { key: 'tms-users', label: 'Users & Tab Access', desc: 'Manage technical team accounts, and which TMS roles can view, create, edit, delete, approve, or manage each tab.', icon: 'user', href: '/tms/team', section: 'TMS', order: 6, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
   { key: 'tms-tab-access', label: 'Tab Access', desc: 'Configure which TMS roles can view, create, edit, delete, approve, or manage each TMS tab.', icon: 'shield', href: '/tms/tab-access', section: 'TMS', order: 7, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST }
 ];
 
@@ -226,13 +241,32 @@ const NEW_DEFAULT_ICONS = new Map(SEED_MODULES.map((m) => [m.key, m.icon]));
 const FORCED_RELABELS: Record<string, string> = {
   quotation: 'New Quotation',
   'my-quotations': 'Existing Quotations',
-  leads: 'Lead Capture / Inquiry'
+  leads: 'Lead Capture / Inquiry',
+  // tms-tab-access absorbed into this module's page as a second tab — see
+  // ABSORBED_INTO_MERGED_PAGE.
+  'tms-users': 'Users & Tab Access',
+  // product-catalog-overrides absorbed likewise.
+  'product-master': 'Products',
+  // tms-dashboard absorbed likewise.
+  'tms-projects': 'TMS Dashboard'
 };
 const OLD_DEFAULT_LABELS: Record<string, string> = {
   quotation: 'Quotation',
   'my-quotations': 'My Quotations',
-  leads: 'Lead Capture'
+  leads: 'Lead Capture',
+  'tms-users': 'Users',
+  'product-master': 'Product Master',
+  'tms-projects': 'Projects'
 };
+
+// Second-stage relabel, chained on top of the one above: 'New Quotation' (the
+// FORCED_RELABELS result) now also absorbs my-quotations as a tab, so it
+// becomes 'Quotations'. Separate map/constant (not folded into
+// FORCED_RELABELS above) because its OLD value is that first reconciliation's
+// OUTPUT, not the original seed default — applying both in one pass would
+// require sequencing that a flat Record can't express.
+const SECOND_STAGE_RELABELS: Record<string, string> = { quotation: 'Quotations' };
+const OLD_STAGE_ONE_LABELS: Record<string, string> = { quotation: 'New Quotation' };
 
 // CRM was merged into Projects (section 23) — its own module tile/route no
 // longer exists, so strip it from any already-persisted config instead of
@@ -444,6 +478,12 @@ async function ensureSeededAndReconciled(): Promise<void> {
     const attrs: Record<string, unknown> = {};
     const forced = FORCED_RELABELS[key];
     if (forced && plain.label === OLD_DEFAULT_LABELS[key]) attrs.label = forced;
+    const secondStage = SECOND_STAGE_RELABELS[key];
+    if (secondStage && plain.label === OLD_STAGE_ONE_LABELS[key]) attrs.label = secondStage;
+    // tms-projects took over tms-dashboard's old #1 position when it absorbed
+    // it — only moves a row still sitting at its old default order 2 (an
+    // admin who already reordered the TMS section keeps their own order).
+    if (key === 'tms-projects' && plain.order === 2) attrs.order = 1;
     if (RESECTIONED_KEYS.has(key) && plain.section === OLD_SECTION) attrs.section = NEW_SECTION;
     if (RESECTIONED_KEYS_V2.has(key) && plain.section === OLD_SECTION_V2) attrs.section = NEW_SECTION_V2;
     if (FORCED_VISIBILITY_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_VISIBILITY)) attrs.visibleToRoles = NEW_VISIBILITY;
@@ -500,6 +540,19 @@ export async function listModuleConfigs(): Promise<ModuleConfigRecord[]> {
 // optional add-on for MANAGER_GATED_KEYS (team-tasks) — the caller resolves
 // it once (isUserADepartmentManager) and passes it in, since this function
 // itself has no viewer username to look it up with.
+// Nav-only consolidation: these module keys still exist as real, independently
+// permission-gated ModuleConfig rows (Module Manager keeps showing and
+// editing them individually — admins still need per-tab granularity), but
+// each one's function now lives as a tab inside a sibling module's merged
+// page instead of getting its own sidebar tile. Keeps the permission data
+// model and every isModuleActionAllowed()/requireTmsAction() check untouched;
+// only the nav listing changes. See the matching merged page/view for each:
+// tms-tab-access -> app/tms/team/page.tsx (components/TmsTeamView.tsx).
+// product-catalog-overrides -> app/admin/products/page.tsx (components/ProductsAdminView.tsx).
+// my-quotations -> app/quotation/page.tsx (components/QuotationsView.tsx).
+// tms-dashboard -> app/tms/projects/page.tsx (components/TmsProjectsView.tsx).
+const ABSORBED_INTO_MERGED_PAGE = new Set(['tms-tab-access', 'product-catalog-overrides', 'my-quotations', 'tms-dashboard']);
+
 export async function listVisibleModules(viewer: {
   role: UserRole;
   isPrivileged: boolean;
@@ -509,6 +562,7 @@ export async function listVisibleModules(viewer: {
   const all = await listModuleConfigs();
   return all.filter((m) => {
     if (!m.enabled) return false;
+    if (ABSORBED_INTO_MERGED_PAGE.has(m.key)) return false;
     // MANAGER_GATED_KEYS bypasses the role-list check entirely — a
     // department manager can hold ANY role (technical-manager, engineer,
     // plain 'user', legacy 'manager', ...; there's no one shared role a

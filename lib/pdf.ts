@@ -87,6 +87,10 @@ export interface QuotationPdfInput {
   clientAddress: string;
   projectVertical: string;
   validityDays: number;
+  /** Quoted price already covers delivery. */
+  freightIncluded?: boolean;
+  /** Quoted price already covers installation. */
+  installationIncluded?: boolean;
   customTerms?: string;
   lineItems: LineItem[];
   productGroups: ProductGroup[];
@@ -267,7 +271,22 @@ export async function generateQuotationPdf(input: QuotationPdfInput): Promise<vo
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(8.5);
   doc.setTextColor(107, 114, 128);
-  const noteText = `Prices valid till ${validUntil.toLocaleDateString('en-IN')} (${input.validityDays} days from quotation date). Freight/transportation charges, if applicable, will be extra.`;
+  // This sentence used to be fixed, so a quotation whose price already
+  // covered delivery or installation still told the client both would be
+  // charged extra — contradicting the figure above it.
+  //
+  // All four combinations are spelled out rather than composed from two
+  // half-sentences: "delivered, installation extra" is the case most likely
+  // to be disputed later, and it reads far more clearly as one written
+  // sentence than as two clauses stitched together.
+  const freightNote = input.freightIncluded
+    ? input.installationIncluded
+      ? 'Freight/transportation and installation charges are included in the quoted price.'
+      : 'Freight/transportation charges are included in the quoted price. Installation charges, if applicable, will be extra.'
+    : input.installationIncluded
+      ? 'Installation charges are included in the quoted price. Freight/transportation charges, if applicable, will be extra.'
+      : 'Freight/transportation and installation charges, if applicable, will be extra.';
+  const noteText = `Prices valid till ${validUntil.toLocaleDateString('en-IN')} (${input.validityDays} days from quotation date). ${freightNote}`;
   const wrappedNote = doc.splitTextToSize(noteText, rightX - marginX);
   doc.text(wrappedNote, marginX, y);
   y += wrappedNote.length * 4 + 4;

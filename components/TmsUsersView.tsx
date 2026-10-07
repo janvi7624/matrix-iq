@@ -35,9 +35,12 @@ const EMPTY_FORM = {
 
 interface TmsUsersViewProps {
   currentUser: { username: string; role: UserRole };
+  /** Renders without its own AppShell/Sidebar — for hosting inside a tabbed
+      parent page (see components/TmsTeamView.tsx) instead of as its own route. */
+  embedded?: boolean;
 }
 
-export default function TmsUsersView({ currentUser }: TmsUsersViewProps) {
+export default function TmsUsersView({ currentUser, embedded }: TmsUsersViewProps) {
   void currentUser;
   const toast = useToast();
   const confirm = useConfirm();
@@ -164,8 +167,8 @@ export default function TmsUsersView({ currentUser }: TmsUsersViewProps) {
     }
   ];
 
-  return (
-    <AppShell title="TMS Users" subtitle="Manage technical team accounts, department, role, and access.">
+  const content = (
+    <>
       <div className={historyStyles.actionRow}>
         {/* Hidden while the list is genuinely empty — the New button lives in
             the empty state instead, where the person is already looking. Still
@@ -242,6 +245,13 @@ export default function TmsUsersView({ currentUser }: TmsUsersViewProps) {
       ) : (
         <Table columns={columns} rows={users} rowKey={(u) => u.id} />
       )}
+    </>
+  );
+
+  if (embedded) return content;
+  return (
+    <AppShell title="TMS Users" subtitle="Manage technical team accounts, department, role, and access.">
+      {content}
     </AppShell>
   );
 }

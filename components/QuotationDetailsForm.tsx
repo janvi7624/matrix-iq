@@ -105,6 +105,44 @@ export default function QuotationDetailsForm({ details, onChange, onBehalfOption
         </div>
         <div className={styles.row}>
           <div className={styles.field}>
+            <span className={styles.label}>Included in the quoted price</span>
+            <div className={styles.deptPickRow}>
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={details.freightIncluded}
+                className={`${styles.deptPickChip} ${details.freightIncluded ? styles.deptPickChipActive : ''}`}
+                onClick={() => onChange({ freightIncluded: !details.freightIncluded })}
+              >
+                <span className={styles.deptPickChipCheck} aria-hidden="true" />
+                Freight / transportation
+              </button>
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={details.installationIncluded}
+                className={`${styles.deptPickChip} ${details.installationIncluded ? styles.deptPickChipActive : ''}`}
+                onClick={() => onChange({ installationIncluded: !details.installationIncluded })}
+              >
+                <span className={styles.deptPickChipCheck} aria-hidden="true" />
+                Installation
+              </button>
+            </div>
+            {/* Shows the exact sentence the client will read, so the two
+                boxes never have to be mentally combined into one. */}
+            <span className={`${styles.small} ${styles.smallTopPad}`}>
+              {details.freightIncluded
+                ? details.installationIncluded
+                  ? 'PDF: freight/transportation and installation charges are included in the quoted price.'
+                  : 'PDF: freight/transportation included; installation, if applicable, extra.'
+                : details.installationIncluded
+                  ? 'PDF: installation included; freight/transportation, if applicable, extra.'
+                  : 'PDF: freight/transportation and installation, if applicable, will be extra.'}
+            </span>
+          </div>
+        </div>
+        <div className={styles.row}>
+          <div className={styles.field}>
             <label className={styles.label} htmlFor="customTerms">Additional Terms &amp; Conditions (optional)</label>
             <textarea
               id="customTerms"

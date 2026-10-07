@@ -6,9 +6,12 @@ import { FileText } from 'lucide-react';
 import { TmsBomRequestRecord, TmsBomRequestStatus, TmsProjectRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
+import dashboardStyles from './dashboard.module.css';
+import tmsDashboardStyles from './tmsDashboard.module.css';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
+import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
@@ -115,6 +118,27 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
     }
   }
 
+  // Moved here from the old TMS Dashboard (now merged into /tms/projects) —
+  // same bucket logic, now computed over this page's own already-loaded
+  // `records` instead of a dashboard-wide fetch. See
+  // ABSORBED_INTO_MERGED_PAGE in lib/moduleConfigStore.ts.
+  const bomStats = useMemo(() => {
+    const pending = records.filter((b) => b.status === 'draft' || b.status === 'submitted' || b.status === 'under_review');
+    const approved = records.filter((b) => b.status === 'approved' || b.status === 'sent_for_procurement' || b.status === 'completed');
+    const awaitingReview = records.filter((b) => b.status === 'submitted' || b.status === 'under_review');
+    return {
+      pending: pending.length, pendingItems: pending,
+      approved: approved.length, approvedItems: approved,
+      awaitingReview: awaitingReview.length, awaitingReviewItems: awaitingReview
+    };
+  }, [records]);
+
+  interface DrilldownItem { id: string; label: string; sublabel: string; href: string }
+  const [drilldown, setDrilldown] = useState<{ title: string; items: DrilldownItem[] } | null>(null);
+  function showBom(title: string, items: TmsBomRequestRecord[]) {
+    setDrilldown({ title, items: items.map((b) => ({ id: b.id, label: `${b.bom_request_code} — ${b.item_name}`, sublabel: TMS_BOM_STATUS_LABEL[b.status] || b.status, href: `/tms/bom-requests/${b.id}` })) });
+  }
+
   const columns: TableColumn<TmsBomRequestRecord>[] = [
     { key: 'request', header: 'Request', cellClassName: historyStyles.num, render: (r) => r.bom_request_code },
     { key: 'project', header: 'Project', render: (r) => r.project_name },
@@ -127,6 +151,21 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
 
   return (
     <AppShell title="BOM Request" subtitle="Bill of materials requests, review, and approval.">
+      <div className={dashboardStyles.kpiGrid}>
+        <div className={dashboardStyles.kpiCard}>
+          <div className={dashboardStyles.kpiValue}>{bomStats.pending}</div>
+          <div className={dashboardStyles.kpiLabel}>Pending BOM Requests</div>
+        </div>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showBom('Approved BOM Requests', bomStats.approvedItems)}>
+          <div className={dashboardStyles.kpiValue}>{bomStats.approved}</div>
+          <div className={dashboardStyles.kpiLabel}>Approved BOM Requests</div>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showBom('Awaiting Review', bomStats.awaitingReviewItems)}>
+          <div className={dashboardStyles.kpiValue}>{bomStats.awaitingReview}</div>
+          <div className={dashboardStyles.kpiLabel}>Awaiting Review</div>
+        </button>
+      </div>
+
       <div className={historyStyles.actionRow}>
         {/* Hidden whenever the table is showing its empty state, because that
             state carries the New button itself — two of the same button on
@@ -230,6 +269,25 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
             />
           }
         />
+      )}
+
+      {drilldown && (
+        <Modal title={drilldown.title} ariaLabel={drilldown.title} onClose={() => setDrilldown(null)}>
+          {drilldown.items.length === 0 ? (
+            <p className={calcStyles.small}>Nothing in this bucket.</p>
+          ) : (
+            <ul className={tmsDashboardStyles.drilldownList}>
+              {drilldown.items.map((item) => (
+                <li key={item.id}>
+                  <Link href={item.href} className={tmsDashboardStyles.drilldownRow} onClick={() => setDrilldown(null)}>
+                    <span className={tmsDashboardStyles.drilldownLabel}>{item.label}</span>
+                    <span className={tmsDashboardStyles.drilldownSublabel}>{item.sublabel}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Modal>
       )}
     </AppShell>
   );

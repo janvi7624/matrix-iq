@@ -61,6 +61,8 @@ function toRecord(row: Model): QuotationRecord {
     gst_amount: Number(plain.gst_amount ?? 0),
     total: Number(plain.total ?? 0),
     validity_days: Number(plain.validity_days ?? 0),
+    freight_included: Boolean(plain.freight_included),
+    installation_included: Boolean(plain.installation_included),
     proposal_kind: ((plain.proposal_kind as string) ?? '') as QuotationRecord['proposal_kind'],
     // Returned as a parsed object, unlike products_json which this store hands
     // back as a string — a proposal is read field by field by the form, not
@@ -98,6 +100,8 @@ export interface CreateQuotationInput {
   gstAmount?: number;
   total?: number;
   validityDays?: number;
+  freightIncluded?: boolean;
+  installationIncluded?: boolean;
   /** Project / Tender Proposal — see lib/quotationProposal.ts. */
   proposalKind?: 'project' | 'tender' | null;
   proposal?: ProposalDetails | null;
@@ -164,6 +168,8 @@ export async function createQuotation(input: CreateQuotationInput): Promise<Quot
     gst_amount: Number(input.gstAmount) || 0,
     total: Number(input.total) || 0,
     validity_days: Number(input.validityDays) || 7,
+    freight_included: input.freightIncluded === true,
+    installation_included: input.installationIncluded === true,
     proposal_kind: input.proposalKind || null,
     proposal_json: input.proposal ?? null,
     last_follow_up_at: null,
@@ -218,6 +224,8 @@ export async function createQuotationRevision(sourceId: string, input: CreateQuo
     gst_amount: input.gstAmount !== undefined ? Number(input.gstAmount) || 0 : rootPlain.gst_amount,
     total: input.total !== undefined ? Number(input.total) || 0 : rootPlain.total,
     validity_days: input.validityDays !== undefined ? Number(input.validityDays) || 7 : rootPlain.validity_days,
+    freight_included: input.freightIncluded !== undefined ? input.freightIncluded === true : rootPlain.freight_included,
+    installation_included: input.installationIncluded !== undefined ? input.installationIncluded === true : rootPlain.installation_included,
     last_follow_up_at: null,
     original_quotation_id: rootId,
     revision_number: nextRevisionNumber,
@@ -465,6 +473,8 @@ const CSV_COLUMNS: { key: keyof QuotationRecord; header: string }[] = [
   { key: 'gst_amount', header: 'GST' },
   { key: 'total', header: 'Total' },
   { key: 'validity_days', header: 'Validity (days)' },
+  { key: 'freight_included', header: 'Freight Included' },
+  { key: 'installation_included', header: 'Installation Included' },
   { key: 'last_follow_up_at', header: 'Last Follow-Up' }
 ];
 

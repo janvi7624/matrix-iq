@@ -1,9 +1,10 @@
+import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 import { findUserById } from '@/lib/userStore';
 import { resolveIsPrivileged } from '@/lib/permissions';
-import QuotationCalculator from '@/components/QuotationCalculator';
+import QuotationsView from '@/components/QuotationsView';
 
 export default async function QuotationPage() {
   const cookieStore = await cookies();
@@ -16,10 +17,12 @@ export default async function QuotationPage() {
   const isPrivileged = await resolveIsPrivileged(user.role);
 
   return (
-    <QuotationCalculator
-      currentUser={{ id: user.id, username: user.username, name: user.name, phone: user.phone, email: user.email, role: user.role }}
-      canEditPricing={isPrivileged}
-      isPrivileged={isPrivileged}
-    />
+    <Suspense fallback={null}>
+      <QuotationsView
+        currentUser={{ id: user.id, username: user.username, name: user.name, phone: user.phone, email: user.email, role: user.role }}
+        canEditPricing={isPrivileged}
+        isPrivileged={isPrivileged}
+      />
+    </Suspense>
   );
 }

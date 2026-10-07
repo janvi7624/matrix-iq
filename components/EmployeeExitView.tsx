@@ -51,7 +51,20 @@ interface ExitSummary {
 
 type Assignments = Record<string, string>; // itemId -> newOwnerId
 
-export default function EmployeeExitView() {
+interface EmployeeExitViewProps {
+  /** Renders without its own AppShell/Sidebar — for hosting inside a Modal
+      from User Management's row-action menu instead of as its own route. */
+  embedded?: boolean;
+  /** Pre-selects this employee and hides the picker — set when opened from a
+      specific row rather than navigated to directly. */
+  initialEmployeeId?: string;
+  /** Called once the reassignment commits successfully — lets the embedding
+      page (User Management) close its modal and refresh its own list, since
+      the exited employee's status just flipped to inactive. */
+  onDone?: () => void;
+}
+
+export default function EmployeeExitView({ embedded, initialEmployeeId, onDone }: EmployeeExitViewProps = {}) {
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -104,6 +117,10 @@ export default function EmployeeExitView() {
       .then((json: { candidates: Candidate[] }) => setCandidates(json.candidates))
       .catch(() => setCandidatesError('Could not load the employee list.'));
   }, []);
+
+  useEffect(() => {
+    if (initialEmployeeId) loadSummary(initialEmployeeId);
+  }, [initialEmployeeId]);
 
   function loadSummary(userId: string) {
     setSelectedId(userId);
@@ -247,9 +264,9 @@ export default function EmployeeExitView() {
     );
   }
 
-  return (
-    <AppShell title="Employee Exit" subtitle="Reassign a departing employee's projects, tasks, leads, and quotations.">
-      {candidatesError ? (
+  const content = (
+    <>
+      {initialEmployeeId ? null : candidatesError ? (
         <ErrorState message={candidatesError} />
       ) : !candidates ? (
         <SkeletonRows rows={2} columns={1} />
@@ -264,7 +281,7 @@ export default function EmployeeExitView() {
         </div>
       )}
 
-      {candidates && candidates.length === 0 && !candidatesError && (
+      {!initialEmployeeId && candidates && candidates.length === 0 && !candidatesError && (
         <EmptyState title="No employees to manage" message="You don't currently manage any active employees other than yourself." />
       )}
 
@@ -328,7 +345,11 @@ export default function EmployeeExitView() {
             Reassigned {result.reassignedCounts.projects} project(s), {result.reassignedCounts.tasks} task(s), {result.reassignedCounts.leads} lead(s), and{' '}
             {result.reassignedCounts.quotations} quotation(s). Employee status is now <strong>{result.employeeStatus}</strong>.
           </p>
-          <ToolbarButton onClick={reset}>Do another</ToolbarButton>
+          {initialEmployeeId ? (
+            <ToolbarButton primary onClick={() => onDone?.()}>Close</ToolbarButton>
+          ) : (
+            <ToolbarButton onClick={reset}>Do another</ToolbarButton>
+          )}
         </div>
       )}
 
@@ -351,6 +372,13 @@ export default function EmployeeExitView() {
           )}
         </Modal>
       )}
+    </>
+  );
+
+  if (embedded) return content;
+  return (
+    <AppShell title="Employee Exit" subtitle="Reassign a departing employee's projects, tasks, leads, and quotations.">
+      {content}
     </AppShell>
   );
 }

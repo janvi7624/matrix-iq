@@ -6,9 +6,12 @@ import { ShoppingCart } from 'lucide-react';
 import { TmsProcurementRecord, TmsProjectRecord, TmsPurchaseStatus, UserRole } from '@/lib/types';
 import { TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
+import dashboardStyles from './dashboard.module.css';
+import tmsDashboardStyles from './tmsDashboard.module.css';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
+import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
@@ -105,6 +108,29 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
     }
   }
 
+  // Moved here from the old TMS Dashboard (now merged into /tms/projects) —
+  // same bucket logic, now computed over this page's own already-loaded
+  // `records` instead of a dashboard-wide fetch. See
+  // ABSORBED_INTO_MERGED_PAGE in lib/moduleConfigStore.ts.
+  const procurementStats = useMemo(() => {
+    const pending = records.filter((p) => ['requested', 'quotation_required', 'quotation_received'].includes(p.purchase_status));
+    const approvalPending = records.filter((p) => p.purchase_status === 'approval_pending');
+    const ordered = records.filter((p) => p.purchase_status === 'ordered' || p.purchase_status === 'po_created');
+    const awaitingDelivery = records.filter((p) => p.delivery_status === 'pending' || p.delivery_status === 'partially_received');
+    return {
+      pending: pending.length, pendingItems: pending,
+      approvalPending: approvalPending.length, approvalPendingItems: approvalPending,
+      ordered: ordered.length, orderedItems: ordered,
+      awaitingDelivery: awaitingDelivery.length, awaitingDeliveryItems: awaitingDelivery
+    };
+  }, [records]);
+
+  interface DrilldownItem { id: string; label: string; sublabel: string; href: string }
+  const [drilldown, setDrilldown] = useState<{ title: string; items: DrilldownItem[] } | null>(null);
+  function showProcurement(title: string, items: TmsProcurementRecord[]) {
+    setDrilldown({ title, items: items.map((p) => ({ id: p.id, label: `${p.procurement_code} — ${p.item_name}`, sublabel: TMS_PURCHASE_STATUS_LABEL[p.purchase_status] || p.purchase_status, href: `/tms/procurement/${p.id}` })) });
+  }
+
   const columns: TableColumn<TmsProcurementRecord>[] = [
     { key: 'procurement', header: 'Procurement', cellClassName: historyStyles.num, render: (r) => r.procurement_code },
     { key: 'project', header: 'Project', render: (r) => r.project_name },
@@ -117,6 +143,25 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
 
   return (
     <AppShell title="Procurement" subtitle="Purchase and delivery tracking from approved BOM requests.">
+      <div className={dashboardStyles.kpiGrid}>
+        <div className={dashboardStyles.kpiCard}>
+          <div className={dashboardStyles.kpiValue}>{procurementStats.pending}</div>
+          <div className={dashboardStyles.kpiLabel}>Pending Procurement</div>
+        </div>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showProcurement('Approval Pending', procurementStats.approvalPendingItems)}>
+          <div className={dashboardStyles.kpiValue}>{procurementStats.approvalPending}</div>
+          <div className={dashboardStyles.kpiLabel}>Approval Pending</div>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProcurement('Ordered', procurementStats.orderedItems)}>
+          <div className={dashboardStyles.kpiValue}>{procurementStats.ordered}</div>
+          <div className={dashboardStyles.kpiLabel}>Ordered</div>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProcurement('Awaiting Delivery', procurementStats.awaitingDeliveryItems)}>
+          <div className={dashboardStyles.kpiValue}>{procurementStats.awaitingDelivery}</div>
+          <div className={dashboardStyles.kpiLabel}>Awaiting Delivery</div>
+        </button>
+      </div>
+
       <div className={historyStyles.actionRow}>
         {/* Hidden whenever the table is showing its empty state, because that
             state carries the New button itself — two of the same button on
@@ -207,6 +252,25 @@ export default function TmsProcurementView({ currentUser }: TmsProcurementViewPr
             />
           }
         />
+      )}
+
+      {drilldown && (
+        <Modal title={drilldown.title} ariaLabel={drilldown.title} onClose={() => setDrilldown(null)}>
+          {drilldown.items.length === 0 ? (
+            <p className={calcStyles.small}>Nothing in this bucket.</p>
+          ) : (
+            <ul className={tmsDashboardStyles.drilldownList}>
+              {drilldown.items.map((item) => (
+                <li key={item.id}>
+                  <Link href={item.href} className={tmsDashboardStyles.drilldownRow} onClick={() => setDrilldown(null)}>
+                    <span className={tmsDashboardStyles.drilldownLabel}>{item.label}</span>
+                    <span className={tmsDashboardStyles.drilldownSublabel}>{item.sublabel}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Modal>
       )}
     </AppShell>
   );

@@ -1,7 +1,7 @@
-import { requireTmsPage } from '@/lib/tmsPageGuard';
-import TmsUsersView from '@/components/TmsUsersView';
+import { redirect } from 'next/navigation';
 
-export default async function TmsUsersPage() {
-  const viewer = await requireTmsPage('tms-users');
-  return <TmsUsersView currentUser={{ username: viewer.username, role: viewer.role }} />;
+// Merged into /tms/team (see components/TmsTeamView.tsx) — kept as a redirect
+// so any existing bookmark/link to this URL still lands somewhere real.
+export default function TmsUsersPage() {
+  redirect('/tms/team');
 }

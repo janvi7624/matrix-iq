@@ -1,7 +1,7 @@
-import { requireTmsPage } from '@/lib/tmsPageGuard';
-import TmsTabAccessView from '@/components/TmsTabAccessView';
+import { redirect } from 'next/navigation';
 
-export default async function TmsTabAccessPage() {
-  const viewer = await requireTmsPage('tms-tab-access');
-  return <TmsTabAccessView currentUser={{ username: viewer.username, role: viewer.role }} />;
+// Merged into /tms/team (see components/TmsTeamView.tsx) — kept as a redirect
+// so any existing bookmark/link to this URL still lands on the right tab.
+export default function TmsTabAccessPage() {
+  redirect('/tms/team?tab=tab-access');
 }

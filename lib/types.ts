@@ -103,6 +103,10 @@ export interface QuotationDetails {
   clientAddress: string;
   projectVertical: string;
   validityDays: number;
+  /** Tick = the quoted price already covers delivery. */
+  freightIncluded: boolean;
+  /** Tick = the quoted price already covers installation. */
+  installationIncluded: boolean;
   customTerms: string;
 }
 
@@ -213,6 +217,10 @@ export interface QuotationRecord {
   gst_amount: number;
   total: number;
   validity_days: number;
+  /** Quoted price already covers delivery; drives the PDF note. */
+  freight_included: boolean;
+  /** Quoted price already covers installation; drives the PDF note. */
+  installation_included: boolean;
   last_follow_up_at: string;
   follow_up_notes_json: string;
   // Quotation versioning (section 23) — '' / 0 for an original quotation.

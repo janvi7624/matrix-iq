@@ -88,6 +88,8 @@ function defaultDetails(currentUser: CurrentUser): QuotationDetails {
     clientAddress: '',
     projectVertical: '',
     validityDays: 7,
+    freightIncluded: false,
+    installationIncluded: false,
     customTerms: ''
   };
 }
@@ -110,9 +112,12 @@ interface QuotationCalculatorProps {
   // since they're different permissions that only happen to share a default;
   // an admin can toggle one without the other via Role Management.
   isPrivileged: boolean;
+  /** Renders without its own AppShell/Sidebar — for hosting inside a tabbed
+      parent page (see components/QuotationsView.tsx) instead of as its own route. */
+  embedded?: boolean;
 }
 
-function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged }: QuotationCalculatorProps) {
+function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged, embedded }: QuotationCalculatorProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Nothing is pre-selected — on login and again after every "Add to Quote",
@@ -205,7 +210,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
           clientPhone: source.client_phone || '',
           clientAddress: source.client_address || '',
           projectVertical: source.project_vertical || '',
-          validityDays: source.validity_days || d.validityDays
+          validityDays: source.validity_days || d.validityDays,
+          freightIncluded: source.freight_included ?? d.freightIncluded,
+          installationIncluded: source.installation_included ?? d.installationIncluded
         }));
 
         // Carry the last quote's actual line items over as editable Custom
@@ -437,6 +444,8 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
         gstAmount: 0,
         total: Number.isFinite(quoteValue) ? quoteValue : 0,
         validityDays: details.validityDays,
+        freightIncluded: details.freightIncluded,
+        installationIncluded: details.installationIncluded,
         proposalKind: proposalValue.kind || null,
         proposal: proposalValue
       };
@@ -466,7 +475,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
       discountTotal: composition.totals.discountTotal,
       gstAmount: composition.totals.gstAmount,
       total: composition.totals.total,
-      validityDays: details.validityDays
+      validityDays: details.validityDays,
+      freightIncluded: details.freightIncluded,
+      installationIncluded: details.installationIncluded
     };
   }
 
@@ -566,6 +577,8 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
         clientAddress: details.clientAddress,
         projectVertical: details.projectVertical,
         validityDays: details.validityDays,
+        freightIncluded: details.freightIncluded,
+        installationIncluded: details.installationIncluded,
         customTerms: details.customTerms,
         lineItems: composition.lineItems,
         productGroups: composition.productGroups,
@@ -617,8 +630,8 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
   const isAv = domain === 'av';
   const showScaffolding = isAv && (avProjectType === 'standee' || avProjectType === 'led');
 
-  return (
-    <AppShell title="New Quotation" subtitle="Configure a product, add it to the quote, and generate a client-ready PDF.">
+  const content = (
+    <>
         <div className={styles.topBar}>
           <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role] || styles.rolePillUser}`}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
           {isPrivileged && (
@@ -1043,14 +1056,21 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged 
             </button>
           )}
         </div>
+    </>
+  );
+
+  if (embedded) return content;
+  return (
+    <AppShell title="New Quotation" subtitle="Configure a product, add it to the quote, and generate a client-ready PDF.">
+      {content}
     </AppShell>
   );
 }
 
-export default function QuotationCalculator({ currentUser, canEditPricing, isPrivileged }: QuotationCalculatorProps) {
+export default function QuotationCalculator({ currentUser, canEditPricing, isPrivileged, embedded }: QuotationCalculatorProps) {
   return (
     <Suspense fallback={<div className={styles.page} />}>
-      <QuotationCalculatorContent currentUser={currentUser} canEditPricing={canEditPricing} isPrivileged={isPrivileged} />
+      <QuotationCalculatorContent currentUser={currentUser} canEditPricing={canEditPricing} isPrivileged={isPrivileged} embedded={embedded} />
     </Suspense>
   );
 }
