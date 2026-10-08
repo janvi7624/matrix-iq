@@ -12,6 +12,7 @@
 .panelSpacedTop18 { margin-top: 18px; }
 
 .infoRow { margin-top: 12px; }
+.salesHandoffRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .infoRowDanger { margin-top: 12px; color: var(--mx-danger); }
 .descriptionValue { margin-top: 4px; white-space: pre-line; }
 

@@ -533,6 +533,14 @@
 .removeItemBtn:hover {
     background: var(--mx-ink);
 }
+/* Hides a native file input so a real button can stand in for it (the
+   input is still the thing clicked, via a ref). Same single rule as
+   leadCaptureWizard.module.css / marketingRequestWizard.module.css — CSS
+   modules are scoped per file, so each surface that needs it declares it. */
+.hiddenInput {
+    display: none;
+}
+
 .secondaryButton {
     min-height: 44px;
     background: var(--mx-surface);

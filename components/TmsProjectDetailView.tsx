@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FileText, Layers, Paperclip, ShoppingCart, Check } from 'lucide-react';
+import { ExternalLink, FileText, Layers, Paperclip, ShoppingCart, Check } from 'lucide-react';
 import { DeadlineExtensionReason, DeadlineExtensionStatus, TmsBomRequestRecord, TmsDeadlineExtensionRecord, TmsPriority, TmsProcurementRecord, TmsProjectPhaseRecord, TmsProjectPhaseStatus, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
@@ -166,7 +166,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
   const PROCUREMENT_PENDING = ['requested', 'quotation_required', 'quotation_received', 'approval_pending', 'approved', 'po_created'];
   const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState<{ status: TmsProjectStatus; priority: TmsPriority; progressPercent: number; remarks: string } | null>(null);
+  const [editForm, setEditForm] = useState<{ status: TmsProjectStatus; priority: TmsPriority; progressPercent: number; remarks: string; startDate: string; estimatedCloseDate: string; budget: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<PersonPickerOption[]>([]);
 
@@ -340,7 +340,21 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
 
   function startEdit() {
     if (!data) return;
-    setEditForm({ status: data.project.status, priority: data.project.priority, progressPercent: data.project.progress_percent, remarks: data.project.remarks });
+    setEditForm({
+      status: data.project.status,
+      priority: data.project.priority,
+      progressPercent: data.project.progress_percent,
+      remarks: data.project.remarks,
+      // Start Date / Estimated Close / Budget were never editable from this
+      // page at all (only settable, inconsistently, at creation) — a Sales
+      // handoff always lands with these blank, with no way to fill them in
+      // until now. Deadline is deliberately NOT here: it has its own
+      // Set/Extend Deadline flow below (audited, tiered approval) and must
+      // never be changed as a free-text field.
+      startDate: data.project.start_date,
+      estimatedCloseDate: data.project.estimated_close_date,
+      budget: data.project.budget ? String(data.project.budget) : ''
+    });
     setEditing(true);
   }
 
@@ -348,10 +362,19 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
     if (!editForm) return;
     setSaving(true);
     try {
+      const budgetNum = Number(editForm.budget);
       const response = await fetch(`/api/tms/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: editForm.status, priority: editForm.priority, progressPercent: editForm.progressPercent, remarks: editForm.remarks })
+        body: JSON.stringify({
+          status: editForm.status,
+          priority: editForm.priority,
+          progressPercent: editForm.progressPercent,
+          remarks: editForm.remarks,
+          startDate: editForm.startDate,
+          estimatedCloseDate: editForm.estimatedCloseDate,
+          ...(editForm.budget.trim() && Number.isFinite(budgetNum) ? { budget: budgetNum } : {})
+        })
       });
       if (!response.ok) throw new Error(String(response.status));
       setEditing(false);
@@ -451,6 +474,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
     // that silence, which is the actual problem (see lib/tmsHandoff.ts).
     if (!finished && !project.project_manager_id) out.push({ key: 'noManager', label: 'No project manager assigned', tab: 'team' });
     if (!finished && tasks.length === 0) out.push({ key: 'noTasks', label: 'No tasks created yet', tab: 'tasks' });
+    if (!finished && !project.deadline) out.push({ key: 'noDeadline', label: 'No deadline set', tab: 'overview' });
     if (overdue) out.push({ key: 'overdue', label: `${overdue} overdue task${overdue === 1 ? '' : 's'}`, tab: 'tasks' });
     if (blocked) out.push({ key: 'blocked', label: `${blocked} blocked task${blocked === 1 ? '' : 's'}`, tab: 'tasks' });
     if (bomPending) out.push({ key: 'bom', label: `${bomPending} BOM request${bomPending === 1 ? '' : 's'} awaiting approval`, tab: 'bom' });
@@ -490,7 +514,19 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           {taskDerivedProgress !== null ? ' (from tasks)' : ''}
         </span>
         <Link className={historyStyles.button} href="/tms/projects">Back to Projects</Link>
-        <button type="button" className={historyStyles.button} onClick={() => setShowExtendDeadline(true)}>Extend Deadline</button>
+        {/* The deadline itself is never a free-text field (see editForm/
+            saveEdit above) — it only ever moves through this one audited,
+            tiered-approval flow. The FIRST move is a direct "Set Deadline"
+            (TmsDeadlineExtendModal already accepts a blank currentDeadline
+            fine); every move after that is explicitly "Extend", since a
+            deadline that already exists must never look like a blank fill-in. */}
+        <button
+          type="button"
+          className={project.deadline ? historyStyles.button : `${historyStyles.button} ${historyStyles.primary}`}
+          onClick={() => setShowExtendDeadline(true)}
+        >
+          {project.deadline ? 'Extend Deadline' : 'Set Deadline'}
+        </button>
         <button type="button" className={historyStyles.button} onClick={editing ? saveEdit : startEdit} disabled={saving}>
           {editing ? (saving ? 'Saving…' : 'Save changes') : 'Edit'}
         </button>
@@ -525,6 +561,17 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             </Field>
             <Field label="Progress %">
               <Input type="number" min="0" max="100" value={editForm.progressPercent} onChange={(e) => setEditForm((f) => f && { ...f, progressPercent: Number(e.target.value) })} />
+            </Field>
+          </FieldRow>
+          <FieldRow>
+            <Field label="Start date">
+              <Input type="date" value={editForm.startDate} onChange={(e) => setEditForm((f) => f && { ...f, startDate: e.target.value })} />
+            </Field>
+            <Field label="Estimated close">
+              <Input type="date" value={editForm.estimatedCloseDate} onChange={(e) => setEditForm((f) => f && { ...f, estimatedCloseDate: e.target.value })} />
+            </Field>
+            <Field label="Budget (₹)">
+              <Input type="number" min={0} step="0.01" placeholder="e.g. 1250000" value={editForm.budget} onChange={(e) => setEditForm((f) => f && { ...f, budget: e.target.value })} />
             </Field>
           </FieldRow>
           <Field label="Notes / Remarks">
@@ -562,10 +609,12 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           <div className={calcStyles.sectionPanel}>
             <ProjectWorkflowStepper status={project.status} />
             {project.sales_project_id && (
-              <div className={styles.infoRow}>
-                <strong>Handed off from Sales:</strong> {project.sales_person_name || 'a sales person'} assigned this project to {project.project_manager_name || 'the project manager'} below.{' '}
-                <Link href={`/projects/${project.sales_project_id}`} target="_blank" rel="noopener noreferrer">
-                  View the Sales project →
+              <div className={`${styles.infoRow} ${styles.salesHandoffRow}`}>
+                <div>
+                  <strong>Handed off from Sales:</strong> {project.sales_person_name || 'a sales person'} assigned this project to {project.project_manager_name || 'the project manager'} below.
+                </div>
+                <Link className={historyStyles.linkButtonSmall} href={`/projects/${project.sales_project_id}`} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink size={13} /> View Sales Project
                 </Link>
               </div>
             )}

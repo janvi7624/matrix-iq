@@ -7,7 +7,9 @@ import { LineItem, ProductGroup, QuotationEffectiveStatus, QuotationRecord } fro
 import { formatMoney } from '@/lib/format';
 import { daysSince, needsFollowUp, parseFollowUpNotes } from '@/lib/followUp';
 import { computeEffectiveStatusClient } from '@/lib/quotationStatus';
+import { downloadQuotationFromRecord } from '@/lib/quotationPdfFromRecord';
 import { useConfirm } from './ui/ConfirmDialog';
+import { useToast } from './ui/ToastProvider';
 import EmptyState from './ui/EmptyState';
 import { TableWrap } from './ui/Table';
 import styles from './quotationHistory.module.css';
@@ -149,8 +151,32 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
+  const toast = useToast();
   const flagged = needsFollowUp(row);
   const notes = parseFollowUpNotes(row.follow_up_notes_json);
+  const isProposal = row.proposal_kind === 'project' || row.proposal_kind === 'tender';
+
+  // The PDF is rebuilt from the saved record rather than fetched: nothing was
+  // ever stored (see lib/quotationPdfFromRecord.ts). A Proposal has no line
+  // items, so there it opens the uploaded commercial instead.
+  async function handleDownload() {
+    setDownloadBusy(true);
+    try {
+      const outcome = await downloadQuotationFromRecord(row);
+      if (outcome === 'nothing-to-download') {
+        toast.error(
+          isProposal
+            ? 'No document was attached to this proposal, so there is nothing to download.'
+            : 'This quotation has no saved line items, so the PDF cannot be rebuilt.'
+        );
+      }
+    } catch {
+      toast.error('The PDF could not be generated. Check your connection and try again.');
+    } finally {
+      setDownloadBusy(false);
+    }
+  }
   const effectiveStatus = computeEffectiveStatusClient(row);
   const rowRef = useRef<HTMLTableRowElement>(null);
   // Built once so the visible text and its tooltip can't drift apart.
@@ -242,6 +268,20 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
         </td>
         <td>
           <div className={styles.rowActionsInline}>
+            <button
+              type="button"
+              className={styles.toggleBtn}
+              /* .toggleBtn is borderless text (matching the Revise link beside
+                 it), so a disabled button would otherwise look identical to an
+                 active one. Inline rather than a new rule because
+                 quotationHistory.module.css has another change in flight. */
+              style={{ opacity: downloadBusy ? 0.6 : 1 }}
+              disabled={downloadBusy}
+              title={isProposal ? 'Open the uploaded commercial document' : 'Rebuild and download this quotation as a PDF'}
+              onClick={handleDownload}
+            >
+              {downloadBusy ? 'Working…' : 'Download'}
+            </button>
             <Link href={`/quotation?reviseId=${row.id}`} className={styles.toggleBtn} title="Create a new version of this quotation">
               Revise
             </Link>

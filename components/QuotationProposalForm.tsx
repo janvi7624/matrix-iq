@@ -50,6 +50,7 @@ export default function QuotationProposalForm({ project, value, onChange, onFill
   // Which project we have already pre-filled from, so re-renders don't keep
   // overwriting what the user has since typed.
   const prefilledFor = useRef<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const set = (patch: Partial<ProposalDetails>) => onChange({ ...value, ...patch });
 
@@ -193,13 +194,10 @@ export default function QuotationProposalForm({ project, value, onChange, onFill
                 </Field>
               </Row>
               <Row>
-                <Field label="Estimated Value (₹)">
+                <Field label="Estimated Value (₹)" hint="The tender's own published estimate.">
                   <input inputMode="decimal" className={styles.formControl} value={value.estimatedValue}
                     onChange={(e) => set({ estimatedValue: e.target.value })}
                     onBlur={() => fillBack('tenderEstimatedValue', project?.tender_estimated_value, value.estimatedValue)} />
-                </Field>
-                <Field label="Quote Value (₹)">
-                  <input inputMode="decimal" className={styles.formControl} value={value.quoteValue} onChange={(e) => set({ quoteValue: e.target.value })} />
                 </Field>
               </Row>
             </>
@@ -215,6 +213,26 @@ export default function QuotationProposalForm({ project, value, onChange, onFill
               </Field>
             </Row>
           )}
+
+          {/* Asked for on both kinds, and the only place this quotation's
+              value comes from — there are no line items here to total up. */}
+          <Row>
+            <Field
+              label={isTender ? 'Quote Value (₹) *' : 'Quotation Value (₹) *'}
+              hint="The total price in the document you upload. This is the figure the quotation is logged and reported at."
+            >
+              <input
+                inputMode="decimal"
+                className={styles.formControl}
+                placeholder="e.g. 1250000"
+                value={value.quoteValue}
+                onChange={(e) => set({ quoteValue: e.target.value })}
+              />
+              {value.quoteValue.trim() !== '' && !Number.isFinite(Number(value.quoteValue)) && (
+                <span className={styles.small} style={{ color: 'var(--mx-danger)' }}>Enter a number, with no commas or ₹ sign.</span>
+              )}
+            </Field>
+          </Row>
 
           <Row>
             <Field label="Payment Terms">
@@ -247,9 +265,25 @@ export default function QuotationProposalForm({ project, value, onChange, onFill
             label={isTender ? 'Upload Commercials (PDF or XLSX)' : 'Upload Proposal (PDF or XLSX)'}
             hint="Maximum 100 KB per file."
           >
-            <input type="file" multiple accept=".pdf,.xlsx" disabled={uploading}
-              onChange={(e) => { handleUpload(e.target.files); e.target.value = ''; }} />
-            {uploading && <span className={styles.small}>Uploading…</span>}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.xlsx"
+              className={styles.hiddenInput}
+              disabled={uploading}
+              onChange={(e) => { handleUpload(e.target.files); e.target.value = ''; }}
+            />
+            <div>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? 'Uploading…' : value.attachmentUrls.length ? '+ Add Another File' : '+ Choose File to Upload'}
+              </button>
+            </div>
             {value.attachmentUrls.length > 0 && (
               <ul className={styles.small}>
                 {value.attachmentUrls.map((url, i) => (

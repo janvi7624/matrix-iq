@@ -421,9 +421,10 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
   function buildQuotationPayload() {
     // A Proposal carries no line items — the commercial terms and its own
     // uploaded document (attachmentUrls, already stored via the form) ARE the
-    // quotation. quoteValue (tender-only) becomes the logged total so it
-    // still reports alongside priced quotations; a Project Proposal has none,
-    // so it logs as ₹0 rather than guessing a figure nobody entered.
+    // quotation. There is therefore nothing to total up, so quoteValue (asked
+    // for on BOTH kinds, and required before save — see handleDownloadPdf) is
+    // the logged total, and a proposal reports alongside priced quotations on
+    // the strength of that one typed figure.
     if (quotationMode === 'proposal') {
       const quoteValue = Number(proposalValue.quoteValue);
       return {
@@ -563,6 +564,22 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
     if (revisingFrom && !revisionReason.trim()) {
       toast.error('Enter a reason for this revision before saving.');
       return;
+    }
+    // A Proposal's price cannot be computed — there are no line items, only
+    // the uploaded document — so it has to be typed in. Without this guard the
+    // quotation saved at ₹0 and then reported as a ₹0 deal, which is the bug
+    // this check exists to stop rather than a style preference. The API stays
+    // permissive so proposals created before this field existed still load.
+    if (quotationMode === 'proposal') {
+      const typed = proposalValue.quoteValue.trim();
+      if (!typed) {
+        toast.error('Enter the value of this proposal before saving — otherwise it is logged as ₹0.');
+        return;
+      }
+      if (!Number.isFinite(Number(typed)) || Number(typed) <= 0) {
+        toast.error('The proposal value must be a number greater than zero, with no commas or ₹ sign.');
+        return;
+      }
     }
     setPdfBusy(true);
     try {
@@ -1001,10 +1018,12 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                     <>
                       <div className={styles.small} style={{ marginTop: 8 }}>Tender Ref Number</div>
                       <div>{proposalValue.tenderRefNumber || '—'}</div>
-                      <div className={styles.small} style={{ marginTop: 8 }}>Quote Value</div>
-                      <div>{proposalValue.quoteValue ? `₹${proposalValue.quoteValue}` : '—'}</div>
+                      <div className={styles.small} style={{ marginTop: 8 }}>Estimated Value</div>
+                      <div>{proposalValue.estimatedValue ? `₹${proposalValue.estimatedValue}` : '—'}</div>
                     </>
                   )}
+                  <div className={styles.small} style={{ marginTop: 8 }}>Proposal Value</div>
+                  <div>{proposalValue.quoteValue ? `₹${proposalValue.quoteValue}` : '—'}</div>
                   <div className={styles.small} style={{ marginTop: 8 }}>Attachments</div>
                   <div>{proposalValue.attachmentUrls.length ? `${proposalValue.attachmentUrls.length} file(s)` : 'None uploaded'}</div>
                 </div>

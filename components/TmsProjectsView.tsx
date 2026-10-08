@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Layers } from 'lucide-react';
+import { ExternalLink, Layers } from 'lucide-react';
 import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsProjectStatus, TmsProjectType, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS } from '@/lib/tmsConstants';
 import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_ROLE_LABEL, todayIso } from '@/lib/tmsLabels';
@@ -237,12 +237,10 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       header: 'From Sales',
       render: (p) => (p.sales_project_id ? (
         <>
-          {p.sales_person_name || '-'}
-          <div>
-            <Link href={`/projects/${p.sales_project_id}`} target="_blank" rel="noopener noreferrer">
-              View Sales project →
-            </Link>
-          </div>
+          <div>{p.sales_person_name || '-'}</div>
+          <Link className={historyStyles.linkButtonSmall} href={`/projects/${p.sales_project_id}`} target="_blank" rel="noopener noreferrer">
+            <ExternalLink size={13} /> View Sales Project
+          </Link>
         </>
       ) : '-')
     },

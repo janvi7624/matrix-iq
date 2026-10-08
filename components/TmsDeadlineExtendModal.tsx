@@ -40,6 +40,12 @@ export default function TmsDeadlineExtendModal({ projectId, currentDeadline, onC
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // The deadline is never free-edited directly — this modal is the only way
+  // it ever moves, whether that's filling it in for the first time (no
+  // current value yet) or pushing out an existing one. Same form, same
+  // approval tiering either way; only the wording changes, so the first
+  // move doesn't read as "extending" something that was never set.
+  const isInitialSet = !currentDeadline;
   const minDate = dayAfter(currentDeadline);
 
   async function handleSave() {
@@ -67,8 +73,8 @@ export default function TmsDeadlineExtendModal({ projectId, currentDeadline, onC
       const { extension } = await response.json();
       toast.success(
         extension?.status === 'approved'
-          ? 'Deadline extended.'
-          : `Extension requested — awaiting ${extension?.status === 'pending_admin' ? 'Admin' : 'Manager'} approval.`
+          ? (isInitialSet ? 'Deadline set.' : 'Deadline extended.')
+          : `${isInitialSet ? 'Request' : 'Extension request'} sent — awaiting ${extension?.status === 'pending_admin' ? 'Admin' : 'Manager'} approval.`
       );
       onExtended();
       onClose();
@@ -81,22 +87,26 @@ export default function TmsDeadlineExtendModal({ projectId, currentDeadline, onC
 
   return (
     <Modal
-      title="Extend Deadline"
-      ariaLabel="Extend project deadline"
+      title={isInitialSet ? 'Set Deadline' : 'Extend Deadline'}
+      ariaLabel={isInitialSet ? 'Set project deadline' : 'Extend project deadline'}
       onClose={onClose}
       size="wide"
       dismissible={!saving}
       footer={
         <>
           <ModalCancelButton onClick={onClose} disabled={saving}>Cancel</ModalCancelButton>
-          <ModalOkButton onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Extend Deadline'}</ModalOkButton>
+          <ModalOkButton onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving…' : isInitialSet ? 'Set Deadline' : 'Extend Deadline'}
+          </ModalOkButton>
         </>
       }
     >
-      <Field label="Current Deadline">
-        <Input value={formatDate(currentDeadline)} readOnly disabled />
-      </Field>
-      <Field label="New Deadline">
+      {!isInitialSet && (
+        <Field label="Current Deadline">
+          <Input value={formatDate(currentDeadline)} readOnly disabled />
+        </Field>
+      )}
+      <Field label={isInitialSet ? 'Deadline' : 'New Deadline'}>
         <Input type="date" min={minDate} value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)} />
       </Field>
       <Field label="Reason">
@@ -106,7 +116,12 @@ export default function TmsDeadlineExtendModal({ projectId, currentDeadline, onC
         </Select>
       </Field>
       <Field label="Remark (required)">
-        <Textarea rows={3} value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="Why is this deadline being extended?" />
+        <Textarea
+          rows={3}
+          value={remark}
+          onChange={(e) => setRemark(e.target.value)}
+          placeholder={isInitialSet ? 'Why this date?' : 'Why is this deadline being extended?'}
+        />
       </Field>
       {error && <div style={{ color: 'var(--mx-danger)', fontSize: 13, marginTop: 8 }}>{error}</div>}
     </Modal>

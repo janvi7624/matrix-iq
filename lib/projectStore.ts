@@ -2,7 +2,7 @@ import { Model, Op, QueryTypes, Transaction } from 'sequelize';
 import { ProjectNote, ProjectRecord, ProjectStage, ProjectTimelineEvent } from './types';
 import { db, isUuid, sequelize } from './db';
 import { resolveVisibilityScope } from './departmentScope';
-import { isUserADepartmentManager } from './departmentStore';
+import { isUserADepartmentManager, departmentsManagedBy } from './departmentStore';
 
 const FIELDS = [
   { name: 'client_name' },
@@ -352,9 +352,43 @@ export async function canAccessProject(viewerUsername: string, project: { create
   const ids = scope.scopedUserIds ?? [];
   if (project.assigned_technical_person_id && ids.includes(project.assigned_technical_person_id)) return true;
   if (project.project_lead_id && ids.includes(project.project_lead_id)) return true;
-  if (!project.created_by) return false;
-  const creator = await db.User.findOne({ where: { username: project.created_by } as never, attributes: ['id'] });
-  return creator ? ids.includes(creator.get('id') as string) : false;
+  if (project.created_by) {
+    const creator = await db.User.findOne({ where: { username: project.created_by } as never, attributes: ['id'] });
+    if (creator && ids.includes(creator.get('id') as string)) return true;
+  }
+  // A TMS manager (technical-manager/team-lead) already sees the TMS project
+  // this Sales project was handed off to — tmsProjectStore.listForViewer
+  // scopes that to their own department plus any they manage
+  // (tmsTeamDepartmentIds in lib/tmsAccess.ts). resolveVisibilityScope above
+  // has no idea that concept exists (it only expands scope via
+  // Department.managerIds, the separate org-wide "manager" concept), so
+  // without this a manager who opens "View Sales Project" from a project
+  // they manage in TMS got a 403 for a project they could already see the
+  // TMS side of. Mirrors tmsTeamDepartmentIds exactly, just keyed off the
+  // assigned technical person's department instead of a TmsViewer.
+  if (project.assigned_technical_person_id && await canViewAsTmsManagerOfAssignee(viewerUsername, project.assigned_technical_person_id)) {
+    return true;
+  }
+  return false;
+}
+
+async function canViewAsTmsManagerOfAssignee(viewerUsername: string, assignedPersonId: string): Promise<boolean> {
+  const viewer = await db.User.findOne({
+    where: { username: viewerUsername } as never,
+    include: [{ model: db.Role, as: 'role', attributes: ['key'] }],
+    attributes: ['departmentId']
+  });
+  const roleKey = (viewer?.get('role') as { key?: string } | null)?.key ?? '';
+  if (roleKey !== 'technical-manager' && roleKey !== 'team-lead') return false;
+
+  const assignedPerson = await db.User.findOne({ where: { id: assignedPersonId } as never, attributes: ['departmentId'] });
+  const assignedDeptId = assignedPerson?.get('departmentId') as string | undefined;
+  if (!assignedDeptId) return false;
+
+  const viewerDeptId = viewer?.get('departmentId') as string | undefined;
+  if (viewerDeptId === assignedDeptId) return true;
+  const managed = await departmentsManagedBy(viewerUsername);
+  return managed.some((d) => d.id === assignedDeptId);
 }
 
 // The 3-tier approval chain a Sales Project deadline-extension REQUEST
