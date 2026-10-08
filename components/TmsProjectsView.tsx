@@ -233,6 +233,20 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     { key: 'project', header: 'Project', cellClassName: historyStyles.num, render: (p) => <>{p.project_code}<div>{p.name}</div></> },
     { key: 'client', header: 'Client', render: (p) => p.client_name || '-' },
     {
+      key: 'salesHandoff',
+      header: 'From Sales',
+      render: (p) => (p.sales_project_id ? (
+        <>
+          {p.sales_person_name || '-'}
+          <div>
+            <Link href={`/projects/${p.sales_project_id}`} target="_blank" rel="noopener noreferrer">
+              View Sales project →
+            </Link>
+          </div>
+        </>
+      ) : '-')
+    },
+    {
       key: 'department',
       header: 'Department',
       render: (p) => (p.project_type === 'combined' && p.department_names.length ? p.department_names.join(', ') : p.department_name)

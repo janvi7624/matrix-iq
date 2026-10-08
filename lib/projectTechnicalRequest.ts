@@ -100,9 +100,37 @@ function toRecord(row: Model): ProjectTechnicalRequestRecord {
   };
 }
 
-export async function findPendingTechnicalRequest(projectId: string) {
-  if (!isUuid(projectId)) return null;
-  const row = await db.ProjectTechnicalRequest.findOne({ where: { project_id: projectId, status: 'pending' } as never, include: INCLUDES() });
+// Every request still waiting on this project — several different people can
+// now be pending at once (New Project creation requires naming one or more
+// up front), so this is the array this whole module is built around; nothing
+// here still assumes "the" one pending request.
+export async function findPendingTechnicalRequests(projectId: string): Promise<ProjectTechnicalRequestRecord[]> {
+  if (!isUuid(projectId)) return [];
+  const rows = await db.ProjectTechnicalRequest.findAll({
+    where: { project_id: projectId, status: 'pending' } as never,
+    include: INCLUDES(),
+    order: [['created_at', 'ASC']]
+  });
+  return rows.map(toRecord);
+}
+
+// Only this ONE person's own pending request, if they have one — used to
+// decide whether re-picking them replaces their existing request, without
+// touching anyone else's still-pending request on the same project (the
+// DB-level project_technical_requests_one_pending_per_person index enforces
+// the same uniqueness).
+async function findPendingRequestForPerson(projectId: string, personId: string): Promise<ProjectTechnicalRequestRecord | null> {
+  if (!isUuid(projectId) || !isUuid(personId)) return null;
+  const row = await db.ProjectTechnicalRequest.findOne({
+    where: { project_id: projectId, requested_user_id: personId, status: 'pending' } as never,
+    include: INCLUDES()
+  });
+  return row ? toRecord(row) : null;
+}
+
+async function findRequestById(requestId: string): Promise<ProjectTechnicalRequestRecord | null> {
+  if (!isUuid(requestId)) return null;
+  const row = await db.ProjectTechnicalRequest.findByPk(requestId, { include: INCLUDES() });
   return row ? toRecord(row) : null;
 }
 
@@ -164,6 +192,16 @@ export async function applyTechnicalAssignment(project: ProjectRecord, person: U
   } catch {
     // Best-effort — the assignment above already succeeded either way.
   }
+  // assigned_technical_person_id is a single column — when a project was
+  // requested with several candidates, whoever is approved FIRST wins it,
+  // and every OTHER still-pending candidate's request auto-closes here so a
+  // later, unrelated approval can never silently overwrite this one (the
+  // approver acting on request #2 has no way to know #1 already landed).
+  const others = (await findPendingTechnicalRequests(project.id)).filter((r) => r.requested_user_id !== person.id);
+  for (const other of others) {
+    if (!(await closeRequest(other.id, 'withdrawn', actor, `${person.name} was assigned instead`))) continue;
+    await notifyRequestWithdrawn(other.requested_username, project, actor);
+  }
   return updated;
 }
 
@@ -173,8 +211,11 @@ export type TechnicalRequestResult =
 
 // Picking a technical person on a project. Assigns straight away when the
 // actor may commit that person's time; otherwise raises a request for the
-// engineer and their department manager(s) to approve. A newer pick replaces
-// any request still waiting.
+// engineer and their department manager(s) to approve. A newer pick for the
+// SAME person replaces their own request still waiting — someone else's
+// still-pending request on this same project is untouched, since a project
+// can now have several different people pending at once (New Project
+// creation requests one per named technical person).
 export async function requestTechnicalPerson(
   project: ProjectRecord,
   personId: string,
@@ -184,7 +225,7 @@ export async function requestTechnicalPerson(
 ): Promise<TechnicalRequestResult> {
   const person = isUuid(personId) ? await findUserById(personId) : undefined;
   if (!person || person.status !== 'active') throw new TechnicalRequestError('That person is not an active user.', 400);
-  const pending = await findPendingTechnicalRequest(project.id);
+  const pending = await findPendingRequestForPerson(project.id, person.id);
   if (person.id === project.assigned_technical_person_id && !pending) {
     throw new TechnicalRequestError(`${person.name} is already the technical person on this project.`, 400);
   }
@@ -282,8 +323,10 @@ export async function decideTechnicalRequest(
   input: { decision: 'approve' | 'decline'; remarks: string; assignUserId: string },
   ip: string
 ): Promise<ProjectRecord | null> {
-  const pending = await findPendingTechnicalRequest(projectId);
-  if (!pending || pending.id !== requestId) throw new TechnicalRequestError('This request has already been answered or withdrawn.', 409);
+  const pending = await findRequestById(requestId);
+  if (!pending || pending.project_id !== projectId || pending.status !== 'pending') {
+    throw new TechnicalRequestError('This request has already been answered or withdrawn.', 409);
+  }
   const project = await findProjectById(projectId);
   if (!project) throw new TechnicalRequestError('Project not found', 404);
   const requested = await findUserById(pending.requested_user_id);
@@ -342,9 +385,11 @@ export async function decideTechnicalRequest(
   return updated;
 }
 
-export async function withdrawTechnicalRequest(projectId: string, actor: Actor, ip: string): Promise<void> {
-  const pending = await findPendingTechnicalRequest(projectId);
-  if (!pending) throw new TechnicalRequestError('There is no pending request to withdraw.', 409);
+export async function withdrawTechnicalRequest(projectId: string, requestId: string, actor: Actor, ip: string): Promise<void> {
+  const pending = await findRequestById(requestId);
+  if (!pending || pending.project_id !== projectId || pending.status !== 'pending') {
+    throw new TechnicalRequestError('There is no pending request to withdraw.', 409);
+  }
   const project = await findProjectById(projectId);
   if (!project) throw new TechnicalRequestError('Project not found', 404);
   if (!(await closeRequest(pending.id, 'withdrawn', actor, ''))) throw new TechnicalRequestError('This request has already been answered.', 409);
@@ -365,25 +410,33 @@ async function notifyRequestWithdrawn(requestedUsername: string, project: Projec
   });
 }
 
-// The pending request, with what this viewer may do about it.
-export async function getTechnicalRequestView(projectId: string, viewer: Actor & { isPrivileged: boolean }, projectCreatedBy: string): Promise<ProjectTechnicalRequestView | null> {
-  const pending = await findPendingTechnicalRequest(projectId);
-  if (!pending) return null;
-  const requested = { id: pending.requested_user_id, department: pending.requested_department };
-  const [canDecide, canReassign] = await Promise.all([canApproveFor(viewer, requested), canAllocateFrom(viewer, requested)]);
-  return {
-    ...pending,
-    can_decide: canDecide,
-    can_reassign: canReassign,
-    can_withdraw: viewer.isPrivileged || viewer.username === projectCreatedBy || viewer.userId === pending.requested_by_id
-  };
+// Every request still waiting on this project, each with what this viewer
+// may do about it — a project named with several technical people up front
+// can have more than one of these at once.
+export async function getTechnicalRequestViews(projectId: string, viewer: Actor & { isPrivileged: boolean }, projectCreatedBy: string): Promise<ProjectTechnicalRequestView[]> {
+  const pendingRequests = await findPendingTechnicalRequests(projectId);
+  return Promise.all(
+    pendingRequests.map(async (pending) => {
+      const requested = { id: pending.requested_user_id, department: pending.requested_department };
+      const [canDecide, canReassign] = await Promise.all([canApproveFor(viewer, requested), canAllocateFrom(viewer, requested)]);
+      return {
+        ...pending,
+        can_decide: canDecide,
+        can_reassign: canReassign,
+        can_withdraw: viewer.isPrivileged || viewer.username === projectCreatedBy || viewer.userId === pending.requested_by_id
+      };
+    })
+  );
 }
 
 // Someone asked to approve must be able to open the project to decide — even
 // though, not being assigned yet, the normal visibility rules hide it.
 export async function canViewForPendingRequest(projectId: string, viewer: Actor): Promise<boolean> {
-  const pending = await findPendingTechnicalRequest(projectId);
-  return !!pending && canApproveFor(viewer, { id: pending.requested_user_id, department: pending.requested_department });
+  const pendingRequests = await findPendingTechnicalRequests(projectId);
+  for (const pending of pendingRequests) {
+    if (await canApproveFor(viewer, { id: pending.requested_user_id, department: pending.requested_department })) return true;
+  }
+  return false;
 }
 
 // Requests waiting on this viewer (as the engineer or their department

@@ -13,6 +13,7 @@ import OpportunityTypeField from './OpportunityTypeField';
 import { useProjectLeads } from './useProjectLeads';
 import { OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 import { useToast } from './ToastProvider';
+import PersonPicker, { PersonPickerOption } from './PersonPicker';
 import notifyStyles from './notify.module.css';
 import calcStyles from '../calculator.module.css';
 
@@ -30,6 +31,7 @@ interface ProjectCreateForm {
   email: string;
   address: string;
   salesPersonId: string;
+  technicalPersonIds: string[];
   projectLeadId: string;
   opportunityType: OpportunityType | '';
   source: string;
@@ -47,7 +49,7 @@ type QuickCreateForm = ProjectCreateForm & ProjectIntakeValues;
 
 const EMPTY_FORM: QuickCreateForm = {
   clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '',
-  salesPersonId: '', projectLeadId: '', opportunityType: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: '', approxPrice: '',
+  salesPersonId: '', technicalPersonIds: [], projectLeadId: '', opportunityType: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: '', approxPrice: '',
   ...EMPTY_PROJECT_INTAKE
 };
 
@@ -92,6 +94,7 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
   const [form, setForm] = useState<QuickCreateForm>(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+  const [technicalRoster, setTechnicalRoster] = useState<PersonPickerOption[]>([]);
   const [viewer, setViewer] = useState<{ role: string; isPrivileged: boolean } | null>(null);
   const [existingProjects, setExistingProjects] = useState<ProjectRecord[]>([]);
 
@@ -115,6 +118,16 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
       })
       .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
       .catch(() => setAssignableUsers([]));
+  }, [pending]);
+
+  // Technical Person(s) — mandatory for everyone except a technical creator
+  // (they ARE the technical person, see app/api/projects/route.ts).
+  useEffect(() => {
+    if (!pending) return;
+    fetch('/api/technical-roster')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: PersonPickerOption[]) => setTechnicalRoster(rows))
+      .catch(() => setTechnicalRoster([]));
   }, [pending]);
 
   // For the live "are you talking about this client?" nudge below — same
@@ -182,12 +195,16 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
       toast.error('Project Lead / Mentor is required.');
       return;
     }
+    if (!isTechnicalCreator && !form.technicalPersonIds.length) {
+      toast.error('Technical Person is required — pick at least one.');
+      return;
+    }
     setCreating(true);
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, assignedTechnicalPersonIds: form.technicalPersonIds })
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) {
@@ -202,6 +219,9 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
       } else if (isTechnicalCreator) {
         const salesPerson = assignableUsers.find((u) => u.id === form.salesPersonId);
         toast.success(`Project created for ${salesPerson ? salesPerson.name || salesPerson.username : 'the sales person'} — you're its technical person.`);
+      } else if (form.technicalPersonIds.length) {
+        const names = form.technicalPersonIds.map((id) => technicalRoster.find((p) => p.id === id)?.name).filter(Boolean);
+        toast.success(`Project created — pending approval of ${names.join(', ') || 'the technical person'}.`);
       } else {
         toast.success('Project created.');
       }
@@ -304,6 +324,23 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                   <label className={calcStyles.label}>Source *</label>
                   <ProjectSourceField required value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))} />
                 </div>
+              </div>
+              {!isTechnicalCreator && (
+                <div className={calcStyles.field}>
+                  <label className={calcStyles.label}>Technical Person(s) *</label>
+                  <PersonPicker
+                    multiple
+                    options={technicalRoster}
+                    selectedIds={form.technicalPersonIds}
+                    onChange={(ids) => setForm((f) => ({ ...f, technicalPersonIds: ids }))}
+                    placeholder="Search technical staff…"
+                  />
+                  <span className={calcStyles.lockedHint}>
+                    Each person picked gets their own approval request — the project is created now either way.
+                  </span>
+                </div>
+              )}
+              <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <ProjectIntakeFields
                   source={form.source}
                   values={form}

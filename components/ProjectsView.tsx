@@ -17,6 +17,7 @@ import calcStyles from './calculator.module.css';
 import { useToast } from './ui/ToastProvider';
 import { todayDateInputValue, closingDatePresetRange, ClosingDatePreset } from '@/lib/dateHelpers';
 import StatTile from './ui/StatTile';
+import ProjectDetailRemindersDialog from './ProjectDetailRemindersDialog';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
@@ -45,6 +46,7 @@ import ProjectSourceField from './ui/ProjectSourceField';
 import ProjectLeadField from './ui/ProjectLeadField';
 import OpportunityTypeField from './ui/OpportunityTypeField';
 import ProjectDepartmentField from './ui/ProjectDepartmentField';
+import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useProjectLeads } from './ui/useProjectLeads';
 import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE, ProjectLocationFields } from './ui/ProjectIntakeFields';
@@ -71,6 +73,7 @@ const EMPTY_FORM = {
   address: '',
   ...EMPTY_PROJECT_INTAKE,
   salesPersonId: '',
+  technicalPersonIds: [] as string[],
   projectLeadId: '',
   opportunityType: '' as OpportunityType | '',
   departments: [] as ProjectDepartment[],
@@ -160,7 +163,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [showReminders, setShowReminders] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+  const [technicalRoster, setTechnicalRoster] = useState<PersonPickerOption[]>([]);
   // Last Remark used to expand on row :hover — a long remark ballooned the
   // row the instant the pointer crossed it anywhere (not just the cell), so
   // just reaching another button in that row made the layout jump. Click is
@@ -186,6 +191,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       .then((r) => (r.ok ? r.json() : []))
       .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
       .catch(() => setAssignableUsers([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // A technical creator IS the project's technical person (see
+    // app/api/projects/route.ts) — nobody else needs picking.
+    if (isTechnicalCreator) return;
+    fetch('/api/technical-roster')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: PersonPickerOption[]) => setTechnicalRoster(rows))
+      .catch(() => setTechnicalRoster([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -456,12 +472,16 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       toast.error('Department is required — AI, AV, Robotics, or a combination.');
       return;
     }
+    if (!isTechnicalCreator && !form.technicalPersonIds.length) {
+      toast.error('Technical Person is required — pick at least one.');
+      return;
+    }
     setCreating(true);
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, assignedTechnicalPersonIds: form.technicalPersonIds })
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) {
@@ -475,6 +495,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       } else if (isTechnicalCreator) {
         const salesPerson = assignableUsers.find((u) => u.id === form.salesPersonId);
         toast.success(`Project created for ${salesPerson ? salesPerson.name || salesPerson.username : 'the sales person'} — you're its technical person.`);
+      } else if (form.technicalPersonIds.length) {
+        const names = form.technicalPersonIds.map((id) => technicalRoster.find((p) => p.id === id)?.name).filter(Boolean);
+        toast.success(`Project created — pending approval of ${names.join(', ') || 'the technical person'}.`);
       }
       setForm(EMPTY_FORM);
       setLeadTouched(false);
@@ -707,7 +730,17 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           <ToolbarButton onClick={load}>
             Refresh
           </ToolbarButton>
+          {/* Chasing the whole roster is an admin job, so this is the only
+              button here that is privilege-gated. The dialog previews exactly
+              what each person would be told before anything is sent. */}
+          {isPrivileged && (
+            <ToolbarButton onClick={() => setShowReminders(true)}>
+              Detail Reminders
+            </ToolbarButton>
+          )}
         </div>
+
+        {showReminders && <ProjectDetailRemindersDialog onClose={() => setShowReminders(false)} />}
 
         {showForm && (
           <form className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`} onSubmit={handleCreate}>
@@ -835,6 +868,20 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 />
               </Field>
             </FieldRow>
+            {!isTechnicalCreator && (
+              <Field label="Technical Person(s) *">
+                <PersonPicker
+                  multiple
+                  options={technicalRoster}
+                  selectedIds={form.technicalPersonIds}
+                  onChange={(ids) => setForm((f) => ({ ...f, technicalPersonIds: ids }))}
+                  placeholder="Search technical staff…"
+                />
+                <span className={calcStyles.lockedHint}>
+                  Each person picked gets their own approval request — the project is created now either way.
+                </span>
+              </Field>
+            )}
             {/* Referral / Tender blocks — only for those sources, so they stay
                 next to Source rather than up by Address. */}
             <ProjectIntakeFields

@@ -21,7 +21,7 @@ import { findSalesPersonCandidate, SalesOwnerError } from '@/lib/projectSalesOwn
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { getClientIp } from '@/lib/requestIp';
-import { canViewForPendingRequest, findPendingTechnicalRequest, getTechnicalRequestView, requestTechnicalPerson, TechnicalRequestError } from '@/lib/projectTechnicalRequest';
+import { canViewForPendingRequest, findPendingTechnicalRequests, getTechnicalRequestViews, requestTechnicalPerson, TechnicalRequestError } from '@/lib/projectTechnicalRequest';
 import { canAssignSalesPerson } from '@/lib/projectSalesOwner';
 import { resolveProjectLead } from '@/lib/projectLeadStore';
 import { OPPORTUNITY_TYPE_LABEL, parseOpportunityType } from '@/lib/projectLeadOptions';
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests, deadlineExtensions, deadlineTier, linkedLeadRow, technicalRequest, canAssignSales] = await Promise.all([
+    const [siteVisits, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, quotations, marketingRequests, deadlineExtensions, deadlineTier, linkedLeadRow, technicalRequests, canAssignSales] = await Promise.all([
       siteVisitStore.list(viewer.username, true),
       demoScheduleStore.list(viewer.username, true),
       customerResponseStore.list(viewer.username, true),
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // "Created From Lead" (Part 13) — the only link is the reverse
       // Lead.project_id FK; a Project has no lead_id column of its own.
       db.Lead.findOne({ where: { project_id: id } as never, attributes: ['id', 'name'] }),
-      getTechnicalRequestView(id, viewer, project.created_by),
+      getTechnicalRequestViews(id, viewer, project.created_by),
       // Drives the project page's "Assign Sales Person" (lib/projectSalesOwner.ts).
       canAssignSalesPerson(viewer, project)
     ]);
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       marketingRequests: marketingRequests.filter((r) => r.project_id === id),
       deadlineExtensions,
       deadlineTier,
-      technicalRequest,
+      technicalRequests,
       canAssignSalesPerson: canAssignSales
     });
   } catch (error) {
@@ -310,8 +310,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // impossible to close a deal on the same day the pick was made. A pick in
     // this same call, or one already awaiting approval, both satisfy it.
     if (closingAsWon && !existing.assigned_technical_person_id && !requestedTechnicalPersonId) {
-      const pending = await findPendingTechnicalRequest(id);
-      if (!pending) {
+      const pending = await findPendingTechnicalRequests(id);
+      if (!pending.length) {
         return NextResponse.json(
           { error: 'Assign a technical owner before closing this project as won.' },
           { status: 400 }

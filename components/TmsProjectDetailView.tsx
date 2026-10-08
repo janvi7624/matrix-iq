@@ -248,6 +248,9 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
   const [editingTeam, setEditingTeam] = useState(false);
   const [teamEditIds, setTeamEditIds] = useState<string[]>([]);
   const [savingTeam, setSavingTeam] = useState(false);
+  const [editingManager, setEditingManager] = useState(false);
+  const [managerEditId, setManagerEditId] = useState<string[]>([]);
+  const [savingManager, setSavingManager] = useState(false);
   const [decidingExtension, setDecidingExtension] = useState<{ id: string; decision: 'approve' | 'reject' } | null>(null);
   const [decisionRemark, setDecisionRemark] = useState('');
   const [deciding, setDeciding] = useState(false);
@@ -386,6 +389,36 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
     }
   }
 
+  // Project Manager has never been editable from this page — only set once,
+  // at creation (native TMS, or lib/tmsHandoff.ts's Sales handoff). A project
+  // that landed here without one (or whose manager left) had no way to fix
+  // that except a direct DB edit. Same single-select-via-PersonPicker pattern
+  // as Assigned Engineers above, just capped at one id.
+  function startEditManager() {
+    if (!data) return;
+    setManagerEditId(data.project.project_manager_id ? [data.project.project_manager_id] : []);
+    setEditingManager(true);
+  }
+
+  async function saveManager() {
+    setSavingManager(true);
+    try {
+      const response = await fetch(`/api/tms/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectManagerId: managerEditId[0] || '' })
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      setEditingManager(false);
+      await load();
+      toast.success('Project manager updated.');
+    } catch {
+      toast.error('Could not update the project manager.');
+    } finally {
+      setSavingManager(false);
+    }
+  }
+
   if (!data) {
     return (
       <AppShell title="Project" subtitle="" showBackLink>
@@ -412,6 +445,12 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
     const finished = project.status === 'completed' || project.status === 'cancelled';
 
     const out: { key: string; label: string; tab: TabKey }[] = [];
+    // A freshly handed-off project with nobody owning it and nothing broken
+    // down yet looks "clean" by every check below — no overdue tasks, no
+    // blocked tasks, because there ARE no tasks. These two catch exactly
+    // that silence, which is the actual problem (see lib/tmsHandoff.ts).
+    if (!finished && !project.project_manager_id) out.push({ key: 'noManager', label: 'No project manager assigned', tab: 'team' });
+    if (!finished && tasks.length === 0) out.push({ key: 'noTasks', label: 'No tasks created yet', tab: 'tasks' });
     if (overdue) out.push({ key: 'overdue', label: `${overdue} overdue task${overdue === 1 ? '' : 's'}`, tab: 'tasks' });
     if (blocked) out.push({ key: 'blocked', label: `${blocked} blocked task${blocked === 1 ? '' : 's'}`, tab: 'tasks' });
     if (bomPending) out.push({ key: 'bom', label: `${bomPending} BOM request${bomPending === 1 ? '' : 's'} awaiting approval`, tab: 'bom' });
@@ -522,6 +561,14 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           )}
           <div className={calcStyles.sectionPanel}>
             <ProjectWorkflowStepper status={project.status} />
+            {project.sales_project_id && (
+              <div className={styles.infoRow}>
+                <strong>Handed off from Sales:</strong> {project.sales_person_name || 'a sales person'} assigned this project to {project.project_manager_name || 'the project manager'} below.{' '}
+                <Link href={`/projects/${project.sales_project_id}`} target="_blank" rel="noopener noreferrer">
+                  View the Sales project →
+                </Link>
+              </div>
+            )}
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div><strong>Client:</strong> {project.client_name || '-'}</div>
               <div><strong>Client contact:</strong> {project.client_contact || '-'}</div>
@@ -812,7 +859,32 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
 
       {tab === 'team' && (
         <div className={calcStyles.sectionPanel}>
-          <div className={styles.infoRow}><strong>Project Manager:</strong> {project.project_manager_name || 'Unassigned'}</div>
+          <div className={`${styles.teamHeaderRow} ${editingManager ? styles.teamHeaderRowEditing : ''}`}>
+            <div className={styles.infoRow}><strong>Project Manager:</strong> {editingManager ? '' : (project.project_manager_name || 'Unassigned')}</div>
+            {!editingManager && (
+              <button type="button" className={historyStyles.button} onClick={startEditManager}>
+                {project.project_manager_id ? 'Change' : '+ Assign Manager'}
+              </button>
+            )}
+          </div>
+          {editingManager && (
+            <>
+              <PersonPicker
+                options={scopedAssignableUsers}
+                selectedIds={managerEditId}
+                onChange={setManagerEditId}
+                placeholder="Search for a project manager…"
+                roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
+                emptyMessage="No matching active Technical Team members found in this project's department."
+              />
+              <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
+                <button type="button" className={calcStyles.btn} onClick={saveManager} disabled={savingManager}>
+                  {savingManager ? 'Saving…' : 'Save'}
+                </button>
+                <button type="button" className={historyStyles.button} onClick={() => setEditingManager(false)}>Cancel</button>
+              </div>
+            </>
+          )}
           <div className={`${calcStyles.h2} ${calcStyles.mt10}`}>Assigned Engineers</div>
           {project.team_member_names.length === 0 ? (
             <div className={styles.mutedText13}>No engineers assigned yet.</div>

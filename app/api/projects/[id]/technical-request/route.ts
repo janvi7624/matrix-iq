@@ -37,18 +37,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-// DELETE — withdraw the request still waiting for approval.
+// DELETE — withdraw one specific request still waiting for approval (a
+// project can have several pending at once, so the request id is required).
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
+  const requestId = new URL(request.url).searchParams.get('requestId') || '';
+  if (!requestId) return NextResponse.json({ error: 'Missing requestId' }, { status: 400 });
   try {
     const project = await findProjectById(id);
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     if (!(await canAccessProject(viewer.username, project))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    await withdrawTechnicalRequest(id, viewer, getClientIp(request));
+    await withdrawTechnicalRequest(id, requestId, viewer, getClientIp(request));
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof TechnicalRequestError) return NextResponse.json({ error: error.message }, { status: error.status });

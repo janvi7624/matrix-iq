@@ -3,6 +3,8 @@ import { db } from './db';
 import { tmsProjectStore, nextTmsProjectCode } from './tmsProjectStore';
 import { projectStore } from './projectStore';
 import { ProjectRecord, TmsProjectRecord, UserRecord } from './types';
+import { findTmsProjectSetupNotifyTargets } from './tmsAccess';
+import { notifyUsers } from './notificationStore';
 
 // Bridges a Sales assignment into TMS: when a technical person is assigned
 // to a Sales Project (assigned_technical_person_id), a matching TMS project
@@ -20,6 +22,14 @@ export async function syncTmsProjectForAssignment(project: ProjectRecord, assign
   const departmentId = deptRow ? (deptRow.get('id') as string) : '';
   if (!departmentId) return;
 
+  // Denormalized onto the TMS side so it never needs a join back to Sales
+  // just to show who handed a project over (see the migration for why this
+  // exists as structured columns instead of a sentence in `description`).
+  const salesPersonUser = project.sales_person
+    ? await db.User.findOne({ where: { username: project.sales_person } as never, attributes: ['name'] })
+    : null;
+  const salesPersonName = (salesPersonUser?.get('name') as string | undefined) || project.sales_person || '';
+
   if (project.tms_project_id) {
     const existing = await tmsProjectStore.findById(project.tms_project_id);
     if (existing) {
@@ -31,7 +41,10 @@ export async function syncTmsProjectForAssignment(project: ProjectRecord, assign
         // Only when nobody owns it yet. A technical manager may have taken
         // the project over already, and a later Sales-side assignment must
         // not silently seize it back from them.
-        ...(existing.project_manager_id ? {} : { project_manager_id: assignedPerson.id })
+        ...(existing.project_manager_id ? {} : { project_manager_id: assignedPerson.id }),
+        sales_project_id: project.id,
+        sales_person_name: salesPersonName,
+        sales_person_username: project.sales_person
       });
       return;
     }
@@ -48,6 +61,9 @@ export async function syncTmsProjectForAssignment(project: ProjectRecord, assign
     client_name: project.client_name,
     client_contact: project.phone,
     description: `Handed off from Sales project ${project.id}.`,
+    sales_project_id: project.id,
+    sales_person_name: salesPersonName,
+    sales_person_username: project.sales_person,
     department_id: departmentId,
     department_name: '',
     project_type: 'department',
@@ -73,6 +89,27 @@ export async function syncTmsProjectForAssignment(project: ProjectRecord, assign
   };
   const created = await tmsProjectStore.create(draft);
   await projectStore.update(project.id, { tms_project_id: created.id });
+
+  // A brand new TMS project from a Sales handoff starts with no plan, no
+  // deadline and often no project manager set (only assignedPerson's own
+  // "Needs Setup" visibility — a dashboard tile nobody is guaranteed to
+  // check). At one or two handoffs a day that's fine; at the volume this
+  // pipeline actually runs, silence here is how a project sits untouched for
+  // weeks. So the department's manager-tier people and admins hear about it
+  // the moment it's created, not only once someone happens to notice.
+  try {
+    const targets = await findTmsProjectSetupNotifyTargets(departmentId);
+    const usernames = targets.map((t) => t.username).filter((u) => u !== actorUsername);
+    await notifyUsers(usernames, {
+      title: 'New project from Sales needs setup',
+      body: `${draft.name} — handed to ${assignedPerson.name} by ${actorUsername}. Add a plan, deadline, and tasks.`,
+      type: 'tms_project_needs_setup',
+      entityType: 'tms_project',
+      entityId: created.id
+    });
+  } catch {
+    // Best-effort — the handoff above already succeeded either way.
+  }
 }
 
 // The other direction of the same bridge: once a technical person has been

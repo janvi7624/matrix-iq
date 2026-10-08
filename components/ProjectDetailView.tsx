@@ -52,7 +52,7 @@ import { parseFollowUpNotes } from '@/lib/followUp';
 import { exportListToPdf } from '@/lib/exportPdf';
 import { MARKETING_STATUS_LABEL } from '@/lib/marketingRequestHelpers';
 import { getPoPaymentStatus } from '@/lib/poPaymentStatus';
-import { checkProjectCompleteness } from '@/lib/projectCompleteness';
+import { checkProjectCompleteness, PROJECT_FIELD_LABEL } from '@/lib/projectCompleteness';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -144,8 +144,9 @@ interface DetailResponse {
   deadlineExtensions: ProjectDeadlineExtensionRecord[];
   deadlineTier: 'plain' | 'manager' | 'admin';
   linkedLead: { id: string; name: string } | null;
-  // The technical-person request still waiting for approval, if any.
-  technicalRequest: ProjectTechnicalRequestView | null;
+  // Technical-person requests still waiting for approval — several different
+  // people can be pending on the same project at once.
+  technicalRequests: ProjectTechnicalRequestView[];
   // Whether the viewer may hand this project to a sales person (its new
   // owner) — lib/projectSalesOwner.ts canAssignSalesPerson.
   canAssignSalesPerson: boolean;
@@ -267,7 +268,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // or their department manager) — see lib/projectTechnicalRequest.ts.
   const [techPick, setTechPick] = useState<{ personId: string; note: string; neededBy: string } | null>(null);
   const [submittingTechPick, setSubmittingTechPick] = useState(false);
-  const [techDeclining, setTechDeclining] = useState(false);
+  // Which pending request (by id) currently has its Decline reason box open —
+  // several requests can be pending at once, but only one decision is ever
+  // being made at a time.
+  const [decliningRequestId, setDecliningRequestId] = useState<string | null>(null);
   const [techDeclineReason, setTechDeclineReason] = useState('');
   const [techAssignId, setTechAssignId] = useState('');
   const [decidingTech, setDecidingTech] = useState(false);
@@ -611,9 +615,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     }
   }
 
-  async function withdrawTechnicalRequest() {
-    if (!(await confirm({ message: 'Withdraw this technical person request?' }))) return;
-    const response = await fetch(`/api/projects/${projectId}/technical-request`, { method: 'DELETE' });
+  async function withdrawTechnicalRequest(requestId: string, personName: string) {
+    if (!(await confirm({ message: `Withdraw the request for ${personName}?` }))) return;
+    const response = await fetch(`/api/projects/${projectId}/technical-request?requestId=${encodeURIComponent(requestId)}`, { method: 'DELETE' });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
       toast.error(body?.error || 'Could not withdraw the request.');
@@ -623,8 +627,8 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     await load();
   }
 
-  async function decideTechnicalRequest(decision: 'approve' | 'decline') {
-    const request = data?.technicalRequest;
+  async function decideTechnicalRequest(requestId: string, decision: 'approve' | 'decline') {
+    const request = data?.technicalRequests.find((r) => r.id === requestId);
     if (!request) return;
     if (decision === 'decline' && !techDeclineReason.trim()) {
       toast.error('Give a reason so the sales team knows what to do next.');
@@ -644,7 +648,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         return;
       }
       toast.success(decision === 'approve' ? 'Approved — the technical person is assigned.' : 'Request declined.');
-      setTechDeclining(false);
+      setDecliningRequestId(null);
       setTechDeclineReason('');
       setTechAssignId('');
       await load();
@@ -910,7 +914,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     // at the existing Technical Person picker rather than asking inline: an
     // assignment has to go through that approval request (with its note and
     // needed-by), and a second way to start one would fork that flow.
-    if (normalized === 'won' && !data.project.assigned_technical_person_id && !data.technicalRequest) {
+    if (normalized === 'won' && !data.project.assigned_technical_person_id && !data.technicalRequests.length) {
       toast.error('Assign a technical owner first — use "Request a technical person" in the Technical Person field below, then close as won.');
       return;
     }
@@ -935,7 +939,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   }
   if (!data) return null;
 
-  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests, deadlineExtensions, deadlineTier, linkedLead, technicalRequest, canAssignSalesPerson } = data;
+  const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests, deadlineExtensions, deadlineTier, linkedLead, technicalRequests, canAssignSalesPerson } = data;
   const currentIdx = stageIndex(project.stage);
   // Installation/Completed are retired Project Progress stages (existing
   // records may still carry them, but no project can be set to them going
@@ -1023,7 +1027,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         {project.lead_confirmation_status && (() => {
           const completeness = checkProjectCompleteness(project);
           if (completeness.isComplete) return null;
-          const FIELD_LABEL: Record<string, string> = { approx_price: 'Approx. Project Price', expected_closing_date: 'Expected Closing Date', remarks: 'Project Description / Remarks', project_lead_id: 'Project Lead / Mentor', opportunity_type: 'Opportunity Type' };
+          const FIELD_LABEL = PROJECT_FIELD_LABEL;
           return (
             <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`} style={{ marginBottom: 16 }}>
               <strong>Complete Project Details</strong> — still missing: {completeness.missingFields.map((f) => FIELD_LABEL[f]).join(', ')}. Use the fields below to fill these in.
@@ -1033,14 +1037,17 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
         {/* Technical-person approval — shown to the requested engineer, their
             department manager, or an admin. Nothing is assigned (no TMS
-            project, no "assigned" email) until this is approved. */}
-        {technicalRequest?.can_decide && (() => {
+            project, no "assigned" email) until this is approved. Several
+            different people can be pending at once, so this renders one
+            panel per request this viewer may decide. */}
+        {technicalRequests.filter((r) => r.can_decide).map((technicalRequest) => {
           const isMe = technicalRequest.requested_username === currentUser.username;
           const isAdmin = currentUser.role === 'admin' || currentUser.role === 'superadmin';
           const teamOptions = technicalRoster.filter((p) => p.id === technicalRequest.requested_user_id || isAdmin || p.department === technicalRequest.requested_department);
-          const sendingOther = techAssignId && techAssignId !== technicalRequest.requested_user_id ? technicalRoster.find((p) => p.id === techAssignId) : undefined;
+          const isDeclining = decliningRequestId === technicalRequest.id;
+          const sendingOther = isDeclining && techAssignId && techAssignId !== technicalRequest.requested_user_id ? technicalRoster.find((p) => p.id === techAssignId) : undefined;
           return (
-            <div className={`${calcStyles.sectionPanel} ${styles.amberPanel}`}>
+            <div key={technicalRequest.id} className={`${calcStyles.sectionPanel} ${styles.amberPanel}`}>
               <div className={styles.amberPanelTitle}>Technical Assignment — Your Approval Needed</div>
               <div className={styles.amberPanelBody}>
                 <strong>{technicalRequest.requested_by_name}</strong> wants <strong>{isMe ? 'you' : technicalRequest.requested_name}</strong>
@@ -1050,12 +1057,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 {technicalRequest.note && <div className={styles.amberRemarkNote}>Note: {technicalRequest.note}</div>}
               </div>
 
-              {!techDeclining ? (
+              {!isDeclining ? (
                 <>
                   {technicalRequest.can_reassign && teamOptions.length > 1 && (
                     <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
-                      <label className={calcStyles.label} htmlFor="tech-assign">Assign</label>
-                      <select id="tech-assign" className={calcStyles.formControl} value={techAssignId || technicalRequest.requested_user_id} onChange={(e) => setTechAssignId(e.target.value)}>
+                      <label className={calcStyles.label} htmlFor={`tech-assign-${technicalRequest.id}`}>Assign</label>
+                      <select id={`tech-assign-${technicalRequest.id}`} className={calcStyles.formControl} value={techAssignId || technicalRequest.requested_user_id} onChange={(e) => setTechAssignId(e.target.value)}>
                         {teamOptions.map((p) => (
                           <option key={p.id} value={p.id}>{p.name}{p.id === technicalRequest.requested_user_id ? ' (requested)' : ''}</option>
                         ))}
@@ -1063,10 +1070,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     </div>
                   )}
                   <div className={styles.actionsRow8}>
-                    <button type="button" className={styles.acceptBtn} disabled={decidingTech} onClick={() => decideTechnicalRequest('approve')}>
+                    <button type="button" className={styles.acceptBtn} disabled={decidingTech} onClick={() => decideTechnicalRequest(technicalRequest.id, 'approve')}>
                       {decidingTech ? 'Saving…' : sendingOther ? `Approve — send ${sendingOther.name}` : 'Approve'}
                     </button>
-                    <button type="button" className={styles.brandActionBtn} disabled={decidingTech} onClick={() => setTechDeclining(true)}>Decline</button>
+                    <button type="button" className={styles.brandActionBtn} disabled={decidingTech} onClick={() => { setDecliningRequestId(technicalRequest.id); setTechAssignId(''); }}>Decline</button>
                   </div>
                 </>
               ) : (
@@ -1081,16 +1088,16 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     placeholder="e.g. Already on site at another client that day — ask again for next week, or request Janvi."
                   />
                   <div className={styles.actionsRow8}>
-                    <button type="button" className={styles.brandActionBtn} disabled={decidingTech || !techDeclineReason.trim()} onClick={() => decideTechnicalRequest('decline')}>
+                    <button type="button" className={styles.brandActionBtn} disabled={decidingTech || !techDeclineReason.trim()} onClick={() => decideTechnicalRequest(technicalRequest.id, 'decline')}>
                       {decidingTech ? 'Submitting…' : 'Submit Decline'}
                     </button>
-                    <button type="button" className={styles.cancelActionBtn} onClick={() => { setTechDeclining(false); setTechDeclineReason(''); }}>Cancel</button>
+                    <button type="button" className={styles.cancelActionBtn} onClick={() => { setDecliningRequestId(null); setTechDeclineReason(''); }}>Cancel</button>
                   </div>
                 </div>
               )}
             </div>
           );
-        })()}
+        })}
 
         {/* Header summary: name / ID / client / sales person / stage / status / progress% */}
         <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
@@ -1684,15 +1691,15 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Assigned Technical Person</label>
                 <div className={calcStyles.small}>{project.assigned_technical_person_name || 'Unassigned'}</div>
-                {technicalRequest && (
-                  <div className={styles.techPending}>
+                {technicalRequests.map((req) => (
+                  <div key={req.id} className={styles.techPending}>
                     <Hourglass size={13} aria-hidden="true" />
-                    <span>Awaiting approval: <strong>{technicalRequest.requested_name}</strong></span>
-                    {technicalRequest.can_withdraw && (
-                      <button type="button" className={styles.techPendingLink} onClick={withdrawTechnicalRequest}>Withdraw</button>
+                    <span>Awaiting approval: <strong>{req.requested_name}</strong></span>
+                    {req.can_withdraw && (
+                      <button type="button" className={styles.techPendingLink} onClick={() => withdrawTechnicalRequest(req.id, req.requested_name)}>Withdraw</button>
                     )}
                   </div>
-                )}
+                ))}
                 {/* Picking someone raises a request for them / their manager to
                     approve — nothing is assigned from here directly. */}
                 {canEdit && (
@@ -1702,9 +1709,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     aria-label="Request a technical person"
                     onChange={(e) => handleTechnicalPersonSelect(e.target.value)}
                   >
-                    <option value="">{project.assigned_technical_person_id || technicalRequest ? 'Request someone else…' : 'Request a technical person…'}</option>
+                    <option value="">{project.assigned_technical_person_id || technicalRequests.length ? 'Request someone else…' : 'Request a technical person…'}</option>
                     {technicalRoster
-                      .filter((person) => person.id !== project.assigned_technical_person_id)
+                      .filter((person) => person.id !== project.assigned_technical_person_id && !technicalRequests.some((r) => r.requested_user_id === person.id))
                       .map((person) => (
                         <option key={person.id} value={person.id}>{person.name}{person.department ? ` — ${person.department}` : ''}</option>
                       ))}

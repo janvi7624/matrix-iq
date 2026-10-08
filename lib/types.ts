@@ -1672,6 +1672,11 @@ export interface TmsProjectRecord {
   remarks: string;
   attachments: string[];
   updated_at: string;
+  // Set once, at handoff, by lib/tmsHandoff.ts — '' for a project created
+  // natively in TMS rather than from a won Sales deal.
+  sales_project_id: string;
+  sales_person_name: string;
+  sales_person_username: string;
 }
 
 export type DeadlineExtensionReason = 'user_end' | 'client_end';

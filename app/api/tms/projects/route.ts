@@ -70,6 +70,10 @@ export async function POST(request: NextRequest) {
     client_name: typeof body.clientName === 'string' ? body.clientName.trim() : '',
     client_contact: typeof body.clientContact === 'string' ? body.clientContact.trim() : '',
     description: typeof body.description === 'string' ? body.description.trim() : '',
+    // Native TMS creation, not a handoff from Sales — see lib/tmsHandoff.ts.
+    sales_project_id: '',
+    sales_person_name: '',
+    sales_person_username: '',
     department_id: department.id,
     department_name: department.name,
     project_type: projectType,

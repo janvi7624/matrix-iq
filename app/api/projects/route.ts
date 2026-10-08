@@ -121,6 +121,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Enter an approx. value for each department on a multi-department project' }, { status: 400 });
   }
 
+  // Technical Person(s) — mandatory on every new project, unless the creator
+  // IS the technical person (isTechnicalCreator, resolved below). Several
+  // names may be picked at once; each goes through its own approval
+  // (lib/projectTechnicalRequest.ts) so more than one can be pending at a
+  // time, with the first one actually approved winning the assignment.
+  const assignedTechnicalPersonIds: string[] = Array.isArray(body.assignedTechnicalPersonIds)
+    ? Array.from(new Set(
+        (body.assignedTechnicalPersonIds as unknown[])
+          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+          .map((id) => id.trim())
+      ))
+    : [];
+  if (!isTechnicalCreator && !assignedTechnicalPersonIds.length) {
+    return NextResponse.json({ error: 'Technical Person is required — pick at least one' }, { status: 400 });
+  }
+
   // State/city, project name, and the source-conditional referral and tender
   // blocks — see lib/projectIntake.ts.
   let intake;
@@ -165,7 +181,6 @@ export async function POST(request: NextRequest) {
     }
   }
   const salesPerson = requestedSalesPersonUser ? requestedSalesPersonUser.username : viewer.username;
-  const assignedTechnicalPersonId = typeof body.assignedTechnicalPersonId === 'string' ? body.assignedTechnicalPersonId.trim() : '';
   const record: ProjectRecord = {
     ...intake,
     id: `${Date.now()}`,
@@ -224,24 +239,31 @@ export async function POST(request: NextRequest) {
 
   try {
     let created = await projectStore.create(record);
-    // A technical person picked at creation goes through the same approval as
-    // one picked later (lib/projectTechnicalRequest.ts): assigned now only if
-    // this viewer may commit that person's time, otherwise requested. A
-    // technical creator is the project's technical person themselves — that
-    // is also what keeps it in their list once the sales person owns it.
-    const technicalPersonId = isTechnicalCreator ? viewer.userId : assignedTechnicalPersonId;
-    let warning = '';
-    if (technicalPersonId) {
+    // Each technical person picked at creation goes through the same
+    // approval as one picked later (lib/projectTechnicalRequest.ts): assigned
+    // now only if this viewer may commit that person's time, otherwise
+    // requested — several can end up pending at once. A technical creator is
+    // the project's technical person themselves — that is also what keeps it
+    // in their list once the sales person owns it.
+    const technicalPersonIds = isTechnicalCreator ? [viewer.userId] : assignedTechnicalPersonIds;
+    const failedTechnicalPersonIds: string[] = [];
+    for (const technicalPersonId of technicalPersonIds) {
       try {
         const result = await requestTechnicalPerson(created, technicalPersonId, viewer, { note: '', neededBy: '' }, getClientIp(request));
         if (result.mode === 'assigned' && result.project) created = result.project;
       } catch (error) {
         // The Sales project above was already created either way.
-        if (isTechnicalCreator) {
-          console.error(`[projects] Could not add ${viewer.username} as technical person on new project ${created.id}:`, error instanceof Error ? error.message : error);
-          warning = 'The project was created, but you could not be added as its technical person — ask an admin to add you.';
-        }
+        console.error(`[projects] Could not request technical person ${technicalPersonId} on new project ${created.id}:`, error instanceof Error ? error.message : error);
+        failedTechnicalPersonIds.push(technicalPersonId);
       }
+    }
+    let warning = '';
+    if (failedTechnicalPersonIds.length) {
+      warning = isTechnicalCreator
+        ? 'The project was created, but you could not be added as its technical person — ask an admin to add you.'
+        : failedTechnicalPersonIds.length === technicalPersonIds.length
+          ? 'The project was created, but no technical person could be added — add one from the project page.'
+          : 'The project was created, but one or more technical people could not be added — add them from the project page.';
     }
     if (requestedSalesPersonUser) await notifySalesPersonAssigned(created, requestedSalesPersonUser, viewer);
     return NextResponse.json(warning ? { ...created, warning } : created, { status: 201 });

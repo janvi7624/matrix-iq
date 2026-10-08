@@ -30,7 +30,16 @@ module.exports = (sequelize, DataTypes) => {
     progress_percent: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     remarks: { type: DataTypes.TEXT },
     attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
-    created_by: { type: DataTypes.UUID }
+    created_by: { type: DataTypes.UUID },
+    // Where this project came from, when it did — set once by
+    // lib/tmsHandoff.ts at the moment a Sales project's technical-person
+    // assignment is approved. sales_person_name/_username are denormalized
+    // (same pattern as project_manager_name/department_name) so the TMS side
+    // never needs to join back to Sales just to show who handed a project
+    // over, across however many hundreds of these exist.
+    sales_project_id: { type: DataTypes.UUID },
+    sales_person_name: { type: DataTypes.STRING },
+    sales_person_username: { type: DataTypes.STRING }
   }, {
     tableName: 'tms_projects',
     underscored: true,

@@ -22,7 +22,10 @@ const FIELDS = [
   { name: 'priority' },
   { name: 'progress_percent', kind: 'number' as const },
   { name: 'remarks' },
-  { name: 'attachments', kind: 'json' as const }
+  { name: 'attachments', kind: 'json' as const },
+  { name: 'sales_project_id', kind: 'nullable' as const },
+  { name: 'sales_person_name' },
+  { name: 'sales_person_username' }
 ];
 
 function isoOrEmpty(value: unknown): string {

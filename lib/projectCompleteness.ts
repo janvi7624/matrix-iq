@@ -17,6 +17,17 @@ export interface ProjectCompleteness {
   missingFields: Array<'approx_price' | 'expected_closing_date' | 'remarks' | 'project_lead_id' | 'opportunity_type'>;
 }
 
+// What each missing field is CALLED, for anything that shows the list to a
+// person: the panel on the project page and the reminder email both read this,
+// so the email can never name a field by a different name than the page does.
+export const PROJECT_FIELD_LABEL: Record<ProjectCompleteness['missingFields'][number], string> = {
+  approx_price: 'Approx. Project Price',
+  expected_closing_date: 'Expected Closing Date',
+  remarks: 'Project Description / Remarks',
+  project_lead_id: 'Project Lead / Mentor',
+  opportunity_type: 'Opportunity Type'
+};
+
 export function checkProjectCompleteness(record: {
   approx_price: number | '';
   expected_closing_date: string;

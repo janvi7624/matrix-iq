@@ -19,6 +19,7 @@ import { renderCelebrationEmail, CelebrationEmailData } from './templates/celebr
 import { renderMissingBillsEmail, MissingBillsEmailData } from './templates/missingBills';
 import { renderAdminExpenseNoticeEmail, AdminExpenseNoticeEmailData } from './templates/adminExpenseNotice';
 import { renderLeadHandoverEmail, LeadHandoverEmailData } from './templates/leadHandover';
+import { renderMissingProjectDetailsEmail, MissingProjectDetailsEmailData } from './templates/missingProjectDetails';
 
 // APP_URL must be this app's absolute public origin (e.g.
 // https://app.example.com, see .env.example) — every link embedded in an
@@ -249,6 +250,29 @@ export async function sendMissingBillsEmail(data: { email: string } & Omit<Missi
     await sendEmail({ to: data.email, subject, html, text });
   } catch (error) {
     console.error('[email] Missing-bills request processed successfully but the notification email could not be sent:', error instanceof Error ? error.message : error);
+  }
+}
+
+// "Please complete these projects" — sent to the owner of a project whose
+// mandatory fields are still blank. Unlike every other sender in this file it
+// reports whether the mail actually went out: it is driven by a sweep over
+// whoever currently has blanks, and a sweep that silently skipped half its
+// recipients is worse than one that never ran. Still never throws.
+export async function sendMissingProjectDetailsEmail(
+  data: { email: string } & Omit<MissingProjectDetailsEmailData, 'projectsUrl' | 'tmsUrl'>
+): Promise<boolean> {
+  if (!data.email) return false;
+
+  try {
+    const appUrl = resolveAppUrl();
+    const projectsUrl = appUrl ? `${appUrl}/projects` : '/projects';
+    const tmsUrl = appUrl ? `${appUrl}/tms/projects` : '/tms/projects';
+    const { subject, html, text } = renderMissingProjectDetailsEmail({ name: data.name, items: data.items, projectsUrl, tmsUrl });
+    await sendEmail({ to: data.email, subject, html, text });
+    return true;
+  } catch (error) {
+    console.error(`[email] Missing-project-details reminder could not be sent to ${data.email}:`, error instanceof Error ? error.message : error);
+    return false;
   }
 }
 
