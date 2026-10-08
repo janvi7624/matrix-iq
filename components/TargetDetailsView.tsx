@@ -91,7 +91,10 @@ export default function TargetDetailsView() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const [drilldown, setDrilldown] = useState<{ employeeId: string; name: string } | null>(null);
-  const [formTarget, setFormTarget] = useState<{ employeeId: string; name: string; existing: EmployeeRow | null } | null>(null);
+  // No period on this — the form always edits the fiscal year's 12 months,
+  // whichever period the table is currently filtered to, because the months
+  // are the only figures that are entered (lib/targetRollup.ts).
+  const [formTarget, setFormTarget] = useState<{ employeeId: string; name: string } | null>(null);
 
   const periodOptions = useMemo(() => listPeriodOptions(periodType, fiscalYear), [periodType, fiscalYear]);
 
@@ -176,7 +179,7 @@ export default function TargetDetailsView() {
         <OverviewTab
           data={data}
           onOpenDrilldown={(employeeId, name) => setDrilldown({ employeeId, name })}
-          onOpenForm={(row) => setFormTarget({ employeeId: row.employeeId, name: row.name, existing: row.targetId ? row : null })}
+          onOpenForm={(row) => setFormTarget({ employeeId: row.employeeId, name: row.name })}
         />
       ) : (
         <WeeklyUpdateTab data={data} periodType={periodType} fiscalYear={fiscalYear} periodKey={periodKey} toast={toast} onChanged={load} />
@@ -197,14 +200,7 @@ export default function TargetDetailsView() {
         <TargetFormDialog
           employeeId={formTarget.employeeId}
           employeeName={formTarget.name}
-          existingTarget={
-            formTarget.existing
-              ? { id: formTarget.existing.targetId as string, periodType, displayPeriod: data?.displayPeriod ?? '', targetAmount: formTarget.existing.targetAmount, notes: '' }
-              : null
-          }
-          defaultPeriodType={periodType}
           defaultFiscalYear={fiscalYear}
-          defaultPeriodKey={periodKey}
           onClose={() => setFormTarget(null)}
           onSaved={(saved) => {
             setFormTarget(null);

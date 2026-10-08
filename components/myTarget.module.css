@@ -1,0 +1,81 @@
+/* "My Target" — the rep's own target vs achievement on their Dashboard.
+   One card, one scale at a time (Monthly / Quarterly / Yearly), because the
+   question it answers is "am I going to make it this period", not "show me
+   every period at once". */
+
+.panel {
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-xl);
+    box-shadow: var(--mx-shadow-xs);
+    padding: 16px 18px;
+    margin-top: 18px;
+}
+
+.head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.title { font-size: 14px; font-weight: var(--mx-weight-bold); color: var(--mx-ink); }
+.period { font-size: 12px; color: var(--mx-ink-muted); margin-left: 8px; font-weight: 400; }
+
+.figures {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.achieved {
+    font-size: 28px;
+    font-weight: var(--mx-weight-bold);
+    color: var(--mx-ink);
+    font-variant-numeric: tabular-nums;
+}
+.ofTarget { font-size: 14px; color: var(--mx-ink-muted); font-variant-numeric: tabular-nums; }
+
+/* The bar carries two marks: the fill is what has been earned, the notch is
+   where the calendar says you should be by now. A percentage alone can't
+   tell you whether 40% is good — on day 3 it is, on day 27 it isn't. */
+.barWrap {
+    position: relative;
+    height: 10px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border);
+    margin: 12px 0 8px;
+    overflow: hidden;
+}
+.barFill {
+    height: 100%;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-brand);
+    transition: width var(--mx-duration-base) var(--mx-ease);
+}
+.barFillAhead { background: var(--mx-success); }
+.barFillBehind { background: var(--mx-warning); }
+
+.paceMark {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    background: var(--mx-ink-muted);
+    opacity: 0.7;
+}
+
+.meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+}
+.meta b { color: var(--mx-ink); font-variant-numeric: tabular-nums; font-weight: var(--mx-weight-semibold); }
+
+.empty { font-size: 13px; color: var(--mx-ink-muted); }

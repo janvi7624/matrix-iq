@@ -29,6 +29,7 @@ import Table from './ui/Table';
 import StatusBadge from './ui/StatusBadge';
 import EmptyState from './ui/EmptyState';
 import CelebrationsSection from './CelebrationsSection';
+import MyTargetPanel from './MyTargetPanel';
 import styles from './dashboard.module.css';
 
 // How many rows the Dashboard panel itself shows before collapsing the rest
@@ -655,6 +656,13 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           </>
         )}
       </div>
+
+      {/* The viewer's own target vs achievement — renders only for someone
+          who actually carries one (see components/MyTargetPanel.tsx), so
+          every other role's dashboard is unchanged. Sits directly under the
+          attention panel: for a rep, "am I going to make my number" is the
+          second question after "what needs me today". */}
+      <MyTargetPanel />
 
       {showAllAttention && (
         <Drawer title="Needs Your Attention" ariaLabel="Everything needing your attention" onClose={() => setShowAllAttention(false)}>

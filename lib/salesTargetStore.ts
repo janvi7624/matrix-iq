@@ -1,5 +1,5 @@
 import { Model, Op, UniqueConstraintError } from 'sequelize';
-import { db, isUuid } from './db';
+import { db, isUuid, sequelize } from './db';
 import { TargetPeriodType } from './targetPeriod';
 
 export class DuplicateTargetError extends Error {
@@ -96,6 +96,71 @@ export async function createSalesTarget(input: CreateSalesTargetInput): Promise<
   }
 }
 
+// Create-or-replace a whole batch of periods for one employee in one go —
+// what setting targets now does, since the 12 entered months also determine
+// every quarter, half and the year (see lib/targetRollup.ts). One
+// transaction: a half-applied write would leave the quarters disagreeing with
+// the months they are the sum of, which is exactly the state this prevents.
+//
+// Matched on the same (employee, period_type, period_start) key the unique
+// index uses, so an existing period is updated rather than colliding with it.
+// `notes` is only written when given: re-pricing a year shouldn't wipe the
+// commentary somebody wrote on one of its months.
+export async function upsertSalesTargets(
+  employeeId: string,
+  rows: {
+    periodType: TargetPeriodType;
+    periodStart: string;
+    periodEnd: string;
+    displayPeriod: string;
+    fiscalYear: string;
+    targetAmount: number;
+  }[],
+  actorId: string,
+  notes?: string
+): Promise<{ created: number; updated: number }> {
+  let created = 0;
+  let updated = 0;
+
+  await sequelize.transaction(async (transaction) => {
+    for (const row of rows) {
+      const existing = await db.SalesTarget.findOne({
+        where: { employee_id: employeeId, period_type: row.periodType, period_start: row.periodStart } as never,
+        transaction
+      });
+
+      if (existing) {
+        const attrs: Record<string, unknown> = {
+          period_end: row.periodEnd,
+          display_period: row.displayPeriod,
+          fiscal_year: row.fiscalYear,
+          target_amount: row.targetAmount,
+          updated_by: actorId
+        };
+        if (notes !== undefined) attrs.notes = notes;
+        await existing.update(attrs as never, { transaction });
+        updated += 1;
+      } else {
+        await db.SalesTarget.create({
+          employee_id: employeeId,
+          period_type: row.periodType,
+          period_start: row.periodStart,
+          period_end: row.periodEnd,
+          display_period: row.displayPeriod,
+          fiscal_year: row.fiscalYear,
+          target_amount: row.targetAmount,
+          notes: notes ?? '',
+          created_by: actorId,
+          updated_by: actorId
+        } as never, { transaction });
+        created += 1;
+      }
+    }
+  });
+
+  return { created, updated };
+}
+
 export async function updateSalesTarget(id: string, patch: UpdateSalesTargetInput): Promise<SalesTargetRecord | null> {
   if (!isUuid(id)) return null;
   const row = await db.SalesTarget.findByPk(id);
@@ -135,6 +200,27 @@ export async function findSalesTarget(employeeId: string, periodType: TargetPeri
     include: INCLUDE_EMPLOYEE as never
   });
   return row ? toRecord(row) : undefined;
+}
+
+// The 12 monthly figures already on file for one employee's fiscal year,
+// keyed 'YYYY-MM' the way lib/targetRollup.ts keys a month. The month rows
+// are the only stored truth now — quarters/halves/year are sums of them — so
+// this is what the entry form prefills from and what a single-month edit
+// re-derives the rollup from.
+export async function findMonthAmounts(employeeId: string, fiscalYear: string): Promise<Record<string, number>> {
+  if (!isUuid(employeeId)) return {};
+  const rows = await db.SalesTarget.findAll({
+    where: { employee_id: employeeId, fiscal_year: fiscalYear, period_type: 'monthly' } as never
+  });
+  const out: Record<string, number> = {};
+  for (const row of rows) {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    // period_start is the first of the month, so its 'YYYY-MM' prefix IS the
+    // month key — no separate column to keep in step.
+    const key = String(plain.period_start ?? '').slice(0, 7);
+    if (key) out[key] = Number(plain.target_amount) || 0;
+  }
+  return out;
 }
 
 export interface ListSalesTargetsFilters {
