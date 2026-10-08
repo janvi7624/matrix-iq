@@ -27,7 +27,11 @@ export async function syncTmsProjectForAssignment(project: ProjectRecord, assign
       teamIds.add(assignedPerson.id);
       await tmsProjectStore.update(existing.id, {
         department_id: departmentId,
-        team_member_ids: Array.from(teamIds)
+        team_member_ids: Array.from(teamIds),
+        // Only when nobody owns it yet. A technical manager may have taken
+        // the project over already, and a later Sales-side assignment must
+        // not silently seize it back from them.
+        ...(existing.project_manager_id ? {} : { project_manager_id: assignedPerson.id })
       });
       return;
     }
@@ -49,7 +53,9 @@ export async function syncTmsProjectForAssignment(project: ProjectRecord, assign
     project_type: 'department',
     department_ids: [departmentId],
     department_names: [],
-    project_manager_id: '',
+    // The person Sales assigned owns it until a technical manager says
+    // otherwise. Leaving this blank lost an answer Sales had already given.
+    project_manager_id: assignedPerson.id,
     project_manager_name: '',
     team_member_ids: [assignedPerson.id],
     team_member_names: [],
