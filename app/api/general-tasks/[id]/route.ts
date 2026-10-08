@@ -42,6 +42,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       canAct: isAssignee && isValidAssigneeTransition(task.status, 'start'),
       canSubmit: isAssignee && isValidAssigneeTransition(task.status, 'submit'),
       canReopen: isAssignee && isValidAssigneeTransition(task.status, 'reopen'),
+      canDecline: isAssignee && isValidAssigneeTransition(task.status, 'decline'),
       canReview: (isReviewer || canManage) && task.status === 'under_review',
       canManage
     };

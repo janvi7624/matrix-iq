@@ -17,10 +17,18 @@ export async function GET(request: NextRequest) {
   const month = Number(url.searchParams.get('month')) || (now.getMonth() + 1);
 
   try {
-    const ownOnly = url.searchParams.get('own') === 'true';
-    const records = await reimbursementStore.list(viewer.username, ownOnly ? false : viewer.isPrivileged, year, month);
-    const total = records.reduce((sum, r) => sum + r.amount, 0);
-    return NextResponse.json({ records, total, totalInWords: numberToIndianWords(total), year, month });
+    // No 'own' flag any more, and no isPrivileged branch. The flag was
+    // misleading — own=true meant "not privileged", which still OR'd in
+    // every bill naming the viewer as a companion — and omitting it let an
+    // admin or manager read every employee's bills for the month through
+    // this endpoint. This list is now always, only, the viewer's own.
+    const records = await reimbursementStore.list(viewer.username, year, month);
+    const companionNotices = await reimbursementStore.listCompanionNotices(viewer.username, year, month);
+    // Rounded before being spelled out, so the words can never disagree with
+    // the digits by a paisa — and so this matches computeTotals, which is the
+    // figure the sheet and the voucher actually pay.
+    const total = Math.round(records.reduce((sum, r) => sum + r.amount, 0) * 100) / 100;
+    return NextResponse.json({ records, total, totalInWords: numberToIndianWords(total), companionNotices, year, month });
   } catch (error) {
     return apiErrorResponse(error);
   }

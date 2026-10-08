@@ -13,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
     reviewer_id: { type: DataTypes.UUID },
     priority: { type: DataTypes.ENUM('low', 'medium', 'high', 'critical'), allowNull: false, defaultValue: 'medium' },
     status: {
-      type: DataTypes.ENUM('pending', 'in_progress', 'under_review', 'rework_required', 'approved', 'rejected', 'cancelled', 'completed'),
+      type: DataTypes.ENUM('pending', 'in_progress', 'under_review', 'rework_required', 'approved', 'rejected', 'declined', 'cancelled', 'completed'),
       allowNull: false,
       defaultValue: 'pending'
     },

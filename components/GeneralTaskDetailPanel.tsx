@@ -18,7 +18,7 @@ interface DetailResponse {
   updates: GeneralTaskUpdateRecord[];
   deadlineChanges: GeneralTaskDeadlineChangeRecord[];
   activity: AuditLogEntry[];
-  permissions: { isAssignee: boolean; canAct: boolean; canSubmit: boolean; canReopen: boolean; canReview: boolean; canManage: boolean };
+  permissions: { isAssignee: boolean; canAct: boolean; canSubmit: boolean; canReopen: boolean; canDecline: boolean; canReview: boolean; canManage: boolean };
 }
 
 function formatDate(iso: string): string {
@@ -39,7 +39,7 @@ function formatDateTime(iso: string): string {
   }
 }
 
-type PendingAction = 'submit' | 'review-approve' | 'review-rework' | 'review-reject' | 'reassign' | 'extend-deadline' | null;
+type PendingAction = 'submit' | 'decline' | 'review-approve' | 'review-rework' | 'review-reject' | 'reassign' | 'extend-deadline' | null;
 
 export interface GeneralTaskDetailPanelProps {
   taskId: string;
@@ -174,6 +174,29 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
     }
   }
 
+  async function confirmDecline() {
+    if (!remark.trim()) return toast.error('A reason is required to deny this task.');
+    setActing(true);
+    try {
+      const response = await fetch(`/api/general-tasks/${taskId}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'decline', remarks: remark.trim() })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || String(response.status));
+      }
+      setPendingAction(null);
+      await afterMutate();
+      toast.success('Task denied. The task creator has been notified.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not deny this task.');
+    } finally {
+      setActing(false);
+    }
+  }
+
   async function confirmReview(action: 'approve' | 'rework' | 'reject') {
     if (action !== 'approve' && !remark.trim()) return toast.error('A remark is required.');
     setActing(true);
@@ -297,6 +320,7 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
           {permissions.canAct && <button type="button" className={calcStyles.btn} disabled={acting} onClick={submitStart}>Start Task</button>}
           {permissions.canSubmit && <button type="button" className={calcStyles.btn} disabled={acting} onClick={() => startAction('submit')}>Submit</button>}
           {permissions.canReopen && <button type="button" className={calcStyles.btn} disabled={acting} onClick={submitReopen}>Resume</button>}
+          {permissions.canDecline && <ToolbarButton disabled={acting} onClick={() => startAction('decline')}>Deny Task</ToolbarButton>}
           {permissions.canReview && (
             <>
               <button type="button" className={calcStyles.btn} disabled={acting} onClick={() => startAction('review-approve')}>Approve</button>
@@ -310,7 +334,7 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
               <ToolbarButton disabled={acting} onClick={() => startAction('extend-deadline')}>Extend Deadline</ToolbarButton>
             </>
           )}
-          {!permissions.canAct && !permissions.canSubmit && !permissions.canReopen && !permissions.canReview && !permissions.canManage && (
+          {!permissions.canAct && !permissions.canSubmit && !permissions.canReopen && !permissions.canDecline && !permissions.canReview && !permissions.canManage && (
             <span className={styles.mutedText13}>No action available for you on this task right now.</span>
           )}
         </div>
@@ -321,6 +345,24 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
             <Textarea rows={2} placeholder="Remarks (optional)" value={remark} onChange={(e) => setRemark(e.target.value)} />
             <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
               <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmSubmit}>{acting ? 'Saving…' : 'Confirm Submit'}</button>
+              <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
+            </div>
+          </div>
+        )}
+
+        {pendingAction === 'decline' && (
+          <div className={`${calcStyles.field} ${styles.commentBox}`}>
+            <Textarea
+              rows={2}
+              placeholder="Why are you denying this task? (required)"
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+            />
+            <div className={styles.mutedText13}>
+              This goes back to whoever created the task, with your reason, so they can reassign it.
+            </div>
+            <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
+              <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmDecline}>{acting ? 'Saving…' : 'Confirm Deny'}</button>
               <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
             </div>
           </div>

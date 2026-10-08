@@ -6,6 +6,7 @@ import { buildPeriod, currentFiscalYear, periodContainingDate, periodEndExclusiv
 import { findSalesTarget, updateSalesTargetNotes } from '@/lib/salesTargetStore';
 import { updateQuotationStatus } from '@/lib/quotationStore';
 import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
+import { cancelTmsProjectForLostDeal } from '@/lib/tmsHandoff';
 import { db } from '@/lib/db';
 import { Op } from 'sequelize';
 import { ProjectStage, QuotationStatus } from '@/lib/types';
@@ -116,6 +117,13 @@ export async function PATCH(request: NextRequest) {
       if (!inScope(employeeId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
       await appendProjectTimeline(body.projectId, { by: viewer.username, stage, label: `Stage moved to ${stage.replace(/_/g, ' ')}` }, stage);
+      if (stage === 'closed_lost' && project.tms_project_id) {
+        try {
+          await cancelTmsProjectForLostDeal(project.tms_project_id);
+        } catch {
+          // Best-effort — the Sales side has already closed either way.
+        }
+      }
       period = periodContainingDate('monthly');
     } else if (body.action === 'notes') {
       const target = await db.SalesTarget.findByPk(body.targetId);

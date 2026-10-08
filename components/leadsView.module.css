@@ -86,6 +86,17 @@
     min-width: 0;
     max-width: 100%;
 }
+/* Meta Form / Campaign names are free text out of Ads Manager and run long
+   ("Nanta AV Products – ..."). A select's intrinsic width is its widest
+   option, and min-width:auto on a flex item beats max-width, so without
+   min-width:0 one campaign name widens the bar past the page. Same fix as
+   .bulkSelect above; the box itself comes from .formControl via <Select>. */
+.metaFilterSelect {
+    flex: 0 1 190px;
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
+}
 .linkBtn {
     background: none;
     border: none;

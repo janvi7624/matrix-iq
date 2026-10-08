@@ -21,9 +21,12 @@ import { LeadCallOutcome, LeadRecord, UserRole, LEAD_CALL_OUTCOMES } from './typ
 //     'suitable'      -> a project is created (the only path that makes one)
 //     'not_suitable'  -> no project, ever. The contact stays in the Leads list
 //                        and in Client Master, and stops being chased.
+//     'completed'     -> no project either, same as 'not_suitable' — but for a
+//                        call that resolved the matter without being a
+//                        rejection (handled outside the project pipeline).
 //     'callback'      -> nothing yet; ring back on callback_at.
-// A lead can be called again — a 'callback' or a 'not_suitable' can later
-// become 'suitable'; only the project creation is one-way.
+// A lead can be called again — a 'callback', 'not_suitable' or 'completed' can
+// later become 'suitable'; only the project creation is one-way.
 
 export class LeadCallError extends Error {
   constructor(message: string, readonly status: number) {
@@ -207,7 +210,7 @@ export async function logLeadCall(leadId: string, actor: LeadCallActor, input: L
     const capturer = await findUserByUsername(lead.created_by);
     if (capturer) {
       await notifyUsers([capturer.username], {
-        title: outcome === 'suitable' ? 'Lead you captured was qualified' : outcome === 'not_suitable' ? 'Lead you captured was closed' : 'Lead you captured needs a call back',
+        title: outcome === 'suitable' ? 'Lead you captured was qualified' : outcome === 'not_suitable' ? 'Lead you captured was closed' : outcome === 'completed' ? 'Lead you captured was completed' : 'Lead you captured needs a call back',
         body: `${actor.name} called ${label}: ${outcome.replace('_', ' ')}${remark ? ` — ${remark}` : ''}`,
         type: 'lead_call_logged',
         entityType: 'lead',
@@ -227,6 +230,7 @@ export interface LeadCallStats {
   toCall: number;
   suitable: number;
   notSuitable: number;
+  completed: number;
   callbackDue: number;
 }
 
@@ -239,10 +243,12 @@ export function computeLeadCallStats(leads: LeadRecord[], today = new Date()): L
   let toCall = 0;
   let suitable = 0;
   let notSuitable = 0;
+  let completed = 0;
   let callbackDue = 0;
   for (const lead of leads) {
     if (lead.call_outcome === 'suitable') suitable += 1;
     else if (lead.call_outcome === 'not_suitable') notSuitable += 1;
+    else if (lead.call_outcome === 'completed') completed += 1;
     else if (lead.call_outcome === 'callback') {
       if (!lead.callback_at) {
         // A call-back with no date can't come due, so it would vanish from
@@ -251,7 +257,7 @@ export function computeLeadCallStats(leads: LeadRecord[], today = new Date()): L
       } else if (lead.callback_at <= todayKey) callbackDue += 1;
     } else if (lead.assigned_to_id && !lead.project_id) toCall += 1;
   }
-  return { toCall, suitable, notSuitable, callbackDue };
+  return { toCall, suitable, notSuitable, completed, callbackDue };
 }
 
 // Used by the Leads list/stat queries that only need the call columns.

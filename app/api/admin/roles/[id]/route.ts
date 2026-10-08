@@ -42,6 +42,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const existing = await findRoleById(id);
     if (!existing) return NextResponse.json({ error: 'Role not found' }, { status: 404 });
+    // Superadmin is meant to always carry full access by definition — nothing
+    // about it (permissions, isPrivileged, status, label) is ever editable
+    // through this route, by anyone, including another superadmin. Flipping
+    // isPrivileged off or deactivating it here would lock every future
+    // superadmin login out of /admin/* with no UI path back in.
+    if (existing.key === 'superadmin') {
+      return NextResponse.json({ error: 'The Super Admin role is protected and cannot be edited.' }, { status: 403 });
+    }
 
     const patch: { label?: string; description?: string; isPrivileged?: boolean; status?: 'active' | 'inactive'; permissions?: RolePermissions } = {};
     if (typeof body.label === 'string' && body.label.trim()) patch.label = body.label.trim();

@@ -1,4 +1,5 @@
 import { MetaLeadFieldDatum } from './types';
+import { getMetaEnvConfig } from './metaConfig';
 
 // Meta Graph API — Lead Ads. Version pinned to what Meta's own developer
 // docs listed as current as of this integration being built (Aug 2026);
@@ -168,8 +169,21 @@ export async function testConnection(pageAccessToken: string, pageId: string): P
   }
 
   try {
-    const perms = await graphGet<{ data?: { permission?: string; status?: string }[] }>('/me/permissions', { access_token: pageAccessToken });
-    const hasLeadsRetrieval = (perms.data || []).some((p) => p.permission === 'leads_retrieval' && p.status === 'granted');
+    // /me/permissions only exists for a USER token — pageAccessToken is a
+    // PAGE token (confirmed by the "Credentials valid"/"Page accessible"
+    // checks above resolving to the Page itself, not a person), and Meta
+    // returns "(#100) Tried accessing nonexisting field (permissions)" for
+    // that combination regardless of what the Page token can actually do.
+    // /debug_token works for any token type — inspected using the app's own
+    // app-access-token (appId|appSecret), never the token being inspected —
+    // and is the one Meta-documented way to read a Page token's granted
+    // scopes.
+    const env = getMetaEnvConfig();
+    const debug = await graphGet<{ data?: { scopes?: string[]; is_valid?: boolean } }>('/debug_token', {
+      input_token: pageAccessToken,
+      access_token: `${env.appId}|${env.appSecret}`
+    });
+    const hasLeadsRetrieval = !!debug.data?.is_valid && (debug.data?.scopes || []).includes('leads_retrieval');
     checks.push({ label: 'Lead access available', ok: hasLeadsRetrieval, detail: hasLeadsRetrieval ? 'leads_retrieval permission is granted.' : 'leads_retrieval permission is missing or not yet approved — required to fetch lead details.' });
   } catch (err) {
     const e = err instanceof MetaGraphError ? err : new MetaGraphError('unknown', 'Could not check lead access permission.', String(err));

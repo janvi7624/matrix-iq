@@ -83,6 +83,9 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   const [fPriority, setFPriority] = useState<TmsPriority | ''>('');
   const [fProjectType, setFProjectType] = useState<TmsProjectType | ''>('');
   const [fSearch, setFSearch] = useState('');
+  // A user id, matched against the project manager OR the team members —
+  // see the filter itself for why both.
+  const [fEmployee, setFEmployee] = useState('');
 
   const tmsDepartments = useMemo(() => departments.filter((d) => (TMS_DEPARTMENTS as readonly string[]).includes(d.name)), [departments]);
 
@@ -135,6 +138,24 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     load();
   }, []);
 
+  // Everyone who actually appears on a TMS project, as its manager or as a
+  // team member, so the dropdown never offers a name that can only return
+  // nothing.
+  //
+  // Built by looking ids up in the /api/tms/assignable-users list rather than
+  // by zipping each record's team_member_ids against team_member_names:
+  // lib/tmsProjectStore.ts builds those names with a .filter() that drops any
+  // id it could not resolve, so one deactivated member makes the two arrays
+  // different lengths and every name after that point pairs with the wrong id.
+  const employeeOptions = useMemo(() => {
+    const onProjects = new Set<string>();
+    for (const p of projects) {
+      if (p.project_manager_id) onProjects.add(p.project_manager_id);
+      for (const id of p.team_member_ids) onProjects.add(id);
+    }
+    return users.filter((u) => onProjects.has(u.id)).sort((a, b) => (a.name || a.username).localeCompare(b.name || b.username));
+  }, [projects, users]);
+
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
     return projects.filter((p) => {
@@ -142,10 +163,14 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       if (fStatus && p.status !== fStatus) return false;
       if (fPriority && p.priority !== fPriority) return false;
       if (fProjectType && p.project_type !== fProjectType) return false;
+      // "Vraj's projects" means the ones he is on, whichever way he is on
+      // them — managing it and working on it both count. Matched on id, not
+      // name, so two people sharing a name never collapse into one filter.
+      if (fEmployee && p.project_manager_id !== fEmployee && !p.team_member_ids.includes(fEmployee)) return false;
       if (q && ![p.project_code, p.name, p.client_name].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [projects, fDepartment, fStatus, fPriority, fProjectType, fSearch]);
+  }, [projects, fDepartment, fStatus, fPriority, fProjectType, fEmployee, fSearch]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -399,6 +424,21 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
           <option value="">All departments</option>
           {TMS_DEPARTMENTS.map((d) => (
             <option key={d} value={d}>{d}</option>
+          ))}
+        </Select>
+        <Select
+          auto
+          className={historyStyles.filterSelectCapped}
+          value={fEmployee}
+          onChange={(e) => setFEmployee(e.target.value)}
+          aria-label="Filter by employee"
+        >
+          <option value="">All employees</option>
+          {employeeOptions.map((u) => (
+            // Department in the label because the same person can appear
+            // across departments and this filter is most often used with the
+            // department one ("AI department, and only Vraj").
+            <option key={u.id} value={u.id}>{u.department ? `${u.name || u.username} — ${u.department}` : u.name || u.username}</option>
           ))}
         </Select>
         <Select auto value={fStatus} onChange={(e) => setFStatus(e.target.value as TmsProjectStatus | '')}>

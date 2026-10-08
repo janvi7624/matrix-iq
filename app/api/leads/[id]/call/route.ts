@@ -5,7 +5,7 @@ import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 
 // POST — record what came of the qualification call.
-// { outcome: 'suitable' | 'not_suitable' | 'callback', remark, callbackAt }
+// { outcome: 'suitable' | 'not_suitable' | 'completed' | 'callback', remark, callbackAt }
 // 'suitable' is the only outcome that creates a Sales project, and then also
 // needs projectLeadId + opportunityType + departments (see lib/leadCall.ts); see
 // lib/leadCall.ts for the rules and who may call this.

@@ -1436,10 +1436,13 @@ export interface LeadRecord {
 
 // '' = not called yet. 'suitable' converts the lead into a Sales project;
 // 'not_suitable' keeps it as a contact only (still in Client Master, never in
-// the pipeline); 'callback' leaves it in the queue with a date.
-export type LeadCallOutcome = '' | 'suitable' | 'not_suitable' | 'callback';
+// the pipeline); 'completed' also keeps it a contact only, for a call that
+// resolved the matter without being a rejection (e.g. handled outside the
+// project pipeline) — same no-project rule as 'not_suitable', just without
+// implying the lead was a bad fit; 'callback' leaves it in the queue with a date.
+export type LeadCallOutcome = '' | 'suitable' | 'not_suitable' | 'completed' | 'callback';
 
-export const LEAD_CALL_OUTCOMES: LeadCallOutcome[] = ['suitable', 'not_suitable', 'callback'];
+export const LEAD_CALL_OUTCOMES: LeadCallOutcome[] = ['suitable', 'not_suitable', 'completed', 'callback'];
 
 // A colleague the capturer can hand a scanned card over to on the wizard's
 // Confirm Details step — see lib/leadHandover.ts.
@@ -1883,7 +1886,10 @@ export type GeneralTaskPriority = 'low' | 'medium' | 'high' | 'critical';
 // pending -> in_progress -> completed (requires_review=false path).
 // under_review -> rework_required -> in_progress -> under_review (loop) is
 // also valid. rejected/cancelled/approved/completed are terminal.
-export type GeneralTaskStatus = 'pending' | 'in_progress' | 'under_review' | 'rework_required' | 'approved' | 'rejected' | 'cancelled' | 'completed';
+// 'declined' is the ASSIGNEE refusing the task; 'rejected' is the REVIEWER
+// refusing the submitted work. Different actor, different follow-up — see
+// db/migrations/20261005090000-general-task-decline.js.
+export type GeneralTaskStatus = 'pending' | 'in_progress' | 'under_review' | 'rework_required' | 'approved' | 'rejected' | 'declined' | 'cancelled' | 'completed';
 
 export interface GeneralTaskRecord {
   id: string;

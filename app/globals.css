@@ -175,6 +175,14 @@
   /* Indigo */
   --mx-indigo-500: #6366f1;
 
+  /* One box model for every control the user clicks or types into: form
+     fields, filter-bar search boxes, selects, and the buttons beside them.
+     Filter bars had been mixing 44px, 46px and 48px controls, so a search
+     box, the <Select> next to it and an Export button in the same row each
+     sat at a different height. A single token is what keeps them in step as
+     any one of them gets restyled later. */
+  --mx-control-h: 46px;
+
   /* Radius scale */
   --mx-radius-xs: 6px;
   --mx-radius-sm: 9px;

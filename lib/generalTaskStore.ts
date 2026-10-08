@@ -240,15 +240,22 @@ export const generalTaskStore = { list, readAllBySourceModule, listForAssignee, 
 
 // --- Status transitions ------------------------------------------------
 
-export type GeneralTaskAction = 'start' | 'submit' | 'approve' | 'rework' | 'reject' | 'reopen' | 'cancel';
+export type GeneralTaskAction = 'start' | 'submit' | 'approve' | 'rework' | 'reject' | 'reopen' | 'cancel' | 'decline';
 
 const ASSIGNEE_TRANSITIONS: Record<GeneralTaskStatus, GeneralTaskAction[]> = {
-  pending: ['start'],
-  in_progress: ['submit'],
+  // 'decline' is allowed both before and after starting: the usual case is
+  // refusing a task on sight, but someone can equally get into it and find
+  // it belongs to another team. Nothing is lost by declining late — the work
+  // summary and remarks recorded so far stay in general_task_updates.
+  pending: ['start', 'decline'],
+  in_progress: ['submit', 'decline'],
   under_review: [],
   rework_required: ['reopen'],
   approved: [],
   rejected: [],
+  // Terminal for the assignee. The way out is a manager reassigning it
+  // (which resets it to pending) or cancelling it.
+  declined: [],
   cancelled: [],
   completed: []
 };

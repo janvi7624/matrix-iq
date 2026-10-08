@@ -7,7 +7,7 @@ import { isTechnicalRole } from '@/lib/technicalRoles';
 import { findClosestClient } from '@/lib/clientSimilarity';
 import PhoneInput from './PhoneInput';
 import ProjectSourceField from './ProjectSourceField';
-import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE, ProjectIntakeValues } from './ProjectIntakeFields';
+import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE, ProjectIntakeValues, ProjectLocationFields } from './ProjectIntakeFields';
 import ProjectLeadField from './ProjectLeadField';
 import OpportunityTypeField from './OpportunityTypeField';
 import { useProjectLeads } from './useProjectLeads';
@@ -263,6 +263,8 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
                   <input className={calcStyles.formControl} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
                 </div>
               </div>
+              {/* Project name and where the client is — right after Address. */}
+              <ProjectLocationFields values={form} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} />
               <div className={`${calcStyles.row} ${calcStyles.columns}`}>
                 <div className={calcStyles.field}>
                   <label className={calcStyles.label}>Alternate Contact Name (optional)</label>

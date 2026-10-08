@@ -17,10 +17,11 @@
 // the whole pipeline worth" (50L) from the same row.
 //
 // Pure/dependency-free so client components can import it directly.
-// Order matters: it is the order checkboxes, filters and the "AI + SI"
-// display string all follow, and parseProjectDepartments normalizes to it so
-// the same pair always stores identically.
-export const PROJECT_DEPARTMENTS = ['ai', 'av', 'robotics', 'si'] as const;
+// 'other' covers a delivery department outside the three fixed ones (e.g. a
+// one-off SI/VisitIQ deal) — ticking it doesn't collect free text, same as
+// the other three: this field is "whose pipeline does this count toward",
+// not a place to name the department.
+export const PROJECT_DEPARTMENTS = ['ai', 'av', 'robotics', 'other'] as const;
 export type ProjectDepartment = (typeof PROJECT_DEPARTMENTS)[number];
 
 // Short labels — these appear in a checkbox row, a filter dropdown, a column
@@ -31,17 +32,7 @@ export const PROJECT_DEPARTMENT_LABEL: Record<ProjectDepartment, string> = {
   ai: 'AI',
   av: 'AV',
   robotics: 'Robotics',
-  si: 'SI'
-};
-
-// Spelled out, for the checkbox tooltip — "SI" alone isn't self-explanatory
-// to someone who hasn't met it before, and the short label is the only thing
-// most of the UI has room to show.
-export const PROJECT_DEPARTMENT_FULL_LABEL: Record<ProjectDepartment, string> = {
-  ai: 'AI',
-  av: 'AV',
-  robotics: 'Robotics',
-  si: 'System Integrator'
+  other: 'Other'
 };
 
 // Value per department, in rupees. Partial because a project that predates

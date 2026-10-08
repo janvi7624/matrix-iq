@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseDepartmentAmounts, parseProjectDepartments } from '@/lib/projectDepartmentOptions';
 import { getViewerContext } from '@/lib/viewerContext';
 import { appendProjectTimeline, canAccessProject, findProjectById, projectStore, resolveProjectDeadlineTier } from '@/lib/projectStore';
+import { cancelTmsProjectForLostDeal } from '@/lib/tmsHandoff';
 import { listForProject as listDeadlineExtensions } from '@/lib/projectDeadlineExtensionStore';
 import { siteVisitStore } from '@/lib/siteVisitStore';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
@@ -20,7 +21,7 @@ import { findSalesPersonCandidate, SalesOwnerError } from '@/lib/projectSalesOwn
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { getClientIp } from '@/lib/requestIp';
-import { canViewForPendingRequest, getTechnicalRequestView, requestTechnicalPerson, TechnicalRequestError } from '@/lib/projectTechnicalRequest';
+import { canViewForPendingRequest, findPendingTechnicalRequest, getTechnicalRequestView, requestTechnicalPerson, TechnicalRequestError } from '@/lib/projectTechnicalRequest';
 import { canAssignSalesPerson } from '@/lib/projectSalesOwner';
 import { resolveProjectLead } from '@/lib/projectLeadStore';
 import { OPPORTUNITY_TYPE_LABEL, parseOpportunityType } from '@/lib/projectLeadOptions';
@@ -297,9 +298,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // that path only sets status directly, so this logs the same kind of
     // timeline entry without touching stage.
     const closingAsWon = patch.status === 'won' && existing.status !== 'won';
+    // Winning the deal is the handover to the technical team, so a won
+    // project must have a technical owner. Without this, a project closes as
+    // won with nobody technical on it, and the TMS project created for it
+    // carries no manager and no dates — which is how TMS ended up full of
+    // ownerless projects dragging the department gauge down.
+    //
+    // Note "assigned OR requested": picking a technical person never applies
+    // directly (see requestedTechnicalPersonId above), it raises an approval
+    // request, so requiring an already-assigned person would make it
+    // impossible to close a deal on the same day the pick was made. A pick in
+    // this same call, or one already awaiting approval, both satisfy it.
+    if (closingAsWon && !existing.assigned_technical_person_id && !requestedTechnicalPersonId) {
+      const pending = await findPendingTechnicalRequest(id);
+      if (!pending) {
+        return NextResponse.json(
+          { error: 'Assign a technical owner before closing this project as won.' },
+          { status: 400 }
+        );
+      }
+    }
     if (stage && stage !== existing.stage) {
       updated = await appendProjectTimeline(id, { by: viewer.username, stage, label: `Stage moved to ${stage.replace(/_/g, ' ')}` }, stage);
       if (Object.keys(patch).length > 1) updated = await projectStore.update(id, patch);
+      if (stage === 'closed_lost' && existing.tms_project_id) {
+        try {
+          await cancelTmsProjectForLostDeal(existing.tms_project_id);
+        } catch {
+          // Best-effort — the Sales side has already closed either way.
+        }
+      }
     } else if (closingAsWon) {
       updated = await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label: 'Closed as won' });
       if (Object.keys(patch).length > 1) updated = await projectStore.update(id, patch);

@@ -97,12 +97,13 @@ type LoggedCallOutcome = Exclude<LeadCallOutcome, ''>;
 const CALL_OUTCOME_META: Record<LoggedCallOutcome, { label: string; hint: string; tone: StatusTone }> = {
   suitable: { label: 'Suitable', hint: 'Converts this lead into a Sales project.', tone: 'confirmed' },
   not_suitable: { label: 'Not suitable', hint: 'Stays a contact — a reason is required.', tone: 'cancelled' },
+  completed: { label: 'Completed', hint: 'Resolved, no project needed — stays a contact.', tone: 'done' },
   callback: { label: 'Call back later', hint: 'Stays in the queue with a date.', tone: 'done' }
 };
 
 const CALL_OUTCOMES = LEAD_CALL_OUTCOMES.filter((o): o is LoggedCallOutcome => o !== '');
 
-type CallFilter = '' | 'to-call' | 'suitable' | 'not_suitable' | 'callback-due';
+type CallFilter = '' | 'to-call' | 'suitable' | 'not_suitable' | 'completed' | 'callback-due';
 
 // The rep's queue: handed to somebody, nobody has called yet, and it isn't
 // already a project. Identical to what lib/leadCall.ts's computeLeadCallStats
@@ -218,6 +219,11 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [priorityFilter, setPriorityFilter] = useState<LeadPriority | ''>('');
   const [interestFilter, setInterestFilter] = useState<DomainKey | ''>('');
   const [sourceFilter, setSourceFilter] = useState<LeadSource | ''>('');
+  // Meta Lead Ads attribution. Both only ever narrow Meta leads, so they are
+  // offered and applied only while the capture-method filter is on Meta —
+  // see changeSourceFilter below.
+  const [metaFormFilter, setMetaFormFilter] = useState('');
+  const [metaCampaignFilter, setMetaCampaignFilter] = useState('');
   // Where leads came from — the category row above the table. FILTER_UNSET
   // selects the leads captured before the field existed, which is a real
   // queue to clean up rather than a blank to ignore.
@@ -398,6 +404,31 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     }
   }
 
+  // Distinct Form / Campaign names across the Meta leads already loaded.
+  // Derived from the list rather than a new endpoint: every Meta row already
+  // carries both names, and offering an option the current data cannot
+  // produce would be worse than offering none.
+  const metaFormOptions = useMemo(
+    () => Array.from(new Set(leads.filter((l) => l.source === 'meta_lead_ads').map((l) => l.meta_form_name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [leads]
+  );
+  const metaCampaignOptions = useMemo(
+    () => Array.from(new Set(leads.filter((l) => l.source === 'meta_lead_ads').map((l) => l.meta_campaign_name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [leads]
+  );
+
+  // Moving the capture-method filter off Meta clears both, so re-entering
+  // Meta never starts with a stale Form/Campaign already narrowing the list.
+  // Done in a handler rather than an effect, and both entry points (this
+  // bar's select and the "Meta Leads" tile) route through it.
+  function changeSourceFilter(next: LeadSource | '') {
+    setSourceFilter(next);
+    if (next !== 'meta_lead_ads') {
+      setMetaFormFilter('');
+      setMetaCampaignFilter('');
+    }
+  }
+
   const visibleLeads = useMemo(() => {
     let rows = leads;
     if (q.trim()) {
@@ -407,6 +438,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     if (priorityFilter) rows = rows.filter((l) => l.priority === priorityFilter);
     if (interestFilter) rows = rows.filter((l) => l.interests.includes(interestFilter));
     if (sourceFilter) rows = rows.filter((l) => l.source === sourceFilter);
+    // Guarded rather than applied unconditionally: these two controls are
+    // hidden when the capture method isn't Meta, and a filter the user can no
+    // longer see must not keep narrowing the list.
+    if (sourceFilter === 'meta_lead_ads') {
+      if (metaFormFilter) rows = rows.filter((l) => l.meta_form_name === metaFormFilter);
+      if (metaCampaignFilter) rows = rows.filter((l) => l.meta_campaign_name === metaCampaignFilter);
+    }
     if (originFilter) rows = rows.filter((l) => (l.lead_source || FILTER_UNSET) === originFilter);
     if (callFilter === 'to-call') rows = rows.filter((l) => leadIsMyCall(l, currentUser.username, canAssign));
     else if (callFilter === 'callback-due') rows = rows.filter((l) => l.call_outcome === 'callback' && !!l.callback_at && l.callback_at <= todayKey);
@@ -421,7 +459,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       return a.created_at < b.created_at ? 1 : -1;
     });
     return sorted;
-  }, [leads, q, priorityFilter, interestFilter, sourceFilter, originFilter, callFilter, todayKey, unattendedOnly, sortBy, assigneeFilter, currentUser.username, canAssign]);
+  }, [leads, q, priorityFilter, interestFilter, sourceFilter, metaFormFilter, metaCampaignFilter, originFilter, callFilter, todayKey, unattendedOnly, sortBy, assigneeFilter, currentUser.username, canAssign]);
 
   // The post-expo funnel, counted over the loaded list in one pass.
   // Deliberately NOT lib/leadCall.ts's computeLeadCallStats, which is this
@@ -445,15 +483,17 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     let toCall = 0;
     let suitable = 0;
     let notSuitable = 0;
+    let completed = 0;
     let callbackDue = 0;
     for (const lead of leads) {
       if (lead.call_outcome === 'suitable') suitable += 1;
       else if (lead.call_outcome === 'not_suitable') notSuitable += 1;
+      else if (lead.call_outcome === 'completed') completed += 1;
       else if (lead.call_outcome === 'callback') {
         if (lead.callback_at && lead.callback_at <= todayKey) callbackDue += 1;
       } else if (leadIsMyCall(lead, currentUser.username, canAssign)) toCall += 1;
     }
-    return { toCall, suitable, notSuitable, callbackDue };
+    return { toCall, suitable, notSuitable, completed, callbackDue };
   }, [leads, todayKey, currentUser.username, canAssign]);
 
   const totalPages = Math.max(1, Math.ceil(visibleLeads.length / PAGE_SIZE));
@@ -470,7 +510,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
   useEffect(() => {
     setPage(1);
-  }, [q, priorityFilter, interestFilter, sourceFilter, originFilter, callFilter, unattendedOnly, sortBy, assigneeFilter]);
+  }, [q, priorityFilter, interestFilter, sourceFilter, metaFormFilter, metaCampaignFilter, originFilter, callFilter, unattendedOnly, sortBy, assigneeFilter]);
 
   // Selection is only ever acted on through this intersection with the visible
   // rows, so a stale id left behind by a filter change simply stops counting —
@@ -696,7 +736,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
           ? body?.projectCreated ? 'Marked suitable — project created.' : 'Marked suitable — it already has a project.'
           : outcome === 'not_suitable'
             ? 'Marked not suitable — kept as a contact.'
-            : `Call back on ${formatDay(callForm.callbackAt)}.`
+            : outcome === 'completed'
+              ? 'Marked completed.'
+              : `Call back on ${formatDay(callForm.callbackAt)}.`
       );
       // Only when the response didn't carry the row back (older server, odd
       // proxy) is a full reload still needed to avoid showing stale state.
@@ -829,31 +871,43 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     { key: 'designation', header: 'Designation', render: (l) => l.designation || '-' },
     { key: 'mobile', header: 'Mobile', cellClassName: leadStyles.num, render: (l) => l.mobile || '-' },
     { key: 'email', header: 'Email', render: (l) => l.email || '-' },
-    {
-      key: 'interests',
-      header: 'Interests',
-      render: (l) =>
-        l.interests.length > 0 ? (
-          <div className={leadStyles.interestIcons}>
-            {l.interests.map((d) => {
-              const tile = LEAD_DOMAIN_TILES.find((t) => t.key === d);
-              const Icon = tile?.icon;
-              return Icon ? <Icon key={d} size={14} /> : <span key={d}>{d}</span>;
-            })}
-          </div>
-        ) : (
-          '-'
-        )
-    },
-    {
-      key: 'priority',
-      header: 'Priority',
-      render: (l) => {
-        if (!l.priority) return <span className={leadStyles.emptyCell}>-</span>;
-        const Icon = LEAD_PRIORITY_META[l.priority].icon;
-        return <PriorityBadge tone={l.priority} icon={<Icon size={12} />} label={l.priority.toUpperCase()} />;
-      }
-    },
+    // Meta's lead-gen forms carry no domain-interest or hot/warm/cool concept
+    // (every Meta lead is created with interests: [] and priority: '' — see
+    // lib/metaLeadIngest.ts), so those two columns are dead weight once the
+    // table is filtered down to Meta leads only. Form/Campaign are the
+    // attribution that's actually populated for that slice.
+    ...(sourceFilter === 'meta_lead_ads'
+      ? [
+          { key: 'metaForm', header: 'Form', render: (l: LeadRecord) => l.meta_form_name || '-' },
+          { key: 'metaCampaign', header: 'Campaign', render: (l: LeadRecord) => l.meta_campaign_name || '-' }
+        ]
+      : [
+          {
+            key: 'interests',
+            header: 'Interests',
+            render: (l: LeadRecord) =>
+              l.interests.length > 0 ? (
+                <div className={leadStyles.interestIcons}>
+                  {l.interests.map((d) => {
+                    const tile = LEAD_DOMAIN_TILES.find((t) => t.key === d);
+                    const Icon = tile?.icon;
+                    return Icon ? <Icon key={d} size={14} /> : <span key={d}>{d}</span>;
+                  })}
+                </div>
+              ) : (
+                '-'
+              )
+          },
+          {
+            key: 'priority',
+            header: 'Priority',
+            render: (l: LeadRecord) => {
+              if (!l.priority) return <span className={leadStyles.emptyCell}>-</span>;
+              const Icon = LEAD_PRIORITY_META[l.priority].icon;
+              return <PriorityBadge tone={l.priority} icon={<Icon size={12} />} label={l.priority.toUpperCase()} />;
+            }
+          }
+        ]),
     // Two columns, because they answer different questions: where the lead
     // came from (what sales reports on) and how it got in (the camera icon
     // that tells a rep this row came off a scanned card).
@@ -986,6 +1040,15 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               ariaPressed={callFilter === 'not_suitable'}
             />
             <StatTile
+              value={callStats.completed}
+              label="Completed"
+              tone="success"
+              icon={<CheckCircle2 size={18} />}
+              onClick={() => toggleCallFilter('completed')}
+              active={callFilter === 'completed'}
+              ariaPressed={callFilter === 'completed'}
+            />
+            <StatTile
               value={callStats.callbackDue}
               label="Call-back Due"
               tone="danger"
@@ -996,7 +1059,16 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             />
             {stats && (
               <>
-                <StatTile value={stats.hot} label="Hot Leads" tone="danger" icon={<Flame size={20} />} iconPosition="after" />
+                <StatTile
+                  value={stats.hot}
+                  label="Hot Leads"
+                  tone="danger"
+                  icon={<Flame size={20} />}
+                  iconPosition="after"
+                  onClick={() => { setMode('list'); setPriorityFilter((v) => (v === 'hot' ? '' : 'hot')); }}
+                  active={priorityFilter === 'hot'}
+                  ariaPressed={priorityFilter === 'hot'}
+                />
                 {/* A sales manager's actual queue: what has come in and still
                     needs routing to a rep. One tap filters the list to it. */}
                 <StatTile
@@ -1004,7 +1076,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                   label="Meta Leads"
                   tone="accent"
                   icon={<Share2 size={18} />}
-                  onClick={() => { setMode('list'); setSourceFilter((v) => (v === 'meta_lead_ads' ? '' : 'meta_lead_ads')); }}
+                  onClick={() => { setMode('list'); changeSourceFilter(sourceFilter === 'meta_lead_ads' ? '' : 'meta_lead_ads'); }}
                   active={sourceFilter === 'meta_lead_ads'}
                 />
                 {/* Toggles, like every other tile here — it only ever switched
@@ -1117,13 +1189,41 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 <option value="">All interests</option>
                 {LEAD_DOMAIN_TILES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
               </Select>
-              <Select auto value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as LeadSource | '')}>
+              <Select auto value={sourceFilter} onChange={(e) => changeSourceFilter(e.target.value as LeadSource | '')}>
                 <option value="">All capture methods</option>
                 <option value="meta_lead_ads">Meta Lead Ads</option>
                 <option value="manual">Manual</option>
                 <option value="business_card">Business Card</option>
                 <option value="csv_import">CSV Import</option>
               </Select>
+              {/* Form and Campaign are the attribution that is actually
+                  populated on a Meta lead, and they are the two columns the
+                  table swaps in for this slice — so they are filterable from
+                  here, and only here, where they mean something. */}
+              {sourceFilter === 'meta_lead_ads' && (
+                <>
+                  <Select
+                    auto
+                    className={leadStyles.metaFilterSelect}
+                    value={metaFormFilter}
+                    onChange={(e) => setMetaFormFilter(e.target.value)}
+                    aria-label="Filter by Meta form"
+                  >
+                    <option value="">All forms</option>
+                    {metaFormOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                  </Select>
+                  <Select
+                    auto
+                    className={leadStyles.metaFilterSelect}
+                    value={metaCampaignFilter}
+                    onChange={(e) => setMetaCampaignFilter(e.target.value)}
+                    aria-label="Filter by Meta campaign"
+                  >
+                    <option value="">All campaigns</option>
+                    {metaCampaignOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </Select>
+                </>
+              )}
               <Select auto value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} aria-label="Filter by assignee">
                 <option value="">All assignees</option>
                 <option value={FILTER_UNASSIGNED}>Unassigned</option>

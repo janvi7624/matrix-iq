@@ -52,66 +52,83 @@ function Labelled({ label, hint, children }: { label: string; hint?: string; chi
   );
 }
 
-export default function ProjectIntakeFields({ values, onChange, source }: Props) {
-  const isReferral = source === REFERRAL_SOURCE;
-  const isTender = source === TENDER_SOURCE;
+interface LocationProps {
+  values: Pick<ProjectIntakeValues, 'projectName' | 'state' | 'city'>;
+  onChange: (patch: Partial<ProjectIntakeValues>) => void;
+}
 
+// What the deal is called and where the client is — placed right after
+// Address in both forms (components/ProjectsView.tsx,
+// components/ui/ProjectQuickCreateDialog.tsx), since that's where it reads
+// naturally. Split out from the source-conditional fields below (Referral /
+// Tender), which stay next to the Source field they depend on instead.
+export function ProjectLocationFields({ values, onChange }: LocationProps) {
   // "Other" state means nowhere in the list — including outside India — so the
   // city becomes free text rather than a dropdown with nothing useful in it.
   const cityOptions = citiesForState(values.state);
   const cityIsFreeText = values.state === OTHER_LOCATION || values.city === OTHER_LOCATION;
 
   return (
-    <>
-      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-        <Labelled label="Project Name" hint="e.g. MeetIQ - Adani">
+    <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+      <Labelled label="Project Name" hint="e.g. MeetIQ - Adani">
+        <input
+          className={calcStyles.formControl}
+          placeholder="e.g. MeetIQ - Adani"
+          value={values.projectName}
+          onChange={(e) => onChange({ projectName: e.target.value })}
+        />
+      </Labelled>
+
+      <Labelled label="State">
+        <select
+          className={calcStyles.formControl}
+          value={values.state}
+          // Changing state clears the city: a city from the previous state
+          // would otherwise stay selected and be quietly wrong.
+          onChange={(e) => onChange({ state: e.target.value, city: '' })}
+        >
+          <option value="">— Select state —</option>
+          {INDIA_STATES.map((s) => (
+            <option key={s} value={s}>{s === OTHER_LOCATION ? 'Other / Outside India' : s}</option>
+          ))}
+        </select>
+      </Labelled>
+
+      <Labelled label="City" hint={cityIsFreeText ? 'Type the city — anywhere, including outside India.' : undefined}>
+        {cityIsFreeText ? (
           <input
             className={calcStyles.formControl}
-            placeholder="e.g. MeetIQ - Adani"
-            value={values.projectName}
-            onChange={(e) => onChange({ projectName: e.target.value })}
+            placeholder="City"
+            value={values.city === OTHER_LOCATION ? '' : values.city}
+            onChange={(e) => onChange({ city: e.target.value })}
           />
-        </Labelled>
-
-        <Labelled label="State">
+        ) : (
           <select
             className={calcStyles.formControl}
-            value={values.state}
-            // Changing state clears the city: a city from the previous state
-            // would otherwise stay selected and be quietly wrong.
-            onChange={(e) => onChange({ state: e.target.value, city: '' })}
+            value={values.city}
+            disabled={!values.state}
+            onChange={(e) => onChange({ city: e.target.value })}
           >
-            <option value="">— Select state —</option>
-            {INDIA_STATES.map((s) => (
-              <option key={s} value={s}>{s === OTHER_LOCATION ? 'Other / Outside India' : s}</option>
+            <option value="">{values.state ? '— Select city —' : 'Pick a state first'}</option>
+            {cityOptions.map((c) => (
+              <option key={c} value={c}>{c === OTHER_LOCATION ? 'Other (type it)' : c}</option>
             ))}
           </select>
-        </Labelled>
+        )}
+      </Labelled>
+    </div>
+  );
+}
 
-        <Labelled label="City" hint={cityIsFreeText ? 'Type the city — anywhere, including outside India.' : undefined}>
-          {cityIsFreeText ? (
-            <input
-              className={calcStyles.formControl}
-              placeholder="City"
-              value={values.city === OTHER_LOCATION ? '' : values.city}
-              onChange={(e) => onChange({ city: e.target.value })}
-            />
-          ) : (
-            <select
-              className={calcStyles.formControl}
-              value={values.city}
-              disabled={!values.state}
-              onChange={(e) => onChange({ city: e.target.value })}
-            >
-              <option value="">{values.state ? '— Select city —' : 'Pick a state first'}</option>
-              {cityOptions.map((c) => (
-                <option key={c} value={c}>{c === OTHER_LOCATION ? 'Other (type it)' : c}</option>
-              ))}
-            </select>
-          )}
-        </Labelled>
-      </div>
+// The Referral / Tender blocks — only these two depend on Source, so only
+// these two still live next to it. ProjectLocationFields above is the
+// Project Name / State / City half, placed next to Address instead.
+export default function ProjectIntakeFields({ values, onChange, source }: Props) {
+  const isReferral = source === REFERRAL_SOURCE;
+  const isTender = source === TENDER_SOURCE;
 
+  return (
+    <>
       {isReferral && (
         <div className={`${calcStyles.row} ${calcStyles.columns}`}>
           <Labelled label="Referred by *" hint="Who referred this client — so the referral can be credited and followed up.">

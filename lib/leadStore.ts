@@ -5,6 +5,7 @@ import { createRecordStore } from './recordStore';
 import { db, isUuid } from './db';
 import { isLeadUnattended } from './followUp';
 import { resolveVisibilityScope, canAccessOwnedRecord } from './departmentScope';
+import { isSalesLeadManager } from './permissions';
 
 function unionStrings(a: string[], b: string[]): string[] {
   return [...new Set([...a, ...b])];
@@ -81,15 +82,45 @@ function toLeadRecord(row: Model): LeadRecord {
   };
 }
 
-// Visibility is department scope OR assignment. The base store filters on
-// created_by alone, which would mean a manager could assign a lead to a rep
-// who then couldn't open it — the rep didn't capture it and may sit outside
-// the capturer's department scope. Assignment has to grant access or the
-// feature doesn't work.
+// Marketing sees every lead — InfoComm, Meta Lead Ads, any source — whoever
+// captured or was assigned it. Deliberately NOT the global viewAllDepartments
+// capability (lib/permissions.ts): that would also open Quotations, Projects,
+// Site Visits and Delivery Challans to Marketing, none of which was asked
+// for. Scoped to this one role, this one record type, by role key rather
+// than a capability flag since there is no per-module equivalent of
+// viewAllDepartments to hang it on today.
+async function isMarketingRole(viewerUsername: string): Promise<boolean> {
+  const user = await db.User.findOne({ where: { username: viewerUsername } as never, include: [{ model: db.Role, as: 'role', attributes: ['key'] }] });
+  const plain = user?.get({ plain: true }) as { role?: { key?: string } | null } | undefined;
+  return plain?.role?.key === 'marketing';
+}
+
+// Who sees every lead regardless of who captured or was assigned it:
+// Marketing (above), and a manager of either Sales department.
+//
+// Sales managers are the people expected to route incoming leads, so they
+// have to be able to see the ones nobody owns yet. They could not: a Meta
+// Lead Ads import that resolves no owner leaves created_by AND
+// assigned_to_id both NULL (lib/metaLeadIngest.ts deliberately lands the
+// lead anyway rather than losing it), and in SQL NULL matches neither arm of
+// the scope filter below — so those leads were invisible to exactly the
+// people meant to triage them, while still counting in nobody's queue.
+// Uses canAssignLeads' own Sales / GEM - Sales department-manager
+// definition, so visibility can't diverge from routing rights.
+async function seesAllLeads(viewerUsername: string): Promise<boolean> {
+  if (await isMarketingRole(viewerUsername)) return true;
+  return isSalesLeadManager(viewerUsername);
+}
+
+// Visibility is department scope OR assignment OR an org-wide viewer above.
+// The base store filters on created_by alone, which would mean a manager
+// could assign a lead to a rep who then couldn't open it — the rep didn't
+// capture it and may sit outside the capturer's department scope. Assignment
+// has to grant access or the feature doesn't work.
 async function listLeads(viewerUsername: string, _viewerIsPrivileged: boolean): Promise<LeadRecord[]> {
   const scope = await resolveVisibilityScope(viewerUsername);
   const where: Record<string | symbol, unknown> = {};
-  if (scope.scopedUserIds) {
+  if (scope.scopedUserIds && !(await seesAllLeads(viewerUsername))) {
     where[Op.or] = [
       { created_by: { [Op.in]: scope.scopedUserIds } },
       { assigned_to_id: { [Op.in]: scope.scopedUserIds } }
@@ -135,6 +166,7 @@ export async function canWorkLead(
   lead: { created_by: string; assigned_to: string }
 ): Promise<boolean> {
   if (lead.assigned_to && lead.assigned_to === viewerUsername) return true;
+  if (await seesAllLeads(viewerUsername)) return true;
   return canAccessOwnedRecord(viewerUsername, lead.created_by);
 }
 

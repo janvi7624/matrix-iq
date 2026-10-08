@@ -30,6 +30,14 @@
     justify-content: center;
     gap: 6px;
     font-variant-numeric: tabular-nums;
+    /* A long value (a money total) used to render straight out of the tile:
+       as a centred flex container with no min-width:0, the text could not
+       shrink below its own intrinsic width and simply overflowed the box.
+       These three make it wrap inside the tile instead — the backstop even if
+       a caller passes something longer than expected. */
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
 }
 .statSuccess { color: var(--mx-success); }
 .statDanger { color: var(--mx-danger); }

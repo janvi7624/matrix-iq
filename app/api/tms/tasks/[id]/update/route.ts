@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const task = await tmsTaskStore.findById(id);
     if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-    if (!(await canAccessTask(viewer, { assignee_id: task.assignee_id, created_by: task.created_by }))) {
+    if (!(await canAccessTask(viewer, { assignee_id: task.assignee_id, created_by: task.created_by, department_id: task.department_id }))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ updates: await listTaskUpdates(id) });
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const task = await tmsTaskStore.findById(id);
     if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-    if (!(await canAccessTask(viewer, { assignee_id: task.assignee_id, created_by: task.created_by }))) {
+    if (!(await canAccessTask(viewer, { assignee_id: task.assignee_id, created_by: task.created_by, department_id: task.department_id }))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

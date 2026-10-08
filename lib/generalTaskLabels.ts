@@ -18,6 +18,9 @@ export const GENERAL_TASK_STATUS_LABEL: Record<GeneralTaskStatus, string> = {
   rework_required: 'Rework Required',
   approved: 'Approved',
   rejected: 'Rejected',
+  // "Declined by assignee" rather than a bare "Declined", so it cannot be
+  // misread as the reviewer's Rejected sitting directly above it.
+  declined: 'Declined by Assignee',
   cancelled: 'Cancelled',
   completed: 'Completed'
 };
@@ -31,6 +34,7 @@ export const GENERAL_TASK_STATUS_TONE: Record<GeneralTaskStatus, StatusTone> = {
   rework_required: 'at_risk',
   approved: 'done',
   rejected: 'rejected',
+  declined: 'rejected',
   cancelled: 'cancelled',
   completed: 'done'
 };

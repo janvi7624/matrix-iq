@@ -415,7 +415,7 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
               placeholder="Search payee, description, requester…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{ border: 'none', outline: 'none', flex: 1, fontSize: 14, background: 'transparent' }}
+              style={{ border: 'none', outline: 'none', flex: 1, fontSize: 16, background: 'transparent' }}
             />
           </div>
         </div>

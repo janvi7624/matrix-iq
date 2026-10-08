@@ -52,21 +52,24 @@ export default function ProjectDepartmentField({ departments, amounts, onChange,
 
   return (
     <>
-      <div className={calcStyles.deptPickRow}>
-        {/* `title`, not an inline expansion: this row has to stay short
-            enough for all four chips to sit side by side, and "SI" alone
-            isn't self-explanatory to someone meeting it for the first time. */}
-        {PROJECT_DEPARTMENTS.map((d) => (
-          <label key={d} className={calcStyles.deptPickChip} title={PROJECT_DEPARTMENT_FULL_LABEL[d]}>
-            <input
-              type="checkbox"
+      <div className={calcStyles.deptPickRow} role="group" aria-label="Department">
+        {PROJECT_DEPARTMENTS.map((d) => {
+          const on = departments.includes(d);
+          return (
+            <button
+              key={d}
+              type="button"
+              role="checkbox"
+              aria-checked={on}
               disabled={disabled}
-              checked={departments.includes(d)}
-              onChange={() => toggle(d)}
-            />
-            {PROJECT_DEPARTMENT_LABEL[d]}
-          </label>
-        ))}
+              className={`${calcStyles.deptPickChip} ${on ? calcStyles.deptPickChipActive : ''}`}
+              onClick={() => toggle(d)}
+            >
+              <span className={calcStyles.deptPickChipCheck} aria-hidden="true" />
+              {PROJECT_DEPARTMENT_LABEL[d]}
+            </button>
+          );
+        })}
       </div>
 
       {multi && (

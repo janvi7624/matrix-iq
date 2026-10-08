@@ -65,18 +65,77 @@
     flex-wrap: wrap;
     align-items: center;
 }
-.toolbar input[type="text"] {
+/* A From/To (or similar) date-range pair in a FilterBar toolbar — two bare
+   type="date" inputs read identically at a glance, so each gets a small
+   caption glued to it (Project Dashboard's Created and Closing Date custom
+   range filters). Grouped in one inline-flex so the pair wraps as a unit
+   instead of a label drifting from its input on a narrow screen. */
+.filterDateGroup {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.filterDateGroupLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+    white-space: nowrap;
+}
+/* Every control in a filter bar shares one height, so the row reads as a
+   single band rather than a ragged line. <Select>/<Input> bring .formControl
+   with them; these rules cover the bare search input, bare selects, and the
+   date pickers inside a .filterDateGroup.
+   Child selectors, not descendants: a dropdown panel opened from inside the
+   bar has its own option rows, and the "Needs follow-up only" checkbox sits
+   inside a label here — none of those should be stretched to control height.
+   The :not() guards keep that true even if a checkbox is later dropped
+   directly into a bar. */
+/* For a filter select whose options are people, clients or other free text:
+   a select's intrinsic width is its widest option, and min-width:auto on a
+   flex item beats max-width, so one long "Name — Department" label would
+   widen the whole bar past the page. The box itself still comes from
+   .formControl via <Select>. */
+.filterSelectCapped {
+    flex: 0 1 210px;
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
+}
+.toolbar > input:not([type="checkbox"]):not([type="radio"]),
+.toolbar > select,
+.toolbar .filterDateGroup > input {
+    min-height: var(--mx-control-h);
+    box-sizing: border-box;
+}
+/* The search box was the odd one out: 44px against .formControl's 46px, an
+   8px radius against --mx-radius-sm's 9px, and a hardcoded #d1d5db border.
+   That hex equals --mx-border-strong today, which is exactly why the drift
+   was easy to miss — it would have diverged the moment the token changed.
+   These declarations mirror .formControl, and --mx-control-h ties the
+   heights together from here on. */
+.toolbar > input[type="text"],
+.toolbar > input[type="search"] {
+    /* The search box is the one control that absorbs the row's spare width. */
     flex: 1;
     min-width: 220px;
-    min-height: 44px;
-    box-sizing: border-box;
-    padding: 10px 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    /* 16px stops iOS Safari auto-zooming the page on focus, as .formControl does. */
     font-size: 16px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+}
+.toolbar > input[type="text"]:focus,
+.toolbar > input[type="search"]:focus {
+    border-color: var(--mx-brand);
+    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
 }
 .button {
-    min-height: 44px;
+    min-height: var(--mx-control-h);
     box-sizing: border-box;
     padding: 11px 18px;
     border-radius: var(--mx-radius-sm);
@@ -153,12 +212,17 @@
 
 /* A long free-text cell (the Project Dashboard's Last Remark) is cut to two
    lines so one project with a ten-line remark can't fill the whole screen and
-   make the list look like it holds a single project. The row expands to show
-   the full text only while it's hovered (or focused, for keyboard users) and
-   collapses back the moment the pointer leaves. */
-.remarkClamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-.tableFixed tbody tr:hover .remarkClamp,
-.tableFixed tbody tr:focus-within .remarkClamp { display: block; -webkit-line-clamp: unset; line-clamp: unset; overflow: visible; }
+   make the list look like it holds a single project. Used to expand on
+   row :hover, but that fired from anywhere on the row — reaching another
+   button in a long row made the cell balloon open and the layout jump. Now a
+   plain click toggles .remarkClampExpanded, so it only opens when asked and
+   stays open until clicked again. */
+.remarkClamp {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+    background: none; border: none; padding: 0; margin: 0; width: 100%;
+    font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.remarkClampExpanded { display: block; -webkit-line-clamp: unset; line-clamp: unset; overflow: visible; }
 
 /* Project Dashboard's 14-column layout (components/ProjectsView.tsx) — one
    set of percentages, applied via each column's headerClassName, summing to
@@ -1154,6 +1218,9 @@
         align-items: stretch;
     }
     .toolbar > * { width: 100%; }
+    /* A .filterDateGroup is a caption + input pair; the input inside it needs
+       stretching too, or the group goes full width around a narrow input. */
+    .toolbar .filterDateGroup > input { flex: 1; min-width: 0; }
     .table th, .table td {
         padding: 9px 10px;
         font-size: 12.5px;

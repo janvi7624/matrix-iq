@@ -385,7 +385,7 @@ export async function getOfficeExpenseSheetEntries(sheetKey: string): Promise<Of
 }
 
 async function getBomRequestItems(): Promise<PaymentQueueItem[]> {
-  const all = await tmsBomRequestStore.list();
+  const all = await tmsBomRequestStore.readAll();
   return all
     .filter((r) => r.status === 'finance_approved' || r.status === 'payment_done')
     .map((r) => {
@@ -571,7 +571,7 @@ export async function payItem(
       return updated ? { ok: true } : { ok: false, error: 'Payment could not be completed — it may already be paid' };
     }
     case 'bom_request': {
-      const rows = await tmsBomRequestStore.list();
+      const rows = await tmsBomRequestStore.readAll();
       const existing = rows.find((r) => r.id === sourceId);
       if (!existing) return { ok: false, error: 'BOM request not found' };
       if (existing.status !== 'finance_approved') return { ok: false, error: 'This request is not awaiting payment' };
@@ -749,7 +749,7 @@ export async function resolveRequesterUsernames(source: PaymentSource, sourceId:
       return sheet ? sheet.requesterUsernames : [];
     }
     case 'bom_request': {
-      const rows = await tmsBomRequestStore.list();
+      const rows = await tmsBomRequestStore.readAll();
       const existing = rows.find((r) => r.id === sourceId);
       if (!existing?.requested_by_id) return [];
       const user = await db.User.findByPk(existing.requested_by_id, { attributes: ['username'] });

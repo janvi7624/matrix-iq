@@ -33,8 +33,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const [tasks, bomRequests, procurements, deadlineExtensions, activity, taskDerivedProgress] = await Promise.all([
       tmsTaskStore.readAll(),
-      tmsBomRequestStore.list(),
-      tmsProcurementStore.list(),
+      tmsBomRequestStore.readAll(),
+      tmsProcurementStore.readAll(),
       listDeadlineExtensions(id),
       listAuditLog('tms_project', id),
       computeTaskDerivedProgress(id)

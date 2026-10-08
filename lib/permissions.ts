@@ -69,13 +69,20 @@ export async function isModuleActionAllowed(viewer: { role: string; isPrivileged
 // scoreSalesTeam) — a manager of either routes leads.
 const LEAD_MANAGER_DEPARTMENTS = ['Sales', 'GEM - Sales'];
 
+// A manager of either Sales department, identified by username alone.
+// Lead visibility (lib/leadStore.ts) needs this same test but has no role or
+// isPrivileged context to pass, and keeping one definition is what stops
+// "can route a lead" and "can see the lead to route" from drifting apart.
+export async function isSalesLeadManager(viewerUsername: string): Promise<boolean> {
+  const managersByDepartment = await listDepartmentManagers();
+  return LEAD_MANAGER_DEPARTMENTS.some((name) =>
+    (managersByDepartment[name] || []).some((m) => m.username === viewerUsername)
+  );
+}
+
 export async function canAssignLeads(viewer: { username: string; role: string; isPrivileged: boolean }): Promise<boolean> {
   if (await hasCapability(viewer.role, 'viewAllDepartments')) return true;
-  const managersByDepartment = await listDepartmentManagers();
-  const isSalesManager = LEAD_MANAGER_DEPARTMENTS.some((name) =>
-    (managersByDepartment[name] || []).some((m) => m.username === viewer.username)
-  );
-  if (isSalesManager) return true;
+  if (await isSalesLeadManager(viewer.username)) return true;
   if (viewer.isPrivileged) return true;
   return isModuleActionAllowed(viewer, 'leads', 'assign');
 }

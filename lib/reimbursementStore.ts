@@ -47,7 +47,7 @@ async function resolveEmployeeNames(records: ReimbursementRecord[]): Promise<voi
   records.forEach((r) => { r.employee_names = r.employee_ids.map((id) => map.get(id) || id).concat(r.guest_names.map((n) => `${n} (Guest)`)); });
 }
 
-async function list(viewerUsername: string, isPrivileged: boolean, year: number, month: number): Promise<ReimbursementRecord[]> {
+async function list(viewerUsername: string, year: number, month: number): Promise<ReimbursementRecord[]> {
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const endMonth = month === 12 ? 1 : month + 1;
   const endYear = month === 12 ? year + 1 : year;
@@ -58,20 +58,87 @@ async function list(viewerUsername: string, isPrivileged: boolean, year: number,
     is_admin_entry: false,
   };
 
-  if (!isPrivileged) {
-    const viewer = await db.User.findOne({ where: { username: viewerUsername } as never, attributes: ['id'] });
-    if (!viewer) return [];
-    const viewerId = (viewer.get({ plain: true }) as Record<string, unknown>).id as string;
-    where[Op.or as unknown as string] = [
-      { created_by: viewerId },
-      db.sequelize.literal(`employee_ids @> '"${viewerId}"'`)
-    ];
-  }
+  // Strictly the viewer's OWN bills.
+  //
+  // This used to be an OR: created_by = viewer OR employee_ids @> viewer. That
+  // made one bill appear in two people's month — the payer's and every
+  // companion's — and app/api/reimbursement/route.ts sums this same list into
+  // the "Monthly Total" the employee sees. So a companion's screen showed
+  // somebody else's bill, amount, mode of payment and working bill links,
+  // added into their own total, while the sheet card above it showed the real
+  // (smaller) payable. Two contradicting totals for one month.
+  //
+  // It was never a double PAYMENT — a sheet's payable total comes from
+  // computeTotals(created_by) in lib/reimbursementSheetStore.ts and there is a
+  // UNIQUE index on (created_by, year, month), so one bill can only ever be
+  // paid once, to the person who added it. The defect was what the employee
+  // was shown, plus the privacy leak of another employee's receipts.
+  //
+  // Companions are not left blind: listCompanionNotices below gives them a
+  // read-only, amount-free note that the bill exists and is already claimed,
+  // which is what stops them filing their own entry for it.
+  const viewer = await db.User.findOne({ where: { username: viewerUsername } as never, attributes: ['id'] });
+  if (!viewer) return [];
+  where.created_by = (viewer.get({ plain: true }) as Record<string, unknown>).id as string;
 
   const rows = await db.Reimbursement.findAll({ where: where as never, include: INCLUDE_CREATOR as never, order: [['date', 'ASC'], ['created_at', 'ASC']] });
   const records = rows.map((r) => toRecord(r));
   await resolveEmployeeNames(records);
   return records;
+}
+
+export interface CompanionNotice {
+  id: string;
+  date: string;
+  description: string;
+  claimedByName: string;
+}
+
+// Bills somebody ELSE added that name this viewer as present.
+//
+// Deliberately minimal: date, description and who is claiming it. No amount,
+// no mode of payment, no attachment_urls — a companion has no business
+// reading another employee's receipts, and an amount here is what previously
+// got added into their own total. Its only job is "this is already claimed,
+// do not file it again".
+//
+// Op.contains (a bound JSONB @> parameter) rather than the sequelize.literal
+// string interpolation this replaces: viewerId came from the session so it was
+// not exploitable, but a session value does not belong concatenated into SQL,
+// and Op/literal taken off two different Sequelize copies is a known crash
+// class in this repo (see lib/travelScheduleStore.ts).
+async function listCompanionNotices(viewerUsername: string, year: number, month: number): Promise<CompanionNotice[]> {
+  const viewer = await db.User.findOne({ where: { username: viewerUsername } as never, attributes: ['id'] });
+  if (!viewer) return [];
+  const viewerId = (viewer.get({ plain: true }) as Record<string, unknown>).id as string;
+
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+  const rows = await db.Reimbursement.findAll({
+    where: {
+      date: { [Op.gte]: startDate, [Op.lt]: endDate },
+      is_admin_entry: false,
+      employee_ids: { [Op.contains]: [viewerId] },
+      created_by: { [Op.ne]: viewerId }
+    } as never,
+    attributes: ['id', 'date', 'description'],
+    include: INCLUDE_CREATOR as never,
+    order: [['date', 'ASC']]
+  });
+
+  return rows.map((row) => {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    const creator = plain.creator as { name?: string; username?: string } | null;
+    return {
+      id: plain.id as string,
+      date: String(plain.date ?? ''),
+      description: (plain.description as string) ?? '',
+      claimedByName: creator?.name || creator?.username || 'another employee'
+    };
+  });
 }
 
 async function findById(id: string): Promise<ReimbursementRecord | null> {
@@ -159,4 +226,4 @@ async function listByUserId(userId: string, year: number, month: number): Promis
   return records;
 }
 
-export const reimbursementStore = { list, listByUserId, findById, create, update, remove };
+export const reimbursementStore = { list, listByUserId, listCompanionNotices, findById, create, update, remove };

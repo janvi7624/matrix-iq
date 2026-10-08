@@ -1,0 +1,289 @@
+/* Filter panel — a contained, labelled filter surface for views with more
+   filters than fit sensibly in one flat row.
+   The Project Dashboard has fourteen of them; as a plain wrapping FilterBar
+   they rendered as a ragged three-to-four-line wall of same-weight,
+   content-width dropdowns with no captions, so you could not tell what any
+   one of them filtered without opening it.
+   Structure: a primary row that is always visible (search, the two most-used
+   filters, a toggle), an expandable grid of captioned fields for the rest,
+   and a meta row carrying the result count plus one removable chip per
+   active filter — so nothing behind the toggle is ever silently applied.
+   The chip and metaRow styling mirrors components/employeeDirectory.module.css,
+   which established this pattern here; duplicated rather than shared because
+   CSS Modules scope per file, the same way leadsView.module.css duplicates
+   .btn with a comment pointing at the original. */
+
+.wrap {
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
+    padding: 12px;
+    margin-bottom: 14px;
+}
+
+/* ---------- Primary row (always visible) ---------- */
+.primaryRow {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.searchWrap {
+    position: relative;
+    /* Grows into the row's spare width; min-width 0 lets it shrink below its
+       content width instead of forcing the row to overflow. */
+    flex: 1 1 260px;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+.searchIcon {
+    position: absolute;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    color: var(--mx-ink-faint);
+    pointer-events: none;
+}
+.searchInput {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: var(--mx-control-h);
+    /* Left padding clears the magnifier, right padding the clear button. */
+    padding: 12px 38px 12px 36px;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    /* 16px stops iOS Safari auto-zooming the page on focus. */
+    font-size: 16px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+}
+.searchInput:focus-visible {
+    border-color: var(--mx-brand);
+    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
+}
+.searchClear {
+    position: absolute;
+    right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: var(--mx-radius-full);
+    background: none;
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+}
+.searchClear:hover { background: var(--mx-gray-100); color: var(--mx-ink); }
+
+/* The two quick filters that stay in the primary row. Capped so a long stage
+   name cannot push the toggle onto its own line. min-width 0 is required for
+   the cap to beat a select's automatic minimum size, which otherwise
+   resolves to its widest option. */
+.quick {
+    flex: 0 1 158px;
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
+}
+
+.toggleBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--mx-control-h);
+    box-sizing: border-box;
+    padding: 11px 14px;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    font-size: 14.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
+}
+.toggleBtn:hover { background: var(--mx-surface-sunken); border-color: var(--mx-ink-faint); }
+.toggleBtnOpen { background: var(--mx-surface-sunken); border-color: var(--mx-ink-faint); }
+/* How many active filters are currently inside the collapsed panel — what
+   makes collapsing by default safe. */
+.toggleBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-brand);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.chevron {
+    display: flex;
+    color: var(--mx-ink-muted);
+    transition: transform var(--mx-duration-base) var(--mx-ease);
+}
+.chevronOpen { transform: rotate(180deg); }
+
+/* ---------- Expandable field grid ---------- */
+.panel {
+    display: grid;
+    /* auto-fit with minmax keeps every field readable and lets the column
+       count fall from five to one as the viewport narrows, with no media
+       query and no ragged trailing row. */
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--mx-border);
+}
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+.fieldLabel {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--mx-ink-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* A set filter tints its own caption and control, so which of a dozen fields
+   are actually narrowing the list reads at a glance instead of by checking
+   every value. Keyed off an attribute on the field so no call site has to
+   thread a class onto its own control. */
+.field[data-active="true"] .fieldLabel { color: var(--mx-brand); }
+.field[data-active="true"] select,
+.field[data-active="true"] input {
+    border-color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+}
+/* Same treatment for the primary row quick filters, which carry no caption. */
+.controlActive {
+    border-color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+}
+
+/* A From/To pair inside a single field, so two pickers read as one range
+   rather than two unrelated dates. */
+.datePair {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.datePair > input {
+    flex: 1 1 0;
+    min-width: 0;
+}
+.dateSep {
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+    flex-shrink: 0;
+}
+/* The closing-date custom range, revealed under its own preset select. */
+.subRange { margin-top: 6px; }
+
+/* ---------- Meta row: result count, active chips, clear all ---------- */
+.metaRow {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--mx-border);
+    min-height: 28px;
+}
+.resultCount {
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+    font-variant-numeric: tabular-nums;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 10px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-brand-subtle);
+    border: 1px solid var(--mx-red-200);
+    color: var(--mx-brand-hover);
+    font-size: 12px;
+    font-weight: 600;
+    /* The Search chip echoes an unbounded query, so it needs a hard cap or
+       one long term widens the whole row. */
+    min-width: 0;
+    max-width: min(340px, 100%);
+}
+.chipLabel { color: var(--mx-ink-muted); font-weight: 500; flex-shrink: 0; }
+.chipValue {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.chipClear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: var(--mx-radius-full);
+    background: none;
+    color: var(--mx-brand-hover);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.chipClear:hover { background: var(--mx-red-200); }
+.clearAllBtn {
+    background: none;
+    border: none;
+    padding: 4px 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--mx-info);
+    cursor: pointer;
+    border-radius: var(--mx-radius-xs);
+    margin-left: auto;
+}
+.clearAllBtn:hover { text-decoration: underline; }
+
+/* Copied from components/employeeDirectory.module.css — the grid fields have
+   visible captions, but the search box still needs a label. */
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (max-width: 768px) {
+    .wrap { padding: 10px; }
+    /* Below the grid one-column point the quick filters stack too, rather
+       than sitting as two half-width stubs beside a wrapped toggle. */
+    .quick { flex: 1 1 100%; }
+    .toggleBtn { width: 100%; justify-content: center; }
+}

@@ -905,6 +905,15 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     if (!data) return;
     const won = await confirm({ title: 'Close project', message: 'Close this project as won or lost?', confirmLabel: 'Won', cancelLabel: 'Lost' });
     const normalized = won ? 'won' : 'lost';
+    // The API enforces this regardless; checked here so the person gets a
+    // useful instruction instead of a rejected request. Deliberately points
+    // at the existing Technical Person picker rather than asking inline: an
+    // assignment has to go through that approval request (with its note and
+    // needed-by), and a second way to start one would fork that flow.
+    if (normalized === 'won' && !data.project.assigned_technical_person_id && !data.technicalRequest) {
+      toast.error('Assign a technical owner first — use "Request a technical person" in the Technical Person field below, then close as won.');
+      return;
+    }
     if (!(await confirm({ message: `Close this project as ${normalized === 'won' ? 'Won' : 'Closed Lost'}? This updates the final stage.`, danger: true }))) return;
     // 'completed' is a retired Project Progress stage — closing as Won now
     // sets status directly instead (stage stays at whatever it already was,
