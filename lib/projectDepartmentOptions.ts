@@ -24,10 +24,9 @@
 export const PROJECT_DEPARTMENTS = ['ai', 'av', 'robotics', 'other'] as const;
 export type ProjectDepartment = (typeof PROJECT_DEPARTMENTS)[number];
 
-// Short labels — these appear in a checkbox row, a filter dropdown, a column
-// header ("SI Value") and a joined chip ("AI + SI"), none of which can carry
-// an expansion. PROJECT_DEPARTMENT_FULL_LABEL below is for the one place
-// there is room for it.
+// Short labels — these appear in a chip row, a filter dropdown, a column
+// header ("Other Value") and a joined chip ("AI + Other"), none of which has
+// room for more than a word.
 export const PROJECT_DEPARTMENT_LABEL: Record<ProjectDepartment, string> = {
   ai: 'AI',
   av: 'AV',

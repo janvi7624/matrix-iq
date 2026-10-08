@@ -3,7 +3,8 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { canManageTargets, listSalesTeamRoster } from '@/lib/targetAccess';
 import { resolveVisibilityScope } from '@/lib/departmentScope';
 import { buildPeriod, currentFiscalYear, periodContainingDate, TargetPeriodType } from '@/lib/targetPeriod';
-import { createSalesTarget, DuplicateTargetError, findSalesTarget, listSalesTargets } from '@/lib/salesTargetStore';
+import { buildCascadedTargets, cascadeSummary } from '@/lib/targetCascade';
+import { findSalesTarget, listSalesTargets, upsertSalesTargets } from '@/lib/salesTargetStore';
 import { computeAchievementForEmployees, computeStatus } from '@/lib/salesAchievement';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -124,24 +125,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const period = buildPeriod(periodType, fiscalYear, periodKey);
-    const existing = await findSalesTarget(employeeId, periodType, period.periodStart);
-    if (existing) return NextResponse.json({ error: 'A target already exists for this employee and period' }, { status: 409 });
+    // One figure prices the WHOLE fiscal year — all 12 months, 4 quarters,
+    // both halves and the year itself (lib/targetCascade.ts). So this is an
+    // upsert over that set rather than a single insert, and an existing
+    // period is re-priced instead of being rejected as a duplicate: the
+    // periods are four views of one number, and refusing to update them
+    // would leave them disagreeing.
+    const rows = buildCascadedTargets(fiscalYear, periodType, targetAmount);
+    const { created, updated } = await upsertSalesTargets(employeeId, rows, viewer.userId, notes || undefined);
 
-    const created = await createSalesTarget({
-      employeeId,
-      periodType,
-      periodStart: period.periodStart,
-      periodEnd: period.periodEnd,
-      displayPeriod: period.displayPeriod,
-      fiscalYear,
-      targetAmount,
-      notes,
-      createdBy: viewer.userId
-    });
-    return NextResponse.json(created, { status: 201 });
+    // Echo back the row for the period the caller actually asked about, so
+    // the UI can refresh without having to re-derive which of the 19 it was.
+    const period = buildPeriod(periodType, fiscalYear, periodKey);
+    const saved = await findSalesTarget(employeeId, periodType, period.periodStart);
+
+    return NextResponse.json(
+      { target: saved, cascade: { created, updated, periods: rows.length, amounts: cascadeSummary(periodType, targetAmount) } },
+      { status: 201 }
+    );
   } catch (error) {
-    if (error instanceof DuplicateTargetError) return NextResponse.json({ error: error.message }, { status: 409 });
     return apiErrorResponse(error);
   }
 }

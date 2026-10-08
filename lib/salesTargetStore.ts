@@ -1,5 +1,5 @@
 import { Model, Op, UniqueConstraintError } from 'sequelize';
-import { db, isUuid } from './db';
+import { db, isUuid, sequelize } from './db';
 import { TargetPeriodType } from './targetPeriod';
 
 export class DuplicateTargetError extends Error {
@@ -94,6 +94,71 @@ export async function createSalesTarget(input: CreateSalesTargetInput): Promise<
     if (error instanceof UniqueConstraintError) throw new DuplicateTargetError();
     throw error;
   }
+}
+
+// Create-or-replace a whole batch of periods for one employee in one go —
+// what setting a target now does, since one figure fixes every period of the
+// fiscal year (see lib/targetCascade.ts). One transaction: a half-applied
+// cascade would leave the quarters disagreeing with the months, which is
+// exactly the state this feature exists to prevent.
+//
+// Matched on the same (employee, period_type, period_start) key the unique
+// index uses, so an existing period is updated rather than colliding with it.
+// `notes` is only written when given: re-pricing a year shouldn't wipe the
+// commentary somebody wrote on one of its months.
+export async function upsertSalesTargets(
+  employeeId: string,
+  rows: {
+    periodType: TargetPeriodType;
+    periodStart: string;
+    periodEnd: string;
+    displayPeriod: string;
+    fiscalYear: string;
+    targetAmount: number;
+  }[],
+  actorId: string,
+  notes?: string
+): Promise<{ created: number; updated: number }> {
+  let created = 0;
+  let updated = 0;
+
+  await sequelize.transaction(async (transaction) => {
+    for (const row of rows) {
+      const existing = await db.SalesTarget.findOne({
+        where: { employee_id: employeeId, period_type: row.periodType, period_start: row.periodStart } as never,
+        transaction
+      });
+
+      if (existing) {
+        const attrs: Record<string, unknown> = {
+          period_end: row.periodEnd,
+          display_period: row.displayPeriod,
+          fiscal_year: row.fiscalYear,
+          target_amount: row.targetAmount,
+          updated_by: actorId
+        };
+        if (notes !== undefined) attrs.notes = notes;
+        await existing.update(attrs as never, { transaction });
+        updated += 1;
+      } else {
+        await db.SalesTarget.create({
+          employee_id: employeeId,
+          period_type: row.periodType,
+          period_start: row.periodStart,
+          period_end: row.periodEnd,
+          display_period: row.displayPeriod,
+          fiscal_year: row.fiscalYear,
+          target_amount: row.targetAmount,
+          notes: notes ?? '',
+          created_by: actorId,
+          updated_by: actorId
+        } as never, { transaction });
+        created += 1;
+      }
+    }
+  });
+
+  return { created, updated };
 }
 
 export async function updateSalesTarget(id: string, patch: UpdateSalesTargetInput): Promise<SalesTargetRecord | null> {

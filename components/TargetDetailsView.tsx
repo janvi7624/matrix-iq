@@ -192,7 +192,6 @@ export default function TargetDetailsView() {
           }
           defaultPeriodType={periodType}
           defaultFiscalYear={fiscalYear}
-          defaultPeriodKey={periodKey}
           onClose={() => setFormTarget(null)}
           onSaved={() => {
             setFormTarget(null);

@@ -5,7 +5,6 @@ import {
   DepartmentAmounts,
   PROJECT_DEPARTMENTS,
   PROJECT_DEPARTMENT_LABEL,
-  PROJECT_DEPARTMENT_FULL_LABEL,
   ProjectDepartment,
   sumDepartmentAmounts
 } from '@/lib/projectDepartmentOptions';

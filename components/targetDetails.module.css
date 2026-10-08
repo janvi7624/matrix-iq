@@ -28,3 +28,48 @@
   color: var(--mx-brand);
   border-bottom-color: var(--mx-brand);
 }
+
+/* Set Target — the same figure shown at all four scales, so what "monthly
+   ₹1,00,000" does to the quarter and the year is visible before saving
+   rather than discovered afterwards. The entered scale is highlighted: it is
+   the one number that was typed, the other three are derived from it. */
+.cascadeGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.cascadeCell {
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface-sunken);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.cascadeCellEntered {
+    border-color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+}
+
+.cascadeLabel {
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mx-ink-muted);
+}
+
+.cascadeValue {
+    font-size: 15px;
+    font-weight: var(--mx-weight-bold);
+    color: var(--mx-ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
