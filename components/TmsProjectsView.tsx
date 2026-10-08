@@ -268,12 +268,23 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     const completed = projects.filter((p) => p.status === 'completed');
     const nearDeadline = active.filter((p) => p.estimated_close_date && p.estimated_close_date >= date && p.estimated_close_date <= addDays(date, 7));
     const delayed = active.filter((p) => p.estimated_close_date && p.estimated_close_date < date);
+    // Projects that exist but cannot actually be run yet: still in planning
+    // with nobody owning them, or with no end date to be measured against.
+    //
+    // Most of these are not hand-created — lib/tmsHandoff.ts opens a TMS
+    // project automatically the moment a technical person is assigned to a
+    // Sales project, with no manager and no dates by design. They are real
+    // work that nobody has set up, so they are surfaced as their own queue
+    // rather than hidden (which would lose them) or left mixed into Active
+    // (where they currently outnumber the runnable projects).
+    const needsSetup = active.filter((p) => p.status === 'planning' && (!p.project_manager_id || (!p.deadline && !p.estimated_close_date)));
     return {
       total: projects.length,
       active: active.length, activeItems: active,
       completed: completed.length, completedItems: completed,
       nearDeadline: nearDeadline.length, nearDeadlineItems: nearDeadline,
-      delayed: delayed.length, delayedItems: delayed
+      delayed: delayed.length, delayedItems: delayed,
+      needsSetup: needsSetup.length, needsSetupItems: needsSetup
     };
   }, [projects]);
 
@@ -283,8 +294,29 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     setDrilldown({ title, items: items.map((p) => ({ id: p.id, label: p.name || p.client_name || p.project_code, sublabel: TMS_PROJECT_STATUS_LABEL[p.status] || p.status, href: `/tms/projects/${p.id}` })) });
   }
 
+  // Same drilldown, but the sublabel names the missing pieces instead of
+  // repeating the status — "Needs: owner, end date" tells the person what to
+  // do next, which "Planning" does not.
+  function showNeedsSetup(items: TmsProjectRecord[]) {
+    setDrilldown({
+      title: 'Projects needing setup',
+      items: items.map((p) => {
+        const missing: string[] = [];
+        if (!p.project_manager_id) missing.push('owner');
+        if (!p.deadline && !p.estimated_close_date) missing.push('end date');
+        if (!p.team_member_ids.length) missing.push('team');
+        return {
+          id: p.id,
+          label: p.name || p.client_name || p.project_code,
+          sublabel: missing.length ? `Needs: ${missing.join(', ')}` : 'Ready to start',
+          href: `/tms/projects/${p.id}`
+        };
+      })
+    });
+  }
+
   return (
-    <AppShell title="TMS Dashboard" subtitle="Technical execution projects — team, budget, status, and progress.">
+    <AppShell title="Technical Projects" subtitle="Every technical project — open one for its tasks, BOM requests, procurement and activity.">
       <div className={tmsDashboardStyles.headerRow}>
         <span />
         <button type="button" onClick={() => setShowGuide(true)} className={tmsDashboardStyles.guideLink}>
@@ -311,6 +343,10 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
         <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Completed Projects', projectStats.completedItems)}>
           <div className={dashboardStyles.kpiValue}>{projectStats.completed}</div>
           <div className={dashboardStyles.kpiLabel}>Completed Projects</div>
+        </button>
+        <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showNeedsSetup(projectStats.needsSetupItems)}>
+          <div className={dashboardStyles.kpiValue}>{projectStats.needsSetup}</div>
+          <div className={dashboardStyles.kpiLabel}>Needs Setup</div>
         </button>
         <button type="button" className={`${dashboardStyles.kpiCard} ${dashboardStyles.kpiCardAlert} ${dashboardStyles.kpiCardButton}`} onClick={() => showProjects('Near Deadline', projectStats.nearDeadlineItems)}>
           <div className={dashboardStyles.kpiValue}>{projectStats.nearDeadline}</div>

@@ -189,7 +189,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // ABSORBED_INTO_MERGED_PAGE. Took over tms-dashboard's old order (1) and
   // icon; key/visibleToRoles unchanged so this row's own permission data is
   // untouched.
-  { key: 'tms-projects', label: 'TMS Dashboard', desc: 'Project, task, BOM, and procurement overview for the Technical Team.', icon: 'layout-dashboard', href: '/tms/projects', section: 'TMS', order: 1, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
+  { key: 'tms-projects', label: 'Technical Projects', desc: 'Every technical project — status, team and progress. Open a project for its tasks, BOM requests, procurement and activity.', icon: 'layout-dashboard', href: '/tms/projects', section: 'TMS', order: 1, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
   { key: 'tms-dashboard', label: 'TMS Dashboard', desc: 'Project, task, BOM, and procurement overview for the Technical Team.', icon: 'layout-dashboard', href: '/tms', section: 'TMS', order: 2, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
   { key: 'tms-tasks', label: 'Tasks', desc: 'Day-by-day task tracking with a Daily Task View.', icon: 'clipboard-list', href: '/tms/tasks', section: 'TMS', order: 3, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
   { key: 'tms-bom-requests', label: 'BOM Request', desc: 'Bill of materials requests, review, and approval.', icon: 'list', href: '/tms/bom-requests', section: 'TMS', order: 4, enabled: true, isCustom: false, visibleToRoles: TMS_ALL_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
@@ -262,13 +262,15 @@ const OLD_DEFAULT_LABELS: Record<string, string> = {
 // FORCED_RELABELS above) because its OLD value is that first reconciliation's
 // OUTPUT, not the original seed default — applying both in one pass would
 // require sequencing that a flat Record can't express.
-const SECOND_STAGE_RELABELS: Record<string, string> = { quotation: 'Quotations' };
-const OLD_STAGE_ONE_LABELS: Record<string, string> = { quotation: 'New Quotation' };
+const SECOND_STAGE_RELABELS: Record<string, string> = { quotation: 'Quotations', 'tms-projects': 'Technical Projects' };
+const OLD_STAGE_ONE_LABELS: Record<string, string> = { quotation: 'New Quotation', 'tms-projects': 'TMS Dashboard' };
 
-// CRM was merged into Projects (section 23) — its own module tile/route no
-// longer exists, so strip it from any already-persisted config instead of
-// leaving a dead tile pointing at a removed page.
-const RETIRED_KEYS = new Set(['crm', 'hr-attendance', 'hr-leave', 'leave']);
+// Modules whose tile/route no longer exists — CRM was merged into Projects
+// (section 23); HR Settings was dropped outright; HR Dashboard's celebrations
+// moved onto the main dashboard (components/CelebrationsSection.tsx). Strip
+// them from any already-persisted config instead of leaving a dead tile
+// pointing at a removed page.
+const RETIRED_KEYS = new Set(['crm', 'hr-attendance', 'hr-leave', 'leave', 'hr-settings', 'hr-dashboard', 'hr-tasks']);
 
 // The Dashboard section these modules used to be grouped under was literally
 // named "CRM" — renamed to "Sales Pipeline" now that CRM itself is gone, so
