@@ -41,6 +41,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const expectedAmount = typeof body.expectedAmount === 'number' && Number.isFinite(body.expectedAmount) ? body.expectedAmount : undefined;
 
   if (!paymentMethod) return NextResponse.json({ error: 'Payment method is required' }, { status: 400 });
+  if (!paymentDate) return NextResponse.json({ error: 'Payment date is required' }, { status: 400 });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) || Number.isNaN(new Date(paymentDate).getTime())) {
+    return NextResponse.json({ error: 'Payment date must be a valid date' }, { status: 400 });
+  }
+  // A payment cannot have happened tomorrow. Compared on the plain date
+  // string so this is the payer's own calendar day, not a UTC one.
+  const todayLocal = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+  if (paymentDate > todayLocal) {
+    return NextResponse.json({ error: 'Payment date cannot be in the future' }, { status: 400 });
+  }
 
   try {
     const existing = await findPaymentItem(paymentId);

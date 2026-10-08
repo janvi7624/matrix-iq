@@ -237,7 +237,7 @@ async function financeDecide(id: string, decision: 'finance_approved' | 'rejecte
 // payment_proof_attachments (kept separate from the general `attachments`
 // array so "Accounts' payment proof" doesn't get mixed in with the
 // engineer's spec sheets/quotes).
-async function markPaymentDone(id: string, actorUsername: string, proofUrls: string[]): Promise<TmsBomRequestRecord | null> {
+async function markPaymentDone(id: string, actorUsername: string, proofUrls: string[], paidAt?: Date): Promise<TmsBomRequestRecord | null> {
   if (!isUuid(id)) return null;
   const row = await db.TmsBomRequest.findByPk(id);
   if (!row) return null;
@@ -248,7 +248,7 @@ async function markPaymentDone(id: string, actorUsername: string, proofUrls: str
     {
       status: 'payment_done',
       payment_marked_by_id: actor ? actor.get('id') : null,
-      payment_marked_at: new Date(),
+      payment_marked_at: paidAt ?? new Date(),
       payment_proof_attachments: [...existingProof, ...proofUrls]
     } as never
   );

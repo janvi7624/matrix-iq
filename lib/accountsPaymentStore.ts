@@ -556,6 +556,17 @@ export type PayResult = { ok: true } | { ok: false; error: string };
 // their existing store functions verbatim — no reimplementation, no
 // duplicated business logic. Only Admin Expense and Office Operation
 // Expense get a genuinely new write path here, since neither had one.
+// 'YYYY-MM-DD' from the Accounts form into a Date, or undefined when it is
+// missing or unparseable so the caller's own "now" default still applies.
+// Parsed as local midnight rather than through new Date('YYYY-MM-DD'), which
+// Postgres would then store as the previous day for anyone behind UTC.
+function paidAtFrom(value: string | undefined): Date | undefined {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const [y, m, d] = value.split('-').map(Number);
+  const parsed = new Date(y, m - 1, d);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 export async function payItem(
   source: PaymentSource,
   sourceId: string,
@@ -567,7 +578,7 @@ export async function payItem(
       const sheet = await reimbursementSheetStore.findById(sourceId);
       if (!sheet) return { ok: false, error: 'Reimbursement sheet not found' };
       if (sheet.status !== 'hr_approved') return { ok: false, error: 'This sheet is not awaiting payment' };
-      const updated = await reimbursementSheetStore.accountsComplete(sourceId, actor.id, input.paymentReference, input.remarks);
+      const updated = await reimbursementSheetStore.accountsComplete(sourceId, actor.id, input.paymentReference, input.remarks, paidAtFrom(input.paymentDate));
       return updated ? { ok: true } : { ok: false, error: 'Payment could not be completed — it may already be paid' };
     }
     case 'bom_request': {
@@ -577,7 +588,7 @@ export async function payItem(
       if (existing.status !== 'finance_approved') return { ok: false, error: 'This request is not awaiting payment' };
       const proofUrls = input.proofUrls && input.proofUrls.length ? input.proofUrls : [];
       if (!proofUrls.length) return { ok: false, error: 'Payment proof is required for a BOM request payment' };
-      const updated = await tmsBomRequestStore.markPaymentDone(sourceId, actor.username, proofUrls);
+      const updated = await tmsBomRequestStore.markPaymentDone(sourceId, actor.username, proofUrls, paidAtFrom(input.paymentDate));
       return updated ? { ok: true } : { ok: false, error: 'Payment could not be completed — it may already be paid' };
     }
     case 'travel_schedule': {
@@ -587,7 +598,8 @@ export async function payItem(
       const updated = await travelScheduleStore.completeBooking(sourceId, actor.username, {
         booking_details: input.paymentReference || input.remarks || '',
         ticket_documents: input.proofUrls || [],
-        actual_cost: undefined
+        actual_cost: undefined,
+        paidAt: paidAtFrom(input.paymentDate)
       });
       return updated ? { ok: true } : { ok: false, error: 'Payment could not be completed — it may already be paid' };
     }
@@ -634,7 +646,7 @@ async function payAdminExpenseSheet(sheetKey: string, actor: { id: string }, inp
     await db.Reimbursement.update(
       {
         payment_status: 'paid',
-        paid_at: input.paymentDate ? new Date(input.paymentDate) : new Date(),
+        paid_at: paidAtFrom(input.paymentDate) ?? new Date(),
         paid_by: actor.id,
         payment_method: input.paymentMethod || null,
         payment_reference: input.paymentReference || null,
@@ -679,7 +691,7 @@ async function payOfficeExpenseSheet(sheetKey: string, actor: { id: string }, in
     await db.OfficeOperationExpense.update(
       {
         payment_status: 'paid',
-        paid_at: input.paymentDate ? new Date(input.paymentDate) : new Date(),
+        paid_at: paidAtFrom(input.paymentDate) ?? new Date(),
         paid_by: actor.id,
         payment_method: input.paymentMethod || null,
         payment_reference: input.paymentReference || null,

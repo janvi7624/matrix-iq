@@ -335,7 +335,7 @@ async function adminDecide(id: string, decision: 'admin_approved' | 'changes_req
 }
 
 // admin_approved -> ticket_booking (accounts completes booking)
-async function completeBooking(id: string, actorUsername: string, patch: { booking_details?: string; ticket_documents?: string[]; actual_cost?: number }): Promise<TravelScheduleRecord | null> {
+async function completeBooking(id: string, actorUsername: string, patch: { booking_details?: string; ticket_documents?: string[]; actual_cost?: number; paidAt?: Date }): Promise<TravelScheduleRecord | null> {
   if (!isUuid(id)) return null;
   const row = await db.TravelSchedule.findByPk(id);
   if (!row) return null;
@@ -346,7 +346,7 @@ async function completeBooking(id: string, actorUsername: string, patch: { booki
   const attrs: Record<string, unknown> = {
     status: 'ticket_booking' as TravelScheduleStatus,
     accounts_handler_id: actor ? actor.get('id') : null,
-    accounts_completed_at: new Date(),
+    accounts_completed_at: patch.paidAt ?? new Date(),
     booking_details: patch.booking_details || '',
     ticket_documents: [...existingDocs, ...newDocs],
     actual_cost: patch.actual_cost ?? plain.actual_cost ?? null

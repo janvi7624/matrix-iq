@@ -11,11 +11,13 @@ import Modal from './ui/Modal';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { useToast } from './ui/ToastProvider';
 import { AdminExpenseSheetEntry, OfficeExpenseSheetEntry, PaymentQueueItem, PaymentSource, PaymentSummary, UserRole } from '@/lib/types';
+import type { ReimbursementPivot } from '@/lib/reimbursementSheetStore';
 import { BRAND } from '@/lib/branding';
 import { friendlyFileName } from '@/lib/format';
 import { VoucherData } from '@/lib/expenseVoucherPdf';
 import styles from './accountsPayments.module.css';
 import calcStyles from './calculator.module.css';
+import historyStyles from './quotationHistory.module.css';
 
 interface Props {
   currentUser: { username: string; name: string; role: UserRole; isPrivileged: boolean };
@@ -72,7 +74,9 @@ const PAGE_SIZE = 20;
 
 export default function AccountsPaymentsView({ currentUser }: Props) {
   const toast = useToast();
-  const [tab, setTab] = useState<'queue' | 'history'>('queue');
+  const [tab, setTab] = useState<'queue' | 'history' | 'reimbursement-report'>('queue');
+  const [pivot, setPivot] = useState<ReimbursementPivot | null>(null);
+  const [pivotLoading, setPivotLoading] = useState(false);
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
   const [items, setItems] = useState<PaymentQueueItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -188,6 +192,7 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
   }, []);
 
   const fetchList = useCallback(() => {
+    if (tab === 'reimbursement-report') return;
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
     if (source !== 'all') params.set('source', source);
@@ -207,6 +212,19 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { fetchList(); }, [fetchList]);
   useEffect(() => { setPage(1); }, [tab, source, status, debouncedSearch]);
+
+  // Loaded once per visit to the tab, not on every render — the pivot has no
+  // filters of its own (it's a single all-time month×employee summary), so
+  // there's nothing else to re-fetch on.
+  useEffect(() => {
+    if (tab !== 'reimbursement-report' || pivot || pivotLoading) return;
+    setPivotLoading(true);
+    fetch('/api/accounts/reimbursement-report')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setPivot(data))
+      .catch(() => setPivot(null))
+      .finally(() => setPivotLoading(false));
+  }, [tab, pivot, pivotLoading]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -258,11 +276,13 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
 
   function openPay(item: PaymentQueueItem) {
     setSelected(item);
-    // Method/date/reference/remarks are no longer collected from Accounts —
-    // a fixed default is sent as-is (the backend only actually requires
-    // paymentMethod to be non-empty; see app/api/accounts/payments/
-    // [paymentId]/pay/route.ts). This is a straight "mark it done"
-    // confirmation now, not a data-entry form.
+    // Method/reference/remarks are still fixed defaults, but the payment
+    // DATE is now asked for and required — it is the one field only the
+    // payer knows, and it is rarely the day they get round to ticking the
+    // payment off here. Seeded with today as the common case. Required both
+    // in this dialog and in app/api/accounts/payments/[paymentId]/pay, and
+    // honoured by every payment source (see paidAtFrom in
+    // lib/accountsPaymentStore.ts).
     setPayForm({ paymentMethod: 'Bank Transfer', paymentDate: new Date().toISOString().slice(0, 10), paymentReference: '', remarks: '' });
     setPayOpen(true);
   }
@@ -275,6 +295,10 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
 
   async function submitPay() {
     if (!selected) return;
+    if (!payForm.paymentDate) {
+      toast.error('Enter the date this payment was made.');
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch(`/api/accounts/payments/${encodeURIComponent(selected.paymentId)}/pay`, {
@@ -404,8 +428,15 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
         <button type="button" className={`${styles.tabBtn} ${tab === 'history' ? styles.tabActive : ''}`} onClick={() => setTab('history')}>
           Payment History
         </button>
+        <button type="button" className={`${styles.tabBtn} ${tab === 'reimbursement-report' ? styles.tabActive : ''}`} onClick={() => setTab('reimbursement-report')}>
+          Reimbursement Report
+        </button>
       </div>
 
+      {tab === 'reimbursement-report' ? (
+        <ReimbursementPivotTable pivot={pivot} loading={pivotLoading} />
+      ) : (
+        <>
       <div className={styles.toolbar}>
         <div className={styles.search}>
           <div className={calcStyles.formControl} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -476,6 +507,8 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
           <span>Page {page} of {totalPages}</span>
           <button type="button" className={styles.pageBtn} disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
         </div>
+      )}
+        </>
       )}
 
       {selected && !payOpen && !holdOpen && (
@@ -688,10 +721,22 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
               <span className={styles.detailLabel}>Method</span>
               <span className={styles.detailValue}>{payForm.paymentMethod}</span>
             </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="paymentDate">Payment date *</label>
+              <input
+                id="paymentDate"
+                type="date"
+                className={calcStyles.formControl}
+                value={payForm.paymentDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setPayForm((f) => ({ ...f, paymentDate: e.target.value }))}
+              />
+              <span className={calcStyles.small}>The day the money actually moved — not necessarily today.</span>
+            </div>
             <p style={{ fontSize: 13.5, color: 'var(--mx-ink-muted)' }}>Are you sure this payment has been completed?</p>
             <div className={styles.detailActions}>
               <button type="button" className={styles.holdBtn} disabled={busy} onClick={() => { setPayOpen(false); setSelected(null); }}>Back</button>
-              <button type="button" className={styles.payBtn} style={{ padding: 12 }} disabled={busy} onClick={submitPay}>Confirm Payment</button>
+              <button type="button" className={styles.payBtn} style={{ padding: 12 }} disabled={busy || !payForm.paymentDate} onClick={submitPay}>Confirm Payment</button>
             </div>
           </div>
         </Modal>
@@ -718,5 +763,69 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
         </Modal>
       )}
     </AppShell>
+  );
+}
+
+// One row per month, one column per employee — the same shape Accounts
+// already keeps by hand in a spreadsheet. "Paid" sums only the employees/
+// months whose ReimbursementSheet has actually reached payment_done; the rest
+// of that month's total is still outstanding even once Accounts has seen it.
+function ReimbursementPivotTable({ pivot, loading }: { pivot: ReimbursementPivot | null; loading: boolean }) {
+  function downloadCsv() {
+    if (!pivot) return;
+    const header = ['Month', ...pivot.employees.map((e) => e.name), 'Total Expense', 'Paid'];
+    const csvRows = [header, ...pivot.rows.map((row) => [
+      row.monthLabel,
+      ...pivot.employees.map((e) => (row.perEmployee[e.id] ?? 0).toFixed(2)),
+      row.totalExpense.toFixed(2),
+      row.paid.toFixed(2)
+    ])];
+    const csv = csvRows.map((r) => r.map((cell) => (/[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell)).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reimbursement-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  if (loading || !pivot) {
+    return <div className={styles.emptyState}>{loading ? 'Loading…' : 'Could not load the report. Refresh to try again.'}</div>;
+  }
+  if (!pivot.rows.length) {
+    return <div className={styles.emptyState}>No reimbursements recorded yet.</div>;
+  }
+
+  return (
+    <div className={styles.tableSection}>
+      <div className={styles.toolbar}>
+        <button type="button" className={styles.exportLink} onClick={downloadCsv}>Export CSV</button>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table className={historyStyles.table}>
+          <thead>
+            <tr>
+              <th>Month</th>
+              {pivot.employees.map((e) => <th key={e.id}>{e.name}</th>)}
+              <th>Total Expense</th>
+              <th>Paid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pivot.rows.map((row) => (
+              <tr key={row.monthKey}>
+                <td>{row.monthLabel}</td>
+                {pivot.employees.map((e) => (
+                  <td key={e.id} className={styles.amountCell}>{row.perEmployee[e.id] ? formatMoney(row.perEmployee[e.id]) : ''}</td>
+                ))}
+                <td className={styles.amountCell}><strong>{formatMoney(row.totalExpense)}</strong></td>
+                <td className={styles.amountCell}>{row.paid ? formatMoney(row.paid) : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

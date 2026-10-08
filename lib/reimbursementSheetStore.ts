@@ -253,7 +253,9 @@ async function accountsComplete(
   id: string,
   actorId: string,
   paymentReference?: string,
-  remarks?: string
+  remarks?: string,
+  /** The date Accounts says the money actually moved. Defaults to now. */
+  paidAt?: Date
 ): Promise<ReimbursementSheetRecord | null> {
   const row = await db.ReimbursementSheet.findByPk(id);
   if (!row) return null;
@@ -263,7 +265,7 @@ async function accountsComplete(
   await row.update({
     status: 'payment_done',
     accounts_handler_id: actorId,
-    accounts_completed_at: new Date(),
+    accounts_completed_at: paidAt ?? new Date(),
     accounts_remarks: remarks || null,
     payment_reference: paymentReference || null,
   } as never);
@@ -405,6 +407,91 @@ async function deleteSheetWithEntries(id: string): Promise<DeletedSheetSummary |
   };
 }
 
+export interface ReimbursementPivotEmployee {
+  id: string;
+  name: string;
+}
+export interface ReimbursementPivotRow {
+  monthKey: string;
+  monthLabel: string;
+  perEmployee: Record<string, number>;
+  totalExpense: number;
+  paid: number;
+}
+export interface ReimbursementPivot {
+  employees: ReimbursementPivotEmployee[];
+  rows: ReimbursementPivotRow[];
+}
+
+// The Accounts department's month-by-employee reimbursement summary — one
+// row per month, one column per employee, same shape as the spreadsheet they
+// already keep by hand. Two queries, not one-per-sheet: amounts come straight
+// from Reimbursement (is_admin_entry excluded — Admin Expenses track their
+// own payment state directly on that row, never through a sheet), and
+// ReimbursementSheet is only consulted for its `status`, to know how much of
+// each month's total has actually reached payment_done ("Paid"). Mirrors
+// computeTotals()'s own is_admin_entry filter above, just aggregated across
+// everyone instead of one employee/month at a time.
+async function getReimbursementPivot(): Promise<ReimbursementPivot> {
+  const [reimbursements, sheets] = await Promise.all([
+    db.Reimbursement.findAll({
+      where: { is_admin_entry: false } as never,
+      attributes: ['amount', 'date', 'created_by'],
+      include: [{ model: db.User, as: 'creator', attributes: ['id', 'name', 'username'] }] as never
+    }),
+    db.ReimbursementSheet.findAll({ attributes: ['created_by', 'year', 'month', 'status'] })
+  ]);
+
+  // (employeeId, "YYYY-MM") -> is that sheet paid?
+  const paidSheets = new Set<string>();
+  for (const s of sheets) {
+    const p = s.get({ plain: true }) as Record<string, unknown>;
+    if (p.status !== 'payment_done') continue;
+    paidSheets.add(`${p.created_by}:${p.year}-${String(p.month).padStart(2, '0')}`);
+  }
+
+  const employeeNames = new Map<string, string>();
+  interface Bucket { perEmployee: Map<string, number>; totalExpense: number; paid: number; year: number; month: number }
+  const months = new Map<string, Bucket>();
+
+  for (const r of reimbursements) {
+    const p = r.get({ plain: true }) as Record<string, unknown>;
+    const creator = p.creator as Record<string, unknown> | undefined;
+    const employeeId = creator?.id as string | undefined;
+    if (!employeeId) continue;
+    employeeNames.set(employeeId, (creator?.name as string) || (creator?.username as string) || 'Unknown');
+
+    const date = String(p.date);
+    const key = date.slice(0, 7); // "YYYY-MM"
+    const [yearStr, monthStr] = key.split('-');
+    let bucket = months.get(key);
+    if (!bucket) {
+      bucket = { perEmployee: new Map(), totalExpense: 0, paid: 0, year: Number(yearStr), month: Number(monthStr) };
+      months.set(key, bucket);
+    }
+    const amount = Number(p.amount) || 0;
+    bucket.perEmployee.set(employeeId, (bucket.perEmployee.get(employeeId) || 0) + amount);
+    bucket.totalExpense += amount;
+    if (paidSheets.has(`${employeeId}:${key}`)) bucket.paid += amount;
+  }
+
+  const employees = Array.from(employeeNames.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const rows = Array.from(months.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, bucket]) => ({
+      monthKey: key,
+      monthLabel: `${MONTH_NAMES[bucket.month]} ${bucket.year}`,
+      perEmployee: Object.fromEntries(bucket.perEmployee),
+      totalExpense: Math.round(bucket.totalExpense * 100) / 100,
+      paid: Math.round(bucket.paid * 100) / 100
+    }));
+
+  return { employees, rows };
+}
+
 export const reimbursementSheetStore = {
   findOrCreate,
   findForPeriod,
@@ -417,5 +504,6 @@ export const reimbursementSheetStore = {
   managerDecide,
   hrDecide,
   accountsComplete,
+  getReimbursementPivot,
   MONTH_NAMES,
 };
