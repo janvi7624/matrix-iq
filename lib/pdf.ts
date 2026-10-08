@@ -100,6 +100,11 @@ export interface QuotationPdfInput {
   // this stays safe to call without them.
   companyOverride?: { legalName: string; addressLines: string[]; contactEmail: string };
   termsOverride?: string[];
+  /** Replaces just the varying part of the standard "Standard delivery
+      period: ..." T&C line (e.g. "15-20 working days") when set. */
+  deliveryPeriod?: string;
+  /** Replaces the entire standard warranty T&C line with this text when set. */
+  warrantyTerms?: string;
 }
 
 export async function generateQuotationPdf(input: QuotationPdfInput): Promise<void> {
@@ -304,7 +309,23 @@ export async function generateQuotationPdf(input: QuotationPdfInput): Promise<vo
   // strip any legacy embedded numeral just in case, then number everything
   // uniformly so custom terms continue the same sequence.
   const baseTerms = (input.termsOverride?.length ? input.termsOverride : QUOTATION_TERMS).map((t) => t.replace(/^\d+\.\s*/, ''));
-  const allTerms = [...baseTerms, ...customTermLines].map((line, i) => `${i + 1}. ${line}`);
+  // Per-quotation overrides for the two lines that commonly get negotiated
+  // per deal — everything else in the standard list stays fixed. Delivery
+  // period keeps the template sentence (only the duration varies); warranty
+  // is a full free-text replacement since what's agreed can differ in shape,
+  // not just in a number. Matched by keyword rather than array position, so
+  // reordering QUOTATION_TERMS/Application Configuration's list can't
+  // silently stop the substitution from finding its line.
+  const withOverrides = baseTerms.map((line) => {
+    if (input.deliveryPeriod?.trim() && /delivery period/i.test(line)) {
+      return `Standard delivery period: ${input.deliveryPeriod.trim()} from the date of order. Installation after delivery.`;
+    }
+    if (input.warrantyTerms?.trim() && /warranty/i.test(line)) {
+      return input.warrantyTerms.trim();
+    }
+    return line;
+  });
+  const allTerms = [...withOverrides, ...customTermLines].map((line, i) => `${i + 1}. ${line}`);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (doc as any).autoTable({

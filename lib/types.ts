@@ -107,6 +107,10 @@ export interface QuotationDetails {
   freightIncluded: boolean;
   /** Tick = the quoted price already covers installation. */
   installationIncluded: boolean;
+  /** Overrides the standard "Standard delivery period: ..." T&C line when set. */
+  deliveryPeriod: string;
+  /** Overrides the standard "Warranty will be guided by..." T&C line when set. */
+  warrantyTerms: string;
   customTerms: string;
 }
 
@@ -221,6 +225,10 @@ export interface QuotationRecord {
   freight_included: boolean;
   /** Quoted price already covers installation; drives the PDF note. */
   installation_included: boolean;
+  /** Overrides the standard delivery-period T&C line when set; '' = standard wording. */
+  delivery_period: string;
+  /** Overrides the standard warranty T&C line when set; '' = standard wording. */
+  warranty_terms: string;
   last_follow_up_at: string;
   follow_up_notes_json: string;
   // Quotation versioning (section 23) — '' / 0 for an original quotation.

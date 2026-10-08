@@ -90,6 +90,8 @@ function defaultDetails(currentUser: CurrentUser): QuotationDetails {
     validityDays: 7,
     freightIncluded: false,
     installationIncluded: false,
+    deliveryPeriod: '',
+    warrantyTerms: '',
     customTerms: ''
   };
 }
@@ -212,7 +214,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
           projectVertical: source.project_vertical || '',
           validityDays: source.validity_days || d.validityDays,
           freightIncluded: source.freight_included ?? d.freightIncluded,
-          installationIncluded: source.installation_included ?? d.installationIncluded
+          installationIncluded: source.installation_included ?? d.installationIncluded,
+          deliveryPeriod: source.delivery_period || d.deliveryPeriod,
+          warrantyTerms: source.warranty_terms || d.warrantyTerms
         }));
 
         // Carry the last quote's actual line items over as editable Custom
@@ -446,6 +450,8 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
         validityDays: details.validityDays,
         freightIncluded: details.freightIncluded,
         installationIncluded: details.installationIncluded,
+        deliveryPeriod: details.deliveryPeriod,
+        warrantyTerms: details.warrantyTerms,
         proposalKind: proposalValue.kind || null,
         proposal: proposalValue
       };
@@ -477,7 +483,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
       total: composition.totals.total,
       validityDays: details.validityDays,
       freightIncluded: details.freightIncluded,
-      installationIncluded: details.installationIncluded
+      installationIncluded: details.installationIncluded,
+      deliveryPeriod: details.deliveryPeriod,
+      warrantyTerms: details.warrantyTerms
     };
   }
 
@@ -579,6 +587,8 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
         validityDays: details.validityDays,
         freightIncluded: details.freightIncluded,
         installationIncluded: details.installationIncluded,
+        deliveryPeriod: details.deliveryPeriod,
+        warrantyTerms: details.warrantyTerms,
         customTerms: details.customTerms,
         lineItems: composition.lineItems,
         productGroups: composition.productGroups,

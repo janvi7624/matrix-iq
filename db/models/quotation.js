@@ -43,6 +43,11 @@ module.exports = (sequelize, DataTypes) => {
     // they were issued with.
     freight_included: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     installation_included: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // Per-quotation override for the standard "Standard delivery period: ..."
+    // / "Warranty will be guided by..." T&C lines (lib/pdf.ts) — '' means use
+    // the standard wording from Application Configuration.
+    delivery_period: { type: DataTypes.TEXT, allowNull: false, defaultValue: '' },
+    warranty_terms: { type: DataTypes.TEXT, allowNull: false, defaultValue: '' },
     // Project / Tender Proposal — see the 20260929140000 migration and
     // lib/quotationProposal.ts. NULL on a Standard/Custom quotation.
     proposal_kind: { type: DataTypes.STRING(20) },

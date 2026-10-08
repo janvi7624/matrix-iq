@@ -63,6 +63,8 @@ function toRecord(row: Model): QuotationRecord {
     validity_days: Number(plain.validity_days ?? 0),
     freight_included: Boolean(plain.freight_included),
     installation_included: Boolean(plain.installation_included),
+    delivery_period: (plain.delivery_period as string) ?? '',
+    warranty_terms: (plain.warranty_terms as string) ?? '',
     proposal_kind: ((plain.proposal_kind as string) ?? '') as QuotationRecord['proposal_kind'],
     // Returned as a parsed object, unlike products_json which this store hands
     // back as a string — a proposal is read field by field by the form, not
@@ -102,6 +104,8 @@ export interface CreateQuotationInput {
   validityDays?: number;
   freightIncluded?: boolean;
   installationIncluded?: boolean;
+  deliveryPeriod?: string;
+  warrantyTerms?: string;
   /** Project / Tender Proposal — see lib/quotationProposal.ts. */
   proposalKind?: 'project' | 'tender' | null;
   proposal?: ProposalDetails | null;
@@ -170,6 +174,8 @@ export async function createQuotation(input: CreateQuotationInput): Promise<Quot
     validity_days: Number(input.validityDays) || 7,
     freight_included: input.freightIncluded === true,
     installation_included: input.installationIncluded === true,
+    delivery_period: input.deliveryPeriod || '',
+    warranty_terms: input.warrantyTerms || '',
     proposal_kind: input.proposalKind || null,
     proposal_json: input.proposal ?? null,
     last_follow_up_at: null,
@@ -226,6 +232,8 @@ export async function createQuotationRevision(sourceId: string, input: CreateQuo
     validity_days: input.validityDays !== undefined ? Number(input.validityDays) || 7 : rootPlain.validity_days,
     freight_included: input.freightIncluded !== undefined ? input.freightIncluded === true : rootPlain.freight_included,
     installation_included: input.installationIncluded !== undefined ? input.installationIncluded === true : rootPlain.installation_included,
+    delivery_period: input.deliveryPeriod !== undefined ? input.deliveryPeriod || '' : rootPlain.delivery_period,
+    warranty_terms: input.warrantyTerms !== undefined ? input.warrantyTerms || '' : rootPlain.warranty_terms,
     last_follow_up_at: null,
     original_quotation_id: rootId,
     revision_number: nextRevisionNumber,
@@ -475,6 +483,8 @@ const CSV_COLUMNS: { key: keyof QuotationRecord; header: string }[] = [
   { key: 'validity_days', header: 'Validity (days)' },
   { key: 'freight_included', header: 'Freight Included' },
   { key: 'installation_included', header: 'Installation Included' },
+  { key: 'delivery_period', header: 'Delivery Period (Override)' },
+  { key: 'warranty_terms', header: 'Warranty Terms (Override)' },
   { key: 'last_follow_up_at', header: 'Last Follow-Up' }
 ];
 

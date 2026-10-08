@@ -143,6 +143,30 @@ export default function QuotationDetailsForm({ details, onChange, onBehalfOption
         </div>
         <div className={styles.row}>
           <div className={styles.field}>
+            <label className={styles.label} htmlFor="deliveryPeriod">Delivery Period (optional)</label>
+            <input
+              id="deliveryPeriod"
+              type="text"
+              className={styles.formControl}
+              placeholder="Standard: 20-25 working days — leave blank to use this"
+              value={details.deliveryPeriod}
+              onChange={(e) => onChange({ deliveryPeriod: e.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="warrantyTerms">Warranty Terms (optional)</label>
+            <input
+              id="warrantyTerms"
+              type="text"
+              className={styles.formControl}
+              placeholder="Standard: guided by OEM warranty terms — leave blank to use this"
+              value={details.warrantyTerms}
+              onChange={(e) => onChange({ warrantyTerms: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className={styles.row}>
+          <div className={styles.field}>
             <label className={styles.label} htmlFor="customTerms">Additional Terms &amp; Conditions (optional)</label>
             <textarea
               id="customTerms"
