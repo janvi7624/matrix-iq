@@ -118,8 +118,21 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [status, setStatus] = useState('Loading...');
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
+  // See the form initializer below — both read the same one-time deep link.
+  const [showForm, setShowForm] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('new') === '1';
+  });
+  // Opened straight from a project hub: /tms/tasks?new=1&projectId=<id>, so
+  // the project is already chosen and the person only fills in the task.
+  // Read from window.location.search rather than useSearchParams(), which
+  // would force this whole view behind a Suspense boundary for one-time
+  // deep-link support — same approach, same reason, as ProjectsView.
+  const [form, setForm] = useState(() => {
+    if (typeof window === 'undefined') return EMPTY_FORM;
+    const requested = new URLSearchParams(window.location.search).get('projectId') ?? '';
+    return requested ? { ...EMPTY_FORM, projectId: requested } : EMPTY_FORM;
+  });
   const [creating, setCreating] = useState(false);
 
   const [viewMode, setViewMode] = useState<ViewMode>('daily');

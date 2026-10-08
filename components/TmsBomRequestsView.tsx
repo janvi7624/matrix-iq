@@ -49,8 +49,19 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [status, setStatus] = useState('Loading...');
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
+  // Opened straight from a project hub — see the form initializer below.
+  const [showForm, setShowForm] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('new') === '1';
+  });
+  // Opened straight from a project hub: /tms/bom-requests?new=1&projectId=<id>.
+  // See TmsTasksView for why this reads the URL directly rather than using
+  // useSearchParams().
+  const [form, setForm] = useState(() => {
+    if (typeof window === 'undefined') return EMPTY_FORM;
+    const requested = new URLSearchParams(window.location.search).get('projectId') ?? '';
+    return requested ? { ...EMPTY_FORM, projectId: requested } : EMPTY_FORM;
+  });
   const [creating, setCreating] = useState(false);
 
   const [fProject, setFProject] = useState('');

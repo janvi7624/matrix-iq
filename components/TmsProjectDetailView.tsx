@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FileText, Layers, Paperclip, ShoppingCart, Check } from 'lucide-react';
 import { DeadlineExtensionReason, DeadlineExtensionStatus, TmsBomRequestRecord, TmsDeadlineExtensionRecord, TmsPriority, TmsProcurementRecord, TmsProjectPhaseRecord, TmsProjectPhaseStatus, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
-import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE } from '@/lib/tmsLabels';
+import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -115,6 +115,14 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
+// Day arithmetic on a plain YYYY-MM-DD, so the "closing soon" bound needs no
+// second read of the clock. Same shape as TmsProjectsView's addDays.
+function addDaysIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const next = new Date(y, m - 1, d + days);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+}
+
 function formatDate(iso: string): string {
   if (!iso) return '-';
   try {
@@ -147,6 +155,15 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
   const [showExtendDeadline, setShowExtendDeadline] = useState(false);
   const [status, setStatus] = useState('Loading...');
   const [tab, setTab] = useState<TabKey>('overview');
+
+  // BOM states where somebody still owes a decision. 'draft' is deliberately
+  // out — it is the requester's own unsent work, not a queue anyone is
+  // blocking on. The terminal states (payment_done, received, rejected,
+  // sent_for_procurement, completed) are out for the same reason.
+  const BOM_AWAITING = ['submitted', 'under_review', 'approved', 'admin_approved', 'finance_approved'];
+  // Everything before the goods are actually on order. 'cancelled' is not a
+  // pending state, and 'ordered' means purchasing has done its part.
+  const PROCUREMENT_PENDING = ['requested', 'quotation_required', 'quotation_received', 'approval_pending', 'approved', 'po_created'];
   const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<{ status: TmsProjectStatus; priority: TmsPriority; progressPercent: number; remarks: string } | null>(null);
@@ -378,6 +395,31 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
   }
 
   const { project, tasks, bomRequests, procurements, deadlineExtensions, activity, taskDerivedProgress } = data;
+
+  // What actually needs a human on this project, built from records the hub
+  // has already fetched — no extra request, no extra query (section 21).
+  // Only non-zero items appear; an all-clear project renders no strip at all
+  // rather than a row of reassuring zeros.
+  const attention: { key: string; label: string; tab: TabKey }[] = (() => {
+    const today = todayIso();
+    const open = tasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled');
+    const overdue = open.filter((t) => t.due_date && t.due_date < today).length;
+    const blocked = open.filter((t) => t.status === 'blocked').length;
+    const bomPending = bomRequests.filter((b) => BOM_AWAITING.includes(b.status)).length;
+    const procPending = procurements.filter((p) => PROCUREMENT_PENDING.includes(p.purchase_status)).length;
+    const due = project.deadline || project.estimated_close_date || '';
+    const weekOut = addDaysIso(today, 7);
+    const finished = project.status === 'completed' || project.status === 'cancelled';
+
+    const out: { key: string; label: string; tab: TabKey }[] = [];
+    if (overdue) out.push({ key: 'overdue', label: `${overdue} overdue task${overdue === 1 ? '' : 's'}`, tab: 'tasks' });
+    if (blocked) out.push({ key: 'blocked', label: `${blocked} blocked task${blocked === 1 ? '' : 's'}`, tab: 'tasks' });
+    if (bomPending) out.push({ key: 'bom', label: `${bomPending} BOM request${bomPending === 1 ? '' : 's'} awaiting approval`, tab: 'bom' });
+    if (procPending) out.push({ key: 'proc', label: `${procPending} procurement request${procPending === 1 ? '' : 's'} not yet ordered`, tab: 'procurement' });
+    // Only while the project can still act on it.
+    if (due && due >= today && due <= weekOut && !finished) out.push({ key: 'due', label: `Deadline ${formatDate(due)}`, tab: 'overview' });
+    return out;
+  })();
   const deadlineBucket = classifyDeadline(project.deadline, project.status === 'completed');
   const deadlineBand = DEADLINE_BUCKET_BAND[deadlineBucket];
 
@@ -401,6 +443,13 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
         {deadlineBand !== 'na' && (
           <span style={{ color: BAND_COLOR[deadlineBand], fontSize: 13, fontWeight: 600 }}>● {DEADLINE_BUCKET_LABEL[deadlineBucket]}</span>
         )}
+        <span className={styles.mutedText}>
+          Owner: {project.project_manager_name || 'no owner yet'}
+        </span>
+        <span className={styles.mutedText}>
+          Progress: {taskDerivedProgress !== null ? taskDerivedProgress : project.progress_percent}%
+          {taskDerivedProgress !== null ? ' (from tasks)' : ''}
+        </span>
         <Link className={historyStyles.button} href="/tms/projects">Back to Projects</Link>
         <button type="button" className={historyStyles.button} onClick={() => setShowExtendDeadline(true)}>Extend Deadline</button>
         <button type="button" className={historyStyles.button} onClick={editing ? saveEdit : startEdit} disabled={saving}>
@@ -459,6 +508,18 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
 
       {tab === 'overview' && (
         <>
+          {attention.length > 0 && (
+            <div className={`${calcStyles.sectionPanel} ${styles.infoRowDanger}`}>
+              <strong>Needs attention</strong>
+              <div className={styles.actionButtonsRow}>
+                {attention.map((a) => (
+                  <button key={a.key} type="button" className={historyStyles.button} onClick={() => setTab(a.tab)}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className={calcStyles.sectionPanel}>
             <ProjectWorkflowStepper status={project.status} />
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -536,8 +597,17 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
 
       {tab === 'tasks' && (
         tasks.length === 0 ? (
-          <EmptyState icon={Layers} title="No tasks yet" message="Tasks created for this project will appear here." />
+          <EmptyState
+            icon={Layers}
+            title="No tasks yet"
+            message="Break the work on this project into tasks so the team can pick them up and report progress."
+            action={<Link className={calcStyles.btn} href={`/tms/tasks?new=1&projectId=${project.id}`}>+ Add Task</Link>}
+          />
         ) : (
+          <>
+          <div className={historyStyles.actionRow}>
+            <Link className={calcStyles.btn} href={`/tms/tasks?new=1&projectId=${project.id}`}>+ Add Task</Link>
+          </div>
           <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
@@ -557,6 +627,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             </tbody>
           </table>
           </div>
+          </>
         )
       )}
 
@@ -663,8 +734,17 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
 
       {tab === 'bom' && (
         bomRequests.length === 0 ? (
-          <EmptyState icon={FileText} title="No BOM requests yet" message="Material requests for this project will appear here." />
+          <EmptyState
+            icon={FileText}
+            title="No material requirements yet"
+            message="Raise a BOM request for any part or material this project needs. Approved requests go on to procurement."
+            action={<Link className={calcStyles.btn} href={`/tms/bom-requests?new=1&projectId=${project.id}`}>+ Create BOM Request</Link>}
+          />
         ) : (
+          <>
+          <div className={historyStyles.actionRow}>
+            <Link className={calcStyles.btn} href={`/tms/bom-requests?new=1&projectId=${project.id}`}>+ Create BOM Request</Link>
+          </div>
           <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
@@ -683,23 +763,41 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             </tbody>
           </table>
           </div>
+          </>
         )
       )}
 
       {tab === 'procurement' && (
         procurements.length === 0 ? (
-          <EmptyState icon={ShoppingCart} title="No procurement records yet" message="Procurement generated from approved BOM requests will appear here." />
+          <EmptyState
+            icon={ShoppingCart}
+            title="Nothing being procured yet"
+            message="Approved BOM requests come through here once they are sent to procurement. You can also raise a purchase for this project directly."
+            action={<Link className={calcStyles.btn} href={`/tms/procurement?new=1&projectId=${project.id}`}>+ Create Procurement Request</Link>}
+          />
         ) : (
+          <>
+          <div className={historyStyles.actionRow}>
+            <Link className={calcStyles.btn} href={`/tms/procurement?new=1&projectId=${project.id}`}>+ Create Procurement Request</Link>
+          </div>
           <div className={historyStyles.tableWrap}>
           <table className={historyStyles.table}>
             <thead>
-              <tr><th>Procurement</th><th>Item</th><th>Vendor</th><th>Purchase Status</th><th></th></tr>
+              <tr><th>Procurement</th><th>Item</th><th>From BOM</th><th>Vendor</th><th>Purchase Status</th><th></th></tr>
             </thead>
             <tbody>
               {procurements.map((p) => (
                 <tr key={p.id}>
                   <td className={historyStyles.num}>{p.procurement_code}</td>
                   <td>{p.item_name}</td>
+                  {/* Where this purchase came from. Raised directly against
+                      the project rather than from a requirement shows as a
+                      dash, which is a real and different thing to say. */}
+                  <td className={historyStyles.num}>
+                    {p.bom_request_id
+                      ? <Link href={`/tms/bom-requests/${p.bom_request_id}`}>{p.bom_request_code || 'View BOM'}</Link>
+                      : '-'}
+                  </td>
                   <td>{p.vendor || '-'}</td>
                   <td><StatusBadge tone={TMS_PURCHASE_STATUS_TONE[p.purchase_status]} label={TMS_PURCHASE_STATUS_LABEL[p.purchase_status]} /></td>
                   <td><Link className={historyStyles.button} href={`/tms/procurement/${p.id}`}>View</Link></td>
@@ -708,6 +806,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             </tbody>
           </table>
           </div>
+          </>
         )
       )}
 
