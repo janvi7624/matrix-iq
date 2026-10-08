@@ -97,10 +97,10 @@ export async function createSalesTarget(input: CreateSalesTargetInput): Promise<
 }
 
 // Create-or-replace a whole batch of periods for one employee in one go —
-// what setting a target now does, since one figure fixes every period of the
-// fiscal year (see lib/targetCascade.ts). One transaction: a half-applied
-// cascade would leave the quarters disagreeing with the months, which is
-// exactly the state this feature exists to prevent.
+// what setting targets now does, since the 12 entered months also determine
+// every quarter, half and the year (see lib/targetRollup.ts). One
+// transaction: a half-applied write would leave the quarters disagreeing with
+// the months they are the sum of, which is exactly the state this prevents.
 //
 // Matched on the same (employee, period_type, period_start) key the unique
 // index uses, so an existing period is updated rather than colliding with it.
@@ -200,6 +200,27 @@ export async function findSalesTarget(employeeId: string, periodType: TargetPeri
     include: INCLUDE_EMPLOYEE as never
   });
   return row ? toRecord(row) : undefined;
+}
+
+// The 12 monthly figures already on file for one employee's fiscal year,
+// keyed 'YYYY-MM' the way lib/targetRollup.ts keys a month. The month rows
+// are the only stored truth now — quarters/halves/year are sums of them — so
+// this is what the entry form prefills from and what a single-month edit
+// re-derives the rollup from.
+export async function findMonthAmounts(employeeId: string, fiscalYear: string): Promise<Record<string, number>> {
+  if (!isUuid(employeeId)) return {};
+  const rows = await db.SalesTarget.findAll({
+    where: { employee_id: employeeId, fiscal_year: fiscalYear, period_type: 'monthly' } as never
+  });
+  const out: Record<string, number> = {};
+  for (const row of rows) {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    // period_start is the first of the month, so its 'YYYY-MM' prefix IS the
+    // month key — no separate column to keep in step.
+    const key = String(plain.period_start ?? '').slice(0, 7);
+    if (key) out[key] = Number(plain.target_amount) || 0;
+  }
+  return out;
 }
 
 export interface ListSalesTargetsFilters {

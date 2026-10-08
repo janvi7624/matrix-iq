@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { poStore } from '@/lib/poStore';
-import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
+import { appendProjectTimeline, findProjectById, projectStore } from '@/lib/projectStore';
+import { findPendingTechnicalRequest } from '@/lib/projectTechnicalRequest';
 import { apiErrorResponse } from '@/lib/apiError';
 import { PoRecord } from '@/lib/types';
 import { findUserById } from '@/lib/userStore';
@@ -60,6 +61,33 @@ export async function POST(request: NextRequest) {
       'po_received'
     );
 
+    // PO Received is the final Project Progress stage (Installation/Completed
+    // were retired, 2026-09), so receiving the PO *is* winning the deal —
+    // close it as won here rather than waiting for a separate manual "Close
+    // Project → Won". That status flip is what makes the quotation qualify in
+    // lib/salesAchievement.ts, so the owner's sales target picks the amount up
+    // on its next read with no stored figure to keep in sync.
+    //
+    // Mirrors the technical-owner rule from the PATCH /api/projects/[id]
+    // "closingAsWon" branch (assigned OR awaiting approval) — a won project
+    // with nobody technical on it is how TMS filled up with ownerless
+    // projects. Unlike there, a missing owner does NOT fail the request: the
+    // PO is a record of something that already happened and must still be
+    // saved, so the project simply stays active and the caller is told why.
+    let projectClosedAsWon = false;
+    let wonBlockedReason = '';
+    if (project.status === 'won') {
+      projectClosedAsWon = true;
+    } else if (project.status === 'lost') {
+      wonBlockedReason = 'This project is closed as lost — reopen it before the PO can close it as won.';
+    } else if (project.assigned_technical_person_id || (await findPendingTechnicalRequest(projectId))) {
+      await projectStore.update(projectId, { status: 'won' });
+      await appendProjectTimeline(projectId, { by: viewer.username, stage: 'po_received', label: 'Closed as won — PO received' });
+      projectClosedAsWon = true;
+    } else {
+      wonBlockedReason = 'PO saved, but the project needs a technical owner before it can close as won — the sales target will not count it until then.';
+    }
+
     if (project.assigned_technical_person_id) {
       const technicalLead = await findUserById(project.assigned_technical_person_id);
       if (technicalLead?.email && technicalLead.username !== viewer.username) {
@@ -74,7 +102,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json({ ...created, projectClosedAsWon, wonBlockedReason }, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);
   }

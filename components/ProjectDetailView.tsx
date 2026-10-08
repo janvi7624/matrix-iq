@@ -768,6 +768,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         body: JSON.stringify({ projectId, ...poForm, amount: Number(poForm.amount) || 0, advanceReceived: Number(poForm.advanceReceived) || 0 })
       });
       if (!response.ok) throw new Error(String(response.status));
+      // Recording the PO closes the deal as won (see POST /api/po) — say so,
+      // and say why when it could not, since that also means the sales target
+      // will not count this deal yet.
+      const saved = await response.json().catch(() => null);
+      if (saved?.wonBlockedReason) toast.error(saved.wonBlockedReason);
+      else if (saved?.projectClosedAsWon) toast.success('PO saved — project closed as won.');
       setPoForm(EMPTY_PO);
       await load();
     } catch {
