@@ -1,66 +1,74 @@
+/* The tile grid inside an expanded section. Tighter than before to match
+   the denser accordion bars above it — 18px gaps and a 20px top margin
+   made an expanded section float away from the bar that opened it. */
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 18px;
-    margin-top: 20px;
+    gap: 10px;
+    margin: 10px 0 4px;
 }
 .sectionToggle {
     display: flex;
     align-items: center;
     gap: 10px;
     width: 100%;
-    margin-top: 28px;
+    /* Was 28px with a shadow and a hover lift on each bar. Eleven of those
+       is most of a screen spent on separators — a directory wants rows that
+       sit close together with a clear divider, not eleven floating cards. */
+    margin-top: 8px;
     border: 1px solid var(--mx-border);
-    border-radius: var(--mx-radius-lg);
+    border-radius: 10px;
     background: var(--mx-surface);
-    box-shadow: var(--mx-shadow-sm);
     cursor: pointer;
     font-family: inherit;
     text-align: left;
-    padding: 12px 14px;
-    transition: box-shadow var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease), transform var(--mx-duration-base) var(--mx-ease);
+    padding: 10px 14px;
+    transition: border-color 180ms var(--mx-ease), background 180ms var(--mx-ease);
 }
 .sectionToggle:first-child {
     margin-top: 6px;
 }
 .sectionToggle:hover {
-    box-shadow: var(--mx-shadow-md);
-    border-color: rgba(220, 38, 38, 0.3);
-    transform: translateY(-1px);
+    border-color: var(--mx-border-strong);
+    background: var(--mx-surface-sunken);
 }
 .sectionToggle[aria-expanded='true'] {
-    border-color: rgba(220, 38, 38, 0.3);
-    background: var(--mx-brand-subtle);
+    border-color: var(--mx-border-strong);
+    background: var(--mx-surface);
 }
 .sectionToggleIcon {
     flex-shrink: 0;
-    width: 30px;
-    height: 30px;
-    border-radius: 9px;
-    background: rgba(17, 24, 39, 0.045);
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14.5px;
-    transition: background var(--mx-duration-base) var(--mx-ease);
+    transition: background 180ms var(--mx-ease), color 180ms var(--mx-ease);
 }
+/* Open state is marked by the brand tint on the icon and the rotated
+   chevron — the whole bar going brand-subtle made an expanded section read
+   as "selected", which it isn't. */
 .sectionToggle[aria-expanded='true'] .sectionToggleIcon {
-    background: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand);
 }
 .sectionToggleLabel {
-    font-size: 13px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    /* Sentence case, not uppercase: the spec calls out excessive uppercase,
+       and a directory of eleven shouted labels is hard to read. */
+    font-size: 14px;
+    font-weight: 600;
     color: var(--mx-ink);
 }
 .sectionToggleCount {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--mx-ink-faint);
-    background: rgba(17, 24, 39, 0.045);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+    background: var(--mx-surface-sunken);
     padding: 2px 9px;
-    border-radius: var(--mx-radius-full);
+    border-radius: 999px;
     font-variant-numeric: tabular-nums;
 }
 .sectionChevron {
@@ -68,13 +76,16 @@
     flex-shrink: 0;
     font-size: 17px;
     line-height: 1;
-    color: #c1c7d0;
+    color: var(--mx-ink-faint);
     transform: rotate(0deg);
-    transition: transform 0.18s ease, color var(--mx-duration-base) var(--mx-ease);
+    transition: transform 180ms var(--mx-ease), color 180ms var(--mx-ease);
 }
 .sectionToggle[aria-expanded='true'] .sectionChevron {
     transform: rotate(90deg);
-    color: var(--mx-brand-hover);
+    color: var(--mx-brand);
+}
+@media (prefers-reduced-motion: reduce) {
+    .sectionChevron { transition: none; }
 }
 
 /* ---------- Greeting + primary CTA ---------- */
@@ -109,9 +120,19 @@
 /* ---------- Top row: Needs Your Attention + Recent Projects + Recent
    Quotations side by side, so the three compact panels a returning user
    scans first sit in one glance instead of stacking the page tall. Needs
-   Your Attention gets a slightly wider column and a branded border/header
-   tint (.topGridHighlight) so it visibly outranks the other two. ---------- */
+   Your Attention gets a slightly wider column; it now earns extra visual
+   weight only when it holds something urgent (.attentionPanelUrgent),
+   rather than wearing a red border permanently. ---------- */
+/* Both top-row panels are pinned to the SAME height, and each scrolls
+   inside it — so the row ends level and neither grows with its content.
+   Derived from the Sales Team Summary, the taller of the two:
+     66px head (14px padding x2 + title + subtitle)
+   + 40px table header row
+   + 44px x 5 data rows
+   + 39px totals row
+   Change any of those and this has to move with it. */
 .topGrid {
+    --mx-top-panel-height: 365px;
     display: grid;
     grid-template-columns: 1.15fr 1fr 1fr;
     gap: 16px;
@@ -126,14 +147,19 @@
 .topGridPair {
     grid-template-columns: 1fr 2fr;
 }
-.topGridHighlight {
-    margin-top: 0;
-    border: 1.5px solid var(--mx-brand);
-    box-shadow: 0 6px 20px rgba(220, 38, 38, 0.14);
+/* The panel used to carry a 1.5px red border and a red glow permanently —
+   shouting just as loudly on a morning with nothing to do. The weight now
+   tracks the work: a calm card by default, a red top rule and a header
+   badge only when something urgent is actually in it. */
+.attentionPanelUrgent {
+    border-color: var(--mx-border-strong);
+    box-shadow: var(--mx-shadow-md);
 }
-.topGridHighlight .attentionHead {
-    background: var(--mx-brand-subtle);
-    color: var(--mx-brand-hover);
+.attentionPanelUrgent::before {
+    content: '';
+    display: block;
+    height: 3px;
+    background: var(--mx-brand);
 }
 
 .attentionPanel {
@@ -143,26 +169,48 @@
     border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-sm);
     overflow: hidden;
+    /* A column, so the list below can take whatever height the grid row
+       gives this panel. Both cards in the row then end level, and neither
+       pads itself out with dead white space. */
+    display: flex;
+    flex-direction: column;
 }
 /* Zeroes .attentionPanel's own 16px margin-top for a panel sitting inside
    .topGrid, which already carries that spacing — the grid's panels then line
    up with each other and with the cards beside them. Has to be declared
-   after .attentionPanel: same specificity, so source order decides, which is
-   why .topGridHighlight's own margin-top: 0 above never took effect. */
+   after .attentionPanel: same specificity, so source order decides. */
 .topGridPanel {
     margin-top: 0;
+    height: var(--mx-top-panel-height);
 }
 
 .attentionHead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 14px 18px;
+    border-bottom: 1px solid var(--mx-border);
+}
+.attentionHeadTitle {
     font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--mx-ink-muted);
-    border-bottom: 1px solid var(--mx-border);
+}
+.attentionHeadBadge {
+    margin-left: auto;
+    padding: 2px 9px;
+    border-radius: var(--mx-radius-full);
+    background: var(--mx-danger-subtle);
+    color: var(--mx-danger);
+    font-size: 11px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 .attentionEmpty {
+    flex: 1;
     padding: 18px;
     font-size: 13.5px;
     color: var(--mx-ink-muted);
@@ -185,6 +233,18 @@
     border-bottom: none;
 }
 .attentionRow:hover {
+    background: var(--mx-surface-sunken);
+}
+.attentionRow:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: -2px;
+}
+/* A left rule rather than a tinted icon square: urgency should be legible
+   down the edge of the list at a glance, not something you decode per row. */
+.attentionUrgent {
+    box-shadow: inset 3px 0 0 var(--mx-brand);
+}
+.attentionUrgent:hover {
     background: var(--mx-brand-subtle);
 }
 .attentionIcon {
@@ -226,24 +286,11 @@
 .attentionArrow {
     flex-shrink: 0;
     color: var(--mx-ink-faint);
-    font-size: 14px;
+    transition: transform var(--mx-duration-base) var(--mx-ease), color var(--mx-duration-base) var(--mx-ease);
 }
-.attentionViewAll {
-    display: block;
-    width: 100%;
-    padding: 11px 18px;
-    border: none;
-    border-top: 1px solid var(--mx-border);
-    background: var(--mx-surface-sunken);
+.attentionRow:hover .attentionArrow {
+    transform: translateX(2px);
     color: var(--mx-brand);
-    font-size: 12.5px;
-    font-weight: 700;
-    text-align: center;
-    cursor: pointer;
-    transition: background var(--mx-duration-base) var(--mx-ease);
-}
-.attentionViewAll:hover {
-    background: var(--mx-brand-subtle);
 }
 
 .sectionHeading {
@@ -255,19 +302,40 @@
     color: var(--mx-ink-muted);
 }
 
-/* ---------- Department health ---------- */
+/* ---------- Department health ----------
+   The heading and the legend used to be two unrelated blocks each carrying
+   their own 22px top margin, so they drifted out of alignment whenever the
+   title wrapped. One band, baseline-aligned, with the legend pinned right. */
 .healthHead {
     display: flex;
-    align-items: baseline;
+    align-items: flex-end;
     justify-content: space-between;
-    gap: 12px;
+    gap: 12px 20px;
     flex-wrap: wrap;
+    margin: 30px 2px 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--mx-border);
+}
+.healthHeadText {
+    min-width: 0;
+}
+.healthTitle {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mx-ink-muted);
+}
+.healthSub {
+    margin: 5px 0 0;
+    font-size: 11.5px;
+    color: var(--mx-ink-faint);
 }
 .healthLegend {
     display: flex;
-    gap: 12px;
+    gap: 14px;
     flex-wrap: wrap;
-    margin: 22px 2px 4px;
 }
 .legendItem {
     display: inline-flex;
@@ -294,46 +362,96 @@
     align-items: center;
     gap: 6px;
 }
-/* Its own grid rather than the shared .kpiGrid — the gauge tiles carry an arc,
-   a headline metric and an affordance row now, so a 150px track squeezed them.
-   190px keeps 4-across on a desktop while giving the arc room to read. */
+/* Four per row on a large screen, two on tablet, one on a narrow phone —
+   explicit column counts rather than auto-fill, so every card is the same
+   width at a given breakpoint and the grid can't reflow into an odd 3+1. */
 .healthGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 12px;
-    margin-top: 10px;
+    margin-top: 12px;
 }
+@media (max-width: 1180px) {
+    .healthGrid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 880px) {
+    .healthGrid { grid-template-columns: repeat(2, 1fr); }
+}
+/* One column: a 0-100 track halved again stops being a scale anyone can
+   read a threshold off. */
 @media (max-width: 560px) {
-    .healthGrid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .healthGrid { grid-template-columns: 1fr; }
 }
 
 .tile {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 22px;
-    border-radius: var(--mx-radius-lg);
+    gap: 7px;
+    padding: 14px 16px;
+    border-radius: 10px;
     background: var(--mx-surface);
     border: 1px solid var(--mx-border);
-    box-shadow: var(--mx-shadow-sm);
     text-decoration: none;
     color: inherit;
-    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
+    min-width: 0;
+    /* No shadow at rest and no lift on hover. Twelve cards each floating on
+       their own shadow is what made an expanded section read as heavier
+       than the rest of the page; a border change is enough feedback. */
+    transition: border-color 180ms var(--mx-ease), background 180ms var(--mx-ease);
 }
 .tile:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--mx-shadow-md);
-    border-color: rgba(220, 38, 38, 0.35);
+    border-color: var(--mx-border-strong);
+    background: var(--mx-surface-sunken);
+}
+.tile:focus-visible,
+.sectionToggle:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+/* Tiles carried no icon, so opening a section gave a wall of text cards —
+   the mark is what makes them scannable. */
+.tileHead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.tileIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    border-radius: 8px;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
+    transition: background 180ms var(--mx-ease), color 180ms var(--mx-ease);
+}
+.tile:hover .tileIcon {
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand);
 }
 .tileTitle {
-    font-size: 1.05rem;
-    font-weight: 700;
+    /* Was 1.05rem/700 — a module name is a card heading, not a page title,
+       and at that size twelve of them shouted over the section bar above. */
+    font-size: 14px;
+    font-weight: 600;
     color: var(--mx-ink);
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 .tileDesc {
-    font-size: 0.85rem;
+    font-size: 12.5px;
     color: var(--mx-ink-muted);
-    line-height: 1.4;
+    line-height: 1.5;
+    /* Two lines keeps every card in a row the same height, which is what
+       lets the grid be scanned rather than read. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 .tileBadge {
     display: inline-block;
@@ -522,9 +640,85 @@
     border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-lg);
     box-shadow: var(--mx-shadow-sm);
-    padding: 16px 18px;
+    /* Padding moved onto the head and totals rows so the table can run edge
+       to edge — an eight-column table loses real width to card padding. */
+    padding: 0;
     /* No margin-top: it's a .topGrid child, which already carries that. */
     min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: var(--mx-top-panel-height);
+}
+
+.summaryHead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--mx-border);
+}
+
+.summaryTitle {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mx-ink-muted);
+}
+
+/* The eight headers don't say they're a sequence; this does, once. */
+.summarySub {
+    margin: 5px 0 0;
+    font-size: 11px;
+    color: var(--mx-ink-faint);
+}
+
+.summaryCount {
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--mx-ink-faint);
+    background: var(--mx-surface-sunken);
+    border-radius: var(--mx-radius-full);
+    padding: 3px 10px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Outside the scrolling viewport, so the team's totals stay visible however
+   many reps there are. */
+.summaryTotals {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    padding: 11px 18px;
+    border-top: 1px solid var(--mx-border);
+    background: var(--mx-surface-sunken);
+    font-size: 12px;
+    color: var(--mx-ink);
+    font-variant-numeric: tabular-nums;
+}
+
+.summaryTotalsLabel {
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--mx-ink-faint);
+}
+
+.summaryTotal {
+    font-weight: 700;
+}
+
+.summaryTotalsAlert {
+    margin-left: auto;
+    font-weight: 700;
+    color: var(--mx-danger);
 }
 .summaryNum {
     font-variant-numeric: tabular-nums;
@@ -565,6 +759,10 @@
     .kpiGrid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
     .recentGrid { grid-template-columns: 1fr; gap: 12px; }
     .topGrid, .topGridPair { grid-template-columns: 1fr; gap: 12px; }
+    /* Stacked, the two panels are no longer side by side, so there is
+       nothing to line up with — a shorter cap keeps two scrolling boxes
+       from filling a phone screen between them. */
+    .topGrid { --mx-top-panel-height: 280px; }
 }
 @media (max-width: 400px) {
     .grid { grid-template-columns: 1fr 1fr; }
@@ -671,10 +869,18 @@
 
 /* 57px = .attentionRow's 13px top + 13px bottom padding + its 30px icon +
    the 1px divider. Kept as a comment rather than a magic number: change the
-   row's padding and this has to move with it. */
+   row's padding and this has to move with it.
+   Scrolling is now the ONLY way past the visible rows — the "View all"
+   button and its drawer are gone, so this must stay scrollable or the
+   overflow becomes unreachable.
+   The panel now has a fixed height, so this just takes whatever the header
+   leaves. min-height:0 is required — a flex child defaults to
+   min-height:auto and would refuse to shrink below its content, pushing the
+   panel past its set height instead of scrolling. */
 .attentionScroll {
     composes: mx-visible-scroll from global;
-    max-height: calc(57px * 3);
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
 }
 
@@ -688,7 +894,12 @@
    rows — the wrapper already carries the radius, so it needn't clip. */
 .summaryViewport {
     composes: mx-visible-scroll from global;
-    max-height: calc(44px * 4); /* header + 3 rows */
+    /* Takes whatever the head and the totals row leave of the card's fixed
+       height — about five data rows, then scrolls. min-height:0 is
+       required: a flex child defaults to min-height:auto and would refuse
+       to shrink below its content, growing the card instead of scrolling. */
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
 }
 .summaryViewport table {
@@ -696,4 +907,164 @@
 }
 .summaryViewport table th {
     z-index: 2;
+}
+
+/* ======================================================================
+   Page intro + headline KPIs
+   Type scale per the design spec: page title 26px, card heading 14px,
+   body 13px, supporting label 12px. Spacing is 4px-based throughout.
+   ====================================================================== */
+
+.pageIntro {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.pageIntroText {
+    min-width: 0;
+}
+
+/* Was a muted 0.95rem line sitting at body weight — it is the page's
+   heading and names the person reading it. */
+.pageTitle {
+    margin: 0;
+    font-size: 26px;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--mx-ink);
+}
+
+.pageSubtitle {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+}
+
+.kpiRow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.kpiCardNew {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    text-decoration: none;
+    color: inherit;
+    /* Restrained: a border change and a hairline shadow, no lift. Four cards
+       jumping on hover is noise on a page people scan rather than play with. */
+    transition: border-color 180ms var(--mx-ease), box-shadow 180ms var(--mx-ease);
+}
+
+a.kpiCardNew:hover {
+    border-color: var(--mx-border-strong);
+    box-shadow: var(--mx-shadow-sm);
+}
+
+a.kpiCardNew:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+
+.kpiIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
+}
+
+/* The only KPI that is a problem rather than a measurement, so it is the
+   only one allowed any colour. */
+.kpiIconAlert {
+    background: var(--mx-danger-subtle);
+    color: var(--mx-danger);
+}
+
+.kpiLabelNew {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+}
+
+.kpiValueNew {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--mx-ink);
+    /* Tabular figures so the row doesn't reflow as counts change. */
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+}
+
+.kpiValueAlert {
+    color: var(--mx-danger);
+}
+
+.kpiValueLoading {
+    color: var(--mx-ink-faint);
+}
+
+@media (max-width: 1000px) {
+    .kpiRow {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 560px) {
+    .kpiRow {
+        grid-template-columns: 1fr;
+    }
+
+    .pageTitle {
+        font-size: 22px;
+    }
+
+    .primaryCta {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
+}
+
+.summaryHeadActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+}
+
+.summaryLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mx-brand);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.summaryLink:hover {
+    text-decoration: underline;
+}
+
+.summaryLink:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+    border-radius: 4px;
 }

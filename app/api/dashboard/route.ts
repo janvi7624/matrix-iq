@@ -163,6 +163,21 @@ export async function GET(request: NextRequest) {
     const todayStr = new Date().toDateString();
     const metaLeadsToday = leads.filter((l) => l.source === 'meta_lead_ads' && new Date(l.created_at).toDateString() === todayStr).length;
 
+    // The four figures the Dashboard's headline cards show. Every one is
+    // counted from a list ALREADY fetched above for other purposes — no new
+    // query, and no derived "trend" against a prior period, because nothing
+    // here stores a historical snapshot to compare against. A made-up
+    // "+12% vs last month" on a CRM dashboard is worse than no trend at all.
+    //
+    // Both lists are the viewer's own visibility scope (leadStore.list and
+    // searchQuotationsFiltered both take the viewer), so these totals mean
+    // "what you can see", consistent with every other figure on the page.
+    const headlineKpis = {
+      totalLeads: leads.length,
+      totalQuotations: quotationsForViewer.length,
+      totalQuotationValue: quotationsForViewer.reduce((sum, q) => sum + (Number(q.total) || 0), 0)
+    };
+
     const kpis = {
       totalProjects: projectsLight.length,
       siteVisitsToday,
@@ -239,6 +254,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       modules,
       kpis,
+      headlineKpis,
       backOfficeKpis,
       followUpCount,
       reminderCount,

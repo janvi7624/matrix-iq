@@ -20,9 +20,8 @@ import { BRAND } from '@/lib/branding';
 import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
-import { sectionIconFor, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON, DUE_SECTION_ICON } from '@/lib/icons';
-import { Users as UsersIcon, X } from 'lucide-react';
-import Drawer from './ui/Drawer';
+import { sectionIconFor, resolveModuleIcon, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON, DUE_SECTION_ICON } from '@/lib/icons';
+import { ChevronRight, Contact, FileText, IndianRupee, ListChecks, Users as UsersIcon, X } from 'lucide-react';
 import Modal from './ui/Modal';
 import { hasSeenCelebrationPopup, markCelebrationPopupSeen } from '@/lib/celebrationPopupSeen';
 import Table from './ui/Table';
@@ -31,11 +30,6 @@ import EmptyState from './ui/EmptyState';
 import CelebrationsSection from './CelebrationsSection';
 import MyTargetPanel from './MyTargetPanel';
 import styles from './dashboard.module.css';
-
-// How many rows the Dashboard panel itself shows before collapsing the rest
-// behind "View All" — keeps the panel a fixed, small size at login instead
-// of growing tall whenever several things need attention at once.
-const ATTENTION_COMPACT_LIMIT = 3;
 
 // Which module section the Sales-leadership "Due" bar is pinned beneath, and
 // the label/expand-state key it uses (shared with useCollapsibleSections, so
@@ -57,6 +51,15 @@ interface Kpis {
   totalProjects: number;
   activeProjects: number;
   conversionRate: number;
+}
+
+// Counted server-side from lists the dashboard already fetches — see the
+// headlineKpis block in app/api/dashboard/route.ts for why there is no
+// trend/comparison figure alongside them.
+interface HeadlineKpis {
+  totalLeads: number;
+  totalQuotations: number;
+  totalQuotationValue: number;
 }
 
 interface BackOfficeKpis {
@@ -105,6 +108,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [reminderCount, setReminderCount] = useState<number | null>(null);
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [backOfficeKpis, setBackOfficeKpis] = useState<BackOfficeKpis | null>(null);
+  const [headlineKpis, setHeadlineKpis] = useState<HeadlineKpis | null>(null);
   const [modules, setModules] = useState<ModuleConfigRecord[] | null>(null);
   const [unattendedLeads, setUnattendedLeads] = useState<number | null>(null);
   const [metaLeadsToday, setMetaLeadsToday] = useState<number>(0);
@@ -149,7 +153,19 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (idx <= 0) return sections;
     return [sections[idx], ...sections.slice(0, idx), ...sections.slice(idx + 1)];
   }, [sections, primarySection]);
-  const { isExpanded, toggle } = useCollapsibleSections(primarySection);
+  // Every section label the page renders, including the Sales-leadership
+  // "Due" bar — the accordion needs the full set so a sibling that has
+  // never been toggled still gets marked collapsed, instead of falling
+  // through to the initiallyExpandedLabel default and reappearing open
+  // alongside the section just clicked.
+  const allSectionLabels = useMemo(
+    () => [...orderedSections.map((section) => section.label), ...(salesLeadership ? [DUE_SECTION_LABEL] : [])],
+    [orderedSections, salesLeadership]
+  );
+  // Accordion: opening one section closes the rest. Eleven sections open at
+  // once turned the foot of the page into a very long scroll, and the hook
+  // already supported this — the Sidebar has used it all along.
+  const { isExpanded, toggle } = useCollapsibleSections(primarySection, { accordion: true, allLabels: allSectionLabels });
 
   // The "Due" bar is a peer of the module-section bars rather than a card in
   // the top row — it reads as a queue you open when you're ready to work it,
@@ -179,6 +195,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setModules(data.modules ?? []);
         setKpis(data.kpis ?? null);
         setBackOfficeKpis(data.backOfficeKpis ?? null);
+        setHeadlineKpis(data.headlineKpis ?? null);
         setFollowUpCount(data.followUpCount ?? null);
         setReminderCount(data.reminderCount ?? null);
         setUnattendedLeads(data.unattendedLeads ?? null);
@@ -462,12 +479,12 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     [salesLeadership, attentionItems]
   );
 
-  const [showAllAttention, setShowAllAttention] = useState(false);
-  // The inline list now renders EVERY item and scrolls after
-  // ATTENTION_COMPACT_LIMIT rows (see .attentionScroll), so this count no
-  // longer decides what is rendered — only whether the full-screen drawer is
-  // worth offering, which it still is once the list outgrows the panel.
-  const hiddenAttentionCount = Math.max(0, pendingAttentionItems.length - ATTENTION_COMPACT_LIMIT);
+  // Drives the panel's accent and its header badge: the card is only loud
+  // when something in it actually is.
+  const urgentAttentionCount = useMemo(
+    () => pendingAttentionItems.filter((item) => item.tone === 'urgent').length,
+    [pendingAttentionItems]
+  );
 
   // Only declare "you're all caught up" once every signal this role
   // actually receives has resolved — otherwise a still-loading dashboard
@@ -531,27 +548,37 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           </div>
         </Modal>
       )}
-      <div className={styles.greetingRow}>
-        <div className={styles.greeting}>{timeOfDayGreeting()}, {currentUser.name}.</div>
+      <header className={styles.pageIntro}>
+        <div className={styles.pageIntroText}>
+          <h1 className={styles.pageTitle}>{timeOfDayGreeting()}, {currentUser.name.split(' ')[0]}</h1>
+          <p className={styles.pageSubtitle}>Here&apos;s where things stand across your work today.</p>
+        </div>
         <Link href="/quotation" className={styles.primaryCta}>+ New Quotation</Link>
-      </div>
+      </header>
+
+      <KpiRow kpis={headlineKpis} pendingActions={pendingAttentionItems.length} loading={headlineKpis === null} />
 
       <div className={`${styles.topGrid} ${salesLeadership ? styles.topGridPair : ''}`}>
-        <div className={`${styles.attentionPanel} ${styles.topGridPanel} ${styles.topGridHighlight}`}>
-          <div className={styles.attentionHead}>Needs Your Attention</div>
+        <div className={`${styles.attentionPanel} ${styles.topGridPanel} ${urgentAttentionCount > 0 ? styles.attentionPanelUrgent : ''}`}>
+          <div className={styles.attentionHead}>
+            <span className={styles.attentionHeadTitle}>Needs Your Attention</span>
+            {/* The count lives in the header so the panel's weight tracks
+                the work in it — the card used to wear a red border and glow
+                permanently, shouting just as loudly when everything was
+                clear. */}
+            {urgentAttentionCount > 0 && (
+              <span className={styles.attentionHeadBadge}>{urgentAttentionCount} urgent</span>
+            )}
+          </div>
           {pendingAttentionItems.length > 0 ? (
-            <>
-              <div className={`${styles.attentionList} ${styles.attentionScroll}`}>
-                {pendingAttentionItems.map((item) => (
-                  <AttentionRow key={item.key} item={item} />
-                ))}
-              </div>
-              {hiddenAttentionCount > 0 && (
-                <button type="button" className={styles.attentionViewAll} onClick={() => setShowAllAttention(true)}>
-                  View All ({pendingAttentionItems.length})
-                </button>
-              )}
-            </>
+            /* No "View all" button: the list below renders every item and
+               scrolls past three rows, so the drawer it used to open was a
+               second way to see exactly the same rows. */
+            <div className={`${styles.attentionList} ${styles.attentionScroll}`}>
+              {pendingAttentionItems.map((item) => (
+                <AttentionRow key={item.key} item={item} />
+              ))}
+            </div>
           ) : (
             <div className={styles.attentionEmpty}>
               {attentionLoading ? (
@@ -664,16 +691,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           second question after "what needs me today". */}
       <MyTargetPanel />
 
-      {showAllAttention && (
-        <Drawer title="Needs Your Attention" ariaLabel="Everything needing your attention" onClose={() => setShowAllAttention(false)}>
-          <div className={styles.attentionList}>
-            {pendingAttentionItems.map((item) => (
-              <AttentionRow key={item.key} item={item} onNavigate={() => setShowAllAttention(false)} />
-            ))}
-          </div>
-        </Drawer>
-      )}
-
       {(myAssignedProjects.length > 0 || myAssignedDemos.length > 0) && (
         <div className={styles.recentGrid}>
           <div className={styles.recentCard}>
@@ -723,14 +740,20 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               DepartmentHealthDetail, which lazy-loads the per-member
               breakdown from /api/dashboard/health/[department]. */}
           <div className={styles.healthHead}>
-            <div className={styles.sectionHeading}>
-              {health.scope === 'org'
-                ? 'Department Health'
-                : health.scope === 'department'
-                  ? health.gauges.length === 1
-                    ? `${health.gauges[0].department} Team Health`
-                    : 'Team Health'
-                  : 'Your Performance'}
+            <div className={styles.healthHeadText}>
+              <h2 className={styles.healthTitle}>
+                {health.scope === 'org'
+                  ? 'Department Health'
+                  : health.scope === 'department'
+                    ? health.gauges.length === 1
+                      ? `${health.gauges[0].department} Team Health`
+                      : 'Team Health'
+                    : 'Your Performance'}
+              </h2>
+              {/* The sort order is a deliberate signal, not an accident of
+                  the alphabet — worth saying, since a reader can't tell a
+                  worst-first list from an arbitrary one. */}
+              <p className={styles.healthSub}>Lowest score first. Open a gauge for the per-member breakdown.</p>
             </div>
             {/* Legend, so the band colours are readable without opening a gauge. */}
             <div className={styles.healthLegend}>
@@ -803,12 +826,22 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               </button>
               {isExpanded(section.label) && (
                 <div className={styles.grid}>
-                  {section.tiles.map((tile) => (
-                    <Link key={tile.id} href={tile.href} className={styles.tile}>
-                      <span className={styles.tileTitle}>{tile.label}</span>
-                      <span className={styles.tileDesc}>{tile.desc}</span>
-                    </Link>
-                  ))}
+                  {section.tiles.map((tile) => {
+                    // Every module already stores a curated icon key
+                    // (lib/moduleConfigStore.ts) that the sidebar renders and
+                    // these tiles ignored — a section opened into a wall of
+                    // text-only cards, which is far slower to scan.
+                    const TileIcon = resolveModuleIcon(tile.icon);
+                    return (
+                      <Link key={tile.id} href={tile.href} className={styles.tile}>
+                        <span className={styles.tileHead}>
+                          {TileIcon && <span className={styles.tileIcon}><TileIcon size={16} /></span>}
+                          <span className={styles.tileTitle}>{tile.label}</span>
+                        </span>
+                        <span className={styles.tileDesc}>{tile.desc}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -881,8 +914,24 @@ function DueSection({
 function SalesTeamSummaryPanel({ rows }: { rows: SalesTeamSummaryRow[] | null }) {
   return (
     <div className={styles.summaryCard}>
-      <div className={styles.recentCardHead}>
-        <h3>Sales Team Summary</h3>
+      <div className={styles.summaryHead}>
+        <div>
+          <h3 className={styles.summaryTitle}>Sales Team Summary</h3>
+          {/* The columns read left to right as the funnel they work. Saying
+              so once beats a reader inferring it from eight headers. */}
+          <p className={styles.summarySub}>Lead → Enquiry → Quotation → Billing → Outcome</p>
+        </div>
+        <div className={styles.summaryHeadActions}>
+          {rows !== null && rows.length > 0 && (
+            <span className={styles.summaryCount}>{rows.length} {rows.length === 1 ? 'rep' : 'reps'}</span>
+          )}
+          {/* Progressive disclosure: the panel stays a capped, scrollable
+              summary and the full breakdown lives on its own page, so this
+              table can't grow to dominate the dashboard. */}
+          <Link href="/analytics" className={styles.summaryLink}>
+            Sales analytics <ChevronRight size={13} />
+          </Link>
+        </div>
       </div>
       {rows === null ? (
         <div className={styles.recentEmpty}>Loading&hellip;</div>
@@ -893,6 +942,7 @@ function SalesTeamSummaryPanel({ rows }: { rows: SalesTeamSummaryRow[] | null })
           message="Add active employees to the Sales or GEM - Sales department to see their pipeline here."
         />
       ) : (
+        <>
         <Table
           rows={rows}
           rowKey={(row) => row.id}
@@ -945,6 +995,22 @@ function SalesTeamSummaryPanel({ rows }: { rows: SalesTeamSummaryRow[] | null })
             }
           ]}
         />
+        {/* The team's totals — the figure a manager reads this table for,
+            and the one a per-rep list can't show. Outside the scrolling
+            viewport deliberately, so it stays visible however many reps
+            there are. */}
+        <div className={styles.summaryTotals}>
+          <span className={styles.summaryTotalsLabel}>Team total</span>
+          <span className={styles.summaryTotal}>{rows.reduce((sum, r) => sum + r.leads, 0)} leads</span>
+          <span className={styles.summaryTotal}>{rows.reduce((sum, r) => sum + r.quotations, 0)} quotations</span>
+          <span className={styles.summaryTotal}>{formatMoney(rows.reduce((sum, r) => sum + r.billing, 0))}</span>
+          {rows.reduce((sum, r) => sum + r.unattended, 0) > 0 && (
+            <span className={styles.summaryTotalsAlert}>
+              {rows.reduce((sum, r) => sum + r.unattended, 0)} unattended
+            </span>
+          )}
+        </div>
+        </>
       )}
     </div>
   );
@@ -960,7 +1026,69 @@ function AttentionRow({ item, onNavigate }: { item: AttentionItem; onNavigate?: 
       <span className={styles.attentionIcon}>{ItemIcon && <ItemIcon size={15} />}</span>
       <span className={styles.attentionLabel}>{item.label}</span>
       <span className={styles.attentionCount}>{item.count}</span>
-      <span className={styles.attentionArrow}>→</span>
+      {/* A real icon, not a "→" glyph — the arrow was the one piece of
+          chrome on this page still drawn with a character. */}
+      <ChevronRight size={15} className={styles.attentionArrow} aria-hidden />
     </Link>
+  );
+}
+
+// The four headline figures. Each is a link to where the number comes from —
+// a KPI you can't act on is decoration.
+//
+// Deliberately NO trend arrows: nothing in this app stores a historical
+// snapshot to compare a period against, and a fabricated "+12% vs last
+// month" on a CRM dashboard is worse than no trend at all. The spec asked
+// for them "only when reliable historical data exists", and it doesn't.
+function KpiRow({
+  kpis,
+  pendingActions,
+  loading
+}: {
+  kpis: HeadlineKpis | null;
+  pendingActions: number;
+  loading: boolean;
+}) {
+  const cards = [
+    { key: 'leads', icon: Contact, label: 'Total leads', value: kpis ? kpis.totalLeads.toLocaleString('en-IN') : '—', href: '/leads' },
+    { key: 'quotations', icon: FileText, label: 'Total quotations', value: kpis ? kpis.totalQuotations.toLocaleString('en-IN') : '—', href: '/my-quotations' },
+    { key: 'value', icon: IndianRupee, label: 'Quotation value', value: kpis ? formatMoney(kpis.totalQuotationValue) : '—', href: '/my-quotations' },
+    {
+      key: 'pending',
+      icon: ListChecks,
+      label: 'Pending actions',
+      value: String(pendingActions),
+      href: '/',
+      // The one card that is a problem rather than a measurement, so it is
+      // the only one allowed any colour.
+      alert: pendingActions > 0
+    }
+  ];
+
+  return (
+    <div className={styles.kpiRow}>
+      {cards.map((card) => {
+        const Icon = card.icon;
+        const body = (
+          <>
+            <span className={`${styles.kpiIcon} ${card.alert ? styles.kpiIconAlert : ''}`}>
+              <Icon size={16} />
+            </span>
+            <span className={styles.kpiLabelNew}>{card.label}</span>
+            <span className={`${styles.kpiValueNew} ${loading ? styles.kpiValueLoading : ''} ${card.alert ? styles.kpiValueAlert : ''}`}>
+              {card.value}
+            </span>
+          </>
+        );
+        // "Pending actions" has nowhere to navigate — the list it counts is
+        // already on this page — so it renders as a plain card rather than a
+        // link that reloads the dashboard.
+        return card.key === 'pending' ? (
+          <div key={card.key} className={styles.kpiCardNew}>{body}</div>
+        ) : (
+          <Link key={card.key} href={card.href} className={styles.kpiCardNew}>{body}</Link>
+        );
+      })}
+    </div>
   );
 }

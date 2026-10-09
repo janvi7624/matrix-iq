@@ -1,6 +1,8 @@
 'use client';
 
-import { ChevronRight, Users } from 'lucide-react';
+import { createElement } from 'react';
+import { ChevronRight } from 'lucide-react';
+import { departmentIconFor } from '@/lib/icons';
 import styles from './HealthGauge.module.css';
 
 export interface HealthGaugeBreakdownRow {
@@ -19,6 +21,9 @@ export interface HealthGaugeProps {
   onOpen: () => void;
 }
 
+// Also imported by components/DepartmentHealthDetail.tsx and
+// components/TmsProjectDetailView.tsx — a band colour has to mean the same
+// thing everywhere it appears, so it is defined once.
 export const BAND_COLOR: Record<HealthBand, string> = {
   red: 'var(--mx-danger)',
   yellow: 'var(--mx-warning)',
@@ -34,115 +39,77 @@ export const BAND_TEXT: Record<HealthBand, string> = {
 };
 
 // Mirrors scoreBand() in lib/departmentScoring.ts (green >= 70, yellow >= 40).
-// Rendering the thresholds as coloured zones in the gauge track is the point of
-// this component: a bare "58%" tells you nothing on its own, but 58% sitting
-// visibly inside the amber band between the 40 and 70 marks is immediately
-// readable without needing to remember the scale.
-const ZONES: { from: number; to: number; band: Exclude<HealthBand, 'na'> }[] = [
-  { from: 0, to: 40, band: 'red' },
-  { from: 40, to: 70, band: 'yellow' },
-  { from: 70, to: 100, band: 'green' }
-];
+// The scoring rules themselves are untouched — this only draws them.
+const THRESHOLDS = [40, 70];
 
-const RADIUS = 40;
-const FULL_C = 2 * Math.PI * RADIUS;
-const HALF_C = FULL_C / 2;
-
-// A full <circle> whose centre sits on the bottom edge of the viewBox, so only
-// its top half is visible. rotate(180 50 50) puts that visible half at path
-// offset 0..HALF_C running left-to-right, so a percentage maps directly onto
-// arc length.
-//
-// A dash pattern of [segmentLength, FULL_C] draws exactly one visible segment;
-// shifting stroke-dashoffset slides it to begin `from`% along the arc. The
-// obvious shift is a negative offset (-start), but negative stroke-dashoffset
-// was an error in SVG 1.1 and is only well-defined from SVG 2 on. Since the
-// pattern is periodic with period (segmentLength + FULL_C), adding one whole
-// period gives an identical rendering with a strictly positive value.
-function segmentProps(from: number, to: number) {
-  const length = (HALF_C * (to - from)) / 100;
-  const start = (HALF_C * from) / 100;
-  // A segment starting at 0 needs no shift at all. Keeping the offset a literal
-  // 0 here matters for the score arc: it's the only animated segment, and if
-  // its offset also changed with `length` the CSS transition on
-  // stroke-dasharray would be fighting an untransitioned offset jump.
-  if (start === 0) return { strokeDasharray: `${length} ${FULL_C}`, strokeDashoffset: 0 };
-  return { strokeDasharray: `${length} ${FULL_C}`, strokeDashoffset: length + FULL_C - start };
-}
-
-function Arc({ score, band }: { score: number; band: HealthBand }) {
+// This was a semicircular gauge. A half-circle shows ONE value against a
+// target well, but this grid exists to answer "which department needs me?",
+// and comparing a dozen arc angles across a dozen tiles is far harder than
+// comparing a dozen bars that all start at the same left edge on the same
+// scale. The zones, the score and the thresholds are unchanged; only the
+// geometry is now one a reader can compare across cards at a glance.
+function ProgressTrack({ score, band }: { score: number; band: HealthBand }) {
   const clamped = Math.max(0, Math.min(100, score));
   const isNa = band === 'na';
 
   return (
-    <svg viewBox="0 0 100 58" className={styles.svg} aria-hidden="true">
-      {/* Threshold zones — always drawn, tinted back so the live score arc on
-          top stays the dominant mark. A 1.2pt gap keeps them visually distinct. */}
-      {ZONES.map((z) => (
-        <circle
-          key={z.band}
-          cx="50"
-          cy="50"
-          r={RADIUS}
-          fill="none"
-          stroke={isNa ? 'var(--mx-border)' : BAND_COLOR[z.band]}
-          strokeOpacity={isNa ? 1 : 0.18}
-          strokeWidth="10"
-          strokeLinecap="butt"
-          transform="rotate(180 50 50)"
-          {...segmentProps(z.from, Math.max(z.from, z.to - 1.2))}
-        />
+    <div className={styles.track} aria-hidden="true">
+      {!isNa && <div className={styles.fill} style={{ width: `${clamped}%`, background: BAND_COLOR[band] }} />}
+      {/* The 40 and 70 marks, so a reader can see which side of a threshold
+          a score falls on without remembering the scale. Drawn in the track
+          colour, so they separate with a gap rather than adding ink. */}
+      {!isNa && THRESHOLDS.map((value) => (
+        <span key={value} className={styles.threshold} style={{ left: `${value}%` }} />
       ))}
-
-      {/* The score itself. */}
-      {!isNa && (
-        <circle
-          cx="50"
-          cy="50"
-          r={RADIUS}
-          fill="none"
-          stroke={BAND_COLOR[band]}
-          strokeWidth="10"
-          strokeLinecap="round"
-          transform="rotate(180 50 50)"
-          className={styles.progressArc}
-          {...segmentProps(0, clamped)}
-        />
-      )}
-    </svg>
+    </div>
   );
 }
 
 export default function HealthGauge({ label, score, band, breakdown, onOpen }: HealthGaugeProps) {
   const color = BAND_COLOR[band];
   const headline = breakdown[0];
+  // createElement rather than assigning to a capitalised local and writing
+  // <DeptIcon />: the react-hooks lint rule reads that pattern as declaring
+  // a component during render, which would reset its state on every pass.
+  const deptIcon = departmentIconFor(label);
 
   return (
-    <button type="button" className={styles.tile} onClick={onOpen} aria-label={`${label} health: ${band === 'na' ? 'not enough data' : `${score} percent, ${BAND_TEXT[band]}`}. Open full details.`}>
-      <div className={styles.gaugeWrap}>
-        <Arc score={score} band={band} />
-        <div className={styles.gaugeCenter}>
-          <div className={styles.scoreLine} style={{ color }}>{band === 'na' ? '—' : `${score}%`}</div>
-        </div>
+    <button
+      type="button"
+      className={`${styles.card} ${styles[`band_${band}`]}`}
+      onClick={onOpen}
+      aria-label={`${label} health: ${band === 'na' ? 'not enough data' : `${score} percent, ${BAND_TEXT[band]}`}. Open team details.`}
+    >
+      <div className={styles.topRow}>
+        <span className={styles.deptIcon}>{createElement(deptIcon, { size: 15 })}</span>
+        <span className={styles.deptName}>{label}</span>
+        <span className={styles.score} style={{ color }}>{band === 'na' ? '—' : `${score}%`}</span>
       </div>
 
-      <div className={styles.label}>{label}</div>
-      <div className={styles.bandRow}>
-        <span className={styles.bandDot} style={{ background: color }} aria-hidden="true" />
-        <span className={styles.bandText} style={{ color }}>{BAND_TEXT[band]}</span>
+      <ProgressTrack score={score} band={band} />
+
+      <div className={styles.statusRow}>
+        <span className={styles.statusDot} style={{ background: color }} aria-hidden="true" />
+        <span className={styles.statusText} style={{ color }}>{BAND_TEXT[band]}</span>
       </div>
 
-      {/* One headline number on the face of the tile — the old version hid all
-          of this behind a click, so a gauge grid was a wall of bare percentages. */}
-      {headline && (
-        <div className={styles.headlineMetric}>
-          <span className={styles.headlineLabel}>{headline.label}</span>
-          <strong>{headline.value}</strong>
-        </div>
-      )}
+      {/* One real metric on the face of the card — without it a grid of
+          scores is a wall of percentages with every reason hidden behind a
+          click. Comes straight from the department's own breakdown; nothing
+          is computed here. */}
+      <div className={styles.metricRow}>
+        {headline ? (
+          <>
+            <span className={styles.metricLabel}>{headline.label}</span>
+            <strong className={styles.metricValue}>{headline.value}</strong>
+          </>
+        ) : (
+          <span className={styles.metricLabel}>No metrics recorded yet</span>
+        )}
+      </div>
 
       <span className={styles.openHint}>
-        <Users size={12} /> Team detail <ChevronRight size={13} />
+        View team details <ChevronRight size={13} className={styles.openChevron} />
       </span>
     </button>
   );

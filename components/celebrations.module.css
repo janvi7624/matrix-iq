@@ -1,48 +1,205 @@
-/* components/CelebrationsSection.tsx — the upcoming birthdays /
-   work anniversaries block on the main dashboard (was the standalone HR
+/* components/CelebrationsSection.tsx — the upcoming birthdays / work
+   anniversaries block at the foot of the dashboard (was the standalone HR
    Dashboard page, since removed).
-   .toneBrand/.toneInfo/.toneWarning/.toneSuccess set --tone-color/--tone-bg
-   custom properties that cascade down to every descendant automatically —
-   apply the tone class once on the outer wrapper (StatCard, a celebration
-   card, a panel header) rather than repeating it on every child. */
+
+   Rebuilt compact: this used to be the tallest thing on the page — a row of
+   four stat cards restating the panel counts, then every entry in a 30-day
+   window rendered at 44px an avatar. Now two panels, four rows each, the
+   rest behind "show more".
+
+   .toneBrand/.toneInfo set --tone-color/--tone-bg custom properties that
+   cascade to every descendant — apply the tone class once on the outer
+   wrapper rather than repeating it on each child. */
 
 .toneBrand { --tone-color: var(--mx-brand); --tone-bg: var(--mx-brand-subtle); }
 .toneInfo { --tone-color: var(--mx-info); --tone-bg: var(--mx-info-subtle); }
 .toneWarning { --tone-color: var(--mx-warning); --tone-bg: var(--mx-warning-subtle); }
 .toneSuccess { --tone-color: var(--mx-success); --tone-bg: var(--mx-success-subtle); }
 
-/* ---------- DaysLabel ---------- */
-.daysLabel { font-size: 11px; padding: 2px 10px; border-radius: var(--mx-radius-full); }
+/* ---------- Date badge ---------- */
+
+.daysLabel {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
 .daysLabelToday { font-weight: 700; color: #fff; background: var(--mx-brand); }
 .daysLabelTomorrow { font-weight: 600; color: var(--mx-warning); background: var(--mx-warning-subtle); }
 .daysLabelFuture { font-weight: 600; color: var(--mx-ink-muted); background: var(--mx-surface-sunken); }
 
 /* ---------- Empty state ---------- */
-.celebrationEmpty { padding: 40px 20px; text-align: center; color: var(--mx-ink-faint); }
-.celebrationEmptyIcon { margin-bottom: 10px; opacity: 0.5; }
-.celebrationEmptyText { margin: 0; font-size: 14px; }
 
-/* ---------- CelebrationCard ---------- */
-.celebrationCard { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--mx-border); background: transparent; }
-.celebrationCardToday { background: var(--tone-bg); }
-.celebrationIcon { width: 44px; height: 44px; border-radius: var(--mx-radius-md); flex-shrink: 0; background: var(--tone-bg); display: flex; align-items: center; justify-content: center; }
+.celebrationEmpty {
+    padding: 28px 20px;
+    text-align: center;
+    color: var(--mx-ink-faint);
+}
+.celebrationEmptyIcon { margin-bottom: 8px; opacity: 0.45; }
+.celebrationEmptyText { margin: 0; font-size: 13px; }
+
+/* ---------- Row ---------- */
+
+.celebrationCard {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    /* 14px/20px before — the row is three short pieces of text and an
+       avatar, and it repeats eight times. */
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--mx-border);
+    background: transparent;
+}
+
+.celebrationCard:last-of-type { border-bottom: none; }
+
+/* A subtle accent, not a pastel block: only today's entries are tinted, and
+   only by a left rule rather than a full-width wash. */
+.celebrationCardToday {
+    box-shadow: inset 2px 0 0 var(--tone-color);
+}
+
+/* Initials, not a repeated cake glyph — every row in a birthdays list is a
+   birthday, so the icon carried no information. The person does. */
+.avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    border-radius: 999px;
+    background: var(--tone-bg);
+    color: var(--tone-color);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
 .celebrationBody { flex: 1; min-width: 0; }
-.celebrationNameRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.celebrationName { font-size: 14px; font-weight: 700; color: var(--mx-ink); }
-.celebrationMeta { font-size: 12px; color: var(--mx-ink-muted); margin-top: 2px; }
-.celebrationDateWrap { text-align: right; flex-shrink: 0; }
-.celebrationDate { font-size: 13px; font-weight: 600; color: var(--mx-ink); margin-bottom: 4px; }
-.celebrationYears { font-size: 11px; color: var(--mx-ink-faint); font-weight: 500; }
 
-/* ---------- StatCard ---------- */
-.statCard { background: var(--tone-bg); border: 1px solid var(--mx-border); }
-.statCardHead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.statCardLabel { font-size: 11px; font-weight: 600; color: var(--tone-color); text-transform: uppercase; letter-spacing: 0.4px; }
-.statCardValue { font-size: 28px; font-weight: 800; color: var(--mx-ink); }
+.celebrationNameRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
 
-/* ---------- Two-panel layout ---------- */
-.panelGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
-.panel { background: var(--mx-surface); border-radius: var(--mx-radius-xl); border: 1px solid var(--mx-border); overflow: hidden; }
-.panelHeader { padding: 16px 20px; border-bottom: 1px solid var(--mx-border); display: flex; align-items: center; gap: 10px; background: var(--tone-bg); }
-.panelTitle { margin: 0; font-size: 15px; font-weight: 700; color: var(--mx-ink); }
-.panelCount { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--tone-color); background: var(--mx-surface); padding: 2px 10px; border-radius: var(--mx-radius-full); }
+.celebrationName {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mx-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.celebrationMeta {
+    font-size: 11.5px;
+    color: var(--mx-ink-muted);
+    margin-top: 1px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.celebrationDateWrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.celebrationDate {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* ---------- Panels ---------- */
+
+.panelGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 14px;
+}
+
+.panel {
+    background: var(--mx-surface);
+    border-radius: 12px;
+    border: 1px solid var(--mx-border);
+    overflow: hidden;
+    min-width: 0;
+}
+
+/* The tinted header band is gone — a white header with the tone carried by
+   the icon and the count badge is calmer, and stops two panels side by side
+   reading as two coloured blocks. */
+.panelHeader {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--mx-border);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.panelTitle {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--mx-ink);
+}
+
+/* The summary figure that used to need its own stat card. */
+.panelToday {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--tone-color);
+    background: var(--tone-bg);
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.panelCount {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+    background: var(--mx-surface-sunken);
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Pushed right only when no "today" badge has already claimed the slot. */
+.panelHeader > .panelCount:nth-child(3) {
+    margin-left: auto;
+}
+
+.panelMore {
+    display: block;
+    width: 100%;
+    padding: 9px 16px;
+    border: none;
+    border-top: 1px solid var(--mx-border);
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    transition: color 180ms var(--mx-ease), background 180ms var(--mx-ease);
+}
+
+.panelMore:hover {
+    color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+}
+
+.panelMore:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: -2px;
+}

@@ -54,6 +54,7 @@ import {
   KanbanSquare,
   CheckSquare,
   Library,
+  Truck,
   type LucideIcon
 } from 'lucide-react';
 
@@ -68,6 +69,36 @@ export const SECTION_ICON: Record<string, LucideIcon> = {
 };
 
 export const DEFAULT_SECTION_ICON: LucideIcon = FolderKanban;
+
+// Department marks for the Dashboard's health cards. Keyed on the
+// department names lib/departmentScoring.ts actually scores — matched
+// case-insensitively and by prefix, so "GEM - Sales" and "HR & Admin" land
+// on something sensible without needing an exact string.
+const DEPARTMENT_ICON: { match: string; icon: LucideIcon }[] = [
+  { match: 'gem', icon: Globe },
+  { match: 'sales', icon: Briefcase },
+  { match: 'marketing', icon: Megaphone },
+  { match: 'account', icon: ReceiptIndianRupee },
+  { match: 'hr', icon: Users },
+  { match: 'admin', icon: Building2 },
+  { match: 'robot', icon: Wrench },
+  { match: 'ai', icon: Puzzle },
+  { match: 'av', icon: Monitor },
+  { match: 'r&d', icon: Star },
+  { match: 'research', icon: Star },
+  { match: 'back office', icon: Package },
+  { match: 'technical', icon: Wrench }
+];
+
+export function departmentIconFor(name: string): LucideIcon {
+  const normalized = (name || '').trim().toLowerCase();
+  // Longest match wins, so "GEM - Sales" doesn't get claimed by "sales" and
+  // "Back Office" doesn't get claimed by a shorter token.
+  const hit = [...DEPARTMENT_ICON]
+    .sort((a, b) => b.match.length - a.match.length)
+    .find((entry) => normalized.includes(entry.match));
+  return hit ? hit.icon : DEFAULT_SECTION_ICON;
+}
 
 export function sectionIconFor(label: string): LucideIcon {
   return SECTION_ICON[label] || DEFAULT_SECTION_ICON;
@@ -94,6 +125,10 @@ export const ATTENTION_ICON: Record<string, LucideIcon> = {
   followup: Clock,
   'demo-approvals': Monitor,
   dc: Package,
+  // 'dc-dispatch' was missing, so the "DCs prepared and awaiting dispatch"
+  // row rendered an empty icon tile. Every key pushed into attentionItems
+  // in components/Dashboard.tsx must have an entry here.
+  'dc-dispatch': Truck,
   'dc-verify': CheckCircle2,
   leads: Contact,
   'meta-leads': Share2,
