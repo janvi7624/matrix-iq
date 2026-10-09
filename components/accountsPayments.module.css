@@ -219,3 +219,162 @@
 }
 .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 480px) { .formGrid { grid-template-columns: 1fr; } }
+
+/* ---- Filters --------------------------------------------------------- */
+
+/* Secondary filters live behind this toggle: source and search cover most
+   days, and eight controls on permanent display is a wall, not a toolbar.
+   The badge is what stops a filter set yesterday silently narrowing today's
+   list — a short list then reads as "filtered", not as "nothing to pay". */
+.filterToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-md, 8px);
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.filterToggle:hover {
+    border-color: var(--mx-border-strong);
+    color: var(--mx-ink);
+}
+
+.filterToggleActive {
+    border-color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand);
+}
+
+.filterToggle:focus-visible,
+.clearFilters:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+
+.filterBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--mx-brand);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.filterPanel {
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg, 16px);
+    background: var(--mx-surface);
+    padding: 16px;
+    margin-bottom: 14px;
+}
+
+.filterGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+}
+
+.filterField {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.filterLabel {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--mx-ink-muted);
+}
+
+.amountRange {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.amountRange input {
+    min-width: 0;
+    flex: 1;
+}
+
+.rangeDash {
+    color: var(--mx-ink-faint);
+}
+
+/* Aligned with the inputs beside it rather than the labels above them, so
+   the checkbox sits on the controls' row. */
+.filterCheck {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    align-self: end;
+    padding-bottom: 9px;
+    font-size: 13px;
+    color: var(--mx-ink);
+    cursor: pointer;
+}
+
+.clearFilters {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 14px;
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--mx-ink-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.clearFilters:hover {
+    color: var(--mx-danger);
+}
+
+/* Totals across every match, not just the visible page. */
+.resultBar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-md, 8px);
+    background: var(--mx-surface-sunken);
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.resultBar strong {
+    color: var(--mx-ink);
+}
+
+.resultOverdue {
+    color: var(--mx-danger);
+    font-weight: 600;
+}
+
+@media (max-width: 640px) {
+    .filterGrid {
+        grid-template-columns: 1fr;
+    }
+}
