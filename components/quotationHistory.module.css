@@ -18,7 +18,16 @@
        separates it from the page instead of a hard colored border. */
     box-shadow: 0 10px 24px rgba(17, 24, 39, 0.06);
     position: relative;
-    z-index: 1;
+    /* The app's own z-index scale (bottom of this file) — NOT a bare 1.
+       A low literal z-index here still creates a stacking context, which
+       then traps anything positioned inside the header (the notification
+       panel, the search trigger) at that low priority — no z-index on the
+       panel itself can then escape it, however high, which is exactly what
+       made the notification popover render under a sticky table header on
+       the page behind it. Using the real --mx-z-header tier keeps the
+       header above ordinary content while leaving room above it for
+       dropdowns/popovers/modals, which all sit higher in the same scale. */
+    z-index: var(--mx-z-header);
 }
 .headerBrand {
     display: flex;

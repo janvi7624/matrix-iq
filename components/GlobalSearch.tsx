@@ -1,6 +1,7 @@
 'use client';
 
 import { KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Search, Clock, FolderKanban, FileText, Contact, MapPin } from 'lucide-react';
 import styles from './ui/search.module.css';
@@ -152,7 +153,8 @@ export default function GlobalSearch() {
         <span className={styles.triggerLabel}>Search…</span>
         <span className={styles.triggerKbd}>Ctrl K</span>
       </button>
-      {open && (
+      {open &&
+        createPortal(
         <div className={styles.overlay} onClick={() => setOpen(false)}>
           <div className={styles.palette} onClick={(e) => e.stopPropagation()}>
             <div className={styles.inputRow}>
@@ -208,7 +210,8 @@ export default function GlobalSearch() {
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

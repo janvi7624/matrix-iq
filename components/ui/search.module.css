@@ -1,3 +1,7 @@
+/* Was styled for the old dark-navy header (light text on a faint white
+   tint) — PortalHeader is var(--mx-surface) now, same as everywhere else,
+   so this needed the ordinary light-surface treatment instead: a pressed
+   slot, like every other search/filter input in the redesign. */
 .trigger {
     display: inline-flex;
     align-items: center;
@@ -5,16 +9,17 @@
     min-height: 40px;
     padding: 8px 12px;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.08);
-    color: #e5e7eb;
+    border: none;
+    box-shadow: var(--mx-shadow-pressed-sm);
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
     font-size: 13px;
     cursor: pointer;
-    transition: background var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
+    transition: background var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .trigger:hover {
-    background: rgba(255, 255, 255, 0.14);
-    border-color: rgba(255, 255, 255, 0.3);
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink);
 }
 .triggerLabel { opacity: 0.85; }
 .triggerKbd {
@@ -22,15 +27,21 @@
     font-size: 10.5px;
     padding: 2px 6px;
     border-radius: var(--mx-radius-xs);
-    background: rgba(255, 255, 255, 0.14);
-    color: #cbd5e1;
+    background: var(--mx-surface-sunken);
+    box-shadow: var(--mx-shadow-pressed-sm);
+    color: var(--mx-ink-faint);
 }
 
 .overlay {
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.5);
-    z-index: 200;
+    /* The modal tier, not the bare 200 (= --mx-z-dropdown) this used to
+       carry: the palette IS a modal, and notify.module.css's .overlay already
+       sits at --mx-z-modal. The literal also hid the real bug for a while --
+       no z-index could work while this rendered inside PortalHeader's
+       stacking context, which is why GlobalSearch now portals to body. */
+    z-index: var(--mx-z-modal);
     display: flex;
     align-items: flex-start;
     justify-content: center;

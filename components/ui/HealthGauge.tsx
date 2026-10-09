@@ -33,17 +33,6 @@ export const BAND_TEXT: Record<HealthBand, string> = {
   na: 'Not enough data yet'
 };
 
-// Mirrors scoreBand() in lib/departmentScoring.ts (green >= 70, yellow >= 40).
-// Rendering the thresholds as coloured zones in the gauge track is the point of
-// this component: a bare "58%" tells you nothing on its own, but 58% sitting
-// visibly inside the amber band between the 40 and 70 marks is immediately
-// readable without needing to remember the scale.
-const ZONES: { from: number; to: number; band: Exclude<HealthBand, 'na'> }[] = [
-  { from: 0, to: 40, band: 'red' },
-  { from: 40, to: 70, band: 'yellow' },
-  { from: 70, to: 100, band: 'green' }
-];
-
 const RADIUS = 40;
 const FULL_C = 2 * Math.PI * RADIUS;
 const HALF_C = FULL_C / 2;
@@ -70,29 +59,64 @@ function segmentProps(from: number, to: number) {
   return { strokeDasharray: `${length} ${FULL_C}`, strokeDashoffset: length + FULL_C - start };
 }
 
+// Same left-to-right mapping as segmentProps, but as an actual (x, y) point
+// on the arc's centerline instead of a dash length — for the threshold ticks,
+// which need a real coordinate to draw a short radial line at, not a stroke
+// segment. pct=0 is the arc's left end, pct=100 its right end, matching the
+// rotated circle's own traversal exactly (verified against segmentProps:
+// pct=0 -> (cx-r, cy), pct=100 -> (cx+r, cy), both on the baseline).
+function radialPoint(pct: number, r: number, cx = 50, cy = 50) {
+  const theta = Math.PI * (1 - pct / 100);
+  return { x: cx + r * Math.cos(theta), y: cy - r * Math.sin(theta) };
+}
+
+// Where the score changes meaning (scoreBand() in lib/departmentScoring.ts:
+// red < 40, amber < 70, green >= 70) — now a pair of tick marks on the track
+// rather than three differently-hued track segments. The dataviz skill's own
+// meter spec is explicit: the fill carries severity, the unfilled track is a
+// flat neutral, never a multi-hue zone map — and separately, this app's
+// --mx-danger/--mx-warning pair fails its colorblind-separation check
+// (validated: ΔE 9.1, below the 15 floor even for normal vision), so a
+// three-colour track was always a legibility risk a plain tick mark sidesteps
+// entirely. The band is still fully legible without color: the score number,
+// the fill color AND the text label (BAND_TEXT) all carry it too.
+const THRESHOLD_TICKS = [40, 70];
+
 function Arc({ score, band }: { score: number; band: HealthBand }) {
   const clamped = Math.max(0, Math.min(100, score));
   const isNa = band === 'na';
 
   return (
     <svg viewBox="0 0 100 58" className={styles.svg} aria-hidden="true">
-      {/* Threshold zones — always drawn, tinted back so the live score arc on
-          top stays the dominant mark. A 1.2pt gap keeps them visually distinct. */}
-      {ZONES.map((z) => (
-        <circle
-          key={z.band}
-          cx="50"
-          cy="50"
-          r={RADIUS}
-          fill="none"
-          stroke={isNa ? 'var(--mx-border)' : BAND_COLOR[z.band]}
-          strokeOpacity={isNa ? 1 : 0.18}
-          strokeWidth="10"
-          strokeLinecap="butt"
-          transform="rotate(180 50 50)"
-          {...segmentProps(z.from, Math.max(z.from, z.to - 1.2))}
-        />
-      ))}
+      <circle
+        cx="50"
+        cy="50"
+        r={RADIUS}
+        fill="none"
+        stroke="var(--mx-border)"
+        strokeWidth="10"
+        strokeLinecap="round"
+        transform="rotate(180 50 50)"
+        {...segmentProps(0.8, 99.2)}
+      />
+
+      {!isNa &&
+        THRESHOLD_TICKS.map((pct) => {
+          const inner = radialPoint(pct, RADIUS - 6);
+          const outer = radialPoint(pct, RADIUS + 7);
+          return (
+            <line
+              key={pct}
+              x1={inner.x}
+              y1={inner.y}
+              x2={outer.x}
+              y2={outer.y}
+              stroke="var(--mx-surface)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+          );
+        })}
 
       {/* The score itself. */}
       {!isNa && (
