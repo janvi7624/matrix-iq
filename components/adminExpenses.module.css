@@ -24,7 +24,7 @@
 .employeeListBox {
     max-height: 200px;
     overflow-y: auto;
-    border: 1px solid var(--mx-border, #e5e7eb);
+    box-shadow: var(--mx-shadow-pressed-sm);
     border-radius: var(--mx-radius-xs, 6px);
     padding: 8px;
     display: grid;

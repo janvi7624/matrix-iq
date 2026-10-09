@@ -8,7 +8,6 @@
 
 .panel {
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-xl);
     box-shadow: var(--mx-shadow-xs);
     overflow: hidden;
@@ -144,7 +143,6 @@ td.labelCell { z-index: 1; }
    up to next to the actions that act on it. */
 .filters {
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-xl);
     box-shadow: var(--mx-shadow-xs);
     padding: 16px 18px;
@@ -208,19 +206,20 @@ td.labelCell { z-index: 1; }
     align-items: center;
     gap: 8px;
     padding: 8px 14px;
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-full);
+    box-shadow: var(--mx-shadow-xs);
     font-size: 13px;
     color: var(--mx-ink-muted);
     cursor: pointer;
     user-select: none;
-    transition: border-color var(--mx-duration-base) var(--mx-ease), background var(--mx-duration-base) var(--mx-ease), color var(--mx-duration-base) var(--mx-ease);
+    transition: box-shadow var(--mx-duration-base) var(--mx-ease), background var(--mx-duration-base) var(--mx-ease), color var(--mx-duration-base) var(--mx-ease);
 }
-.toggleChip:hover { border-color: var(--mx-brand); }
+.toggleChip:hover { box-shadow: var(--mx-shadow-sm); }
 .toggleChip input { accent-color: var(--mx-brand); cursor: pointer; margin: 0; }
+/* Checked = selected chip: reads as pressed in rather than outlined. */
 .toggleChip:has(input:checked) {
     background: var(--mx-brand-subtle);
-    border-color: var(--mx-brand);
+    box-shadow: var(--mx-shadow-pressed-sm);
     color: var(--mx-brand);
     font-weight: var(--mx-weight-semibold);
 }

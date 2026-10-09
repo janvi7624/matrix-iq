@@ -16,11 +16,15 @@
     font: inherit;
     color: inherit;
     border: none;
+    border-radius: var(--mx-radius-md);
     background: none;
-    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+    transition: background var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
-.statBtn:hover { border-color: var(--mx-brand); box-shadow: var(--mx-shadow-sm); }
-.statActive { border: 1px solid var(--mx-brand) !important; background: var(--mx-brand-subtle); }
+.statBtn:hover { background: var(--mx-surface); box-shadow: var(--mx-shadow-sm); }
+/* Pressed + tinted, not a colored border with !important — same "selected =
+   carved in" language as everywhere else, and the tint alone already said
+   "this one's active" without needing a border to also say it. */
+.statActive { box-shadow: var(--mx-shadow-pressed-sm); background: var(--mx-brand-subtle); }
 
 .statValue {
     font-size: var(--mx-text-stat);

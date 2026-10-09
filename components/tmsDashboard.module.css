@@ -42,7 +42,7 @@
     padding: 10px 14px;
     border-radius: var(--mx-radius-md);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
 }
 .taskRowOverdue { border-left: 3px solid var(--mx-danger); }
 .taskRowDueToday { border-left: 3px solid var(--mx-warning); }
@@ -66,10 +66,11 @@
     gap: 12px;
     padding: 10px 12px;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
     color: var(--mx-ink);
     text-decoration: none;
 }
-.drilldownRow:hover { border-color: var(--mx-brand); background: var(--mx-brand-subtle); }
+.drilldownRow:hover { background: var(--mx-brand-subtle); box-shadow: var(--mx-shadow-sm); }
 .drilldownLabel { font-size: 13.5px; font-weight: 600; }
 .drilldownSublabel { font-size: 12px; color: var(--mx-ink-muted); white-space: nowrap; }

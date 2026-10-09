@@ -45,7 +45,7 @@
     gap: 6px;
     padding: 9px 16px;
     border-radius: var(--mx-radius-md);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-xs);
     background: var(--mx-surface);
     color: var(--mx-ink);
     font-size: 13px;
@@ -53,7 +53,7 @@
     text-decoration: none;
     white-space: nowrap;
 }
-.exportLink:hover { background: var(--mx-surface-sunken); }
+.exportLink:hover { background: var(--mx-surface-sunken); box-shadow: var(--mx-shadow-sm); }
 
 .tableSection { margin-top: 16px; }
 
@@ -94,7 +94,7 @@
 .pageBtn {
     padding: 6px 12px;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-xs);
     background: var(--mx-surface);
     cursor: pointer;
     font-size: 12.5px;
@@ -104,7 +104,6 @@
 /* ---------- Mobile cards ---------- */
 .cardList { display: none; flex-direction: column; gap: 10px; margin-top: 16px; }
 .card {
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
     padding: 14px;
@@ -128,7 +127,7 @@
     border-radius: var(--mx-radius-sm);
     font-size: 12.5px;
     font-weight: 700;
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-xs);
     background: var(--mx-surface);
     color: var(--mx-ink);
     cursor: pointer;
@@ -153,14 +152,14 @@
 .holdBtn {
     padding: 12px;
     border-radius: var(--mx-radius-md);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-xs);
     background: var(--mx-surface);
     color: var(--mx-ink);
     font-weight: 700;
     font-size: 13.5px;
     cursor: pointer;
 }
-.holdBtn:hover { background: var(--mx-surface-sunken); }
+.holdBtn:hover { background: var(--mx-surface-sunken); box-shadow: var(--mx-shadow-sm); }
 .resumeBtn {
     padding: 12px;
     border-radius: var(--mx-radius-md);
@@ -185,9 +184,9 @@
 .entryList { display: flex; flex-direction: column; gap: 8px; }
 .entryRow {
     padding: 10px 12px;
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-sm);
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-sm);
 }
 .entryHead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13.5px; color: var(--mx-ink); }
 .entryMeta { font-size: 12px; color: var(--mx-ink-muted); margin-top: 4px; }
@@ -213,7 +212,7 @@
 .formInput {
     padding: 10px 12px;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-pressed-sm);
     font-size: 14px;
     width: 100%;
 }

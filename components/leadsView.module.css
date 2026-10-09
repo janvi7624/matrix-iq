@@ -72,9 +72,9 @@
     min-height: 38px;
     box-sizing: border-box;
     padding: 8px 10px;
-    border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-sm);
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-pressed-sm);
     color: var(--mx-ink);
     font-size: 13.5px;
     font-family: inherit;
@@ -186,9 +186,9 @@
     box-sizing: border-box;
     min-height: 34px;
     padding: 6px 8px;
-    border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-xs);
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-pressed-sm);
     color: var(--mx-ink);
     font-size: 12.5px;
     font-family: inherit;
@@ -198,7 +198,7 @@
 .rowSelect:disabled { opacity: 0.5; cursor: progress; }
 /* Draws the eye to rows still needing a decision. */
 .rowSelectUnassigned {
-    border-color: var(--mx-warning);
+    box-shadow: var(--mx-shadow-pressed-sm);
     background: var(--mx-warning-subtle);
     font-weight: 600;
 }
@@ -300,16 +300,15 @@
     gap: 2px;
     flex: 1 1 165px;
     padding: 9px 12px;
-    border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-sm);
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-sm);
     cursor: pointer;
     transition: border-color var(--mx-duration-fast) var(--mx-ease), background var(--mx-duration-fast) var(--mx-ease);
 }
 /* An inset ring rather than a 2px border — the card must not change size
    when it's selected. */
 .callOptionActive {
-    border-color: var(--mx-brand);
     background: var(--mx-brand-subtle);
     box-shadow: inset 0 0 0 1px var(--mx-brand);
 }
@@ -369,22 +368,22 @@
     gap: 6px;
     padding: 5px 12px;
     border-radius: var(--mx-radius-full);
-    border: 1px solid var(--mx-border-strong);
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
     color: var(--mx-ink-muted);
     font-size: 12.5px;
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .originChip:hover {
-    border-color: var(--mx-brand);
     color: var(--mx-ink);
+    box-shadow: var(--mx-shadow-sm);
 }
 .originChipActive {
     background: var(--mx-brand);
-    border-color: var(--mx-brand);
+    box-shadow: var(--mx-shadow-pressed-sm);
     color: #fff;
 }
 /* A category nobody has used yet still shows — the taxonomy is part of the

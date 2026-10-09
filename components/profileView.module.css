@@ -4,7 +4,7 @@
 .heroCard {
     background: var(--mx-surface);
     border-radius: var(--mx-radius-xl);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
     overflow: hidden;
 }
 .heroBanner {
@@ -44,7 +44,7 @@
     margin-top: 20px;
     background: var(--mx-surface);
     border-radius: var(--mx-radius-xl);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
     padding: 24px 36px 20px;
 }
 .detailHeading { margin: 0 0 20px; font-size: 14px; font-weight: 700; color: var(--mx-ink); text-transform: uppercase; letter-spacing: 0.5px; }

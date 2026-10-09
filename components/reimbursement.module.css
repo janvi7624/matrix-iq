@@ -45,7 +45,7 @@
 .h2SpacedTop { margin-top: 16px; }
 
 /* Manager/HR/Accounts decision panels (reused across My Sheet + Pending detail) */
-.decisionPanel { margin-top: 14px; padding: 14px 16px; background: var(--mx-surface); border-radius: var(--mx-radius-xs, 8px); border: 1px solid var(--mx-border-strong); }
+.decisionPanel { margin-top: 14px; padding: 14px 16px; background: var(--mx-surface); border-radius: var(--mx-radius-xs, 8px); box-shadow: var(--mx-shadow-sm); }
 .decisionPanelTitle { font-size: 13.5px; font-weight: 700; color: var(--mx-ink); }
 .decisionPanelMeta { font-size: 12.5px; color: var(--mx-ink-muted); }
 .decisionPanelSubMeta { font-size: 12px; color: var(--mx-ink-faint); }
@@ -93,7 +93,7 @@
 .vehicleTypeLabelText { font-size: 12px; font-weight: 600; color: var(--mx-gray-700); }
 .vehicleTypeOption { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; padding: 6px 12px; border-radius: var(--mx-radius-sm); transition: all 0.15s ease; }
 .vehicleTypeOptionActive { font-weight: 700; color: var(--mx-brand); border: 2px solid var(--mx-brand); background: var(--mx-brand-subtle); }
-.vehicleTypeOptionInactive { font-weight: 500; color: var(--mx-gray-700); border: 1px solid var(--mx-border); background: var(--mx-surface); }
+.vehicleTypeOptionInactive { font-weight: 500; color: var(--mx-gray-700); background: var(--mx-surface); box-shadow: var(--mx-shadow-xs); }
 .hiddenRadio { display: none; }
 .employeePillsWrap { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .employeePill { display: inline-flex; align-items: center; gap: 4px; }
@@ -110,7 +110,7 @@
 .uploadTitleText { font-size: 13px; font-weight: 600; color: var(--mx-ink); }
 .uploadHintText { font-size: 11.5px; color: var(--mx-ink-faint); margin-top: 2px; }
 .attachmentList { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.attachmentRow { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--mx-surface); border: 1px solid var(--mx-border-strong); border-radius: var(--mx-radius-xs, 6px); }
+.attachmentRow { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--mx-surface); border-radius: var(--mx-radius-xs, 6px); box-shadow: var(--mx-shadow-xs); }
 .attachmentLink { flex: 1; font-size: 13px; color: var(--mx-info); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .attachmentRemoveBtn { background: none; border: 1px solid var(--mx-danger); color: var(--mx-danger); cursor: pointer; padding: 2px 8px; border-radius: var(--mx-radius-xs, 4px); font-size: 11px; font-weight: 600; transition: background 0.15s ease; }
 .formSubmitRow { display: flex; gap: 10px; margin-top: 16px; }
@@ -129,7 +129,8 @@
 .miniTagBlue { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--mx-blue-100); font-size: 11.5px; font-weight: 600; color: var(--mx-blue-800); white-space: nowrap; }
 .amountStrong { font-weight: 600; }
 .billLink { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; background: var(--mx-info-subtle); color: var(--mx-info); border-radius: var(--mx-radius-xs, 6px); font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; transition: background 0.15s ease; }
-.tableIconBtn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--mx-surface); border: 1px solid var(--mx-border-strong); border-radius: var(--mx-radius-xs, 6px); font-size: 12px; font-weight: 600; color: var(--mx-ink); cursor: pointer; transition: background 0.15s ease; }
+.tableIconBtn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--mx-surface); border-radius: var(--mx-radius-xs, 6px); box-shadow: var(--mx-shadow-xs); font-size: 12px; font-weight: 600; color: var(--mx-ink); cursor: pointer; transition: background 0.15s ease, box-shadow 0.15s ease; }
+.tableIconBtn:hover { background: var(--mx-surface-sunken); box-shadow: var(--mx-shadow-sm); }
 .tableIconBtnDanger { border: 1px solid var(--mx-danger); color: var(--mx-danger); }
 .rowActionsGap6 { display: flex; gap: 6px; }
 .tfootRow { background: var(--mx-surface-sunken); }
@@ -151,7 +152,8 @@
 
 /* Sheet list cards (Pending / Approved landing lists) */
 .sheetCardList { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
-.sheetListCard { padding: 14px 18px; border-radius: var(--mx-radius-sm, 10px); border: 1px solid var(--mx-border-strong); background: var(--mx-surface); cursor: pointer; transition: box-shadow 0.15s ease, border-color 0.15s ease; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.sheetListCard { padding: 14px 18px; border-radius: var(--mx-radius-sm, 10px); background: var(--mx-surface); box-shadow: var(--mx-shadow-sm); cursor: pointer; transition: box-shadow 0.15s ease; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.sheetListCard:hover { box-shadow: var(--mx-shadow-md); }
 .sheetCardName { font-size: 14.5px; font-weight: 700; color: var(--mx-ink); margin-bottom: 2px; }
 .sheetCardIdTag { font-weight: 400; font-size: 12.5px; color: var(--mx-ink-faint); margin-left: 8px; }
 .sheetCardSubMeta { font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 2px; }

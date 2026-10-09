@@ -2,16 +2,29 @@
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
   z-index: 60;
   display: flex;
   justify-content: flex-end;
+  animation: overlayIn 0.16s ease-out;
+}
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay { animation: none; }
 }
 
 .panel {
   width: min(560px, 100vw);
   height: 100%;
   background: var(--mx-surface);
-  box-shadow: -8px 0 24px rgba(15, 23, 42, 0.18);
+  /* Edge-flush, not a free-floating card — a true dual neumorphic shadow
+     needs visible room on every side, which a viewport-edge panel doesn't
+     have. One deep shadow on its open edge carries the same "floating
+     above the page" weight as --mx-shadow-lg instead. */
+  box-shadow: -18px 0 40px rgba(17, 24, 39, 0.22);
   display: flex;
   flex-direction: column;
   animation: slideIn 0.18s ease-out;

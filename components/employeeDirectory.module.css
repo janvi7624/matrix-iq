@@ -20,7 +20,6 @@
     padding: 12px 14px;
     border-radius: var(--mx-radius-md);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-xs);
 }
 /* Clickable stat cards double as one-tap filters (All / Active / Inactive /
@@ -34,15 +33,16 @@
     cursor: pointer;
     font: inherit;
     color: inherit;
-    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease), transform var(--mx-duration-base) var(--mx-ease);
+    transition: box-shadow var(--mx-duration-base) var(--mx-ease), transform var(--mx-duration-base) var(--mx-ease);
 }
 .statCardBtn:hover {
-    border-color: var(--mx-brand);
     box-shadow: var(--mx-shadow-sm);
     transform: translateY(-1px);
 }
+/* Pressed + tinted, not a colored border — same "selected = carved in"
+   language as statTile.module.css's .statActive. */
 .statCardActive {
-    border-color: var(--mx-brand);
+    box-shadow: var(--mx-shadow-pressed-sm);
     background: var(--mx-brand-subtle);
 }
 .statValue {
@@ -89,19 +89,20 @@
     box-sizing: border-box;
     min-height: var(--mx-control-h);
     padding: 10px 38px 10px 36px;
-    border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-sm);
+    /* A field reads as a recessed slot you type into — pressed, not a
+       bordered box — same elevation language as the rest of the redesign. */
+    box-shadow: var(--mx-shadow-pressed-sm);
     background: var(--mx-surface);
     color: var(--mx-ink);
     /* 16px keeps iOS Safari from zooming the page on focus. */
     font-size: 16px;
     font-family: inherit;
-    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+    transition: box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .searchInput:focus-visible {
     outline: none;
-    border-color: var(--mx-brand);
-    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
+    box-shadow: var(--mx-shadow-pressed-sm), 0 0 0 3px var(--mx-brand-subtle);
 }
 .searchClear {
     position: absolute;
@@ -123,8 +124,8 @@
     min-height: var(--mx-control-h);
     box-sizing: border-box;
     padding: 12px 14px;
-    border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-sm);
+    box-shadow: var(--mx-shadow-pressed-sm);
     background: var(--mx-surface);
     color: var(--mx-ink);
     /* Was 14px beside a 16px .searchInput; 16px also stops iOS Safari
@@ -147,14 +148,16 @@
 }
 .filterSelect:focus-visible {
     outline: none;
-    border-color: var(--mx-brand);
-    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
+    box-shadow: var(--mx-shadow-pressed-sm), 0 0 0 3px var(--mx-brand-subtle);
 }
 /* A select showing something other than its "All …" default gets a brand tint
    so it's obvious at a glance which filters are narrowing the list — the
-   chips below say the same thing in words. */
+   chips below say the same thing in words. Deeper (unsuffixed) pressed shadow
+   than the resting -sm recess, so "active" reads as carved in further, not
+   just a color swap — same "active input" case globals.css's token comment
+   calls out for --mx-shadow-pressed. */
 .filterSelectActive {
-    border-color: var(--mx-brand);
+    box-shadow: var(--mx-shadow-pressed);
     background: var(--mx-brand-subtle);
     font-weight: 600;
 }
@@ -247,8 +250,8 @@
 .tableWrap {
     overflow-x: auto;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid var(--mx-border);
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-sm);
 }
 .table {
     width: 100%;
@@ -413,7 +416,7 @@
     padding: 10px 12px;
     border-radius: var(--mx-radius-sm);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-xs);
 }
 .activityStatValue { font-size: 18px; font-weight: 800; color: var(--mx-ink); font-variant-numeric: tabular-nums; }
 .activityStatLabel { font-size: 11px; color: var(--mx-ink-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
@@ -430,11 +433,10 @@
     padding: 14px;
     border-radius: var(--mx-radius-md);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-xs);
     margin-bottom: 10px;
 }
-.cardSelected { border-color: var(--mx-brand); background: var(--mx-brand-subtle); }
+.cardSelected { box-shadow: var(--mx-shadow-pressed-sm); background: var(--mx-brand-subtle); }
 .cardHead { display: flex; align-items: flex-start; gap: 10px; }
 .cardHeadText { flex: 1; min-width: 0; }
 .cardPills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
@@ -485,8 +487,8 @@
     margin-top: 14px;
     padding: 10px 14px;
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-sm);
+    box-shadow: var(--mx-shadow-sm);
 }
 /* Applied only when there is more than one page — a pinned bar holding nothing
    but a page-size selector is heavy for a list that fits on one page. */
@@ -503,16 +505,16 @@
     min-width: 38px;
     padding: 8px 12px;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid var(--mx-border-strong);
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
     color: var(--mx-ink);
     font-size: 13.5px;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
-    transition: background var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
+    transition: background var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
-.pageBtn:hover:not(:disabled) { background: var(--mx-surface-sunken); border-color: var(--mx-border-hover); }
+.pageBtn:hover:not(:disabled) { background: var(--mx-surface-sunken); box-shadow: var(--mx-shadow-sm); }
 .pageBtn:disabled { opacity: 0.45; cursor: not-allowed; }
 .pageStatus { font-size: 13px; color: var(--mx-ink-muted); font-variant-numeric: tabular-nums; padding: 0 4px; }
 .pageSizeWrap { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mx-ink-muted); white-space: nowrap; }
@@ -522,7 +524,7 @@
     min-height: 38px;
     padding: 7px 10px;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid var(--mx-border-strong);
+    box-shadow: var(--mx-shadow-pressed-sm);
     background: var(--mx-surface);
     color: var(--mx-ink);
     font-size: 13.5px;

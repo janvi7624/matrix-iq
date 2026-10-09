@@ -14,15 +14,17 @@
 
 .kpiCard {
   background: var(--mx-surface);
-  border: 1px solid var(--mx-border);
   border-radius: var(--mx-radius-md);
   padding: 10px 12px;
   cursor: pointer;
   text-align: left;
+  box-shadow: var(--mx-shadow-xs);
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
-.kpiCard:hover { border-color: var(--mx-brand); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08); }
-.kpiCardActive { border-color: var(--mx-brand); background: var(--mx-brand-subtle); }
+.kpiCard:hover { box-shadow: var(--mx-shadow-sm); }
+/* Selected filter = carved in + tinted, not a colored border — same language
+   as statTile.module.css's .statActive. */
+.kpiCardActive { box-shadow: var(--mx-shadow-pressed-sm); background: var(--mx-brand-subtle); }
 .kpiValue { font-size: 20px; font-weight: 700; color: var(--mx-ink); line-height: 1.1; }
 .kpiLabel { font-size: 11.5px; color: var(--mx-ink-muted); margin-top: 2px; white-space: nowrap; }
 .kpiValueDanger { color: var(--mx-danger); }
@@ -52,7 +54,8 @@
 .boardCards { display: flex; flex-direction: column; gap: 8px; }
 
 .card {
-  background: var(--mx-surface); border: 1px solid var(--mx-border); border-radius: var(--mx-radius-md);
+  background: var(--mx-surface); border-radius: var(--mx-radius-md);
+  box-shadow: var(--mx-shadow-sm);
   padding: 10px; cursor: grab; display: flex; flex-direction: column; gap: 6px;
 }
 .card:active { cursor: grabbing; }
@@ -98,7 +101,7 @@
 .segmented {
   display: inline-flex;
   background: var(--mx-surface-sunken);
-  border: 1px solid var(--mx-border);
+  box-shadow: var(--mx-shadow-pressed-sm);
   border-radius: var(--mx-radius-full);
   padding: 3px;
   gap: 2px;
@@ -121,4 +124,4 @@
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
 
-.assignHint { font-size: 12.5px; color: var(--mx-ink-muted); background: var(--mx-surface); border: 1px solid var(--mx-border); border-radius: var(--mx-radius-sm); padding: 8px 10px; }
+.assignHint { font-size: 12.5px; color: var(--mx-ink-muted); background: var(--mx-surface); box-shadow: var(--mx-shadow-pressed-sm); border-radius: var(--mx-radius-sm); padding: 8px 10px; }

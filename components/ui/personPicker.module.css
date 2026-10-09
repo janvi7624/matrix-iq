@@ -18,7 +18,7 @@
    search icon sits on top of the text. */
 .searchInput.searchInput { padding-left: 32px; }
 
-.resultsList { composes: mx-nice-scroll from global; max-height: 220px; overflow-y: auto; border: 1px solid var(--mx-border); border-radius: var(--mx-radius-sm); }
+.resultsList { composes: mx-nice-scroll from global; max-height: 220px; overflow-y: auto; box-shadow: var(--mx-shadow-pressed-sm); border-radius: var(--mx-radius-sm); }
 .emptyMessage { padding: 16px 12px; text-align: center; font-size: 13px; color: var(--mx-ink-faint); }
 
 .resultRow {

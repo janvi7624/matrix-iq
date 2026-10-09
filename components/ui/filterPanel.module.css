@@ -14,7 +14,6 @@
    .btn with a comment pointing at the original. */
 
 .wrap {
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-md);
     background: var(--mx-surface);
     box-shadow: var(--mx-shadow-xs);
@@ -52,19 +51,20 @@
     min-height: var(--mx-control-h);
     /* Left padding clears the magnifier, right padding the clear button. */
     padding: 12px 38px 12px 36px;
-    border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-sm);
+    /* A field reads as a recessed slot, not a bordered box — same elevation
+       language as calculator.module.css's .formControl. */
+    box-shadow: var(--mx-shadow-pressed-sm);
     background: var(--mx-surface);
     color: var(--mx-ink);
     /* 16px stops iOS Safari auto-zooming the page on focus. */
     font-size: 16px;
     font-family: inherit;
     outline: none;
-    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+    transition: box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .searchInput:focus-visible {
-    border-color: var(--mx-brand);
-    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
+    box-shadow: var(--mx-shadow-pressed-sm), 0 0 0 3px var(--mx-brand-subtle);
 }
 .searchClear {
     position: absolute;
@@ -100,19 +100,21 @@
     min-height: var(--mx-control-h);
     box-sizing: border-box;
     padding: 11px 14px;
-    border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-sm);
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
     color: var(--mx-ink);
     font-size: 14.5px;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
     white-space: nowrap;
-    transition: background var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
+    transition: background var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
-.toggleBtn:hover { background: var(--mx-surface-sunken); border-color: var(--mx-ink-faint); }
-.toggleBtnOpen { background: var(--mx-surface-sunken); border-color: var(--mx-ink-faint); }
+.toggleBtn:hover { background: var(--mx-surface-sunken); box-shadow: var(--mx-shadow-sm); }
+/* Pressed rather than tinted — "open" reads as carved in, same language as
+   dashboard.module.css's .sectionToggle[aria-expanded='true']. */
+.toggleBtnOpen { background: var(--mx-surface-sunken); box-shadow: var(--mx-shadow-pressed-sm); }
 /* How many active filters are currently inside the collapsed panel — what
    makes collapsing by default safe. */
 .toggleBadge {

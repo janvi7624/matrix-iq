@@ -43,12 +43,12 @@
     width: 34px;
     height: 34px;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-xs);
     background: var(--mx-surface);
     color: var(--mx-ink-muted);
     cursor: pointer;
 }
-.closeBtn:hover { background: var(--mx-gray-100); color: var(--mx-ink); }
+.closeBtn:hover { background: var(--mx-gray-100); color: var(--mx-ink); box-shadow: var(--mx-shadow-sm); }
 
 .loadingWrap { padding: 8px 0 20px; }
 
@@ -60,7 +60,7 @@
     padding: 16px 18px;
     border-radius: var(--mx-radius-md);
     background: var(--mx-surface-sunken);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-pressed-sm);
 }
 .scoreValue {
     font-size: 2.6rem;
@@ -151,7 +151,7 @@
     padding: 12px 14px;
     border-radius: var(--mx-radius-md);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-xs);
 }
 .totalValue {
     font-size: 1.15rem;
@@ -165,10 +165,10 @@
     text-align: left;
     font: inherit;
     cursor: pointer;
-    transition: border-color var(--mx-duration-base, 0.15s) var(--mx-ease, ease), box-shadow var(--mx-duration-base, 0.15s) var(--mx-ease, ease);
+    transition: box-shadow var(--mx-duration-base, 0.15s) var(--mx-ease, ease);
 }
-.totalCardClickable:hover { border-color: var(--mx-brand); }
-.totalCardActive { border-color: var(--mx-brand); box-shadow: 0 0 0 2px var(--mx-brand-subtle); }
+.totalCardClickable:hover { box-shadow: var(--mx-shadow-sm); }
+.totalCardActive { background: var(--mx-brand-subtle); box-shadow: var(--mx-shadow-pressed-sm), 0 0 0 2px var(--mx-brand-subtle); }
 
 /* ---------- Managers ---------- */
 .managerRow { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -204,8 +204,9 @@
     gap: 12px;
     padding: 12px;
     border-radius: var(--mx-radius-md);
-    border: 1px solid var(--mx-border);
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-sm);
+    transition: box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .memberAvatar {
     flex-shrink: 0;
@@ -278,7 +279,7 @@
 /* Wraps a .member row in a Link (Person Performance Dashboard's project
    list) without it reading as a normal blue hyperlink. */
 .memberLink { display: block; text-decoration: none; color: inherit; }
-.memberLink:hover .member { border-color: var(--mx-brand); }
+.memberLink:hover .member { box-shadow: var(--mx-shadow-md); }
 
 /* Person Performance Dashboard header — name + role/department subtitle
    passed as Modal's `title`, and the button that opens the modal from a
@@ -293,7 +294,7 @@
     cursor: pointer;
     border-radius: var(--mx-radius-md);
 }
-.personTrigger:hover .member { border-color: var(--mx-brand); }
+.personTrigger:hover .member { box-shadow: var(--mx-shadow-md); }
 .personTrigger:focus-visible { outline: 2px solid var(--mx-brand); outline-offset: 2px; }
 .personSubtitle { font-size: 13px; font-weight: 500; color: var(--mx-ink-muted); margin-top: 2px; }
 

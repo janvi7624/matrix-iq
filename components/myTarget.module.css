@@ -5,7 +5,6 @@
 
 .panel {
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-xl);
     box-shadow: var(--mx-shadow-xs);
     padding: 16px 18px;
@@ -46,7 +45,9 @@
     height: 10px;
     border-radius: var(--mx-radius-full);
     background: var(--mx-surface-sunken);
-    border: 1px solid var(--mx-border);
+    /* A recessed groove the fill sits inside — same sunken-surface + pressed-
+       shadow pairing as .detailPanel/.deptAmountBox, not a bordered box. */
+    box-shadow: var(--mx-shadow-pressed-sm);
     margin: 12px 0 8px;
     overflow: hidden;
 }

@@ -32,18 +32,33 @@
    consistent when adding new responsive CSS.
 =========================================================================== */
 :root {
-  /* Brand */
+  /* Brand — matches the Nanta mark exactly (public/nanta-icon.png): #dc2626
+     measured off the logo itself, not picked to taste. */
   --mx-brand: #dc2626;
   --mx-brand-hover: #b91c1c;
   --mx-brand-subtle: rgba(220, 38, 38, 0.08);
+  /* Same value as --mx-brand-hover, kept as its own token: body-sized red
+     text (links, the active nav label) needs the darker shade to clear
+     4.5:1 on a light surface, where the brighter --mx-brand reads fine only
+     because white-on-brand (buttons) and brand-on-white (fills, icons,
+     dots) don't carry that same text-contrast rule. Naming it separately
+     means a future change to the hover transition can never silently
+     change link color too. */
+  --mx-brand-text: #b91c1c;
 
   /* Ink / neutrals */
   --mx-ink: #111827;
   --mx-ink-muted: #6b7280;
   --mx-ink-faint: #9ca3af;
-  --mx-surface: #ffffff;
-  --mx-surface-sunken: #f8fafc;
-  --mx-page-bg: #f4f5f7;
+  /* Just off pure white — invisible as a "tint" on its own, but it's what
+     makes the shadow scale below read as soft depth instead of a flat drop
+     shadow: a white highlight-shadow needs a surface that isn't already
+     white to show against. Text contrast against it is unchanged from
+     #ffffff (the ink colors above already clear every threshold with room
+     to spare). */
+  --mx-surface: #f7f7f8;
+  --mx-surface-sunken: #eef0f2;
+  --mx-page-bg: #e3e5e8;
   --mx-border: #e5e7eb;
   --mx-border-strong: #d1d5db;
 
@@ -183,19 +198,43 @@
      any one of them gets restyled later. */
   --mx-control-h: 46px;
 
-  /* Radius scale */
-  --mx-radius-xs: 6px;
-  --mx-radius-sm: 9px;
-  --mx-radius-md: 12px;
-  --mx-radius-lg: 16px;
-  --mx-radius-xl: 20px;
+  /* Radius scale — one step softer across the board (neumorphism reads as
+     carved/molded, which needs more corner room than the old flat-card
+     scale gave it) but still a working-tool's radii, not a marketing
+     page's: a dense table or a 46px-tall control doesn't get the full jump. */
+  --mx-radius-xs: 8px;
+  --mx-radius-sm: 12px;
+  --mx-radius-md: 16px;
+  --mx-radius-lg: 22px;
+  --mx-radius-xl: 26px;
   --mx-radius-full: 999px;
 
-  /* Shadow scale */
-  --mx-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --mx-shadow-sm: 0 4px 12px rgba(15, 23, 42, 0.05);
-  --mx-shadow-md: 0 10px 28px rgba(15, 23, 42, 0.07);
-  --mx-shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.12);
+  /* Shadow scale — neumorphism + spatial redesign (2026-10-09): each level
+     is now a DUAL shadow (a dark one below-right, a light one above-left)
+     instead of one soft drop shadow, so a card reads as extruded from
+     --mx-surface/--mx-page-bg rather than floating flat above them. Reused
+     verbatim by every consumer that already did `box-shadow: var(--mx-shadow-*)`
+     — same variable, no call-site change, because box-shadow's syntax
+     already accepts a comma-separated shadow LIST as one value. Both shadow
+     colors are translucent (not tied to one flat hex) so the same four
+     tokens work correctly whether the element sits on --mx-surface,
+     --mx-page-bg, or plain white — there is no separate "surface color" a
+     caller has to know about.
+     xs->sm->md->lg maps to the elevation ladder: resting (xs, e.g. a table)
+     -> resting (sm, the default card) -> raised (md, hover/lift) -> floating
+     (lg, a modal — the one thing that should look like it's above the page,
+     not part of it). Pressed (inset) is a new fourth state with no prior
+     token to reuse — see --mx-shadow-pressed-sm/-pressed below. */
+  --mx-shadow-xs: 4px 4px 10px rgba(17, 24, 39, 0.11), -3px -3px 8px rgba(255, 255, 255, 0.9);
+  --mx-shadow-sm: 7px 7px 18px rgba(17, 24, 39, 0.14), -6px -6px 16px rgba(255, 255, 255, 0.95);
+  --mx-shadow-md: 11px 13px 28px rgba(17, 24, 39, 0.17), -8px -8px 22px rgba(255, 255, 255, 1);
+  --mx-shadow-lg: 20px 24px 48px rgba(17, 24, 39, 0.26), -8px -8px 22px rgba(255, 255, 255, 0.85);
+  /* Pressed/inset — an active nav item, a selected chip, a status badge:
+     reads as carved IN rather than raised. -sm for small chip-scale things
+     (badges, the nav item's own pressed state), unsuffixed for anything
+     larger (an active input, a toggled panel). */
+  --mx-shadow-pressed-sm: inset 3px 3px 6px rgba(17, 24, 39, 0.15), inset -3px -3px 6px rgba(255, 255, 255, 0.9);
+  --mx-shadow-pressed: inset 5px 5px 11px rgba(17, 24, 39, 0.17), inset -5px -5px 11px rgba(255, 255, 255, 0.9);
 
   /* Spacing (8px scale) — for new components; existing inline spacing is unchanged */
   --mx-space-1: 4px;

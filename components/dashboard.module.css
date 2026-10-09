@@ -10,7 +10,6 @@
     gap: 10px;
     width: 100%;
     margin-top: 28px;
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
     box-shadow: var(--mx-shadow-sm);
@@ -25,12 +24,13 @@
 }
 .sectionToggle:hover {
     box-shadow: var(--mx-shadow-md);
-    border-color: rgba(220, 38, 38, 0.3);
     transform: translateY(-1px);
 }
+/* Pressed rather than tinted — "open" reads as carved in, same language as
+   an active nav item, instead of a flat brand-colored fill. */
 .sectionToggle[aria-expanded='true'] {
-    border-color: rgba(220, 38, 38, 0.3);
-    background: var(--mx-brand-subtle);
+    box-shadow: var(--mx-shadow-pressed);
+    background: var(--mx-surface);
 }
 .sectionToggleIcon {
     flex-shrink: 0;
@@ -126,10 +126,12 @@
 .topGridPair {
     grid-template-columns: 1fr 2fr;
 }
+/* Outranks the other two panels through elevation (raised, not resting)
+   instead of a hard colored border — consistent with the rest of the page's
+   "weight = how far it sits off the surface" language. */
 .topGridHighlight {
     margin-top: 0;
-    border: 1.5px solid var(--mx-brand);
-    box-shadow: 0 6px 20px rgba(220, 38, 38, 0.14);
+    box-shadow: var(--mx-shadow-md);
 }
 .topGridHighlight .attentionHead {
     background: var(--mx-brand-subtle);
@@ -140,7 +142,6 @@
     margin-top: 16px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-sm);
     overflow: hidden;
 }
@@ -314,7 +315,6 @@
     padding: 22px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-sm);
     text-decoration: none;
     color: inherit;
@@ -323,7 +323,6 @@
 .tile:hover {
     transform: translateY(-2px);
     box-shadow: var(--mx-shadow-md);
-    border-color: rgba(220, 38, 38, 0.35);
 }
 .tileTitle {
     font-size: 1.05rem;
@@ -380,7 +379,6 @@
     padding: 14px 16px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-sm);
 }
 /* Applied alongside .kpiCard when it's a <button> instead of a <Link> — the
@@ -434,7 +432,6 @@
 }
 .recentCard {
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-lg);
     box-shadow: var(--mx-shadow-sm);
     padding: 16px 18px;
@@ -507,7 +504,6 @@
     margin-top: 8px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-sm);
     overflow: hidden;
 }
@@ -519,7 +515,6 @@
    its share, which is what a grid item's default min-width: auto would do. */
 .summaryCard {
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-lg);
     box-shadow: var(--mx-shadow-sm);
     padding: 16px 18px;

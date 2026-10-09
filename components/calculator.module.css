@@ -29,7 +29,7 @@
     padding: 8px 14px;
     border-radius: var(--mx-radius-md);
     background: var(--mx-surface-sunken);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-pressed-sm);
 }
 .rolePill {
     display: inline-block;
@@ -83,7 +83,7 @@
     padding: 20px 20px 16px;
     border-radius: var(--mx-radius-xl);
     background: var(--mx-surface-sunken);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
 }
 .columns {
     grid-template-columns: 1fr 1fr;
@@ -99,7 +99,7 @@
 .imageHolder {
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-pressed-sm);
     padding: 12px;
     display: flex;
     align-items: center;
@@ -145,7 +145,10 @@
     min-height: var(--mx-control-h);
     padding: 12px 14px;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid var(--mx-border-strong);
+    border: none;
+    /* A field reads as a recessed slot you type into — pressed, not a
+       bordered box — same elevation language as the rest of the redesign. */
+    box-shadow: var(--mx-shadow-pressed-sm);
     background: var(--mx-surface);
     color: var(--mx-ink);
     /* 16px stops iOS Safari auto-zooming the page when a sales rep taps into a field on their phone. */
@@ -153,11 +156,10 @@
     outline: none;
     font-family: inherit;
     resize: vertical;
-    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+    transition: box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .formControl:focus {
-    border-color: var(--mx-brand);
-    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
+    box-shadow: var(--mx-shadow-pressed-sm), 0 0 0 3px var(--mx-brand-subtle);
 }
 /* Make date/time picker icon stretch to fill the entire input so clicking
    anywhere opens the picker — not just the tiny calendar/clock icon. */
@@ -259,9 +261,8 @@
     max-height: 260px;
     overflow-y: auto;
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-sm);
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    box-shadow: var(--mx-shadow-lg);
 }
 .teamMemberSelectOption {
     display: block;
@@ -303,11 +304,9 @@
     padding: 16px 18px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-sm);
 }
 .summaryItemHighlight {
-    border-color: var(--mx-success);
     background: var(--mx-success-subtle);
 }
 .summaryItem strong {
@@ -457,7 +456,7 @@
 .aiFeatureList {
     max-height: 440px;
     overflow-y: auto;
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-pressed-sm);
     border-radius: var(--mx-radius-lg);
     padding: 6px 14px;
     background: var(--mx-surface);
@@ -674,7 +673,7 @@
 .deptAmountBox {
     margin-top: 10px;
     padding: 10px 12px;
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-pressed-sm);
     border-radius: var(--mx-radius-sm);
     background: var(--mx-surface-sunken);
 }
@@ -709,7 +708,7 @@
 .phasePlanBox {
     margin: 14px 0;
     padding: 12px 14px;
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-pressed-sm);
     border-radius: var(--mx-radius-sm);
     background: var(--mx-surface-sunken);
 }
@@ -733,7 +732,7 @@
     height: 22px;
     border-radius: 999px;
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-xs);
     color: var(--mx-ink-muted);
     font-size: 11px;
     font-weight: 700;

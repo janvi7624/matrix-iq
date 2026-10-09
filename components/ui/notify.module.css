@@ -50,18 +50,31 @@
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.45);
+    /* The backdrop itself sits pressed into the page; the card above floats
+       well clear of it — the blur is what sells that separation instead of
+       just a darker scrim. */
+    backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 20px;
     z-index: 1100;
+    animation: overlayIn 0.16s ease-out;
+}
+@keyframes overlayIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .overlay { animation: none; }
 }
 .confirmCard {
     width: min(420px, 100%);
-    background: #fff;
-    border-radius: 20px;
+    background: var(--mx-surface);
+    border-radius: var(--mx-radius-xl);
     padding: 26px 24px;
-    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+    box-shadow: var(--mx-shadow-lg);
+    animation: cardIn 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 /* Wider variant of .confirmCard for dialogs that hold a real form (e.g. the
    Project quick-create modal) instead of a one-line confirm/prompt message. */
@@ -70,10 +83,11 @@
     width: min(640px, 100%);
     max-height: min(85vh, 720px);
     overflow-y: auto;
-    background: #fff;
-    border-radius: 20px;
+    background: var(--mx-surface);
+    border-radius: var(--mx-radius-xl);
     padding: 26px 24px;
-    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+    box-shadow: var(--mx-shadow-lg);
+    animation: cardIn 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 /* Full-size variant for a real dashboard's worth of content (e.g. the Person
    Performance Dashboard) — not a form, a whole read-only report, so it earns
@@ -83,10 +97,20 @@
     width: min(1080px, 96vw);
     max-height: min(90vh, 860px);
     overflow-y: auto;
-    background: #fff;
-    border-radius: 20px;
+    background: var(--mx-surface);
+    border-radius: var(--mx-radius-xl);
     padding: 26px 28px;
-    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+    box-shadow: var(--mx-shadow-lg);
+    animation: cardIn 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* The floating layer arriving from just above the page, not popping in flat
+   — a small scale + rise sells the Z-axis the rest of the redesign implies. */
+@keyframes cardIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .confirmCard, .wideCard, .fullCard { animation: none; }
 }
 .confirmTitle { font-size: 1.15rem; font-weight: 800; color: #111827; margin-bottom: 8px; }
 .confirmMessage { font-size: 14.5px; color: #4b5563; line-height: 1.55; margin-bottom: 22px; }

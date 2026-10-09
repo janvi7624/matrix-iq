@@ -6,15 +6,19 @@
     min-height: 100vh;
 }
 .header {
-    background: var(--mx-ink);
-    color: #fff;
+    background: var(--mx-surface);
+    color: var(--mx-ink);
     padding: 18px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 12px;
-    border-bottom: 3px solid var(--mx-brand);
+    /* Same edge-flush reasoning as Sidebar/Drawer — a soft downward shadow
+       separates it from the page instead of a hard colored border. */
+    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.06);
+    position: relative;
+    z-index: 1;
 }
 .headerBrand {
     display: flex;
@@ -26,12 +30,13 @@
 .headerLogo {
     height: 38px;
     width: auto;
-    border-radius: 10px;
-    background: #fff;
+    border-radius: var(--mx-radius-xs);
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
     padding: 5px;
 }
 .header h1 { font-size: 20px; margin: 0; }
-.sub { font-size: 12.5px; color: #9ca3af; }
+.sub { font-size: 12.5px; color: var(--mx-ink-faint); }
 .headerActions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .headerBackLink { white-space: nowrap; }
 .headerBackLinkLabel { display: inline; }
@@ -119,7 +124,8 @@
     flex: 1;
     min-width: 220px;
     padding: 12px 14px;
-    border: 1px solid var(--mx-border-strong);
+    border: none;
+    box-shadow: var(--mx-shadow-pressed-sm);
     border-radius: var(--mx-radius-sm);
     background: var(--mx-surface);
     color: var(--mx-ink);
@@ -127,20 +133,20 @@
     font-size: 16px;
     font-family: inherit;
     outline: none;
-    transition: border-color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+    transition: box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .toolbar > input[type="text"]:focus,
 .toolbar > input[type="search"]:focus {
-    border-color: var(--mx-brand);
-    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
+    box-shadow: var(--mx-shadow-pressed-sm), 0 0 0 3px var(--mx-brand-subtle);
 }
 .button {
     min-height: var(--mx-control-h);
     box-sizing: border-box;
     padding: 11px 18px;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid var(--mx-border-strong);
+    border: none;
     background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
     cursor: pointer;
     font-size: 14.5px;
     text-decoration: none;
@@ -148,17 +154,17 @@
     display: inline-flex;
     align-items: center;
     font-weight: 600;
-    transition: background var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease), transform var(--mx-duration-fast) var(--mx-ease);
+    transition: background var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease), transform var(--mx-duration-fast) var(--mx-ease);
 }
-.button:hover { background: var(--mx-surface-sunken); border-color: var(--mx-ink-faint); }
-.button:active { transform: translateY(1px); }
-.primary { background: var(--mx-brand); border-color: var(--mx-brand); color: #fff; }
-.primary:hover { background: var(--mx-brand-hover); border-color: var(--mx-brand-hover); }
+.button:hover { box-shadow: var(--mx-shadow-sm); }
+.button:active { transform: translateY(1px); box-shadow: var(--mx-shadow-pressed-sm); }
+.primary { background: var(--mx-brand); color: #fff; }
+.primary:hover { background: var(--mx-brand-hover); }
 /* Same box model as .button/.primary so a Reject sitting next to an Approve
    in an action bar matches its height/padding — .deleteBtn is deliberately
    smaller for inline table-row actions and shouldn't be reused here. */
-.dangerButton { composes: button; background: var(--mx-surface); border-color: var(--mx-danger); color: var(--mx-danger); }
-.dangerButton:hover { background: var(--mx-danger-subtle); border-color: var(--mx-danger); }
+.dangerButton { composes: button; background: var(--mx-surface); color: var(--mx-danger); }
+.dangerButton:hover { background: var(--mx-danger-subtle); box-shadow: var(--mx-shadow-sm); }
 /* A real button, scaled down for sitting inside a table cell or a sentence
    (e.g. "View Sales Project" from a TMS project handed off from Sales) —
    same shape language as .button, just not full control height. */
@@ -169,23 +175,24 @@
     margin-top: 4px;
     padding: 4px 10px;
     border-radius: var(--mx-radius-xs);
-    border: 1px solid var(--mx-border-strong);
+    border: none;
+    box-shadow: var(--mx-shadow-xs);
     background: var(--mx-surface);
     color: var(--mx-ink);
     font-size: 12.5px;
     font-weight: 600;
     text-decoration: none;
     cursor: pointer;
-    transition: background var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
+    transition: background var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
-.linkButtonSmall:hover { background: var(--mx-surface-sunken); border-color: var(--mx-ink-faint); }
+.linkButtonSmall:hover { background: var(--mx-surface-sunken); box-shadow: var(--mx-shadow-sm); }
 .status { font-size: 13px; color: var(--mx-ink-muted); margin-bottom: 10px; }
 .truncateCell { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; cursor: help; }
 .mutedInline { color: var(--mx-ink-faint); font-size: 12.5px; font-style: italic; }
 .table { width: 100%; border-collapse: collapse; background: var(--mx-surface); border-radius: var(--mx-radius-sm); overflow: hidden; box-shadow: var(--mx-shadow-xs); }
 .table th, .table td { text-align: left; padding: 10px 12px; font-size: 13.5px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
-.table th { background: #f9fafb; font-weight: 600; color: #374151; position: sticky; top: 0; }
-.table tr:hover td { background: #fafafa; }
+.table th { background: var(--mx-surface-sunken); font-weight: 600; color: #374151; position: sticky; top: 0; }
+.table tr:hover td { background: var(--mx-surface-sunken); }
 .rolePill {
     display: inline-block;
     padding: 3px 10px;
@@ -526,6 +533,10 @@
     font-size: 11.5px;
     font-weight: 700;
     white-space: nowrap;
+    /* Every tone below sets its own background/color; this is the one thing
+       they all share — reads as a small pressed-in chip rather than a flat
+       tinted label. */
+    box-shadow: var(--mx-shadow-pressed-sm);
 }
 .statusPending { background: var(--mx-warning-subtle); color: var(--mx-warning); }
 .statusConfirmed { background: var(--mx-success-subtle); color: var(--mx-success); }
@@ -598,7 +609,6 @@
     padding: 16px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-sm);
 }
 .miniCardTitle {
@@ -659,7 +669,7 @@
     padding: 26px 24px;
     border-radius: var(--mx-radius-xl);
     background: var(--mx-surface-sunken);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
     margin-bottom: 18px;
 }
 .wizardCardTitle {
@@ -765,7 +775,7 @@
     padding: 18px 20px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface-sunken);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-pressed-sm);
 }
 
 .loginWrap {
@@ -792,7 +802,6 @@
     background: var(--mx-surface);
     border-radius: var(--mx-radius-xl);
     box-shadow: var(--mx-shadow-lg);
-    border: 1px solid var(--mx-border);
     padding: 32px 30px;
 }
 .loginCard h1 { font-size: 19px; margin: 0 0 4px; font-weight: 900; color: var(--mx-brand); text-align: center; }
@@ -801,16 +810,16 @@
 .loginField label { font-size: 13px; color: var(--mx-ink-muted); font-weight: 600; }
 .loginField input {
     padding: 10px 12px;
-    border: 1px solid var(--mx-border-strong);
+    border: none;
+    box-shadow: var(--mx-shadow-pressed-sm);
     border-radius: 8px;
     font-size: 14px;
     color: #111827;
-    transition: border-color var(--mx-duration-base) var(--mx-ease);
+    transition: box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .loginField input:focus {
     outline: none;
-    border-color: var(--mx-brand);
-    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
+    box-shadow: var(--mx-shadow-pressed-sm), 0 0 0 3px var(--mx-brand-subtle);
 }
 .loginPasswordWrap { position: relative; display: flex; }
 .loginPasswordWrap input { width: 100%; padding-right: 38px; }
@@ -1066,8 +1075,8 @@
 .actionBtn:focus-visible { outline: 2px solid var(--mx-brand); outline-offset: 2px; }
 .actionBtnPrimary { background: var(--mx-brand); border-color: var(--mx-brand); color: #fff; box-shadow: var(--mx-shadow-sm); }
 .actionBtnPrimary:hover:not(:disabled) { background: var(--mx-brand-hover); border-color: var(--mx-brand-hover); transform: translateY(-1px); box-shadow: var(--mx-shadow-md); }
-.actionBtnSecondary { background: var(--mx-surface); border-color: var(--mx-border-strong); color: var(--mx-ink); }
-.actionBtnSecondary:hover:not(:disabled) { background: var(--mx-surface-sunken); border-color: var(--mx-ink-faint); }
+.actionBtnSecondary { background: var(--mx-surface); border-color: transparent; color: var(--mx-ink); box-shadow: var(--mx-shadow-xs); }
+.actionBtnSecondary:hover:not(:disabled) { background: var(--mx-surface-sunken); box-shadow: var(--mx-shadow-sm); }
 .actionBtnDanger { background: var(--mx-surface); border-color: #fecaca; color: var(--mx-danger); }
 .actionBtnDanger:hover:not(:disabled) { background: var(--mx-danger-subtle); border-color: var(--mx-brand); }
 .actionBtnSuccess { background: var(--mx-success); border-color: var(--mx-success); color: #fff; box-shadow: var(--mx-shadow-sm); }
@@ -1111,7 +1120,7 @@
     padding: 10px 14px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
 }
 .projectProgressRingValue { font-size: 22px; font-weight: 800; color: var(--mx-brand); }
 .projectProgressRingLabel { font-size: 10.5px; color: var(--mx-ink-muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -1126,7 +1135,6 @@
     padding: 12px 14px;
     border-radius: var(--mx-radius-md);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-xs);
 }
 .summaryCardLabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--mx-ink-faint); margin-bottom: 4px; }
@@ -1146,16 +1154,16 @@
     padding: 16px 10px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
     color: var(--mx-ink);
     font-size: 13px;
     font-weight: 600;
     text-align: center;
     text-decoration: none;
     cursor: pointer;
-    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
+    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
-.quickActionBtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--mx-shadow-md); border-color: var(--mx-brand); }
+.quickActionBtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--mx-shadow-md); }
 .quickActionBtn:disabled { opacity: 0.45; cursor: not-allowed; }
 .quickActionBtn:focus-visible { outline: 2px solid var(--mx-brand); outline-offset: 2px; }
 .quickActionIcon { display: flex; align-items: center; justify-content: center; font-size: 22px; }
@@ -1310,7 +1318,6 @@
    the rest of the app already avoids this. */
 .notifPanel {
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-md);
     box-shadow: var(--mx-shadow-lg);
     color: var(--mx-ink);
@@ -1367,13 +1374,14 @@
     width: 32px;
     height: 32px;
     border-radius: var(--mx-radius-sm);
-    border: 1px solid var(--mx-border-strong);
+    border: none;
+    box-shadow: var(--mx-shadow-xs);
     background: var(--mx-surface);
     color: var(--mx-ink);
     cursor: pointer;
     flex-shrink: 0;
 }
-.rowMenuTrigger:hover { background: var(--mx-surface-sunken); }
+.rowMenuTrigger:hover { background: var(--mx-surface-sunken); box-shadow: var(--mx-shadow-sm); }
 .rowMenuPanel { padding: 6px; display: flex; flex-direction: column; gap: 2px; }
 .rowMenuItem {
     display: block;
@@ -1400,7 +1408,7 @@
 .deltaNegative { color: var(--mx-success); font-weight: var(--mx-weight-medium); }
 .deltaNeutral { color: var(--mx-ink-muted); font-weight: var(--mx-weight-medium); }
 .revisionTag { margin-left: 6px; }
-.statusSelect { padding: 4px 6px; border-radius: var(--mx-radius-xs); border: 1px solid var(--mx-border-strong); font-size: var(--mx-text-meta); }
+.statusSelect { padding: 4px 6px; border-radius: var(--mx-radius-xs); border: none; box-shadow: var(--mx-shadow-pressed-sm); font-size: var(--mx-text-meta); }
 .expiredNote { font-size: 11px; color: var(--mx-ink-faint); }
 .rowActionsInline { display: flex; gap: 6px; flex-wrap: wrap; }
 .versionTable { composes: table; margin-top: 10px; }
@@ -1421,7 +1429,7 @@
 /* Audit Log's entity-type filter — deliberately lighter-weight than
    .formControl (no min-height/font-size bump), matching what was previously
    a bare inline-styled <select>. */
-.plainSelect { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--mx-border-strong); }
+.plainSelect { padding: 10px 12px; border-radius: 8px; border: none; box-shadow: var(--mx-shadow-pressed-sm); }
 /* TMS Tab Access — role-group header row. Was inline #f8f9fb, one shade off
    the existing --mx-surface-sunken (#f8fafc); snapped onto that token rather
    than adding a near-duplicate gray. */
@@ -1436,7 +1444,7 @@
 .actionBarTight { margin: 12px 0; }
 .h3Flush { margin-top: 0; }
 .inlineCheckboxRow { display: flex; gap: 6px; align-items: center; }
-.pillButton { border-radius: 999px; padding: 6px 12px; border: 1px solid var(--mx-border-strong); }
+.pillButton { border-radius: 999px; padding: 6px 12px; border: none; box-shadow: var(--mx-shadow-xs); }
 
 /* app/not-found.tsx and app/error.tsx — was inline style={{}} objects. */
 .fullPageColumn { min-height: 100vh; display: flex; flex-direction: column; }
@@ -1519,7 +1527,6 @@
    reads the two as one report rather than two unrelated tables. */
 .teamSummaryCard {
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-lg);
     box-shadow: var(--mx-shadow-sm);
     padding: 16px 18px;

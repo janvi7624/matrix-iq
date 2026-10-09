@@ -45,7 +45,6 @@
     background: var(--mx-surface);
     border-radius: var(--mx-radius-xl);
     box-shadow: var(--mx-shadow-lg);
-    border: 1px solid var(--mx-border);
     overflow: hidden;
 }
 
@@ -75,7 +74,7 @@
     border-radius: var(--mx-radius-xs);
     background: var(--mx-surface-sunken);
     color: var(--mx-ink-faint);
-    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-pressed-sm);
 }
 
 .results {

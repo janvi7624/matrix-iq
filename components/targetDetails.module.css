@@ -41,9 +41,9 @@
 }
 
 .cascadeCell {
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-md);
     background: var(--mx-surface-sunken);
+    box-shadow: var(--mx-shadow-xs);
     padding: 10px 12px;
     display: flex;
     flex-direction: column;
@@ -51,8 +51,11 @@
     min-width: 0;
 }
 
+/* Carved-in highlight for the one scale that was actually typed (the other
+   three are read-only derived sums) — same "selected = pressed + tinted"
+   language as statTile.module.css's .statActive, not a colored border. */
 .cascadeCellEntered {
-    border-color: var(--mx-brand);
+    box-shadow: var(--mx-shadow-pressed-sm);
     background: var(--mx-brand-subtle);
 }
 
@@ -85,9 +88,9 @@
 }
 
 .monthCell {
-    border: 1px solid var(--mx-border);
     border-radius: var(--mx-radius-md);
     background: var(--mx-surface-sunken);
+    box-shadow: var(--mx-shadow-xs);
     padding: 8px 10px;
     display: flex;
     flex-direction: column;

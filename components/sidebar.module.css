@@ -23,8 +23,12 @@
     flex: 0 0 240px;
     display: flex;
     flex-direction: column;
-    background: #ffffff;
-    box-shadow: 1px 0 0 rgba(15, 23, 42, 0.06), 6px 0 24px rgba(15, 23, 42, 0.025);
+    background: var(--mx-surface);
+    /* Edge-flush panel, not a floating card — see drawer.module.css's .panel
+       for the same reasoning. One soft directional shadow separates it from
+       the page instead of a dual neumorphic shadow, which needs room on
+       every side it doesn't have. */
+    box-shadow: 1px 0 0 rgba(15, 23, 42, 0.06), 10px 0 28px rgba(15, 23, 42, 0.05);
     box-sizing: border-box;
     position: sticky;
     top: 0;
@@ -50,12 +54,12 @@
 .brandLogo {
     width: 32px;
     height: 32px;
-    border-radius: 9px;
-    background: #fff;
-    border: 1px solid rgba(229, 231, 235, 0.95);
+    border-radius: var(--mx-radius-xs);
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
     flex-shrink: 0;
     object-fit: contain;
-    padding: 3px;
+    padding: 4px;
 }
 .brandText {
     display: flex;
@@ -238,46 +242,40 @@
     align-items: center;
     gap: 11px;
     padding: 8px 10px;
-    border-radius: 11px;
+    border-radius: var(--mx-radius-sm);
     color: #374151;
     font-size: 13.5px;
     font-weight: 600;
     text-decoration: none;
     margin-bottom: 2px;
-    transition: background 0.14s ease, color 0.14s ease;
+    transition: background var(--mx-duration-base) var(--mx-ease), color var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
     white-space: nowrap;
 }
 .link:hover {
-    background: #f8fafc;
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-xs);
     color: #111827;
 }
 .link:hover .linkIcon {
     background: rgba(220, 38, 38, 0.09);
-    color: var(--mx-brand-hover);
+    color: var(--mx-brand-text);
     transform: translateY(-1px);
 }
+/* Pressed, not a flat tint + accent bar — "you are here" reads as carved
+   into the sidebar itself, same language as the rest of the page's active/
+   selected states (see dashboard.module.css's [aria-expanded='true']). */
 .linkActive {
-    background: rgba(220, 38, 38, 0.08);
-    color: var(--mx-brand-hover);
+    background: var(--mx-surface);
+    box-shadow: var(--mx-shadow-pressed-sm);
+    color: var(--mx-brand-text);
     font-weight: 700;
-}
-.linkActive::before {
-    content: '';
-    position: absolute;
-    left: -12px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 3px;
-    height: 18px;
-    border-radius: 0 3px 3px 0;
-    background: var(--mx-brand);
 }
 .linkActive .linkIcon {
     background: var(--mx-brand);
     color: #fff;
 }
 .linkActive:hover {
-    color: var(--mx-brand-hover);
+    color: var(--mx-brand-text);
 }
 
 .linkIcon {

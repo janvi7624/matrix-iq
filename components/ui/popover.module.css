@@ -19,9 +19,10 @@
   max-height: 320px;
   overflow-y: auto;
   background: var(--mx-surface);
-  border: 1px solid var(--mx-border);
   border-radius: var(--mx-radius-sm);
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  /* Floating overlay — the raised/floating shadow tier, same as
+     calculator.module.css's .teamMemberSelectList. */
+  box-shadow: var(--mx-shadow-lg);
   padding: 12px 14px;
   font-size: 13px;
   color: var(--mx-ink);

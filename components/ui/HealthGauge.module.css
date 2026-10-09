@@ -9,18 +9,16 @@
     padding: 14px 14px 12px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
     box-shadow: var(--mx-shadow-sm);
     cursor: pointer;
     font: inherit;
     color: inherit;
     text-align: center;
-    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease), border-color var(--mx-duration-base) var(--mx-ease);
+    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .tile:hover {
     transform: translateY(-2px);
     box-shadow: var(--mx-shadow-md);
-    border-color: var(--mx-border-strong);
 }
 .tile:focus-visible {
     outline: 2px solid var(--mx-brand);

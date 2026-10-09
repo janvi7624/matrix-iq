@@ -6,7 +6,7 @@
 .clientNameHeading { font-size: 18px; font-weight: 800; }
 .alertIcon { vertical-align: text-bottom; margin-right: 4px; }
 
-.followUpCardOverdue { border-color: var(--mx-brand); }
+.followUpCardOverdue { background: var(--mx-danger-subtle); box-shadow: var(--mx-shadow-pressed-sm); }
 .followUpValueOverdue { color: var(--mx-danger); }
 
 /* The Overview card's single save bar: an unsaved-count, Save, Discard. Set
