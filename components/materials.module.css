@@ -1,0 +1,593 @@
+/* Material library.
+   A search-first card grid: most visits are "find the X200 datasheet and
+   open it", so search leads, categories narrow, and every card ends in one
+   obvious Open. Colours are all --mx-* tokens, so the page follows the app
+   theme rather than carrying its own palette. */
+
+/* ---- Toolbar ------------------------------------------------------- */
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.searchWrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.searchIcon {
+    position: absolute;
+    left: 14px;
+    color: var(--mx-ink-faint);
+    pointer-events: none;
+}
+
+.searchInput {
+    width: 100%;
+    border: 1px solid var(--mx-border);
+    border-radius: 999px;
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    font-size: 14px;
+    padding: 12px 44px 12px 42px;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.searchInput::placeholder {
+    color: var(--mx-ink-faint);
+}
+
+.searchInput:focus {
+    outline: none;
+    border-color: var(--mx-brand);
+    box-shadow: 0 0 0 3px var(--mx-brand-subtle);
+}
+
+/* The browser's own search cancel button would sit next to ours. */
+.searchInput::-webkit-search-cancel-button {
+    display: none;
+}
+
+/* Hints the "/" shortcut without a tooltip nobody hovers for. Swapped for a
+   clear button the moment there's something to clear. */
+.searchKbd {
+    position: absolute;
+    right: 14px;
+    border: 1px solid var(--mx-border);
+    border-radius: 5px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-family: inherit;
+    color: var(--mx-ink-faint);
+    background: var(--mx-surface-sunken);
+    pointer-events: none;
+}
+
+.searchClear {
+    position: absolute;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+}
+
+.searchClear:hover {
+    background: var(--mx-border);
+    color: var(--mx-ink);
+}
+
+.primaryBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--mx-brand);
+    border-radius: 999px;
+    background: var(--mx-brand);
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 11px 20px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 120ms ease;
+}
+
+.primaryBtn:hover {
+    background: var(--mx-brand-hover);
+    border-color: var(--mx-brand-hover);
+}
+
+.primaryBtn:focus-visible,
+.ghostBtn:focus-visible,
+.openBtn:focus-visible,
+.tab:focus-visible,
+.tabActive:focus-visible,
+.iconBtn:focus-visible,
+.searchClear:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+
+.ghostBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-md, 8px);
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 8px 13px;
+    cursor: pointer;
+}
+
+.ghostBtn:hover {
+    color: var(--mx-ink);
+    border-color: var(--mx-border-strong);
+}
+
+.chevronOpen {
+    transform: rotate(180deg);
+}
+
+/* ---- Category tabs -------------------------------------------------- */
+
+.tabRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.tab,
+.tabActive {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--mx-border);
+    border-radius: 999px;
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.tab:hover {
+    border-color: var(--mx-border-strong);
+    color: var(--mx-ink);
+}
+
+.tabActive {
+    border-color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand);
+}
+
+/* The count qualifies the label, it isn't the label — so it's quieter.
+   Tabular figures stop tabs twitching as counts change. */
+.tabCount {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--mx-ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+.tabActive .tabCount {
+    color: var(--mx-brand);
+}
+
+.resultLine {
+    font-size: 12.5px;
+    color: var(--mx-ink-muted);
+    margin-bottom: 14px;
+}
+
+/* ---- Category sections ---------------------------------------------- */
+
+.categoryBlock {
+    margin-bottom: 28px;
+}
+
+.categoryHeader {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 12px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid var(--mx-border);
+}
+
+.categoryIcon {
+    color: var(--mx-brand);
+    flex: 0 0 auto;
+}
+
+.categoryTitle {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--mx-ink);
+    margin: 0;
+}
+
+.categoryCount {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--mx-ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Pushed to the right and allowed to disappear first: it's orientation, not
+   information somebody is looking for. */
+.categoryHint {
+    margin-left: auto;
+    font-size: 11.5px;
+    color: var(--mx-ink-faint);
+    text-align: right;
+}
+
+/* ---- Product cards --------------------------------------------------- */
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+    gap: 14px;
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg, 16px);
+    background: var(--mx-surface);
+    padding: 16px;
+    min-width: 0;
+    transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.card:hover {
+    border-color: var(--mx-border-strong);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
+    transform: translateY(-1px);
+}
+
+.cardTop {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+/* The icon tile gives every card a consistent anchor and tells a folder from
+   a single document at a glance. */
+.kindTile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
+    flex: 0 0 auto;
+}
+
+.kindTileFolder {
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand);
+}
+
+/* Management controls stay out of the way until the card is hovered or a
+   keyboard lands inside it — they're for one team, the content is for
+   everyone. Always visible on touch, where there is no hover. */
+.cardTools {
+    display: flex;
+    gap: 5px;
+    opacity: 0;
+    transition: opacity 120ms ease;
+}
+
+.card:hover .cardTools,
+.card:focus-within .cardTools {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .cardTools {
+        opacity: 1;
+    }
+}
+
+.cardTitle {
+    font-size: 15px;
+    font-weight: 650;
+    color: var(--mx-ink);
+    margin: 2px 0 0;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.cardDesc {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--mx-ink-muted);
+    margin: 0;
+    /* Two lines keeps cards in a row the same height, which is what makes a
+       grid scannable. The full text is in the edit dialog. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.cardMeta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--mx-ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+.docPill {
+    border-radius: 999px;
+    background: var(--mx-info-subtle);
+    color: var(--mx-info);
+    font-weight: 700;
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+    padding: 2px 8px;
+}
+
+/* margin-top:auto pins the actions to the bottom, so Open sits on the same
+   line across a row of cards however long the descriptions are. */
+.cardActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 6px;
+}
+
+.openBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    flex: 1;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-md, 8px);
+    background: var(--mx-surface);
+    color: var(--mx-brand);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 9px 14px;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+
+.openBtn:hover {
+    background: var(--mx-brand-subtle);
+    border-color: var(--mx-brand);
+}
+
+.iconBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-md, 8px);
+    background: var(--mx-surface);
+    color: var(--mx-ink-faint);
+    padding: 5px 7px;
+    cursor: pointer;
+}
+
+.iconBtn:hover {
+    color: var(--mx-ink);
+    border-color: var(--mx-border-strong);
+}
+
+/* ---- A product's document list --------------------------------------- */
+
+.docList {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--mx-border);
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.docRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--mx-ink-faint);
+}
+
+.docLink {
+    flex: 1;
+    min-width: 0;
+    font-size: 12.5px;
+    color: var(--mx-brand);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.docLink:hover {
+    text-decoration: underline;
+}
+
+/* ---- Form ------------------------------------------------------------ */
+
+.formError {
+    border: 1px solid var(--mx-danger);
+    border-left-width: 3px;
+    background: var(--mx-danger-subtle);
+    border-radius: var(--mx-radius-md, 8px);
+    color: var(--mx-ink);
+    font-size: 12.5px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+}
+
+.fieldWarn {
+    font-size: 11.5px;
+    color: var(--mx-danger);
+    margin-top: 4px;
+}
+
+.formNote {
+    border-top: 1px solid var(--mx-border);
+    padding-top: 12px;
+    margin-top: 4px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--mx-ink-muted);
+}
+
+/* ---- Loading --------------------------------------------------------- */
+
+/* Shaped like a real card, so the page doesn't visibly re-lay-out when the
+   data lands. */
+.skeletonCard {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg, 16px);
+    background: var(--mx-surface);
+    padding: 16px;
+}
+
+/* ---- Narrow screens -------------------------------------------------- */
+
+@media (max-width: 640px) {
+    .toolbar {
+        flex-wrap: wrap;
+    }
+
+    .searchWrap {
+        flex: 1 1 100%;
+    }
+
+    .primaryBtn {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Orientation text is the first thing to go when space is tight. */
+    .categoryHint {
+        display: none;
+    }
+}
+
+/* ---- Breadcrumb ------------------------------------------------------ */
+
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
+    margin-bottom: 16px;
+    font-size: 12.5px;
+}
+
+.crumbPart {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.crumbLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    background: none;
+    padding: 4px 6px;
+    border-radius: var(--mx-radius-md, 8px);
+    color: var(--mx-ink-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.crumbLink:hover {
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink);
+}
+
+.crumbLink:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 1px;
+}
+
+.crumbSep {
+    color: var(--mx-ink-faint);
+}
+
+/* The folder you're in is a label, not a link — clicking it would do
+   nothing, so it doesn't look clickable. */
+.crumbCurrent {
+    padding: 4px 6px;
+    font-weight: 700;
+    color: var(--mx-ink);
+}
+
+/* ---- Folder cards ---------------------------------------------------- */
+
+.folderCard {
+    gap: 6px;
+}
+
+/* A folder's one job is to be entered, so the click target is the card's
+   whole width rather than a small link inside it. */
+.folderOpen {
+    border: none;
+    background: none;
+    padding: 0;
+    margin: 2px 0 0;
+    text-align: left;
+    cursor: pointer;
+    width: 100%;
+}
+
+.folderOpen:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 3px;
+    border-radius: 4px;
+}
+
+.folderCard:hover .cardTitle {
+    color: var(--mx-brand);
+}

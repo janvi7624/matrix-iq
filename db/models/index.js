@@ -39,6 +39,8 @@ const modelDefiners = [
   require('./travelSchedule.js'),
   require('./marketingRequest.js'),
   require('./marketingRequestComment.js'),
+  require('./materialFolder.js'),
+  require('./material.js'),
   require('./tmsProject.js'),
   require('./tmsTask.js'),
   require('./tmsBomRequest.js'),

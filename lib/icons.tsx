@@ -53,6 +53,7 @@ import {
   Cake,
   KanbanSquare,
   CheckSquare,
+  Library,
   type LucideIcon
 } from 'lucide-react';
 
@@ -160,7 +161,8 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   users: Users,
   'share-2': Share2,
   'log-out': LogOut,
-  'kanban-square': KanbanSquare
+  'kanban-square': KanbanSquare,
+  library: Library
 };
 
 export const MODULE_ICON_OPTIONS = Object.keys(MODULE_ICON_REGISTRY);
