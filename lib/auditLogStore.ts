@@ -1,4 +1,4 @@
-import { Model } from 'sequelize';
+import { Model, Op } from 'sequelize';
 import { AuditLogEntry, UserRole } from './types';
 import { db } from './db';
 
@@ -107,10 +107,103 @@ export async function logAuditMany(entries: LogAuditInput[]): Promise<void> {
   }
 }
 
+// One entity's history, newest first — used by the TMS project/task,
+// travel-schedule and general-task detail pages, which each want the trail
+// for a single record. Deliberately still returns a plain array: those
+// callers want every entry for one id, not a page of results.
 export async function listAuditLog(entityType?: AuditLogEntry['entity_type'], entityId?: string): Promise<AuditLogEntry[]> {
   const where: Record<string, unknown> = {};
   if (entityType) where.entity_type = entityType;
   if (entityId) where.entity_id = entityId;
   const rows = await db.AuditLog.findAll({ where: where as never, order: [['at', 'DESC']] });
   return rows.map(toRecord);
+}
+
+export interface AuditLogFilters {
+  entityType?: AuditLogEntry['entity_type'];
+  entityId?: string;
+  // Free text across the columns a person actually searches by: who did it,
+  // what the action was, the remark, the record id, the IP.
+  search?: string;
+  by?: string;
+  role?: string;
+  // Inclusive 'YYYY-MM-DD' bounds on `at`.
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface AuditLogPage {
+  entries: AuditLogEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  // Dropdown options, built from the WHOLE table rather than the current
+  // result — narrowing by user must not empty the role list and strand
+  // someone with no way back.
+  facets: { users: string[]; roles: string[] };
+}
+
+const MAX_PAGE_SIZE = 200;
+
+// The Audit Log page's search: filtered and paginated in SQL. Separate from
+// listAuditLog above because the shapes genuinely differ — a page of results
+// with a total and facets, versus one record's full history.
+export async function searchAuditLog(filters: AuditLogFilters = {}): Promise<AuditLogPage> {
+  const where: Record<string | symbol, unknown> = {};
+  if (filters.entityType) where.entity_type = filters.entityType;
+  if (filters.entityId) where.entity_id = filters.entityId;
+  if (filters.by) where.by = filters.by;
+  if (filters.role) where.role = filters.role;
+
+  // A bare 'YYYY-MM-DD' "to" means the END of that day. Without the shift to
+  // the next midnight, picking the same day for from and to matches nothing
+  // — the classic off-by-one in every date filter.
+  const from = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00`) : null;
+  const to = filters.dateTo ? new Date(`${filters.dateTo}T00:00:00`) : null;
+  if (to) to.setDate(to.getDate() + 1);
+  if (from && to) where.at = { [Op.gte]: from, [Op.lt]: to };
+  else if (from) where.at = { [Op.gte]: from };
+  else if (to) where.at = { [Op.lt]: to };
+
+  const search = (filters.search ?? '').trim();
+  if (search) {
+    const like = { [Op.iLike]: `%${search}%` };
+    where[Op.or as unknown as string] = [
+      { by: like },
+      { action: like },
+      { remarks: like },
+      { new_status: like },
+      { previous_status: like },
+      { ip: like }
+    ];
+  }
+
+  const page = Math.max(1, filters.page ?? 1);
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? 50));
+
+  // Paginated in SQL, not in memory: this table only grows, and the page
+  // used to fetch every row on every load.
+  const [{ count, rows }, users, roles] = await Promise.all([
+    db.AuditLog.findAndCountAll({
+      where: where as never,
+      order: [['at', 'DESC']],
+      limit: pageSize,
+      offset: (page - 1) * pageSize
+    }),
+    db.AuditLog.findAll({ attributes: ['by'], group: ['by'], order: [['by', 'ASC']] }),
+    db.AuditLog.findAll({ attributes: ['role'], group: ['role'], order: [['role', 'ASC']] })
+  ]);
+
+  return {
+    entries: rows.map(toRecord),
+    total: count,
+    page,
+    pageSize,
+    facets: {
+      users: users.map((r) => String(r.get('by') ?? '')).filter(Boolean),
+      roles: roles.map((r) => String(r.get('role') ?? '')).filter(Boolean)
+    }
+  };
 }

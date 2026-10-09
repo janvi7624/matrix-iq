@@ -1,0 +1,80 @@
+/* components/AuditLogView.tsx — the filter panel above the audit table.
+   The page previously had one entity dropdown and loaded every row in the
+   table on each visit; these filters and the paging behind them are what
+   make a log of thousands of entries actually searchable. */
+
+.filterPanel {
+    border: 1px solid var(--mx-border);
+    border-radius: 12px;
+    background: var(--mx-surface);
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+
+.filterGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--mx-ink-muted);
+}
+
+.filterActions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--mx-border);
+}
+
+/* Pushes the buttons right and carries the match count, so "how many did
+   that filter find" is answered without scrolling the table. */
+.resultCount {
+    flex: 1;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.clearBtn {
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--mx-ink-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.clearBtn:hover {
+    color: var(--mx-danger);
+}
+
+.clearBtn:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+@media (max-width: 560px) {
+    .filterGrid {
+        grid-template-columns: 1fr;
+    }
+}
