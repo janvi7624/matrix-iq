@@ -273,7 +273,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // being made at a time.
   const [decliningRequestId, setDecliningRequestId] = useState<string | null>(null);
   const [techDeclineReason, setTechDeclineReason] = useState('');
-  const [techAssignId, setTechAssignId] = useState('');
+  const [techAssignIds, setTechAssignIds] = useState<Record<string, string>>({});
   const [decidingTech, setDecidingTech] = useState(false);
   // "Assign / Change Sales Person" — hands the project to a sales person as
   // its owner (unlike Assign Team, which only relabels it). Open to admins
@@ -639,7 +639,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       const response = await fetch(`/api/projects/${projectId}/technical-request/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId: request.id, decision, remarks: decision === 'decline' ? techDeclineReason.trim() : '', assignUserId: techAssignId })
+        body: JSON.stringify({ requestId: request.id, decision, remarks: decision === 'decline' ? techDeclineReason.trim() : '', assignUserId: techAssignIds[request.id] || '' })
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) {
@@ -650,7 +650,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       toast.success(decision === 'approve' ? 'Approved — the technical person is assigned.' : 'Request declined.');
       setDecliningRequestId(null);
       setTechDeclineReason('');
-      setTechAssignId('');
+      // Every panel's override is dropped, not just this request's: load()
+      // refetches the list, so any override still held for a request that has
+      // since changed underneath us would be stale.
+      setTechAssignIds({});
       await load();
     } catch {
       toast.error('Could not reach the server.');
@@ -1051,7 +1054,8 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           const isAdmin = currentUser.role === 'admin' || currentUser.role === 'superadmin';
           const teamOptions = technicalRoster.filter((p) => p.id === technicalRequest.requested_user_id || isAdmin || p.department === technicalRequest.requested_department);
           const isDeclining = decliningRequestId === technicalRequest.id;
-          const sendingOther = isDeclining && techAssignId && techAssignId !== technicalRequest.requested_user_id ? technicalRoster.find((p) => p.id === techAssignId) : undefined;
+          const pickedId = techAssignIds[technicalRequest.id];
+          const sendingOther = pickedId && pickedId !== technicalRequest.requested_user_id ? technicalRoster.find((p) => p.id === pickedId) : undefined;
           return (
             <div key={technicalRequest.id} className={`${calcStyles.sectionPanel} ${styles.amberPanel}`}>
               <div className={styles.amberPanelTitle}>Technical Assignment — Your Approval Needed</div>
@@ -1068,7 +1072,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   {technicalRequest.can_reassign && teamOptions.length > 1 && (
                     <div className={`${calcStyles.field} ${calcStyles.mb12}`}>
                       <label className={calcStyles.label} htmlFor={`tech-assign-${technicalRequest.id}`}>Assign</label>
-                      <select id={`tech-assign-${technicalRequest.id}`} className={calcStyles.formControl} value={techAssignId || technicalRequest.requested_user_id} onChange={(e) => setTechAssignId(e.target.value)}>
+                      <select id={`tech-assign-${technicalRequest.id}`} className={calcStyles.formControl} value={pickedId || technicalRequest.requested_user_id} onChange={(e) => setTechAssignIds((m) => ({ ...m, [technicalRequest.id]: e.target.value }))}>
                         {teamOptions.map((p) => (
                           <option key={p.id} value={p.id}>{p.name}{p.id === technicalRequest.requested_user_id ? ' (requested)' : ''}</option>
                         ))}
@@ -1079,7 +1083,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     <button type="button" className={styles.acceptBtn} disabled={decidingTech} onClick={() => decideTechnicalRequest(technicalRequest.id, 'approve')}>
                       {decidingTech ? 'Saving…' : sendingOther ? `Approve — send ${sendingOther.name}` : 'Approve'}
                     </button>
-                    <button type="button" className={styles.brandActionBtn} disabled={decidingTech} onClick={() => { setDecliningRequestId(technicalRequest.id); setTechAssignId(''); }}>Decline</button>
+                    <button type="button" className={styles.brandActionBtn} disabled={decidingTech} onClick={() => { setDecliningRequestId(technicalRequest.id); setTechAssignIds((m) => ({ ...m, [technicalRequest.id]: '' })); }}>Decline</button>
                   </div>
                 </>
               ) : (

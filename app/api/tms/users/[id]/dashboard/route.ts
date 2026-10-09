@@ -25,13 +25,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Authorization was already fully decided above; this deliberately asks
-    // tmsProjectStore.list() for the ORG-WIDE pool (not re-scoped to the
-    // viewer's own department) purely to find every project the TARGET is
-    // on — including a combined project touching a department the viewer
-    // doesn't manage. Never returned to the client as-is, only filtered down
-    // to counts for this one target.
+    // for the ORG-WIDE pool (not re-scoped to the viewer's own department)
+    // purely to find every project the TARGET is on — including a combined
+    // project touching a department the viewer doesn't manage. Never returned
+    // to the client as-is, only filtered down to counts for this one target.
+    //
+    // readAll(), not list({ ...viewer, isPrivileged: true }): that spread used
+    // to reach list()'s unscoped branch, but the branch now tests
+    // isTmsAdminTier(viewer) and isPrivileged routes into the
+    // department-scoped one instead — so the override silently started
+    // scoping the very read it was there to widen, under-reporting a team
+    // member's tiles for any manager who does not run their department.
     const [allProjects, tasks, recentUpdates] = await Promise.all([
-      tmsProjectStore.list({ ...viewer, isPrivileged: true }),
+      tmsProjectStore.readAll(),
       tmsTaskStore.listForAssignee(id),
       listRecentTaskUpdatesForAssignee(id, 10)
     ]);
