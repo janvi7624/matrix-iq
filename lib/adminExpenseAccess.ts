@@ -3,12 +3,16 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { findUsersByIds, findUsersByDepartmentName } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendAdminExpenseNoticeEmail } from '@/lib/email/notifications';
+import { canAccessHrExpenseModule } from '@/lib/hrExpenseAccess';
 
 // Shared between app/api/admin-expenses/route.ts and .../[batchId]/approve/
 // route.ts — a plain route.ts can only export HTTP method handlers, so
 // anything reused across those two files has to live outside either of them.
 
-export const ALLOWED_ROLES = new Set(['superadmin', 'admin', 'hr']);
+// Who may reach Admin Expenses at all — Super Admin, Admin, and the named
+// individuals in lib/hrExpenseAccess.ts. Was a bare role set including all
+// of 'hr', which gave every HR account the register; the grant is per
+// person now, for the same reason APPROVER_USERNAME below already is.
 
 // A batch created by anyone other than this specific person needs his
 // sign-off before Accounts is told about it — a named-approver requirement,
@@ -19,7 +23,7 @@ export const APPROVER_USERNAME = 'hardik.acharya';
 export async function assertAdmin(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return null;
-  if (!ALLOWED_ROLES.has(viewer.role)) return null;
+  if (!canAccessHrExpenseModule('admin-expenses', { role: viewer.role, username: viewer.username })) return null;
   return viewer;
 }
 
