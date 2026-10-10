@@ -1,649 +1,640 @@
-/* The tile grid inside an expanded section. Tighter than before to match
-   the denser accordion bars above it — 18px gaps and a 20px top margin
-   made an expanded section float away from the bar that opened it. */
-.grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 10px;
-    margin: 10px 0 4px;
-}
-.sectionToggle {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    /* Was 28px with a shadow and a hover lift on each bar. Eleven of those
-       is most of a screen spent on separators — a directory wants rows that
-       sit close together with a clear divider, not eleven floating cards. */
-    margin-top: 8px;
-    border: 1px solid var(--mx-border);
-    border-radius: 10px;
-    background: var(--mx-surface);
-    cursor: pointer;
-    font-family: inherit;
-    text-align: left;
-    padding: 10px 14px;
-    transition: border-color 180ms var(--mx-ease), background 180ms var(--mx-ease);
-}
-.sectionToggle:first-child {
-    margin-top: 6px;
-}
-.sectionToggle:hover {
-    border-color: var(--mx-border-strong);
-    background: var(--mx-surface-sunken);
-}
-.sectionToggle[aria-expanded='true'] {
-    border-color: var(--mx-border-strong);
-    background: var(--mx-surface);
-}
-.sectionToggleIcon {
-    flex-shrink: 0;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: var(--mx-surface-sunken);
-    color: var(--mx-ink-muted);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 180ms var(--mx-ease), color 180ms var(--mx-ease);
-}
-/* Open state is marked by the brand tint on the icon and the rotated
-   chevron — the whole bar going brand-subtle made an expanded section read
-   as "selected", which it isn't. */
-.sectionToggle[aria-expanded='true'] .sectionToggleIcon {
-    background: var(--mx-brand-subtle);
-    color: var(--mx-brand);
-}
-.sectionToggleLabel {
-    /* Sentence case, not uppercase: the spec calls out excessive uppercase,
-       and a directory of eleven shouted labels is hard to read. */
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--mx-ink);
-}
-.sectionToggleCount {
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--mx-ink-muted);
-    background: var(--mx-surface-sunken);
-    padding: 2px 9px;
-    border-radius: 999px;
-    font-variant-numeric: tabular-nums;
-}
-.sectionChevron {
-    margin-left: auto;
-    flex-shrink: 0;
-    font-size: 17px;
-    line-height: 1;
-    color: var(--mx-ink-faint);
-    transform: rotate(0deg);
-    transition: transform 180ms var(--mx-ease), color 180ms var(--mx-ease);
-}
-.sectionToggle[aria-expanded='true'] .sectionChevron {
-    transform: rotate(90deg);
-    color: var(--mx-brand);
-}
-@media (prefers-reduced-motion: reduce) {
-    .sectionChevron { transition: none; }
-}
+/* ==========================================================================
+   MatrixIQ Dashboard Stylesheet — Executive, High-Performance Design System
+   ========================================================================== */
 
-/* ---------- Greeting + primary CTA ---------- */
-.greetingRow {
+/* --------------------------------------------------------------------------
+   1. HERO BANNER & GREETING HEADER
+   -------------------------------------------------------------------------- */
+.heroBanner {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: 20px;
+    padding: 24px 28px;
+    border-radius: var(--mx-radius-xl, 20px);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.98) 100%);
+    border: 1px solid rgba(229, 231, 235, 0.9);
+    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+    overflow: hidden;
     margin-top: 4px;
 }
-.primaryCta {
+
+.heroBanner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #dc2626 0%, #0f172a 100%);
+}
+
+.heroContent {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-width: 0;
+}
+
+.heroAvatarWrapper {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.heroAvatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+    border: 2px solid #ffffff;
+}
+
+.heroAvatarStatus {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 14px;
+    height: 14px;
+    border-radius: var(--mx-radius-full, 999px);
+    background: #10b981;
+    border: 2.5px solid #ffffff;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.heroText {
+    min-width: 0;
+}
+
+.heroGreetingRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.heroGreetingIcon {
+    color: #475569;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 11px 20px;
-    border-radius: var(--mx-radius-md);
-    background: var(--mx-brand);
-    color: #fff;
+}
+
+.heroTitle {
+    margin: 0;
+    font-size: 24px;
+    line-height: 1.25;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    color: var(--mx-ink);
+}
+
+.heroSubtitleRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.heroDate {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    color: var(--mx-ink-muted);
+    font-weight: 500;
+}
+
+.heroBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: var(--mx-radius-full, 999px);
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--mx-ink);
+}
+
+.heroActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.heroPrimaryBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 18px;
+    border-radius: var(--mx-radius-md, 12px);
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    color: #ffffff;
     font-size: 13.5px;
     font-weight: 700;
     text-decoration: none;
-    box-shadow: var(--mx-shadow-sm);
-    transition: background var(--mx-duration-base) var(--mx-ease), transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
-}
-.primaryCta:hover {
-    background: var(--mx-brand-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--mx-shadow-md);
+    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.25);
+    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease), background var(--mx-duration-base) var(--mx-ease);
 }
 
-/* ---------- Top row: Needs Your Attention + Recent Projects + Recent
-   Quotations side by side, so the three compact panels a returning user
-   scans first sit in one glance instead of stacking the page tall. Needs
-   Your Attention gets a slightly wider column; it now earns extra visual
-   weight only when it holds something urgent (.attentionPanelUrgent),
-   rather than wearing a red border permanently. ---------- */
-/* Both top-row panels are pinned to the SAME height, and each scrolls
-   inside it — so the row ends level and neither grows with its content.
-   Derived from the Sales Team Summary, the taller of the two:
-     66px head (14px padding x2 + title + subtitle)
-   + 40px table header row
-   + 44px x 5 data rows
-   + 39px totals row
-   Change any of those and this has to move with it. */
+.heroPrimaryBtn:hover {
+    background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+    transform: translateY(-1.5px);
+    box-shadow: 0 6px 18px rgba(220, 38, 38, 0.35);
+}
+
+.heroSecondaryBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 15px;
+    border-radius: var(--mx-radius-md, 12px);
+    background: #ffffff;
+    color: var(--mx-ink);
+    border: 1px solid var(--mx-border);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+    transition: all var(--mx-duration-base) var(--mx-ease);
+}
+
+.heroSecondaryBtn:hover {
+    background: var(--mx-surface-sunken);
+    border-color: var(--mx-border-strong);
+    transform: translateY(-1px);
+}
+
+.heroAnalyticsBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 15px;
+    border-radius: var(--mx-radius-md, 12px);
+    background: #ffffff;
+    color: var(--mx-ink);
+    border: 1px solid var(--mx-border);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+    transition: all var(--mx-duration-base) var(--mx-ease);
+}
+
+.heroAnalyticsBtn:hover {
+    background: var(--mx-surface-sunken);
+    border-color: var(--mx-border-strong);
+    transform: translateY(-1px);
+}
+
+.heroSyncBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--mx-radius-full, 999px);
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border);
+    color: var(--mx-ink-muted);
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+.syncPulseDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+    animation: pulseGlow 2s infinite;
+}
+
+@keyframes pulseGlow {
+    0% { opacity: 0.6; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.2); }
+    100% { opacity: 0.6; transform: scale(0.9); }
+}
+
+/* --------------------------------------------------------------------------
+   2. HEADLINE EXECUTIVE KPI STAT CARDS
+   -------------------------------------------------------------------------- */
+.kpiRow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.kpiCardNew {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 16px 18px 14px;
+    border-radius: var(--mx-radius-lg, 16px);
+    background: #ffffff;
+    border: 1px solid var(--mx-border);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+    text-decoration: none;
+    color: inherit;
+    transition: transform 180ms var(--mx-ease), box-shadow 180ms var(--mx-ease), border-color 180ms var(--mx-ease);
+    overflow: hidden;
+}
+
+a.kpiCardNew:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px -4px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+    border-color: var(--mx-border-strong);
+}
+
+a.kpiCardNew:focus-visible,
+div.kpiCardNew:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+
+.kpiCardNew::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2.5px;
+    background: transparent;
+    transition: background 180ms var(--mx-ease);
+}
+
+.kpiCardNew:hover::after {
+    background: linear-gradient(90deg, #dc2626 0%, #0f172a 100%);
+}
+
+.kpiCardHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.kpiIconWrapper {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink);
+    border: 1px solid var(--mx-border);
+    transition: all 180ms ease;
+}
+
+a.kpiCardNew:hover .kpiIconWrapper {
+    background: #0f172a;
+    color: #ffffff;
+    border-color: #0f172a;
+}
+
+.kpiIconWrapperLeads,
+.kpiIconWrapperProjects,
+.kpiIconWrapperQuotes,
+.kpiIconWrapperValue {
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink);
+}
+
+.kpiIconWrapperPending {
+    background: rgba(220, 38, 38, 0.08);
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.2);
+}
+
+.kpiIconWrapperSuccess {
+    background: rgba(22, 101, 52, 0.08);
+    color: #166534;
+    border-color: rgba(22, 101, 52, 0.2);
+}
+
+.kpiHoverArrow {
+    color: #94a3b8;
+    transition: transform 160ms var(--mx-ease), color 160ms var(--mx-ease);
+}
+
+a.kpiCardNew:hover .kpiHoverArrow {
+    transform: translateX(3px);
+    color: var(--mx-brand);
+}
+
+.kpiTagAlert {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(220, 38, 38, 0.08);
+    color: #dc2626;
+    border: 1px solid rgba(220, 38, 38, 0.25);
+    padding: 2px 7px;
+    border-radius: 6px;
+}
+
+.kpiTagSuccess {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(22, 101, 52, 0.08);
+    color: #166534;
+    border: 1px solid rgba(22, 101, 52, 0.2);
+    padding: 2px 7px;
+    border-radius: 6px;
+}
+
+.kpiBody {
+    margin-top: 14px;
+}
+
+.kpiValueNew {
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1.15;
+    color: var(--mx-ink);
+    letter-spacing: -0.025em;
+    font-variant-numeric: tabular-nums;
+}
+
+.kpiValueAlert {
+    color: #dc2626;
+}
+
+.kpiValueLoading {
+    color: var(--mx-ink-faint);
+}
+
+.kpiLabelNew {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+    margin-top: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   3. TOP GRID: ATTENTION HUB + SALES TEAM SUMMARY / RECENT INSIGHTS
+   -------------------------------------------------------------------------- */
 .topGrid {
-    --mx-top-panel-height: 365px;
+    --mx-top-panel-height: 390px;
     display: grid;
     grid-template-columns: 1.15fr 1fr 1fr;
     gap: 16px;
-    margin-top: 16px;
+    margin-top: 18px;
     align-items: stretch;
 }
-/* Sales leadership's variant of the row: Needs Your Attention beside the
-   Sales Team Summary, which takes both of the columns Recent Projects /
-   Recent Quotations occupy for everyone else — a six-column table needs
-   them. (Their "Due" queue is a collapsible bar down among the module
-   sections instead, so it never competes with this row for attention.) */
+
 .topGridPair {
     grid-template-columns: 1fr 2fr;
 }
-/* The panel used to carry a 1.5px red border and a red glow permanently —
-   shouting just as loudly on a morning with nothing to do. The weight now
-   tracks the work: a calm card by default, a red top rule and a header
-   badge only when something urgent is actually in it. */
-.attentionPanelUrgent {
-    border-color: var(--mx-border-strong);
-    box-shadow: var(--mx-shadow-md);
-}
-.attentionPanelUrgent::before {
-    content: '';
-    display: block;
-    height: 3px;
-    background: var(--mx-brand);
-}
 
 .attentionPanel {
-    margin-top: 16px;
-    border-radius: var(--mx-radius-lg);
+    border-radius: var(--mx-radius-lg, 16px);
     background: var(--mx-surface);
     border: 1px solid var(--mx-border);
-    box-shadow: var(--mx-shadow-sm);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
     overflow: hidden;
-    /* A column, so the list below can take whatever height the grid row
-       gives this panel. Both cards in the row then end level, and neither
-       pads itself out with dead white space. */
     display: flex;
     flex-direction: column;
 }
-/* Zeroes .attentionPanel's own 16px margin-top for a panel sitting inside
-   .topGrid, which already carries that spacing — the grid's panels then line
-   up with each other and with the cards beside them. Has to be declared
-   after .attentionPanel: same specificity, so source order decides. */
+
 .topGridPanel {
     margin-top: 0;
     height: var(--mx-top-panel-height);
 }
 
+.attentionPanelUrgent {
+    border-color: rgba(220, 38, 38, 0.4);
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.08);
+}
+
+.attentionPanelUrgent::before {
+    content: '';
+    display: block;
+    height: 3px;
+    background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
 .attentionHead {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 10px;
     padding: 14px 18px;
     border-bottom: 1px solid var(--mx-border);
+    background: linear-gradient(180deg, #ffffff 0%, var(--mx-surface-sunken) 100%);
 }
+
+.attentionHeadLeft {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.attentionHeadIcon {
+    color: #e11d48;
+    display: inline-flex;
+}
+
 .attentionHeadTitle {
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--mx-ink-muted);
+    color: var(--mx-ink);
 }
+
 .attentionHeadBadge {
-    margin-left: auto;
-    padding: 2px 9px;
-    border-radius: var(--mx-radius-full);
+    padding: 3px 10px;
+    border-radius: var(--mx-radius-full, 999px);
     background: var(--mx-danger-subtle);
     color: var(--mx-danger);
     font-size: 11px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+    border: 1px solid rgba(220, 38, 38, 0.2);
 }
-.attentionEmpty {
+
+.attentionHeadClearBadge {
+    padding: 3px 10px;
+    border-radius: var(--mx-radius-full, 999px);
+    background: rgba(16, 185, 129, 0.1);
+    color: #065f46;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.attentionScroll {
+    composes: mx-visible-scroll from global;
     flex: 1;
-    padding: 18px;
-    font-size: 13.5px;
-    color: var(--mx-ink-muted);
+    min-height: 0;
+    overflow-y: auto;
 }
+
 .attentionList {
     display: flex;
     flex-direction: column;
 }
+
 .attentionRow {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 13px 18px;
+    padding: 12px 18px;
     text-decoration: none;
     color: inherit;
     border-bottom: 1px solid var(--mx-border);
-    transition: background var(--mx-duration-base) var(--mx-ease);
+    transition: background 150ms var(--mx-ease), transform 150ms var(--mx-ease);
 }
+
 .attentionRow:last-child {
     border-bottom: none;
 }
+
 .attentionRow:hover {
     background: var(--mx-surface-sunken);
 }
+
 .attentionRow:focus-visible {
     outline: 2px solid var(--mx-brand);
     outline-offset: -2px;
 }
-/* A left rule rather than a tinted icon square: urgency should be legible
-   down the edge of the list at a glance, not something you decode per row. */
+
 .attentionUrgent {
-    box-shadow: inset 3px 0 0 var(--mx-brand);
+    border-left: 3.5px solid var(--mx-brand);
+    background: rgba(254, 242, 242, 0.4);
 }
+
 .attentionUrgent:hover {
-    background: var(--mx-brand-subtle);
+    background: rgba(254, 242, 242, 0.9);
 }
+
 .attentionIcon {
     flex-shrink: 0;
-    font-size: 16px;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 9px;
-    background: rgba(17, 24, 39, 0.045);
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
+    border: 1px solid var(--mx-border);
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: color 150ms var(--mx-ease), background 150ms var(--mx-ease);
 }
+
 .attentionUrgent .attentionIcon {
     background: var(--mx-danger-subtle);
+    color: var(--mx-danger);
+    border-color: rgba(220, 38, 38, 0.2);
 }
+
 .attentionLabel {
     flex: 1;
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--mx-ink);
+    line-height: 1.35;
 }
+
 .attentionCount {
     flex-shrink: 0;
     min-width: 26px;
-    padding: 2px 9px;
-    border-radius: var(--mx-radius-full);
+    padding: 2px 8px;
+    border-radius: var(--mx-radius-full, 999px);
     text-align: center;
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
-    background: rgba(17, 24, 39, 0.06);
+    background: rgba(15, 23, 42, 0.06);
     color: var(--mx-ink-muted);
 }
+
 .attentionUrgent .attentionCount {
     background: var(--mx-danger-subtle);
     color: var(--mx-danger);
+    border: 1px solid rgba(220, 38, 38, 0.25);
 }
+
 .attentionArrow {
     flex-shrink: 0;
     color: var(--mx-ink-faint);
-    transition: transform var(--mx-duration-base) var(--mx-ease), color var(--mx-duration-base) var(--mx-ease);
+    transition: transform 150ms var(--mx-ease), color 150ms var(--mx-ease);
 }
+
 .attentionRow:hover .attentionArrow {
-    transform: translateX(2px);
+    transform: translateX(3px);
     color: var(--mx-brand);
 }
 
-.sectionHeading {
-    margin: 22px 2px 4px;
-    font-size: 12px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--mx-ink-muted);
-}
-
-/* ---------- Department health ----------
-   The heading and the legend used to be two unrelated blocks each carrying
-   their own 22px top margin, so they drifted out of alignment whenever the
-   title wrapped. One band, baseline-aligned, with the legend pinned right. */
-.healthHead {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 12px 20px;
-    flex-wrap: wrap;
-    margin: 30px 2px 12px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--mx-border);
-}
-.healthHeadText {
-    min-width: 0;
-}
-.healthTitle {
-    margin: 0;
-    font-size: 12px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--mx-ink-muted);
-}
-.healthSub {
-    margin: 5px 0 0;
-    font-size: 11.5px;
-    color: var(--mx-ink-faint);
-}
-.healthLegend {
-    display: flex;
-    gap: 14px;
-    flex-wrap: wrap;
-}
-.legendItem {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--mx-ink-muted);
-    font-variant-numeric: tabular-nums;
-}
-.legendItem i {
-    width: 9px;
-    height: 9px;
-    border-radius: var(--mx-radius-full);
-    flex-shrink: 0;
-}
-.legendDotDanger { background: var(--mx-danger); }
-.legendDotWarning { background: var(--mx-warning); }
-.legendDotSuccess { background: var(--mx-success); }
-
-/* "You're all caught up" — was inline style={{}} */
-.attentionAllCaughtUp {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-/* Four per row on a large screen, two on tablet, one on a narrow phone —
-   explicit column counts rather than auto-fill, so every card is the same
-   width at a given breakpoint and the grid can't reflow into an odd 3+1. */
-.healthGrid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-top: 12px;
-}
-@media (max-width: 1180px) {
-    .healthGrid { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 880px) {
-    .healthGrid { grid-template-columns: repeat(2, 1fr); }
-}
-/* One column: a 0-100 track halved again stops being a scale anyone can
-   read a threshold off. */
-@media (max-width: 560px) {
-    .healthGrid { grid-template-columns: 1fr; }
-}
-
-.tile {
+.attentionEmpty {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    padding: 14px 16px;
-    border-radius: 10px;
-    background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
-    text-decoration: none;
-    color: inherit;
-    min-width: 0;
-    /* No shadow at rest and no lift on hover. Twelve cards each floating on
-       their own shadow is what made an expanded section read as heavier
-       than the rest of the page; a border change is enough feedback. */
-    transition: border-color 180ms var(--mx-ease), background 180ms var(--mx-ease);
-}
-.tile:hover {
-    border-color: var(--mx-border-strong);
-    background: var(--mx-surface-sunken);
-}
-.tile:focus-visible,
-.sectionToggle:focus-visible {
-    outline: 2px solid var(--mx-brand);
-    outline-offset: 2px;
-}
-/* Tiles carried no icon, so opening a section gave a wall of text cards —
-   the mark is what makes them scannable. */
-.tileHead {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-}
-.tileIcon {
-    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    flex: 0 0 28px;
-    border-radius: 8px;
-    background: var(--mx-surface-sunken);
-    color: var(--mx-ink-muted);
-    transition: background 180ms var(--mx-ease), color 180ms var(--mx-ease);
-}
-.tile:hover .tileIcon {
-    background: var(--mx-brand-subtle);
-    color: var(--mx-brand);
-}
-.tileTitle {
-    /* Was 1.05rem/700 — a module name is a card heading, not a page title,
-       and at that size twelve of them shouted over the section bar above. */
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--mx-ink);
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-.tileDesc {
-    font-size: 12.5px;
-    color: var(--mx-ink-muted);
-    line-height: 1.5;
-    /* Two lines keeps every card in a row the same height, which is what
-       lets the grid be scanned rather than read. */
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-.tileBadge {
-    display: inline-block;
-    align-self: flex-start;
-    padding: 3px 10px;
-    border-radius: var(--mx-radius-full);
-    font-size: 11px;
-    font-weight: 700;
-    background: var(--mx-danger-subtle);
-    color: var(--mx-danger);
-}
-.followUpBanner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 18px;
-    padding: 14px 18px;
-    border-radius: var(--mx-radius-md);
-    background: var(--mx-brand-subtle);
-    border: 1px solid rgba(220, 38, 38, 0.25);
-    color: var(--mx-danger);
-    font-size: 13.5px;
-    font-weight: 600;
-}
-.followUpBanner a {
-    color: var(--mx-danger);
-    text-decoration: underline;
-    white-space: nowrap;
-}
-.greeting {
-    font-size: 0.95rem;
-    color: var(--mx-ink-muted);
-    margin-top: 4px;
+    padding: 32px 20px;
+    text-align: center;
 }
 
-.kpiGrid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 12px;
-    margin-top: 18px;
-}
-.kpiCard {
-    padding: 14px 16px;
-    border-radius: var(--mx-radius-lg);
-    background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
-    box-shadow: var(--mx-shadow-sm);
-}
-/* Applied alongside .kpiCard when it's a <button> instead of a <Link> — the
-   underlying stat is a filtered list to pop up (see components/
-   TmsDashboardView.tsx's showProjects/showTasks/showBom/showProcurement)
-   rather than a page to navigate to. */
-.kpiCardButton {
-    display: block;
-    width: 100%;
-    text-align: left;
-    font: inherit;
-    cursor: pointer;
-}
-.kpiCardButton:hover { border-color: var(--mx-brand); }
-.kpiValue {
-    font-size: 1.6rem;
-    font-weight: 800;
-    color: var(--mx-ink);
-    font-variant-numeric: tabular-nums;
-}
-.kpiLabel {
-    font-size: 0.78rem;
-    color: var(--mx-ink-muted);
-    margin-top: 2px;
-}
-.kpiCardAlert {
-    background: #fef2f2;
-    border: 1px solid rgba(220, 38, 38, 0.35);
-    text-decoration: none;
-    display: block;
-    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
-}
-.kpiCardAlert:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--mx-shadow-md);
-}
-.kpiCardAlert .kpiValue {
-    color: var(--mx-danger);
-}
-.kpiCardAlert .kpiLabel {
-    color: var(--mx-danger);
-    font-weight: 600;
-}
-
-/* ---------- Dashboard launchpad: recent-items lists ---------- */
-.recentGrid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 16px;
-    margin-top: 18px;
-}
-.recentCard {
-    background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
-    border-radius: var(--mx-radius-lg);
-    box-shadow: var(--mx-shadow-sm);
-    padding: 16px 18px;
-}
-.recentCardHead {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-}
-.recentCardHead h3 {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--mx-ink);
-    margin: 0;
-}
-.recentCardHead a {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--mx-brand-hover);
-    text-decoration: none;
-}
-.recentCardHead a:hover { text-decoration: underline; }
-.recentList {
+.attentionCaughtUpCard {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    gap: 8px;
 }
-.recentRow {
+
+.attentionCaughtUpIcon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 9px 0;
-    border-top: 1px solid var(--mx-border);
-    text-decoration: none;
-    color: inherit;
+    justify-content: center;
+    margin-bottom: 4px;
 }
-.recentRow:first-child { border-top: none; }
-.recentRowMain { min-width: 0; }
-.recentRowTitle {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--mx-ink);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.recentRowMeta {
-    font-size: 11.5px;
-    color: var(--mx-ink-faint);
-    margin-top: 1px;
-}
-.recentRowAmount {
-    font-size: 12.5px;
+
+.attentionCaughtUpTitle {
+    font-size: 14px;
     font-weight: 700;
     color: var(--mx-ink);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-}
-.recentEmpty {
-    font-size: 12.5px;
-    color: var(--mx-ink-faint);
-    padding: 8px 0;
 }
 
-/* The "Due" bar's expanded body — same shell .attentionPanel gives the
-   attention rows (the list inside is .attentionList either way), spaced under
-   its section toggle the way .grid spaces a section's tiles. */
-.dueBody {
-    margin-top: 8px;
-    border-radius: var(--mx-radius-lg);
-    background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
-    box-shadow: var(--mx-shadow-sm);
-    overflow: hidden;
+.attentionCaughtUpSub {
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+    max-width: 260px;
+    line-height: 1.4;
 }
 
-/* ---------- Sales Team Summary (Sales Manager / Admin / Super Admin) ----------
-   Same card shell as .recentCard, taking the two columns that pair occupies —
-   see .topGridPair. min-width: 0 so a wide table scrolls inside .tableWrap
-   (components/ui/Table.tsx) rather than forcing the grid column wider than
-   its share, which is what a grid item's default min-width: auto would do. */
+/* --------------------------------------------------------------------------
+   4. SALES TEAM PIPELINE SUMMARY PANEL (Sales Leadership)
+   -------------------------------------------------------------------------- */
 .summaryCard {
     background: var(--mx-surface);
     border: 1px solid var(--mx-border);
-    border-radius: var(--mx-radius-lg);
-    box-shadow: var(--mx-shadow-sm);
-    /* Padding moved onto the head and totals rows so the table can run edge
-       to edge — an eight-column table loses real width to card padding. */
-    padding: 0;
-    /* No margin-top: it's a .topGrid child, which already carries that. */
+    border-radius: var(--mx-radius-lg, 16px);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
     min-width: 0;
     overflow: hidden;
     display: flex;
@@ -658,120 +649,1278 @@
     gap: 12px;
     padding: 14px 18px;
     border-bottom: 1px solid var(--mx-border);
+    background: linear-gradient(180deg, #ffffff 0%, var(--mx-surface-sunken) 100%);
 }
 
 .summaryTitle {
     margin: 0;
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--mx-ink-muted);
+    color: var(--mx-ink);
 }
 
-/* The eight headers don't say they're a sequence; this does, once. */
-.summarySub {
-    margin: 5px 0 0;
-    font-size: 11px;
+.summaryFunnelFlow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 5px;
+    flex-wrap: wrap;
+}
+
+.summaryFunnelStep {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+    background: var(--mx-surface-sunken);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--mx-border);
+}
+
+.summaryFunnelArrow {
+    font-size: 9px;
     color: var(--mx-ink-faint);
+}
+
+.summaryHeadActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
 }
 
 .summaryCount {
-    flex: 0 0 auto;
     font-size: 11px;
     font-weight: 700;
-    color: var(--mx-ink-faint);
+    color: var(--mx-ink-muted);
     background: var(--mx-surface-sunken);
-    border-radius: var(--mx-radius-full);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-full, 999px);
     padding: 3px 10px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-/* Outside the scrolling viewport, so the team's totals stay visible however
-   many reps there are. */
+.summaryLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--mx-brand);
+    text-decoration: none;
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background 150ms var(--mx-ease);
+}
+
+.summaryLink:hover {
+    background: var(--mx-brand-subtle);
+}
+
+.summaryViewport {
+    composes: mx-visible-scroll from global;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.summaryViewport table {
+    overflow: visible;
+}
+
+.summaryViewport table th {
+    z-index: 2;
+    background: #f8fafc;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mx-ink-muted);
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--mx-border);
+}
+
+.summaryViewport table td {
+    padding: 9px 12px;
+    font-size: 12.5px;
+    border-bottom: 1px solid var(--mx-border);
+}
+
+.summaryViewport table tr:hover td {
+    background: #f8fafc;
+}
+
+.summaryRepCell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.repAvatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #475569 0%, #1e293b 100%);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.repName {
+    font-weight: 600;
+    color: var(--mx-ink);
+    white-space: nowrap;
+}
+
+.summaryNum {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.summaryTable th.summaryNum,
+.summaryTable td.summaryNum {
+    text-align: right;
+}
+
+.summaryAlertBadge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: var(--mx-radius-full, 999px);
+    background: var(--mx-danger-subtle);
+    color: var(--mx-danger);
+    font-weight: 800;
+    font-size: 11px;
+    border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+.summaryStatus {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
 .summaryTotals {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px 16px;
-    padding: 11px 18px;
+    gap: 8px 18px;
+    padding: 10px 18px;
     border-top: 1px solid var(--mx-border);
-    background: var(--mx-surface-sunken);
+    background: #f8fafc;
     font-size: 12px;
     color: var(--mx-ink);
     font-variant-numeric: tabular-nums;
 }
 
 .summaryTotalsLabel {
-    font-size: 10.5px;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--mx-ink-faint);
+    color: var(--mx-ink-muted);
 }
 
-.summaryTotal {
+.summaryTotalItem {
     font-weight: 700;
+    color: var(--mx-ink);
 }
 
 .summaryTotalsAlert {
     margin-left: auto;
-    font-weight: 700;
+    font-weight: 800;
     color: var(--mx-danger);
+    background: var(--mx-danger-subtle);
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(220, 38, 38, 0.2);
 }
-.summaryNum {
-    font-variant-numeric: tabular-nums;
+
+/* --------------------------------------------------------------------------
+   5. NON-LEADERSHIP RECENT CARDS (PROJECTS, DEPARTMENTS, QUOTATIONS)
+   -------------------------------------------------------------------------- */
+.recentGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.recentCard {
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg, 16px);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    height: var(--mx-top-panel-height);
+}
+
+.recentCardHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--mx-border);
+    margin-bottom: 8px;
+}
+
+.recentCardHead h3 {
+    font-size: 12.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mx-ink);
+    margin: 0;
+}
+
+.recentCardHead a {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--mx-brand);
+    text-decoration: none;
+    transition: color 150ms var(--mx-ease);
+}
+
+.recentCardHead a:hover {
+    text-decoration: underline;
+}
+
+.recentList {
+    composes: mx-visible-scroll from global;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.recentRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 8px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    border-bottom: 1px solid var(--mx-border);
+    transition: background 150ms var(--mx-ease);
+}
+
+.recentRow:last-child {
+    border-bottom: none;
+}
+
+.recentRow:hover {
+    background: var(--mx-surface-sunken);
+}
+
+.recentRowMain {
+    min-width: 0;
+}
+
+.recentRowTitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mx-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
-/* Right-aligning the count columns has to out-specify the shared table's own
-   `.table th, .table td { text-align: left }` base rule (quotationHistory.
-   module.css, which components/ui/Table.tsx renders with) — a bare
-   .summaryNum class loses that on specificity no matter which stylesheet
-   loads first, so the alignment is scoped through .summaryTable instead. */
-.summaryTable th.summaryNum,
-.summaryTable td.summaryNum {
+
+.recentRowMeta {
+    font-size: 11.5px;
+    color: var(--mx-ink-muted);
+    margin-top: 2px;
+}
+
+.recentRowAmount {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--mx-ink);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.recentEmpty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12.5px;
+    color: var(--mx-ink-muted);
+    padding: 24px 0;
+    text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+   6. REDESIGNED DEPARTMENT HEALTH MATRIX & SCORECARD CONTROLS
+   -------------------------------------------------------------------------- */
+.healthSection {
+    margin-top: 36px;
+    border-radius: var(--mx-radius-xl, 20px);
+    background: #ffffff;
+    border: 1px solid var(--mx-border);
+    padding: 22px 24px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
+}
+
+.healthHead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px 24px;
+    flex-wrap: wrap;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--mx-border);
+}
+
+.healthTitleRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.healthIconWrapper {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.healthTitle {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--mx-ink);
+}
+
+.healthOrgScoreBadge {
+    font-size: 11px;
+    font-weight: 800;
+    color: #065f46;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 3px 9px;
+    border-radius: var(--mx-radius-full, 999px);
+}
+
+.healthSub {
+    margin: 5px 0 0;
+    font-size: 12.5px;
+    color: var(--mx-ink-muted);
+}
+
+.healthControls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Health Search Bar */
+.healthSearchWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border);
+    border-radius: 9px;
+    padding: 0 8px;
+    transition: all 150ms ease;
+}
+
+.healthSearchWrap:focus-within {
+    border-color: var(--mx-brand);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.healthSearchIcon {
+    color: var(--mx-ink-muted);
+    flex-shrink: 0;
+    margin-right: 6px;
+}
+
+.healthSearchInput {
+    border: none;
+    background: transparent;
+    padding: 6px 0;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--mx-ink);
+    outline: none;
+    width: 140px;
+}
+
+.healthSearchInput::placeholder {
+    color: var(--mx-ink-faint);
+}
+
+.healthSearchClear {
+    background: none;
+    border: none;
+    padding: 2px;
+    color: var(--mx-ink-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.healthSearchClear:hover {
+    color: var(--mx-ink);
+    background: var(--mx-border);
+}
+
+.healthFilterPills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--mx-surface-sunken);
+    padding: 3px;
+    border-radius: 10px;
+    border: 1px solid var(--mx-border);
+}
+
+.healthFilterBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: var(--mx-ink-muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 150ms var(--mx-ease), color 150ms var(--mx-ease);
+}
+
+.healthFilterBtnActive {
+    background: #ffffff;
+    color: var(--mx-ink);
+    font-weight: 700;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.healthFilterDot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.healthSortSelect {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface-sunken);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--mx-ink);
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.healthSortSelect:focus {
+    outline: none;
+    border-color: var(--mx-brand);
+}
+
+/* Executive Snapshot Button */
+.healthSnapshotBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--mx-border);
+    background: #ffffff;
+    color: var(--mx-ink);
+    font-size: 11.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 150ms ease;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.healthSnapshotBtn:hover {
+    background: var(--mx-surface-sunken);
+    border-color: var(--mx-ink-muted);
+    transform: translateY(-1px);
+}
+
+.snapshotCheckIcon {
+    color: #10b981;
+}
+
+/* Executive Performance Insights Highlight Bar */
+.healthInsightsBar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--mx-surface-sunken);
+}
+
+.healthInsightCard {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border);
+    text-align: left;
+    font: inherit;
+}
+
+.healthInsightCardClickable {
+    cursor: pointer;
+    transition: all 160ms var(--mx-ease);
+}
+
+.healthInsightCardClickable:hover {
+    transform: translateY(-2px);
+    border-color: var(--mx-border-strong, #cbd5e1);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+    background: #ffffff;
+}
+
+.healthInsightCardWarning:hover {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: #fff5f5;
+}
+
+.healthInsightIcon {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 16px;
+}
+
+.healthInsightIconAvg {
+    background: #f1f5f9;
+    color: #0f172a;
+    border: 1px solid #e2e8f0;
+}
+
+.healthInsightIconRisk {
+    background: rgba(220, 38, 38, 0.08);
+    color: #dc2626;
+    border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+.healthInsightIconTop {
+    background: #fefce8;
+    color: #b45309;
+    border: 1px solid rgba(180, 83, 9, 0.2);
+}
+
+
+.healthInsightText {
+    min-width: 0;
+}
+
+.healthInsightVal {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--mx-ink);
+    line-height: 1.2;
+}
+
+.healthInsightSub {
+    font-size: 11px;
+    color: var(--mx-ink-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.healthGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-top: 18px;
+}
+
+/* Leaderboard Table View for Health Matrix */
+.healthLeaderboardWrap {
+    margin-top: 16px;
+    border-radius: 12px;
+    border: 1px solid var(--mx-border);
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.healthLeaderboardTable {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.healthLeaderboardTable th {
+    background: #f8fafc;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mx-ink-muted);
+    border-bottom: 1px solid var(--mx-border);
+    text-align: left;
+}
+
+.healthLeaderboardTable td {
+    padding: 12px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--mx-border);
+    vertical-align: middle;
+}
+
+.healthLeaderboardTable tr:last-child td {
+    border-bottom: none;
+}
+
+.healthLeaderboardTable tr:hover td {
+    background: #f8fafc;
+}
+
+.rankBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--mx-surface-sunken);
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--mx-ink-muted);
+}
+
+.rankBadgeTop {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.leaderboardDeptCell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.leaderboardDeptIcon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--mx-surface-sunken);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mx-ink-muted);
+    flex-shrink: 0;
+}
+
+.leaderboardDeptName {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--mx-ink);
+}
+
+.leaderboardManagerName {
+    font-size: 11px;
+    color: var(--mx-ink-muted);
+    margin-top: 1px;
+}
+
+.leaderboardScoreBar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 140px;
+}
+
+.leaderboardMiniTrack {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    overflow: hidden;
+    position: relative;
+}
+
+.leaderboardMiniFill {
+    height: 100%;
+    border-radius: 999px;
+}
+
+.leaderboardScoreNum {
+    font-size: 13px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    width: 40px;
     text-align: right;
 }
-/* An overdue call queue is the one figure in this table that is a problem
-   rather than a measurement, so it reads as one. */
-.summaryAlert {
-    color: var(--mx-danger);
-    font-weight: var(--mx-weight-bold);
-}
 
-/* Won and Lost both belong in one Status cell — a rep usually has some of
-   each, and two badges read faster than a "3 / 1" that needs a legend. */
-.summaryStatus {
+.leaderboardActionBtn {
     display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--mx-border);
+    background: #ffffff;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--mx-ink);
+    cursor: pointer;
+    transition: all 140ms ease;
+}
+
+.leaderboardActionBtn:hover {
+    background: var(--mx-brand);
+    color: #ffffff;
+    border-color: var(--mx-brand);
+}
+
+@media (max-width: 1200px) {
+    .healthGrid { grid-template-columns: repeat(3, 1fr); }
+    .healthInsightsBar { grid-template-columns: 1fr; }
+}
+@media (max-width: 880px) {
+    .healthGrid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+    .healthGrid { grid-template-columns: 1fr; }
+}
+
+/* --------------------------------------------------------------------------
+   7. REDESIGNED WORKSPACE & OPERATIONAL MODULES DIRECTORY
+   -------------------------------------------------------------------------- */
+.modulesSection {
+    margin-top: 36px;
+    border-radius: var(--mx-radius-xl, 20px);
+    background: #ffffff;
+    border: 1px solid var(--mx-border);
+    padding: 22px 24px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
+}
+
+.modulesSectionHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--mx-border);
     flex-wrap: wrap;
+}
+
+.modulesHeadLeft {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modulesHeadIconWrapper {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink);
+    border: 1px solid var(--mx-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.modulesTitle {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--mx-ink);
+}
+
+.modulesCount {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--mx-ink-muted);
+    background: var(--mx-surface-sunken);
+    padding: 3px 9px;
+    border-radius: var(--mx-radius-full, 999px);
+    border: 1px solid var(--mx-border);
+}
+
+.modulesHeadRight {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.moduleViewModeToggle {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    background: var(--mx-surface-sunken);
+    padding: 3px;
+    border-radius: 9px;
+    border: 1px solid var(--mx-border);
+}
+
+.moduleViewModeBtn {
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--mx-ink-muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 150ms var(--mx-ease), color 150ms var(--mx-ease);
+}
+
+.moduleViewModeBtnActive {
+    background: #ffffff;
+    color: var(--mx-ink);
+    font-weight: 700;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.moduleSearchWrap {
+    position: relative;
+    width: 260px;
+    max-width: 100%;
+}
+
+.moduleSearchInput {
+    width: 100%;
+    height: 36px;
+    padding: 0 32px 0 34px;
+    border-radius: var(--mx-radius-md, 12px);
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface-sunken);
+    font-size: 12.5px;
+    color: var(--mx-ink);
+    font-family: inherit;
+    transition: border-color 150ms var(--mx-ease), box-shadow 150ms var(--mx-ease), background 150ms var(--mx-ease);
+}
+
+.moduleSearchInput:focus {
+    outline: none;
+    background: #ffffff;
+    border-color: var(--mx-brand);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.moduleSearchIcon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--mx-ink-faint);
+    pointer-events: none;
+}
+
+.moduleSearchClear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: none;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+/* Category Quick Jump Chips */
+.categoryTabsBar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+}
+
+.categoryTabsBar::-webkit-scrollbar {
+    display: none;
+}
+
+.categoryTabChip {
+    display: inline-flex;
+    align-items: center;
     gap: 6px;
+    padding: 6px 13px;
+    border-radius: var(--mx-radius-full, 999px);
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border);
+    color: var(--mx-ink-muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 150ms var(--mx-ease);
 }
 
-/* This file had zero responsive handling before — the module-tile grid,
-   KPI grid, and recent-items grid all used auto-fill/auto-fit minmax()
-   widths (240px / 150px / 320px) that hold up reasonably down to tablet,
-   but 320px-wide phones sit right at or under the .recentGrid minimum,
-   forcing horizontal overflow. */
-@media (max-width: 768px) {
-    .grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-    .tile { padding: 16px; }
-    .kpiGrid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-    .recentGrid { grid-template-columns: 1fr; gap: 12px; }
-    .topGrid, .topGridPair { grid-template-columns: 1fr; gap: 12px; }
-    /* Stacked, the two panels are no longer side by side, so there is
-       nothing to line up with — a shorter cap keeps two scrolling boxes
-       from filling a phone screen between them. */
-    .topGrid { --mx-top-panel-height: 280px; }
-}
-@media (max-width: 400px) {
-    .grid { grid-template-columns: 1fr 1fr; }
-    .kpiGrid { grid-template-columns: 1fr 1fr; }
-    .kpiValue { font-size: 1.35rem; }
-    .followUpBanner { flex-direction: column; align-items: flex-start; }
+.categoryTabChip:hover {
+    background: var(--mx-border);
+    color: var(--mx-ink);
 }
 
-/* ---------- Dashboard celebration popup (birthdays / anniversaries) ---------- */
+.categoryTabChipActive {
+    background: #0f172a;
+    border-color: #0f172a;
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+}
+
+.categoryTabChipActive:hover {
+    background: #1e293b;
+    color: #ffffff;
+}
+
+/* Section Accordion Trigger */
+.sectionToggle {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    margin-top: 12px;
+    border: 1px solid var(--mx-border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #ffffff 0%, var(--mx-surface-sunken) 100%);
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    padding: 14px 18px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+    transition: border-color 180ms var(--mx-ease), background 180ms var(--mx-ease), box-shadow 180ms var(--mx-ease);
+}
+
+.sectionToggle:hover {
+    border-color: var(--mx-border-strong);
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.sectionToggle[aria-expanded='true'] {
+    border-color: var(--mx-border-strong);
+    background: #ffffff;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+.sectionToggleIcon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--mx-border);
+    transition: background 180ms var(--mx-ease), color 180ms var(--mx-ease);
+}
+
+.sectionToggle[aria-expanded='true'] .sectionToggleIcon {
+    background: #0f172a;
+    color: #ffffff;
+    border-color: #0f172a;
+}
+
+
+.sectionToggleMain {
+    flex: 1;
+    min-width: 0;
+}
+
+.sectionToggleLabel {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--mx-ink);
+}
+
+.sectionToggleSub {
+    font-size: 11.5px;
+    color: var(--mx-ink-muted);
+    margin-top: 1px;
+}
+
+.sectionToggleCount {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--mx-ink-muted);
+    background: var(--mx-surface-sunken);
+    padding: 3px 10px;
+    border-radius: var(--mx-radius-full, 999px);
+    border: 1px solid var(--mx-border);
+    font-variant-numeric: tabular-nums;
+}
+
+.sectionChevron {
+    margin-left: 8px;
+    flex-shrink: 0;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--mx-ink-faint);
+    transform: rotate(0deg);
+    transition: transform 180ms var(--mx-ease), color 180ms var(--mx-ease);
+}
+
+.sectionToggle[aria-expanded='true'] .sectionChevron {
+    transform: rotate(90deg);
+    color: var(--mx-brand);
+}
+
+/* Module Grid */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+    margin: 12px 0 18px;
+}
+
+.tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 16px 18px;
+    border-radius: 14px;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    text-decoration: none;
+    color: inherit;
+    min-width: 0;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+    transition: border-color 180ms var(--mx-ease), background 180ms var(--mx-ease), transform 180ms var(--mx-ease), box-shadow 180ms var(--mx-ease);
+}
+
+.tile:hover {
+    border-color: var(--mx-brand);
+    background: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.tile:focus-visible,
+.sectionToggle:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+
+.tileHead {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.tileIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    border-radius: 10px;
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink);
+    border: 1px solid var(--mx-border);
+    transition: background 180ms var(--mx-ease), color 180ms var(--mx-ease), border-color 180ms var(--mx-ease);
+}
+
+.tile:hover .tileIcon {
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand);
+    border-color: rgba(220, 38, 38, 0.25);
+}
+
+.tileTitle {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--mx-ink);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.tileDesc {
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+    line-height: 1.45;
+    margin-top: 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.tileFooter {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 4px;
+}
+
+.tileArrow {
+    color: var(--mx-ink-faint);
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: all 180ms var(--mx-ease);
+}
+
+.tile:hover .tileArrow {
+    opacity: 1;
+    transform: translateX(0);
+    color: var(--mx-brand);
+}
+
+.searchResultsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.searchResultCard {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 16px 18px;
+    border-radius: 14px;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    text-decoration: none;
+    color: inherit;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+    transition: transform 150ms var(--mx-ease), border-color 150ms var(--mx-ease), box-shadow 150ms var(--mx-ease);
+}
+
+.searchResultCard:hover {
+    transform: translateY(-2px);
+    border-color: var(--mx-brand);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
+}
+
+.searchResultCat {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--mx-brand);
+    letter-spacing: 0.04em;
+}
+
+.searchResultTitle {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--mx-ink);
+}
+
+.searchResultDesc {
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.emptySearchResult {
+    padding: 36px 20px;
+    text-align: center;
+    background: var(--mx-surface-sunken);
+    border: 1px dashed var(--mx-border-strong);
+    border-radius: 14px;
+    color: var(--mx-ink-muted);
+    font-size: 13.5px;
+    margin: 16px 0;
+}
+
+.tileBadge {
+    display: inline-block;
+    align-self: flex-start;
+    padding: 3px 10px;
+    border-radius: var(--mx-radius-full, 999px);
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--mx-danger-subtle);
+    color: var(--mx-danger);
+}
+
+/* --------------------------------------------------------------------------
+   8. DUE SECTION ACCORDION BODY (Sales Leadership)
+   -------------------------------------------------------------------------- */
+.dueBody {
+    margin-top: 8px;
+    margin-bottom: 12px;
+    border-radius: var(--mx-radius-lg, 16px);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-shadow-sm);
+    overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   9. CELEBRATIONS SECTION & POPUP
+   -------------------------------------------------------------------------- */
+.sectionHeading {
+    margin: 28px 2px 10px;
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mx-ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .celebrationHeader {
     display: flex;
     align-items: center;
@@ -779,6 +1928,7 @@
     gap: 12px;
     font-size: 1.2rem;
 }
+
 .celebrationCloseBtn {
     flex-shrink: 0;
     display: flex;
@@ -791,12 +1941,14 @@
     background: rgba(17, 24, 39, 0.06);
     color: var(--mx-ink-muted);
     cursor: pointer;
-    transition: background var(--mx-duration-base, 0.15s) var(--mx-ease, ease), color var(--mx-duration-base, 0.15s) var(--mx-ease, ease);
+    transition: background 150ms var(--mx-ease), color 150ms var(--mx-ease);
 }
+
 .celebrationCloseBtn:hover {
-    background: var(--mx-danger-subtle, #fee2e2);
-    color: var(--mx-danger, #dc2626);
+    background: var(--mx-danger-subtle);
+    color: var(--mx-danger);
 }
+
 .celebrationList {
     display: flex;
     flex-direction: column;
@@ -805,6 +1957,7 @@
     max-height: min(50vh, 420px);
     overflow-y: auto;
 }
+
 .celebrationCard {
     position: relative;
     display: flex;
@@ -815,14 +1968,17 @@
     overflow: hidden;
     box-shadow: var(--mx-shadow-sm);
 }
+
 .celebrationCardBirthday {
     background: linear-gradient(135deg, #fdf2ff 0%, #fce7f3 45%, #fef3c7 100%);
     border: 1px solid #f5d0fe;
 }
+
 .celebrationCardAnniversary {
     background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 45%, #fde68a 100%);
     border: 1px solid #fcd34d;
 }
+
 .celebrationBadge {
     flex-shrink: 0;
     display: flex;
@@ -836,17 +1992,20 @@
     font-size: 26px;
     line-height: 1;
 }
+
 .celebrationText { min-width: 0; }
 .celebrationName {
     font-size: 15.5px;
     font-weight: 800;
     color: #111827;
 }
+
 .celebrationSub {
     font-size: 13.5px;
     color: #4b5563;
     margin-top: 2px;
 }
+
 .celebrationOkBtn {
     padding: 12px 26px;
     border: none;
@@ -856,215 +2015,223 @@
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
-    transition: background var(--mx-duration-base, 0.15s) var(--mx-ease, ease), transform var(--mx-duration-base, 0.15s) var(--mx-ease, ease);
+    transition: background 150ms var(--mx-ease), transform 150ms var(--mx-ease);
 }
+
 .celebrationOkBtn:hover {
     background: var(--mx-brand-hover);
     transform: translateY(-1px);
 }
 
-/* Both dashboard queues cap at three rows, then scroll. They sit side by
-   side, so a ten-person sales team made the right-hand card three times the
-   height of the left one and pushed Department Health below the fold. */
-
-/* 57px = .attentionRow's 13px top + 13px bottom padding + its 30px icon +
-   the 1px divider. Kept as a comment rather than a magic number: change the
-   row's padding and this has to move with it.
-   Scrolling is now the ONLY way past the visible rows — the "View all"
-   button and its drawer are gone, so this must stay scrollable or the
-   overflow becomes unreachable.
-   The panel now has a fixed height, so this just takes whatever the header
-   leaves. min-height:0 is required — a flex child defaults to
-   min-height:auto and would refuse to shrink below its content, pushing the
-   panel past its set height instead of scrolling. */
-.attentionScroll {
-    composes: mx-visible-scroll from global;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-}
-
-/* Deliberately NOT reusing .tableViewport from quotationHistory.module.css:
-   that also sets min-width:1420px for the 14-column Projects table, which
-   would force a horizontal scrollbar under this six-column one.
-   Element selectors (not .table) because that class belongs to a different
-   CSS module and its generated name is not addressable from here.
-   `.table` sets overflow:hidden for its rounded corners, which makes the
-   TABLE its own scrollport and lets its sticky <th> scroll away with the
-   rows — the wrapper already carries the radius, so it needn't clip. */
-.summaryViewport {
-    composes: mx-visible-scroll from global;
-    /* Takes whatever the head and the totals row leave of the card's fixed
-       height — about five data rows, then scrolls. min-height:0 is
-       required: a flex child defaults to min-height:auto and would refuse
-       to shrink below its content, growing the card instead of scrolling. */
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-}
-.summaryViewport table {
-    overflow: visible;
-}
-.summaryViewport table th {
-    z-index: 2;
-}
-
-/* ======================================================================
-   Page intro + headline KPIs
-   Type scale per the design spec: page title 26px, card heading 14px,
-   body 13px, supporting label 12px. Spacing is 4px-based throughout.
-   ====================================================================== */
-
-.pageIntro {
+/* --------------------------------------------------------------------------
+   10. LEGACY COMPATIBILITY CLASSES (Used by AnalyticsView & TMS Views)
+   -------------------------------------------------------------------------- */
+.greetingRow {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: 12px;
     flex-wrap: wrap;
     margin-top: 4px;
 }
 
-.pageIntroText {
-    min-width: 0;
-}
-
-/* Was a muted 0.95rem line sitting at body weight — it is the page's
-   heading and names the person reading it. */
-.pageTitle {
-    margin: 0;
-    font-size: 26px;
-    line-height: 1.2;
+.primaryCta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 11px 20px;
+    border-radius: var(--mx-radius-md, 12px);
+    background: var(--mx-brand);
+    color: #fff;
+    font-size: 13.5px;
     font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--mx-ink);
+    text-decoration: none;
+    box-shadow: var(--mx-shadow-sm);
+    transition: background var(--mx-duration-base) var(--mx-ease), transform var(--mx-duration-base) var(--mx-ease);
 }
 
-.pageSubtitle {
-    margin: 6px 0 0;
-    font-size: 13px;
-    color: var(--mx-ink-muted);
+.primaryCta:hover {
+    background: var(--mx-brand-hover);
+    transform: translateY(-1px);
 }
 
-.kpiRow {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-top: 20px;
-}
-
-.kpiCardNew {
+.followUpBanner {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 16px 18px;
-    border-radius: 12px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 14px 18px;
+    border-radius: var(--mx-radius-md, 12px);
+    background: var(--mx-brand-subtle);
+    border: 1px solid rgba(220, 38, 38, 0.25);
+    color: var(--mx-danger);
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.followUpBanner a {
+    color: var(--mx-danger);
+    text-decoration: underline;
+    white-space: nowrap;
+}
+
+.greeting {
+    font-size: 0.95rem;
+    color: var(--mx-ink-muted);
+    margin-top: 4px;
+}
+
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.kpiCard {
+    padding: 14px 16px;
+    border-radius: var(--mx-radius-lg, 16px);
     background: var(--mx-surface);
     border: 1px solid var(--mx-border);
-    text-decoration: none;
-    color: inherit;
-    /* Restrained: a border change and a hairline shadow, no lift. Four cards
-       jumping on hover is noise on a page people scan rather than play with. */
-    transition: border-color 180ms var(--mx-ease), box-shadow 180ms var(--mx-ease);
-}
-
-a.kpiCardNew:hover {
-    border-color: var(--mx-border-strong);
     box-shadow: var(--mx-shadow-sm);
 }
 
-a.kpiCardNew:focus-visible {
-    outline: 2px solid var(--mx-brand);
-    outline-offset: 2px;
+.kpiCardButton {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
 }
 
-.kpiIcon {
+.kpiCardButton:hover {
+    border-color: var(--mx-brand);
+}
+
+.kpiValue {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--mx-ink);
+    font-variant-numeric: tabular-nums;
+}
+
+.kpiLabel {
+    font-size: 0.78rem;
+    color: var(--mx-ink-muted);
+    margin-top: 2px;
+}
+
+.kpiCardAlert {
+    background: #fef2f2;
+    border: 1px solid rgba(220, 38, 38, 0.35);
+    text-decoration: none;
+    display: block;
+    transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
+}
+
+.kpiCardAlert:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--mx-shadow-md);
+}
+
+.kpiCardAlert .kpiValue {
+    color: var(--mx-danger);
+}
+
+.kpiCardAlert .kpiLabel {
+    color: var(--mx-danger);
+    font-weight: 600;
+}
+
+.attentionAllCaughtUp {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 9px;
-    background: var(--mx-surface-sunken);
-    color: var(--mx-ink-muted);
+    gap: 6px;
 }
 
-/* The only KPI that is a problem rather than a measurement, so it is the
-   only one allowed any colour. */
-.kpiIconAlert {
-    background: var(--mx-danger-subtle);
-    color: var(--mx-danger);
-}
-
-.kpiLabelNew {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--mx-ink-muted);
-}
-
-.kpiValueNew {
-    font-size: 24px;
-    font-weight: 700;
-    line-height: 1.1;
-    color: var(--mx-ink);
-    /* Tabular figures so the row doesn't reflow as counts change. */
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-}
-
-.kpiValueAlert {
-    color: var(--mx-danger);
-}
-
-.kpiValueLoading {
-    color: var(--mx-ink-faint);
-}
-
-@media (max-width: 1000px) {
+/* --------------------------------------------------------------------------
+   11. RESPONSIVE BREAKPOINTS
+   -------------------------------------------------------------------------- */
+@media (max-width: 1080px) {
     .kpiRow {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 768px) {
+    .heroBanner {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 20px;
+    }
+
+    .heroActions {
+        justify-content: stretch;
+    }
+
+    .heroPrimaryBtn,
+    .heroSecondaryBtn,
+    .heroAnalyticsBtn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .topGrid, .topGridPair {
+        grid-template-columns: 1fr;
+        gap: 14px;
+        --mx-top-panel-height: 320px;
+    }
+
+    .kpiRow {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .recentGrid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .healthSection,
+    .modulesSection {
+        padding: 18px;
+    }
+
+    .modulesHeadRight {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .moduleSearchWrap {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
     .kpiRow {
         grid-template-columns: 1fr;
     }
 
-    .pageTitle {
-        font-size: 22px;
+    .heroTitle {
+        font-size: 20px;
     }
 
-    .primaryCta {
-        flex: 1 1 100%;
-        justify-content: center;
+    .heroActions {
+        flex-direction: column;
     }
-}
 
-.summaryHeadActions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex: 0 0 auto;
-}
+    .heroPrimaryBtn,
+    .heroSecondaryBtn,
+    .heroAnalyticsBtn {
+        width: 100%;
+    }
 
-.summaryLink {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--mx-brand);
-    text-decoration: none;
-    white-space: nowrap;
-}
+    .grid {
+        grid-template-columns: 1fr;
+    }
 
-.summaryLink:hover {
-    text-decoration: underline;
-}
-
-.summaryLink:focus-visible {
-    outline: 2px solid var(--mx-brand);
-    outline-offset: 2px;
-    border-radius: 4px;
+    .searchResultsGrid {
+        grid-template-columns: 1fr;
+    }
 }

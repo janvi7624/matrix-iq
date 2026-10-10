@@ -1,192 +1,280 @@
-/* Department performance card (components/ui/HealthGauge.tsx).
-   A real <button>, not a div with role="button" — keyboard activation,
-   focus ring and correct semantics come for free.
-
-   Every card has identical structure, padding and type, so a grid of them
-   reads as one set rather than a dozen individual designs. */
+/* ==========================================================================
+   HealthGauge.module.css — Lightweight, Modern Executive Performance Card
+   ========================================================================== */
 
 .card {
+    position: relative;
     display: flex;
     flex-direction: column;
-    align-items: stretch;
+    justify-content: space-between;
     width: 100%;
-    padding: 16px;
-    border-radius: 12px;
-    background: var(--mx-surface);
-    border: 1px solid var(--mx-border);
+    padding: 16px 18px 14px;
+    border-radius: var(--mx-radius-lg, 16px);
+    background: #ffffff;
+    border: 1px solid var(--mx-border, #e2e8f0);
     cursor: pointer;
     font: inherit;
     color: inherit;
-    /* Left-aligned, not centred: a column of department names all starting
-       at the same x is scanned far faster than centred blocks of differing
-       widths. */
     text-align: left;
-    transition: border-color 180ms var(--mx-ease), box-shadow 180ms var(--mx-ease);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+    transition: transform 180ms var(--mx-ease), box-shadow 180ms var(--mx-ease), border-color 180ms var(--mx-ease);
+    overflow: hidden;
+    min-height: 140px;
 }
 
-/* Restrained hover — a border and a hairline shadow. A dozen cards lifting
-   on hover is noise on a page people scan. */
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: transparent;
+    transition: background 180ms var(--mx-ease);
+}
+
 .card:hover {
-    border-color: var(--mx-border-strong);
-    box-shadow: var(--mx-shadow-sm);
+    transform: translateY(-2px);
+    border-color: var(--mx-border-strong, #cbd5e1);
+    box-shadow: 0 10px 24px -4px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
 }
 
 .card:focus-visible {
-    outline: 2px solid var(--mx-brand);
+    outline: 2px solid var(--mx-brand, #dc2626);
     outline-offset: 2px;
 }
 
-.card:hover .openHint {
-    color: var(--mx-brand);
+/* Status Band Top Accent Indicator */
+.band_red::before {
+    background: #dc2626;
+}
+.band_yellow::before {
+    background: #d97706;
+}
+.band_green::before {
+    background: #16a34a;
+}
+.band_na::before {
+    background: #94a3b8;
 }
 
-.card:hover .openChevron {
-    transform: translateX(2px);
-}
-
-/* Status lives in the score, the bar and the label. The card itself gets a
-   hairline top edge in the band colour — enough to pick a struggling
-   department out of a grid, nowhere near a large red background. */
-.band_red { box-shadow: inset 0 2px 0 var(--mx-danger); }
-.band_yellow { box-shadow: inset 0 2px 0 var(--mx-warning); }
-.band_green { box-shadow: inset 0 2px 0 var(--mx-success); }
-.band_na { box-shadow: inset 0 2px 0 var(--mx-border-strong); }
-
-.band_red:hover { box-shadow: inset 0 2px 0 var(--mx-danger), var(--mx-shadow-sm); }
-.band_yellow:hover { box-shadow: inset 0 2px 0 var(--mx-warning), var(--mx-shadow-sm); }
-.band_green:hover { box-shadow: inset 0 2px 0 var(--mx-success), var(--mx-shadow-sm); }
-.band_na:hover { box-shadow: inset 0 2px 0 var(--mx-border-strong), var(--mx-shadow-sm); }
-
-/* ---- Name + score ---------------------------------------------------- */
-
-.topRow {
+/* Card Top Section: Department Info + Radial SVG Ring */
+.cardTop {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    gap: 12px;
     min-width: 0;
+}
+
+.deptHead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
 }
 
 .deptIcon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    flex: 0 0 28px;
-    border-radius: 8px;
-    background: var(--mx-surface-sunken);
-    color: var(--mx-ink-muted);
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    border-radius: 9px;
+    background: var(--mx-surface-sunken, #f8fafc);
+    color: #0f172a;
+    border: 1px solid var(--mx-border, #e2e8f0);
+    transition: all 180ms var(--mx-ease);
 }
 
-.deptName {
+.card:hover .deptIcon {
+    background: #0f172a;
+    color: #ffffff;
+    border-color: #0f172a;
+}
+
+.deptInfo {
     flex: 1;
     min-width: 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--mx-ink);
-    /* Long names wrap rather than widening the grid track. */
-    overflow-wrap: anywhere;
 }
 
-.score {
-    flex: 0 0 auto;
-    font-size: 20px;
-    font-weight: 700;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-}
-
-/* ---- Progress track -------------------------------------------------- */
-
-.track {
-    position: relative;
-    height: 6px;
-    margin: 12px 0 10px;
-    border-radius: 999px;
-    overflow: hidden;
-    background: var(--mx-surface-sunken);
-}
-
-.fill {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    border-radius: 999px;
-    transition: width 240ms var(--mx-ease);
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .fill {
-        transition: none;
-    }
-}
-
-.threshold {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    margin-left: -1px;
-    background: var(--mx-surface);
-}
-
-/* ---- Status + metric ------------------------------------------------- */
-
-.statusRow {
+.deptNameRow {
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
-.statusDot {
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
+.deptName {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.coLeadBadge {
+    font-size: 10px;
+    font-weight: 700;
+    color: #64748b;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    padding: 1px 5px;
+    border-radius: 4px;
     flex-shrink: 0;
 }
 
-.statusText {
-    font-size: 12px;
-    font-weight: 600;
+.deptSub {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.metricRow {
+/* Modern SVG Radial Ring Gauge */
+.radialWrapper {
+    position: relative;
+    width: 50px;
+    height: 50px;
+    flex: 0 0 50px;
     display: flex;
-    align-items: baseline;
+    align-items: center;
+    justify-content: center;
+}
+
+.radialSvg {
+    transform: rotate(0deg);
+}
+
+.radialTrack {
+    fill: none;
+    stroke: #f1f5f9;
+}
+
+.radialFill {
+    fill: none;
+    transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.radialCenter {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.radialScore {
+    font-size: 12px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+/* Card Middle Section: Status & Primary Metric */
+.cardMiddle {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-top: 12px;
+    margin-top: 14px;
     padding-top: 10px;
-    border-top: 1px solid var(--mx-border);
-    font-size: 12px;
-    color: var(--mx-ink-muted);
+    border-top: 1px solid #f8fafc;
+    flex-wrap: wrap;
 }
 
-.metricLabel {
-    min-width: 0;
-    overflow-wrap: anywhere;
+.statusPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2.5px 8px;
+    border-radius: var(--mx-radius-full, 999px);
+    font-size: 11px;
+    font-weight: 700;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #475569;
 }
 
-.metricValue {
-    color: var(--mx-ink);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
+.band_red .statusPill {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.2);
+    color: #dc2626;
+}
+
+.band_yellow .statusPill {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.2);
+    color: #d97706;
+}
+
+.band_green .statusPill {
+    background: rgba(22, 163, 74, 0.08);
+    border-color: rgba(22, 163, 74, 0.2);
+    color: #15803d;
+}
+
+.statusDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.metricItem {
+    font-size: 11.5px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 4px;
     white-space: nowrap;
 }
 
-.openHint {
-    display: inline-flex;
+.metricLabel {
+    color: #64748b;
+    font-weight: 500;
+}
+
+.metricValue {
+    color: #0f172a;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Card Footer: View Action Link */
+.cardFooter {
+    display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 4px;
-    margin-top: 10px;
-    font-size: 12px;
+    margin-top: 8px;
+    padding-top: 6px;
+}
+
+.openText {
+    font-size: 11.5px;
     font-weight: 600;
-    color: var(--mx-ink-faint);
-    transition: color 180ms var(--mx-ease);
+    color: #94a3b8;
+    transition: color 150ms var(--mx-ease);
 }
 
 .openChevron {
-    transition: transform 180ms var(--mx-ease);
+    color: #94a3b8;
+    transition: transform 150ms var(--mx-ease), color 150ms var(--mx-ease);
+}
+
+.card:hover .openText {
+    color: var(--mx-brand, #dc2626);
+}
+
+.card:hover .openChevron {
+    transform: translateX(3px);
+    color: var(--mx-brand, #dc2626);
 }

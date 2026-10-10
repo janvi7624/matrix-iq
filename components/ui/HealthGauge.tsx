@@ -17,100 +17,124 @@ export interface HealthGaugeProps {
   score: number;
   band: HealthBand;
   breakdown: HealthGaugeBreakdownRow[];
+  managers?: { id: string; username?: string; name: string }[];
   /** Opens the full department detail. */
   onOpen: () => void;
 }
 
-// Also imported by components/DepartmentHealthDetail.tsx and
-// components/TmsProjectDetailView.tsx — a band colour has to mean the same
-// thing everywhere it appears, so it is defined once.
 export const BAND_COLOR: Record<HealthBand, string> = {
-  red: 'var(--mx-danger)',
-  yellow: 'var(--mx-warning)',
-  green: 'var(--mx-success)',
-  na: 'var(--mx-ink-faint)'
+  red: 'var(--mx-danger, #dc2626)',
+  yellow: 'var(--mx-warning, #d97706)',
+  green: 'var(--mx-success, #16a34a)',
+  na: 'var(--mx-ink-faint, #9ca3af)'
 };
 
 export const BAND_TEXT: Record<HealthBand, string> = {
   red: 'Needs attention',
   yellow: 'On track',
   green: 'Performing well',
-  na: 'Not enough data yet'
+  na: 'No data yet'
 };
 
-// Mirrors scoreBand() in lib/departmentScoring.ts (green >= 70, yellow >= 40).
-// The scoring rules themselves are untouched — this only draws them.
-const THRESHOLDS = [40, 70];
-
-// This was a semicircular gauge. A half-circle shows ONE value against a
-// target well, but this grid exists to answer "which department needs me?",
-// and comparing a dozen arc angles across a dozen tiles is far harder than
-// comparing a dozen bars that all start at the same left edge on the same
-// scale. The zones, the score and the thresholds are unchanged; only the
-// geometry is now one a reader can compare across cards at a glance.
-function ProgressTrack({ score, band }: { score: number; band: HealthBand }) {
-  const clamped = Math.max(0, Math.min(100, score));
+function RadialGauge({ score, band }: { score: number; band: HealthBand }) {
   const isNa = band === 'na';
+  const clamped = Math.max(0, Math.min(100, score));
+  const radius = 21;
+  const strokeWidth = 3.5;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = isNa ? circumference : circumference - (clamped / 100) * circumference;
+  const color = BAND_COLOR[band];
 
   return (
-    <div className={styles.track} aria-hidden="true">
-      {!isNa && <div className={styles.fill} style={{ width: `${clamped}%`, background: BAND_COLOR[band] }} />}
-      {/* The 40 and 70 marks, so a reader can see which side of a threshold
-          a score falls on without remembering the scale. Drawn in the track
-          colour, so they separate with a gap rather than adding ink. */}
-      {!isNa && THRESHOLDS.map((value) => (
-        <span key={value} className={styles.threshold} style={{ left: `${value}%` }} />
-      ))}
+    <div className={styles.radialWrapper} aria-hidden="true">
+      <svg className={styles.radialSvg} width="50" height="50" viewBox="0 0 50 50">
+        {/* Background ring track */}
+        <circle
+          className={styles.radialTrack}
+          cx="25"
+          cy="25"
+          r={radius}
+          strokeWidth={strokeWidth}
+        />
+        {/* Progress Arc */}
+        {!isNa && (
+          <circle
+            className={styles.radialFill}
+            cx="25"
+            cy="25"
+            r={radius}
+            strokeWidth={strokeWidth}
+            stroke={color}
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            transform="rotate(-90 25 25)"
+          />
+        )}
+      </svg>
+      <div className={styles.radialCenter}>
+        <span className={styles.radialScore} style={{ color: isNa ? 'var(--mx-ink-faint)' : color }}>
+          {isNa ? '—' : `${score}%`}
+        </span>
+      </div>
     </div>
   );
 }
 
-export default function HealthGauge({ label, score, band, breakdown, onOpen }: HealthGaugeProps) {
+export default function HealthGauge({ label, score, band, breakdown, managers = [], onOpen }: HealthGaugeProps) {
   const color = BAND_COLOR[band];
   const headline = breakdown[0];
-  // createElement rather than assigning to a capitalised local and writing
-  // <DeptIcon />: the react-hooks lint rule reads that pattern as declaring
-  // a component during render, which would reset its state on every pass.
   const deptIcon = departmentIconFor(label);
+  const primaryManager = managers[0];
 
   return (
     <button
       type="button"
       className={`${styles.card} ${styles[`band_${band}`]}`}
       onClick={onOpen}
-      aria-label={`${label} health: ${band === 'na' ? 'not enough data' : `${score} percent, ${BAND_TEXT[band]}`}. Open team details.`}
+      aria-label={`${label} health: ${band === 'na' ? 'not enough data' : `${score} percent, ${BAND_TEXT[band]}`}. Click to open team breakdown.`}
     >
-      <div className={styles.topRow}>
-        <span className={styles.deptIcon}>{createElement(deptIcon, { size: 15 })}</span>
-        <span className={styles.deptName}>{label}</span>
-        <span className={styles.score} style={{ color }}>{band === 'na' ? '—' : `${score}%`}</span>
+      <div className={styles.cardTop}>
+        <div className={styles.deptHead}>
+          <span className={styles.deptIcon}>
+            {createElement(deptIcon, { size: 16 })}
+          </span>
+          <div className={styles.deptInfo}>
+            <div className={styles.deptNameRow}>
+              <span className={styles.deptName}>{label}</span>
+              {managers.length > 1 && (
+                <span className={styles.coLeadBadge} title={`${managers.length} co-leads`}>
+                  +{managers.length - 1}
+                </span>
+              )}
+            </div>
+            <div className={styles.deptSub}>
+              {primaryManager ? `Lead: ${primaryManager.name || primaryManager.username}` : 'Team Operations'}
+            </div>
+          </div>
+        </div>
+
+        <RadialGauge score={score} band={band} />
       </div>
 
-      <ProgressTrack score={score} band={band} />
+      <div className={styles.cardMiddle}>
+        <span className={styles.statusPill}>
+          <span className={styles.statusDot} style={{ background: color }} aria-hidden="true" />
+          <span>{BAND_TEXT[band]}</span>
+        </span>
 
-      <div className={styles.statusRow}>
-        <span className={styles.statusDot} style={{ background: color }} aria-hidden="true" />
-        <span className={styles.statusText} style={{ color }}>{BAND_TEXT[band]}</span>
-      </div>
-
-      {/* One real metric on the face of the card — without it a grid of
-          scores is a wall of percentages with every reason hidden behind a
-          click. Comes straight from the department's own breakdown; nothing
-          is computed here. */}
-      <div className={styles.metricRow}>
-        {headline ? (
-          <>
-            <span className={styles.metricLabel}>{headline.label}</span>
+        {headline && (
+          <div className={styles.metricItem}>
+            <span className={styles.metricLabel}>{headline.label}:</span>
             <strong className={styles.metricValue}>{headline.value}</strong>
-          </>
-        ) : (
-          <span className={styles.metricLabel}>No metrics recorded yet</span>
+          </div>
         )}
       </div>
 
-      <span className={styles.openHint}>
-        View team details <ChevronRight size={13} className={styles.openChevron} />
-      </span>
+      <div className={styles.cardFooter}>
+        <span className={styles.openText}>View breakdown</span>
+        <ChevronRight size={13} className={styles.openChevron} />
+      </div>
     </button>
   );
 }

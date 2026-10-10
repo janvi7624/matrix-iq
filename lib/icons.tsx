@@ -120,23 +120,23 @@ export const CHROME_ICON = {
   collapseRight: ChevronRight
 };
 
-// Dashboard "Needs Your Attention" row icons, keyed by AttentionItem.key.
 export const ATTENTION_ICON: Record<string, LucideIcon> = {
   followup: Clock,
   'demo-approvals': Monitor,
   dc: Package,
-  // 'dc-dispatch' was missing, so the "DCs prepared and awaiting dispatch"
-  // row rendered an empty icon tile. Every key pushed into attentionItems
-  // in components/Dashboard.tsx must have an entry here.
   'dc-dispatch': Truck,
   'dc-verify': CheckCircle2,
   leads: Contact,
   'meta-leads': Share2,
   marketing: Megaphone,
+  'marketing-reminders': Clock,
   sitevisit: MapPin,
   'my-demo-confirm': UserCheck,
   'my-demo-approve': PenLine,
-  handover: ArrowRightLeft
+  handover: ArrowRightLeft,
+  'technical-approval': Wrench,
+  travel: Car,
+  'project-confirm': CheckSquare
 };
 
 export const ALL_CAUGHT_UP_ICON: LucideIcon = CheckCircle2;

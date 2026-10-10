@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { createElement, Fragment, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { DemoScheduleRecord, ModuleConfigRecord, ProjectHandoverRecord, ProjectRecord, QuotationRecord, UserRole } from '@/lib/types';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
@@ -14,14 +14,44 @@ import {
 } from '@/lib/projectDepartmentOptions';
 import { formatMoney } from '@/lib/format';
 import AppShell from './AppShell';
-import HealthGauge from './ui/HealthGauge';
+import HealthGauge, { BAND_COLOR, BAND_TEXT } from './ui/HealthGauge';
 import DepartmentHealthDetail from './DepartmentHealthDetail';
 import { BRAND } from '@/lib/branding';
 import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
-import { sectionIconFor, resolveModuleIcon, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON, DUE_SECTION_ICON } from '@/lib/icons';
-import { ChevronRight, Contact, FileText, IndianRupee, ListChecks, Users as UsersIcon, X } from 'lucide-react';
+import { sectionIconFor, resolveModuleIcon, ATTENTION_ICON, ALL_CAUGHT_UP_ICON, ANALYTICS_ICON, DUE_SECTION_ICON, departmentIconFor } from '@/lib/icons';
+import {
+  ChevronRight,
+  Contact,
+  FileText,
+  Briefcase,
+  IndianRupee,
+  ListChecks,
+  Users as UsersIcon,
+  X,
+  Plus,
+  Search,
+  CheckCircle2,
+  Calendar,
+  Sun,
+  SunMedium,
+  Moon,
+  ShieldCheck,
+  BarChart3,
+  Layers,
+  Sparkles,
+  Zap,
+  ArrowRight,
+  LayoutGrid,
+  ListFilter,
+  AlertTriangle,
+  Trophy,
+  Activity,
+  Table as TableIcon,
+  Copy,
+  Check
+} from 'lucide-react';
 import Modal from './ui/Modal';
 import { hasSeenCelebrationPopup, markCelebrationPopupSeen } from '@/lib/celebrationPopupSeen';
 import Table from './ui/Table';
@@ -31,9 +61,6 @@ import CelebrationsSection from './CelebrationsSection';
 import MyTargetPanel from './MyTargetPanel';
 import styles from './dashboard.module.css';
 
-// Which module section the Sales-leadership "Due" bar is pinned beneath, and
-// the label/expand-state key it uses (shared with useCollapsibleSections, so
-// open/closed persists exactly like a real section's does).
 const DUE_AFTER_SECTION = 'Workspace';
 const DUE_SECTION_LABEL = 'Due';
 
@@ -43,9 +70,6 @@ interface DashboardProps {
 
 type ManagersByDepartment = Record<string, { id: string; username: string; name: string }[]>;
 
-// The full KPI grids live at /analytics (components/AnalyticsView.tsx) — the
-// Dashboard only pulls in the subset it needs for the attention panel and,
-// for Manager+, the Team Overview strip below it.
 interface Kpis {
   pendingApprovals: number;
   totalProjects: number;
@@ -53,9 +77,6 @@ interface Kpis {
   conversionRate: number;
 }
 
-// Counted server-side from lists the dashboard already fetches — see the
-// headlineKpis block in app/api/dashboard/route.ts for why there is no
-// trend/comparison figure alongside them.
 interface HeadlineKpis {
   totalLeads: number;
   totalQuotations: number;
@@ -86,22 +107,43 @@ interface AttentionItem {
   count: number;
   href: string;
   tone: 'urgent' | 'info';
-  // Which of the two panels this row belongs in for a Sales Manager / Admin /
-  // Super Admin (see `salesLeadership`): 'pending' is a request sitting on
-  // somebody's desk waiting to be approved, confirmed or responded to —
-  // there's a decision to make. 'due' is everything driven by a clock
-  // instead: a follow-up overdue, a reminder falling due, today's new
-  // arrivals. Every other role still sees one combined list, so the field is
-  // inert for them.
   group: 'pending' | 'due';
 }
 
-function timeOfDayGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
+function getInitials(name: string): string {
+  if (!name) return 'U';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
+
+function getTimeGreeting(): { text: string; Icon: typeof Sun } {
+  const hour = new Date().getHours();
+  if (hour < 12) return { text: 'Good morning', Icon: Sun };
+  if (hour < 17) return { text: 'Good afternoon', Icon: SunMedium };
+  return { text: 'Good evening', Icon: Moon };
+}
+
+function getFormattedDate(): string {
+  const now = new Date();
+  return now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+const SECTION_DESCRIPTIONS: Record<string, string> = {
+  Workspace: 'Core everyday productivity and task overview',
+  Sales: 'Commercial pipeline, leads, estimations, and quotes',
+  Technical: 'Engineering rosters, BOMs, and TMS project deliverables',
+  Operations: 'Logistics, material inventory, and travel schedules',
+  Accounts: 'Financial vouchers, reimbursements, and payouts',
+  HR: 'Staff attendance, leave oversight, and team records',
+  Administration: 'System configurations, roles, and module management',
+  Reports: 'Executive reporting, summaries, and audit tracking'
+};
 
 export default function Dashboard({ currentUser }: DashboardProps) {
   const [followUpCount, setFollowUpCount] = useState<number | null>(null);
@@ -123,29 +165,28 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [pendingTechnicalApprovals, setPendingTechnicalApprovals] = useState<{ project_id: string; project_label: string; requested_name: string }[]>([]);
   const [travelPendingCount, setTravelPendingCount] = useState<number>(0);
   const [pendingProjectConfirmations, setPendingProjectConfirmations] = useState<number>(0);
-  // Both resolved server-side (app/api/dashboard/route.ts) — a Sales-side
-  // Manager / Admin / Super Admin. `salesLeadership` alone decides the
-  // reshaped top row, so it stays a flag of its own rather than being
-  // inferred from salesTeamSummary being non-empty (a brand-new Sales
-  // department with no reps yet is still Sales leadership).
   const [salesLeadership, setSalesLeadership] = useState(false);
   const [salesTeamSummary, setSalesTeamSummary] = useState<SalesTeamSummaryRow[] | null>(null);
   const [health, setHealth] = useState<HealthResponse | null>(null);
-  // Which department's health detail dialog is open, by name (null = none).
   const [openHealthDepartment, setOpenHealthDepartment] = useState<string | null>(null);
 
-  // Role Management's isPrivileged flag, resolved server-side — NOT
-  // re-derived from role name, since an admin can toggle a role's
-  // privileged status independently of what the role is called.
+  // Health Section Controls
+  const [healthBandFilter, setHealthBandFilter] = useState<'all' | 'red' | 'yellow' | 'green'>('all');
+  const [healthSortOrder, setHealthSortOrder] = useState<'priority' | 'top' | 'alpha'>('priority');
+  const [healthViewMode, setHealthViewMode] = useState<'cards' | 'leaderboard'>('cards');
+  const [healthSearchQuery, setHealthSearchQuery] = useState('');
+  const [copiedHealthToast, setCopiedHealthToast] = useState(false);
+
+  // Module Directory Controls
+  const [moduleSearchQuery, setModuleSearchQuery] = useState('');
+  const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('all');
+  const [moduleViewMode, setModuleViewMode] = useState<'accordion' | 'grid'>('accordion');
+
   const isPrivileged = currentUser.isPrivileged;
   const isBackOffice = currentUser.role === 'backoffice' || isPrivileged;
 
-  // Tiles are entirely config-driven now (Module Manager, /admin/modules) —
-  // enable/disable/rename/reorder/re-section a module without a code change.
   const sections = useModuleSections(modules);
 
-  // The viewer's department's own category surfaces first, everything else
-  // keeps its existing relative order after it — reorder, not hide.
   const primarySection = primarySectionForDepartment(currentUser.department);
   const orderedSections = useMemo(() => {
     if (!primarySection) return sections;
@@ -153,40 +194,20 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (idx <= 0) return sections;
     return [sections[idx], ...sections.slice(0, idx), ...sections.slice(idx + 1)];
   }, [sections, primarySection]);
-  // Every section label the page renders, including the Sales-leadership
-  // "Due" bar — the accordion needs the full set so a sibling that has
-  // never been toggled still gets marked collapsed, instead of falling
-  // through to the initiallyExpandedLabel default and reappearing open
-  // alongside the section just clicked.
+
   const allSectionLabels = useMemo(
     () => [...orderedSections.map((section) => section.label), ...(salesLeadership ? [DUE_SECTION_LABEL] : [])],
     [orderedSections, salesLeadership]
   );
-  // Accordion: opening one section closes the rest. Eleven sections open at
-  // once turned the foot of the page into a very long scroll, and the hook
-  // already supported this — the Sidebar has used it all along.
+
   const { isExpanded, toggle } = useCollapsibleSections(primarySection, { accordion: true, allLabels: allSectionLabels });
 
-  // The "Due" bar is a peer of the module-section bars rather than a card in
-  // the top row — it reads as a queue you open when you're ready to work it,
-  // not something competing with "Needs Your Attention" for the first glance.
-  // It sits directly under Workspace; module visibility is admin-configurable
-  // though, so a viewer without a Workspace section gets it after their last
-  // section instead (and after the whole list when they have none at all).
   const dueAfterSection = useMemo(() => {
     if (!orderedSections.length) return null;
     if (orderedSections.some((section) => section.label === DUE_AFTER_SECTION)) return DUE_AFTER_SECTION;
     return orderedSections[orderedSections.length - 1].label;
   }, [orderedSections]);
 
-  // One round trip instead of what used to be up to 13 separate fetches
-  // (modules, projects/kpis, backoffice/kpis, admin/quotations, site-visits,
-  // leads/stats, marketing-requests/stats, projects, demo-schedule,
-  // departments/managers, technical-roster, quotations/mine, quotations/
-  // stats) — see app/api/dashboard/route.ts, which resolves the viewer once
-  // and fans out server-side instead of once per client request. Role-gated
-  // fields (followUpCount, backOfficeKpis) still come back null for a
-  // viewer they don't apply to, same as before.
   useEffect(() => {
     fetch('/api/dashboard')
       .then((r) => (r.ok ? r.json() : null))
@@ -232,10 +253,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       });
   }, []);
 
-  // Kept as its own fetch (not folded into /api/dashboard above) so the
-  // traffic-light gauges load/refresh independently of the rest of the
-  // page's data — see app/api/dashboard/health/route.ts and
-  // lib/departmentScoring.ts for how each gauge's score is computed.
   useEffect(() => {
     fetch('/api/dashboard/health')
       .then((r) => (r.ok ? r.json() : null))
@@ -243,29 +260,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       .catch(() => setHealth(null));
   }, []);
 
-  // Also its own fetch — this one has a side effect server-side (sending
-  // today's birthday/anniversary emails the first time anyone's dashboard
-  // loads that day; see app/api/dashboard/celebrations/route.ts and
-  // lib/celebrationStore.ts, since there's no cron in this app to fire it
-  // any other way), which shouldn't be tangled up with the rest of the
-  // dashboard's plain read-only data fetch.
-  // The server already caps how many of today's dashboard loads actually
-  // return a non-empty list (see shouldShowCelebrationsPopup) — at most 3
-  // per viewer per day, tracked per-user so it holds across devices. This
-  // dismiss state only hides it for the rest of THIS page view; closing it
-  // doesn't spend one of those 3 any faster or slower than just visiting did.
   const [celebrations, setCelebrations] = useState<{ userId: string; name: string; type: 'birthday' | 'anniversary'; years?: number }[]>([]);
-  // Shown once per login, not once per visit. It used to reappear on every
-  // dashboard load for the rest of the day, because dismissing it only set
-  // state that a reload threw away — so the same person got interrupted by
-  // the same popup several times a day. lib/celebrationPopupSeen.ts remembers
-  // it per user per day, and every sign-out path clears that, so a fresh
-  // login on a birthday still shows it.
   const [celebrationsDismissed, setCelebrationsDismissed] = useState(false);
-  // Read once, lazily, instead of in an effect. `null` on the server, where
-  // there is no localStorage. Safe for hydration because the popup cannot
-  // render on that first pass either way — `celebrations` is empty until the
-  // fetch below returns — so the server and client agree on the output.
   const [celebrationsAlreadySeen] = useState<boolean | null>(() =>
     typeof window === 'undefined' ? null : hasSeenCelebrationPopup(currentUser.username)
   );
@@ -277,22 +273,11 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   }, []);
 
   const showCelebrations = celebrations.length > 0 && celebrationsAlreadySeen === false && !celebrationsDismissed;
-  // Marked the moment it is actually on screen, not when it is closed:
-  // "once" has to hold even for someone who navigates away or shuts the tab
-  // without pressing Close, which is exactly how the repeats happened.
+
   useEffect(() => {
     if (showCelebrations) markCelebrationPopupSeen(currentUser.username);
   }, [showCelebrations, currentUser.username]);
 
-  // Projects by delivery department, with each department's share of the
-  // value beside its count. A project spanning AI and AV is counted under
-  // BOTH — it genuinely is work for both teams — so the COUNTS deliberately
-  // do not sum to the project total, which the card says outright rather
-  // than leaving it to look like a miscount. The VALUES do sum, because
-  // departmentValueOf gives each department only its own slice.
-  //
-  // Uses the same two functions as the Projects dashboard's own filter and
-  // Total Value tile, so the card and that page can never disagree.
   const departmentBreakdown = useMemo(() => {
     const projects = allProjects ?? [];
     return {
@@ -310,9 +295,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
   const recentProjects = useMemo(() => (allProjects ? [...allProjects].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 3) : null), [allProjects]);
 
-  // Departments the viewer manages — drives "Demos awaiting your approval"
-  // and is purely a lib/departmentStore.ts Department.managerIds
-  // relationship, independent of login role.
   const managedDepartments = useMemo(
     () => Object.entries(managersByDepartment).filter(([, managers]) => managers.some((m) => m.id === currentUser.id)).map(([name]) => name),
     [managersByDepartment, currentUser.id]
@@ -331,10 +313,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     });
   }, [demos, managedDepartments, rosterById]);
 
-  // One unified "what needs me right now" list instead of a stack of
-  // identically-styled banners — built from exactly the same data the old
-  // banners used, just prioritized (urgent first) and given a positive
-  // empty state instead of silently rendering nothing.
   const attentionItems = useMemo<AttentionItem[]>(() => {
     const items: AttentionItem[] = [];
     if (isPrivileged && followUpCount) {
@@ -352,11 +330,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (isBackOffice && backOfficeKpis?.pendingVerification) {
       items.push({ key: 'dc-verify', group: 'pending', label: `DC${backOfficeKpis.pendingVerification === 1 ? '' : 's'} awaiting material return verification`, count: backOfficeKpis.pendingVerification, href: '/backoffice', tone: 'urgent' });
     }
-    // A call queue, not a backlog of paperwork: a lead is assigned, and
-    // nobody has rung it yet (lib/followUp.ts's isLeadUnattended, and
-    // /api/dashboard scopes the count to this viewer's own assignments).
-    // "Unattended leads" read as an unexplained scolding — this says what
-    // the row actually wants done about it.
     if (unattendedLeads) {
       items.push({ key: 'leads', group: 'due', label: `Lead${unattendedLeads === 1 ? '' : 's'} assigned to you with no call logged`, count: unattendedLeads, href: '/leads?filter=unattended&assignee=me', tone: 'urgent' });
     }
@@ -409,9 +382,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         tone: 'urgent'
       });
     }
-    // A sales person asked for this viewer (or someone on the team they
-    // manage) as a project's technical person — nothing is assigned until
-    // it's approved, so this is urgent.
     if (pendingTechnicalApprovals.length) {
       items.push({
         key: 'technical-approval',
@@ -442,9 +412,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         tone: 'urgent'
       });
     }
-    // Urgent items surface first regardless of push order above, so the
-    // compact (sliced) view on the Dashboard itself always shows the most
-    // pressing items rather than whatever happened to be pushed earliest.
     return items.sort((a, b) => (a.tone === b.tone ? 0 : a.tone === 'urgent' ? -1 : 1));
   }, [
     isPrivileged,
@@ -466,10 +433,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     pendingProjectConfirmations
   ]);
 
-  // Sales leadership reads this queue as two different questions — "what is
-  // waiting on a decision" and "what is falling due" — so the one list splits
-  // in two for them (see AttentionItem.group). Every other role keeps the
-  // single combined list it has always had, which is `attentionItems` whole.
   const pendingAttentionItems = useMemo(
     () => (salesLeadership ? attentionItems.filter((item) => item.group === 'pending') : attentionItems),
     [salesLeadership, attentionItems]
@@ -479,16 +442,11 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     [salesLeadership, attentionItems]
   );
 
-  // Drives the panel's accent and its header badge: the card is only loud
-  // when something in it actually is.
   const urgentAttentionCount = useMemo(
     () => pendingAttentionItems.filter((item) => item.tone === 'urgent').length,
     [pendingAttentionItems]
   );
 
-  // Only declare "you're all caught up" once every signal this role
-  // actually receives has resolved — otherwise a still-loading dashboard
-  // would flash a false all-clear before the real counts arrive.
   const attentionLoading =
     reminderCount === null ||
     unattendedLeads === null ||
@@ -497,11 +455,123 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     (isPrivileged && followUpCount === null) ||
     (isBackOffice && backOfficeKpis === null);
 
-  // Built once and placed by whichever slot in the section list matches
-  // `dueAfterSection`, so the two placements can't drift apart.
   const dueSection = salesLeadership ? (
     <DueSection items={dueAttentionItems} loading={attentionLoading} isExpanded={isExpanded(DUE_SECTION_LABEL)} onToggle={() => toggle(DUE_SECTION_LABEL)} />
   ) : null;
+
+  // Flattened modules and search/filter logic
+  const allFlattenedModules = useMemo(() => {
+    const list: { id: string; label: string; desc: string; href: string; icon: string; category: string }[] = [];
+    for (const sec of orderedSections) {
+      for (const tile of sec.tiles) {
+        list.push({ ...tile, category: sec.label });
+      }
+    }
+    return list;
+  }, [orderedSections]);
+
+  const categoryList = useMemo(() => {
+    return ['all', ...orderedSections.map((s) => s.label)];
+  }, [orderedSections]);
+
+  const visibleSections = useMemo(() => {
+    if (selectedCategoryTab === 'all') return orderedSections;
+    return orderedSections.filter((s) => s.label === selectedCategoryTab);
+  }, [orderedSections, selectedCategoryTab]);
+
+  const filteredModules = useMemo(() => {
+    const query = moduleSearchQuery.trim().toLowerCase();
+    if (!query) return null;
+    return allFlattenedModules.filter(
+      (m) =>
+        m.label.toLowerCase().includes(query) ||
+        m.desc.toLowerCase().includes(query) ||
+        m.category.toLowerCase().includes(query)
+    );
+  }, [allFlattenedModules, moduleSearchQuery]);
+
+  // Health Stats & Filtering
+  const healthStats = useMemo(() => {
+    if (!health || !health.gauges.length) return null;
+    const total = health.gauges.length;
+    const redCount = health.gauges.filter((g) => g.band === 'red').length;
+    const yellowCount = health.gauges.filter((g) => g.band === 'yellow').length;
+    const greenCount = health.gauges.filter((g) => g.band === 'green').length;
+    const scoredGauges = health.gauges.filter((g) => g.band !== 'na');
+    const avgScore = scoredGauges.length
+      ? Math.round(scoredGauges.reduce((sum, g) => sum + g.score, 0) / scoredGauges.length)
+      : 0;
+
+    const topDept = scoredGauges.length
+      ? [...scoredGauges].sort((a, b) => b.score - a.score)[0]
+      : null;
+
+    const riskDept = redCount > 0
+      ? [...scoredGauges].filter((g) => g.band === 'red').sort((a, b) => a.score - b.score)[0]
+      : null;
+
+    return { total, redCount, yellowCount, greenCount, avgScore, topDept, riskDept };
+  }, [health]);
+
+  const filteredAndSortedGauges = useMemo(() => {
+    if (!health) return [];
+    let list = [...health.gauges];
+
+    if (healthBandFilter !== 'all') {
+      list = list.filter((g) => g.band === healthBandFilter);
+    }
+
+    const query = healthSearchQuery.trim().toLowerCase();
+    if (query) {
+      list = list.filter((g) => g.department.toLowerCase().includes(query));
+    }
+
+    if (healthSortOrder === 'priority') {
+      list.sort((a, b) => {
+        if (a.band === 'na' && b.band === 'na') return a.department.localeCompare(b.department);
+        if (a.band === 'na') return 1;
+        if (b.band === 'na') return -1;
+        return a.score - b.score;
+      });
+    } else if (healthSortOrder === 'top') {
+      list.sort((a, b) => {
+        if (a.band === 'na' && b.band === 'na') return a.department.localeCompare(b.department);
+        if (a.band === 'na') return 1;
+        if (b.band === 'na') return -1;
+        return b.score - a.score;
+      });
+    } else if (healthSortOrder === 'alpha') {
+      list.sort((a, b) => a.department.localeCompare(b.department));
+    }
+
+    return list;
+  }, [health, healthBandFilter, healthSortOrder, healthSearchQuery]);
+
+  function handleCopyHealthReport() {
+    if (!health || !health.gauges.length) return;
+    const lines = [
+      `📊 MatrixIQ Executive Department Health Report — ${new Date().toLocaleDateString()}`,
+      `Average Org Health: ${healthStats?.avgScore ?? 0}% (${healthStats?.total ?? 0} active departments)`,
+      `Needs Attention: ${healthStats?.redCount ?? 0} | On Track: ${healthStats?.yellowCount ?? 0} | Performing: ${healthStats?.greenCount ?? 0}`,
+      '',
+      'Department Performance Breakdown:',
+      ...filteredAndSortedGauges.map(
+        (g, idx) =>
+          `#${idx + 1} ${g.department}: ${g.band === 'na' ? 'No Data' : `${g.score}%`} [${BAND_TEXT[g.band]}]${g.breakdown[0] ? ` — ${g.breakdown[0].label}: ${g.breakdown[0].value}` : ''}`
+      )
+    ].join('\n');
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(lines).then(() => {
+        setCopiedHealthToast(true);
+        setTimeout(() => setCopiedHealthToast(false), 2400);
+      });
+    }
+  }
+
+  const greeting = useMemo(() => getTimeGreeting(), []);
+  const formattedDate = useMemo(() => getFormattedDate(), []);
+  const totalModuleCount = allFlattenedModules.length;
 
   return (
     <AppShell title={BRAND.appName} subtitle={BRAND.tagline} showBackLink={false}>
@@ -548,32 +618,70 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           </div>
         </Modal>
       )}
-      <header className={styles.pageIntro}>
-        <div className={styles.pageIntroText}>
-          <h1 className={styles.pageTitle}>{timeOfDayGreeting()}, {currentUser.name.split(' ')[0]}</h1>
-          <p className={styles.pageSubtitle}>Here&apos;s where things stand across your work today.</p>
+
+      {/* 1. HERO BANNER & GREETING HEADER */}
+      <section className={styles.heroBanner} aria-label="Welcome and quick actions">
+        <div className={styles.heroContent}>
+          <div className={styles.heroAvatarWrapper}>
+            <div className={styles.heroAvatar}>{getInitials(currentUser.name)}</div>
+            <span className={styles.heroAvatarStatus} title="Active Online" />
+          </div>
+          <div className={styles.heroText}>
+            <div className={styles.heroGreetingRow}>
+              <span className={styles.heroGreetingIcon}><greeting.Icon size={18} /></span>
+              <h1 className={styles.heroTitle}>{greeting.text}, {currentUser.name.split(' ')[0]}</h1>
+            </div>
+            <div className={styles.heroSubtitleRow}>
+              <span className={styles.heroDate}>
+                <Calendar size={13} /> {formattedDate}
+              </span>
+              <span className={styles.heroBadge}>
+                <ShieldCheck size={12} />
+                {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
+                {currentUser.department ? ` · ${currentUser.department}` : ''}
+              </span>
+            </div>
+          </div>
         </div>
-        <Link href="/quotation" className={styles.primaryCta}>+ New Quotation</Link>
-      </header>
 
-      <KpiRow kpis={headlineKpis} pendingActions={pendingAttentionItems.length} loading={headlineKpis === null} />
+        <div className={styles.heroActions}>
+          <Link href="/quotation" className={styles.heroPrimaryBtn}>
+            <Plus size={16} strokeWidth={2.5} /> New Quotation
+          </Link>
+          <Link href="/leads" className={styles.heroSecondaryBtn}>
+            <Contact size={15} /> Leads Hub
+          </Link>
+          <Link href="/analytics" className={styles.heroAnalyticsBtn}>
+            <BarChart3 size={15} /> Analytics
+          </Link>
+        </div>
+      </section>
 
+      {/* 2. EXECUTIVE HEADLINE KPI CARDS */}
+      <KpiRow
+        headlineKpis={headlineKpis}
+        kpis={kpis}
+        pendingActions={pendingAttentionItems.length}
+        loading={headlineKpis === null || kpis === null}
+      />
+
+      {/* 3. TOP DUAL/TRIPLE SPLIT GRID */}
       <div className={`${styles.topGrid} ${salesLeadership ? styles.topGridPair : ''}`}>
+        {/* Needs Your Attention Hub */}
         <div className={`${styles.attentionPanel} ${styles.topGridPanel} ${urgentAttentionCount > 0 ? styles.attentionPanelUrgent : ''}`}>
           <div className={styles.attentionHead}>
-            <span className={styles.attentionHeadTitle}>Needs Your Attention</span>
-            {/* The count lives in the header so the panel's weight tracks
-                the work in it — the card used to wear a red border and glow
-                permanently, shouting just as loudly when everything was
-                clear. */}
-            {urgentAttentionCount > 0 && (
+            <div className={styles.attentionHeadLeft}>
+              <span className={styles.attentionHeadIcon}><Zap size={16} /></span>
+              <span className={styles.attentionHeadTitle}>Needs Your Attention</span>
+            </div>
+            {urgentAttentionCount > 0 ? (
               <span className={styles.attentionHeadBadge}>{urgentAttentionCount} urgent</span>
-            )}
+            ) : pendingAttentionItems.length === 0 && !attentionLoading ? (
+              <span className={styles.attentionHeadClearBadge}>All Clear</span>
+            ) : null}
           </div>
+
           {pendingAttentionItems.length > 0 ? (
-            /* No "View all" button: the list below renders every item and
-               scrolls past three rows, so the drawer it used to open was a
-               second way to see exactly the same rows. */
             <div className={`${styles.attentionList} ${styles.attentionScroll}`}>
               {pendingAttentionItems.map((item) => (
                 <AttentionRow key={item.key} item={item} />
@@ -582,19 +690,19 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           ) : (
             <div className={styles.attentionEmpty}>
               {attentionLoading ? (
-                'Checking\u2026'
+                <span className={styles.attentionAllCaughtUp}>Checking active queues&hellip;</span>
               ) : (
-                <span className={styles.attentionAllCaughtUp}>
-                  <ALL_CAUGHT_UP_ICON size={16} /> You&apos;re all caught up.
-                </span>
+                <div className={styles.attentionCaughtUpCard}>
+                  <div className={styles.attentionCaughtUpIcon}><CheckCircle2 size={24} /></div>
+                  <div className={styles.attentionCaughtUpTitle}>You&apos;re all caught up!</div>
+                  <div className={styles.attentionCaughtUpSub}>No pending approvals, urgent leads, or due reminders require your attention right now.</div>
+                </div>
               )}
             </div>
           )}
         </div>
 
-        {/* Sales leadership gets the Sales Team Summary in the space the
-            Recent Projects / Recent Quotations pair occupies for everyone
-            else — a six-column table needs both of those columns to itself. */}
+        {/* Sales Leadership Summary Table OR Non-leadership Insights Grid */}
         {salesLeadership ? (
           <SalesTeamSummaryPanel rows={salesTeamSummary} />
         ) : (
@@ -613,6 +721,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
                       <div className={styles.recentRowTitle}>{p.client_name || p.company || `Project ${p.id}`}</div>
                       <div className={styles.recentRowMeta}>{PROJECT_STAGE_LABEL[p.stage] || p.stage}</div>
                     </div>
+                    <ChevronRight size={14} className={styles.attentionArrow} />
                   </Link>
                 ))}
               </div>
@@ -684,18 +793,16 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         )}
       </div>
 
-      {/* The viewer's own target vs achievement — renders only for someone
-          who actually carries one (see components/MyTargetPanel.tsx), so
-          every other role's dashboard is unchanged. Sits directly under the
-          attention panel: for a rep, "am I going to make my number" is the
-          second question after "what needs me today". */}
+      {/* 4. MY TARGET PANEL (When applicable) */}
       <MyTargetPanel />
 
+      {/* 5. PERSONAL ASSIGNMENTS HUB (When applicable) */}
       {(myAssignedProjects.length > 0 || myAssignedDemos.length > 0) && (
         <div className={styles.recentGrid}>
           <div className={styles.recentCard}>
             <div className={styles.recentCardHead}>
               <h3>Projects Assigned to You</h3>
+              <Link href="/projects">View all &rarr;</Link>
             </div>
             <div className={styles.recentList}>
               {myAssignedProjects.length === 0 && <div className={styles.recentEmpty}>None right now.</div>}
@@ -705,6 +812,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
                     <div className={styles.recentRowTitle}>{p.client_name || p.company || `Project ${p.id}`}</div>
                     <div className={styles.recentRowMeta}>{PROJECT_STAGE_LABEL[p.stage] || p.stage}</div>
                   </div>
+                  <ChevronRight size={14} className={styles.attentionArrow} />
                 </Link>
               ))}
             </div>
@@ -713,7 +821,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           <div className={styles.recentCard}>
             <div className={styles.recentCardHead}>
               <h3>Demos Assigned to You</h3>
-              <Link href="/demo-schedule">View all →</Link>
+              <Link href="/demo-schedule">View all &rarr;</Link>
             </div>
             <div className={styles.recentList}>
               {myAssignedDemos.length === 0 && <div className={styles.recentEmpty}>None right now.</div>}
@@ -723,6 +831,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
                     <div className={styles.recentRowTitle}>{d.client_name}{d.company ? ` (${d.company})` : ''}</div>
                     <div className={styles.recentRowMeta}>{d.status.replace(/_/g, ' ')}</div>
                   </div>
+                  <ChevronRight size={14} className={styles.attentionArrow} />
                 </Link>
               ))}
             </div>
@@ -730,138 +839,524 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         </div>
       )}
 
+      {/* 6. REDESIGNED DEPARTMENT HEALTH & PERFORMANCE SECTION */}
       {health && health.gauges.length > 0 && (
-        <>
-          {/* One traffic-light gauge per department the viewer is allowed to
-              see — org-wide gets every department, a department manager
-              gets just their own, everyone else gets one personal gauge.
-              See app/api/dashboard/health/route.ts + lib/departmentScoring.ts
-              for how scope/scoring is resolved. Clicking a gauge opens
-              DepartmentHealthDetail, which lazy-loads the per-member
-              breakdown from /api/dashboard/health/[department]. */}
+        <section className={styles.healthSection} aria-label="Department Health & Performance">
           <div className={styles.healthHead}>
-            <div className={styles.healthHeadText}>
-              <h2 className={styles.healthTitle}>
-                {health.scope === 'org'
-                  ? 'Department Health'
-                  : health.scope === 'department'
-                    ? health.gauges.length === 1
-                      ? `${health.gauges[0].department} Team Health`
-                      : 'Team Health'
-                    : 'Your Performance'}
-              </h2>
-              {/* The sort order is a deliberate signal, not an accident of
-                  the alphabet — worth saying, since a reader can't tell a
-                  worst-first list from an arbitrary one. */}
-              <p className={styles.healthSub}>Lowest score first. Open a gauge for the per-member breakdown.</p>
+            <div>
+              <div className={styles.healthTitleRow}>
+                <span className={styles.healthIconWrapper}><Sparkles size={18} /></span>
+                <h2 className={styles.healthTitle}>
+                  {health.scope === 'org'
+                    ? 'Department Health & Performance'
+                    : health.scope === 'department'
+                      ? health.gauges.length === 1
+                        ? `${health.gauges[0].department} Team Health`
+                        : 'Team Health'
+                      : 'Your Performance Scorecard'}
+                </h2>
+                {healthStats && (
+                  <span className={styles.healthOrgScoreBadge}>
+                    Org Avg: {healthStats.avgScore}% · {healthStats.total} Teams
+                  </span>
+                )}
+              </div>
+              <p className={styles.healthSub}>
+                Performance index tracking operational targets, turnaround SLAs, and deliverables. Click any card for detailed breakdowns.
+              </p>
             </div>
-            {/* Legend, so the band colours are readable without opening a gauge. */}
-            <div className={styles.healthLegend}>
-              <span className={styles.legendItem}><i className={styles.legendDotDanger} /> Below 40</span>
-              <span className={styles.legendItem}><i className={styles.legendDotWarning} /> 40–69</span>
-              <span className={styles.legendItem}><i className={styles.legendDotSuccess} /> 70+</span>
-            </div>
-          </div>
-          <div className={styles.healthGrid}>
-            {[...health.gauges]
-              // Worst first: the gauge that needs attention shouldn't be
-              // whichever one happens to sort last alphabetically. Unscored
-              // ('na') departments go to the end rather than reading as 0%.
-              .sort((a, b) => {
-                if (a.band === 'na' && b.band === 'na') return a.department.localeCompare(b.department);
-                if (a.band === 'na') return 1;
-                if (b.band === 'na') return -1;
-                return a.score - b.score;
-              })
-              .map((g) => (
-                <HealthGauge
-                  key={g.department}
-                  label={g.department}
-                  score={g.score}
-                  band={g.band}
-                  breakdown={g.breakdown}
-                  onOpen={() => setOpenHealthDepartment(g.department)}
+
+            <div className={styles.healthControls}>
+              {/* Department Search Input */}
+              <div className={styles.healthSearchWrap}>
+                <Search size={13} className={styles.healthSearchIcon} />
+                <input
+                  type="text"
+                  className={styles.healthSearchInput}
+                  placeholder="Filter departments..."
+                  value={healthSearchQuery}
+                  onChange={(e) => setHealthSearchQuery(e.target.value)}
+                  aria-label="Filter departments by name"
                 />
-              ))}
+                {healthSearchQuery && (
+                  <button
+                    type="button"
+                    className={styles.healthSearchClear}
+                    onClick={() => setHealthSearchQuery('')}
+                    aria-label="Clear filter"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Pills */}
+              <div className={styles.healthFilterPills}>
+                <button
+                  type="button"
+                  className={`${styles.healthFilterBtn} ${healthBandFilter === 'all' ? styles.healthFilterBtnActive : ''}`}
+                  onClick={() => setHealthBandFilter('all')}
+                >
+                  All ({healthStats?.total ?? 0})
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.healthFilterBtn} ${healthBandFilter === 'red' ? styles.healthFilterBtnActive : ''}`}
+                  onClick={() => setHealthBandFilter('red')}
+                >
+                  <span className={styles.healthFilterDot} style={{ background: 'var(--mx-danger)' }} />
+                  Needs Attention ({healthStats?.redCount ?? 0})
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.healthFilterBtn} ${healthBandFilter === 'yellow' ? styles.healthFilterBtnActive : ''}`}
+                  onClick={() => setHealthBandFilter('yellow')}
+                >
+                  <span className={styles.healthFilterDot} style={{ background: 'var(--mx-warning)' }} />
+                  On Track ({healthStats?.yellowCount ?? 0})
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.healthFilterBtn} ${healthBandFilter === 'green' ? styles.healthFilterBtnActive : ''}`}
+                  onClick={() => setHealthBandFilter('green')}
+                >
+                  <span className={styles.healthFilterDot} style={{ background: 'var(--mx-success)' }} />
+                  Performing ({healthStats?.greenCount ?? 0})
+                </button>
+              </div>
+
+              {/* View Mode Toggle */}
+              <div className={styles.moduleViewModeToggle}>
+                <button
+                  type="button"
+                  className={`${styles.moduleViewModeBtn} ${healthViewMode === 'cards' ? styles.moduleViewModeBtnActive : ''}`}
+                  onClick={() => setHealthViewMode('cards')}
+                  title="Scorecard Grid"
+                >
+                  <LayoutGrid size={13} /> Cards
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.moduleViewModeBtn} ${healthViewMode === 'leaderboard' ? styles.moduleViewModeBtnActive : ''}`}
+                  onClick={() => setHealthViewMode('leaderboard')}
+                  title="Ranked Table"
+                >
+                  <TableIcon size={13} /> Ranked
+                </button>
+              </div>
+
+              {/* Sort selector */}
+              <select
+                className={styles.healthSortSelect}
+                value={healthSortOrder}
+                onChange={(e) => setHealthSortOrder(e.target.value as 'priority' | 'top' | 'alpha')}
+                aria-label="Sort health gauges"
+              >
+                <option value="priority">Sort: Priority (Lowest First)</option>
+                <option value="top">Sort: Top Performing First</option>
+                <option value="alpha">Sort: Name (A-Z)</option>
+              </select>
+
+              {/* Executive Copy Snapshot Button */}
+              <button
+                type="button"
+                className={styles.healthSnapshotBtn}
+                onClick={handleCopyHealthReport}
+                title="Copy formatted Executive Health Report to clipboard"
+              >
+                {copiedHealthToast ? (
+                  <>
+                    <Check size={13} className={styles.snapshotCheckIcon} /> Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy size={13} /> Snapshot
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </>
+
+          {/* Executive Performance Highlights Bar */}
+          {healthStats && (
+            <div className={styles.healthInsightsBar}>
+              <button
+                type="button"
+                className={`${styles.healthInsightCard} ${styles.healthInsightCardClickable}`}
+                onClick={() => setHealthBandFilter('all')}
+                title="View all departments"
+              >
+                <div className={`${styles.healthInsightIcon} ${styles.healthInsightIconAvg}`}>
+                  <Activity size={18} />
+                </div>
+                <div className={styles.healthInsightText}>
+                  <div className={styles.healthInsightVal}>{healthStats.avgScore}% Overall Health</div>
+                  <div className={styles.healthInsightSub}>Across {healthStats.total} monitored departments</div>
+                </div>
+              </button>
+
+              {healthStats.riskDept ? (
+                <button
+                  type="button"
+                  className={`${styles.healthInsightCard} ${styles.healthInsightCardClickable} ${styles.healthInsightCardWarning}`}
+                  onClick={() => setHealthBandFilter('red')}
+                  title="Filter to departments needing attention"
+                >
+                  <div className={`${styles.healthInsightIcon} ${styles.healthInsightIconRisk}`}>
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div className={styles.healthInsightText}>
+                    <div className={styles.healthInsightVal}>{healthStats.riskDept.department} ({healthStats.riskDept.score}%)</div>
+                    <div className={styles.healthInsightSub}>Requires immediate review ({healthStats.redCount} at risk)</div>
+                  </div>
+                </button>
+              ) : (
+                <div className={styles.healthInsightCard}>
+                  <div className={`${styles.healthInsightIcon} ${styles.healthInsightIconTop}`}>
+                    <CheckCircle2 size={18} />
+                  </div>
+                  <div className={styles.healthInsightText}>
+                    <div className={styles.healthInsightVal}>0 Teams At Risk</div>
+                    <div className={styles.healthInsightSub}>All department targets within acceptable thresholds</div>
+                  </div>
+                </div>
+              )}
+
+              {healthStats.topDept && (
+                <button
+                  type="button"
+                  className={`${styles.healthInsightCard} ${styles.healthInsightCardClickable}`}
+                  onClick={() => setHealthBandFilter('green')}
+                  title="Filter to top performing departments"
+                >
+                  <div className={`${styles.healthInsightIcon} ${styles.healthInsightIconTop}`}>
+                    <Trophy size={18} />
+                  </div>
+                  <div className={styles.healthInsightText}>
+                    <div className={styles.healthInsightVal}>{healthStats.topDept.department} ({healthStats.topDept.score}%)</div>
+                    <div className={styles.healthInsightSub}>Highest operational health score</div>
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
+
+          {filteredAndSortedGauges.length > 0 ? (
+            healthViewMode === 'cards' ? (
+              <div className={styles.healthGrid}>
+                {filteredAndSortedGauges.map((g) => (
+                  <HealthGauge
+                    key={g.department}
+                    label={g.department}
+                    score={g.score}
+                    band={g.band}
+                    breakdown={g.breakdown}
+                    managers={managersByDepartment[g.department] || []}
+                    onOpen={() => setOpenHealthDepartment(g.department)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className={styles.healthLeaderboardWrap}>
+                <table className={styles.healthLeaderboardTable}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '45px' }}>Rank</th>
+                      <th>Department &amp; Lead</th>
+                      <th>Status Band</th>
+                      <th style={{ minWidth: '180px' }}>Health Score</th>
+                      <th>Primary Operational Metric</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAndSortedGauges.map((g, idx) => {
+                      const deptIcon = departmentIconFor(g.department);
+                      const headline = g.breakdown[0];
+                      const color = BAND_COLOR[g.band];
+                      const managers = managersByDepartment[g.department] || [];
+                      const leadManager = managers[0];
+
+                      return (
+                        <tr key={g.department}>
+                          <td>
+                            <span className={`${styles.rankBadge} ${idx === 0 ? styles.rankBadgeTop : ''}`}>
+                              #{idx + 1}
+                            </span>
+                          </td>
+                          <td>
+                            <div className={styles.leaderboardDeptCell}>
+                              <span className={styles.leaderboardDeptIcon}>
+                                {createElement(deptIcon, { size: 15 })}
+                              </span>
+                              <div>
+                                <strong className={styles.leaderboardDeptName}>{g.department}</strong>
+                                {leadManager && (
+                                  <div className={styles.leaderboardManagerName}>
+                                    Lead: {leadManager.name || leadManager.username}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={styles.legendItem} style={{ color, borderColor: color }}>
+                              <i style={{ background: color }} />
+                              {BAND_TEXT[g.band]}
+                            </span>
+                          </td>
+                          <td>
+                            <div className={styles.leaderboardScoreBar}>
+                              <div className={styles.leaderboardMiniTrack}>
+                                <div
+                                  className={styles.leaderboardMiniFill}
+                                  style={{ width: `${Math.max(0, Math.min(100, g.score))}%`, background: color }}
+                                />
+                              </div>
+                              <span className={styles.leaderboardScoreNum} style={{ color }}>
+                                {g.band === 'na' ? '—' : `${g.score}%`}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            {headline ? (
+                              <span style={{ fontSize: '12px' }}>
+                                {headline.label}: <strong>{headline.value}</strong>
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--mx-ink-faint)', fontSize: '12px' }}>No metrics recorded</span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className={styles.leaderboardActionBtn}
+                              onClick={() => setOpenHealthDepartment(g.department)}
+                            >
+                              Team Details <ChevronRight size={12} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
+          ) : (
+            <div className={styles.emptySearchResult}>
+              {healthSearchQuery ? (
+                <>No departments matching &ldquo;{healthSearchQuery}&rdquo; found.</>
+              ) : (
+                <>No departments found in the &ldquo;{healthBandFilter}&rdquo; status band.</>
+              )}
+            </div>
+          )}
+        </section>
       )}
+
 
       {openHealthDepartment && (
         <DepartmentHealthDetail
           department={openHealthDepartment}
           onClose={() => setOpenHealthDepartment(null)}
-          // Only rendered by DepartmentHealthDetail in its self-only branch
-          // (a non-privileged, non-department-manager viewer), where
-          // allProjects — already scoped by /api/dashboard's
-          // projectStore.listLight to exactly what this viewer may see — IS
-          // exactly "my projects" by construction, no extra filtering needed.
           myProjects={allProjects || []}
         />
       )}
 
-      {/* Upcoming birthdays / work anniversaries — used to be its own
-          "HR Dashboard" page; it's a whole-company thing, not an HR one, so
-          it lives here now. See components/CelebrationsSection.tsx. */}
-      <div className={styles.sectionHeading}>Celebrations</div>
+      {/* 7. CELEBRATIONS SECTION */}
+      <div className={styles.sectionHeading}>
+        <span>🎉 Company Celebrations</span>
+      </div>
       <CelebrationsSection />
 
-      <div className={styles.kpiGrid}>
-        <Link href="/analytics" className={styles.kpiCard}>
-          <div className={styles.kpiValue}><ANALYTICS_ICON size={22} /></div>
-          <div className={styles.kpiLabel}>View Full Analytics &rarr;</div>
-        </Link>
-      </div>
+      {/* 8. REDESIGNED WORKSPACE & OPERATIONAL MODULES DIRECTORY */}
+      <section className={styles.modulesSection} aria-label="Workspace & System Modules">
+        <div className={styles.modulesSectionHead}>
+          <div className={styles.modulesHeadLeft}>
+            <span className={styles.modulesHeadIconWrapper}><Layers size={18} /></span>
+            <h2 className={styles.modulesTitle}>Workspace &amp; System Modules</h2>
+            <span className={styles.modulesCount}>{totalModuleCount} tools</span>
+          </div>
 
-      {orderedSections.map((section) => {
-        const SectionToggleIcon = sectionIconFor(section.label);
-        return (
-          <Fragment key={section.label}>
-            <div>
-              <button type="button" className={styles.sectionToggle} aria-expanded={isExpanded(section.label)} onClick={() => toggle(section.label)}>
-                <span className={styles.sectionToggleIcon}><SectionToggleIcon size={14} /></span>
-                <span className={styles.sectionToggleLabel}>{section.label}</span>
-                <span className={styles.sectionToggleCount}>{section.tiles.length}</span>
-                <span className={styles.sectionChevron}>›</span>
+          <div className={styles.modulesHeadRight}>
+            {/* View Mode Toggle */}
+            <div className={styles.moduleViewModeToggle}>
+              <button
+                type="button"
+                className={`${styles.moduleViewModeBtn} ${moduleViewMode === 'accordion' ? styles.moduleViewModeBtnActive : ''}`}
+                onClick={() => setModuleViewMode('accordion')}
+                title="Categorized View"
+              >
+                <ListFilter size={13} /> Grouped
               </button>
-              {isExpanded(section.label) && (
-                <div className={styles.grid}>
-                  {section.tiles.map((tile) => {
-                    // Every module already stores a curated icon key
-                    // (lib/moduleConfigStore.ts) that the sidebar renders and
-                    // these tiles ignored — a section opened into a wall of
-                    // text-only cards, which is far slower to scan.
-                    const TileIcon = resolveModuleIcon(tile.icon);
-                    return (
-                      <Link key={tile.id} href={tile.href} className={styles.tile}>
-                        <span className={styles.tileHead}>
-                          {TileIcon && <span className={styles.tileIcon}><TileIcon size={16} /></span>}
-                          <span className={styles.tileTitle}>{tile.label}</span>
-                        </span>
-                        <span className={styles.tileDesc}>{tile.desc}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
+              <button
+                type="button"
+                className={`${styles.moduleViewModeBtn} ${moduleViewMode === 'grid' ? styles.moduleViewModeBtnActive : ''}`}
+                onClick={() => setModuleViewMode('grid')}
+                title="Expanded Grid View"
+              >
+                <LayoutGrid size={13} /> All Tools
+              </button>
+            </div>
+
+            {/* Instant Search Bar */}
+            <div className={styles.moduleSearchWrap}>
+              <Search size={14} className={styles.moduleSearchIcon} />
+              <input
+                type="text"
+                className={styles.moduleSearchInput}
+                placeholder="Search tools &amp; modules…"
+                value={moduleSearchQuery}
+                onChange={(e) => setModuleSearchQuery(e.target.value)}
+              />
+              {moduleSearchQuery && (
+                <button
+                  type="button"
+                  className={styles.moduleSearchClear}
+                  onClick={() => setModuleSearchQuery('')}
+                  aria-label="Clear search"
+                >
+                  &times;
+                </button>
               )}
             </div>
-            {dueAfterSection === section.label && dueSection}
-          </Fragment>
-        );
-      })}
+          </div>
+        </div>
 
-      {/* No module sections at all (none visible to this role, or still
-          loading) — the bar still has to appear somewhere. */}
-      {dueAfterSection === null && dueSection}
+        {/* Quick Jump Category Chips */}
+        {!moduleSearchQuery && (
+          <div className={styles.categoryTabsBar}>
+            {categoryList.map((catKey) => {
+              const label = catKey === 'all' ? 'All Categories' : catKey;
+              const isActive = selectedCategoryTab === catKey;
+              const Icon = catKey === 'all' ? Layers : sectionIconFor(catKey);
+              return (
+                <button
+                  key={catKey}
+                  type="button"
+                  className={`${styles.categoryTabChip} ${isActive ? styles.categoryTabChipActive : ''}`}
+                  onClick={() => setSelectedCategoryTab(catKey)}
+                >
+                  <Icon size={13} />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Search Results Mode */}
+        {filteredModules !== null ? (
+          filteredModules.length > 0 ? (
+            <div className={styles.searchResultsGrid}>
+              {filteredModules.map((tile) => {
+                const TileIcon = resolveModuleIcon(tile.icon);
+                return (
+                  <Link key={tile.id} href={tile.href} className={styles.searchResultCard}>
+                    <div>
+                      <div className={styles.searchResultCat}>{tile.category}</div>
+                      <div className={styles.tileHead}>
+                        {TileIcon && <span className={styles.tileIcon}><TileIcon size={18} /></span>}
+                        <span className={styles.searchResultTitle}>{tile.label}</span>
+                      </div>
+                      <span className={styles.searchResultDesc}>{tile.desc}</span>
+                    </div>
+                    <div className={styles.tileFooter}>
+                      <ArrowRight size={14} className={styles.tileArrow} />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className={styles.emptySearchResult}>
+              No modules found matching &ldquo;{moduleSearchQuery}&rdquo;. Try searching for &ldquo;Leads&rdquo;, &ldquo;TMS&rdquo;, &ldquo;Quotation&rdquo;, or &ldquo;HR&rdquo;.
+            </div>
+          )
+        ) : moduleViewMode === 'grid' ? (
+          /* Full Expanded Grid Mode */
+          <div className={styles.searchResultsGrid}>
+            {allFlattenedModules
+              .filter((m) => selectedCategoryTab === 'all' || m.category === selectedCategoryTab)
+              .map((tile) => {
+                const TileIcon = resolveModuleIcon(tile.icon);
+                return (
+                  <Link key={tile.id} href={tile.href} className={styles.searchResultCard}>
+                    <div>
+                      <div className={styles.searchResultCat}>{tile.category}</div>
+                      <div className={styles.tileHead}>
+                        {TileIcon && <span className={styles.tileIcon}><TileIcon size={18} /></span>}
+                        <span className={styles.searchResultTitle}>{tile.label}</span>
+                      </div>
+                      <span className={styles.searchResultDesc}>{tile.desc}</span>
+                    </div>
+                    <div className={styles.tileFooter}>
+                      <ArrowRight size={14} className={styles.tileArrow} />
+                    </div>
+                  </Link>
+                );
+              })}
+          </div>
+        ) : (
+          /* Accordion Mode */
+          visibleSections.map((section) => {
+            const SectionToggleIcon = sectionIconFor(section.label);
+            const isCurrentlyExpanded = isExpanded(section.label);
+            const categoryDescription = SECTION_DESCRIPTIONS[section.label] || 'Manage operations and department workflows';
+
+            return (
+              <Fragment key={section.label}>
+                <div>
+                  <button
+                    type="button"
+                    className={styles.sectionToggle}
+                    aria-expanded={isCurrentlyExpanded}
+                    onClick={() => toggle(section.label)}
+                  >
+                    <span className={styles.sectionToggleIcon}><SectionToggleIcon size={18} /></span>
+                    <div className={styles.sectionToggleMain}>
+                      <div className={styles.sectionToggleLabel}>{section.label}</div>
+                      <div className={styles.sectionToggleSub}>{categoryDescription}</div>
+                    </div>
+                    <span className={styles.sectionToggleCount}>{section.tiles.length} {section.tiles.length === 1 ? 'tool' : 'tools'}</span>
+                    <span className={styles.sectionChevron}>›</span>
+                  </button>
+
+                  {isCurrentlyExpanded && (
+                    <div className={styles.grid}>
+                      {section.tiles.map((tile) => {
+                        const TileIcon = resolveModuleIcon(tile.icon);
+                        return (
+                          <Link key={tile.id} href={tile.href} className={styles.tile}>
+                            <div>
+                              <span className={styles.tileHead}>
+                                {TileIcon && <span className={styles.tileIcon}><TileIcon size={18} /></span>}
+                                <span className={styles.tileTitle}>{tile.label}</span>
+                              </span>
+                              <span className={styles.tileDesc}>{tile.desc}</span>
+                            </div>
+                            <div className={styles.tileFooter}>
+                              <ArrowRight size={14} className={styles.tileArrow} />
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {dueAfterSection === section.label && dueSection}
+              </Fragment>
+            );
+          })
+        )}
+
+        {dueAfterSection === null && dueSection}
+      </section>
     </AppShell>
   );
 }
 
-// Sits among the module-section bars, styled as one of them, so a Sales
-// Manager / Admin / Super Admin can collapse the clock-driven half of their
-// queue away and still see its count. Unlike "Needs Your Attention" there's
-// no 3-row cap or "View All" drawer here — it's already collapsed by default
-// and full width when opened, so the whole list fits.
 function DueSection({
   items,
   loading,
@@ -876,9 +1371,12 @@ function DueSection({
   return (
     <div>
       <button type="button" className={styles.sectionToggle} aria-expanded={isExpanded} onClick={onToggle}>
-        <span className={styles.sectionToggleIcon}><DUE_SECTION_ICON size={14} /></span>
-        <span className={styles.sectionToggleLabel}>{DUE_SECTION_LABEL}</span>
-        <span className={styles.sectionToggleCount}>{items.length}</span>
+        <span className={styles.sectionToggleIcon}><DUE_SECTION_ICON size={18} /></span>
+        <div className={styles.sectionToggleMain}>
+          <div className={styles.sectionToggleLabel}>{DUE_SECTION_LABEL}</div>
+          <div className={styles.sectionToggleSub}>Clock-driven deadlines, overdue calls, and reminder queues</div>
+        </div>
+        <span className={styles.sectionToggleCount}>{items.length} due</span>
         <span className={styles.sectionChevron}>›</span>
       </button>
       {isExpanded && (
@@ -906,35 +1404,37 @@ function DueSection({
   );
 }
 
-// Replaces the Recent Projects / Recent Quotations cards for Sales
-// leadership: one row per rep, read left to right as the funnel they work
-// (Lead -> Enquiry -> Quotation -> Billing -> Won/Lost). Every figure is
-// computed server-side in lib/salesTeamSummary.ts — see that file for what
-// each column counts and how it's attributed.
 function SalesTeamSummaryPanel({ rows }: { rows: SalesTeamSummaryRow[] | null }) {
   return (
     <div className={styles.summaryCard}>
       <div className={styles.summaryHead}>
         <div>
-          <h3 className={styles.summaryTitle}>Sales Team Summary</h3>
-          {/* The columns read left to right as the funnel they work. Saying
-              so once beats a reader inferring it from eight headers. */}
-          <p className={styles.summarySub}>Lead → Enquiry → Quotation → Billing → Outcome</p>
+          <h3 className={styles.summaryTitle}>Sales Team Pipeline Summary</h3>
+          <div className={styles.summaryFunnelFlow}>
+            <span className={styles.summaryFunnelStep}>Lead</span>
+            <span className={styles.summaryFunnelArrow}>→</span>
+            <span className={styles.summaryFunnelStep}>To Call</span>
+            <span className={styles.summaryFunnelArrow}>→</span>
+            <span className={styles.summaryFunnelStep}>Enquiry</span>
+            <span className={styles.summaryFunnelArrow}>→</span>
+            <span className={styles.summaryFunnelStep}>Quote</span>
+            <span className={styles.summaryFunnelArrow}>→</span>
+            <span className={styles.summaryFunnelStep}>Billing</span>
+            <span className={styles.summaryFunnelArrow}>→</span>
+            <span className={styles.summaryFunnelStep}>Outcome</span>
+          </div>
         </div>
         <div className={styles.summaryHeadActions}>
           {rows !== null && rows.length > 0 && (
             <span className={styles.summaryCount}>{rows.length} {rows.length === 1 ? 'rep' : 'reps'}</span>
           )}
-          {/* Progressive disclosure: the panel stays a capped, scrollable
-              summary and the full breakdown lives on its own page, so this
-              table can't grow to dominate the dashboard. */}
           <Link href="/analytics" className={styles.summaryLink}>
-            Sales analytics <ChevronRight size={13} />
+            Analytics <ChevronRight size={13} />
           </Link>
         </div>
       </div>
       {rows === null ? (
-        <div className={styles.recentEmpty}>Loading&hellip;</div>
+        <div className={styles.recentEmpty}>Loading sales pipeline data&hellip;</div>
       ) : rows.length === 0 ? (
         <EmptyState
           icon={UsersIcon}
@@ -943,125 +1443,142 @@ function SalesTeamSummaryPanel({ rows }: { rows: SalesTeamSummaryRow[] | null })
         />
       ) : (
         <>
-        <Table
-          rows={rows}
-          rowKey={(row) => row.id}
-          tableClassName={styles.summaryTable}
-          wrapClassName={styles.summaryViewport}
-          columns={[
-            { key: 'name', header: 'Name', render: (row: SalesTeamSummaryRow) => row.name },
-            { key: 'leads', header: 'Lead', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.leads },
-            // The rep's open call queue, and the overdue slice of it. A zero
-            // reads as a dash: in a column that only matters when it ISN'T
-            // zero, a wall of 0s hides the handful of rows that need action.
-            {
-              key: 'toCall',
-              header: 'To Call',
-              headerClassName: styles.summaryNum,
-              cellClassName: styles.summaryNum,
-              render: (row: SalesTeamSummaryRow) => (row.toCall ? row.toCall : '\u2014')
-            },
-            {
-              key: 'unattended',
-              header: 'Unattended',
-              headerClassName: styles.summaryNum,
-              cellClassName: styles.summaryNum,
-              render: (row: SalesTeamSummaryRow) =>
-                row.unattended ? <span className={styles.summaryAlert}>{row.unattended}</span> : '\u2014'
-            },
-            { key: 'enquiries', header: 'Enquiry', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.enquiries },
-            { key: 'quotations', header: 'Quotation', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.quotations },
-            {
-              key: 'billing',
-              header: 'Billing',
-              headerClassName: styles.summaryNum,
-              cellClassName: styles.summaryNum,
-              render: (row: SalesTeamSummaryRow) => (row.billing ? formatMoney(row.billing) : '\u2014')
-            },
-            {
-              key: 'status',
-              header: 'Status',
-              render: (row: SalesTeamSummaryRow) =>
-                row.won || row.lost ? (
-                  <span className={styles.summaryStatus}>
-                    {row.won > 0 && <StatusBadge tone="won" label={`${row.won} Won`} />}
-                    {row.lost > 0 && <StatusBadge tone="lost" label={`${row.lost} Lost`} />}
-                  </span>
-                ) : (
-                  // Nothing decided yet — deliberately not "0 Won", which
-                  // reads as a result rather than an open pipeline.
-                  '\u2014'
+          <Table
+            rows={rows}
+            rowKey={(row) => row.id}
+            tableClassName={styles.summaryTable}
+            wrapClassName={styles.summaryViewport}
+            columns={[
+              {
+                key: 'name',
+                header: 'Rep Name',
+                render: (row: SalesTeamSummaryRow) => (
+                  <div className={styles.summaryRepCell}>
+                    <span className={styles.repAvatar}>{getInitials(row.name)}</span>
+                    <span className={styles.repName}>{row.name}</span>
+                  </div>
                 )
-            }
-          ]}
-        />
-        {/* The team's totals — the figure a manager reads this table for,
-            and the one a per-rep list can't show. Outside the scrolling
-            viewport deliberately, so it stays visible however many reps
-            there are. */}
-        <div className={styles.summaryTotals}>
-          <span className={styles.summaryTotalsLabel}>Team total</span>
-          <span className={styles.summaryTotal}>{rows.reduce((sum, r) => sum + r.leads, 0)} leads</span>
-          <span className={styles.summaryTotal}>{rows.reduce((sum, r) => sum + r.quotations, 0)} quotations</span>
-          <span className={styles.summaryTotal}>{formatMoney(rows.reduce((sum, r) => sum + r.billing, 0))}</span>
-          {rows.reduce((sum, r) => sum + r.unattended, 0) > 0 && (
-            <span className={styles.summaryTotalsAlert}>
-              {rows.reduce((sum, r) => sum + r.unattended, 0)} unattended
-            </span>
-          )}
-        </div>
+              },
+              { key: 'leads', header: 'Lead', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.leads },
+              {
+                key: 'toCall',
+                header: 'To Call',
+                headerClassName: styles.summaryNum,
+                cellClassName: styles.summaryNum,
+                render: (row: SalesTeamSummaryRow) => (row.toCall ? row.toCall : '\u2014')
+              },
+              {
+                key: 'unattended',
+                header: 'Unattended',
+                headerClassName: styles.summaryNum,
+                cellClassName: styles.summaryNum,
+                render: (row: SalesTeamSummaryRow) =>
+                  row.unattended ? <span className={styles.summaryAlertBadge}>{row.unattended}</span> : '\u2014'
+              },
+              { key: 'enquiries', header: 'Enquiry', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.enquiries },
+              { key: 'quotations', header: 'Quotation', headerClassName: styles.summaryNum, cellClassName: styles.summaryNum, render: (row: SalesTeamSummaryRow) => row.quotations },
+              {
+                key: 'billing',
+                header: 'Billing',
+                headerClassName: styles.summaryNum,
+                cellClassName: styles.summaryNum,
+                render: (row: SalesTeamSummaryRow) => (row.billing ? formatMoney(row.billing) : '\u2014')
+              },
+              {
+                key: 'status',
+                header: 'Status',
+                render: (row: SalesTeamSummaryRow) =>
+                  row.won || row.lost ? (
+                    <span className={styles.summaryStatus}>
+                      {row.won > 0 && <StatusBadge tone="won" label={`${row.won} Won`} />}
+                      {row.lost > 0 && <StatusBadge tone="lost" label={`${row.lost} Lost`} />}
+                    </span>
+                  ) : (
+                    '\u2014'
+                  )
+              }
+            ]}
+          />
+          <div className={styles.summaryTotals}>
+            <span className={styles.summaryTotalsLabel}>Team Aggregate:</span>
+            <span className={styles.summaryTotalItem}>{rows.reduce((sum, r) => sum + r.leads, 0)} Leads</span>
+            <span>&bull;</span>
+            <span className={styles.summaryTotalItem}>{rows.reduce((sum, r) => sum + r.quotations, 0)} Quotes</span>
+            <span>&bull;</span>
+            <span className={styles.summaryTotalItem}>{formatMoney(rows.reduce((sum, r) => sum + r.billing, 0))}</span>
+            {rows.reduce((sum, r) => sum + r.unattended, 0) > 0 && (
+              <span className={styles.summaryTotalsAlert}>
+                {rows.reduce((sum, r) => sum + r.unattended, 0)} Unattended Leads
+              </span>
+            )}
+          </div>
         </>
       )}
     </div>
   );
 }
 
-// Shared between the compact panel and the "View All" drawer so the two
-// never visually drift apart. `onNavigate` closes the drawer on click —
-// harmless when rendered in the compact panel, which never passes it.
 function AttentionRow({ item, onNavigate }: { item: AttentionItem; onNavigate?: () => void }) {
-  const ItemIcon = ATTENTION_ICON[item.key];
+  const ItemIcon = ATTENTION_ICON[item.key] || ListChecks;
   return (
-    <Link href={item.href} className={`${styles.attentionRow} ${item.tone === 'urgent' ? styles.attentionUrgent : ''}`} onClick={onNavigate}>
-      <span className={styles.attentionIcon}>{ItemIcon && <ItemIcon size={15} />}</span>
+    <Link
+      href={item.href}
+      className={`${styles.attentionRow} ${item.tone === 'urgent' ? styles.attentionUrgent : ''}`}
+      onClick={onNavigate}
+    >
+      <span className={styles.attentionIcon}><ItemIcon size={16} /></span>
       <span className={styles.attentionLabel}>{item.label}</span>
       <span className={styles.attentionCount}>{item.count}</span>
-      {/* A real icon, not a "→" glyph — the arrow was the one piece of
-          chrome on this page still drawn with a character. */}
       <ChevronRight size={15} className={styles.attentionArrow} aria-hidden />
     </Link>
   );
 }
 
-// The four headline figures. Each is a link to where the number comes from —
-// a KPI you can't act on is decoration.
-//
-// Deliberately NO trend arrows: nothing in this app stores a historical
-// snapshot to compare a period against, and a fabricated "+12% vs last
-// month" on a CRM dashboard is worse than no trend at all. The spec asked
-// for them "only when reliable historical data exists", and it doesn't.
 function KpiRow({
+  headlineKpis,
   kpis,
   pendingActions,
   loading
 }: {
-  kpis: HeadlineKpis | null;
+  headlineKpis: HeadlineKpis | null;
+  kpis: Kpis | null;
   pendingActions: number;
   loading: boolean;
 }) {
   const cards = [
-    { key: 'leads', icon: Contact, label: 'Total leads', value: kpis ? kpis.totalLeads.toLocaleString('en-IN') : '—', href: '/leads' },
-    { key: 'quotations', icon: FileText, label: 'Total quotations', value: kpis ? kpis.totalQuotations.toLocaleString('en-IN') : '—', href: '/my-quotations' },
-    { key: 'value', icon: IndianRupee, label: 'Quotation value', value: kpis ? formatMoney(kpis.totalQuotationValue) : '—', href: '/my-quotations' },
+    {
+      key: 'leads',
+      type: 'leads',
+      icon: Contact,
+      label: 'Total Leads',
+      value: headlineKpis ? headlineKpis.totalLeads.toLocaleString('en-IN') : '—',
+      href: '/leads'
+    },
+    {
+      key: 'projects',
+      type: 'projects',
+      icon: Briefcase,
+      label: 'Active Projects',
+      value: kpis ? kpis.activeProjects.toLocaleString('en-IN') : '—',
+      href: '/projects'
+    },
+    {
+      key: 'value',
+      type: 'value',
+      icon: IndianRupee,
+      label: 'Pipeline Value',
+      value: headlineKpis ? formatMoney(headlineKpis.totalQuotationValue) : '—',
+      href: '/my-quotations'
+    },
     {
       key: 'pending',
-      icon: ListChecks,
-      label: 'Pending actions',
+      type: pendingActions > 0 ? 'pending' : 'clear',
+      icon: pendingActions > 0 ? ListChecks : CheckCircle2,
+      label: 'Pending Actions',
       value: String(pendingActions),
       href: '/',
-      // The one card that is a problem rather than a measurement, so it is
-      // the only one allowed any colour.
-      alert: pendingActions > 0
+      alert: pendingActions > 0,
+      clear: pendingActions === 0
     }
   ];
 
@@ -1069,24 +1586,51 @@ function KpiRow({
     <div className={styles.kpiRow}>
       {cards.map((card) => {
         const Icon = card.icon;
+        const iconWrapperClass =
+          card.type === 'leads'
+            ? styles.kpiIconWrapperLeads
+            : card.type === 'projects'
+              ? styles.kpiIconWrapperProjects
+              : card.type === 'value'
+                ? styles.kpiIconWrapperValue
+                : card.alert
+                  ? styles.kpiIconWrapperPending
+                  : styles.kpiIconWrapperSuccess;
+
         const body = (
           <>
-            <span className={`${styles.kpiIcon} ${card.alert ? styles.kpiIconAlert : ''}`}>
-              <Icon size={16} />
-            </span>
-            <span className={styles.kpiLabelNew}>{card.label}</span>
-            <span className={`${styles.kpiValueNew} ${loading ? styles.kpiValueLoading : ''} ${card.alert ? styles.kpiValueAlert : ''}`}>
-              {card.value}
-            </span>
+            <div className={styles.kpiCardHead}>
+              <span className={`${styles.kpiIconWrapper} ${iconWrapperClass}`}>
+                <Icon size={17} strokeWidth={2.2} />
+              </span>
+              {card.alert ? (
+                <span className={styles.kpiTagAlert}>Urgent</span>
+              ) : card.clear ? (
+                <span className={styles.kpiTagSuccess}>All Clear</span>
+              ) : (
+                <ArrowRight size={14} className={styles.kpiHoverArrow} />
+              )}
+            </div>
+
+            <div className={styles.kpiBody}>
+              <div
+                className={`${styles.kpiValueNew} ${loading ? styles.kpiValueLoading : ''} ${
+                  card.alert ? styles.kpiValueAlert : ''
+                }`}
+              >
+                {card.value}
+              </div>
+              <div className={styles.kpiLabelNew}>{card.label}</div>
+            </div>
           </>
         );
-        // "Pending actions" has nowhere to navigate — the list it counts is
-        // already on this page — so it renders as a plain card rather than a
-        // link that reloads the dashboard.
+
         return card.key === 'pending' ? (
           <div key={card.key} className={styles.kpiCardNew}>{body}</div>
         ) : (
-          <Link key={card.key} href={card.href} className={styles.kpiCardNew}>{body}</Link>
+          <Link key={card.key} href={card.href} className={styles.kpiCardNew}>
+            {body}
+          </Link>
         );
       })}
     </div>
