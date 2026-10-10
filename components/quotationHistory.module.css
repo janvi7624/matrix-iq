@@ -1406,7 +1406,121 @@
 .revisionTag { margin-left: 6px; }
 .statusSelect { padding: 4px 6px; border-radius: var(--mx-radius-xs); border: 1px solid var(--mx-border-strong); font-size: var(--mx-text-meta); }
 .expiredNote { font-size: 11px; color: var(--mx-ink-faint); }
-.rowActionsInline { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Quotation row actions (components/QuotationTable.tsx).
+
+   These were two borderless, zero-padding text links (Download, Revise)
+   sitting flush against a bordered Delete — three different visual weights
+   for three actions of the same kind, and a click target only as tall as
+   the text. Now one shared button shape, with tone carrying the meaning:
+   Revise is the action people came for, Download supports it, Delete is
+   destructive and kept apart. */
+
+.rowActionsInline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.rowAction {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-md, 8px);
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    /* A real hit target — the old buttons were padding:0 text. */
+    padding: 6px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background 180ms var(--mx-ease), border-color 180ms var(--mx-ease), color 180ms var(--mx-ease);
+}
+
+.rowAction:hover:not(:disabled) {
+    border-color: var(--mx-border-strong);
+    color: var(--mx-ink);
+    background: var(--mx-surface-sunken);
+}
+
+.rowAction:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+
+/* Replaces an inline style={{ opacity }} that was the only thing marking a
+   disabled borderless button as disabled. */
+.rowAction:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.rowActionPrimary {
+    border-color: rgba(220, 38, 38, 0.35);
+    color: var(--mx-brand);
+}
+
+.rowActionPrimary:hover {
+    border-color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand-hover);
+}
+
+.rowActionDanger {
+    /* Pushed away from the two routine actions beside it. */
+    margin-left: 4px;
+    border-color: rgba(220, 38, 38, 0.3);
+    color: var(--mx-danger);
+}
+
+.rowActionDanger:hover {
+    border-color: var(--mx-danger);
+    background: var(--mx-danger-subtle);
+    color: var(--mx-danger);
+}
+
+/* "Download" -> "Working…" changed the button's width mid-click and shoved
+   everything beside it sideways. A fixed box keeps the row still. */
+.rowActionLabelFixed {
+    display: inline-block;
+    min-width: 58px;
+    text-align: left;
+}
+
+.rowActionSpin {
+    animation: rowActionSpin 900ms linear infinite;
+}
+
+@keyframes rowActionSpin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rowActionSpin { animation: none; }
+}
+
+/* Below ~1100px the actions column is the first thing worth compressing —
+   the icons carry the meaning and every button keeps its title tooltip. */
+@media (max-width: 1100px) {
+    .rowActionLabel {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .rowAction {
+        padding: 7px 9px;
+    }
+}
 .versionTable { composes: table; margin-top: 10px; }
 .projectIdInput { max-width: 140px; }
 .followUpCheckboxLabel { display: flex; align-items: center; gap: 6px; font-size: var(--mx-text-body); white-space: nowrap; }

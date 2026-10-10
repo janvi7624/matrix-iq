@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { FileText } from 'lucide-react';
+import { Download, FilePlus2, FileText, Loader2, Trash2 } from 'lucide-react';
 import { LineItem, ProductGroup, QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { daysSince, needsFollowUp, parseFollowUpNotes } from '@/lib/followUp';
@@ -268,35 +268,47 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
         </td>
         <td>
           <div className={styles.rowActionsInline}>
+            {/* Revise leads: it's the action people come to a past quotation
+                to perform, so it carries the brand tint and sits first.
+                Download is the supporting action beside it. */}
+            <Link
+              href={`/quotation?reviseId=${row.id}`}
+              className={`${styles.rowAction} ${styles.rowActionPrimary}`}
+              title={`Create a new version of ${row.quotation_number}`}
+            >
+              <FilePlus2 size={14} aria-hidden />
+              <span className={styles.rowActionLabel}>Revise</span>
+            </Link>
             <button
               type="button"
-              className={styles.toggleBtn}
-              /* .toggleBtn is borderless text (matching the Revise link beside
-                 it), so a disabled button would otherwise look identical to an
-                 active one. Inline rather than a new rule because
-                 quotationHistory.module.css has another change in flight. */
-              style={{ opacity: downloadBusy ? 0.6 : 1 }}
+              className={styles.rowAction}
               disabled={downloadBusy}
               title={isProposal ? 'Open the uploaded commercial document' : 'Rebuild and download this quotation as a PDF'}
               onClick={handleDownload}
             >
-              {downloadBusy ? 'Working…' : 'Download'}
+              {downloadBusy ? <Loader2 size={14} className={styles.rowActionSpin} aria-hidden /> : <Download size={14} aria-hidden />}
+              {/* Fixed-width label: "Download" -> "Working…" used to resize
+                  the button and shunt everything beside it sideways
+                  mid-click. */}
+              <span className={`${styles.rowActionLabel} ${styles.rowActionLabelFixed}`}>
+                {downloadBusy ? 'Working…' : 'Download'}
+              </span>
             </button>
-            <Link href={`/quotation?reviseId=${row.id}`} className={styles.toggleBtn} title="Create a new version of this quotation">
-              Revise
-            </Link>
             {onDelete && (
               <button
                 type="button"
-                className={styles.deleteBtn}
-                title="Delete this quotation"
+                /* Separated and danger-toned: a destructive action should not
+                   sit flush against two routine ones at the same weight. */
+                className={`${styles.rowAction} ${styles.rowActionDanger}`}
+                title={`Delete ${row.quotation_number}`}
                 onClick={async () => {
                   if (await confirm({ message: `Delete quotation ${row.quotation_number}? This cannot be undone.`, danger: true })) {
                     onDelete(row.id);
                   }
                 }}
               >
-                Delete
+                <Trash2 size={14} aria-hidden />
+                <span className={styles.rowActionLabel}>Delete</span>
               </button>
             )}
           </div>
