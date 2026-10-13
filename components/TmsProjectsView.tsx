@@ -28,6 +28,7 @@ import SubmitButton from './ui/SubmitButton';
 import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import { useAutoRefresh } from '@/lib/useAutoRefresh';
 
 interface PhaseDraft {
   name: string;
@@ -152,6 +153,11 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   useEffect(() => {
     load();
   }, []);
+
+  // Keeps the list current without reloading the page — refetches when the
+  // tab regains focus, and slowly while it is visible. See
+  // lib/useAutoRefresh.ts for why the cadence is deliberately slow.
+  useAutoRefresh(load);
 
   // Everyone who actually appears on a TMS project, as its manager or as a
   // team member, so the dropdown never offers a name that can only return

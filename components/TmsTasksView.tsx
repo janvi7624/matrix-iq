@@ -28,6 +28,7 @@ import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn, TableWrap } from './ui/Table';
 import TmsPersonDashboard from './TmsPersonDashboard';
+import { useAutoRefresh } from '@/lib/useAutoRefresh';
 
 const EMPTY_FORM = {
   name: '',
@@ -219,6 +220,11 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
   useEffect(() => {
     load();
   }, []);
+
+  // Keeps the list current without reloading the page — refetches when the
+  // tab regains focus, and slowly while it is visible. See
+  // lib/useAutoRefresh.ts for why the cadence is deliberately slow.
+  useAutoRefresh(load);
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {

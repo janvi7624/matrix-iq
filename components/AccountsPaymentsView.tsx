@@ -19,6 +19,7 @@ import { currentFiscalYear, fiscalYearOptions, listPeriodOptions, periodContaini
 import styles from './accountsPayments.module.css';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
+import { useAutoRefresh } from '@/lib/useAutoRefresh';
 
 interface Props {
   currentUser: { username: string; name: string; role: UserRole; isPrivileged: boolean };
@@ -265,6 +266,15 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { fetchList(); }, [fetchList]);
+
+  // Refetched on focus / slow interval (lib/useAutoRefresh.ts). Both together,
+  // so the summary tiles cannot report a different moment than the list.
+  // fetchList closes over the current filters and is held in a ref by the
+  // hook, so a background refresh always re-runs the query actually on screen
+  // rather than the one in force when the page mounted.
+  useAutoRefresh(async () => {
+    await Promise.all([fetchSummary(), fetchList()]);
+  });
   // Any filter change returns to page 1 — staying on page 4 of a result set
   // that now has two pages shows an empty table that looks like "no results".
   useEffect(() => { setPage(1); }, [tab, source, status, debouncedSearch, periodType, fiscalYear, periodKey, department, employee, minAmount, maxAmount, overdueOnly]);

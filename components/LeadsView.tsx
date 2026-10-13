@@ -39,6 +39,7 @@ import Input from './ui/Input';
 import Textarea from './ui/Textarea';
 import PriorityBadge from './ui/PriorityBadge';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
+import { useAutoRefresh } from '@/lib/useAutoRefresh';
 
 interface LeadsViewProps {
   currentUser: { username: string; role: UserRole; isPrivileged: boolean };
@@ -308,6 +309,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       setAssignees(null);
     }
   }
+
+  // Both halves of the page, refetched together on focus / slow interval
+  // (lib/useAutoRefresh.ts) so the tiles cannot disagree with the table.
+  useAutoRefresh(() => {
+    loadLeads();
+    loadStats();
+  });
 
   useEffect(() => {
     loadLeads();

@@ -59,6 +59,7 @@ import StatusBadge from './ui/StatusBadge';
 import EmptyState from './ui/EmptyState';
 import CelebrationsSection from './CelebrationsSection';
 import MyTargetPanel from './MyTargetPanel';
+import { useAutoRefresh } from '@/lib/useAutoRefresh';
 import styles from './dashboard.module.css';
 
 const DUE_AFTER_SECTION = 'Workspace';
@@ -208,11 +209,13 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     return orderedSections[orderedSections.length - 1].label;
   }, [orderedSections]);
 
-  useEffect(() => {
-    fetch('/api/dashboard')
+  // `initial` distinguishes the first load from a background refresh: only
+  // the first one is allowed to clear the page on failure. See the .catch.
+  async function loadDashboard(initial = false) {
+    return fetch('/api/dashboard')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data) return;
+        if (!data) throw new Error('no data');
         setModules(data.modules ?? []);
         setKpis(data.kpis ?? null);
         setBackOfficeKpis(data.backOfficeKpis ?? null);
@@ -236,6 +239,10 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setSalesTeamSummary(data.salesTeamSummary ?? null);
       })
       .catch(() => {
+        // A background refresh that fails leaves the page exactly as it is.
+        // Blanking fourteen panels because one poll timed out would be far
+        // worse than showing data a minute old.
+        if (!initial) return;
         setModules([]);
         setKpis(null);
         setBackOfficeKpis(null);
@@ -251,14 +258,29 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setSalesLeadership(false);
         setSalesTeamSummary(null);
       });
+  }
+
+  async function loadHealth() {
+    return fetch('/api/dashboard/health')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setHealth(data))
+      // Same reasoning as above — keep the gauges that are on screen.
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    void loadDashboard(true);
   }, []);
 
   useEffect(() => {
-    fetch('/api/dashboard/health')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setHealth(data))
-      .catch(() => setHealth(null));
+    void loadHealth();
   }, []);
+
+  // Both dashboard payloads refreshed together on focus / slow interval, so
+  // the KPI row and the health grid never show different moments in time.
+  useAutoRefresh(async () => {
+    await Promise.all([loadDashboard(), loadHealth()]);
+  });
 
   const [celebrations, setCelebrations] = useState<{ userId: string; name: string; type: 'birthday' | 'anniversary'; years?: number }[]>([]);
   const [celebrationsDismissed, setCelebrationsDismissed] = useState(false);

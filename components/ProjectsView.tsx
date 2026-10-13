@@ -19,6 +19,7 @@ import { todayDateInputValue, closingDatePresetRange, ClosingDatePreset } from '
 import StatTile from './ui/StatTile';
 import ProjectDetailRemindersDialog from './ProjectDetailRemindersDialog';
 import { usePrompt } from './ui/PromptDialog';
+import { useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
@@ -286,6 +287,11 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   useEffect(() => {
     load();
   }, []);
+
+  // Keeps the list current without reloading the page — refetches when the
+  // tab regains focus, and slowly while it is visible. See
+  // lib/useAutoRefresh.ts for why the cadence is deliberately slow.
+  useAutoRefresh(load);
 
   const salesPeople = useMemo(() => Array.from(new Set(projects.map((p) => p.sales_person).filter(Boolean))).sort(), [projects]);
   const sources = useMemo(() => Array.from(new Set(projects.map((p) => p.source).filter(Boolean))).sort(), [projects]);

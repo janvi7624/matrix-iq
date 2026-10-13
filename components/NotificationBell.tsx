@@ -38,7 +38,13 @@ export default function NotificationBell() {
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 60000);
+    // Skipped while the tab is hidden: this polled regardless before, so
+    // every backgrounded tab kept querying for as long as it stayed open.
+    // The database role is capped at 20 connections (see
+    // lib/useAutoRefresh.ts), so idle tabs not polling is the point.
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
