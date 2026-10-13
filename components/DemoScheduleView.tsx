@@ -326,6 +326,10 @@ function DemoRow({
   }
 
   async function handleSaveReport() {
+    if (!report.outcome) {
+      toast.error('Select an outcome before saving the report.');
+      return;
+    }
     setSaving(true);
     try {
       await onSaveReport(record.id, report);
@@ -440,7 +444,7 @@ function DemoRow({
             <h3 className={historyStyles.h3Flush}>Demo outcome &amp; report</h3>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Outcome</label>
+                <label className={calcStyles.label}>Outcome *</label>
                 <select className={calcStyles.formControl} value={report.outcome} onChange={(e) => setReport((r) => ({ ...r, outcome: e.target.value as DemoOutcome }))}>
                   <option value="">-- Select outcome --</option>
                   {(Object.keys(OUTCOME_LABEL) as Exclude<DemoOutcome, ''>[]).map((o) => (

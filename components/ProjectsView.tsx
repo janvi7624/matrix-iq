@@ -18,6 +18,7 @@ import { useToast } from './ui/ToastProvider';
 import { todayDateInputValue, closingDatePresetRange, ClosingDatePreset } from '@/lib/dateHelpers';
 import StatTile from './ui/StatTile';
 import ProjectDetailRemindersDialog from './ProjectDetailRemindersDialog';
+import { usePrompt } from './ui/PromptDialog';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
@@ -164,6 +165,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showReminders, setShowReminders] = useState(false);
+  const promptText = usePrompt();
+  // The row currently saving a remark, so only that one shows a spinner
+  // rather than disabling the whole column.
+  const [savingRemarkId, setSavingRemarkId] = useState('');
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; username: string; name: string }[]>([]);
   const [technicalRoster, setTechnicalRoster] = useState<PersonPickerOption[]>([]);
   // Last Remark used to expand on row :hover — a long remark ballooned the
@@ -437,6 +442,47 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     [showForm, form.clientName, form.company, projects]
   );
 
+  // Adding a remark without leaving the dashboard. Deliberately the same
+  // PATCH the detail view's timeline box uses, so a remark added here is the
+  // same kind of record and shows up in the same places — including this
+  // column, which is what the person adding it wanted in the first place.
+  async function handleAddRemark(project: ProjectRecord) {
+    const label = project.client_name || project.company || "this project";
+    const text = await promptText({
+      title: `Add remark — ${label}`,
+      message: 'Visible on the Project Dashboard and on the project timeline.',
+      placeholder: 'e.g. Client asked us to revise the lighting spec',
+      confirmLabel: 'Add remark',
+      validate: (v) => (v.trim() ? null : 'Type the remark first.')
+    });
+    if (text === null) return;
+    const remarks = text.trim();
+    if (!remarks) return;
+
+    setSavingRemarkId(project.id);
+    try {
+      const response = await fetch(`/api/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'addRemark', remarks })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({} as { error?: string }));
+        toast.error(body.error || `Could not add the remark (HTTP ${response.status}).`);
+        return;
+      }
+      toast.success('Remark added.');
+      // Reloaded rather than patched into local state: last_remark is
+      // resolved server-side by GET /api/projects (listLastRemarks), so the
+      // row has no way to compute its own new value.
+      await load();
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setSavingRemarkId('');
+    }
+  }
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!form.clientName.trim() && !form.company.trim()) {
@@ -619,19 +665,35 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       // long remark rather than the column growing wider, matching how
       // every other column in this table now behaves. Click toggles the full
       // text open/closed (see expandedRemarkIds above) — no longer hover.
-      render: (p) =>
-        p.last_remark ? (
+      render: (p) => (
+        <>
+          {p.last_remark ? (
+            <button
+              type="button"
+              className={`${historyStyles.remarkClamp} ${expandedRemarkIds.has(p.id) ? historyStyles.remarkClampExpanded : ''}`}
+              onClick={() => toggleRemarkExpanded(p.id)}
+              title={`${p.last_remark_by}, ${formatDateTime(p.last_remark_at)}`}
+            >
+              {p.last_remark}
+            </button>
+          ) : (
+            <span className={historyStyles.mutedInline}>No remarks yet</span>
+          )}
+          {/* The whole point of the change: a rep can leave a remark from
+              here instead of opening the project and scrolling to the
+              timeline box — which is why they were using Notes, where
+              nothing outside the project detail ever shows it. */}
           <button
             type="button"
-            className={`${historyStyles.remarkClamp} ${expandedRemarkIds.has(p.id) ? historyStyles.remarkClampExpanded : ''}`}
-            onClick={() => toggleRemarkExpanded(p.id)}
-            title={`${p.last_remark_by}, ${formatDateTime(p.last_remark_at)}`}
+            className={historyStyles.addRemarkBtn}
+            disabled={savingRemarkId === p.id}
+            onClick={() => handleAddRemark(p)}
+            title="Add a remark visible on this dashboard"
           >
-            {p.last_remark}
+            {savingRemarkId === p.id ? 'Saving…' : p.last_remark ? '+ Add' : '+ Add remark'}
           </button>
-        ) : (
-          <span className={historyStyles.mutedInline}>No remarks yet</span>
-        )
+        </>
+      )
     },
     {
       key: 'progress',
