@@ -651,9 +651,20 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           <Link href="/leads" className={styles.heroSecondaryBtn}>
             <Contact size={15} /> Leads Hub
           </Link>
-          <Link href="/analytics" className={styles.heroAnalyticsBtn}>
-            <BarChart3 size={15} /> Analytics
-          </Link>
+          {/* Admin / superadmin / manager get Performance Review here instead of
+              Analytics: it is the page they actually open from the dashboard, and
+              /admin/performance-review is privileged-only anyway (proxy.ts's
+              ADMIN_ONLY_PREFIXES), so pointing anyone else at it would just be a
+              redirect. Everybody else keeps Analytics, which is open to them. */}
+          {isPrivileged ? (
+            <Link href="/admin/performance-review" className={styles.heroAnalyticsBtn}>
+              <BarChart3 size={15} /> Performance Review
+            </Link>
+          ) : (
+            <Link href="/analytics" className={styles.heroAnalyticsBtn}>
+              <BarChart3 size={15} /> Analytics
+            </Link>
+          )}
         </div>
       </section>
 

@@ -9,6 +9,10 @@ import { leadStore } from './leadStore';
 import { tmsTaskStore } from './tmsTaskStore';
 import { isLeadUnattended, needsFollowUp, parseFollowUpNotes } from './followUp';
 import { computeLeadCallStats } from './leadCall';
+import { generalTaskStore } from './generalTaskStore';
+import { marketingRequestStore } from './marketingRequestStore';
+import { isMarketingRequestOpen } from './marketingRequestReminder';
+import { isMarketingRequestOverdue } from './marketingRequestHelpers';
 import { ProjectTimelineEvent } from './types';
 
 interface TimelineItem {
@@ -53,7 +57,7 @@ export async function buildPerformanceReview(username: string) {
   const user = await findUserByUsername(username);
   if (!user) return null;
 
-  const [projects, siteVisits, demos, responses, deliveryChallans, quotations, leads, tasks] = await Promise.all([
+  const [projects, siteVisits, demos, responses, deliveryChallans, quotations, leads, tasks, generalTasks, marketingRequests] = await Promise.all([
     projectStore.listOwnedBy(username),
     siteVisitStore.listOwnedBy(username),
     demoScheduleStore.list(username, false),
@@ -66,7 +70,16 @@ export async function buildPerformanceReview(username: string) {
     // filtered back to strictly this person below, so nothing balloons to a
     // department manager's whole team the way a raw list() would.
     leadStore.list(username, false),
-    tmsTaskStore.listForAssignee(user.id)
+    tmsTaskStore.listForAssignee(user.id),
+    // Planner tasks — the one measure that applies to everybody, and the
+    // only one a HR or Marketing review has once the sales block is scoped
+    // out (see lib/performanceReviewScope.ts).
+    generalTaskStore.listForAssignee(user.id),
+    // Marketing requests this person raised, was assigned, or was the
+    // technical reviewer on. list() already resolves exactly that set for a
+    // non-privileged viewer, so it is passed isPrivileged=false on purpose:
+    // we want THIS person's requests, not everything they are allowed to see.
+    marketingRequestStore.list(username, false)
   ]);
 
   // Leads this person captured (their own scanning/import activity) vs leads
@@ -155,6 +168,30 @@ export async function buildPerformanceReview(username: string) {
     pending: tasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled').length
   };
 
+  // Planner tasks. 'declined' is counted separately rather than folded into
+  // pending: a task the assignee refused with a reason is not work they are
+  // sitting on, and burying it in a pending count would read as a backlog
+  // they caused.
+  const TERMINAL = ['completed', 'approved', 'cancelled', 'rejected', 'declined'];
+  const generalTaskMetrics = {
+    total: generalTasks.length,
+    completed: generalTasks.filter((t) => t.status === 'completed' || t.status === 'approved').length,
+    pending: generalTasks.filter((t) => !TERMINAL.includes(t.status)).length,
+    declined: generalTasks.filter((t) => t.status === 'declined').length,
+    reworkRequired: generalTasks.filter((t) => t.status === 'rework_required').length
+  };
+
+  // Marketing requests. Split by the part this person played, because
+  // raising a request and delivering one are different kinds of work and
+  // totalling them would flatter whoever only raises them.
+  const marketingMetrics = {
+    raised: marketingRequests.filter((r) => r.created_by === username).length,
+    assigned: marketingRequests.filter((r) => r.assigned_to === username).length,
+    completed: marketingRequests.filter((r) => r.status === 'completed').length,
+    open: marketingRequests.filter((r) => isMarketingRequestOpen(r.status)).length,
+    overdue: marketingRequests.filter((r) => isMarketingRequestOverdue(r)).length
+  };
+
   // Timeline — every project-stage event this user logged, across every
   // project they own, plus the top-level "created X" moments for the
   // other modules, newest first.
@@ -217,6 +254,8 @@ export async function buildPerformanceReview(username: string) {
     customerResponse,
     tasks: taskMetrics,
     tasksList,
+    generalTasks: generalTaskMetrics,
+    marketing: marketingMetrics,
     timeline,
     charts: {
       weekly: buildSeries(activityDates, 'week', 12),

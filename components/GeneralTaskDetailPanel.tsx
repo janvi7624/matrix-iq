@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AuditLogEntry, GeneralTaskDeadlineChangeRecord, GeneralTaskRecord, GeneralTaskUpdateRecord } from '@/lib/types';
+import { useRouter } from 'next/navigation';
+import { AuditLogEntry, GeneralTaskDeadlineChangeRecord, GeneralTaskPriority, GeneralTaskRecord, GeneralTaskUpdateRecord } from '@/lib/types';
 import { GENERAL_TASK_PRIORITY_LABEL, GENERAL_TASK_PRIORITY_TONE, GENERAL_TASK_SOURCE_LABEL, GENERAL_TASK_STATUS_LABEL, GENERAL_TASK_STATUS_TONE } from '@/lib/generalTaskLabels';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -39,7 +40,7 @@ function formatDateTime(iso: string): string {
   }
 }
 
-type PendingAction = 'submit' | 'decline' | 'review-approve' | 'review-rework' | 'review-reject' | 'reassign' | 'extend-deadline' | null;
+type PendingAction = 'submit' | 'decline' | 'review-approve' | 'review-rework' | 'review-reject' | 'reassign' | 'extend-deadline' | 'edit' | 'delete' | null;
 
 export interface GeneralTaskDetailPanelProps {
   taskId: string;
@@ -51,6 +52,12 @@ export interface GeneralTaskDetailPanelProps {
   // deadline change) — lets a caller showing this panel inside a drawer
   // (Task Planner) refresh its own task list to stay in sync.
   onChanged?: () => void;
+  // Fired after a successful delete, instead of onChanged (the task no
+  // longer exists, so "refresh and keep showing it" doesn't apply) — lets a
+  // drawer-based caller (Task Planner) close itself. The full-page wrapper
+  // (MyTaskDetailView) has none to pass, so this component falls back to
+  // navigating to /my-tasks itself in that case.
+  onDeleted?: () => void;
 }
 
 // The full GeneralTask detail + workflow-action UI — extracted from what
@@ -58,7 +65,8 @@ export interface GeneralTaskDetailPanelProps {
 // deadline-change logic renders identically whether it's reached via the
 // full-page /my-tasks/[id] route or Task Planner's slide-over Drawer. Do
 // not duplicate this logic anywhere else.
-export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChanged }: GeneralTaskDetailPanelProps) {
+export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChanged, onDeleted }: GeneralTaskDetailPanelProps) {
+  const router = useRouter();
   const toast = useToast();
   const [data, setData] = useState<DetailResponse | null>(null);
   const [status, setStatus] = useState('Loading...');
@@ -69,6 +77,11 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [assignableEmployees, setAssignableEmployees] = useState<{ id: string; name: string }[]>([]);
   const [newDeadline, setNewDeadline] = useState('');
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editPriority, setEditPriority] = useState<GeneralTaskPriority>('medium');
+  const [editCategory, setEditCategory] = useState('');
+  const [editRemarks, setEditRemarks] = useState('');
 
   async function load() {
     setStatus('Loading...');
@@ -108,6 +121,13 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
     setRemark('');
     setNewAssigneeId('');
     setNewDeadline(data?.task.deadline || '');
+    if (action === 'edit' && data) {
+      setEditTitle(data.task.title);
+      setEditDescription(data.task.description);
+      setEditPriority(data.task.priority);
+      setEditCategory(data.task.category);
+      setEditRemarks(data.task.remarks);
+    }
   }
 
   async function afterMutate() {
@@ -268,6 +288,52 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
     }
   }
 
+  async function confirmEdit() {
+    if (!editTitle.trim()) return toast.error('A title is required.');
+    setActing(true);
+    try {
+      const response = await fetch(`/api/general-tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          description: editDescription.trim(),
+          priority: editPriority,
+          category: editCategory.trim(),
+          remarks: editRemarks.trim()
+        })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || String(response.status));
+      }
+      setPendingAction(null);
+      await afterMutate();
+      toast.success('Task details updated.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update this task.');
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function confirmDelete() {
+    setActing(true);
+    try {
+      const response = await fetch(`/api/general-tasks/${taskId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || String(response.status));
+      }
+      toast.success('Task deleted.');
+      if (onDeleted) onDeleted();
+      else router.push('/my-tasks');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete this task.');
+      setActing(false);
+    }
+  }
+
   if (!data) {
     return <div className={historyStyles.status}>{status || 'Loading...'}</div>;
   }
@@ -332,6 +398,17 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
             <>
               <ToolbarButton disabled={acting} onClick={() => startAction('reassign')}>{task.assignee_id ? 'Reassign' : 'Assign'}</ToolbarButton>
               <ToolbarButton disabled={acting} onClick={() => startAction('extend-deadline')}>Extend Deadline</ToolbarButton>
+            </>
+          )}
+          {/* Editing details or deleting a mistaken task isn't a workflow
+              transition the way reassign/extend-deadline are, so these stay
+              available regardless of status — a typo in a completed task's
+              title is still worth fixing, and a task created by mistake is
+              still worth removing. */}
+          {permissions.canManage && (
+            <>
+              <ToolbarButton disabled={acting} onClick={() => startAction('edit')}>Edit Details</ToolbarButton>
+              <ToolbarButton disabled={acting} onClick={() => startAction('delete')}>Delete Task</ToolbarButton>
             </>
           )}
           {!permissions.canAct && !permissions.canSubmit && !permissions.canReopen && !permissions.canDecline && !permissions.canReview && !permissions.canManage && (
@@ -412,6 +489,36 @@ export default function GeneralTaskDetailPanel({ taskId, onTitleChange, onChange
             <Textarea rows={2} placeholder="Reason (required)" value={remark} onChange={(e) => setRemark(e.target.value)} />
             <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
               <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmExtendDeadline}>{acting ? 'Saving…' : 'Confirm'}</button>
+              <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
+            </div>
+          </div>
+        )}
+
+        {pendingAction === 'edit' && (
+          <div className={`${calcStyles.field} ${styles.commentBox}`}>
+            <input className={calcStyles.formControl} placeholder="Title (required)" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+            <Textarea rows={3} placeholder="Description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+            <select className={calcStyles.formControl} value={editPriority} onChange={(e) => setEditPriority(e.target.value as GeneralTaskPriority)}>
+              {(['low', 'medium', 'high', 'critical'] as GeneralTaskPriority[]).map((p) => (
+                <option key={p} value={p}>{GENERAL_TASK_PRIORITY_LABEL[p]}</option>
+              ))}
+            </select>
+            <input className={calcStyles.formControl} placeholder="Category" value={editCategory} onChange={(e) => setEditCategory(e.target.value)} />
+            <Textarea rows={2} placeholder="Remarks" value={editRemarks} onChange={(e) => setEditRemarks(e.target.value)} />
+            <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
+              <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmEdit}>{acting ? 'Saving…' : 'Save Changes'}</button>
+              <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
+            </div>
+          </div>
+        )}
+
+        {pendingAction === 'delete' && (
+          <div className={`${calcStyles.field} ${styles.commentBox}`}>
+            <div className={styles.mutedText13}>
+              Delete &ldquo;{task.title}&rdquo;? This removes it from everyone&rsquo;s task list — assignee and reviewer included. This can&rsquo;t be undone from here.
+            </div>
+            <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
+              <button type="button" className={calcStyles.btn} disabled={acting} onClick={confirmDelete}>{acting ? 'Deleting…' : 'Confirm Delete'}</button>
               <ToolbarButton disabled={acting} onClick={() => setPendingAction(null)}>Cancel</ToolbarButton>
             </div>
           </div>

@@ -236,7 +236,19 @@ async function update(id: string, patch: Record<string, unknown>): Promise<Gener
   return toRecord(withAssoc as Model);
 }
 
-export const generalTaskStore = { list, readAllBySourceModule, listForAssignee, findById, create, update };
+// Permission checking is the caller's job (the PATCH handler above does the
+// same split: canManageGeneralTask() runs in the route, not in here) — the
+// GeneralTask model is paranoid:true, so this is a soft delete (sets
+// deletedAt) rather than removing the row outright.
+async function remove(id: string): Promise<boolean> {
+  if (!isUuid(id)) return false;
+  const row = await db.GeneralTask.findByPk(id);
+  if (!row) return false;
+  await row.destroy();
+  return true;
+}
+
+export const generalTaskStore = { list, readAllBySourceModule, listForAssignee, findById, create, update, remove };
 
 // --- Status transitions ------------------------------------------------
 

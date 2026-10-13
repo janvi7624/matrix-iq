@@ -99,3 +99,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return apiErrorResponse(error);
   }
 }
+
+// Same manage gate as PATCH above (creator/reviewer/department-manager/
+// privileged — never the plain assignee). A soft delete (generalTaskStore.
+// remove -> row.destroy() on a paranoid:true model), so this is recoverable
+// at the database level even though there's no in-app undo for it yet.
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const viewer = await getViewerContext(request);
+  if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id } = await params;
+  try {
+    const existing = await generalTaskStore.findById(id);
+    if (!existing) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    if (!(await canManageGeneralTask(viewer, existing))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+    const ok = await generalTaskStore.remove(id);
+    if (!ok) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+
+    await logAudit({
+      by: viewer.username,
+      role: viewer.role,
+      entityType: 'general_task',
+      entityId: id,
+      action: 'Task deleted',
+      previousStatus: existing.status,
+      newStatus: existing.status,
+      ip: getClientIp(request)
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}

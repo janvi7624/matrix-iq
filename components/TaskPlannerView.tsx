@@ -788,7 +788,7 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
 
       {selectedTaskId && (
         <Drawer title="Task Details" ariaLabel="Task details" onClose={() => setSelectedTaskId(null)}>
-          <GeneralTaskDetailPanel taskId={selectedTaskId} onChanged={load} />
+          <GeneralTaskDetailPanel taskId={selectedTaskId} onChanged={load} onDeleted={() => { setSelectedTaskId(null); load(); }} />
         </Drawer>
       )}
     </AppShell>

@@ -8,6 +8,7 @@ import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import pageStyles from './performanceReviewPage.module.css';
+import { reviewScopeNote, reviewSectionsFor } from '@/lib/performanceReviewScope';
 
 interface PerformanceReview {
   user: { username: string; name: string; department: string; designation: string; employeeId: string; joiningDate: string; role: string };
@@ -19,6 +20,9 @@ interface PerformanceReview {
   followUps: { pending: number; completed: number; overdue: number };
   dc: { pending: number; closed: number };
   customerResponse: { positive: number; negative: number; pending: number };
+  tasks: { total: number; completed: number; pending: number };
+  generalTasks: { total: number; completed: number; pending: number; declined: number; reworkRequired: number };
+  marketing: { raised: number; assigned: number; completed: number; open: number; overdue: number };
   timeline: { at: string; action: string; remarks: string }[];
   charts: { weekly: { bucket: string; count: number }[]; monthly: { bucket: string; count: number }[]; yearly: { bucket: string; count: number }[] };
 }
@@ -79,6 +83,9 @@ function TrendChart({ title, data }: { title: string; data: { bucket: string; co
 }
 
 async function exportReviewPdf(review: PerformanceReview) {
+  // Scoped identically to the page. A PDF listing a sales block the screen
+  // never showed would be the version that gets forwarded to the employee.
+  const shown = new Set(reviewSectionsFor(review.user));
   const [{ default: jsPDF }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF();
   let y = 16;
@@ -100,36 +107,61 @@ async function exportReviewPdf(review: PerformanceReview) {
     y = (doc as any).lastAutoTable.finalY + 10;
   };
 
-  section('CRM Metrics', [
-    ['Total Leads', review.crm.totalLeads],
-    ['Qualified Leads', review.crm.qualifiedLeads],
-    ['Lost Leads', review.crm.lostLeads],
-    ['Won Leads', review.crm.wonLeads],
-    ['Unattended Leads', review.crm.unattendedLeads]
-  ]);
-  section('Sales Metrics', [
-    ['Quotations Created', review.sales.quotationsCreated],
-    ['Quotations Revised', review.sales.quotationsRevised],
-    ['Quotations Converted', review.sales.quotationsConverted]
-  ]);
-  section('Projects / Site Visits / Demo', [
-    ['Active Projects', review.projects.activeProjects],
-    ['Completed Projects', review.projects.completedProjects],
-    ['Total Site Visits', review.siteVisits.total],
-    ['Demos Scheduled', review.demo.scheduled],
-    ['Demos Completed', review.demo.completed],
-    ['Demos Cancelled', review.demo.cancelled]
-  ]);
-  section('Follow-ups / DC / Customer Response', [
-    ['Follow-ups Pending', review.followUps.pending],
-    ['Follow-ups Completed', review.followUps.completed],
-    ['Follow-ups Overdue', review.followUps.overdue],
-    ['DC Pending', review.dc.pending],
-    ['DC Closed', review.dc.closed],
-    ['Customer Response Positive', review.customerResponse.positive],
-    ['Customer Response Negative', review.customerResponse.negative],
-    ['Customer Response Pending', review.customerResponse.pending]
-  ]);
+  if (shown.has('crm')) {
+    section('CRM Metrics', [
+      ['Total Leads', review.crm.totalLeads],
+      ['Qualified Leads', review.crm.qualifiedLeads],
+      ['Lost Leads', review.crm.lostLeads],
+      ['Won Leads', review.crm.wonLeads],
+      ['Unattended Leads', review.crm.unattendedLeads]
+    ]);
+  }
+  if (shown.has('sales')) {
+    section('Sales Metrics', [
+      ['Quotations Created', review.sales.quotationsCreated],
+      ['Quotations Revised', review.sales.quotationsRevised],
+      ['Quotations Converted', review.sales.quotationsConverted]
+    ]);
+  }
+  if (shown.has('projects') || shown.has('siteVisits') || shown.has('demo')) {
+    section('Projects / Site Visits / Demo', [
+      ...(shown.has('projects') ? [['Active Projects', review.projects.activeProjects], ['Completed Projects', review.projects.completedProjects]] as [string, number][] : []),
+      ...(shown.has('siteVisits') ? [['Total Site Visits', review.siteVisits.total]] as [string, number][] : []),
+      ...(shown.has('demo') ? [['Demos Scheduled', review.demo.scheduled], ['Demos Completed', review.demo.completed], ['Demos Cancelled', review.demo.cancelled]] as [string, number][] : [])
+    ]);
+  }
+  if (shown.has('followUps') || shown.has('dc') || shown.has('customerResponse')) {
+    section('Follow-ups / DC / Customer Response', [
+      ...(shown.has('followUps') ? [['Follow-ups Pending', review.followUps.pending], ['Follow-ups Completed', review.followUps.completed], ['Follow-ups Overdue', review.followUps.overdue]] as [string, number][] : []),
+      ...(shown.has('dc') ? [['DC Pending', review.dc.pending], ['DC Closed', review.dc.closed]] as [string, number][] : []),
+      ...(shown.has('customerResponse') ? [['Customer Response Positive', review.customerResponse.positive], ['Customer Response Negative', review.customerResponse.negative], ['Customer Response Pending', review.customerResponse.pending]] as [string, number][] : [])
+    ]);
+  }
+  if (shown.has('tms')) {
+    section('TMS Tasks', [
+      ['Total Assigned', review.tasks.total],
+      ['Completed', review.tasks.completed],
+      ['Open', review.tasks.pending]
+    ]);
+  }
+  if (shown.has('marketing')) {
+    section('Marketing Requests', [
+      ['Raised', review.marketing.raised],
+      ['Assigned', review.marketing.assigned],
+      ['Completed', review.marketing.completed],
+      ['Open', review.marketing.open],
+      ['Overdue', review.marketing.overdue]
+    ]);
+  }
+  if (shown.has('tasks')) {
+    section('Planner Tasks', [
+      ['Total Assigned', review.generalTasks.total],
+      ['Completed', review.generalTasks.completed],
+      ['Open', review.generalTasks.pending],
+      ['Declined', review.generalTasks.declined],
+      ['Rework Required', review.generalTasks.reworkRequired]
+    ]);
+  }
 
   doc.setFontSize(12);
   doc.text('Recent Activity Timeline', 14, y);
@@ -156,6 +188,13 @@ function PerformanceReviewPageContent() {
   const [selected, setSelected] = useState(() => searchParams.get('user') || '');
   const [review, setReview] = useState<PerformanceReview | null>(null);
   const [status, setStatus] = useState('');
+
+  // Which measures apply to the employee currently selected. Derived on every
+  // render rather than stored, so it can never lag behind the loaded review
+  // the way a second piece of state would.
+  const sections = review ? reviewSectionsFor(review.user) : [];
+  const shows = (section: string) => sections.includes(section as (typeof sections)[number]);
+  const scopeNote = review ? reviewScopeNote(review.user) : '';
 
   useEffect(() => {
     fetch('/api/admin/users')
@@ -214,42 +253,93 @@ function PerformanceReviewPageContent() {
               </div>
             </div>
 
-            <MetricGroup title="CRM Metrics" items={[
-              { label: 'Total Leads', value: review.crm.totalLeads },
-              { label: 'Qualified Leads', value: review.crm.qualifiedLeads },
-              { label: 'Lost Leads', value: review.crm.lostLeads },
-              { label: 'Won Leads', value: review.crm.wonLeads },
-              { label: 'Unattended Leads', value: review.crm.unattendedLeads }
-            ]} />
-            <MetricGroup title="Sales Metrics" items={[
-              { label: 'Quotations Created', value: review.sales.quotationsCreated },
-              { label: 'Quotations Revised', value: review.sales.quotationsRevised },
-              { label: 'Quotations Converted', value: review.sales.quotationsConverted }
-            ]} />
-            <MetricGroup title="Projects" items={[
-              { label: 'Active Projects', value: review.projects.activeProjects },
-              { label: 'Completed Projects', value: review.projects.completedProjects }
-            ]} />
-            <MetricGroup title="Site Visits" items={[{ label: 'Total Site Visits', value: review.siteVisits.total }]} />
-            <MetricGroup title="Demo" items={[
-              { label: 'Scheduled', value: review.demo.scheduled },
-              { label: 'Completed', value: review.demo.completed },
-              { label: 'Cancelled', value: review.demo.cancelled }
-            ]} />
-            <MetricGroup title="Follow-ups" items={[
-              { label: 'Pending', value: review.followUps.pending },
-              { label: 'Completed', value: review.followUps.completed },
-              { label: 'Overdue', value: review.followUps.overdue }
-            ]} />
-            <MetricGroup title="DC Activities" items={[
-              { label: 'Pending', value: review.dc.pending },
-              { label: 'Closed', value: review.dc.closed }
-            ]} />
-            <MetricGroup title="Customer Response" items={[
-              { label: 'Positive', value: review.customerResponse.positive },
-              { label: 'Negative', value: review.customerResponse.negative },
-              { label: 'Pending', value: review.customerResponse.pending }
-            ]} />
+            {/* Which measures apply to this person — an engineer reviewed on
+                "Quotations Created: 0" reads as underperformance rather than
+                as a metric that was never theirs. See
+                lib/performanceReviewScope.ts. */}
+            {scopeNote && <div className={historyStyles.status}>{scopeNote}</div>}
+
+            {shows('crm') && (
+              <MetricGroup title="CRM Metrics" items={[
+                { label: 'Total Leads', value: review.crm.totalLeads },
+                { label: 'Qualified Leads', value: review.crm.qualifiedLeads },
+                { label: 'Lost Leads', value: review.crm.lostLeads },
+                { label: 'Won Leads', value: review.crm.wonLeads },
+                { label: 'Unattended Leads', value: review.crm.unattendedLeads }
+              ]} />
+            )}
+            {shows('sales') && (
+              <MetricGroup title="Sales Metrics" items={[
+                { label: 'Quotations Created', value: review.sales.quotationsCreated },
+                { label: 'Quotations Revised', value: review.sales.quotationsRevised },
+                { label: 'Quotations Converted', value: review.sales.quotationsConverted }
+              ]} />
+            )}
+            {shows('projects') && (
+              <MetricGroup title="Projects" items={[
+                { label: 'Active Projects', value: review.projects.activeProjects },
+                { label: 'Completed Projects', value: review.projects.completedProjects }
+              ]} />
+            )}
+
+            {/* TMS tasks were assembled by the API but never rendered here,
+                which left a technical person's review with nothing of their
+                actual work on it. */}
+            {shows('tms') && (
+              <MetricGroup title="TMS Tasks" items={[
+                { label: 'Total Assigned', value: review.tasks.total },
+                { label: 'Completed', value: review.tasks.completed },
+                { label: 'Open', value: review.tasks.pending }
+              ]} />
+            )}
+            {shows('marketing') && (
+              <MetricGroup title="Marketing Requests" items={[
+                { label: 'Raised', value: review.marketing.raised },
+                { label: 'Assigned', value: review.marketing.assigned },
+                { label: 'Completed', value: review.marketing.completed },
+                { label: 'Open', value: review.marketing.open },
+                { label: 'Overdue', value: review.marketing.overdue }
+              ]} />
+            )}
+            {shows('tasks') && (
+              <MetricGroup title="Planner Tasks" items={[
+                { label: 'Total Assigned', value: review.generalTasks.total },
+                { label: 'Completed', value: review.generalTasks.completed },
+                { label: 'Open', value: review.generalTasks.pending },
+                { label: 'Declined', value: review.generalTasks.declined },
+                { label: 'Rework Required', value: review.generalTasks.reworkRequired }
+              ]} />
+            )}
+            {shows('siteVisits') && (
+              <MetricGroup title="Site Visits" items={[{ label: 'Total Site Visits', value: review.siteVisits.total }]} />
+            )}
+            {shows('demo') && (
+              <MetricGroup title="Demo" items={[
+                { label: 'Scheduled', value: review.demo.scheduled },
+                { label: 'Completed', value: review.demo.completed },
+                { label: 'Cancelled', value: review.demo.cancelled }
+              ]} />
+            )}
+            {shows('followUps') && (
+              <MetricGroup title="Follow-ups" items={[
+                { label: 'Pending', value: review.followUps.pending },
+                { label: 'Completed', value: review.followUps.completed },
+                { label: 'Overdue', value: review.followUps.overdue }
+              ]} />
+            )}
+            {shows('dc') && (
+              <MetricGroup title="DC Activities" items={[
+                { label: 'Pending', value: review.dc.pending },
+                { label: 'Closed', value: review.dc.closed }
+              ]} />
+            )}
+            {shows('customerResponse') && (
+              <MetricGroup title="Customer Response" items={[
+                { label: 'Positive', value: review.customerResponse.positive },
+                { label: 'Negative', value: review.customerResponse.negative },
+                { label: 'Pending', value: review.customerResponse.pending }
+              ]} />
+            )}
 
             <div className={historyStyles.navGroupLabel}>Performance Charts</div>
             <div className={pageStyles.chartsRow}>
