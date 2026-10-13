@@ -6,17 +6,25 @@
     min-height: 100vh;
 }
 .header {
-    background: var(--mx-surface);
-    color: var(--mx-ink);
+    /* Dark again — a light header blended into the page and read as too
+       casual for an office tool; --mx-ink is the same dark neutral this app
+       already uses for body text everywhere else, so it isn't a one-off
+       color. The light-surface buttons inside it (.button, the logo chip)
+       were never changed when the header went light, so they already read
+       correctly as pale chips against a dark bar — only the bar itself and
+       the text/search affordances that assumed a light bar needed to flip
+       back. */
+    background: var(--mx-ink);
+    color: #fff;
     padding: 18px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 12px;
-    /* Same edge-flush reasoning as Sidebar/Drawer — a soft downward shadow
-       separates it from the page instead of a hard colored border. */
-    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.06);
+    /* No drop shadow — a dark bar already separates cleanly from the light
+       page by contrast alone; a soft shadow under it just read as a dirty
+       smudge rather than depth. */
     position: relative;
     /* The app's own z-index scale (bottom of this file) — NOT a bare 1.
        A low literal z-index here still creates a stacking context, which
@@ -45,7 +53,10 @@
     padding: 5px;
 }
 .header h1 { font-size: 20px; margin: 0; }
-.sub { font-size: 12.5px; color: var(--mx-ink-faint); }
+/* Was var(--mx-ink-faint) — correct on a light header, invisible on a dark
+   one. Scoped to PortalHeader's only consumer of .sub, so this doesn't leak
+   a dark-bg assumption into some other light-surface use of the class. */
+.sub { font-size: 12.5px; color: rgba(255, 255, 255, 0.65); }
 .headerActions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .headerBackLink { white-space: nowrap; }
 .headerBackLinkLabel { display: inline; }

@@ -12,7 +12,7 @@ import Select from './ui/Select';
 import Button from './ui/Button';
 import StatTile from './ui/StatTile';
 import { useToast } from './ui/ToastProvider';
-import { formatMoney } from '@/lib/format';
+import { formatMoneyWhole } from '@/lib/format';
 
 type SourceKey = 'reimbursement' | 'admin_expense' | 'office_operation';
 type Granularity = 'month' | 'quarter' | 'year';
@@ -155,7 +155,7 @@ function initialsOf(label: string): string {
 
 function Money({ value, className }: { value: number; className?: string }) {
   const classes = [styles.num, value === 0 ? styles.zero : '', className || ''].filter(Boolean).join(' ');
-  return <td className={classes}>{value === 0 ? '—' : formatMoney(value)}</td>;
+  return <td className={classes}>{value === 0 ? '—' : formatMoneyWhole(value)}</td>;
 }
 
 export default function HrReportsView() {
@@ -463,14 +463,14 @@ export default function HrReportsView() {
             {ALL_SOURCES.filter((s) => report.sources.includes(s)).map((key) => (
               <StatTile
                 key={key}
-                value={formatMoney(report.sourceTotals[key] || 0)}
+                value={formatMoneyWhole(report.sourceTotals[key] || 0)}
                 label={`Total ${SOURCE_LABEL[key]}`}
                 tone="info"
               />
             ))}
             {/* With one register selected its total IS the grand total — a
                 second tile repeating the same number is just noise. */}
-            {report.sources.length > 1 && <StatTile value={formatMoney(report.grandTotal)} label="Grand Total" tone="brand" />}
+            {report.sources.length > 1 && <StatTile value={formatMoneyWhole(report.grandTotal)} label="Grand Total" tone="brand" />}
             <StatTile value={report.entryCount} label="Entries" />
           </div>
 
@@ -534,7 +534,7 @@ export default function HrReportsView() {
                             <Money key={src} value={row.sources[src] || 0} className={i === 0 ? styles.blockStart : undefined} />
                           ))}
                         <td className={`${styles.count} ${styles.blockStart}`}>{row.entries}</td>
-                        <td className={styles.totalCell}>{formatMoney(row.total)}</td>
+                        <td className={styles.totalCell}>{formatMoneyWhole(row.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -548,7 +548,7 @@ export default function HrReportsView() {
                           <Money key={src} value={report.sourceTotals[src] || 0} className={i === 0 ? styles.blockStart : undefined} />
                         ))}
                       <td className={`${styles.count} ${styles.blockStart}`}>{report.entryCount}</td>
-                      <td className={styles.totalCell}>{formatMoney(report.grandTotal)}</td>
+                      <td className={styles.totalCell}>{formatMoneyWhole(report.grandTotal)}</td>
                     </tr>
                   </tfoot>
                 </table>

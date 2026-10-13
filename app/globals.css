@@ -225,16 +225,22 @@
      (lg, a modal — the one thing that should look like it's above the page,
      not part of it). Pressed (inset) is a new fourth state with no prior
      token to reuse — see --mx-shadow-pressed-sm/-pressed below. */
-  --mx-shadow-xs: 4px 4px 10px rgba(17, 24, 39, 0.11), -3px -3px 8px rgba(255, 255, 255, 0.9);
-  --mx-shadow-sm: 7px 7px 18px rgba(17, 24, 39, 0.14), -6px -6px 16px rgba(255, 255, 255, 0.95);
-  --mx-shadow-md: 11px 13px 28px rgba(17, 24, 39, 0.17), -8px -8px 22px rgba(255, 255, 255, 1);
-  --mx-shadow-lg: 20px 24px 48px rgba(17, 24, 39, 0.26), -8px -8px 22px rgba(255, 255, 255, 0.85);
+  /* The light component started at .85-1.0 alpha — near-opaque white, which
+     reads as a glossy/plastic highlight rather than a subtle extrusion,
+     especially behind a dark or brand-colored button where the contrast
+     makes it jump out. Dulled to .5-.6 across the board: still legible as
+     "catching light from upper-left," just not bright enough to read as a
+     literal white glow on a formal/office tool. */
+  --mx-shadow-xs: 4px 4px 10px rgba(17, 24, 39, 0.11), -3px -3px 8px rgba(255, 255, 255, 0.55);
+  --mx-shadow-sm: 7px 7px 18px rgba(17, 24, 39, 0.14), -6px -6px 16px rgba(255, 255, 255, 0.6);
+  --mx-shadow-md: 11px 13px 28px rgba(17, 24, 39, 0.17), -8px -8px 22px rgba(255, 255, 255, 0.6);
+  --mx-shadow-lg: 20px 24px 48px rgba(17, 24, 39, 0.26), -8px -8px 22px rgba(255, 255, 255, 0.5);
   /* Pressed/inset — an active nav item, a selected chip, a status badge:
      reads as carved IN rather than raised. -sm for small chip-scale things
      (badges, the nav item's own pressed state), unsuffixed for anything
      larger (an active input, a toggled panel). */
-  --mx-shadow-pressed-sm: inset 3px 3px 6px rgba(17, 24, 39, 0.15), inset -3px -3px 6px rgba(255, 255, 255, 0.9);
-  --mx-shadow-pressed: inset 5px 5px 11px rgba(17, 24, 39, 0.17), inset -5px -5px 11px rgba(255, 255, 255, 0.9);
+  --mx-shadow-pressed-sm: inset 3px 3px 6px rgba(17, 24, 39, 0.15), inset -3px -3px 6px rgba(255, 255, 255, 0.55);
+  --mx-shadow-pressed: inset 5px 5px 11px rgba(17, 24, 39, 0.17), inset -5px -5px 11px rgba(255, 255, 255, 0.55);
 
   /* Spacing (8px scale) — for new components; existing inline spacing is unchanged */
   --mx-space-1: 4px;

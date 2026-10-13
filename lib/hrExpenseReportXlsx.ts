@@ -10,7 +10,12 @@ import { EXPENSE_SOURCE_LABEL, ExpenseSourceKey, HrExpenseReport } from './hrExp
 // module graph until an export is actually requested; the `import type`
 // above is erased at compile time.
 
-const INDIAN_NUM_FMT = '#,##,##0.00';
+// Whole rupees, matching the on-screen report (formatMoneyWhole in
+// lib/format.ts) — the comment above buildHrExpenseReportXlsx's row writer
+// is explicit that the spreadsheet must match the table. This is a DISPLAY
+// format only: the cell keeps its exact value, so a SUM the reader adds in
+// the sheet still totals to the paisa.
+const INDIAN_NUM_FMT = '#,##,##0';
 
 const YELLOW: Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD600' } };
 const HEADER_FILL: Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF9C4' } };

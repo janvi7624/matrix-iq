@@ -4,6 +4,20 @@ export function formatMoney(value: number | string | undefined): string {
   return '₹' + Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
 }
 
+// Whole rupees, no paise. The HR Expense Report reads as a spend summary
+// rather than a ledger, and across a wide month-by-month matrix the paise
+// were noise. Kept as its own function rather than widening formatMoney:
+// that one is the app-wide money formatter (quotations, payments, project
+// values all read it) and paise genuinely matter there.
+//
+// Rounds to nearest, so a column of rounded cells can read a rupee or two
+// away from its rounded total. That is deliberate: every total is summed
+// from the exact figures and rounded once, rather than summing already-
+// rounded numbers, so the total is the accurate one.
+export function formatMoneyWhole(value: number | string | undefined): string {
+  return '₹' + Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+
 // Short Indian form for stat tiles. The full string for a large total runs
 // to eighteen characters ("₹1,05,70,17,260.27"), which overflows a ~150px
 // tile at the 24px stat size — and the paise on a figure that size are noise
