@@ -4,16 +4,17 @@
 .tile {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
+    gap: 11px;
     width: 100%;
-    padding: 14px 14px 12px;
+    padding: 16px 18px;
     border-radius: var(--mx-radius-lg);
     background: var(--mx-surface);
     box-shadow: var(--mx-shadow-sm);
     cursor: pointer;
     font: inherit;
     color: inherit;
-    text-align: center;
+    text-align: left;
     transition: transform var(--mx-duration-base) var(--mx-ease), box-shadow var(--mx-duration-base) var(--mx-ease);
 }
 .tile:hover {
@@ -28,32 +29,24 @@
     color: var(--mx-brand);
 }
 
-/* The score sits inside the arc's opening rather than below it, so the tile
-   reads as one object and stays compact enough for a 4-across grid. */
-.gaugeWrap {
-    position: relative;
-    width: 100%;
-    max-width: 132px;
-}
-.svg {
-    width: 100%;
-    height: auto;
-    display: block;
-}
-.gaugeCenter {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
+.topRow {
     display: flex;
-    align-items: flex-end;
-    justify-content: center;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
-.progressArc {
-    transition: stroke-dasharray var(--mx-duration-slow) var(--mx-ease);
+.label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--mx-ink);
+    /* Long department names wrap rather than widening the grid track. */
+    overflow-wrap: anywhere;
 }
-@media (prefers-reduced-motion: reduce) {
-    .progressArc { transition: none; }
+.bandDot {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--mx-radius-full);
+    flex-shrink: 0;
 }
 
 .scoreLine {
@@ -62,58 +55,49 @@
     font-variant-numeric: tabular-nums;
     line-height: 1;
 }
-.label {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--mx-ink);
-    margin-top: 8px;
-    /* Long department names wrap rather than widening the grid track. */
-    overflow-wrap: anywhere;
-}
-.bandRow {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    margin-top: 3px;
-}
-.bandDot {
-    width: 7px;
-    height: 7px;
+
+/* A single pressed track with one flat fill and two tick marks at the band
+   thresholds — replaces the old semicircular arc. Ticks overhang the track
+   on purpose (top/bottom beyond its own height) so they read as notches cut
+   into it rather than marks sitting on top of it. */
+.meterTrack {
+    position: relative;
+    height: 9px;
     border-radius: var(--mx-radius-full);
-    flex-shrink: 0;
+    box-shadow: var(--mx-shadow-pressed-sm);
 }
-.bandText {
-    font-size: 0.72rem;
-    font-weight: 700;
+.meterFill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: var(--mx-radius-full);
+    transition: width var(--mx-duration-slow) var(--mx-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+    .meterFill { transition: none; }
+}
+.tick {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--mx-surface);
+    transform: translateX(-1px);
 }
 
 .headlineMetric {
-    width: 100%;
-    margin-top: 10px;
-    padding-top: 9px;
-    border-top: 1px solid var(--mx-border);
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 8px;
     font-size: 0.74rem;
     color: var(--mx-ink-muted);
-}
-.headlineLabel {
-    text-align: left;
     overflow-wrap: anywhere;
 }
 .headlineMetric strong {
     color: var(--mx-ink);
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
 }
 
 .openHint {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    margin-top: 9px;
     font-size: 0.7rem;
     font-weight: 700;
     color: var(--mx-ink-faint);
