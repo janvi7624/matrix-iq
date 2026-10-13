@@ -17,7 +17,7 @@ export default async function OfficeOperationExpensesPage() {
   const user = await findUserById(session.sub);
   if (!user) redirect('/login');
 
-  if (!roleCanAccessOfficeOperationExpenses(session.role)) redirect('/');
+  if (!roleCanAccessOfficeOperationExpenses(session.role, session.username)) redirect('/');
 
   // Passed through only so the Excel sheet can stamp "Prepared By" in its
   // header block — same pattern as ReimbursementView.

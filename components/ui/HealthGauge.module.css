@@ -49,6 +49,32 @@
     flex-shrink: 0;
 }
 
+/* Sits directly under the department name, deliberately quiet: it is
+   context for the score, not a second headline. */
+.deptLead {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: -2px;
+    font-size: 11.5px;
+    color: var(--mx-ink-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* "+2" when a department has co-leads. A count rather than more names,
+   because the tile is a fixed width and the detail view lists them all. */
+.coLeadBadge {
+    flex-shrink: 0;
+    padding: 0 5px;
+    border-radius: var(--mx-radius-xs);
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink-muted);
+    font-size: 10.5px;
+    font-weight: 700;
+}
+
 .scoreLine {
     font-size: 1.55rem;
     font-weight: 800;

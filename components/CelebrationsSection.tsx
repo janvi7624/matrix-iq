@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Cake, Award, PartyPopper, CalendarDays } from 'lucide-react';
+import { Cake, Award, PartyPopper } from 'lucide-react';
 import { SkeletonRows } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import styles from './celebrations.module.css';
@@ -44,56 +44,98 @@ function CelebrationEmptyState({ icon: Icon, message }: { icon: typeof Cake; mes
 
 const TONE_CLASS = { brand: styles.toneBrand, info: styles.toneInfo } as const;
 
+// First letters of the first two words — "Asha Rani" -> "AR". Falls back to
+// one letter for a single-word name, and to nothing for a blank one rather
+// than rendering an empty circle with a stray character in it.
+function initialsOf(name: string): string {
+  return (name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+}
+
 function CelebrationCard({ entry, type }: { entry: CelebrationEntry; type: 'birthday' | 'anniversary' }) {
   const isBirthday = type === 'birthday';
   const toneClass = TONE_CLASS[isBirthday ? 'brand' : 'info'];
 
   return (
     <div className={`${styles.celebrationCard} ${toneClass} ${entry.isToday ? styles.celebrationCardToday : ''}`}>
-      <div className={styles.celebrationIcon}>
-        {isBirthday ? <Cake size={20} color="var(--tone-color)" strokeWidth={2} /> : <Award size={20} color="var(--tone-color)" strokeWidth={2} />}
-      </div>
+      {/* An initials avatar rather than a repeated cake/award glyph: every
+          row in a birthdays list is a birthday, so the icon carried no
+          information — the person is what distinguishes the rows. */}
+      <span className={styles.avatar} aria-hidden="true">{initialsOf(entry.name)}</span>
 
       <div className={styles.celebrationBody}>
         <div className={styles.celebrationNameRow}>
           <span className={styles.celebrationName}>{entry.name}</span>
-          {entry.isToday && <PartyPopper size={14} color="var(--tone-color)" />}
+          {entry.isToday && <PartyPopper size={13} color="var(--tone-color)" />}
         </div>
         <div className={styles.celebrationMeta}>
-          {entry.designation ? `${entry.designation} · ` : ''}
           {entry.department || '—'}
-          {entry.employeeId ? ` · ${entry.employeeId}` : ''}
+          {entry.years ? ` · ${entry.years} yr${entry.years === 1 ? '' : 's'}` : ''}
         </div>
       </div>
 
       <div className={styles.celebrationDateWrap}>
-        <div className={styles.celebrationDate}>
-          {formatDateShort(entry.date)}
-          {entry.years ? <span className={styles.celebrationYears}> · {entry.years}yr</span> : null}
-        </div>
+        <span className={styles.celebrationDate}>{formatDateShort(entry.date)}</span>
         <DaysLabel days={entry.daysAway} />
       </div>
     </div>
   );
 }
 
-interface StatCardProps {
+// How many rows each panel shows before collapsing the rest. The section
+// used to render every entry in a 30-day window, which is what made it the
+// tallest thing on the dashboard.
+const CELEBRATION_PREVIEW = 4;
+
+function CelebrationPanel({
+  entries,
+  type,
+  title,
+  icon: Icon,
+  toneClass,
+  emptyMessage
+}: {
+  entries: CelebrationEntry[];
+  type: 'birthday' | 'anniversary';
+  title: string;
   icon: typeof Cake;
-  label: string;
-  value: number;
-  tone: 'brand' | 'info' | 'warning' | 'success';
-}
+  toneClass: string;
+  emptyMessage: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const todayCount = entries.filter((e) => e.isToday).length;
+  const shown = expanded ? entries : entries.slice(0, CELEBRATION_PREVIEW);
+  const hidden = entries.length - shown.length;
 
-const STAT_TONE_CLASS = { brand: styles.toneBrand, info: styles.toneInfo, warning: styles.toneWarning, success: styles.toneSuccess } as const;
-
-function StatCard({ icon: Icon, label, value, tone }: StatCardProps) {
   return (
-    <div className={`${historyStyles.summaryCard} ${styles.statCard} ${STAT_TONE_CLASS[tone]}`}>
-      <div className={styles.statCardHead}>
+    <div className={styles.panel}>
+      <div className={`${styles.panelHeader} ${toneClass}`}>
         <Icon size={16} color="var(--tone-color)" strokeWidth={2.2} />
-        <span className={styles.statCardLabel}>{label}</span>
+        <h2 className={styles.panelTitle}>{title}</h2>
+        {/* The summary figure lives in the header rather than in its own
+            stat card above — four cards restating these counts cost a whole
+            row of the page to say what these two badges say. */}
+        {todayCount > 0 && <span className={styles.panelToday}>{todayCount} today</span>}
+        <span className={styles.panelCount}>{entries.length}</span>
       </div>
-      <span className={styles.statCardValue}>{value}</span>
+
+      {entries.length === 0 ? (
+        <CelebrationEmptyState icon={Icon} message={emptyMessage} />
+      ) : (
+        <>
+          {shown.map((entry, i) => <CelebrationCard key={`${type}-${i}`} entry={entry} type={type} />)}
+          {(hidden > 0 || expanded) && (
+            <button type="button" className={styles.panelMore} onClick={() => setExpanded((v) => !v)}>
+              {expanded ? 'Show less' : `Show ${hidden} more`}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -140,48 +182,29 @@ export default function CelebrationsSection() {
     );
   }
 
-  const todayBirthdays = birthdays.filter((b) => b.isToday).length;
-  const todayAnniversaries = anniversaries.filter((a) => a.isToday).length;
+  // Nothing to celebrate in the next 30 days — render nothing at all
+  // rather than two empty panels and a row of zeroes taking up the foot of
+  // the dashboard.
+  if (!birthdays.length && !anniversaries.length) return null;
 
   return (
-    <>
-      <div className={historyStyles.summaryCardGrid}>
-        <StatCard icon={Cake} label="Birthdays Today" value={todayBirthdays} tone="brand" />
-        <StatCard icon={Award} label="Anniversaries Today" value={todayAnniversaries} tone="info" />
-        <StatCard icon={CalendarDays} label="Upcoming Birthdays" value={birthdays.length} tone="warning" />
-        <StatCard icon={CalendarDays} label="Upcoming Anniversaries" value={anniversaries.length} tone="success" />
-      </div>
-
-      {/* Responsive two-panel layout — collapses to one column below
-          ~680px instead of a hard-coded 1fr/1fr grid that would squeeze
-          both panels illegibly on mobile/tablet. */}
-      <div className={styles.panelGrid}>
-        <div className={styles.panel}>
-          <div className={`${styles.panelHeader} ${styles.toneBrand}`}>
-            <Cake size={18} color="var(--tone-color)" strokeWidth={2.2} />
-            <h2 className={styles.panelTitle}>Upcoming Birthdays</h2>
-            <span className={styles.panelCount}>{birthdays.length}</span>
-          </div>
-          {birthdays.length === 0 ? (
-            <CelebrationEmptyState icon={Cake} message="No upcoming birthdays in the next 30 days" />
-          ) : (
-            birthdays.map((b, i) => <CelebrationCard key={`bd-${i}`} entry={b} type="birthday" />)
-          )}
-        </div>
-
-        <div className={styles.panel}>
-          <div className={`${styles.panelHeader} ${styles.toneInfo}`}>
-            <Award size={18} color="var(--tone-color)" strokeWidth={2.2} />
-            <h2 className={styles.panelTitle}>Work Anniversaries</h2>
-            <span className={styles.panelCount}>{anniversaries.length}</span>
-          </div>
-          {anniversaries.length === 0 ? (
-            <CelebrationEmptyState icon={Award} message="No upcoming work anniversaries in the next 30 days" />
-          ) : (
-            anniversaries.map((a, i) => <CelebrationCard key={`ann-${i}`} entry={a} type="anniversary" />)
-          )}
-        </div>
-      </div>
-    </>
+    <div className={styles.panelGrid}>
+      <CelebrationPanel
+        entries={birthdays}
+        type="birthday"
+        title="Upcoming Birthdays"
+        icon={Cake}
+        toneClass={styles.toneBrand}
+        emptyMessage="No birthdays in the next 30 days"
+      />
+      <CelebrationPanel
+        entries={anniversaries}
+        type="anniversary"
+        title="Work Anniversaries"
+        icon={Award}
+        toneClass={styles.toneInfo}
+        emptyMessage="No work anniversaries in the next 30 days"
+      />
+    </div>
   );
 }

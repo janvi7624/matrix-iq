@@ -2,14 +2,14 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { AlertTriangle, CheckCircle2, ClipboardList, Clock, ListChecks } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardList, Clock, ListChecks, Users } from 'lucide-react';
 import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsTaskRecord, TmsTaskStatus, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS, TMS_MANAGER_TIER_ROLES } from '@/lib/tmsConstants';
 import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import dashboardStyles from './dashboard.module.css';
 import tmsDashboardStyles from './tmsDashboard.module.css';
+import tmsTaskStyles from './tmsTasks.module.css';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import PriorityBadge from './ui/PriorityBadge';
@@ -40,6 +40,13 @@ const EMPTY_FORM = {
   dueDate: '',
   remarks: ''
 };
+
+// The page was one long scroll of seven stacked sections — a manager passed
+// "Your Work", Next Action, My Tasks, Team Overview, a chart and two
+// near-identical assignee tables before reaching the task list they came
+// for. The same content now lives behind three tabs, each answering one
+// question: what's on me, how is the team doing, and where is every task.
+type TaskTab = 'mine' | 'team' | 'all';
 
 type ViewMode = 'daily' | 'all';
 type SortKey = 'due_date' | 'priority' | 'created';
@@ -119,6 +126,8 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [status, setStatus] = useState('Loading...');
   // See the form initializer below — both read the same one-time deep link.
+  // Opens the create MODAL now rather than an inline form that pushed the
+  // whole page down as it expanded.
   const [showForm, setShowForm] = useState(() => {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('new') === '1';
@@ -135,6 +144,7 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
   });
   const [creating, setCreating] = useState(false);
 
+  const [tab, setTab] = useState<TaskTab>('mine');
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [dailyBucket, setDailyBucket] = useState<DailyBucket>('today');
   const [fDate, setFDate] = useState(todayIso());
@@ -355,26 +365,18 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
     };
   }, [isManagerTier, tasks, teamWorkload]);
 
-  const taskDistributionChart = useMemo(() => {
+  const taskDistribution = useMemo(() => {
     if (!isManagerTier) return [];
     const counts = new Map<TmsTaskStatus, number>();
     tasks.forEach((t) => counts.set(t.status, (counts.get(t.status) || 0) + 1));
-    return (Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[])
-      .map((s) => ({ name: TMS_TASK_STATUS_LABEL[s], count: counts.get(s) || 0 }))
+    const rows = (Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[])
+      .map((key) => ({ key, name: TMS_TASK_STATUS_LABEL[key], count: counts.get(key) || 0 }))
       .filter((row) => row.count > 0);
+    const max = rows.reduce((m, row) => Math.max(m, row.count), 0);
+    // Share of the largest bar, so the bars are comparable to each other
+    // rather than to the total — the question is "which status dominates".
+    return rows.map((row) => ({ ...row, pct: max ? Math.round((row.count / max) * 100) : 0 }));
   }, [isManagerTier, tasks]);
-
-  // Per-assignee totals across every loaded task — independent of the daily
-  // bucket/filter state above, same "whole org pool" framing it had on the
-  // old Dashboard.
-  const byAssignee = useMemo(() => {
-    const map = new Map<string, number>();
-    tasks.forEach((t) => {
-      const label = t.assignee_name || 'Unassigned';
-      map.set(label, (map.get(label) || 0) + 1);
-    });
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [tasks]);
 
   const bucketLabel: Record<DailyBucket, string> = {
     today: "Today's Tasks",
@@ -407,7 +409,25 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
 
   return (
     <AppShell title="TMS Tasks" subtitle="Day-by-day task planning and completion — no time tracking.">
-      <div className={`${calcStyles.h2} ${tmsDashboardStyles.sectionIntro}`}>Your Work</div>
+      <div className={tmsTaskStyles.tabRow} role="tablist" aria-label="Task views">
+        <button type="button" role="tab" aria-selected={tab === 'mine'} className={tab === 'mine' ? tmsTaskStyles.tabActive : tmsTaskStyles.tab} onClick={() => setTab('mine')}>
+          <ListChecks size={14} /> My Work
+          {myWorkStats.overdue > 0 && <span className={tmsTaskStyles.tabAlert}>{myWorkStats.overdue}</span>}
+        </button>
+        {isManagerTier && (
+          <button type="button" role="tab" aria-selected={tab === 'team'} className={tab === 'team' ? tmsTaskStyles.tabActive : tmsTaskStyles.tab} onClick={() => setTab('team')}>
+            <Users size={14} /> Team
+          </button>
+        )}
+        <button type="button" role="tab" aria-selected={tab === 'all'} className={tab === 'all' ? tmsTaskStyles.tabActive : tmsTaskStyles.tab} onClick={() => setTab('all')}>
+          <ClipboardList size={14} /> All Tasks
+          <span className={tmsTaskStyles.tabCount}>{tasks.length}</span>
+        </button>
+        <button type="button" className={tmsTaskStyles.newBtn} onClick={() => setShowForm(true)}>+ New Task</button>
+      </div>
+
+      {tab === 'mine' && (
+      <>
       <div className={historyStyles.summaryCardGrid}>
         <div className={historyStyles.summaryCard}>
           <div className={historyStyles.summaryCardLabel}>My Tasks</div>
@@ -472,7 +492,10 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
         </div>
       )}
 
-      {isManagerTier && teamOverviewStats && (
+      </>
+      )}
+
+      {tab === 'team' && isManagerTier && teamOverviewStats && (
         <>
           <div className={dashboardStyles.sectionHeading}>Team Overview</div>
           <div className={dashboardStyles.kpiGrid}>
@@ -490,32 +513,24 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
             </button>
           </div>
 
-          {taskDistributionChart.length > 0 && (
+          {taskDistribution.length > 0 && (
             <div className={`${calcStyles.sectionPanel} ${tmsDashboardStyles.panelSpaced}`}>
-              <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Task Distribution</div>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={taskDistributionChart}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="var(--mx-info)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {byAssignee.length > 0 && (
-            <div className={`${calcStyles.sectionPanel} ${tmsDashboardStyles.panelSpacedLg}`}>
-              <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Tasks by Assignee</div>
-              <table className={historyStyles.table}>
-                <thead><tr><th>Assignee</th><th>Tasks</th></tr></thead>
-                <tbody>
-                  {byAssignee.map(([name, count]) => (
-                    <tr key={name}><td>{name}</td><td>{count}</td></tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Status Distribution</div>
+              {/* A labelled bar list rather than a column chart: five status
+                  names collide as rotated axis labels, and every value here
+                  needed a tooltip to read. Direct labels remove both
+                  problems and the chart library with them. */}
+              <ul className={tmsTaskStyles.statusBars}>
+                {taskDistribution.map((row) => (
+                  <li key={row.key} className={tmsTaskStyles.statusBarRow}>
+                    <span className={tmsTaskStyles.statusBarLabel}>{row.name}</span>
+                    <span className={tmsTaskStyles.statusBarTrack}>
+                      <span className={tmsTaskStyles.statusBarFill} style={{ width: `${row.pct}%` }} />
+                    </span>
+                    <span className={tmsTaskStyles.statusBarValue}>{row.count}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -554,20 +569,12 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
         </>
       )}
 
-      <div className={dashboardStyles.sectionHeading}>Task List</div>
+      {tab === 'all' && (
+      <>
       <div className={historyStyles.actionRow}>
-        {/* Hidden whenever the table is showing its empty state, because that
-            state carries the New button itself — two of the same button on
-            one screen is worse than none. Keyed on the FILTERED rows, not the
-            full list: a bucket or filter that matches nothing still renders
-            the empty state, so the header button has to stand down then too.
-            Still shown once the form is open, because this same button is the
-            form's Cancel and hiding it would leave no way out. */}
-        {(loading || sortedRows.length > 0 || showForm) && (
-          <button type="button" className={calcStyles.btn} onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : '+ New Task'}
-          </button>
-        )}
+        {/* "+ New Task" lives in the tab bar now — one button, always in
+            the same place, instead of one here plus another inside the
+            table's empty state. */}
         <ToolbarButton onClick={load}>Refresh</ToolbarButton>
         <span className={historyStyles.verticalDivider} />
         <ToolbarButton primary={viewMode === 'daily'} onClick={() => setViewMode('daily')}>
@@ -577,65 +584,6 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
           All Tasks
         </ToolbarButton>
       </div>
-
-      {showForm && (
-        <form className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`} onSubmit={handleCreate}>
-          <FieldRow>
-            <Field label="Task Name — What needs to be done?">
-              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-            </Field>
-            <Field label="Project — Which project is this for?">
-              <Select value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
-                <option value="">Select project</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.project_code} — {p.name}</option>
-                ))}
-              </Select>
-            </Field>
-          </FieldRow>
-          <Field label="Assign To — Who will do this?">
-            <PersonPicker
-              options={scopedUsers}
-              selectedIds={form.assigneeId ? [form.assigneeId] : []}
-              onChange={(ids) => setForm((f) => ({ ...f, assigneeId: ids[0] || '' }))}
-              placeholder="Search engineer…"
-              roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
-              emptyMessage={
-                effectiveTaskDepartmentNames.size
-                  ? 'No matching active Technical Team members found in this department.'
-                  : 'Select a project (or department below) first.'
-              }
-            />
-          </Field>
-          <FieldRow>
-            <Field label="Department">
-              <Select value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value }))}>
-                <option value="">Same as project</option>
-                {tmsDepartments.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Priority">
-              <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as TmsPriority }))}>
-                {(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => (
-                  <option key={p} value={p}>{TMS_PRIORITY_LABEL[p]}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Start date">
-              <Input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
-            </Field>
-            <Field label="Due Date *">
-              <Input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
-            </Field>
-          </FieldRow>
-          <Field label="Description — Explain the work required.">
-            <Textarea rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-          </Field>
-          <SubmitButton disabled={creating}>{creating ? 'Creating…' : 'Create task'}</SubmitButton>
-        </form>
-      )}
 
       {viewMode === 'daily' && (
         <div className={historyStyles.bucketRow}>
@@ -709,6 +657,77 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
             />
           }
         />
+      )}
+
+      </>
+      )}
+
+      {showForm && (
+        <Modal
+          title="New Task"
+          ariaLabel="Create a task"
+          size="wide"
+          onClose={() => setShowForm(false)}
+        >
+          {/* Was an inline panel that expanded in the middle of the page and
+              pushed the filters and the whole table down as it opened. */}
+          <form onSubmit={handleCreate}>
+          <FieldRow>
+            <Field label="Task Name — What needs to be done?">
+              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+            </Field>
+            <Field label="Project — Which project is this for?">
+              <Select value={form.projectId} onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))} required>
+                <option value="">Select project</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.project_code} — {p.name}</option>
+                ))}
+              </Select>
+            </Field>
+          </FieldRow>
+          <Field label="Assign To — Who will do this?">
+            <PersonPicker
+              options={scopedUsers}
+              selectedIds={form.assigneeId ? [form.assigneeId] : []}
+              onChange={(ids) => setForm((f) => ({ ...f, assigneeId: ids[0] || '' }))}
+              placeholder="Search engineer…"
+              roleLabel={(role) => TMS_ROLE_LABEL[role] || role}
+              emptyMessage={
+                effectiveTaskDepartmentNames.size
+                  ? 'No matching active Technical Team members found in this department.'
+                  : 'Select a project (or department below) first.'
+              }
+            />
+          </Field>
+          <FieldRow>
+            <Field label="Department">
+              <Select value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value }))}>
+                <option value="">Same as project</option>
+                {tmsDepartments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Priority">
+              <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as TmsPriority }))}>
+                {(Object.keys(TMS_PRIORITY_LABEL) as TmsPriority[]).map((p) => (
+                  <option key={p} value={p}>{TMS_PRIORITY_LABEL[p]}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Start date">
+              <Input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+            </Field>
+            <Field label="Due Date *">
+              <Input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+            </Field>
+          </FieldRow>
+          <Field label="Description — Explain the work required.">
+            <Textarea rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+          </Field>
+          <SubmitButton disabled={creating}>{creating ? 'Creating…' : 'Create task'}</SubmitButton>
+        </form>
+        </Modal>
       )}
 
       {drilldown && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -11,6 +11,7 @@ import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
 import { sectionIconFor, resolveModuleIcon, QUICK_ACTION_ICON, CHROME_ICON } from '@/lib/icons';
 import { TMS_ROLE_LABEL } from '@/lib/tmsLabels';
+import { Search, Star, X, Sparkles, ChevronRight, Pin } from 'lucide-react';
 import styles from './sidebar.module.css';
 import { forgetCelebrationPopups } from '@/lib/celebrationPopupSeen';
 
@@ -21,18 +22,21 @@ interface Viewer {
   department?: string;
 }
 
-// Technical roles (technical-manager, team-lead, technician) reuse TMS's own labels.
-const ROLE_LABEL: Record<UserRole, string> = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', engineer: 'Engineer', backoffice: 'Back Office', user: 'Sales', marketing: 'Marketing', accounts: 'Accounts', hr: 'HR', ...TMS_ROLE_LABEL };
+const ROLE_LABEL: Record<UserRole, string> = {
+  superadmin: 'Super Admin',
+  admin: 'Admin',
+  manager: 'Manager',
+  engineer: 'Engineer',
+  backoffice: 'Back Office',
+  user: 'Sales',
+  marketing: 'Marketing',
+  accounts: 'Accounts',
+  hr: 'HR',
+  ...TMS_ROLE_LABEL
+};
 
-// Curated shortcuts for the Quick Actions panel — a subset of the full nav,
-// matched by module key so it stays role-authorized "for free" (only shows
-// entries the /api/modules response actually contains for this viewer).
 const QUICK_ACTION_KEYS = ['quotation', 'site-visits', 'demo-schedule', 'projects'];
 
-// Data-driven from the same /api/modules endpoint the Dashboard tile grid
-// uses (lib/moduleConfigStore.ts's listVisibleModules) — already filtered
-// server-side to modules that are enabled AND visible to the caller's role,
-// so "role authorized only" needs no extra logic here.
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -41,21 +45,19 @@ export default function Sidebar() {
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [pinnedKeys, setPinnedKeys] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('matrix_sidebar_pinned');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  // One round trip instead of what used to be /api/auth/me followed
-  // (sequentially, only once that resolved) by up to 4 more badge-count
-  // fetches, plus a separate /api/modules call — see app/api/sidebar/
-  // route.ts, which resolves the viewer once and fans everything out in
-  // parallel server-side. Runs on every page (Sidebar is in AppShell), so
-  // this compounds across every navigation, not just first load.
-  //
-  // Keyed on `pathname`, not `[]`: the badge counts are live work queues (a
-  // rep's uncalled leads, a manager's unassigned ones, approvals), and with
-  // `[]` they were whatever they happened to be when this component first
-  // mounted — clear the queue and the badge sat there stale until a full
-  // reload. Re-fetching per navigation is the same single round trip the
-  // first paint already pays for, and the `cancelled` guard means a slow
-  // response for the page you just left can't overwrite the new one's.
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     let cancelled = false;
     fetch('/api/sidebar')
@@ -67,8 +69,6 @@ export default function Sidebar() {
         setBadges(data.badges ?? {});
       })
       .catch(() => {
-        // A failed refresh must not blank a nav that's already on screen —
-        // only the very first load falls back to the empty shell.
         if (!cancelled) setModules((prev) => prev ?? []);
       });
     return () => {
@@ -76,12 +76,6 @@ export default function Sidebar() {
     };
   }, [pathname]);
 
-  // Explicit user choice wins; otherwise default to a compact rail on
-  // tablet-width screens and fully expanded everywhere else — re-evaluated
-  // on resize (debounced) as well as on mount, so dragging the window across
-  // the 768/1080 boundary (or rotating a tablet) doesn't leave the rail
-  // stuck at whatever it computed on first paint. Never overrides an
-  // explicit toggle (toggleCollapsed() below persists one to localStorage).
   useEffect(() => {
     function applyDefaultIfNoExplicitChoice() {
       if (window.localStorage.getItem('sidebar-collapsed') !== null) return;
@@ -109,7 +103,20 @@ export default function Sidebar() {
     });
   }
 
-  // Closes the mobile drawer automatically after navigating to a new page.
+  function togglePin(e: React.MouseEvent, key: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setPinnedKeys((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      try {
+        localStorage.setItem('matrix_sidebar_pinned', JSON.stringify(next));
+      } catch {
+        // storage ignored
+      }
+      return next;
+    });
+  }
+
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
@@ -124,14 +131,47 @@ export default function Sidebar() {
     return QUICK_ACTION_KEYS.map((key) => byKey.get(key)).filter((m): m is ModuleConfigRecord => !!m);
   }, [modules]);
 
+  // All tiles flat map
+  const allTiles = useMemo(() => {
+    const map = new Map<string, { id: string; key: string; label: string; href: string; icon: string; category: string }>();
+    for (const sec of sections) {
+      for (const t of sec.tiles) {
+        map.set(t.key, { ...t, category: sec.label });
+      }
+    }
+    return map;
+  }, [sections]);
+
+  // Pinned items
+  const pinnedTiles = useMemo(() => {
+    return pinnedKeys
+      .map((key) => allTiles.get(key))
+      .filter((t): t is { id: string; key: string; label: string; href: string; icon: string; category: string } => !!t);
+  }, [pinnedKeys, allTiles]);
+
+  // Filtered sections when searching
+  const filteredSections = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return null;
+    return sections
+      .map((sec) => {
+        const matchingTiles = sec.tiles.filter(
+          (t) => t.label.toLowerCase().includes(query) || sec.label.toLowerCase().includes(query)
+        );
+        return {
+          ...sec,
+          tiles: matchingTiles
+        };
+      })
+      .filter((sec) => sec.tiles.length > 0);
+  }, [sections, searchQuery]);
+
   function isActive(href: string): boolean {
     if (href === '/') return pathname === '/';
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
   async function handleLogout() {
-    // So the birthday popup shows once on the NEXT login rather than being
-    // suppressed for the rest of the day (lib/celebrationPopupSeen.ts).
     forgetCelebrationPopups();
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
     router.push('/login');
@@ -147,13 +187,21 @@ export default function Sidebar() {
       </button>
       {open && <div className={styles.overlay} onClick={() => setOpen(false)} />}
       <aside className={`${styles.sidebar} ${open ? styles.sidebarOpen : ''} ${collapsed ? styles.sidebarCollapsed : ''}`}>
+        {/* Brand Header */}
         <div className={styles.brand}>
-          <Image src={BRAND.iconMark} alt={`${BRAND.companyName} logo`} width={32} height={32} className={styles.brandLogo} unoptimized />
+          <div className={styles.brandLogoWrapper}>
+            <Image src={BRAND.iconMark} alt={`${BRAND.companyName} logo`} width={34} height={34} className={styles.brandLogo} unoptimized />
+          </div>
           <div className={styles.brandText}>
-            <div className={styles.brandName}>{BRAND.appName}</div>
-            <div className={styles.brandMeta}>v{BRAND.version}</div>
+            <div className={styles.brandNameRow}>
+              <span className={styles.brandName}>{BRAND.appName}</span>
+              <span className={styles.brandVersion}>v{BRAND.version}</span>
+            </div>
+            <div className={styles.brandTagline}>{BRAND.tagline}</div>
           </div>
         </div>
+
+        {/* Floating collapse toggle */}
         <button
           type="button"
           className={styles.collapseBtn}
@@ -161,50 +209,170 @@ export default function Sidebar() {
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <CHROME_ICON.collapseLeft size={14} />
+          <CHROME_ICON.collapseLeft size={13} />
         </button>
 
-        <nav className={styles.nav}>
-          <Link href="/" className={`${styles.link} ${isActive('/') ? styles.linkActive : ''}`} data-tooltip="Dashboard">
-            <span className={styles.linkIcon}><CHROME_ICON.dashboard size={16} /></span>
-            <span className={styles.linkLabel}>Dashboard</span>
-          </Link>
-          {sections.map((section) => {
-            const SectionIcon = sectionIconFor(section.label);
-            return (
-              <div key={section.label}>
+        {/* Search / Filter in sidebar (when expanded) */}
+        {!collapsed && (
+          <div className={styles.searchWrapper}>
+            <div className={styles.searchBox}>
+              <Search size={13} className={styles.searchIcon} />
+              <input
+                ref={searchInputRef}
+                type="text"
+                className={styles.searchInput}
+                placeholder="Quick jump..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Filter navigation menu"
+              />
+              {searchQuery && (
                 <button
                   type="button"
-                  className={styles.sectionLabel}
-                  aria-expanded={isExpanded(section.label)}
-                  onClick={() => toggle(section.label)}
+                  className={styles.searchClearBtn}
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear filter"
                 >
-                  <span className={styles.sectionLabelMain}>
-                    <span className={styles.sectionIcon}><SectionIcon size={13} /></span>
-                    <span className={styles.sectionLabelText}>{section.label}</span>
-                  </span>
-                  <span className={styles.sectionChevron}>›</span>
+                  <X size={12} />
                 </button>
-                {(collapsed || isExpanded(section.label)) && (
-                  <>
-                    {section.tiles.map((tile) => {
-                      const TileIcon = resolveModuleIcon(tile.icon);
-                      return (
-                        <Link key={tile.id} href={tile.href} className={`${styles.link} ${isActive(tile.href) ? styles.linkActive : ''}`} data-tooltip={tile.label}>
-                          <span className={styles.linkIcon}>{TileIcon ? <TileIcon size={16} /> : tile.icon}</span>
-                          <span className={styles.linkLabel}>{tile.label}</span>
-                          {!!badges[tile.key] && <span className={styles.badge}>{badges[tile.key]}</span>}
-                        </Link>
-                      );
-                    })}
-                  </>
-                )}
+              )}
+            </div>
+          </div>
+        )}
+
+        <nav className={styles.nav}>
+          {/* Main Dashboard Link */}
+          {!searchQuery && (
+            <Link href="/" className={`${styles.link} ${isActive('/') ? styles.linkActive : ''}`} data-tooltip="Dashboard">
+              <span className={styles.linkIcon}><CHROME_ICON.dashboard size={16} /></span>
+              <span className={styles.linkLabel}>Dashboard</span>
+            </Link>
+          )}
+
+          {/* Pinned / Favorites Section */}
+          {!searchQuery && pinnedTiles.length > 0 && (
+            <div className={styles.pinnedSection}>
+              {!collapsed && (
+                <div className={styles.pinnedHeader}>
+                  <Star size={11} className={styles.pinnedHeaderIcon} />
+                  <span>Pinned Shortcuts</span>
+                </div>
+              )}
+              {pinnedTiles.map((tile) => {
+                const TileIcon = resolveModuleIcon(tile.icon);
+                return (
+                  <Link
+                    key={`pinned-${tile.id}`}
+                    href={tile.href}
+                    className={`${styles.link} ${styles.linkPinned} ${isActive(tile.href) ? styles.linkActive : ''}`}
+                    data-tooltip={`★ ${tile.label}`}
+                  >
+                    <span className={styles.linkIcon}>{TileIcon ? <TileIcon size={16} /> : tile.icon}</span>
+                    <span className={styles.linkLabel}>{tile.label}</span>
+                    {!!badges[tile.key] && <span className={styles.badge}>{badges[tile.key]}</span>}
+                    <button
+                      type="button"
+                      className={styles.pinToggleBtn}
+                      onClick={(e) => togglePin(e, tile.key)}
+                      title="Unpin from shortcuts"
+                    >
+                      <Star size={11} fill="currentColor" />
+                    </button>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Search Result Mode */}
+          {filteredSections ? (
+            <div className={styles.searchResultsContainer}>
+              <div className={styles.searchResultsCount}>
+                Found {filteredSections.reduce((acc, s) => acc + s.tiles.length, 0)} match(es)
               </div>
-            );
-          })}
+              {filteredSections.map((section) => (
+                <div key={`search-${section.label}`} className={styles.searchSectionGroup}>
+                  <div className={styles.searchSectionTitle}>{section.label}</div>
+                  {section.tiles.map((tile) => {
+                    const TileIcon = resolveModuleIcon(tile.icon);
+                    return (
+                      <Link
+                        key={tile.id}
+                        href={tile.href}
+                        className={`${styles.link} ${isActive(tile.href) ? styles.linkActive : ''}`}
+                      >
+                        <span className={styles.linkIcon}>{TileIcon ? <TileIcon size={16} /> : tile.icon}</span>
+                        <span className={styles.linkLabel}>{tile.label}</span>
+                        {!!badges[tile.key] && <span className={styles.badge}>{badges[tile.key]}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* Normal Categorized Accordion Sections */
+            sections.map((section) => {
+              const SectionIcon = sectionIconFor(section.label);
+              const isSectionOpen = isExpanded(section.label);
+              return (
+                <div key={section.label} className={styles.sectionContainer}>
+                  <button
+                    type="button"
+                    className={styles.sectionLabel}
+                    aria-expanded={isSectionOpen}
+                    onClick={() => toggle(section.label)}
+                  >
+                    <span className={styles.sectionLabelMain}>
+                      <span className={styles.sectionIcon}><SectionIcon size={13} /></span>
+                      <span className={styles.sectionLabelText}>{section.label}</span>
+                      <span className={styles.sectionCountPill}>{section.tiles.length}</span>
+                    </span>
+                    <span className={styles.sectionChevron}>
+                      <ChevronRight size={13} />
+                    </span>
+                  </button>
+
+                  {(collapsed || isSectionOpen) && (
+                    <div className={styles.sectionBody}>
+                      {section.tiles.map((tile) => {
+                        const TileIcon = resolveModuleIcon(tile.icon);
+                        const isPinned = pinnedKeys.includes(tile.key);
+                        return (
+                          <div key={tile.id} className={styles.linkWrapper}>
+                            <Link
+                              href={tile.href}
+                              className={`${styles.link} ${isActive(tile.href) ? styles.linkActive : ''}`}
+                              data-tooltip={tile.label}
+                            >
+                              <span className={styles.linkIcon}>{TileIcon ? <TileIcon size={16} /> : tile.icon}</span>
+                              <span className={styles.linkLabel}>{tile.label}</span>
+                              {!!badges[tile.key] && <span className={styles.badge}>{badges[tile.key]}</span>}
+                            </Link>
+                            {!collapsed && (
+                              <button
+                                type="button"
+                                className={`${styles.pinActionBtn} ${isPinned ? styles.pinActionBtnActive : ''}`}
+                                onClick={(e) => togglePin(e, tile.key)}
+                                title={isPinned ? 'Unpin from top' : 'Pin to top shortcuts'}
+                                aria-label={isPinned ? 'Unpin' : 'Pin'}
+                              >
+                                <Pin size={11} />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </nav>
 
-        {quickActions.length > 0 && (
+        {/* Quick Actions (only when not collapsed and not searching) */}
+        {!searchQuery && quickActions.length > 0 && (
           <div className={styles.quickActions}>
             <div className={styles.quickActionsLabel}>Quick Actions</div>
             <div className={styles.quickActionsGrid}>
@@ -212,8 +380,8 @@ export default function Sidebar() {
                 const QuickIcon = QUICK_ACTION_ICON[m.key] || resolveModuleIcon(m.icon);
                 return (
                   <Link key={m.id} href={m.href} className={styles.quickActionBtn}>
-                    <span className={styles.quickActionIcon}>{QuickIcon ? <QuickIcon size={15} /> : m.icon}</span>
-                    {m.label}
+                    <span className={styles.quickActionIcon}>{QuickIcon ? <QuickIcon size={14} /> : m.icon}</span>
+                    <span>{m.label}</span>
                   </Link>
                 );
               })}
@@ -221,17 +389,27 @@ export default function Sidebar() {
           </div>
         )}
 
+        {/* User Profile & Auth Footer */}
         <div className={styles.profile}>
-          <Link href="/profile" className={styles.profileLink} title="My Profile">
-            <div className={styles.avatar}>{initials}</div>
+          <Link href="/profile" className={styles.profileLink} title="My Profile & Settings">
+            <div className={styles.avatarWrapper}>
+              <div className={styles.avatar}>{initials}</div>
+              <span className={styles.avatarStatus} title="Active Online" />
+            </div>
             <div className={styles.profileInfo}>
               <div className={styles.profileName}>{viewer?.name || '…'}</div>
-              <div className={styles.profileMeta}>{viewer ? ROLE_LABEL[viewer.role] : ''}{viewer?.department ? ` · ${viewer.department}` : ''}</div>
+              <div className={styles.profileMeta}>
+                {viewer ? ROLE_LABEL[viewer.role] : ''}
+                {viewer?.department ? ` · ${viewer.department}` : ''}
+              </div>
             </div>
           </Link>
-          <button type="button" className={styles.logoutBtn} onClick={handleLogout} title="Log out" aria-label="Log out"><CHROME_ICON.logout size={15} /></button>
+          <button type="button" className={styles.logoutBtn} onClick={handleLogout} title="Log out" aria-label="Log out">
+            <CHROME_ICON.logout size={15} />
+          </button>
         </div>
       </aside>
     </>
   );
 }
+

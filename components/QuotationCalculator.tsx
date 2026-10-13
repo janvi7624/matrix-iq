@@ -194,7 +194,14 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
     fetch(`/api/quotations/${reviseId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((source: QuotationRecord | null) => {
-        if (!source || !source.quotation_number) return;
+        // Say so. This used to return silently, which left the reviser
+        // looking at a blank new quotation with no hint that the source
+        // failed to load — indistinguishable from the Revise button simply
+        // not working.
+        if (!source || !source.quotation_number) {
+          toast.error('Could not load that quotation to revise. It may have been deleted, or you may not have access to it.');
+          return;
+        }
         setRevisingFrom({ id: reviseId, quotationNumber: source.quotation_number });
         setProjectId(source.project_id || '');
         setDetails((d) => ({
@@ -260,7 +267,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
           setDiscounts([{ id: -1_000_000, label: `Carried over from ${source.quotation_number}`, type: 'flat', value: source.discount_total }]);
         }
       })
-      .catch(() => null);
+      .catch(() => toast.error('Could not reach the server to load that quotation.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviseId]);
 

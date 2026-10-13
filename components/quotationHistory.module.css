@@ -5,6 +5,10 @@
     color: var(--mx-ink);
     min-height: 100vh;
 }
+/* Application header. Deep navy ground with a slim brand rule — the rule
+   was 3px, which at full width read as a stripe across the page rather
+   than an edge. Kept visually lightweight: the header is chrome, not
+   content. */
 .header {
     /* Dark again — a light header blended into the page and read as too
        casual for an office tool; --mx-ink is the same dark neutral this app
@@ -16,7 +20,7 @@
        back. */
     background: var(--mx-ink);
     color: #fff;
-    padding: 18px 24px;
+    padding: 14px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -24,7 +28,9 @@
     gap: 12px;
     /* No drop shadow — a dark bar already separates cleanly from the light
        page by contrast alone; a soft shadow under it just read as a dirty
-       smudge rather than depth. */
+       smudge rather than depth. The brand underline below does that job
+       instead, and is the one decorative edge kept here. */
+    border-bottom: 2px solid var(--mx-brand);
     position: relative;
     /* The app's own z-index scale (bottom of this file) — NOT a bare 1.
        A low literal z-index here still creates a stacking context, which
@@ -34,7 +40,9 @@
        made the notification popover render under a sticky table header on
        the page behind it. Using the real --mx-z-header tier keeps the
        header above ordinary content while leaving room above it for
-       dropdowns/popovers/modals, which all sit higher in the same scale. */
+       dropdowns/popovers/modals, which all sit higher in the same scale.
+       components/GlobalSearch.tsx portals its palette to document.body for
+       exactly this reason — do not swap this back for a literal. */
     z-index: var(--mx-z-header);
 }
 .headerBrand {
@@ -45,16 +53,19 @@
     color: inherit;
 }
 .headerLogo {
-    height: 38px;
+    height: 36px;
     width: auto;
     border-radius: var(--mx-radius-xs);
     background: var(--mx-surface);
     box-shadow: var(--mx-shadow-xs);
     padding: 5px;
 }
-.header h1 { font-size: 20px; margin: 0; }
-/* Was var(--mx-ink-faint) — correct on a light header, invisible on a dark
-   one. Scoped to PortalHeader's only consumer of .sub, so this doesn't leak
+/* Weight and tracking from the other branch; the size stays 20px, which is
+   what the dark bar was spaced for. */
+.header h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+/* Must stay a light tint: .header is var(--mx-ink) on BOTH branches, so the
+   grey this replaced (#9ca3af / var(--mx-ink-faint)) is near-invisible on
+   it. Scoped to PortalHeader's only consumer of .sub, so this doesn't leak
    a dark-bg assumption into some other light-surface use of the class. */
 .sub { font-size: 12.5px; color: rgba(255, 255, 255, 0.65); }
 .headerActions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -1430,7 +1441,121 @@
 .revisionTag { margin-left: 6px; }
 .statusSelect { padding: 4px 6px; border-radius: var(--mx-radius-xs); border: none; box-shadow: var(--mx-shadow-pressed-sm); font-size: var(--mx-text-meta); }
 .expiredNote { font-size: 11px; color: var(--mx-ink-faint); }
-.rowActionsInline { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Quotation row actions (components/QuotationTable.tsx).
+
+   These were two borderless, zero-padding text links (Download, Revise)
+   sitting flush against a bordered Delete — three different visual weights
+   for three actions of the same kind, and a click target only as tall as
+   the text. Now one shared button shape, with tone carrying the meaning:
+   Revise is the action people came for, Download supports it, Delete is
+   destructive and kept apart. */
+
+.rowActionsInline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.rowAction {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-md, 8px);
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    /* A real hit target — the old buttons were padding:0 text. */
+    padding: 6px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background 180ms var(--mx-ease), border-color 180ms var(--mx-ease), color 180ms var(--mx-ease);
+}
+
+.rowAction:hover:not(:disabled) {
+    border-color: var(--mx-border-strong);
+    color: var(--mx-ink);
+    background: var(--mx-surface-sunken);
+}
+
+.rowAction:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+
+/* Replaces an inline style={{ opacity }} that was the only thing marking a
+   disabled borderless button as disabled. */
+.rowAction:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.rowActionPrimary {
+    border-color: rgba(220, 38, 38, 0.35);
+    color: var(--mx-brand);
+}
+
+.rowActionPrimary:hover {
+    border-color: var(--mx-brand);
+    background: var(--mx-brand-subtle);
+    color: var(--mx-brand-hover);
+}
+
+.rowActionDanger {
+    /* Pushed away from the two routine actions beside it. */
+    margin-left: 4px;
+    border-color: rgba(220, 38, 38, 0.3);
+    color: var(--mx-danger);
+}
+
+.rowActionDanger:hover {
+    border-color: var(--mx-danger);
+    background: var(--mx-danger-subtle);
+    color: var(--mx-danger);
+}
+
+/* "Download" -> "Working…" changed the button's width mid-click and shoved
+   everything beside it sideways. A fixed box keeps the row still. */
+.rowActionLabelFixed {
+    display: inline-block;
+    min-width: 58px;
+    text-align: left;
+}
+
+.rowActionSpin {
+    animation: rowActionSpin 900ms linear infinite;
+}
+
+@keyframes rowActionSpin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rowActionSpin { animation: none; }
+}
+
+/* Below ~1100px the actions column is the first thing worth compressing —
+   the icons carry the meaning and every button keeps its title tooltip. */
+@media (max-width: 1100px) {
+    .rowActionLabel {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .rowAction {
+        padding: 7px 9px;
+    }
+}
 .versionTable { composes: table; margin-top: 10px; }
 .projectIdInput { max-width: 140px; }
 .followUpCheckboxLabel { display: flex; align-items: center; gap: 6px; font-size: var(--mx-text-body); white-space: nowrap; }

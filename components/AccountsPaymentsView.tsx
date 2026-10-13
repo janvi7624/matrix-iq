@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
 import AppShell from './AppShell';
 import StatTile from './ui/StatTile';
 import Select from './ui/Select';
@@ -15,6 +15,7 @@ import type { ReimbursementPivot } from '@/lib/reimbursementSheetStore';
 import { BRAND } from '@/lib/branding';
 import { friendlyFileName } from '@/lib/format';
 import { VoucherData } from '@/lib/expenseVoucherPdf';
+import { currentFiscalYear, fiscalYearOptions, listPeriodOptions, periodContainingDate, TargetPeriodType } from '@/lib/targetPeriod';
 import styles from './accountsPayments.module.css';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
@@ -87,6 +88,38 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
   const [status, setStatus] = useState('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Period filter — the same fiscal calendar the Targets module uses
+  // (lib/targetPeriod.ts), so "Q2" means the same three months everywhere in
+  // MatrixIQ. 'none' is the default: a date filter nobody asked for would
+  // hide payments on first load.
+  const [periodType, setPeriodType] = useState<TargetPeriodType | 'none'>('none');
+  const [fiscalYear, setFiscalYear] = useState(currentFiscalYear());
+  const [periodKey, setPeriodKey] = useState(() => periodContainingDate('monthly').periodKey);
+  const [department, setDepartment] = useState('all');
+  const [employee, setEmployee] = useState('all');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  // The secondary filters stay folded away until asked for — source and
+  // search cover most days, and eight controls on permanent display is a
+  // wall, not a toolbar.
+  const [showFilters, setShowFilters] = useState(false);
+  const [totals, setTotals] = useState<{ count: number; amount: number; overdueCount: number; overdueAmount: number } | null>(null);
+  const [facets, setFacets] = useState<{ departments: string[]; employees: string[] }>({ departments: [], employees: [] });
+
+  const periodOptions = useMemo(
+    () => (periodType === 'none' || periodType === 'annual' ? [] : listPeriodOptions(periodType, fiscalYear)),
+    [periodType, fiscalYear]
+  );
+
+  // Switching period type resets to the period containing today rather than
+  // leaving a stale key from the previous type (a quarter key under
+  // 'monthly' would resolve to nothing).
+  function handlePeriodTypeChange(next: TargetPeriodType | 'none') {
+    setPeriodType(next);
+    if (next !== 'none' && next !== 'annual') setPeriodKey(periodContainingDate(next).periodKey);
+  }
 
   const [selected, setSelected] = useState<PaymentQueueItem | null>(null);
   const [payOpen, setPayOpen] = useState(false);
@@ -191,27 +224,50 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
       .catch(() => setSummary(null));
   }, []);
 
-  const fetchList = useCallback(() => {
-    if (tab === 'reimbursement-report') return;
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+  // Built once and reused by both the list fetch and the CSV export link, so
+  // a download can never carry different filters from the list on screen.
+  const filterParams = useCallback(() => {
+    const params = new URLSearchParams();
     if (source !== 'all') params.set('source', source);
     if (tab === 'queue' && status !== 'all') params.set('status', status);
     if (debouncedSearch) params.set('search', debouncedSearch);
+    if (periodType !== 'none') {
+      params.set('periodType', periodType);
+      params.set('fiscalYear', fiscalYear);
+      if (periodType !== 'annual') params.set('periodKey', periodKey);
+    }
+    if (department !== 'all') params.set('department', department);
+    if (employee !== 'all') params.set('employee', employee);
+    if (minAmount.trim()) params.set('minAmount', minAmount.trim());
+    if (maxAmount.trim()) params.set('maxAmount', maxAmount.trim());
+    if (tab === 'queue' && overdueOnly) params.set('overdueOnly', 'true');
+    return params;
+  }, [tab, source, status, debouncedSearch, periodType, fiscalYear, periodKey, department, employee, minAmount, maxAmount, overdueOnly]);
+
+  const fetchList = useCallback(() => {
+    if (tab === 'reimbursement-report') return;
+    setLoading(true);
+    const params = filterParams();
+    params.set('page', String(page));
+    params.set('pageSize', String(PAGE_SIZE));
     const endpoint = tab === 'queue' ? '/api/accounts/payments' : '/api/accounts/payments/history';
     fetch(`${endpoint}?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         setItems(data?.items ?? []);
         setTotal(data?.total ?? 0);
+        setTotals(data?.totals ?? null);
+        if (data?.facets) setFacets(data.facets);
       })
-      .catch(() => { setItems([]); setTotal(0); })
+      .catch(() => { setItems([]); setTotal(0); setTotals(null); })
       .finally(() => setLoading(false));
-  }, [tab, source, status, debouncedSearch, page]);
+  }, [tab, filterParams, page]);
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { fetchList(); }, [fetchList]);
-  useEffect(() => { setPage(1); }, [tab, source, status, debouncedSearch]);
+  // Any filter change returns to page 1 — staying on page 4 of a result set
+  // that now has two pages shows an empty table that looks like "no results".
+  useEffect(() => { setPage(1); }, [tab, source, status, debouncedSearch, periodType, fiscalYear, periodKey, department, employee, minAmount, maxAmount, overdueOnly]);
 
   // Loaded once per visit to the tab, not on every render — the pivot has no
   // filters of its own (it's a single all-time month×employee summary), so
@@ -227,6 +283,29 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
   }, [tab, pivot, pivotLoading]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Counted so the Filters button can say how many are on without the panel
+  // being open — otherwise a filter set yesterday silently narrows today's
+  // list and reads as missing data. Source and status are excluded: they sit
+  // in the toolbar where they're already visible.
+  const activeFilterCount =
+    (periodType !== 'none' ? 1 : 0) +
+    (department !== 'all' ? 1 : 0) +
+    (employee !== 'all' ? 1 : 0) +
+    (minAmount.trim() ? 1 : 0) +
+    (maxAmount.trim() ? 1 : 0) +
+    (overdueOnly ? 1 : 0);
+
+  function clearFilters() {
+    setPeriodType('none');
+    setFiscalYear(currentFiscalYear());
+    setPeriodKey(periodContainingDate('monthly').periodKey);
+    setDepartment('all');
+    setEmployee('all');
+    setMinAmount('');
+    setMaxAmount('');
+    setOverdueOnly(false);
+  }
 
   const columns = useMemo(
     () => [
@@ -463,8 +542,132 @@ export default function AccountsPaymentsView({ currentUser }: Props) {
             <option value="on_hold">On Hold</option>
           </Select>
         )}
-        <a className={styles.exportLink} href="/api/accounts/payments/export.csv">Export CSV</a>
+        <button
+          type="button"
+          className={`${styles.filterToggle} ${activeFilterCount ? styles.filterToggleActive : ''}`}
+          onClick={() => setShowFilters((v) => !v)}
+          aria-expanded={showFilters}
+        >
+          <SlidersHorizontal size={14} /> Filters
+          {activeFilterCount > 0 && <span className={styles.filterBadge}>{activeFilterCount}</span>}
+        </button>
+        {/* Carries the current filters, so the download matches the screen. */}
+        <a className={styles.exportLink} href={`/api/accounts/payments/export.csv?scope=${tab}&${filterParams().toString()}`}>
+          Export CSV
+        </a>
       </div>
+
+      {showFilters && (
+        <div className={styles.filterPanel}>
+          <div className={styles.filterGrid}>
+            <label className={styles.filterField}>
+              <span className={styles.filterLabel}>{tab === 'queue' ? 'Raised in' : 'Paid in'}</span>
+              <Select value={periodType} onChange={(e) => handlePeriodTypeChange(e.target.value as TargetPeriodType | 'none')}>
+                <option value="none">Any time</option>
+                <option value="monthly">Month</option>
+                <option value="quarterly">Quarter</option>
+                <option value="half_yearly">Half-Year</option>
+                <option value="annual">Full Year</option>
+              </Select>
+            </label>
+
+            {periodType !== 'none' && (
+              <label className={styles.filterField}>
+                <span className={styles.filterLabel}>Financial Year</span>
+                <Select value={fiscalYear} onChange={(e) => setFiscalYear(e.target.value)}>
+                  {fiscalYearOptions().map((fy) => (
+                    <option key={fy} value={fy}>FY {fy}</option>
+                  ))}
+                </Select>
+              </label>
+            )}
+
+            {periodOptions.length > 0 && (
+              <label className={styles.filterField}>
+                <span className={styles.filterLabel}>Period</span>
+                <Select value={periodKey} onChange={(e) => setPeriodKey(e.target.value)}>
+                  {periodOptions.map((p) => (
+                    <option key={p.key} value={p.key}>{p.label}</option>
+                  ))}
+                </Select>
+              </label>
+            )}
+
+            <label className={styles.filterField}>
+              <span className={styles.filterLabel}>Department</span>
+              <Select value={department} onChange={(e) => setDepartment(e.target.value)}>
+                <option value="all">All departments</option>
+                {facets.departments.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </Select>
+            </label>
+
+            <label className={styles.filterField}>
+              <span className={styles.filterLabel}>Employee</span>
+              <Select value={employee} onChange={(e) => setEmployee(e.target.value)}>
+                <option value="all">Everyone</option>
+                {facets.employees.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </Select>
+            </label>
+
+            <label className={styles.filterField}>
+              <span className={styles.filterLabel}>Amount (₹)</span>
+              <div className={styles.amountRange}>
+                <input
+                  type="number"
+                  className={calcStyles.formControl}
+                  placeholder="Min"
+                  value={minAmount}
+                  onChange={(e) => setMinAmount(e.target.value)}
+                  aria-label="Minimum amount"
+                />
+                <span className={styles.rangeDash}>–</span>
+                <input
+                  type="number"
+                  className={calcStyles.formControl}
+                  placeholder="Max"
+                  value={maxAmount}
+                  onChange={(e) => setMaxAmount(e.target.value)}
+                  aria-label="Maximum amount"
+                />
+              </div>
+            </label>
+
+            {tab === 'queue' && (
+              <label className={`${styles.filterField} ${styles.filterCheck}`}>
+                <input type="checkbox" checked={overdueOnly} onChange={(e) => setOverdueOnly(e.target.checked)} />
+                <span>Overdue only</span>
+              </label>
+            )}
+          </div>
+
+          {activeFilterCount > 0 && (
+            <button type="button" className={styles.clearFilters} onClick={clearFilters}>
+              <X size={13} /> Clear all filters
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* What the current filter adds up to across EVERY match, not just the
+          20 rows on this page — the figure an accounts person is actually
+          after ("how much does Sales need paying this quarter"). */}
+      {totals && (activeFilterCount > 0 || totals.count > 0) && (
+        <div className={styles.resultBar}>
+          <span>
+            <strong>{totals.count}</strong> {totals.count === 1 ? 'payment' : 'payments'} ·{' '}
+            <strong>{formatMoney(totals.amount)}</strong>
+          </span>
+          {tab === 'queue' && totals.overdueCount > 0 && (
+            <span className={styles.resultOverdue}>
+              {totals.overdueCount} overdue · {formatMoney(totals.overdueAmount)}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className={styles.tableSection}>
         <Table

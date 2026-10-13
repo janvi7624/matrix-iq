@@ -5,3 +5,90 @@
 .reorderRow { display: flex; gap: 4px; }
 .iconSelect { width: 130px; }
 .ml6 { margin-left: 6px; }
+
+/* ---- Save bar --------------------------------------------------------
+   Edits are buffered and written only on Save (see page.tsx). Sticky,
+   because the module table runs well past a screen — a save control at the
+   bottom would be out of sight from whichever row is being edited. */
+
+.saveBar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0 18px;
+    padding: 10px 14px;
+    border: 1px solid var(--mx-border);
+    border-radius: 10px;
+    background: var(--mx-surface);
+}
+
+/* Only draws attention once there is something to lose. */
+.saveBarActive {
+    border-color: var(--mx-warning);
+    background: var(--mx-warning-subtle);
+}
+
+.saveBarText {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mx-ink-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.saveBarActive .saveBarText {
+    color: var(--mx-ink);
+}
+
+.saveBtn {
+    border: 1px solid var(--mx-brand);
+    border-radius: var(--mx-radius-md, 8px);
+    background: var(--mx-brand);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 180ms var(--mx-ease);
+}
+
+.saveBtn:hover:not(:disabled) {
+    background: var(--mx-brand-hover);
+}
+
+.saveBtn:disabled {
+    background: var(--mx-surface-sunken);
+    border-color: var(--mx-border);
+    color: var(--mx-ink-faint);
+    cursor: default;
+}
+
+.saveBtn:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+
+/* Which rows will actually be written when Save is pressed — the same diff
+   that builds the request payload, so the highlight can't disagree with it. */
+.rowDirty td {
+    background: var(--mx-warning-subtle);
+}
+
+.rowDirty td:first-child {
+    box-shadow: inset 3px 0 0 var(--mx-warning);
+}
+
+.pendingChip {
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--mx-warning-subtle);
+    color: var(--mx-warning);
+    font-size: 11px;
+    font-weight: 700;
+    vertical-align: middle;
+}

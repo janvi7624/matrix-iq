@@ -15,6 +15,11 @@ export interface HealthGaugeProps {
   score: number;
   band: HealthBand;
   breakdown: HealthGaugeBreakdownRow[];
+  /** Who runs this department. First is treated as the primary lead;
+      the rest only raise a co-lead count, since a tile has no room to
+      name three people. Optional so a caller with no roster to hand
+      still compiles. */
+  managers?: { id: string; username?: string; name: string }[];
   /** Opens the full department detail. */
   onOpen: () => void;
 }
@@ -46,11 +51,12 @@ export const BAND_TEXT: Record<HealthBand, string> = {
 // "Below 40" / "40–69" / "70+" in plain text) all carry it too.
 const THRESHOLD_TICKS = [40, 70];
 
-export default function HealthGauge({ label, score, band, breakdown, onOpen }: HealthGaugeProps) {
+export default function HealthGauge({ label, score, band, breakdown, managers = [], onOpen }: HealthGaugeProps) {
   const color = BAND_COLOR[band];
   const isNa = band === 'na';
   const clamped = Math.max(0, Math.min(100, score));
   const headline = breakdown[0];
+  const primaryManager = managers[0];
 
   return (
     <button type="button" className={styles.tile} onClick={onOpen} aria-label={`${label} health: ${isNa ? 'not enough data' : `${score} percent, ${BAND_TEXT[band]}`}. Open full details.`}>
@@ -58,6 +64,19 @@ export default function HealthGauge({ label, score, band, breakdown, onOpen }: H
         <span className={styles.label}>{label}</span>
         <span className={styles.bandDot} style={{ background: color }} aria-hidden="true" />
       </div>
+
+      {/* Who to talk to about this score. Carried over from the card this
+          tile replaced — the number is only actionable if you know whose
+          it is. Absent rather than "Unassigned" when nobody is set, so a
+          department with no lead does not shout about it on a dashboard. */}
+      {primaryManager && (
+        <div className={styles.deptLead}>
+          Lead: {primaryManager.name || primaryManager.username}
+          {managers.length > 1 && (
+            <span className={styles.coLeadBadge} title={managers.length + ' co-leads'}>+{managers.length - 1}</span>
+          )}
+        </div>
+      )}
 
       <div className={styles.scoreLine} style={{ color }}>{isNa ? '—' : `${score}%`}</div>
 

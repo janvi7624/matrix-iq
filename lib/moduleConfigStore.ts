@@ -3,6 +3,7 @@ import { ModuleConfigRecord, UserRole } from './types';
 import { db, isUuid } from './db';
 import { cached, invalidateCache } from './memoCache';
 import { TMS_ROLE_KEYS, TMS_DEPARTMENTS } from './tmsConstants';
+import { canAccessHrExpenseModule, isHrExpenseModule } from './hrExpenseAccess';
 
 // listModuleConfigs() (and its seed/reconcile pass) used to run in full on
 // every module-gated request — proxy.ts's own comment already flagged this
@@ -108,12 +109,12 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // Visible to every TMS role too (not just ALL_ROLES) — HR Dashboard,
   // Travel Schedule, and Reimbursement apply to technical-manager/team-lead/
   // technician accounts just as much as everyone else.
-  { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
-  { key: 'reimbursement', label: 'Reimbursement', desc: 'Submit and track expense reimbursement bills.', icon: 'receipt-indian-rupee', href: '/reimbursement', section: 'HR', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
-  { key: 'admin-expenses', label: 'Admin Expenses', desc: 'Add hotel & ticket expenses split across employees.', icon: 'briefcase', href: '/admin-expenses', section: 'HR', order: 3, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin', 'hr'] },
+  { key: 'travel-schedule', label: 'Travel Schedule', desc: 'Log rep travel for client visits.', icon: 'car', href: '/travel-schedule', section: 'HR', order: 6, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  { key: 'reimbursement', label: 'Reimbursement', desc: 'Submit and track expense reimbursement bills.', icon: 'receipt-indian-rupee', href: '/reimbursement', section: 'HR', order: 3, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  { key: 'admin-expenses', label: 'Admin Expenses', desc: 'Add hotel & ticket expenses split across employees.', icon: 'briefcase', href: '/admin-expenses', section: 'HR', order: 4, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin', 'hr'] },
   // HR + Admin + Super Admin — see HR_RESTRICTED_KEYS above, which is what
   // actually keeps the generic 'manager' role out (this list alone wouldn't).
-  { key: 'office-operation-expenses', label: 'Office Operation Expenses', desc: 'HR/Admin office operating spend — office, electricity, guest, director, salary, and pantry expenses.', icon: 'receipt-indian-rupee', href: '/office-operation-expenses', section: 'HR', order: 4, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'office-operation-expenses', label: 'Office Operation Expenses', desc: 'HR/Admin office operating spend — office, electricity, guest, director, salary, and pantry expenses.', icon: 'receipt-indian-rupee', href: '/office-operation-expenses', section: 'HR', order: 2, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   // Accounts Payment Queue — one centralized workspace aggregating every
   // payment-required record across Reimbursement, Admin Expenses, Office
   // Operation Expenses, and TMS BOM Requests/Travel Schedule. 'accounts' is
@@ -121,8 +122,8 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'accounts-payments', label: 'Payments', desc: 'Every pending, on-hold, and completed payment across every module — the Accounts team\'s single payment queue.', icon: 'receipt-indian-rupee', href: '/accounts/payments', section: 'Accounts', order: 0, enabled: true, isCustom: false, visibleToRoles: ACCOUNTS_MODULE_ROLES },
   // HR operational task engine — HR_RESTRICTED_KEYS keeps these HR + Admin +
   // Super Admin only (not every department's generic 'manager' role).
-  { key: 'hr-employees', label: 'Employees', desc: 'Active employee directory.', icon: 'users', href: '/hr/employees', section: 'HR', order: 6, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
-  { key: 'hr-reports', label: 'HR Expense Report', desc: 'Reimbursement, admin expense, and office operation spend by period, employee, or department.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-employees', label: 'Employees', desc: 'Active employee directory.', icon: 'users', href: '/hr/employees', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-reports', label: 'HR Expense Report', desc: 'Reimbursement, admin expense, and office operation spend by period, employee, or department.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 5, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
   // SALES_ROLES_WITH_TMS, not ALL_ROLES: a technical-manager/team-lead/
   // technician can be assigned tasks like anyone else, and with ALL_ROLES
@@ -142,6 +143,11 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'team-tasks', label: 'Team Tasks', desc: 'Assign and track tasks within your own department.', icon: 'clipboard-list', href: '/team-tasks', section: 'Workspace', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'backoffice', label: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', icon: 'package', href: '/backoffice', section: 'Operations', order: 1, enabled: true, isCustom: false, visibleToRoles: ['backoffice', 'admin', 'superadmin', 'manager'] },
   { key: 'marketing-requests', label: 'Marketing Requests', desc: 'Request marketing support — brochures, banners, social posts, and more — and track delivery timelines.', icon: 'megaphone', href: '/marketing-requests', section: 'Marketing', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  // Deliberately visible to EVERY role, including the TMS ones: the whole
+  // point of the library is that anyone can find a datasheet or case study
+  // without being given access to the Drive folder it lives in. Syncing and
+  // editing descriptions are gated separately, at the API, by Marketing.
+  { key: 'materials', label: 'Materials', desc: 'Datasheets, case studies, brochures, presentations and certificates — the shared marketing library, synced from Drive.', icon: 'library', href: '/materials', section: 'Marketing', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: 'user', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'role-management', label: 'Role Management', desc: 'What each role can see and do across the platform.', icon: 'shield', href: '/admin/roles', section: 'Administration', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'department-master', label: 'Department Master', desc: 'Departments used across user profiles.', icon: 'building', href: '/admin/departments', section: 'Administration', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -569,6 +575,11 @@ export async function listVisibleModules(viewer: {
   isPrivileged: boolean;
   department?: string | null;
   isDepartmentManager?: boolean;
+  // Needed by the HR-expense modules, which are granted to named people
+  // rather than to a role (lib/hrExpenseAccess.ts). Optional so existing
+  // callers compile; without it those three tiles show for the admin tier
+  // only, which fails closed rather than open.
+  username?: string;
 }): Promise<ModuleConfigRecord[]> {
   const all = await listModuleConfigs();
   return all.filter((m) => {
@@ -582,6 +593,10 @@ export async function listVisibleModules(viewer: {
     // real manager whose role just isn't in the generic ALL_ROLES set —
     // exactly the 'technical-manager' gap this module exists to fix.
     if (MANAGER_GATED_KEYS.has(m.key)) return (viewer.isPrivileged || !!viewer.isDepartmentManager) && departmentAllowsModule(m, viewer.department, true);
+    // Granted to named individuals, not to a role — so visibleToRoles can't
+    // express it and is bypassed for these three keys. `enabled` above still
+    // applies, so Module Manager can still switch them off entirely.
+    if (isHrExpenseModule(m.key)) return canAccessHrExpenseModule(m.key, viewer);
     return m.visibleToRoles.includes(viewer.role) && departmentAllowsModule(m, viewer.department, viewer.isPrivileged);
   });
 }
@@ -597,11 +612,16 @@ export async function listVisibleModules(viewer: {
 // data by hitting the API directly even if they know the URL.
 export async function isModuleAccessAllowed(
   key: string,
-  viewer: { role: UserRole; isPrivileged: boolean; department?: string | null; isDepartmentManager?: boolean }
+  viewer: { role: UserRole; isPrivileged: boolean; department?: string | null; isDepartmentManager?: boolean; username?: string }
 ): Promise<boolean> {
   const all = await listModuleConfigs();
   const config = all.find((m) => m.key === key);
   if (!config || !config.enabled) return false;
+
+  // Named-individual grants (lib/hrExpenseAccess.ts). Checked before every
+  // role rule below, including the isPrivileged bypass, so a 'manager'
+  // can't reach HR/Admin spend through it.
+  if (isHrExpenseModule(key)) return canAccessHrExpenseModule(key, viewer);
 
   // MANAGER_GATED_KEYS bypasses the role-list check entirely, same reasoning
   // as listVisibleModules above — a department manager can hold any role, so

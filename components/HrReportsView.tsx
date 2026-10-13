@@ -38,7 +38,6 @@ function firstMonthOf(year: number): number {
   return year === DATA_START_YEAR ? DATA_START_MONTH : 1;
 }
 
-const GROUP_BY_LABEL: Record<GroupBy, string> = { employee: 'employee', department: 'department', source: 'expense type' };
 const GRANULARITY_WORD: Record<Granularity, string> = { month: 'monthly', quarter: 'quarterly', year: 'yearly' };
 const GROUP_HEADING: Record<GroupBy, string> = { employee: 'By Employee', department: 'By Department', source: 'By Expense Type' };
 const COLUMN_HEADING: Record<GroupBy, string> = { employee: 'Employee', department: 'Department', source: 'Expense Type' };
@@ -171,7 +170,12 @@ export default function HrReportsView() {
   const [year, setYear] = useState(currentYear);
   const [granularity, setGranularity] = useState<Granularity>('month');
   const [scope, setScope] = useState<PeriodScope>('all');
-  const [groupBy, setGroupBy] = useState<GroupBy>('employee');
+  // The Group By picker is gone — the report is always by employee, which
+  // is what every consumer of it actually wanted. The value is still sent
+  // to the API, which keeps supporting department/source grouping for the
+  // XLSX export and any future caller; this view just no longer offers the
+  // choice.
+  const groupBy: GroupBy = 'employee';
   // 'all' keeps every register in one view; picking one answers "show me
   // just the reimbursement spend" without any further clicks.
   const [sourceFilter, setSourceFilter] = useState<SourceKey | 'all'>('all');
@@ -232,14 +236,6 @@ export default function HrReportsView() {
   function changeGranularity(next: Granularity) {
     setGranularity(next);
     setScope('all');
-  }
-
-  // Keeps the grouping valid: "By Expense Type" stops being offered once a
-  // single register is selected, so a stale 'source' grouping would leave
-  // the picker showing nothing and the table showing one row.
-  function changeSourceFilter(next: SourceKey | 'all') {
-    setSourceFilter(next);
-    if (next !== 'all' && groupBy === 'source') setGroupBy('employee');
   }
 
   // Newest first, back to the first year with data — never further.
@@ -326,7 +322,6 @@ export default function HrReportsView() {
     year !== currentYear ||
     granularity !== 'month' ||
     scope !== 'all' ||
-    groupBy !== 'employee' ||
     sourceFilter !== 'all' ||
     !!department ||
     !!employeeId ||
@@ -336,7 +331,6 @@ export default function HrReportsView() {
     setYear(currentYear);
     setGranularity('month');
     setScope('all');
-    setGroupBy('employee');
     setSourceFilter('all');
     setDepartment('');
     setEmployeeId('');
@@ -388,19 +382,9 @@ export default function HrReportsView() {
           )}
 
           <FilterField label="Expense Type">
-            <Select value={sourceFilter} onChange={(e) => changeSourceFilter(e.target.value as SourceKey | 'all')}>
+            <Select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as SourceKey | 'all')}>
               <option value="all">All Expense Types</option>
               {ALL_SOURCES.map((key) => <option key={key} value={key}>{SOURCE_LABEL[key]} only</option>)}
-            </Select>
-          </FilterField>
-
-          <FilterField label="Group By">
-            <Select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)}>
-              <option value="employee">Employee</option>
-              <option value="department">Department</option>
-              {/* Grouping by expense type only says anything when more than
-                  one is in play — with a single register it would be one row. */}
-              {sourceFilter === 'all' && <option value="source">Expense Type</option>}
             </Select>
           </FilterField>
 
@@ -425,7 +409,6 @@ export default function HrReportsView() {
           <div className={styles.filterSummary}>
             Showing <strong>{periodLabel}</strong> ({GRANULARITY_WORD[granularity]})
             {' · '}<strong>{sourceFilter === 'all' ? 'all expense types' : `${SOURCE_LABEL[sourceFilter]} only`}</strong>
-            {' · '}grouped by <strong>{GROUP_BY_LABEL[groupBy]}</strong>
             {department && <> · <strong>{department}</strong></>}
             {employeeName && <> · <strong>{employeeName}</strong></>}
             {approvedOnly && <> · <strong>approved entries only</strong></>}

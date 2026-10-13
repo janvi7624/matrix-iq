@@ -28,6 +28,23 @@ export async function resolveIsPrivileged(role: string): Promise<boolean> {
 // "View Profile", assignment/handover dropdowns, etc.), not just protected
 // from editing (which app/api/admin/users/[id]'s PATCH already enforced).
 // Only a superadmin viewer can see other superadmin accounts.
+// Who may read the Audit Log. Defined here, and imported by BOTH the page
+// (app/admin/audit-log/page.tsx) and its API
+// (app/api/admin/audit-log/route.ts), because those two files previously
+// hard-coded 'superadmin' each on their own while the module's
+// visibleToRoles was editable in Module Manager. The three drifted apart:
+// the tile advertised the page to admins and the page then bounced them to
+// the dashboard with no explanation. One list, two consumers.
+//
+// Wider than most /admin pages on purpose — proxy.ts's blanket gate only
+// requires isPrivileged, which 'manager' also satisfies, and the audit
+// trail is not for every manager in the company.
+export const AUDIT_LOG_ROLES = ['superadmin', 'admin'];
+
+export function canViewAuditLog(role: string): boolean {
+  return AUDIT_LOG_ROLES.includes(role);
+}
+
 export function canViewRole(viewerRole: string, targetRole: string): boolean {
   return targetRole !== 'superadmin' || viewerRole === 'superadmin';
 }

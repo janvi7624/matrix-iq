@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     const isDeptManager = Object.values(deptManagers).some((list) => list.some((m) => m.username === viewer.username));
 
     const [modules, leads, canAssign, isMarketingReviewer, demosForBadge, backOfficeCounts] = await Promise.all([
-      listVisibleModules({ role: viewer.role, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager }),
+      listVisibleModules({ role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager }),
       // The lead list itself rather than computeLeadStats — same single query
       // that helper runs internally, but the badge below needs two counts it
       // doesn't expose (this viewer's OWN unattended leads, not their whole

@@ -14,10 +14,10 @@ const EMPTY_LABELS: string[] = [];
 // viewer's department-matched category) which defaults open until the
 // viewer explicitly toggles something — an explicit toggle always wins.
 //
-// `accordion` (opt-in, Sidebar.tsx only — Dashboard.tsx's tile grid keeps
-// its existing independent multi-expand behavior): opening one section
-// explicitly collapses every other one, so exploring HR then clicking
-// Marketing drops HR instead of leaving both open. Requires `allLabels` (the
+// `accordion` (used by both Sidebar.tsx and Dashboard.tsx): opening one
+// section explicitly collapses every other one, so exploring HR then
+// clicking Marketing drops HR instead of leaving both open — without it the
+// dashboard's eleven sections could all sit open at once. Requires `allLabels` (the
 // full set of section labels currently rendered) so every sibling — not just
 // ones already toggled once — gets marked collapsed; otherwise a label with
 // no explicit entry yet would fall through to the initiallyExpandedLabel

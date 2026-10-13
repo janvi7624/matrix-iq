@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const user = await findUserNameAndDeptByUsername(viewer.username);
-    const modules = await listVisibleModules({ role: viewer.role, isPrivileged: viewer.isPrivileged, department: user?.department });
+    const modules = await listVisibleModules({ role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department });
     return NextResponse.json(modules);
   } catch (error) {
     return apiErrorResponse(error);
