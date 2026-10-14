@@ -73,7 +73,20 @@ const modelDefiners = [
   require('./generalTaskDeadlineChange.js'),
   require('./attendanceRecord.js'),
   require('./leaveRequest.js'),
-  require('./paymentHold.js')
+  require('./paymentHold.js'),
+  // Daily Report Management. Order matters only in that dailyReport.js's
+  // associate() references DailyReportEntry/DailyReportRevision, and
+  // associate() runs after every definer below has been loaded.
+  require('./dailyReportConfig.js'),
+  require('./dailyReportTemplate.js'),
+  require('./dailyReport.js'),
+  require('./dailyReportEntry.js'),
+  require('./dailyReportRevision.js'),
+  require('./dailyReportLeaveClaim.js'),
+  require('./dailyReportWarning.js'),
+  require('./dailyReportEscalation.js'),
+  require('./dailyReportNotificationEvent.js'),
+  require('./dailyReportSchedulerRun.js')
 ];
 
 const db = {};

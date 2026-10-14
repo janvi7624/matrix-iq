@@ -50,7 +50,7 @@ const TMS_DEPARTMENT_LIST: string[] = [...TMS_DEPARTMENTS];
 // the list. Listing the key here routes it through HR_MODULE_ROLES instead of
 // viewer.isPrivileged.
 const HR_MODULE_ROLES: UserRole[] = ['hr', 'superadmin', 'admin'];
-const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-employees', 'hr-reports']);
+const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-employees', 'hr-reports', 'hr-daily-reports']);
 
 // Accounts, for exactly the same reason. The payment queue is the Accounts
 // team's and the admins' — it previously listed 'manager' in visibleToRoles
@@ -72,7 +72,11 @@ const ACCOUNTS_RESTRICTED_KEYS = new Set(['accounts-payments']);
 // or a legacy 'manager' account can all be a department's manager), so the
 // caller resolves it (see lib/departmentStore.ts's isUserADepartmentManager)
 // and passes it in as viewer.isDepartmentManager.
-const MANAGER_GATED_KEYS = new Set(['team-tasks']);
+// 'team-daily-reports' joins team-tasks here for exactly the same reason: who
+// may see a team's daily reports is "manager of some department"
+// (Department.managerIds), which no static visibleToRoles list can express —
+// a department's manager may hold any role at all.
+const MANAGER_GATED_KEYS = new Set(['team-tasks', 'team-daily-reports']);
 
 // TMS accounts also need a handful of Sales-section modules (their project
 // dashboard is tied to Project.assigned_technical_person_id, and they work
@@ -141,6 +145,29 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // of role, since no static role list can express "manager of some
   // department" the way it can for a single fixed role like HR's.
   { key: 'team-tasks', label: 'Team Tasks', desc: 'Assign and track tasks within your own department.', icon: 'clipboard-list', href: '/team-tasks', section: 'Workspace', order: 1, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  // Daily Report Management — four tiles, one per audience, all pointing at
+  // the same module:
+  //   daily-report        Workspace  -> the employee's own report (everyone)
+  //   team-daily-reports  Reports    -> a manager's team view (MANAGER_GATED_KEYS)
+  //   hr-daily-reports    HR         -> leave claims + warnings (HR_RESTRICTED_KEYS)
+  //   daily-report-config Administration -> templates, deadlines, scheduler
+  //
+  // SALES_ROLES_WITH_TMS for the employee tile, not ALL_ROLES: a
+  // technical-manager/team-lead/technician files a daily report like anyone
+  // else, and with ALL_ROLES they would have no nav entry to find it — the
+  // same gap My Tasks and Existing Quotations each had to be widened for.
+  { key: 'daily-report', label: 'Daily Report', desc: 'File your daily activity report, claim leave for a day you were away, and — if you manage a team — see who has filed.', icon: 'clipboard-list', href: '/daily-reports', section: 'Workspace', order: 3, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  // visibleToRoles is deliberately ALL_ROLES; the real gate is
+  // MANAGER_GATED_KEYS above, which requires isPrivileged or actual
+  // department-manager membership regardless of role.
+  { key: 'team-daily-reports', label: 'Team Daily Reports', desc: 'Who filed, who filed late, and who is missing — by date and department. Review a report, or file one on an employee\u2019s behalf.', icon: 'clipboard-list', href: '/daily-reports/team', section: 'Reports', order: 4, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'hr-daily-reports', label: 'Daily Report Review', desc: 'Approve or reject leave claims, and review or waive missed-report warnings.', icon: 'shield', href: '/hr/daily-reports', section: 'HR', order: 7, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  // Narrower than PRIVILEGED_ROLES (excludes the generic 'manager'), same
+  // restriction 'audit-log' and 'meta-lead-integration' already use: this
+  // page arms a job that emails the whole company and decides who gets
+  // warned. See canAccessDailyReportConfig in lib/dailyReportAccess.ts, which
+  // is what actually enforces it.
+  { key: 'daily-report-config', label: 'Daily Report Configuration', desc: 'Department report formats, working days, deadlines, reminders, warning thresholds, and the reminder scheduler.', icon: 'settings', href: '/admin/daily-report-config', section: 'Administration', order: 12, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
   { key: 'backoffice', label: 'Back Office Operations', desc: 'Delivery Challans — prepare, dispatch, verify returns, close.', icon: 'package', href: '/backoffice', section: 'Operations', order: 1, enabled: true, isCustom: false, visibleToRoles: ['backoffice', 'admin', 'superadmin', 'manager'] },
   { key: 'marketing-requests', label: 'Marketing Requests', desc: 'Request marketing support — brochures, banners, social posts, and more — and track delivery timelines.', icon: 'megaphone', href: '/marketing-requests', section: 'Marketing', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   // Deliberately visible to EVERY role, including the TMS ones: the whole
@@ -435,6 +462,16 @@ const OLD_TASK_PLANNER_DESC = 'Assign a task to any employee in any department.'
 // key and href, so only the label/desc change — and only while the row
 // still holds the exact old defaults, so an admin's own Module Manager edit
 // is never clobbered.
+// Team Daily Reports absorbed into the Daily Report page as a second tab
+// (see ABSORBED_INTO_MERGED_PAGE), so the surviving tile's description has to
+// mention it. Guarded on the exact old default, like every reconciliation
+// here: an admin who has already reworded this tile keeps their own text.
+const DAILY_REPORT_KEY = 'daily-report';
+const OLD_DAILY_REPORT_DESC =
+  'File your daily activity report, track your submission history, and claim leave for a day you were away.';
+const NEW_DAILY_REPORT_DESC =
+  'File your daily activity report, claim leave for a day you were away, and — if you manage a team — see who has filed.';
+
 const HR_REPORTS_KEY = 'hr-reports';
 const OLD_HR_REPORTS_LABEL = 'HR Reports';
 const OLD_HR_REPORTS_DESC = 'Daily task, monthly performance, and employee work reports.';
@@ -525,6 +562,7 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (key === TASK_PLANNER_KEY && plain.icon === OLD_TASK_PLANNER_ICON) attrs.icon = 'kanban-square';
     if (key === TASK_PLANNER_KEY && plain.desc === OLD_TASK_PLANNER_DESC) attrs.desc = 'Plan, assign and track work across departments and employees.';
     if (key === TASK_PLANNER_KEY && plain.section === OLD_TASK_PLANNER_SECTION) { attrs.section = NEW_TASK_PLANNER_SECTION; attrs.order = NEW_TASK_PLANNER_ORDER; }
+    if (key === DAILY_REPORT_KEY && plain.desc === OLD_DAILY_REPORT_DESC) attrs.desc = NEW_DAILY_REPORT_DESC;
     if (key === HR_REPORTS_KEY && plain.label === OLD_HR_REPORTS_LABEL) attrs.label = 'HR Expense Report';
     if (key === HR_REPORTS_KEY && plain.desc === OLD_HR_REPORTS_DESC) attrs.desc = 'Reimbursement, admin expense, and office operation spend by period, employee, or department.';
     if (key === 'admin-expenses' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ADMIN_EXPENSES_ROLES)) attrs.visibleToRoles = NEW_ADMIN_EXPENSES_ROLES;
@@ -568,7 +606,19 @@ export async function listModuleConfigs(): Promise<ModuleConfigRecord[]> {
 // product-catalog-overrides -> app/admin/products/page.tsx (components/ProductsAdminView.tsx).
 // my-quotations -> app/quotation/page.tsx (components/QuotationsView.tsx).
 // tms-dashboard -> app/tms/projects/page.tsx (components/TmsProjectsView.tsx).
-const ABSORBED_INTO_MERGED_PAGE = new Set(['tms-tab-access', 'product-catalog-overrides', 'my-quotations', 'tms-dashboard']);
+// team-daily-reports -> app/daily-reports/page.tsx (components/DailyReportsPageView.tsx),
+//   where it is a second tab shown only to someone who actually manages a
+//   team. Its row stays MANAGER_GATED_KEYS and keeps its own visibleToRoles,
+//   so every isModuleAccessAllowed('team-daily-reports', …) check in
+//   app/api/daily-reports/team/* is unaffected — only the sidebar tile goes.
+//   Its section/order are now inert, since an absorbed key is never listed.
+const ABSORBED_INTO_MERGED_PAGE = new Set([
+  'tms-tab-access',
+  'product-catalog-overrides',
+  'my-quotations',
+  'tms-dashboard',
+  'team-daily-reports'
+]);
 
 export async function listVisibleModules(viewer: {
   role: UserRole;
