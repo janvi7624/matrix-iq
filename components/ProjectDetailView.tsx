@@ -80,6 +80,7 @@ import { OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@
 // reloading the page's data and overwriting whatever had been typed since.
 // Now the whole card is one form with one Save.
 type OverviewField =
+  | 'projectName'
   | 'clientName' | 'company' | 'contactPerson' | 'altContactPhone' | 'phone' | 'email' | 'address' | 'source'
   | 'priority' | 'status' | 'stage' | 'coldCallResponded' | 'nextFollowUpDate'
   | 'closingProbabilityPercent' | 'approxPrice'
@@ -87,11 +88,19 @@ type OverviewField =
 
 const NUMERIC_OVERVIEW_FIELDS: OverviewField[] = ['closingProbabilityPercent', 'approxPrice'];
 
+// Every overview field is PATCHed under its own name, because that is what
+// app/api/projects/[id] reads — except project_name, which that route reads
+// in snake_case (it arrived through the proposal form's fill-back path, see
+// QuotationProposalForm's fillBack). Translated here rather than renaming the
+// field to snake_case and leaving one odd member in the union above.
+const OVERVIEW_PATCH_KEY: Partial<Record<OverviewField, string>> = { projectName: 'project_name' };
+
 // The saved value of one field, always as the string an input holds. Pure and
 // module-level so "what is on screen" and "what counts as changed" can never
 // answer this question differently.
 function savedOverviewValue(project: ProjectRecord, field: OverviewField): string {
   switch (field) {
+    case 'projectName': return project.project_name || '';
     case 'clientName': return project.client_name || '';
     case 'company': return project.company || '';
     case 'contactPerson': return project.contact_person || '';
@@ -496,7 +505,8 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     const patch: Record<string, unknown> = {};
     for (const field of changedOverviewFields) {
       const value = (overviewDraft[field] ?? '').trim();
-      patch[field] = NUMERIC_OVERVIEW_FIELDS.includes(field) && value !== '' ? Number(value) : value;
+      const key = OVERVIEW_PATCH_KEY[field] ?? field;
+      patch[key] = NUMERIC_OVERVIEW_FIELDS.includes(field) && value !== '' ? Number(value) : value;
     }
     setSavingDetails(true);
     try {
@@ -1533,6 +1543,22 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         {tab === 'overview' && (
           <div className={`${historyStyles.detailPanel} ${historyStyles.detailPanelFlush}`}>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              {/* Editable here and not only on the create form: the field was
+                  added after most of this pipeline existed, so 164 of 169
+                  projects have no name and previously no way to be given one.
+                  The PATCH route already accepted it. */}
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Project Name</label>
+                {canEdit ? (
+                  <input
+                    className={calcStyles.formControl}
+                    placeholder="e.g. MeetIQ - Adani"
+                    value={overviewValue('projectName')}
+                    onChange={(e) => setOverviewField('projectName', e.target.value)}
+                    onKeyDown={overviewKeyDown}
+                  />
+                ) : <div className={calcStyles.small}>{project.project_name || '-'}</div>}
+              </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Client Representative Name</label>
                 {canEdit ? (
