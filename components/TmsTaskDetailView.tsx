@@ -15,11 +15,14 @@ import { useToast } from './ui/ToastProvider';
 import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import ToolbarButton from './ui/ToolbarButton';
+import TmsTaskDeadlineExtendModal from './TmsTaskDeadlineExtendModal';
+import { TmsTaskDeadlineExtensionRecord } from '@/lib/types';
 import styles from './tmsDetail.module.css';
 
 interface TaskDetailResponse {
   task: TmsTaskRecord;
   activity: AuditLogEntry[];
+  extensions?: TmsTaskDeadlineExtensionRecord[];
 }
 
 // Client-side mirror of lib/tmsTaskStore.ts's VALID_TRANSITIONS — for
@@ -72,6 +75,43 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
   const [actionRemark, setActionRemark] = useState('');
   const [actionProgress, setActionProgress] = useState('');
   const [acting, setActing] = useState(false);
+  const [showExtendDeadline, setShowExtendDeadline] = useState(false);
+  const [decidingExtension, setDecidingExtension] = useState<{ id: string; decision: 'approve' | 'reject' } | null>(null);
+  const [decisionRemark, setDecisionRemark] = useState('');
+  const [deciding, setDeciding] = useState(false);
+
+  // Approve or reject a pending request. The tier rule is NOT duplicated
+  // here — which pending status this viewer may act on is decided by
+  // decideTaskExtension on the server, so a stale check in the UI can at
+  // worst show a button the server then refuses.
+  async function decideExtensionRequest() {
+    if (!decidingExtension) return;
+    if (decidingExtension.decision === 'reject' && !decisionRemark.trim()) {
+      toast.error('A remark is required to reject a request.');
+      return;
+    }
+    setDeciding(true);
+    try {
+      const response = await fetch(`/api/tms/task-deadline-extensions/${decidingExtension.id}/decide`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: decidingExtension.decision, decisionRemark: decisionRemark.trim() })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({} as { error?: string }));
+        toast.error(body.error || 'Could not save the decision.');
+        return;
+      }
+      toast.success(decidingExtension.decision === 'approve' ? 'Extension approved — due date updated.' : 'Extension rejected.');
+      setDecidingExtension(null);
+      setDecisionRemark('');
+      await load();
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setDeciding(false);
+    }
+  }
 
   const isManagerTier = TMS_MANAGER_TIER_ROLES.has(currentUser.role);
 
@@ -222,6 +262,9 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
   }
 
   const { task, activity } = data;
+  // Defaulted rather than required on the type: an older cached response, or
+  // any other caller of this view, simply shows no history panel.
+  const extensions = data.extensions ?? [];
 
   return (
     <AppShell title={task.name} subtitle={`Task on ${task.project_name}`} showBackLink>
@@ -241,11 +284,119 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
         <div className={`${calcStyles.row} ${calcStyles.columns}`}>
           <div><strong>Department:</strong> {task.department_name || '-'}</div>
           <div><strong>Start Date:</strong> {formatDate(task.start_date)}</div>
-          <div><strong>Due Date:</strong> {formatDate(task.due_date)}</div>
+          <div>
+            <strong>Due Date:</strong> {formatDate(task.due_date)}
+            {/* Anyone who can see the task may ask for more time — the
+                client slipping is usually known by the engineer holding it,
+                not by a manager. Granting is a separate decision: the
+                request routes to Manager or Admin by the requester's own
+                tier, and the due date does not move until it is approved
+                (lib/tmsTaskDeadlineExtensionStore.ts). Finished work is
+                excluded — moving the date of a delivered task would only
+                ever be to rewrite its on-time record, which is exactly what
+                departmentScoring.ts measures. */}
+            {task.status !== 'completed' && task.status !== 'cancelled' && (
+              <button
+                type="button"
+                className={styles.extendDueBtn}
+                onClick={() => setShowExtendDeadline(true)}
+                title={task.due_date ? 'Request a later due date' : 'Set a due date'}
+              >
+                {task.due_date ? 'Extend' : 'Set date'}
+              </button>
+            )}
+          </div>
         </div>
         <div className={styles.infoRow}><strong>Description:</strong></div>
         <div className={styles.descriptionValue}>{task.description || 'No description provided.'}</div>
       </div>
+
+      {showExtendDeadline && (
+        <TmsTaskDeadlineExtendModal
+          taskId={task.id}
+          taskName={task.name}
+          currentDeadline={task.due_date}
+          onClose={() => setShowExtendDeadline(false)}
+          onExtended={load}
+        />
+      )}
+
+      {/* Due-date history, and the place pending requests get decided.
+          Shown only once something exists, so a task nobody has asked about
+          carries no extra panel. */}
+      {extensions.length > 0 && (
+        <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
+          <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Due Date Changes</div>
+          {extensions.map((ext) => {
+            const pending = ext.status === 'pending_manager' || ext.status === 'pending_admin';
+            return (
+              <div key={ext.id} className={styles.activityItem}>
+                <div className={styles.activityAction}>
+                  {ext.previousDeadline ? `${formatDate(ext.previousDeadline)} → ${formatDate(ext.newDeadline)}` : `Due date set to ${formatDate(ext.newDeadline)}`}
+                  {' — '}
+                  {ext.reason === 'client_end' ? 'From Client End' : 'From User End'}
+                </div>
+                <div className={styles.activityMeta}>
+                  {ext.extendedByName || ext.extendedByUsername} · {formatDateTime(ext.createdAt)} ·{' '}
+                  {ext.status === 'approved'
+                    ? `Approved${ext.approvedByName ? ` by ${ext.approvedByName}` : ''}`
+                    : ext.status === 'rejected'
+                      ? `Rejected${ext.approvedByName ? ` by ${ext.approvedByName}` : ''}`
+                      : ext.status === 'pending_admin'
+                        ? 'Awaiting Admin approval'
+                        : 'Awaiting Manager approval'}
+                </div>
+                {ext.remark && <div className={styles.mutedText13}>{ext.remark}</div>}
+                {ext.decisionRemark && <div className={styles.mutedText13}>Decision: {ext.decisionRemark}</div>}
+                {/* Offered to manager tier only as a UI affordance; the server
+                    re-resolves the tier and owns the real rule. */}
+                {pending && isManagerTier && (
+                  <div className={styles.actionButtonsRow}>
+                    <button
+                      type="button"
+                      className={calcStyles.btn}
+                      disabled={deciding}
+                      onClick={() => { setDecidingExtension({ id: ext.id, decision: 'approve' }); setDecisionRemark(''); }}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      className={calcStyles.btn}
+                      disabled={deciding}
+                      onClick={() => { setDecidingExtension({ id: ext.id, decision: 'reject' }); setDecisionRemark(''); }}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {decidingExtension && (
+            <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
+              <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>
+                {decidingExtension.decision === 'approve' ? 'Approve' : 'Reject'} Due Date Change
+              </div>
+              <Textarea
+                rows={2}
+                value={decisionRemark}
+                onChange={(e) => setDecisionRemark(e.target.value)}
+                placeholder={decidingExtension.decision === 'approve' ? 'Remark (optional)' : 'Remark (required)'}
+              />
+              <div className={styles.actionButtonsRow}>
+                <button type="button" className={calcStyles.btn} disabled={deciding} onClick={decideExtensionRequest}>
+                  {deciding ? 'Saving…' : `Confirm ${decidingExtension.decision === 'approve' ? 'Approval' : 'Rejection'}`}
+                </button>
+                <button type="button" className={calcStyles.btn} disabled={deciding} onClick={() => setDecidingExtension(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {isManagerTier ? (
         <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>

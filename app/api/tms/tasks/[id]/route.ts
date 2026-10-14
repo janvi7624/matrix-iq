@@ -11,6 +11,7 @@ import { logAudit, listAuditLog } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { tmsProjectStore } from '@/lib/tmsProjectStore';
 import { notifyIfCrossDepartmentAssignment } from '@/lib/tmsCrossDepartment';
+import { listForTask as listTaskDeadlineExtensions } from '@/lib/tmsTaskDeadlineExtensionStore';
 
 const VALID_STATUS: TmsTaskStatus[] = ['to_do', 'in_progress', 'on_hold', 'completed', 'cancelled', 'blocked', 'ready_for_review'];
 const VALID_PRIORITY: TmsPriority[] = ['low', 'medium', 'high'];
@@ -28,7 +29,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const activity = await listAuditLog('tms_task', id);
-    return NextResponse.json({ task, activity });
+    // Deadline-extension history, newest first. Carries the pending requests
+    // too, which is what the detail view's approve/reject panel reads — a
+    // request with nowhere to be decided would never be actioned.
+    //
+    // Non-fatal on purpose. This is an additive read bolted onto a page that
+    // worked without it, and its table arrives in a separate migration
+    // (20261014100000). If that migration has not run on an environment yet,
+    // the query throws 'relation does not exist' and would take the entire
+    // task detail page down with it. Degrading to "no history" keeps the task
+    // readable; the extension UI simply does not appear until the table does.
+    const extensions = await listTaskDeadlineExtensions(id).catch(() => []);
+    return NextResponse.json({ task, activity, extensions });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -73,7 +85,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.status = body.status;
     }
     if (typeof body.startDate === 'string') patch.start_date = body.startDate;
-    if (typeof body.dueDate === 'string') patch.due_date = body.dueDate;
+    // due_date is deliberately NOT editable here. It is scored by
+    // lib/departmentScoring.ts (on-time vs late vs overdue-and-open), so it
+    // moves only through the audited flow in
+    // app/api/tms/tasks/[id]/extend-deadline. Without this a manager could
+    // turn a late task on-time with a plain field edit and the whole approval
+    // chain would be decoration — which matters more now that a manager
+    // self-approves. The TMS project PATCH applies the same rule to
+    // `deadline` by not handling it at all; rejected loudly here rather than
+    // silently dropped, so a caller is told where to go instead.
+    if (body.dueDate !== undefined) {
+      return NextResponse.json(
+        { error: 'The due date is changed through Extend Due Date, not by editing the task.' },
+        { status: 400 }
+      );
+    }
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
     if (typeof body.departmentId === 'string') patch.department_id = body.departmentId.trim();
 

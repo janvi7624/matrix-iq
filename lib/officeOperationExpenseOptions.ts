@@ -107,3 +107,18 @@ export type OfficeLocation = (typeof OFFICE_LOCATIONS)[number];
 export function isValidOfficeLocation(value: string): value is OfficeLocation {
   return (OFFICE_LOCATIONS as readonly string[]).includes(value);
 }
+
+// Who fronted this expense — a fixed, short list of people/teams who actually
+// pay out of pocket for office spend, NOT the same thing as the `paid_by`
+// column on this same DB row (a UUID set by Accounts when the expense is
+// later settled/reimbursed — see lib/accountsPaymentStore.ts). This picklist
+// is stored in the `remarks` column instead (free-text notes was this form's
+// previous use of that field, replaced rather than kept alongside it).
+//
+// 'Other' is a trigger, not a storable value: picking it opens a required
+// free-text name field in the form, and the typed name is what actually gets
+// submitted as `remarks` — so the DB never has to distinguish "one of the
+// three named options" from "a name someone typed," and a new person paying
+// out of pocket doesn't need this list edited first.
+export const PAID_BY_OPTIONS = ['Hardik Acharya', 'Pragnesh Trivedi', 'Accounts Team', 'Other'] as const;
+export type PaidByOption = (typeof PAID_BY_OPTIONS)[number];

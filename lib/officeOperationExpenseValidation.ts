@@ -33,7 +33,9 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
   const itemSubNames = Array.isArray(body.itemSubNames)
     ? [...new Set(body.itemSubNames.map((v: unknown) => str(v)).filter(Boolean))]
     : [];
-  // Both free-text and optional — no length/content rules beyond trimming.
+  // description is free-text and optional; remarks now holds the required
+  // "Paid By" name — one of PAID_BY_OPTIONS, or a typed name when the form's
+  // 'Other' option was picked (see officeOperationExpenseOptions.ts).
   const description = str(body.description);
   const remarks = str(body.remarks);
   const amount = Number(body.amount);
@@ -59,6 +61,11 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
   if (!isValidUsecase(usecase)) return { error: `"${usecase}" is not a valid category` };
   if (!itemName) return { error: 'Expense Head is required' };
   if (!isValidItem(itemName)) return { error: `"${itemName}" is not a valid item` };
+  // Not checked against PAID_BY_OPTIONS: picking 'Other' in the form means
+  // the client already resolved this to a typed name, which by definition
+  // isn't one of the fixed options — only "something was provided" matters
+  // here.
+  if (!remarks) return { error: 'Paid By is required' };
   if (!Number.isFinite(amount) || amount <= 0) return { error: 'Amount must be greater than zero' };
 
   // A usecase with a fixed sub-list must carry one of its values; 'Other' must

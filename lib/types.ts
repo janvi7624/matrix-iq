@@ -1700,6 +1700,28 @@ export interface TmsDeadlineExtensionRecord {
   createdAt: string;
 }
 
+// TMS Task's equivalent (extends tms_tasks.due_date). Same shape as the TMS
+// project record above, keyed on taskId — a task's due date is scored by
+// lib/departmentScoring.ts exactly as a project's deadline is, so it carries
+// the same approval chain rather than being a plain field edit.
+export interface TmsTaskDeadlineExtensionRecord {
+  id: string;
+  taskId: string;
+  previousDeadline: string;
+  newDeadline: string;
+  reason: DeadlineExtensionReason;
+  remark: string;
+  attachments: string[];
+  status: DeadlineExtensionStatus;
+  extendedByName: string;
+  extendedByUsername: string;
+  approvedByName: string;
+  approvedByUsername: string;
+  approvedAt: string;
+  decisionRemark: string;
+  createdAt: string;
+}
+
 // Sales Project's equivalent of the above (extends expected_closing_date) —
 // same shape, no attachments field (never asked for on this side).
 export interface ProjectDeadlineExtensionRecord {

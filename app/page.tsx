@@ -15,5 +15,5 @@ export default async function Home() {
 
   const isPrivileged = await resolveIsPrivileged(user.role);
 
-  return <Dashboard currentUser={{ id: user.id, username: user.username, name: user.name, role: user.role, department: user.department, isPrivileged }} />;
+  return <Dashboard currentUser={{ id: user.id, username: user.username, name: user.name, role: user.role, department: user.department, designation: user.designation, isPrivileged }} />;
 }

@@ -65,7 +65,7 @@ const COLUMNS: ColumnDef[] = [
   { header: 'Qty', width: 8, center: true, value: (r) => r.item_qty ?? '' },
   { header: 'Amount', width: 16, center: true, numFmt: INDIAN_NUM_FMT, value: (r) => r.amount },
   { header: 'Description', width: 26, wrap: true, value: (r) => r.description },
-  { header: 'Remarks', width: 22, wrap: true, value: (r) => r.remarks }
+  { header: 'Paid By', width: 22, wrap: true, value: (r) => r.remarks }
 ];
 
 const LAST_COL = COLUMNS.length;

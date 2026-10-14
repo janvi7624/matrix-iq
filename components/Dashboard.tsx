@@ -66,7 +66,7 @@ const DUE_AFTER_SECTION = 'Workspace';
 const DUE_SECTION_LABEL = 'Due';
 
 interface DashboardProps {
-  currentUser: { id: string; username: string; name: string; role: UserRole; department?: string; isPrivileged: boolean };
+  currentUser: { id: string; username: string; name: string; role: UserRole; department?: string; designation?: string; isPrivileged: boolean };
 }
 
 type ManagersByDepartment = Record<string, { id: string; username: string; name: string }[]>;
@@ -659,7 +659,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               </span>
               <span className={styles.heroBadge}>
                 <ShieldCheck size={12} />
-                {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
+                {currentUser.designation || (currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1))}
                 {currentUser.department ? ` · ${currentUser.department}` : ''}
               </span>
             </div>

@@ -11,6 +11,34 @@
 .panelSpacedTop16 { margin-top: 16px; }
 .panelSpacedTop18 { margin-top: 18px; }
 
+/* "Extend" / "Set date" sitting inline after the Due Date value. Quiet and
+   small: it is one word inside a dense info grid, and at full button weight it
+   would outrank the date it belongs to. */
+.extendDueBtn {
+    margin-left: 8px;
+    padding: 1px 8px;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-xs);
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: color var(--mx-duration-fast) var(--mx-ease), border-color var(--mx-duration-fast) var(--mx-ease);
+}
+
+.extendDueBtn:hover {
+    color: var(--mx-brand);
+    border-color: var(--mx-brand);
+}
+
+.extendDueBtn:focus-visible {
+    outline: 2px solid var(--mx-brand);
+    outline-offset: 2px;
+}
+
 .infoRow { margin-top: 12px; }
 .salesHandoffRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .infoRowDanger { margin-top: 12px; color: var(--mx-danger); }

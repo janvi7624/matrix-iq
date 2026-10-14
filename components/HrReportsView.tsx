@@ -176,9 +176,19 @@ export default function HrReportsView() {
   // XLSX export and any future caller; this view just no longer offers the
   // choice.
   const groupBy: GroupBy = 'employee';
-  // 'all' keeps every register in one view; picking one answers "show me
-  // just the reimbursement spend" without any further clicks.
-  const [sourceFilter, setSourceFilter] = useState<SourceKey | 'all'>('all');
+  // Every register selected by default; unchecking one answers "show me
+  // just reimbursement + admin expense" etc. Always kept non-empty (toggling
+  // off the last remaining one is a no-op) — the API itself would 400 on an
+  // empty list, so the UI never offers a selection it knows will fail.
+  const [sourceFilter, setSourceFilter] = useState<SourceKey[]>(ALL_SOURCES);
+
+  function toggleSource(key: SourceKey) {
+    setSourceFilter((prev) => {
+      const has = prev.includes(key);
+      if (has && prev.length === 1) return prev;
+      return has ? prev.filter((s) => s !== key) : [...prev, key];
+    });
+  }
   const [department, setDepartment] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [approvedOnly, setApprovedOnly] = useState(false);
@@ -193,21 +203,17 @@ export default function HrReportsView() {
   const [result, setResult] = useState<{ key: string; report: Report | null; failed: boolean } | null>(null);
   const [attempt, setAttempt] = useState(0);
 
-  const sources = useMemo<SourceKey[]>(
-    () => (sourceFilter === 'all' ? ALL_SOURCES : [sourceFilter]),
-    [sourceFilter]
-  );
   const { from, to } = useMemo(() => resolveRange(year, granularity, scope, now), [year, granularity, scope, now]);
 
   // The query string is built once and reused verbatim by the export, which
   // is what guarantees the spreadsheet matches the table on screen.
   const query = useMemo(() => {
-    const params = new URLSearchParams({ from, to, granularity, groupBy, sources: sources.join(',') });
+    const params = new URLSearchParams({ from, to, granularity, groupBy, sources: sourceFilter.join(',') });
     if (department) params.set('department', department);
     if (employeeId) params.set('employeeId', employeeId);
     if (approvedOnly) params.set('approvedOnly', '1');
     return params.toString();
-  }, [from, to, granularity, groupBy, sources, department, employeeId, approvedOnly]);
+  }, [from, to, granularity, groupBy, sourceFilter, department, employeeId, approvedOnly]);
 
   const requestKey = `${query}#${attempt}`;
   const loading = !result || result.key !== requestKey;
@@ -221,7 +227,7 @@ export default function HrReportsView() {
       .then((data) => { if (active) setResult({ key: requestKey, report: data, failed: false }); })
       .catch(() => { if (active) setResult({ key: requestKey, report: null, failed: true }); });
     return () => { active = false; };
-  }, [query, requestKey, sources.length]);
+  }, [query, requestKey, sourceFilter.length]);
 
   useEffect(() => {
     fetch('/api/hr/reports/filters')
@@ -302,6 +308,13 @@ export default function HrReportsView() {
     return `${MONTH_NAMES[fromMonth - 1].slice(0, 3)}–${MONTH_NAMES[toMonth - 1].slice(0, 3)} ${year}`;
   }, [from, to, granularity, scope, year]);
 
+  // "all expense types" once every chip is checked (the common case), else
+  // the selected ones joined together — same rule the two summary spots
+  // below used to each spell out separately for the old single-select.
+  const sourceSummaryLabel = sourceFilter.length === ALL_SOURCES.length
+    ? 'all expense types'
+    : sourceFilter.map((s) => SOURCE_LABEL[s]).join(' + ');
+
   // A per-source total column repeats the row total when only one register
   // is selected, and duplicates the row identity when grouping BY source.
   const showSourceColumns = !!report && report.sources.length > 1 && report.groupBy !== 'source';
@@ -322,7 +335,7 @@ export default function HrReportsView() {
     year !== currentYear ||
     granularity !== 'month' ||
     scope !== 'all' ||
-    sourceFilter !== 'all' ||
+    sourceFilter.length !== ALL_SOURCES.length ||
     !!department ||
     !!employeeId ||
     approvedOnly;
@@ -331,7 +344,7 @@ export default function HrReportsView() {
     setYear(currentYear);
     setGranularity('month');
     setScope('all');
-    setSourceFilter('all');
+    setSourceFilter(ALL_SOURCES);
     setDepartment('');
     setEmployeeId('');
     setApprovedOnly(false);
@@ -382,10 +395,14 @@ export default function HrReportsView() {
           )}
 
           <FilterField label="Expense Type">
-            <Select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as SourceKey | 'all')}>
-              <option value="all">All Expense Types</option>
-              {ALL_SOURCES.map((key) => <option key={key} value={key}>{SOURCE_LABEL[key]} only</option>)}
-            </Select>
+            <div className={styles.filterChipRow}>
+              {ALL_SOURCES.map((key) => (
+                <label key={key} className={styles.toggleChip}>
+                  <input type="checkbox" checked={sourceFilter.includes(key)} onChange={() => toggleSource(key)} />
+                  {SOURCE_LABEL[key]}
+                </label>
+              ))}
+            </div>
           </FilterField>
 
           <FilterField label="Department">
@@ -408,7 +425,7 @@ export default function HrReportsView() {
               to, so nobody has to re-read the dropdowns to trust a figure. */}
           <div className={styles.filterSummary}>
             Showing <strong>{periodLabel}</strong> ({GRANULARITY_WORD[granularity]})
-            {' · '}<strong>{sourceFilter === 'all' ? 'all expense types' : `${SOURCE_LABEL[sourceFilter]} only`}</strong>
+            {' · '}<strong>{sourceSummaryLabel}</strong>
             {department && <> · <strong>{department}</strong></>}
             {employeeName && <> · <strong>{employeeName}</strong></>}
             {approvedOnly && <> · <strong>approved entries only</strong></>}
@@ -464,7 +481,7 @@ export default function HrReportsView() {
               <div className={styles.panelHead}>
                 <span className={styles.panelTitle}>
                   {GROUP_HEADING[report.groupBy]} · {periodLabel}
-                  {sourceFilter !== 'all' ? ` · ${SOURCE_LABEL[sourceFilter]} only` : ''}
+                  {sourceFilter.length !== ALL_SOURCES.length ? ` · ${sourceSummaryLabel}` : ''}
                 </span>
                 <span className={styles.panelMeta}>
                   {report.rows.length} {report.rows.length === 1 ? ROW_NOUN[report.groupBy] : `${ROW_NOUN[report.groupBy]}s`}

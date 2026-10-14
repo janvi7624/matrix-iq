@@ -59,6 +59,11 @@ export interface OfficeOperationExpenseInput {
   item_qty: number | null;
   amount: number;
   description: string;
+  // "Paid By" — one of PAID_BY_OPTIONS, or a typed name when the form's
+  // 'Other' option was picked (officeOperationExpenseOptions.ts). Kept on
+  // the `remarks` column rather than a new one; see that file's comment for
+  // why this isn't the same as the row's own `paid_by` UUID column (a
+  // separate, Accounts-owned concept).
   remarks: string;
   office_location: string;
 }

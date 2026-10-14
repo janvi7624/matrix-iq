@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       modules,
-      viewer: user ? { username: viewer.username, name: user.name, role: viewer.role, department: user.department } : null,
+      viewer: user ? { username: viewer.username, name: user.name, role: viewer.role, department: user.department, designation: user.designation } : null,
       badges
     });
   } catch (error) {

@@ -20,6 +20,7 @@ interface Viewer {
   username: string;
   role: UserRole;
   department?: string;
+  designation?: string;
 }
 
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -399,7 +400,7 @@ export default function Sidebar() {
             <div className={styles.profileInfo}>
               <div className={styles.profileName}>{viewer?.name || '…'}</div>
               <div className={styles.profileMeta}>
-                {viewer ? ROLE_LABEL[viewer.role] : ''}
+                {viewer ? (viewer.designation || ROLE_LABEL[viewer.role]) : ''}
                 {viewer?.department ? ` · ${viewer.department}` : ''}
               </div>
             </div>

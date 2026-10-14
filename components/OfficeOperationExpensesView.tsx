@@ -6,7 +6,7 @@ import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
 import { OfficeOperationExpenseRecord } from '@/lib/types';
 import { exportOfficeOperationExpensesXlsx } from '@/lib/officeOperationExpenseXlsx';
-import { OFFICE_LOCATIONS } from '@/lib/officeOperationExpenseOptions';
+import { OFFICE_LOCATIONS, PAID_BY_OPTIONS } from '@/lib/officeOperationExpenseOptions';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './officeOperationExpenses.module.css';
@@ -50,7 +50,10 @@ const emptyForm = {
   itemQty: '',
   amount: '',
   description: '',
-  remarks: ''
+  remarks: '',
+  // Only used while `remarks === 'Other'` — the typed name that becomes the
+  // real submitted value (see handleSubmit).
+  remarksOther: ''
 };
 
 interface OfficeOperationExpensesViewProps {
@@ -144,6 +147,10 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
   function startEdit(record: OfficeOperationExpenseRecord) {
     setEditId(record.id);
+    // A stored name outside the three fixed options only ever got there via
+    // 'Other' (see handleSubmit) — reopen it the same way it was entered,
+    // rather than as a blank, unrecognized select value.
+    const isNamedOption = (PAID_BY_OPTIONS as readonly string[]).includes(record.remarks) && record.remarks !== 'Other';
     setForm({
       date: record.date,
       officeLocation: record.office_location,
@@ -155,7 +162,8 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
       itemQty: record.item_qty === null ? '' : String(record.item_qty),
       amount: String(record.amount),
       description: record.description,
-      remarks: record.remarks
+      remarks: isNamedOption ? record.remarks : record.remarks ? 'Other' : '',
+      remarksOther: isNamedOption ? '' : record.remarks
     });
     setShowForm(true);
   }
@@ -189,6 +197,8 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     if (usecaseIsFreeText && !form.usecaseDetail.trim()) { toast.error('Describe the category'); return; }
     if (!form.itemName) { toast.error('Select an expense head'); return; }
     if (itemSubs?.length && !form.itemSubNames.length) { toast.error(form.itemName === 'Department' ? 'Select at least one department' : `Select at least one Item Name for ${form.itemName}`); return; }
+    if (!form.remarks) { toast.error('Select who paid'); return; }
+    if (form.remarks === 'Other' && !form.remarksOther.trim()) { toast.error('Enter the name of who paid'); return; }
     // Qty is optional — only complain when something was typed and it's not a
     // usable number.
     if (form.itemQty.trim() && !(Number(form.itemQty) > 0)) { toast.error('Item Qty must be greater than zero'); return; }
@@ -208,7 +218,9 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         itemQty: form.itemQty.trim(),
         amount: Number(form.amount),
         description: form.description,
-        remarks: form.remarks
+        // 'Other' itself is never stored — the typed name is what Paid By
+        // actually means in that case.
+        remarks: form.remarks === 'Other' ? form.remarksOther.trim() : form.remarks
       };
 
       const res = await fetch(
@@ -430,8 +442,24 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                 <textarea className={calcStyles.formControl} rows={2} placeholder="What was purchased or paid for" value={form.description} onChange={(e) => setField('description', e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
               </div>
               <div>
-                <label className={styles.fieldLabel}>Remarks</label>
-                <textarea className={calcStyles.formControl} rows={2} placeholder="Anything worth noting" value={form.remarks} onChange={(e) => setField('remarks', e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
+                <label className={styles.fieldLabel}>Paid By *</label>
+                <select
+                  className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                  value={form.remarks}
+                  onChange={(e) => { setField('remarks', e.target.value); if (e.target.value !== 'Other') setField('remarksOther', ''); }}
+                >
+                  <option value="">Select who paid…</option>
+                  {PAID_BY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+                {form.remarks === 'Other' && (
+                  <input
+                    className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                    placeholder="Enter name *"
+                    value={form.remarksOther}
+                    onChange={(e) => setField('remarksOther', e.target.value)}
+                    style={{ marginTop: 8 }}
+                  />
+                )}
               </div>
             </div>
 
@@ -479,7 +507,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                   <th style={{ textAlign: 'right' }}>Qty</th>
                   <th style={{ textAlign: 'right' }}>Amount</th>
                   <th>Description</th>
-                  <th>Remarks</th>
+                  <th>Paid By</th>
                   <th>Entered By</th>
                   <th>Actions</th>
                 </tr>

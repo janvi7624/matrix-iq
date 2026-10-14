@@ -176,15 +176,19 @@ export async function findUsersByDepartmentName(name: string): Promise<UserRecor
 // Sidebar's profile card (runs on every page) only ever needs name + department
 // — it already has `role` from the signed session, so the role join
 // findUserByUsername pays for is pure waste here.
-export async function findUserNameAndDeptByUsername(username: string): Promise<{ name: string; department: string } | undefined> {
+export async function findUserNameAndDeptByUsername(username: string): Promise<{ name: string; department: string; designation: string } | undefined> {
   const row = await db.User.findOne({
     where: caseInsensitiveUsername(username) as never,
     include: [deptInclude],
-    attributes: ['id', 'name']
+    attributes: ['id', 'name', 'designation']
   });
   if (!row) return undefined;
   const plain = row.get({ plain: true }) as Record<string, unknown>;
-  return { name: (plain.name as string) ?? '', department: (plain.departmentRef as { name?: string } | null)?.name ?? '' };
+  return {
+    name: (plain.name as string) ?? '',
+    department: (plain.departmentRef as { name?: string } | null)?.name ?? '',
+    designation: (plain.designation as string) ?? ''
+  };
 }
 
 // Returns null for a wrong password AND for a correct password on an
