@@ -705,3 +705,409 @@
   margin-bottom: var(--mx-space-4);
   flex-wrap: wrap;
 }
+
+/* ===================================================================== */
+/* Employee page redesign                                                 */
+/*                                                                        */
+/* The first cut of this page was a stack of full-width boxes: a warning   */
+/* banner, a six-item label/value row, then up to four more banners        */
+/* (leave pending, leave approved, leave rejected, non-working day, past   */
+/* deadline) before you reached the form — and the day-navigation strip    */
+/* was at the very bottom, under a form that can be ten entries long.      */
+/*                                                                        */
+/* This replaces that with: one command bar (navigate the date, see the    */
+/* status, see time remaining), the day strip promoted directly under it   */
+/* because it is navigation, ONE prioritised alert instead of a stack, and */
+/* an action bar that stays reachable without scrolling back up.           */
+/* ===================================================================== */
+
+/* ----------------------------------------------------------- command bar */
+
+.commandBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mx-space-4);
+  padding: var(--mx-space-4) var(--mx-space-5);
+  border-radius: var(--mx-radius-md);
+  background: var(--mx-surface);
+  box-shadow: var(--mx-shadow-sm);
+  margin-bottom: var(--mx-space-3);
+}
+
+.dateNav {
+  display: flex;
+  align-items: center;
+  gap: var(--mx-space-3);
+  min-width: 0;
+}
+
+/* Stepping a day at a time is the common case — opening a date picker to
+   go back one day was the only way to do it before. */
+.stepBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: var(--mx-radius-full);
+  background: var(--background);
+  color: var(--mx-ink-muted);
+  cursor: pointer;
+  box-shadow: var(--mx-shadow-xs);
+  transition: color var(--mx-duration-fast) var(--mx-ease), box-shadow var(--mx-duration-fast) var(--mx-ease);
+}
+
+.stepBtn:hover:not(:disabled) {
+  color: var(--mx-ink);
+  box-shadow: var(--mx-shadow-sm);
+}
+
+.stepBtn:active:not(:disabled) {
+  box-shadow: var(--mx-shadow-pressed-sm);
+}
+
+.stepBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.dateBlock {
+  min-width: 0;
+}
+
+.dateHeadline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mx-space-2);
+  font-size: 1.35rem;
+  font-weight: var(--mx-weight-bold);
+  color: var(--mx-ink);
+  line-height: var(--mx-leading-tight);
+  white-space: nowrap;
+}
+
+.dateToday {
+  font-size: var(--mx-text-micro);
+  font-weight: var(--mx-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--mx-tracking-caps);
+  color: var(--mx-brand-text);
+  background: var(--mx-brand-subtle);
+  border-radius: var(--mx-radius-full);
+  padding: 2px 8px;
+}
+
+.dateSub {
+  margin-top: 2px;
+  font-size: var(--mx-text-meta);
+  color: var(--mx-ink-muted);
+}
+
+/* The native picker is kept as an escape hatch for jumping a long way, but
+   it is no longer the primary control. */
+.datePicker {
+  flex: 0 0 auto;
+}
+
+.commandRight {
+  display: flex;
+  align-items: center;
+  gap: var(--mx-space-5);
+  margin-left: auto;
+}
+
+.commandStat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-end;
+}
+
+/* Time left is the single most actionable number on the page, so it is the
+   largest thing in the bar after the date itself. */
+.countdown {
+  font-size: var(--mx-text-control);
+  font-weight: var(--mx-weight-semibold);
+  color: var(--mx-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.countdownUrgent {
+  color: var(--mx-warning);
+}
+
+.countdownOver {
+  color: var(--mx-danger);
+}
+
+.countdownDone {
+  color: var(--mx-success);
+}
+
+@media (max-width: 720px) {
+  .commandBar {
+    gap: var(--mx-space-3);
+  }
+  .commandRight {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+    gap: var(--mx-space-3);
+  }
+  .commandStat {
+    align-items: flex-start;
+  }
+  .dateHeadline {
+    font-size: 1.15rem;
+  }
+}
+
+/* ------------------------------------------------------------- day strip */
+
+/* Promoted from the bottom of the page to directly under the command bar.
+   Scrolls horizontally rather than wrapping, so fourteen days stay one
+   readable row on a phone instead of becoming four. */
+.dayStrip {
+  display: flex;
+  gap: var(--mx-space-2);
+  overflow-x: auto;
+  padding: var(--mx-space-1) 2px var(--mx-space-3);
+  scroll-snap-type: x proximity;
+}
+
+.dayCell {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 58px;
+  padding: var(--mx-space-2) 0;
+  border: none;
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface);
+  box-shadow: var(--mx-shadow-xs);
+  cursor: pointer;
+  scroll-snap-align: end;
+  transition: box-shadow var(--mx-duration-fast) var(--mx-ease), transform var(--mx-duration-fast) var(--mx-ease);
+}
+
+.dayCell:hover {
+  box-shadow: var(--mx-shadow-sm);
+  transform: translateY(-1px);
+}
+
+.dayCellActive {
+  box-shadow: var(--mx-shadow-pressed-sm);
+  transform: none;
+}
+
+.dayCellDow {
+  font-size: var(--mx-text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--mx-tracking-caps);
+  color: var(--mx-ink-faint);
+  font-weight: var(--mx-weight-medium);
+}
+
+.dayCellNum {
+  font-size: var(--mx-text-control);
+  font-weight: var(--mx-weight-semibold);
+  color: var(--mx-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* A filled dot reads at a glance where a word would not fit in 58px. */
+.dayCellDot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--mx-radius-full);
+  background: var(--mx-border-strong);
+}
+
+/* ---------------------------------------------------------- mini stats */
+
+.miniStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: var(--mx-space-2);
+  margin-bottom: var(--mx-space-4);
+}
+
+.miniStat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--mx-space-3);
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface);
+  box-shadow: var(--mx-shadow-xs);
+}
+
+.miniStatValue {
+  font-size: 1.3rem;
+  font-weight: var(--mx-weight-bold);
+  color: var(--mx-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--mx-leading-tight);
+}
+
+.miniStatLabel {
+  font-size: var(--mx-text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--mx-tracking-caps);
+  color: var(--mx-ink-faint);
+  font-weight: var(--mx-weight-medium);
+}
+
+.miniStatSuccess .miniStatValue {
+  color: var(--mx-success);
+}
+.miniStatWarning .miniStatValue {
+  color: var(--mx-warning);
+}
+.miniStatDanger .miniStatValue {
+  color: var(--mx-danger);
+}
+.miniStatInfo .miniStatValue {
+  color: var(--mx-info);
+}
+
+/* --------------------------------------------------------- alert chips */
+
+/* The secondary conditions that used to each get their own full-width
+   banner. Only the single most important one is still a banner; the rest
+   collapse to these, so four simultaneous conditions cost one line instead
+   of four boxes. */
+.alertChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mx-space-2);
+  margin-bottom: var(--mx-space-4);
+}
+
+.alertChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: var(--mx-radius-full);
+  background: var(--mx-surface-sunken);
+  color: var(--mx-ink-muted);
+  font-size: var(--mx-text-badge);
+  font-weight: var(--mx-weight-medium);
+}
+
+.alertChipInfo {
+  background: var(--mx-info-subtle);
+  color: var(--mx-info);
+}
+.alertChipWarning {
+  background: var(--mx-warning-subtle);
+  color: var(--mx-warning);
+}
+.alertChipSuccess {
+  background: var(--mx-success-subtle);
+  color: var(--mx-success);
+}
+.alertChipDanger {
+  background: var(--mx-danger-subtle);
+  color: var(--mx-danger);
+}
+
+/* -------------------------------------------------------- sticky actions */
+
+/* An HR or AI report can run to ten entries, which put Submit a long scroll
+   away from wherever you were typing. This keeps it in reach.
+   `bottom: 0` works because the page body scrolls — .shellMain sets no
+   overflow of its own (see components/sidebar.module.css). */
+.stickyActions {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--mx-z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mx-space-3);
+  margin: var(--mx-space-4) 0 0;
+  padding: var(--mx-space-3) var(--mx-space-4);
+  border-radius: var(--mx-radius-sm);
+  /* Opaque, not translucent: form rows scrolling underneath a semi-
+     transparent bar made both unreadable. */
+  background: var(--background);
+  box-shadow: var(--mx-shadow-md);
+}
+
+.stickyActionsDirty {
+  /* A visible edge while there is unsaved work — the one state where the
+     bar is making a claim on the reader's attention. */
+  box-shadow: var(--mx-shadow-md), inset 0 2px 0 0 var(--mx-warning);
+}
+
+/* ----------------------------------------------------- collapsed history */
+
+.detailsBlock {
+  margin-top: var(--mx-space-5);
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface);
+  box-shadow: var(--mx-shadow-xs);
+  overflow: hidden;
+}
+
+.detailsSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--mx-space-2);
+  padding: var(--mx-space-3) var(--mx-space-4);
+  cursor: pointer;
+  font-size: var(--mx-text-body);
+  font-weight: var(--mx-weight-medium);
+  color: var(--mx-ink);
+  list-style: none;
+}
+
+.detailsSummary::-webkit-details-marker {
+  display: none;
+}
+
+.detailsSummary:hover {
+  color: var(--mx-brand-text);
+}
+
+.detailsCount {
+  font-size: var(--mx-text-badge);
+  color: var(--mx-ink-faint);
+  font-weight: var(--mx-weight-normal);
+}
+
+.detailsBody {
+  padding: 0 var(--mx-space-4) var(--mx-space-4);
+}
+
+/* Returns to today after a long jump with the picker — the day strip is
+   anchored to today, so a date far outside it has no cell to click back to. */
+.todayBtn {
+  border: none;
+  border-radius: var(--mx-radius-full);
+  padding: 3px 10px;
+  background: var(--background);
+  color: var(--mx-ink-muted);
+  font-size: var(--mx-text-micro);
+  font-weight: var(--mx-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--mx-tracking-caps);
+  cursor: pointer;
+  box-shadow: var(--mx-shadow-xs);
+  white-space: nowrap;
+  transition: color var(--mx-duration-fast) var(--mx-ease);
+}
+
+.todayBtn:hover {
+  color: var(--mx-brand-text);
+}

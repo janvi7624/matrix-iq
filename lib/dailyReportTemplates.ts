@@ -18,9 +18,9 @@
 // (and any admin overrides to its dropdown options) lives in
 // lib/dailyReportTemplateStore.ts; this file is the catalogue and the rules.
 
-export type DailyReportTemplateKey = 'hr' | 'sales' | 'av' | 'rnd' | 'ai' | 'marketing' | 'robotics' | 'not_configured';
+export type DailyReportTemplateKey = 'hr' | 'sales' | 'av' | 'rnd' | 'ai' | 'marketing' | 'robotics' | 'accounts' | 'backoffice' | 'not_configured';
 
-export const TEMPLATE_KEYS: DailyReportTemplateKey[] = ['hr', 'sales', 'av', 'rnd', 'ai', 'marketing', 'robotics', 'not_configured'];
+export const TEMPLATE_KEYS: DailyReportTemplateKey[] = ['hr', 'sales', 'av', 'rnd', 'ai', 'marketing', 'robotics', 'accounts', 'backoffice', 'not_configured'];
 
 export type DailyReportLayout = 'rows' | 'narrative' | 'matrix';
 
@@ -44,7 +44,17 @@ export type DailyReportComputedKind =
   /** Sequential per-report entry id, e.g. "AI-2026-10-14-03". */
   | 'entry_code'
   /** Whole days from the reporting date to this entry's due date; negative = overdue. */
-  | 'days_left';
+  | 'days_left'
+  /**
+   * A plain 1-based row number — "Sr. No." on a paper form.
+   *
+   * Distinct from 'entry_code' on purpose: that produces a qualified
+   * identifier ("AI-2026-10-14-03") meant to be quoted in a conversation,
+   * whereas this is just the position in today's list and renumbers when
+   * rows are reordered. Both are recomputed on read rather than stored, so
+   * neither can go stale after a reorder or a deletion.
+   */
+  | 'serial';
 
 export interface DailyReportFieldDef {
   key: string;
@@ -116,6 +126,40 @@ export const HR_ACTIVITY_CATALOGUE: Record<string, string[]> = {
   Administration: ['Vendor coordination', 'Office upkeep', 'Travel booking', 'Courier / dispatch', 'Asset register update'],
   'Records & Reporting': ['Personnel file update', 'MIS preparation', 'Policy drafting', 'Audit support']
 };
+
+// The Accounts department's own activity list, exactly as the team supplied
+// it. Flat rather than grouped by frequency (daily entries / monthly
+// compliance / quarterly) because that is how they wrote it down, and a
+// grouping they did not ask for would be a guess about their workflow.
+//
+// 'Other' is last and deliberate: an accountant whose day does not fit any
+// of the twenty-one must still be able to file, and without an escape hatch
+// the honest options are to lie or to skip the day. The Description field is
+// required, so 'Other' always carries an explanation.
+export const ACCOUNTS_ACTIVITY_OPTIONS = [
+  'Sales entry',
+  'Purchase entry',
+  'Bank entry',
+  'Cash entry',
+  'Expense entry',
+  'Payment follow-up (debtors)',
+  'Payment to creditors',
+  'Bank reconciliation',
+  'GST return (GSTR-1, GSTR-3B)',
+  'TDS payment',
+  'PF / ESIC payment',
+  'Salary',
+  'Debtors and creditors list',
+  'Stock statement',
+  'Monthly P&L and Balance Sheet',
+  'TDS return',
+  'Advance tax',
+  'Quarterly results',
+  'Depreciation entry',
+  'Stock verification',
+  'Balance confirmation',
+  'Other'
+];
 
 export const SALES_MEASURES = [
   'New Leads Generated',
@@ -258,7 +302,49 @@ const ROBOTICS_TEMPLATE: TemplateDefinition = {
   ]
 };
 
-// Accounts (and anyone else awaiting a decision) lands here. This is a real
+const ACCOUNTS_TEMPLATE: TemplateDefinition = {
+  key: 'accounts',
+  label: 'Accounts Daily Activity',
+  description: 'One row per accounting activity handled today, chosen from the standard list.',
+  layout: 'rows',
+  entryNoun: 'Activity',
+  minEntries: 1,
+  headerFields: [],
+  rowFields: [
+    { key: 'activity', label: 'Activity', type: 'select', required: true, options: ACCOUNTS_ACTIVITY_OPTIONS, width: 'md' },
+    {
+      key: 'description',
+      label: 'Description',
+      type: 'textarea',
+      required: true,
+      maxLength: 2000,
+      width: 'xl',
+      help: 'What was actually done. If you chose “Other”, say what the activity was.'
+    },
+    { key: 'remarks', label: 'Remarks', type: 'textarea', maxLength: 1000, width: 'lg' }
+  ]
+};
+
+const BACKOFFICE_TEMPLATE: TemplateDefinition = {
+  key: 'backoffice',
+  label: 'Back Office Daily Task Sheet',
+  description: 'A numbered list of the tasks handled today, each with what was done and any remarks.',
+  layout: 'rows',
+  entryNoun: 'Task',
+  minEntries: 1,
+  headerFields: [],
+  rowFields: [
+    // Free text rather than a dropdown: Back Office work is not drawn from a
+    // fixed catalogue the way the Accounts activities are, so constraining it
+    // to a list would mean either an unusable list or a permanent "Other".
+    { key: 'sr_no', label: 'Sr. No.', type: 'computed', computed: 'serial', width: 'sm' },
+    { key: 'task_name', label: 'Task Name', type: 'text', required: true, maxLength: 255, width: 'md' },
+    { key: 'description', label: 'Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
+    { key: 'remarks', label: 'Remarks', type: 'textarea', maxLength: 1000, width: 'lg' }
+  ]
+};
+
+// Any department still awaiting a decision lands here. This is a real
 // template key, not an absence of one, so that "this department has no
 // approved format yet" is an explicit, queryable state: the scheduler skips
 // it, the employee page explains itself instead of showing an empty form,
@@ -280,6 +366,8 @@ export const BUILT_IN_TEMPLATES: Record<DailyReportTemplateKey, TemplateDefiniti
   ai: AI_TEMPLATE,
   marketing: MARKETING_TEMPLATE,
   robotics: ROBOTICS_TEMPLATE,
+  accounts: ACCOUNTS_TEMPLATE,
+  backoffice: BACKOFFICE_TEMPLATE,
   not_configured: NOT_CONFIGURED_TEMPLATE
 };
 
@@ -311,16 +399,18 @@ const DEFAULT_TEMPLATE_RULES: { test: RegExp; template: DailyReportTemplateKey }
   { test: /^(r&d|r and d|research)/i, template: 'rnd' },
   { test: /^ai\b/i, template: 'ai' },
   { test: /^marketing\b/i, template: 'marketing' },
-  { test: /^robotics\b/i, template: 'robotics' }
+  { test: /^robotics\b/i, template: 'robotics' },
+  // Both of these were 'not_configured' until their formats were approved.
+  // They now have one, so they map like every other department.
+  { test: /^accounts\b/i, template: 'accounts' },
+  { test: /^back\s*office\b/i, template: 'backoffice' }
 ];
 
 /**
  * The template a department gets before an admin has assigned one.
  *
- * Everything unmatched — Accounts (awaiting an approved format),
- * Administration / Back Office (the brief says Admin must choose, not have a
- * format forced on them), Purchase, Inventory, Management, Technical —
- * defaults to 'not_configured'. That is the safe direction: an unmapped
+ * Everything unmatched — Administration, Purchase, Inventory, Management,
+ * Technical — defaults to 'not_configured'. That is the safe direction: an unmapped
  * department produces no reminders and no warnings until someone decides,
  * rather than nagging a team for a report nobody designed.
  */
@@ -608,6 +698,8 @@ export function computeMatrixTotals(template: TemplateDefinition, matrix: Record
 export interface DerivedEntryValues {
   task_code?: string;
   days_left?: number;
+  /** 1-based row number for a 'serial' field (Back Office's Sr. No.). */
+  serial?: number;
 }
 
 /**
@@ -630,6 +722,9 @@ export function computeDerivedValues(
   for (const field of template.rowFields) {
     if (field.computed === 'entry_code') {
       derived.task_code = `${template.key.toUpperCase()}-${reportDate}-${String(index + 1).padStart(2, '0')}`;
+    }
+    if (field.computed === 'serial') {
+      derived.serial = index + 1;
     }
     if (field.computed === 'days_left') {
       const due = asTrimmedString(entry.due_date);

@@ -13,7 +13,7 @@ import { findLiveClaim, loadClaimStatusByDate, loadLeaveCoveredKeys } from './da
 import { buildWarningSummary, loadWarningStatusByDate, loadWarningKeys } from './dailyReportWarningStore';
 import { EligibleEmployee, employeeOwesDate, listEligibleEmployees } from './dailyReportEligibility';
 import { resolveDailyReportScope } from './dailyReportAccess';
-import { addDays, isWorkingDay, istDate, monthKey, scheduleFor, workingDaysBetween } from './dailyReportTime';
+import { addDays, isWorkingDay, istDate, monthKey, navigableWorkingDays, scheduleFor, workingDaysBetween } from './dailyReportTime';
 
 // The two composite reads behind the employee page and the manager
 // dashboard. Both live here rather than in their route handlers because the
@@ -62,22 +62,43 @@ export async function resolveEmployeeIdentity(userId: string): Promise<EmployeeI
 export async function buildMyDailyReport(employee: EmployeeIdentity, date?: string): Promise<MyDailyReportResponse> {
   const config = await getDailyReportConfig();
   const policy = await getDeadlinePolicy();
-  const reportDate = date || istDate(new Date());
+  const today = istDate(new Date());
+  // A future date is clamped rather than refused. The picker and the arrows
+  // already prevent it, so anything arriving here is a hand-edited URL or a
+  // stale link — landing on today is friendlier than an error, and the write
+  // paths reject a future date independently anyway (see saveReport).
+  const requested = date || today;
+  const reportDate = requested > today ? today : requested;
   const schedule = scheduleFor(reportDate, policy);
+  const navigation = navigableWorkingDays(reportDate, today, policy);
   const resolved = await resolveTemplateForDepartment(employee.departmentId);
 
-  // The history strip walks back over WORKING days, so it shows fourteen
-  // days somebody could actually have filed rather than fourteen calendar
-  // days of which two are Sundays.
-  const historyFrom = addDays(reportDate, -Math.ceil(HISTORY_WORKING_DAYS * 1.5) - 7);
-  const historyDates = workingDaysBetween(historyFrom, reportDate, policy).slice(-HISTORY_WORKING_DAYS);
+  // The strip is anchored to TODAY, not to the selected date.
+  //
+  // Anchoring it to the selection was a real bug: the selected day was
+  // always the newest entry, so there was never a later day to step to and
+  // the forward arrow could not be enabled — you could walk back through
+  // history and never come forward again. Anchoring to today makes the strip
+  // stable navigation (the same fourteen days whatever you are viewing) and
+  // makes the tally built from it mean "your recent working days" rather
+  // than "the fourteen days before whatever you clicked".
+  //
+  // Still WORKING days, so it shows fourteen days somebody could actually
+  // have filed rather than fourteen calendar days of which two are Sundays.
+  const historyFrom = addDays(today, -Math.ceil(HISTORY_WORKING_DAYS * 1.5) - 7);
+  const historyDates = workingDaysBetween(historyFrom, today, policy).slice(-HISTORY_WORKING_DAYS);
+  // The selected date can sit outside that window (someone jumped back a
+  // month with the picker), and the claim/warning lookups below must still
+  // cover it — otherwise its own leave and warning state would read as absent.
+  const lookupFrom = historyDates[0] && historyDates[0] < reportDate ? historyDates[0] : reportDate;
+  const lookupTo = today > reportDate ? today : reportDate;
 
   const [report, leaveClaim, warnings, leaveByDate, warningByDate] = await Promise.all([
     findReportForDate(employee.id, employee.departmentId, reportDate),
     findLiveClaim(employee.id, reportDate),
     buildWarningSummary(employee.id, monthKey(reportDate), config.warning_threshold),
-    loadClaimStatusByDate(employee.id, historyDates[0] ?? reportDate, reportDate),
-    loadWarningStatusByDate(employee.id, historyDates[0] ?? reportDate, reportDate)
+    loadClaimStatusByDate(employee.id, lookupFrom, lookupTo),
+    loadWarningStatusByDate(employee.id, lookupFrom, lookupTo)
   ]);
 
   const history = await buildHistory(employee.id, historyDates, leaveByDate, warningByDate);
@@ -94,6 +115,11 @@ export async function buildMyDailyReport(employee: EmployeeIdentity, date?: stri
     // warn about an outstanding report, and the report's own
     // SUBMITTED_LATE badge already says it went in late.
     past_deadline: !submitted && Date.now() > schedule.deadlineAt.getTime(),
+    // `next` comes back '' once it would be in the future — see
+    // navigableWorkingDays, which owns that rule and is unit-tested.
+    prev_working_day: navigation.prev,
+    next_working_day: navigation.next,
+    today,
     employee: { id: employee.id, name: employee.name, username: employee.username, department_name: employee.departmentName },
     template: resolved.template,
     template_configured: resolved.configured,

@@ -80,7 +80,16 @@ async function ensureSeeded(): Promise<void> {
   const existing = await db.DailyReportTemplate.findAll({ attributes: ['department_id'] });
   const have = new Set(existing.map((r) => r.get('department_id') as string));
   const missing = departments.filter((d) => !have.has(d.id));
-  if (!missing.length) return;
+  if (missing.length) await createMissing(missing);
+  // NOT behind an early return on `missing`. Reconciliation is for rows that
+  // ALREADY exist, so the case it has to handle is precisely the one where
+  // nothing is missing — an `if (!missing.length) return` above this line
+  // means it never runs on an installed system, which is every system that
+  // needs it.
+  await reconcileNewlyApprovedFormats(departments);
+}
+
+async function createMissing(missing: { id: string; name: string }[]): Promise<void> {
   await db.DailyReportTemplate.bulkCreate(
     missing.map((d) => {
       const templateKey = defaultTemplateForDepartment(d.name);
@@ -97,6 +106,38 @@ async function ensureSeeded(): Promise<void> {
       };
     }) as never
   );
+}
+
+/**
+ * Upgrades a department whose format has since been approved.
+ *
+ * Accounts and Back Office both seeded as 'not_configured' because no format
+ * existed for them yet; both now have one. Seed defaults are never
+ * re-applied to a row that already exists (that is what protects an admin's
+ * own choice), so without this the two would stay unconfigured forever on
+ * any install that had already seeded them — and their staff would keep
+ * being excluded from daily reports.
+ *
+ * Guarded exactly like every reconciliation in lib/moduleConfigStore.ts: it
+ * only touches a row still holding BOTH untouched defaults. An admin who has
+ * deliberately set a department to not_configured, or picked a different
+ * format, keeps their choice.
+ */
+async function reconcileNewlyApprovedFormats(departments: { id: string; name: string }[]): Promise<void> {
+  const rows = await db.DailyReportTemplate.findAll({
+    where: { template_key: 'not_configured', status: 'not_configured' } as never
+  });
+  if (!rows.length) return;
+  const nameById = new Map(departments.map((d) => [d.id, d.name]));
+  for (const row of rows) {
+    const name = nameById.get(row.get('department_id') as string);
+    if (!name) continue;
+    const templateKey = defaultTemplateForDepartment(name);
+    // Only the departments that newly HAVE a format — anything that still
+    // maps to not_configured is left exactly as it is.
+    if (!templateIsConfigured(templateKey)) continue;
+    await row.update({ template_key: templateKey, status: 'active' } as never);
+  }
 }
 
 export async function listTemplateAssignments(): Promise<TemplateAssignmentRow[]> {

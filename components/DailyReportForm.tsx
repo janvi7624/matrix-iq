@@ -70,7 +70,7 @@ interface FieldProps {
   issues: Record<string, string>;
   disabled: boolean;
   onFieldChange: (key: string, value: string) => void;
-  derived?: { task_code?: string; days_left?: number };
+  derived?: { task_code?: string; days_left?: number; serial?: number };
 }
 
 function FieldControl({ field, row, path, issues, disabled, onFieldChange, derived }: FieldProps) {
@@ -85,9 +85,11 @@ function FieldControl({ field, row, path, issues, disabled, onFieldChange, deriv
     const text =
       field.computed === 'entry_code'
         ? derived?.task_code ?? '—'
-        : typeof derived?.days_left === 'number'
-          ? `${derived.days_left} day${Math.abs(derived.days_left) === 1 ? '' : 's'}`
-          : '—';
+        : field.computed === 'serial'
+          ? String(derived?.serial ?? '—')
+          : typeof derived?.days_left === 'number'
+            ? `${derived.days_left} day${Math.abs(derived.days_left) === 1 ? '' : 's'}`
+            : '—';
     const overdue = field.computed === 'days_left' && typeof derived?.days_left === 'number' && derived.days_left < 0;
     return (
       <div className={`${calcStyles.field} ${WIDTH_CLASS[field.width ?? 'md']}`}>

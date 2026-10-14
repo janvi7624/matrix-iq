@@ -143,6 +143,25 @@ export interface MyDailyReportResponse {
   deadline_date: string;
   /** True once the deadline has passed and nothing is submitted yet. */
   past_deadline: boolean;
+  /**
+   * The previous working day. Always present — history can be walked back
+   * indefinitely.
+   *
+   * Resolved on the SERVER rather than by the client stepping a day at a
+   * time, because "which day is the previous working one" depends on
+   * working_days, holidays and observe_holidays — all admin-configurable
+   * (see Daily Report Configuration). A client that guessed would silently
+   * disagree with the deadline and warning engine the moment someone turned
+   * Saturday off.
+   */
+  prev_working_day: string;
+  /**
+   * The next working day, or '' when that day has not happened yet. This is
+   * what stops the forward arrow walking into the future.
+   */
+  next_working_day: string;
+  /** Today in IST, so the client never has to decide what "today" means. */
+  today: string;
   employee: { id: string; name: string; username: string; department_name: string };
   /** 'not_configured' means this department has no approved format yet. */
   template: TemplateDefinition;

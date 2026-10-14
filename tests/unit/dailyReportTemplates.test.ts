@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ACCOUNTS_ACTIVITY_OPTIONS,
   BUILT_IN_TEMPLATES,
   DailyReportPayloadInput,
   HR_ACTIVITY_CATALOGUE,
@@ -47,15 +48,21 @@ describe('department to template mapping', () => {
     expect(defaultTemplateForDepartment('  hr & admin  ')).toBe('hr');
   });
 
-  it('leaves Accounts and anything undecided unconfigured', () => {
-    // Accounts has no approved format yet, and the brief requires its staff
-    // to be excluded from reminders and warnings until it does.
-    expect(defaultTemplateForDepartment('Accounts')).toBe('not_configured');
-    // Administration / Back Office must be ASSIGNED a format by an admin,
-    // not have one forced on them.
+  it('maps Accounts and Back Office, whose formats have since been approved', () => {
+    // Both seeded as not_configured while no format existed for them. Both
+    // now have one, so they map like every other department.
+    expect(defaultTemplateForDepartment('Accounts')).toBe('accounts');
+    expect(defaultTemplateForDepartment('Back Office')).toBe('backoffice');
+    expect(defaultTemplateForDepartment('back office')).toBe('backoffice');
+    expect(defaultTemplateForDepartment('BackOffice')).toBe('backoffice');
+  });
+
+  it('still leaves anything undecided unconfigured', () => {
+    // Administration was NOT part of the approved set — it must still be
+    // assigned a format by an admin rather than have one forced on it.
     expect(defaultTemplateForDepartment('Administration')).toBe('not_configured');
-    expect(defaultTemplateForDepartment('Back Office')).toBe('not_configured');
     expect(defaultTemplateForDepartment('Purchase')).toBe('not_configured');
+    expect(defaultTemplateForDepartment('Inventory')).toBe('not_configured');
     expect(defaultTemplateForDepartment('')).toBe('not_configured');
   });
 
@@ -104,6 +111,34 @@ describe('the specified formats', () => {
     const ai = BUILT_IN_TEMPLATES.ai;
     expect(ai.rowFields.find((f) => f.key === 'task_code')?.computed).toBe('entry_code');
     expect(ai.rowFields.find((f) => f.key === 'days_left')?.computed).toBe('days_left');
+  });
+
+  it('gives Accounts the supplied activity list plus an Other escape hatch', () => {
+    const accounts = BUILT_IN_TEMPLATES.accounts;
+    const activity = accounts.rowFields.find((f) => f.key === 'activity');
+    // The twenty-one supplied activities, in the order they were given.
+    expect(ACCOUNTS_ACTIVITY_OPTIONS).toHaveLength(22);
+    expect(ACCOUNTS_ACTIVITY_OPTIONS[0]).toBe('Sales entry');
+    expect(ACCOUNTS_ACTIVITY_OPTIONS[8]).toBe('GST return (GSTR-1, GSTR-3B)');
+    expect(ACCOUNTS_ACTIVITY_OPTIONS[20]).toBe('Balance confirmation');
+    // Other is last, so it never displaces a real activity at the top.
+    expect(ACCOUNTS_ACTIVITY_OPTIONS[21]).toBe('Other');
+    expect(activity?.options).toEqual(ACCOUNTS_ACTIVITY_OPTIONS);
+    // Description is required, so an 'Other' row always carries an
+    // explanation rather than being an unlabelled blank.
+    expect(accounts.rowFields.find((f) => f.key === 'description')?.required).toBe(true);
+    expect(accounts.rowFields.find((f) => f.key === 'remarks')?.required).toBeFalsy();
+  });
+
+  it('gives Back Office a serial number, task name, description and remarks', () => {
+    const backoffice = BUILT_IN_TEMPLATES.backoffice;
+    expect(backoffice.rowFields.map((f) => f.key)).toEqual(['sr_no', 'task_name', 'description', 'remarks']);
+    // Sr. No. is computed, so it cannot be typed, forged, or left to drift
+    // out of order after a row is deleted.
+    expect(backoffice.rowFields[0].computed).toBe('serial');
+    expect(backoffice.rowFields.find((f) => f.key === 'task_name')?.required).toBe(true);
+    expect(backoffice.rowFields.find((f) => f.key === 'description')?.required).toBe(true);
+    expect(backoffice.rowFields.find((f) => f.key === 'remarks')?.required).toBeFalsy();
   });
 
   it('expects no fields at all for an unconfigured department', () => {
@@ -265,6 +300,78 @@ describe('validation rules', () => {
     expect(validateReportPayload(rnd, payload({ entries: [base] }), true).issues.some((i) => i.path === 'entries.0.time_spent_hours')).toBe(true);
     expect(validateReportPayload(rnd, payload({ entries: [{ ...base, time_spent_hours: '2.5' }] }), true).issues.some((i) => i.path === 'entries.0.time_spent_hours')).toBe(true);
     expect(validateReportPayload(rnd, payload({ entries: [{ ...base, time_spent_hours: '6' }] }), true).ok).toBe(true);
+  });
+});
+
+describe('the Accounts format', () => {
+  const accounts = BUILT_IN_TEMPLATES.accounts;
+
+  it('accepts an activity from the list with a description', () => {
+    const result = validateReportPayload(
+      accounts,
+      { header: {}, matrix: {}, entries: [{ activity: 'Bank reconciliation', description: 'Reconciled the HDFC current account for the week.' }] },
+      true
+    );
+    expect(result.issues).toEqual([]);
+  });
+
+  it('accepts Other, which is the whole point of having it', () => {
+    const result = validateReportPayload(
+      accounts,
+      { header: {}, matrix: {}, entries: [{ activity: 'Other', description: 'Auditor queries on last year’s fixed asset register.' }] },
+      true
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects an activity that is not on the list', () => {
+    const result = validateReportPayload(
+      accounts,
+      { header: {}, matrix: {}, entries: [{ activity: 'Making tea', description: 'x' }] },
+      true
+    );
+    expect(result.ok).toBe(false);
+    expect(result.issues.some((i) => i.path === 'entries.0.activity')).toBe(true);
+  });
+
+  it('will not let an Other row be submitted without an explanation', () => {
+    const result = validateReportPayload(accounts, { header: {}, matrix: {}, entries: [{ activity: 'Other' }] }, true);
+    expect(result.ok).toBe(false);
+    expect(result.issues.some((i) => i.path === 'entries.0.description')).toBe(true);
+  });
+});
+
+describe('the Back Office format', () => {
+  const backoffice = BUILT_IN_TEMPLATES.backoffice;
+
+  function task(over: Record<string, unknown> = {}) {
+    return { task_name: 'Courier dispatch', description: 'Dispatched 4 consignments to the Pune site.', ...over };
+  }
+
+  it('accepts a task name with a description', () => {
+    expect(validateReportPayload(backoffice, { header: {}, matrix: {}, entries: [task()] }, true).issues).toEqual([]);
+  });
+
+  it('requires the task name and the description, but not remarks', () => {
+    const noName = validateReportPayload(backoffice, { header: {}, matrix: {}, entries: [task({ task_name: '' })] }, true);
+    expect(noName.issues.some((i) => i.path === 'entries.0.task_name')).toBe(true);
+    const noDesc = validateReportPayload(backoffice, { header: {}, matrix: {}, entries: [task({ description: '' })] }, true);
+    expect(noDesc.issues.some((i) => i.path === 'entries.0.description')).toBe(true);
+    expect(validateReportPayload(backoffice, { header: {}, matrix: {}, entries: [task({ remarks: '' })] }, true).ok).toBe(true);
+  });
+
+  it('numbers rows 1, 2, 3 and renumbers them after a reorder', () => {
+    expect(computeDerivedValues(backoffice, '2026-10-14', {}, 0).serial).toBe(1);
+    expect(computeDerivedValues(backoffice, '2026-10-14', {}, 1).serial).toBe(2);
+    expect(computeDerivedValues(backoffice, '2026-10-14', {}, 9).serial).toBe(10);
+  });
+
+  it('ignores a client-supplied Sr. No.', () => {
+    // Computed, so it cannot be typed or forged — the same rule the AI
+    // template's Task ID follows.
+    const result = validateReportPayload(backoffice, { header: {}, matrix: {}, entries: [task({ sr_no: '99' })] }, true);
+    expect(result.ok).toBe(true);
+    expect(result.normalized.entries[0].sr_no).toBeUndefined();
   });
 });
 

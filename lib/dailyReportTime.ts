@@ -189,6 +189,26 @@ export function isLateSubmission(reportDate: string, submittedAt: Date, policy: 
 }
 
 /**
+ * The previous and next working day a reader may navigate to from
+ * `reportDate`, given that `today` is as far forward as anything can go.
+ *
+ * `prev` is always a real date — history can be walked back indefinitely.
+ * `next` is '' once the next working day has not happened yet, which is what
+ * stops a forward arrow from walking into the future. Both skip Sundays and
+ * holidays via the same policy the deadline engine uses, so navigation can
+ * never land on a day no report was ever expected for.
+ *
+ * Pure and separate from the page that uses it specifically so the
+ * future-cap rule is unit-testable — it was previously an inline expression
+ * in a DB-bound function, where the one case that actually mattered (being
+ * on the most recent working day) could not be covered.
+ */
+export function navigableWorkingDays(reportDate: string, today: string, policy: WorkingDayPolicy): { prev: string; next: string } {
+  const candidate = nextWorkingDay(reportDate, policy);
+  return { prev: previousWorkingDay(reportDate, policy), next: candidate <= today ? candidate : '' };
+}
+
+/**
  * Human-readable IST stamp for emails and audit remarks — deliberately
  * formatted here rather than with toLocaleString(…, { timeZone }), so a
  * server with an odd ICU build can't produce a different string than the one

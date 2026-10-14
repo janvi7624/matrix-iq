@@ -13,6 +13,7 @@ import {
   istDate,
   istInstant,
   monthKey,
+  navigableWorkingDays,
   nextWorkingDay,
   previousWorkingDay,
   scheduleFor,
@@ -204,6 +205,62 @@ describe('on-time vs late', () => {
     expect(isLateSubmission('2026-10-17', new Date('2026-10-18T16:00:00Z'), MON_SAT)).toBe(false);
     // Monday 11:01 IST is late.
     expect(isLateSubmission('2026-10-17', new Date('2026-10-19T05:31:00Z'), MON_SAT)).toBe(true);
+  });
+});
+
+describe('date navigation (the arrows on the employee page)', () => {
+  // 2026-10-17 Sat, 2026-10-18 Sun, 2026-10-19 Mon, 2026-10-20 Tue.
+
+  it('can always step back, and skips Sunday doing it', () => {
+    expect(navigableWorkingDays('2026-10-19', '2026-10-22', MON_SAT).prev).toBe('2026-10-17');
+    expect(navigableWorkingDays('2026-10-20', '2026-10-22', MON_SAT).prev).toBe('2026-10-19');
+  });
+
+  it('steps forward while the next working day has already happened', () => {
+    expect(navigableWorkingDays('2026-10-19', '2026-10-22', MON_SAT).next).toBe('2026-10-20');
+    // Saturday forward lands on Monday, not Sunday.
+    expect(navigableWorkingDays('2026-10-17', '2026-10-22', MON_SAT).next).toBe('2026-10-19');
+  });
+
+  it('refuses to step into the future', () => {
+    // THE regression: on the most recent working day there is nowhere
+    // forward to go, so the arrow must be disabled rather than walking into
+    // a day that has not started.
+    expect(navigableWorkingDays('2026-10-22', '2026-10-22', MON_SAT).next).toBe('');
+    // ...but back is still available, which is the other half of the ask.
+    expect(navigableWorkingDays('2026-10-22', '2026-10-22', MON_SAT).prev).toBe('2026-10-21');
+  });
+
+  it('allows forward onto today itself', () => {
+    // Yesterday -> today is not the future; the boundary is inclusive.
+    expect(navigableWorkingDays('2026-10-21', '2026-10-22', MON_SAT).next).toBe('2026-10-22');
+  });
+
+  it('offers no forward step from Saturday when today is the Sunday after', () => {
+    // Monday has not happened, so there is nothing forward even though
+    // Saturday is not the newest calendar day.
+    expect(navigableWorkingDays('2026-10-17', '2026-10-18', MON_SAT).next).toBe('');
+    expect(navigableWorkingDays('2026-10-17', '2026-10-18', MON_SAT).prev).toBe('2026-10-16');
+  });
+
+  it('walks a long way back without limit', () => {
+    // Someone who jumped to late September with the picker can still step.
+    const nav = navigableWorkingDays('2026-09-25', '2026-10-22', MON_SAT);
+    expect(nav.prev).toBe('2026-09-24');
+    expect(nav.next).toBe('2026-09-26');
+  });
+
+  it('skips an observed holiday in both directions', () => {
+    const policy = { ...MON_SAT, holidays: ['2026-10-20'], observeHolidays: true };
+    expect(navigableWorkingDays('2026-10-19', '2026-10-24', policy).next).toBe('2026-10-21');
+    expect(navigableWorkingDays('2026-10-21', '2026-10-24', policy).prev).toBe('2026-10-19');
+  });
+
+  it('crosses a month boundary in both directions', () => {
+    // 2026-11-01 is a Sunday, so stepping back from Monday the 2nd lands on
+    // Saturday 2026-10-31.
+    expect(navigableWorkingDays('2026-11-02', '2026-11-05', MON_SAT).prev).toBe('2026-10-31');
+    expect(navigableWorkingDays('2026-10-31', '2026-11-05', MON_SAT).next).toBe('2026-11-02');
   });
 });
 
