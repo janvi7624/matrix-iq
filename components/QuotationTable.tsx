@@ -229,7 +229,12 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
           <span className={styles.cellTime}>{formatTimeOnly(row.created_at)}</span>
         </td>
         <td>{row.prepared_by || '-'}</td>
-        {showSalesPerson && <td>{row.created_by || '-'}</td>}
+        {/* The project's sales person, NOT the quotation's creator. These
+            differ whenever technical staff prepare a quotation on a sales
+            person's behalf (lib/quotationOnBehalf.ts), which used to print
+            the engineer under this heading. Falls back to the creator only
+            for a quotation with no linked project. */}
+        {showSalesPerson && <td>{row.sales_person || row.created_by || '-'}</td>}
         <td>
           <span className={styles.quotationCellWide} title={clientLabel}>{clientLabel}</span>
         </td>

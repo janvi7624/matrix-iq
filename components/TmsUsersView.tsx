@@ -17,7 +17,7 @@ import { Field, FieldRow } from './ui/Field';
 import Input from './ui/Input';
 import Select from './ui/Select';
 import SubmitButton from './ui/SubmitButton';
-import ToolbarButton from './ui/ToolbarButton';
+import ToolbarButton, { DeleteButton } from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
 
 const EMPTY_FORM = {
@@ -118,6 +118,34 @@ export default function TmsUsersView({ currentUser, embedded }: TmsUsersViewProp
     }
   }
 
+  // Removing a team member who has already been deactivated/exited. Soft
+  // delete (db/models/user.js is paranoid), so their past tasks, projects
+  // and audit history keep their references — they just stop appearing in
+  // lists and assignee pickers, which is the whole point of doing it.
+  async function deleteMember(u: PublicUser) {
+    const ok = await confirm({
+      message: `Delete ${u.name || u.username}? They will be removed from every list and assignee picker. Their past tasks, projects and history stay intact, and this is not reversible from the app.`,
+      confirmLabel: 'Delete',
+      danger: true
+    });
+    if (!ok) return;
+    try {
+      const response = await fetch(`/api/employee-exit/${u.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        // The server owns these rules, so its wording is surfaced as-is —
+        // "still has N open item(s)" is the message a manager needs to act
+        // on, and paraphrasing it here would only go stale.
+        toast.error(body?.error || 'Could not delete this member.');
+        return;
+      }
+      toast.success(`${u.name || u.username} was deleted.`);
+      await load();
+    } catch {
+      toast.error('Could not reach the server.');
+    }
+  }
+
   async function changeRole(u: PublicUser, role: string) {
     try {
       const response = await fetch(`/api/tms/users/${u.id}`, {
@@ -160,9 +188,18 @@ export default function TmsUsersView({ currentUser, embedded }: TmsUsersViewProp
       key: 'actions',
       header: '',
       render: (u) => (
-        <ToolbarButton onClick={() => toggleStatus(u)}>
-          {u.status === 'active' ? 'Deactivate' : 'Activate'}
-        </ToolbarButton>
+        <div className={historyStyles.rowActionsInline}>
+          <ToolbarButton onClick={() => toggleStatus(u)}>
+            {u.status === 'active' ? 'Deactivate' : 'Activate'}
+          </ToolbarButton>
+          {/* Only once they are inactive: deleting an active member would
+              skip the reassignment step and strand their open work with no
+              owner. The route refuses it anyway — this keeps the button from
+              being offered in a state it can never succeed in. */}
+          {u.status !== 'active' && (
+            <DeleteButton onClick={() => deleteMember(u)}>Delete</DeleteButton>
+          )}
+        </div>
       )
     }
   ];

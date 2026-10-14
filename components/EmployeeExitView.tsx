@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import AppShell from './AppShell';
 import Table from './ui/Table';
-import ToolbarButton from './ui/ToolbarButton';
+import ToolbarButton, { DeleteButton } from './ui/ToolbarButton';
 import ErrorState from './ui/ErrorState';
 import EmptyState from './ui/EmptyState';
 import { SkeletonRows } from './ui/Skeleton';
@@ -80,6 +80,43 @@ export default function EmployeeExitView({ embedded, initialEmployeeId, onDone }
   const [bulkOwner, setBulkOwner] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ reassignedCounts: Record<string, number>; employeeStatus: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+
+  // Removing the employee once their work is handed over. A soft delete —
+  // db/models/user.js is paranoid — so every project, quotation and audit
+  // row that references them keeps its history; they just stop appearing in
+  // lists and pickers. The route re-checks department scope, that the
+  // employee really is already exited, and that nothing of theirs is still
+  // open, so this button cannot be used to skip the reassignment above.
+  async function deleteEmployee() {
+    const name = summary?.employee.name || 'this employee';
+    const ok = await confirm({
+      message: `Delete ${name}? They will be removed from every list and picker. Their past projects, quotations and history stay intact, and this is not reversible from the app.`,
+      confirmLabel: 'Delete employee',
+      danger: true
+    });
+    if (!ok) return;
+
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/employee-exit/${selectedId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({} as { error?: string }));
+        toast.error(body.error || 'Could not delete this employee.');
+        return;
+      }
+      toast.success(`${name} deleted.`);
+      setDeleted(true);
+      // Lets User Management close its modal and refresh — the row has to
+      // disappear from its list, not just change status.
+      onDone?.();
+    } catch {
+      toast.error('Could not reach the server.');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   // Record detail popup — "Record" only ever showed a bare label (project
   // client name / quotation number) with nothing else, so a manager had no
@@ -343,13 +380,33 @@ export default function EmployeeExitView({ embedded, initialEmployeeId, onDone }
           <h3 className={historyStyles.navGroupLabel}>Done</h3>
           <p>
             Reassigned {result.reassignedCounts.projects} project(s), {result.reassignedCounts.tasks} task(s), {result.reassignedCounts.leads} lead(s), and{' '}
-            {result.reassignedCounts.quotations} quotation(s). Employee status is now <strong>{result.employeeStatus}</strong>.
+            {result.reassignedCounts.quotations} quotation(s). Employee status is now <strong>{deleted ? 'deleted' : result.employeeStatus}</strong>.
           </p>
-          {initialEmployeeId ? (
-            <ToolbarButton primary onClick={() => onDone?.()}>Close</ToolbarButton>
-          ) : (
-            <ToolbarButton onClick={reset}>Do another</ToolbarButton>
+
+          {/* Offered here rather than left as a permanent inactive account:
+              the work is handed over at this point, so there is nothing left
+              for the account to hold. Available to a department manager for
+              their own people — the route enforces that scope, exactly as
+              the summary and commit steps above do. */}
+          {!deleted && result.employeeStatus === 'inactive' && (
+            <p className={calcStyles.small}>
+              This account is now inactive. If they have left for good you can remove it entirely —
+              past projects, quotations and history are kept either way.
+            </p>
           )}
+
+          <div className={historyStyles.toolbar}>
+            {!deleted && result.employeeStatus === 'inactive' && (
+              <DeleteButton disabled={deleting} onClick={deleteEmployee}>
+                {deleting ? 'Deleting…' : 'Delete Employee'}
+              </DeleteButton>
+            )}
+            {initialEmployeeId ? (
+              <ToolbarButton primary onClick={() => onDone?.()}>Close</ToolbarButton>
+            ) : (
+              <ToolbarButton onClick={reset}>Do another</ToolbarButton>
+            )}
+          </div>
         </div>
       )}
 

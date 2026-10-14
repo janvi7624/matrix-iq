@@ -483,6 +483,34 @@ export default function ManageUsersPage() {
     await loadUsers();
   }
 
+  // Removing an employee who has already been exited. Goes through the
+  // employee-exit module, which is scoped to the viewer's own departments
+  // (resolveVisibilityScope) — the same gate the exit summary and commit use
+  // — so a manager can clear their own leavers without being handed delete
+  // rights over every other admin resource.
+  //
+  // The route re-checks everything that matters: department scope, that the
+  // employee really is inactive, that none of their work is still open, and
+  // that it is neither the viewer nor a superadmin. This menu entry is only
+  // the way in.
+  async function handleDeleteExited(user: PublicUser) {
+    const ok = await confirm({
+      title: 'Delete this employee?',
+      message: `“${user.name || user.username}” (@${user.username}) has been exited. Deleting removes them from every list and picker. Their past projects, quotations and history stay intact, and this is not reversible from the app.`,
+      confirmLabel: 'Delete employee',
+      danger: true
+    });
+    if (!ok) return;
+    const response = await fetch(`/api/employee-exit/${user.id}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      toast.error(body?.error || 'Could not delete this employee.');
+      return;
+    }
+    toast.success(`${user.name || user.username} was deleted.`);
+    await loadUsers();
+  }
+
   async function toggleActivity(user: PublicUser) {
     if (activityOpenId === user.id) {
       setActivityOpenId(null);
@@ -520,7 +548,15 @@ export default function ManageUsersPage() {
                 ...(user.status === 'active' ? [{ label: 'Exit employee', onClick: () => setExitingUser(user) }] : [])
               ]
             : []),
-          ...(isSuperadmin ? [{ label: 'Delete employee', onClick: () => handleDelete(user), danger: true }] : [])
+          // A superadmin deletes through the admin route regardless of
+          // status. Everybody else only once the employee has been exited —
+          // deleting an active person would skip the reassignment step and
+          // strand their open work with no owner.
+          ...(isSuperadmin
+            ? [{ label: 'Delete employee', onClick: () => handleDelete(user), danger: true }]
+            : canManage && user.status === 'inactive'
+              ? [{ label: 'Delete employee', onClick: () => handleDeleteExited(user), danger: true }]
+              : [])
         ]}
       />
     );

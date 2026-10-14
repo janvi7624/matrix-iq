@@ -39,6 +39,10 @@ function toRecord(row: Model): QuotationRecord {
     quotation_number: (plain.quotation_number as string) ?? '',
     created_at: isoOrEmpty(plain.createdAt),
     project_id: (plain.project_id as string) ?? '',
+    // Populated only by the list read path below (attachSalesPersons) —
+    // every other caller of toRecord gets it empty, same as any other
+    // resolved display field.
+    sales_person: '',
     created_by: (plain.creator as { username?: string } | null)?.username ?? '',
     status: plain.status as QuotationStatus,
     status_changed_at: isoOrEmpty(plain.status_changed_at),
@@ -444,7 +448,48 @@ export async function searchQuotationsFiltered(filters: QuotationFilters): Promi
         .some((field) => field.toLowerCase().includes(q))
     );
   }
-  return records;
+  // Resolved last, after every filter, so the project/owner lookup only runs
+  // for the rows actually being returned.
+  return attachSalesPersons(records);
+}
+
+// Fills in sales_person for a page of quotations: one query for the linked
+// projects, one for the owners, regardless of how many rows. Done here
+// rather than in each route so no list surface can forget it and quietly
+// fall back to showing the creator again.
+//
+// A quotation with no project keeps sales_person '' — the table falls back
+// to created_by there, which is the best available answer for a quotation
+// that belongs to no pipeline.
+async function attachSalesPersons(records: QuotationRecord[]): Promise<QuotationRecord[]> {
+  const projectIds = [...new Set(records.map((r) => r.project_id).filter((id) => id && isUuid(id)))];
+  if (!projectIds.length) return records;
+
+  const projectRows = await db.Project.findAll({
+    where: { id: { [Op.in]: projectIds } } as never,
+    attributes: ['id', 'created_by']
+  });
+  const ownerIdByProject = new Map<string, string>();
+  for (const row of projectRows) {
+    const ownerId = row.get('created_by') as string | null;
+    if (ownerId) ownerIdByProject.set(row.get('id') as string, ownerId);
+  }
+  if (!ownerIdByProject.size) return records;
+
+  const owners = await db.User.findAll({
+    where: { id: { [Op.in]: [...new Set(ownerIdByProject.values())] } } as never,
+    attributes: ['id', 'username', 'name']
+  });
+  const labelByUserId = new Map<string, string>();
+  for (const owner of owners) {
+    labelByUserId.set(owner.get('id') as string, (owner.get('name') as string) || (owner.get('username') as string) || '');
+  }
+
+  return records.map((r) => {
+    const ownerId = ownerIdByProject.get(r.project_id);
+    const label = ownerId ? labelByUserId.get(ownerId) || '' : '';
+    return label ? { ...r, sales_person: label } : r;
+  });
 }
 
 export async function searchQuotations(query?: string): Promise<QuotationRecord[]> {

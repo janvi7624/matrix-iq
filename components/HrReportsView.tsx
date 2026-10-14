@@ -1,9 +1,10 @@
 'use client';
 
-import { ReactNode, useEffect, useMemo, useState } from 'react';
-import { Download, IndianRupee, RotateCcw } from 'lucide-react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, Download, IndianRupee, RotateCcw } from 'lucide-react';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
+import calcStyles from './calculator.module.css';
 import styles from './hrExpenseReport.module.css';
 import { SkeletonRows } from './ui/Skeleton';
 import EmptyState from './ui/EmptyState';
@@ -189,6 +190,19 @@ export default function HrReportsView() {
       return has ? prev.filter((s) => s !== key) : [...prev, key];
     });
   }
+  // A closed dropdown (not the inline chip row this replaced) so Expense
+  // Type takes up exactly as much row width as every other filter and the
+  // whole bar fits on one line — same open/close-on-outside-click pattern
+  // as NotificationBell's panel.
+  const [sourceDropdownOpen, setSourceDropdownOpen] = useState(false);
+  const sourceDropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (sourceDropdownRef.current && !sourceDropdownRef.current.contains(e.target as Node)) setSourceDropdownOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const [department, setDepartment] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [approvedOnly, setApprovedOnly] = useState(false);
@@ -395,13 +409,27 @@ export default function HrReportsView() {
           )}
 
           <FilterField label="Expense Type">
-            <div className={styles.filterChipRow}>
-              {ALL_SOURCES.map((key) => (
-                <label key={key} className={styles.toggleChip}>
-                  <input type="checkbox" checked={sourceFilter.includes(key)} onChange={() => toggleSource(key)} />
-                  {SOURCE_LABEL[key]}
-                </label>
-              ))}
+            <div ref={sourceDropdownRef} className={styles.sourceDropdown}>
+              <button
+                type="button"
+                className={`${calcStyles.formControl} ${styles.sourceDropdownTrigger}`}
+                onClick={() => setSourceDropdownOpen((v) => !v)}
+                aria-haspopup="listbox"
+                aria-expanded={sourceDropdownOpen}
+              >
+                <span>{sourceSummaryLabel}</span>
+                <ChevronDown size={14} />
+              </button>
+              {sourceDropdownOpen && (
+                <div className={styles.sourceDropdownPanel} role="listbox" aria-label="Expense type">
+                  {ALL_SOURCES.map((key) => (
+                    <label key={key} className={styles.sourceDropdownRow}>
+                      <input type="checkbox" checked={sourceFilter.includes(key)} onChange={() => toggleSource(key)} />
+                      {SOURCE_LABEL[key]}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </FilterField>
 

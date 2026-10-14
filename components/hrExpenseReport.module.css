@@ -154,7 +154,11 @@ td.labelCell { z-index: 1; }
 
 .filterGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    /* 150px (was 180px) — tight enough that all six filters (now that
+       Expense Type is a closed dropdown instead of an inline chip row) fit
+       on one line at a normal desktop width instead of Employee alone
+       wrapping to its own row. */
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 12px 14px;
 }
 
@@ -174,12 +178,52 @@ td.labelCell { z-index: 1; }
     color: var(--mx-ink-muted);
 }
 
-/* Expense Type's multi-select — a row of .toggleChip checkboxes rather than
-   a <select>, since the whole point is picking more than one at once. */
-.filterChipRow {
+/* Expense Type's multi-select — a closed dropdown rather than an inline row
+   of checkboxes, so it takes up exactly one grid column like every other
+   filter and the whole bar can sit on one line. */
+.sourceDropdown {
+    position: relative;
+}
+.sourceDropdownTrigger {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
     gap: 8px;
+    width: 100%;
+    cursor: pointer;
+    text-align: left;
+    color: var(--mx-ink);
+}
+.sourceDropdownPanel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: var(--mx-z-dropdown);
+    min-width: 200px;
+    background: var(--mx-surface);
+    border-radius: var(--mx-radius-sm);
+    box-shadow: var(--mx-shadow-md);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.sourceDropdownRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--mx-radius-xs);
+    font-size: 13px;
+    cursor: pointer;
+}
+.sourceDropdownRow:hover {
+    background: var(--mx-surface-sunken);
+}
+.sourceDropdownRow input {
+    accent-color: var(--mx-brand);
+    cursor: pointer;
+    margin: 0;
 }
 
 .filterFooter {

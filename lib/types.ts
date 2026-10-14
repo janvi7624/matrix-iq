@@ -193,6 +193,16 @@ export interface QuotationRecord {
   created_at: string;
   project_id: string;
   created_by: string;
+  /**
+   * The sales person this quotation belongs to: the OWNER of the linked
+   * project (lib/projectSalesOwner.ts — a project's sales person is its
+   * created_by; its sales_person column is only a label). Resolved on the
+   * list read path only, like ProjectRecord.last_remark — '' everywhere
+   * else, and '' when the quotation has no project. Distinct from
+   * created_by, which is whoever typed the quotation, and from prepared_by,
+   * which is the snapshotted name on the document itself.
+   */
+  sales_person: string;
   status: QuotationStatus;
   // Set the moment status flips to 'approved'/'rejected', cleared if it's
   // ever moved back to draft/sent. Drives the Quotation list's 90-day
