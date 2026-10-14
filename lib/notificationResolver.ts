@@ -17,7 +17,7 @@ interface EntityResolver {
   exists: (entityId: string) => Promise<boolean>;
 }
 
-const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense'] as const;
+const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation'] as const;
 
 async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: string): Promise<boolean> {
   if (!isUuid(entityId)) return false;
@@ -59,6 +59,41 @@ const RESOLVERS: Record<string, EntityResolver> = {
   // viewer (assignee, reviewer, creator, or manager) may see/do.
   general_task: { href: (id) => `/my-tasks/${id}`, exists: (id) => existsIn('GeneralTask', id) },
   leave_request: { href: () => '/hr/leave', exists: (id) => existsIn('LeaveRequest', id) },
+  // Daily Report Management. Three entity types, because the three
+  // notifications want three different destinations: a submitted report
+  // opens the Team tab of the merged Daily Report page, a leave claim opens
+  // HR's review queue, and a warning or reminder opens the employee's own
+  // tab. Team Daily Reports is a tab rather than its own page now (see
+  // ABSORBED_INTO_MERGED_PAGE), hence ?tab=team; the old /daily-reports/team
+  // route still redirects here, so notifications sent before the merge
+  // continue to resolve.
+  //
+  // Reminders and warnings deliberately carry the id of the row that proves
+  // the event happened — a notification ledger row or a warning row — rather
+  // than a report id, because at the moment either is sent there IS no
+  // report; that is what they are about. Both still resolve to a real page
+  // with the reporting date pre-selected.
+  daily_report: { href: (id) => `/daily-reports?tab=team&report=${id}`, exists: (id) => existsIn('DailyReport', id) },
+  daily_report_leave_claim: {
+    href: (id) => `/hr/daily-reports?tab=leave&claim=${id}`,
+    exists: (id) => existsIn('DailyReportLeaveClaim', id)
+  },
+  daily_report_warning: { href: () => '/daily-reports', exists: (id) => existsIn('DailyReportWarning', id) },
+  // The reminder notifications reference a daily_report_notification_events
+  // row — see the comment above. Kept as its own entity type so a reminder
+  // can be told apart from a warning in the bell's own history.
+  daily_report_reminder: {
+    href: () => '/daily-reports',
+    exists: (id) => existsIn('DailyReportNotificationEvent', id)
+  },
+  // The HR escalation notice. entity_id is the monthly escalation record —
+  // the row whose uniqueness is what caps this at one per employee per month
+  // — so the bell entry survives and resolves even after the warnings it was
+  // raised over have been individually waived.
+  daily_report_escalation: {
+    href: () => '/hr/daily-reports?tab=warnings',
+    exists: (id) => existsIn('DailyReportEscalation', id)
+  },
   // Both previously had NO resolver entry at all — every "ready for
   // Accounts" notification for these two sources silently resolved to
   // nothing and was filtered out as non-actionable (see

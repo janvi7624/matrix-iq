@@ -24,7 +24,21 @@ import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 // place of session auth — Meta's GET verification handshake (hub.verify_token)
 // and POST signature verification (X-Hub-Signature-256), see that route —
 // since Meta's servers never carry a MatrixIQ session cookie.
-const PUBLIC_PATHS = new Set(['/login', '/api/auth/login', '/api/auth/logout', '/manifest.webmanifest', '/api/integrations/meta/webhook']);
+//
+// /api/cron/daily-report-sweep is listed for the same reason: it is called by
+// an external scheduler (a crontab entry, a managed cron service) which has
+// no session cookie either, and it authenticates with a constant-time check
+// of the DAILY_REPORT_CRON_SECRET shared secret instead. With that variable
+// unset the route refuses every request, so this exemption cannot leave an
+// open trigger on a deployment that hasn't configured it.
+const PUBLIC_PATHS = new Set([
+  '/login',
+  '/api/auth/login',
+  '/api/auth/logout',
+  '/manifest.webmanifest',
+  '/api/integrations/meta/webhook',
+  '/api/cron/daily-report-sweep'
+]);
 // admin + superadmin only — plain 'user' accounts are blocked from all of these.
 const ADMIN_ONLY_PREFIXES = ['/admin', '/quotation-history', '/api/admin'];
 // Reachable even while a bulk-imported account is force-locked to changing

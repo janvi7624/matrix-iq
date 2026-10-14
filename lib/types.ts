@@ -9,6 +9,22 @@ import type { DepartmentAmounts, ProjectDepartment } from './projectDepartmentOp
 
 export type { LeadOrigin, ProjectDepartment, DepartmentAmounts };
 
+// Daily Report Management. Same arrangement as the three above: the module's
+// ~15 record shapes live beside their own logic in lib/dailyReportTypes.ts
+// (which a client component can import without pulling in Sequelize), and
+// the handful other modules reference are re-exported here so this file
+// stays the index of the app's record types.
+export type {
+  DailyReportSubmissionStatus,
+  DailyReportReviewStatus,
+  DailyReportLeaveClaimStatus,
+  DailyReportWarningStatus,
+  DailyReportRecord,
+  DailyReportLeaveClaimRecord,
+  DailyReportWarningRecord,
+  DailyReportConfigRecord
+} from './dailyReportTypes';
+
 export type DomainKey = 'av' | 'robotics' | 'ai' | 'si' | 'visitiq';
 
 export type AvProjectType = 'standee' | 'led' | 'interactive-panel' | 'conference' | 'cables' | 'av-solution';
@@ -1072,7 +1088,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request' | 'office_operation_expense';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request' | 'office_operation_expense' | 'daily_report' | 'daily_report_leave_claim' | 'daily_report_warning' | 'daily_report_config';
   entity_id: string;
   action: string;
   previous_status: string;

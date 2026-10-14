@@ -397,3 +397,23 @@ body {
 .mx-visible-scroll::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/* Visible to screen readers, invisible on screen. Used for a <caption> or a
+   label whose meaning the layout already conveys visually (e.g. the Daily
+   Report sales grid, whose column headers read as a table to a sighted user
+   but need a caption to be announced as one).
+
+   Deliberately NOT display:none or visibility:hidden — both remove the
+   element from the accessibility tree too, which is the opposite of what
+   this is for. The clip-rect-and-1px approach keeps it announced. */
+.mx-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,707 @@
+/* Daily Report Management — only what the existing modules don't already
+   cover. Panels, tables, buttons, toolbars, badges, stat tiles, empty and
+   error states all come from calculator.module.css / quotationHistory.module.css
+   and components/ui/*, so this file is the module-specific layout: the
+   warning banner, the sales measure grid, the repeatable entry rows, the
+   history strip, and a few status badge tones the shared StatusBadge tones
+   don't map onto.
+
+   Every colour, radius, shadow, space and type size is a --mx-* token from
+   app/globals.css, so this module inherits the app's light/neomorphic
+   surface treatment (and any future [data-theme] redefinition of those
+   tokens) rather than hardcoding a parallel palette. */
+
+/* ---------------------------------------------------------------- banner */
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mx-space-3);
+  padding: var(--mx-space-4);
+  border-radius: var(--mx-radius-md);
+  border-left: 4px solid var(--mx-ink-faint);
+  background: var(--mx-surface);
+  box-shadow: var(--mx-shadow-xs);
+  margin-bottom: var(--mx-space-4);
+}
+
+.bannerIcon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--mx-radius-full);
+  background: var(--background);
+  color: var(--mx-ink-muted);
+}
+
+.bannerBody {
+  min-width: 0;
+}
+
+.bannerHeadline {
+  font-size: var(--mx-text-control);
+  font-weight: var(--mx-weight-semibold);
+  color: var(--mx-ink);
+  line-height: var(--mx-leading-tight);
+}
+
+.bannerDetail {
+  margin-top: var(--mx-space-1);
+  font-size: var(--mx-text-meta);
+  color: var(--mx-ink-muted);
+  line-height: var(--mx-leading-normal);
+}
+
+.bannerClear {
+  border-left-color: var(--mx-success);
+}
+.bannerClear .bannerIcon {
+  color: var(--mx-success);
+  background: var(--mx-success-subtle);
+}
+
+.bannerNotice {
+  border-left-color: var(--mx-info);
+}
+.bannerNotice .bannerIcon {
+  color: var(--mx-info);
+  background: var(--mx-info-subtle);
+}
+
+.bannerWarning {
+  border-left-color: var(--mx-warning);
+}
+.bannerWarning .bannerIcon {
+  color: var(--mx-warning);
+  background: var(--mx-warning-subtle);
+}
+
+.bannerEscalated {
+  border-left-color: var(--mx-danger);
+}
+.bannerEscalated .bannerIcon {
+  color: var(--mx-danger);
+  background: var(--mx-danger-subtle);
+}
+
+/* ------------------------------------------------------- meta / deadline */
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mx-space-2) var(--mx-space-5);
+  margin-bottom: var(--mx-space-4);
+}
+
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metaLabel {
+  font-size: var(--mx-text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--mx-tracking-caps);
+  color: var(--mx-ink-faint);
+  font-weight: var(--mx-weight-medium);
+}
+
+.metaValue {
+  font-size: var(--mx-text-body);
+  color: var(--mx-ink);
+  font-weight: var(--mx-weight-medium);
+}
+
+.metaValueDanger {
+  color: var(--mx-danger);
+}
+
+/* --------------------------------------------------------- status badges */
+
+/* The shared StatusBadge covers the app's generic tones; these three are
+   this module's own vocabulary (a draft, a late submission, a waived
+   warning) and read better with their own names at the call site. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--mx-radius-full);
+  font-size: var(--mx-text-badge);
+  font-weight: var(--mx-weight-medium);
+  white-space: nowrap;
+}
+
+.badgeDraft {
+  background: var(--mx-slate-100);
+  color: var(--mx-slate-600);
+}
+
+.badgeSubmitted {
+  background: var(--mx-success-subtle);
+  color: var(--mx-success);
+}
+
+.badgeLate {
+  background: var(--mx-warning-subtle);
+  color: var(--mx-warning);
+}
+
+.badgeMissing {
+  background: var(--mx-danger-subtle);
+  color: var(--mx-danger);
+}
+
+.badgeWaived {
+  background: var(--mx-slate-100);
+  color: var(--mx-slate-500);
+  text-decoration: line-through;
+}
+
+.badgeLeave {
+  background: var(--mx-info-subtle);
+  color: var(--mx-info);
+}
+
+.badgeNotConfigured {
+  background: var(--mx-surface-sunken);
+  color: var(--mx-ink-faint);
+}
+
+.badgeManagerFiled {
+  background: var(--mx-role-manager-subtle);
+  color: var(--mx-role-manager);
+}
+
+/* ------------------------------------------------------------ entry rows */
+
+/* One repeatable block per activity/task. A card per entry rather than a
+   wide table row, because these templates carry two or three textareas each
+   and a table would force every one of them into a 120px column. The grid
+   collapses to a single column under 900px, so the same markup works on a
+   phone without a second layout. */
+.entryList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mx-space-4);
+}
+
+.entryCard {
+  position: relative;
+  padding: var(--mx-space-4);
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface);
+  box-shadow: var(--mx-shadow-xs);
+}
+
+.entryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mx-space-2);
+  margin-bottom: var(--mx-space-3);
+}
+
+.entryIndex {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mx-space-2);
+  font-size: var(--mx-text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--mx-tracking-caps);
+  color: var(--mx-ink-faint);
+  font-weight: var(--mx-weight-semibold);
+}
+
+.entryCode {
+  font-family: var(--mx-font-mono);
+  font-size: var(--mx-text-badge);
+  color: var(--mx-ink-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.entryTools {
+  display: flex;
+  gap: var(--mx-space-1);
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--mx-radius-xs);
+  background: var(--background);
+  color: var(--mx-ink-muted);
+  cursor: pointer;
+  box-shadow: var(--mx-shadow-xs);
+  transition: color var(--mx-duration-fast) var(--mx-ease), box-shadow var(--mx-duration-fast) var(--mx-ease);
+}
+
+.iconBtn:hover:not(:disabled) {
+  color: var(--mx-ink);
+}
+
+.iconBtn:active:not(:disabled) {
+  box-shadow: var(--mx-shadow-pressed-sm);
+}
+
+.iconBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.iconBtnDanger:hover:not(:disabled) {
+  color: var(--mx-danger);
+}
+
+.entryGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--mx-space-3);
+}
+
+.fieldSm {
+  grid-column: span 3;
+}
+.fieldMd {
+  grid-column: span 4;
+}
+.fieldLg {
+  grid-column: span 6;
+}
+.fieldXl {
+  grid-column: span 12;
+}
+
+@media (max-width: 900px) {
+  .fieldSm,
+  .fieldMd,
+  .fieldLg,
+  .fieldXl {
+    grid-column: span 12;
+  }
+}
+
+.fieldError .metaLabel,
+.fieldError > label {
+  color: var(--mx-danger);
+}
+
+.errorText {
+  margin-top: 4px;
+  font-size: var(--mx-text-badge);
+  color: var(--mx-danger);
+}
+
+.computedValue {
+  display: flex;
+  align-items: center;
+  min-height: var(--mx-control-h);
+  padding: 0 var(--mx-space-3);
+  border-radius: var(--mx-radius-xs);
+  background: var(--mx-surface-sunken);
+  color: var(--mx-ink-muted);
+  font-size: var(--mx-text-body);
+  font-family: var(--mx-font-mono);
+}
+
+.computedOverdue {
+  color: var(--mx-danger);
+  font-weight: var(--mx-weight-semibold);
+}
+
+/* ---------------------------------------------------------- sales matrix */
+
+/* A measure × vertical numeric grid with live row, column and overall
+   totals. Scrolls inside its own container rather than widening the page —
+   four numeric columns plus a long measure label does not fit a phone, and
+   a horizontally scrolling body is worse than a horizontally scrolling
+   table. */
+.matrixWrap {
+  overflow-x: auto;
+  border-radius: var(--mx-radius-sm);
+  box-shadow: var(--mx-shadow-xs);
+  background: var(--mx-surface);
+}
+
+.matrixTable {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: var(--mx-text-body);
+}
+
+.matrixTable th,
+.matrixTable td {
+  padding: var(--mx-space-2) var(--mx-space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--mx-border);
+}
+
+.matrixTable thead th {
+  font-size: var(--mx-text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--mx-tracking-caps);
+  color: var(--mx-ink-faint);
+  font-weight: var(--mx-weight-semibold);
+  background: var(--mx-surface-sunken);
+  position: sticky;
+  top: 0;
+  z-index: var(--mx-z-sticky);
+}
+
+.matrixTable th.numCol,
+.matrixTable td.numCol {
+  text-align: right;
+  width: 92px;
+}
+
+.measureCell {
+  font-weight: var(--mx-weight-medium);
+  color: var(--mx-ink);
+}
+
+.matrixInput {
+  width: 100%;
+  min-width: 64px;
+  padding: 6px 8px;
+  text-align: right;
+  border: 1px solid var(--mx-border-strong);
+  border-radius: var(--mx-radius-xs);
+  background: var(--background);
+  color: var(--mx-ink);
+  /* 16px floor — anything smaller makes iOS Safari zoom the page on focus,
+     and this grid has 24 inputs to tab through. */
+  font-size: var(--mx-text-input);
+  font-variant-numeric: tabular-nums;
+}
+
+.matrixInput:focus {
+  outline: 2px solid var(--mx-info);
+  outline-offset: -1px;
+}
+
+.matrixInputError {
+  border-color: var(--mx-danger);
+}
+
+.totalCell {
+  font-weight: var(--mx-weight-semibold);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--mx-ink);
+}
+
+.matrixTable tfoot td {
+  background: var(--mx-surface-sunken);
+  font-weight: var(--mx-weight-semibold);
+  border-bottom: none;
+}
+
+.grandTotal {
+  color: var(--mx-brand-text);
+  font-size: var(--mx-text-control);
+}
+
+/* --------------------------------------------------------- history strip */
+
+.historyStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mx-space-2);
+}
+
+.historyChip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 92px;
+  padding: var(--mx-space-2) var(--mx-space-3);
+  border: none;
+  border-radius: var(--mx-radius-xs);
+  background: var(--mx-surface);
+  box-shadow: var(--mx-shadow-xs);
+  cursor: pointer;
+  text-align: left;
+  transition: box-shadow var(--mx-duration-fast) var(--mx-ease);
+}
+
+.historyChip:hover {
+  box-shadow: var(--mx-shadow-sm);
+}
+
+.historyChipActive {
+  box-shadow: var(--mx-shadow-pressed-sm);
+}
+
+.historyChipDate {
+  font-size: var(--mx-text-badge);
+  font-weight: var(--mx-weight-semibold);
+  color: var(--mx-ink);
+}
+
+.historyChipDay {
+  font-size: var(--mx-text-micro);
+  color: var(--mx-ink-faint);
+  text-transform: uppercase;
+  letter-spacing: var(--mx-tracking-caps);
+}
+
+.historyDot {
+  width: 100%;
+  height: 3px;
+  border-radius: var(--mx-radius-full);
+  margin-top: 4px;
+}
+
+.dotSubmitted {
+  background: var(--mx-success);
+}
+.dotLate {
+  background: var(--mx-warning);
+}
+.dotMissing {
+  background: var(--mx-danger);
+}
+.dotDraft {
+  background: var(--mx-slate-300);
+}
+.dotLeave {
+  background: var(--mx-info);
+}
+
+/* ------------------------------------------------------------- KPI strip */
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: var(--mx-space-3);
+  margin-bottom: var(--mx-space-4);
+}
+
+/* ---------------------------------------------------------------- layout */
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mx-space-3);
+  margin: var(--mx-space-5) 0 var(--mx-space-3);
+}
+
+.sectionHeadFlush {
+  margin-top: 0;
+}
+
+.sectionTitle {
+  font-size: var(--mx-text-title);
+  font-weight: var(--mx-weight-semibold);
+  color: var(--mx-ink);
+  margin: 0;
+}
+
+.sectionHint {
+  font-size: var(--mx-text-meta);
+  color: var(--mx-ink-muted);
+  line-height: var(--mx-leading-normal);
+  margin: 0 0 var(--mx-space-3);
+}
+
+.footerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mx-space-3);
+  padding-top: var(--mx-space-4);
+  margin-top: var(--mx-space-4);
+  border-top: 1px solid var(--mx-border);
+}
+
+.footerSpacer {
+  flex: 1 1 auto;
+}
+
+.savedHint {
+  font-size: var(--mx-text-meta);
+  color: var(--mx-ink-muted);
+}
+
+/* A field grid for the AV narrative template and the config forms. */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--mx-space-3);
+}
+
+.noticePanel {
+  padding: var(--mx-space-5);
+  border-radius: var(--mx-radius-md);
+  background: var(--mx-surface);
+  box-shadow: var(--mx-shadow-xs);
+  text-align: center;
+}
+
+.noticeTitle {
+  font-size: var(--mx-text-title);
+  font-weight: var(--mx-weight-semibold);
+  color: var(--mx-ink);
+  margin-bottom: var(--mx-space-2);
+}
+
+.noticeBody {
+  font-size: var(--mx-text-body);
+  color: var(--mx-ink-muted);
+  line-height: var(--mx-leading-relaxed);
+  max-width: 62ch;
+  margin: 0 auto;
+}
+
+/* --------------------------------------------------- HR / config tables */
+
+.groupCard {
+  padding: var(--mx-space-4);
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface);
+  box-shadow: var(--mx-shadow-xs);
+  margin-bottom: var(--mx-space-3);
+}
+
+.groupHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mx-space-3);
+}
+
+.groupTitle {
+  font-size: var(--mx-text-control);
+  font-weight: var(--mx-weight-semibold);
+  color: var(--mx-ink);
+}
+
+.groupMeta {
+  font-size: var(--mx-text-meta);
+  color: var(--mx-ink-muted);
+}
+
+.dateChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mx-space-2);
+  margin-top: var(--mx-space-3);
+}
+
+.dateChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mx-space-2);
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--mx-radius-full);
+  background: var(--mx-danger-subtle);
+  color: var(--mx-danger);
+  font-size: var(--mx-text-badge);
+  font-weight: var(--mx-weight-medium);
+  cursor: pointer;
+}
+
+.dateChipWaived {
+  background: var(--mx-surface-sunken);
+  color: var(--mx-ink-faint);
+  text-decoration: line-through;
+  cursor: default;
+}
+
+.inlineList {
+  margin: var(--mx-space-2) 0 0;
+  padding-left: 18px;
+  font-size: var(--mx-text-meta);
+  color: var(--mx-ink-muted);
+  line-height: var(--mx-leading-normal);
+}
+
+.switchRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mx-space-3);
+  padding: var(--mx-space-3) 0;
+  border-bottom: 1px solid var(--mx-border);
+}
+
+.switchRow:last-child {
+  border-bottom: none;
+}
+
+.switchBody {
+  min-width: 0;
+}
+
+.switchLabel {
+  font-size: var(--mx-text-body);
+  font-weight: var(--mx-weight-medium);
+  color: var(--mx-ink);
+}
+
+.switchHint {
+  margin-top: 2px;
+  font-size: var(--mx-text-meta);
+  color: var(--mx-ink-muted);
+  line-height: var(--mx-leading-normal);
+}
+
+.dayToggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mx-space-2);
+}
+
+.dayToggle {
+  min-width: 46px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--mx-radius-xs);
+  background: var(--background);
+  color: var(--mx-ink-muted);
+  font-size: var(--mx-text-badge);
+  font-weight: var(--mx-weight-medium);
+  cursor: pointer;
+  box-shadow: var(--mx-shadow-xs);
+}
+
+.dayToggleOn {
+  background: var(--mx-brand-subtle);
+  color: var(--mx-brand-text);
+  box-shadow: var(--mx-shadow-pressed-sm);
+}
+
+.codeLine {
+  display: block;
+  padding: var(--mx-space-3);
+  border-radius: var(--mx-radius-xs);
+  background: var(--mx-slate-900);
+  color: var(--mx-slate-100);
+  font-family: var(--mx-font-mono);
+  font-size: var(--mx-text-badge);
+  line-height: var(--mx-leading-relaxed);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.tabRow {
+  display: flex;
+  gap: var(--mx-space-2);
+  margin-bottom: var(--mx-space-4);
+  flex-wrap: wrap;
+}

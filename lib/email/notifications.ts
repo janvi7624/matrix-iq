@@ -20,6 +20,7 @@ import { renderMissingBillsEmail, MissingBillsEmailData } from './templates/miss
 import { renderAdminExpenseNoticeEmail, AdminExpenseNoticeEmailData } from './templates/adminExpenseNotice';
 import { renderLeadHandoverEmail, LeadHandoverEmailData } from './templates/leadHandover';
 import { renderMissingProjectDetailsEmail, MissingProjectDetailsEmailData } from './templates/missingProjectDetails';
+import { renderDailyReportEmail, DailyReportEmailData } from './templates/dailyReport';
 
 // APP_URL must be this app's absolute public origin (e.g.
 // https://app.example.com, see .env.example) — every link embedded in an
@@ -318,4 +319,36 @@ export async function sendLeadHandoverEmail(data: { email: string } & Omit<LeadH
   } catch (error) {
     console.error(`[email] Lead was handed over to ${data.name} but the notification email could not be sent:`, error instanceof Error ? error.message : error);
   }
+}
+
+// Daily Report Management. One function for all seven of the module's mails
+// (see DailyReportEmailKind) rather than seven near-identical wrappers —
+// they differ only in their content, which the template already
+// discriminates on, and the send/log/never-throw behaviour is identical.
+//
+// Returns a boolean instead of void, unlike most functions in this file,
+// because the scheduler records delivery status per recipient in its own
+// notification ledger and the admin page surfaces it: "we tried and SES
+// refused" has to be distinguishable from "nobody was due a reminder".
+// Still never throws — a mail failure must not abort a sweep that has more
+// people to process.
+export async function sendDailyReportEmail(to: string, data: DailyReportEmailData): Promise<boolean> {
+  if (!to) return false;
+  try {
+    const { subject, html, text } = renderDailyReportEmail(data);
+    await sendEmail({ to, subject, html, text });
+    return true;
+  } catch (error) {
+    console.error(
+      `[email] Daily Report "${data.kind}" notification to ${to} for ${data.reportDate} could not be sent:`,
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+/** Absolute URL for a Daily Report page, for use in an email body. */
+export function dailyReportUrl(path: string): string {
+  const base = resolveAppUrl();
+  return base ? `${base}${path}` : path;
 }
