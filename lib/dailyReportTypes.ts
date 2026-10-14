@@ -166,6 +166,13 @@ export interface MyDailyReportResponse {
   /** 'not_configured' means this department has no approved format yet. */
   template: TemplateDefinition;
   template_configured: boolean;
+  /**
+   * True when this person is on the excused list. Distinct from
+   * template_configured being false: one means "your department has no
+   * format", the other means "you personally are not required to file", and
+   * the page says which rather than showing one message for both.
+   */
+  exempt: boolean;
   /** null when nothing has been started for this date. */
   report: DailyReportRecord | null;
   revisions: DailyReportRevisionRecord[];
@@ -231,12 +238,22 @@ export interface TeamDailyReportResponse {
   can_file_for_others: boolean;
 }
 
+export interface ExemptCandidate {
+  id: string;
+  name: string;
+  username: string;
+  department_name: string;
+  role: string;
+}
+
 export interface DailyReportConfigRecord {
   id: string;
   timezone: string;
   working_days: number[];
   holidays: string[];
   observe_holidays: boolean;
+  /** Recurring days off, e.g. [{ nth: 3, weekday: 6 }] = 3rd Saturday. */
+  off_nth_weekdays: { nth: number; weekday: number }[];
   deadline_time: string;
   evening_reminder_time: string;
   final_reminder_time: string;
@@ -245,6 +262,12 @@ export interface DailyReportConfigRecord {
   scheduler_enabled: boolean;
   dry_run: boolean;
   leave_rejection_policy: 'reinstate' | 'waive';
+  /**
+   * Employees excused from filing. Excluded from the expected set entirely,
+   * so they get no form, no reminders and no warnings, and they do not sit
+   * in anyone's compliance denominator making a team look non-compliant.
+   */
+  exempt_employee_ids: string[];
   updated_at: string;
   updated_by_name: string;
 }
@@ -296,6 +319,10 @@ export interface DailyReportConfigResponse {
   }[];
   /** Resolved HR recipients for escalations, so a misconfiguration is visible. */
   hr_recipients: string[];
+  /** Everyone who could be excused, for the picker. */
+  employees: ExemptCandidate[];
+  /** The excused list resolved to names, so the page never shows bare ids. */
+  exempt_employees: ExemptCandidate[];
   cron_hint: { path: string; secret_env: string; configured: boolean };
 }
 

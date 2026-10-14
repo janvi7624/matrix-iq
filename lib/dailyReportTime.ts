@@ -97,11 +97,35 @@ export function daysBetween(from: string, to: string): number {
 // The subset of Daily Report config this file needs. Declared structurally
 // rather than imported from the config store so this module stays free of
 // any DB-touching import and remains trivially unit-testable.
+/**
+ * "The nth <weekday> of the month is off" — e.g. { nth: 3, weekday: 6 } is
+ * the third Saturday.
+ *
+ * A recurring RULE rather than dates in the holiday list, because the
+ * alternative is generating twelve dates a year forever and the policy
+ * silently lapsing the first January nobody remembers to top it up.
+ */
+export interface NthWeekdayRule {
+  /** 1–5. A 5th occurrence simply does not match in months that lack one. */
+  nth: number;
+  /** 0 = Sunday … 6 = Saturday. */
+  weekday: number;
+}
+
 export interface WorkingDayPolicy {
   /** Day-of-week numbers that are working days. Default Mon–Sat = [1,2,3,4,5,6]. */
   workingDays: number[];
   /** 'YYYY-MM-DD' public holidays. Only consulted when observeHolidays is true. */
   holidays: string[];
+  /**
+   * Recurring days off, e.g. the third Saturday of every month. Optional so
+   * every existing caller keeps compiling; absent means no such rule.
+   *
+   * NOT gated behind observeHolidays: that flag exists because the public
+   * holiday calendar had not been curated yet, whereas these rules are only
+   * ever present because somebody deliberately configured them.
+   */
+  offNthWeekdays?: NthWeekdayRule[];
   /**
    * False (the default) means "public holidays are treated as working days",
    * which is the documented interim policy until a real holiday calendar is
@@ -110,9 +134,36 @@ export interface WorkingDayPolicy {
   observeHolidays: boolean;
 }
 
+/**
+ * Which occurrence of its own weekday this date is within its month — the 3
+ * in "third Saturday".
+ *
+ * Pure day-of-month arithmetic: days 1–7 are the 1st occurrence, 8–14 the
+ * 2nd, and so on. That is exactly what "third Saturday" means in ordinary
+ * use, and it needs no calendar walk.
+ */
+export function nthWeekdayOfMonth(date: string): number {
+  const match = DATE_RE.exec(date);
+  if (!match) throw new Error(`Invalid IST date: ${date}`);
+  return Math.floor((Number(match[3]) - 1) / 7) + 1;
+}
+
+export function matchesNthWeekdayRule(date: string, rules: NthWeekdayRule[] | undefined): boolean {
+  if (!rules?.length) return false;
+  const weekday = dayOfWeek(date);
+  const nth = nthWeekdayOfMonth(date);
+  return rules.some((rule) => rule.weekday === weekday && rule.nth === nth);
+}
+
 export function isWorkingDay(date: string, policy: WorkingDayPolicy): boolean {
   if (!policy.workingDays.includes(dayOfWeek(date))) return false;
   if (policy.observeHolidays && policy.holidays.includes(date)) return false;
+  // Everything downstream — deadlines, the Saturday→Monday rule, the
+  // reminder schedule, the arrows on the employee page, the sweep window,
+  // analytics' expected count — is built on isWorkingDay, so adding the rule
+  // in this one place makes a third Saturday behave exactly like a Sunday
+  // everywhere, with no second implementation to keep in step.
+  if (matchesNthWeekdayRule(date, policy.offNthWeekdays)) return false;
   return true;
 }
 

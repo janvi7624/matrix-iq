@@ -1,4 +1,21 @@
-/* Daily Report Management — only what the existing modules don't already
+/* IMPORTANT — never use var(--background) or var(--foreground) in this app.
+
+   Those two are Next.js starter tokens, and app/globals.css still ships a
+   `@media (prefers-color-scheme: dark)` block that flips them to #0a0a0a /
+   #ededed. Nothing else in MatrixIQ uses them: the real design system is the
+   --mx-* tokens, which are light-only and have NO dark variants.
+
+   Mixing the two is what turned the sales-grid inputs into solid black
+   boxes for anyone whose OS was in dark mode — background went near-black
+   while the text colour (--mx-ink, #111827) stayed near-black. Everything
+   around them stayed light, because the rest of the app never touches those
+   tokens.
+
+   So: plain #ffffff for a raised control, var(--mx-surface) for a recessed
+   field (matching .formControl in calculator.module.css), and --mx-* for
+   everything else.
+
+   Daily Report Management — only what the existing modules don't already
    cover. Panels, tables, buttons, toolbars, badges, stat tiles, empty and
    error states all come from calculator.module.css / quotationHistory.module.css
    and components/ui/*, so this file is the module-specific layout: the
@@ -33,7 +50,7 @@
   width: 34px;
   height: 34px;
   border-radius: var(--mx-radius-full);
-  background: var(--background);
+  background: #ffffff;
   color: var(--mx-ink-muted);
 }
 
@@ -239,7 +256,7 @@
   height: 30px;
   border: none;
   border-radius: var(--mx-radius-xs);
-  background: var(--background);
+  background: #ffffff;
   color: var(--mx-ink-muted);
   cursor: pointer;
   box-shadow: var(--mx-shadow-xs);
@@ -377,7 +394,7 @@
   text-align: right;
   border: 1px solid var(--mx-border-strong);
   border-radius: var(--mx-radius-xs);
-  background: var(--background);
+  background: #ffffff;
   color: var(--mx-ink);
   /* 16px floor — anything smaller makes iOS Safari zoom the page on focus,
      and this grid has 24 inputs to tab through. */
@@ -672,7 +689,7 @@
   padding: 8px 10px;
   border: none;
   border-radius: var(--mx-radius-xs);
-  background: var(--background);
+  background: #ffffff;
   color: var(--mx-ink-muted);
   font-size: var(--mx-text-badge);
   font-weight: var(--mx-weight-medium);
@@ -754,7 +771,7 @@
   flex: 0 0 auto;
   border: none;
   border-radius: var(--mx-radius-full);
-  background: var(--background);
+  background: #ffffff;
   color: var(--mx-ink-muted);
   cursor: pointer;
   box-shadow: var(--mx-shadow-xs);
@@ -1040,7 +1057,11 @@
   border-radius: var(--mx-radius-sm);
   /* Opaque, not translucent: form rows scrolling underneath a semi-
      transparent bar made both unreadable. */
-  background: var(--background);
+  background: #ffffff;
+  /* Explicit, never inherited: body's `color` is --foreground, which
+     flips near-white under prefers-color-scheme: dark. Same fix the
+     notification dropdown needed — see quotationHistory.module.css. */
+  color: var(--mx-ink);
   box-shadow: var(--mx-shadow-md);
 }
 
@@ -1096,7 +1117,7 @@
   border: none;
   border-radius: var(--mx-radius-full);
   padding: 3px 10px;
-  background: var(--background);
+  background: #ffffff;
   color: var(--mx-ink-muted);
   font-size: var(--mx-text-micro);
   font-weight: var(--mx-weight-semibold);
@@ -1110,4 +1131,61 @@
 
 .todayBtn:hover {
   color: var(--mx-brand-text);
+}
+
+/* ------------------------------------------------- excused-people picker */
+
+/* A scrolling checkbox list rather than a multi-select or a tag input: the
+   roster is ~40 people, every one needs their department and role visible to
+   be told apart (there are two Mansis), and an admin needs to SEE who is
+   currently excused without clicking anything. */
+.pickerBox {
+  max-height: 320px;
+  overflow-y: auto;
+  border-radius: var(--mx-radius-xs);
+  background: #ffffff;
+  /* Explicit, never inherited: body's `color` is --foreground, which
+     flips near-white under prefers-color-scheme: dark. Same fix the
+     notification dropdown needed — see quotationHistory.module.css. */
+  color: var(--mx-ink);
+  box-shadow: var(--mx-shadow-pressed-sm);
+  padding: var(--mx-space-2);
+}
+
+.pickerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--mx-space-3);
+  padding: var(--mx-space-2) var(--mx-space-3);
+  border-radius: var(--mx-radius-xs);
+  cursor: pointer;
+}
+
+.pickerRow:hover {
+  background: var(--mx-surface);
+}
+
+.pickerRowOn {
+  background: var(--mx-brand-subtle);
+}
+
+.pickerName {
+  font-size: var(--mx-text-body);
+  color: var(--mx-ink);
+  font-weight: var(--mx-weight-medium);
+}
+
+.pickerMeta {
+  margin-left: auto;
+  font-size: var(--mx-text-badge);
+  color: var(--mx-ink-faint);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pickerSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mx-space-2);
+  margin-bottom: var(--mx-space-3);
 }

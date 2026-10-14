@@ -12,8 +12,10 @@ import {
   istClock,
   istDate,
   istInstant,
+  matchesNthWeekdayRule,
   monthKey,
   navigableWorkingDays,
+  nthWeekdayOfMonth,
   nextWorkingDay,
   previousWorkingDay,
   scheduleFor,
@@ -205,6 +207,100 @@ describe('on-time vs late', () => {
     expect(isLateSubmission('2026-10-17', new Date('2026-10-18T16:00:00Z'), MON_SAT)).toBe(false);
     // Monday 11:01 IST is late.
     expect(isLateSubmission('2026-10-17', new Date('2026-10-19T05:31:00Z'), MON_SAT)).toBe(true);
+  });
+});
+
+describe('the third-Saturday rule', () => {
+  // Saturdays in Oct 2026: 3, 10, 17, 24, 31 — so the 17th is the third.
+  const THIRD_SAT_OFF = { ...MON_SAT, offNthWeekdays: [{ nth: 3, weekday: 6 }] };
+
+  it('counts which occurrence of its weekday a date is', () => {
+    // Days 1-7 are the 1st occurrence, 8-14 the 2nd, and so on — which is
+    // exactly what "third Saturday" means in ordinary use.
+    expect(nthWeekdayOfMonth('2026-10-03')).toBe(1);
+    expect(nthWeekdayOfMonth('2026-10-10')).toBe(2);
+    expect(nthWeekdayOfMonth('2026-10-17')).toBe(3);
+    expect(nthWeekdayOfMonth('2026-10-24')).toBe(4);
+    expect(nthWeekdayOfMonth('2026-10-31')).toBe(5);
+    // Boundaries of each 7-day block.
+    expect(nthWeekdayOfMonth('2026-10-07')).toBe(1);
+    expect(nthWeekdayOfMonth('2026-10-08')).toBe(2);
+  });
+
+  it('matches only the third Saturday, not the others', () => {
+    const rules = [{ nth: 3, weekday: 6 }];
+    expect(matchesNthWeekdayRule('2026-10-17', rules)).toBe(true);
+    expect(matchesNthWeekdayRule('2026-10-10', rules)).toBe(false);
+    expect(matchesNthWeekdayRule('2026-10-24', rules)).toBe(false);
+    // Same ordinal, different weekday — the 3rd Wednesday is not affected.
+    expect(matchesNthWeekdayRule('2026-10-21', rules)).toBe(false);
+    expect(matchesNthWeekdayRule('2026-10-17', [])).toBe(false);
+    expect(matchesNthWeekdayRule('2026-10-17', undefined)).toBe(false);
+  });
+
+  it('makes the third Saturday a non-working day', () => {
+    expect(isWorkingDay('2026-10-17', THIRD_SAT_OFF)).toBe(false);
+    // Every other Saturday still works.
+    expect(isWorkingDay('2026-10-10', THIRD_SAT_OFF)).toBe(true);
+    expect(isWorkingDay('2026-10-24', THIRD_SAT_OFF)).toBe(true);
+    // And without the rule it is an ordinary working day.
+    expect(isWorkingDay('2026-10-17', MON_SAT)).toBe(true);
+  });
+
+  it('finds the right Saturday in later months without being topped up', () => {
+    // The point of a rule rather than a list of dates.
+    for (const [date, off] of [
+      ['2026-11-21', true],  // 3rd Sat of Nov
+      ['2026-11-14', false],
+      ['2026-12-19', true],  // 3rd Sat of Dec
+      ['2027-01-16', true],  // 3rd Sat of Jan, a year later
+      ['2027-01-09', false]
+    ] as [string, boolean][]) {
+      expect(isWorkingDay(date, THIRD_SAT_OFF), date).toBe(!off);
+    }
+  });
+
+  it('pushes the Friday before it to the following Monday', () => {
+    // Fri 16th -> Sat 17th is off -> Sun 18th is off -> Mon 19th.
+    // This is the consequence that actually matters to an employee, and it
+    // falls out of isWorkingDay rather than needing its own rule.
+    const schedule = scheduleFor('2026-10-16', THIRD_SAT_OFF);
+    expect(schedule.deadlineDate).toBe('2026-10-19');
+    expect(schedule.deadlineAt.toISOString()).toBe('2026-10-19T05:30:00.000Z');
+    // Without the rule, that Friday is simply due on the Saturday.
+    expect(scheduleFor('2026-10-16', MON_SAT).deadlineDate).toBe('2026-10-17');
+  });
+
+  it('skips it when stepping through working days', () => {
+    expect(nextWorkingDay('2026-10-16', THIRD_SAT_OFF)).toBe('2026-10-19');
+    expect(previousWorkingDay('2026-10-19', THIRD_SAT_OFF)).toBe('2026-10-16');
+    expect(workingDaysBetween('2026-10-15', '2026-10-20', THIRD_SAT_OFF)).toEqual([
+      '2026-10-15',
+      '2026-10-16',
+      // 17th third Saturday, 18th Sunday — both absent.
+      '2026-10-19',
+      '2026-10-20'
+    ]);
+  });
+
+  it('never expects a report on it, so no warning can arise', () => {
+    // A date that is not a working day is never a reporting date, which is
+    // what keeps it out of the sweep window entirely.
+    expect(workingDaysBetween('2026-10-17', '2026-10-17', THIRD_SAT_OFF)).toEqual([]);
+  });
+
+  it('supports the other common Indian pattern, 2nd and 4th Saturday', () => {
+    const policy = { ...MON_SAT, offNthWeekdays: [{ nth: 2, weekday: 6 }, { nth: 4, weekday: 6 }] };
+    expect(isWorkingDay('2026-10-10', policy)).toBe(false);
+    expect(isWorkingDay('2026-10-24', policy)).toBe(false);
+    expect(isWorkingDay('2026-10-17', policy)).toBe(true);
+  });
+
+  it('simply does not apply in a month with no 5th Saturday', () => {
+    const policy = { ...MON_SAT, offNthWeekdays: [{ nth: 5, weekday: 6 }] };
+    // Oct 2026 has five Saturdays, Nov has four.
+    expect(isWorkingDay('2026-10-31', policy)).toBe(false);
+    expect(isWorkingDay('2026-11-28', policy)).toBe(true);
   });
 });
 

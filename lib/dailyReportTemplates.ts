@@ -44,17 +44,13 @@ export type DailyReportComputedKind =
   /** Sequential per-report entry id, e.g. "AI-2026-10-14-03". */
   | 'entry_code'
   /** Whole days from the reporting date to this entry's due date; negative = overdue. */
-  | 'days_left'
-  /**
-   * A plain 1-based row number — "Sr. No." on a paper form.
-   *
-   * Distinct from 'entry_code' on purpose: that produces a qualified
-   * identifier ("AI-2026-10-14-03") meant to be quoted in a conversation,
-   * whereas this is just the position in today's list and renumbers when
-   * rows are reordered. Both are recomputed on read rather than stored, so
-   * neither can go stale after a reorder or a deletion.
-   */
-  | 'serial';
+  | 'days_left';
+
+// There was briefly a third kind, 'serial', rendering a plain 1-based row
+// number as Back Office's "Sr. No." column. It was removed once every
+// row-based template gained a Task ID: an entry_code already ENDS in its
+// position ("BO-2026-10-14-01"), so a separate Sr. No. was the same number
+// shown twice, in two read-only columns, at the front of every row.
 
 export interface DailyReportFieldDef {
   key: string;
@@ -83,6 +79,15 @@ export interface DailyReportFieldDef {
 export interface TemplateDefinition {
   key: DailyReportTemplateKey;
   label: string;
+  /**
+   * Short prefix for this template's Task IDs, e.g. 'AI' -> AI-2026-10-14-01.
+   *
+   * Separate from `key` because the key is a storage identifier while this is
+   * read by a person in a narrow column and quoted in conversation —
+   * 'BACKOFFICE-2026-10-14-01' is neither. Defaults to the upper-cased key
+   * when absent.
+   */
+  codePrefix?: string;
   description: string;
   layout: DailyReportLayout;
   /** Fields recorded once for the whole day (AV's narrative, a notes box). */
@@ -108,6 +113,19 @@ export interface TemplateDefinition {
 // restricted to two values and Robotics has 'On Hold', and the brief said not
 // to add status values to those without authorization. A single shared list
 // would make the next edit silently widen all of them.
+// Every row-based template carries the same Task ID column. Defined once
+// rather than copied into each template so the label, width and help text
+// cannot drift apart between departments — the whole point of the request
+// was that it should be consistent everywhere.
+const TASK_ID_FIELD: DailyReportFieldDef = {
+  key: 'task_code',
+  label: 'Task ID',
+  type: 'computed',
+  computed: 'entry_code',
+  width: 'sm',
+  help: 'Generated when the entry is saved.'
+};
+
 export const HR_STATUS_OPTIONS = ['In Progress', 'Completed', 'Pending'];
 export const AI_STATUS_OPTIONS = ['In Progress', 'Completed', 'Pending'];
 export const MARKETING_STATUS_OPTIONS = ['In Progress', 'Completed'];
@@ -183,6 +201,7 @@ export const SALES_CHANNELS = ['AI', 'AV', 'Robotics'];
 
 const HR_TEMPLATE: TemplateDefinition = {
   key: 'hr',
+  codePrefix: 'HR',
   label: 'HR Daily Activity Report',
   description: 'One row per activity handled today, categorised and tracked to a status.',
   layout: 'rows',
@@ -190,6 +209,7 @@ const HR_TEMPLATE: TemplateDefinition = {
   minEntries: 1,
   headerFields: [],
   rowFields: [
+    TASK_ID_FIELD,
     { key: 'category', label: 'Activity Category', type: 'select', required: true, options: Object.keys(HR_ACTIVITY_CATALOGUE), width: 'md' },
     { key: 'activity', label: 'Specific Activity', type: 'select', required: true, dependsOn: 'category', linkedOptions: HR_ACTIVITY_CATALOGUE, width: 'md' },
     { key: 'description', label: 'Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
@@ -201,6 +221,7 @@ const HR_TEMPLATE: TemplateDefinition = {
 
 const SALES_TEMPLATE: TemplateDefinition = {
   key: 'sales',
+  codePrefix: 'SAL',
   label: 'Sales Daily Activity',
   description: 'Today’s activity counts per product vertical. Row, vertical and overall totals are calculated.',
   layout: 'matrix',
@@ -212,6 +233,7 @@ const SALES_TEMPLATE: TemplateDefinition = {
 
 const AV_TEMPLATE: TemplateDefinition = {
   key: 'av',
+  codePrefix: 'AV',
   label: 'AV Daily Work Report',
   description: 'One structured site report per day — what was planned, what got done, and what is blocking.',
   layout: 'narrative',
@@ -231,6 +253,7 @@ const AV_TEMPLATE: TemplateDefinition = {
 
 const RND_TEMPLATE: TemplateDefinition = {
   key: 'rnd',
+  codePrefix: 'RND',
   label: 'R&D Daily Task Sheet',
   description: 'Technical progress per task, with the business impact and anything blocking it.',
   layout: 'rows',
@@ -238,6 +261,7 @@ const RND_TEMPLATE: TemplateDefinition = {
   minEntries: 1,
   headerFields: [],
   rowFields: [
+    TASK_ID_FIELD,
     { key: 'task_description', label: 'Task Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
     { key: 'impact', label: 'Impact on Company', type: 'textarea', required: true, maxLength: 2000, width: 'lg' },
     { key: 'time_spent_hours', label: 'Time Spent (hours)', type: 'number', required: true, width: 'sm' },
@@ -249,6 +273,7 @@ const RND_TEMPLATE: TemplateDefinition = {
 
 const AI_TEMPLATE: TemplateDefinition = {
   key: 'ai',
+  codePrefix: 'AI',
   label: 'AI Daily Task Sheet',
   description: 'Task-level tracking with priority, due date and an automatically calculated days-left.',
   layout: 'rows',
@@ -256,7 +281,7 @@ const AI_TEMPLATE: TemplateDefinition = {
   minEntries: 1,
   headerFields: [],
   rowFields: [
-    { key: 'task_code', label: 'Task ID', type: 'computed', computed: 'entry_code', width: 'sm', help: 'Generated when the entry is saved.' },
+    TASK_ID_FIELD,
     { key: 'task_description', label: 'Task Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
     { key: 'project', label: 'Project / Category', type: 'text', required: true, maxLength: 255, width: 'md' },
     { key: 'priority', label: 'Priority', type: 'select', required: true, options: PRIORITY_OPTIONS, width: 'sm' },
@@ -269,6 +294,7 @@ const AI_TEMPLATE: TemplateDefinition = {
 
 const MARKETING_TEMPLATE: TemplateDefinition = {
   key: 'marketing',
+  codePrefix: 'MKT',
   label: 'Marketing Daily Task Sheet',
   description: 'Task, status and due date. Status is deliberately limited to In Progress and Completed.',
   layout: 'rows',
@@ -276,7 +302,7 @@ const MARKETING_TEMPLATE: TemplateDefinition = {
   minEntries: 1,
   headerFields: [],
   rowFields: [
-    { key: 'task_code', label: 'Task ID', type: 'computed', computed: 'entry_code', width: 'sm' },
+    TASK_ID_FIELD,
     { key: 'task_description', label: 'Task Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
     { key: 'status', label: 'Status', type: 'select', required: true, options: MARKETING_STATUS_OPTIONS, width: 'sm' },
     { key: 'remark', label: 'Remark', type: 'textarea', maxLength: 1000, width: 'lg' },
@@ -286,6 +312,7 @@ const MARKETING_TEMPLATE: TemplateDefinition = {
 
 const ROBOTICS_TEMPLATE: TemplateDefinition = {
   key: 'robotics',
+  codePrefix: 'ROB',
   label: 'Robotics Daily Report',
   description: 'Per-task status as a dropdown, with free-text progress covering achievements, current work and challenges.',
   layout: 'rows',
@@ -293,7 +320,7 @@ const ROBOTICS_TEMPLATE: TemplateDefinition = {
   minEntries: 1,
   headerFields: [],
   rowFields: [
-    { key: 'task_code', label: 'Task ID', type: 'computed', computed: 'entry_code', width: 'sm' },
+    TASK_ID_FIELD,
     { key: 'project', label: 'Project / Client', type: 'text', required: true, maxLength: 255, width: 'md' },
     { key: 'task_details', label: 'Task Details', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
     { key: 'status', label: 'Status', type: 'select', required: true, options: ROBOTICS_STATUS_OPTIONS, width: 'sm' },
@@ -304,6 +331,7 @@ const ROBOTICS_TEMPLATE: TemplateDefinition = {
 
 const ACCOUNTS_TEMPLATE: TemplateDefinition = {
   key: 'accounts',
+  codePrefix: 'ACC',
   label: 'Accounts Daily Activity',
   description: 'One row per accounting activity handled today, chosen from the standard list.',
   layout: 'rows',
@@ -311,6 +339,7 @@ const ACCOUNTS_TEMPLATE: TemplateDefinition = {
   minEntries: 1,
   headerFields: [],
   rowFields: [
+    TASK_ID_FIELD,
     { key: 'activity', label: 'Activity', type: 'select', required: true, options: ACCOUNTS_ACTIVITY_OPTIONS, width: 'md' },
     {
       key: 'description',
@@ -327,6 +356,7 @@ const ACCOUNTS_TEMPLATE: TemplateDefinition = {
 
 const BACKOFFICE_TEMPLATE: TemplateDefinition = {
   key: 'backoffice',
+  codePrefix: 'BO',
   label: 'Back Office Daily Task Sheet',
   description: 'A numbered list of the tasks handled today, each with what was done and any remarks.',
   layout: 'rows',
@@ -334,10 +364,12 @@ const BACKOFFICE_TEMPLATE: TemplateDefinition = {
   minEntries: 1,
   headerFields: [],
   rowFields: [
+    // Task ID only — no separate Sr. No. The id already ends in the row's
+    // position, so the two were the same number in adjacent columns.
+    TASK_ID_FIELD,
     // Free text rather than a dropdown: Back Office work is not drawn from a
     // fixed catalogue the way the Accounts activities are, so constraining it
     // to a list would mean either an unusable list or a permanent "Other".
-    { key: 'sr_no', label: 'Sr. No.', type: 'computed', computed: 'serial', width: 'sm' },
     { key: 'task_name', label: 'Task Name', type: 'text', required: true, maxLength: 255, width: 'md' },
     { key: 'description', label: 'Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
     { key: 'remarks', label: 'Remarks', type: 'textarea', maxLength: 1000, width: 'lg' }
@@ -698,8 +730,6 @@ export function computeMatrixTotals(template: TemplateDefinition, matrix: Record
 export interface DerivedEntryValues {
   task_code?: string;
   days_left?: number;
-  /** 1-based row number for a 'serial' field (Back Office's Sr. No.). */
-  serial?: number;
 }
 
 /**
@@ -721,10 +751,7 @@ export function computeDerivedValues(
   const derived: DerivedEntryValues = {};
   for (const field of template.rowFields) {
     if (field.computed === 'entry_code') {
-      derived.task_code = `${template.key.toUpperCase()}-${reportDate}-${String(index + 1).padStart(2, '0')}`;
-    }
-    if (field.computed === 'serial') {
-      derived.serial = index + 1;
+      derived.task_code = `${template.codePrefix ?? template.key.toUpperCase()}-${reportDate}-${String(index + 1).padStart(2, '0')}`;
     }
     if (field.computed === 'days_left') {
       const due = asTrimmedString(entry.due_date);

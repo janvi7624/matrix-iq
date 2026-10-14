@@ -529,7 +529,19 @@ export default function DailyReportView({
       )}
 
       {/* --------------------------------------------------- the form */}
-      {!data.template_configured ? (
+      {data.exempt ? (
+        // Distinct from the "no format yet" panel below on purpose: one says
+        // the department has nothing to file, the other says this person
+        // specifically has been excused. Telling someone the wrong one sends
+        // them to chase the wrong fix.
+        <div className={styles.noticePanel}>
+          <div className={styles.noticeTitle}>You are not required to file a daily report</div>
+          <p className={styles.noticeBody}>
+            Your account has been excused from daily reporting, so nothing is expected from you — you will not receive reminders and no
+            missed-report warnings will be recorded. An administrator can change this under Daily Report Configuration.
+          </p>
+        </div>
+      ) : !data.template_configured ? (
         <div className={styles.noticePanel}>
           <div className={styles.noticeTitle}>No report format for your department yet</div>
           <p className={styles.noticeBody}>

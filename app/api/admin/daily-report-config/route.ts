@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   if (!(await canAccessDailyReportConfig(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
-    const [config, templates, runRows, eventRows, hrRecipients] = await Promise.all([
+    const [config, templates, runRows, eventRows, hrRecipients, employeeRows] = await Promise.all([
       getDailyReportConfig(),
       listTemplateAssignmentsForAdmin(),
       db.DailyReportSchedulerRun.findAll({ order: [['started_at', 'DESC']], limit: RUN_LIMIT }),
@@ -45,8 +45,32 @@ export async function GET(request: NextRequest) {
         limit: EVENT_LIMIT,
         include: [{ model: db.User, as: 'employee', attributes: ['id', 'username', 'name'] }] as never
       }),
-      resolveHrRecipients()
+      resolveHrRecipients(),
+      // Every active account, so the picker can offer anyone — including
+      // admins and test logins, which are exactly who tends to need excusing
+      // and who a department-scoped list would omit.
+      db.User.findAll({
+        where: { status: 'active' } as never,
+        attributes: ['id', 'name', 'username'],
+        include: [
+          { model: db.Department, as: 'departmentRef', attributes: ['name'] },
+          { model: db.Role, as: 'role', attributes: ['key'] }
+        ] as never,
+        order: [['name', 'ASC']]
+      })
     ]);
+
+    const employees = employeeRows.map((row) => {
+      const plain = row.get({ plain: true }) as Record<string, unknown>;
+      return {
+        id: plain.id as string,
+        name: (plain.name as string) || (plain.username as string),
+        username: plain.username as string,
+        department_name: ((plain.departmentRef as { name?: string } | null)?.name as string) ?? '',
+        role: ((plain.role as { key?: string } | null)?.key as string) ?? ''
+      };
+    });
+    const exemptSet = new Set(config.exempt_employee_ids);
 
     const response: DailyReportConfigResponse = {
       config,
@@ -84,6 +108,8 @@ export async function GET(request: NextRequest) {
       // Master can SEE that its escalations have nowhere to go, rather than
       // discovering it the month somebody crosses the threshold.
       hr_recipients: hrRecipients.map((m) => m.name || m.username),
+      employees,
+      exempt_employees: employees.filter((e) => exemptSet.has(e.id)),
       cron_hint: {
         path: '/api/cron/daily-report-sweep',
         secret_env: 'DAILY_REPORT_CRON_SECRET',
@@ -151,6 +177,11 @@ export async function PATCH(request: NextRequest) {
     if (before.scheduler_enabled !== config.scheduler_enabled) changes.push(`scheduler ${config.scheduler_enabled ? 'ENABLED' : 'disabled'}`);
     if (before.dry_run !== config.dry_run) changes.push(`dry-run ${config.dry_run ? 'ON' : 'OFF (live notifications)'}`);
     if (before.deadline_time !== config.deadline_time) changes.push(`deadline ${before.deadline_time} -> ${config.deadline_time}`);
+    // Who is excused from a compliance obligation is exactly the kind of
+    // change that should be answerable from the audit log a year later.
+    if (before.exempt_employee_ids.length !== config.exempt_employee_ids.length) {
+      changes.push(`excused employees ${before.exempt_employee_ids.length} -> ${config.exempt_employee_ids.length}`);
+    }
     if (before.warning_threshold !== config.warning_threshold) changes.push(`warning threshold ${before.warning_threshold} -> ${config.warning_threshold}`);
 
     await logAudit({
