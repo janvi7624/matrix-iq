@@ -113,10 +113,12 @@ export interface TemplateDefinition {
 // restricted to two values and Robotics has 'On Hold', and the brief said not
 // to add status values to those without authorization. A single shared list
 // would make the next edit silently widen all of them.
-// Every row-based template carries the same Task ID column. Defined once
-// rather than copied into each template so the label, width and help text
-// cannot drift apart between departments — the whole point of the request
-// was that it should be consistent everywhere.
+// Every template carries the same Task ID column — as the first rowFields
+// entry for 'rows' templates (one per entry), or as the first headerFields
+// entry for 'narrative'/'matrix' templates (AV, Sales — one per report, so
+// index 0). Defined once rather than copied into each template so the label,
+// width and help text cannot drift apart between departments — the whole
+// point of the request was that it should be consistent everywhere.
 const TASK_ID_FIELD: DailyReportFieldDef = {
   key: 'task_code',
   label: 'Task ID',
@@ -227,7 +229,10 @@ const SALES_TEMPLATE: TemplateDefinition = {
   layout: 'matrix',
   measures: SALES_MEASURES,
   channels: SALES_CHANNELS,
-  headerFields: [{ key: 'notes', label: 'Notes', type: 'textarea', maxLength: 2000, placeholder: 'Context for today’s numbers — a large deal, a blocked follow-up, travel.', width: 'xl' }],
+  headerFields: [
+    TASK_ID_FIELD,
+    { key: 'notes', label: 'Notes', type: 'textarea', maxLength: 2000, placeholder: 'Context for today’s numbers — a large deal, a blocked follow-up, travel.', width: 'xl' }
+  ],
   rowFields: []
 };
 
@@ -238,6 +243,7 @@ const AV_TEMPLATE: TemplateDefinition = {
   description: 'One structured site report per day — what was planned, what got done, and what is blocking.',
   layout: 'narrative',
   headerFields: [
+    TASK_ID_FIELD,
     { key: 'location', label: 'Location / Site', type: 'text', required: true, maxLength: 255, width: 'lg' },
     { key: 'project_reference', label: 'Project / Client (optional)', type: 'text', maxLength: 255, width: 'lg', help: 'Free text — the project code or client name this day was spent on.' },
     { key: 'time_spent_hours', label: 'Time Spent (hours)', type: 'number', integer: false, width: 'sm' },
@@ -749,7 +755,13 @@ export function computeDerivedValues(
   index: number
 ): DerivedEntryValues {
   const derived: DerivedEntryValues = {};
-  for (const field of template.rowFields) {
+  // Includes headerFields as well as rowFields: a 'narrative'/'matrix'
+  // template (AV, Sales) has no repeating rows to attach a Task ID to, so its
+  // Task ID — when it has one — lives in headerFields instead, computed the
+  // same way at index 0 (there is exactly one "entry" per report in those
+  // layouts). Every 'rows' template's headerFields is empty, so this is a
+  // no-op for them.
+  for (const field of [...template.headerFields, ...template.rowFields]) {
     if (field.computed === 'entry_code') {
       derived.task_code = `${template.codePrefix ?? template.key.toUpperCase()}-${reportDate}-${String(index + 1).padStart(2, '0')}`;
     }

@@ -8,10 +8,10 @@
 // re-exports the handful that other modules touch, following the same
 // arrangement it already uses for LeadOrigin and ProjectDepartment.
 
-import type { DailyReportFieldDef, DailyReportLayout, DailyReportTemplateKey, TemplateDefinition, TemplateOverrides } from './dailyReportTemplates';
+import type { DailyReportFieldDef, DailyReportLayout, DailyReportTemplateKey, DerivedEntryValues, TemplateDefinition, TemplateOverrides } from './dailyReportTemplates';
 import type { WarningBannerTone } from './dailyReportSweepPlan';
 
-export type { DailyReportTemplateKey, DailyReportLayout, DailyReportFieldDef, TemplateDefinition, TemplateOverrides };
+export type { DailyReportTemplateKey, DailyReportLayout, DailyReportFieldDef, DerivedEntryValues, TemplateDefinition, TemplateOverrides };
 
 /**
  * Whether the EMPLOYEE has filed. Deliberately separate from review status:
@@ -50,6 +50,10 @@ export interface DailyReportRecord {
   review_status: DailyReportReviewStatus;
   /** Header field values for this template. */
   payload: Record<string, unknown>;
+  /** Computed header-level columns (currently just Task ID, for AV/Sales — the
+      'narrative'/'matrix' templates, which have no rows to attach it to).
+      Empty for a 'rows' template, whose Task ID lives on each entry instead. */
+  header_derived: DerivedEntryValues;
   /** measure -> channel -> count, for the Sales grid. Empty otherwise. */
   matrix: Record<string, Record<string, number>>;
   entries: DailyReportEntryRecord[];

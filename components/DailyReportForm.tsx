@@ -199,6 +199,10 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
     () => (template.layout === 'matrix' ? computeMatrixTotals(template, (value.matrix ?? {}) as Record<string, Record<string, number>>) : null),
     [template, value.matrix]
   );
+  // Only meaningful for 'narrative'/'matrix' templates (AV, Sales) — their
+  // Task ID lives in headerFields rather than on a row, computed at index 0
+  // the same way a 'rows' template's first entry would be.
+  const headerDerived = useMemo(() => computeDerivedValues(template, reportDate, value.header ?? {}, 0), [template, reportDate, value.header]);
 
   function setHeader(key: string, next: string) {
     onChange({ ...value, header: { ...value.header, [key]: next } });
@@ -255,6 +259,7 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
               issues={issues}
               disabled={disabled}
               onFieldChange={setHeader}
+              derived={headerDerived}
             />
           ))}
         </div>

@@ -118,6 +118,7 @@ function toRecord(row: Model, template: TemplateDefinition): DailyReportRecord {
     submission_status: plain.submission_status as DailyReportSubmissionStatus,
     review_status: plain.review_status as DailyReportReviewStatus,
     payload: (plain.payload as Record<string, unknown>) ?? {},
+    header_derived: computeDerivedValues(template, reportDate, (plain.payload as Record<string, unknown>) ?? {}, 0),
     matrix: (plain.matrix as Record<string, Record<string, number>>) ?? {},
     entries,
     submitted_at: isoOrEmpty(plain.submitted_at),

@@ -32,6 +32,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...and .env.example is that opt-in. It holds no secrets — every value is a
+# blank placeholder apart from DATABASE_SCHEMA=public — and it is the only
+# record of which variables a deployment needs. Ignored along with the rest of
+# .env*, it documented nothing for anybody: DAILY_REPORT_CRON_SECRET shipped
+# undocumented for exactly that reason, and an unset scheduler secret fails
+# silently (the endpoint just answers 503).
+!.env.example
 
 # quotation records (customer PII) and user accounts (password hashes) — not source, don't commit
 /data/quotations.json

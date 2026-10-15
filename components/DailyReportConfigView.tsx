@@ -259,6 +259,19 @@ export default function DailyReportConfigView() {
   const configuredCount = data.templates.filter((template) => template.status === 'active').length;
   const affectedEmployees = data.templates.filter((t) => t.status === 'active').reduce((sum, t) => sum + t.employee_count, 0);
 
+  // Super Admin accounts don't show up as NEW candidates in the excuse
+  // picker — a super admin is the one person who'd be granting their own
+  // exemption, which isn't a decision this picker should make easy. An
+  // already-excused super admin (added before this rule, or by a direct
+  // config edit) still appears so it stays visible and can be un-excused —
+  // it just can't be newly added through this list.
+  const pickerCandidates = data.employees.filter((e) => e.role !== 'superadmin' || exemptIds.includes(e.id));
+  const filteredPickerCandidates = pickerCandidates.filter((e) => {
+    const q = peopleSearch.trim().toLowerCase();
+    if (!q) return true;
+    return `${e.name} ${e.username} ${e.department_name} ${e.role}`.toLowerCase().includes(q);
+  });
+
   return (
     <AppShell title={title} subtitle={subtitle}>
       {/* Status first. An administrator opening this page needs to know
@@ -543,7 +556,7 @@ export default function DailyReportConfigView() {
         )}
         <div className={calcStyles.field}>
           <label className={calcStyles.label} htmlFor="people-search">
-            Search {data.employees.length} active accounts
+            Search {pickerCandidates.length} active accounts
           </label>
           <Input
             id="people-search"
@@ -554,32 +567,27 @@ export default function DailyReportConfigView() {
           />
         </div>
         <div className={styles.pickerBox}>
-          {data.employees
-            .filter((e) => {
-              const q = peopleSearch.trim().toLowerCase();
-              if (!q) return true;
-              return `${e.name} ${e.username} ${e.department_name} ${e.role}`.toLowerCase().includes(q);
-            })
-            .map((employee) => {
-              const on = exemptIds.includes(employee.id);
-              return (
-                <label key={employee.id} className={`${styles.pickerRow} ${on ? styles.pickerRowOn : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={(e) =>
-                      setExemptIds((prev) => (e.target.checked ? [...prev, employee.id] : prev.filter((id) => id !== employee.id)))
-                    }
-                  />
-                  <span className={styles.pickerName}>{employee.name}</span>
-                  {/* Department AND role, because names collide — this org
-                      has two Mansis in different departments. */}
-                  <span className={styles.pickerMeta}>
-                    {employee.username} · {employee.department_name || 'no department'} · {employee.role || '—'}
-                  </span>
-                </label>
-              );
-            })}
+          {filteredPickerCandidates.map((employee) => {
+            const on = exemptIds.includes(employee.id);
+            return (
+              <label key={employee.id} className={`${styles.pickerRow} ${on ? styles.pickerRowOn : ''}`}>
+                <input
+                  type="checkbox"
+                  className={styles.pickerCheckbox}
+                  checked={on}
+                  onChange={(e) =>
+                    setExemptIds((prev) => (e.target.checked ? [...prev, employee.id] : prev.filter((id) => id !== employee.id)))
+                  }
+                />
+                <span className={styles.pickerName}>{employee.name}</span>
+                {/* Department AND role, because names collide — this org
+                    has two Mansis in different departments. */}
+                <span className={styles.pickerMeta}>
+                  {employee.username} · {employee.department_name || 'no department'} · {employee.role || '—'}
+                </span>
+              </label>
+            );
+          })}
         </div>
         <div className={calcStyles.small}>
           {exemptIds.length} excused. Changes take effect when you press Save Policy below.

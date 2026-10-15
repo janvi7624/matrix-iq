@@ -1165,6 +1165,17 @@
   background: var(--mx-surface);
 }
 
+/* Bigger and brand-colored — the bare default checkbox (a tiny black
+   square, same in every browser's base styles) was easy to miss in a list
+   this dense. */
+.pickerCheckbox {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--mx-brand);
+  cursor: pointer;
+}
+
 .pickerRowOn {
   background: var(--mx-brand-subtle);
 }
