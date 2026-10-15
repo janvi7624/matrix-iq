@@ -16,6 +16,13 @@ import { findSalesTarget } from './salesTargetStore';
 // "closed", only "the client accepted the price"). Attributed to the period
 // containing the quotation's created_at (the only timestamp on a qualifying
 // quotation that means "when this happened").
+//
+// "Attributed to employeeId" means the linked PROJECT's owner (created_by),
+// not the quotation's own created_by — a technical/ops account can prepare
+// a quotation on a sales person's behalf (lib/quotationOnBehalf.ts), and the
+// achievement has to land on the sales person whose pipeline it actually
+// belongs to, same split lib/salesTeamSummary.ts applies for its Billing
+// column.
 export type TargetStatus = 'not_started' | 'on_track' | 'at_risk' | 'achieved' | 'exceeded';
 
 export interface AchievementResult {
@@ -46,11 +53,18 @@ function toNumber(v: unknown): number {
   return Number(v) || 0;
 }
 
+// Qualifying rows are matched by the LINKED PROJECT'S owner, not the
+// quotation's own created_by — the same split lib/salesTeamSummary.ts
+// applies (its Billing column reads through here too). created_by is
+// "whoever typed the quotation", which is a technical/ops account whenever
+// one was prepared on a sales person's behalf (lib/quotationOnBehalf.ts);
+// the project's created_by is the actual pipeline owner the achievement
+// should count against, same as a standalone quotation with no project
+// never qualifies.
 async function fetchQualifyingRows(employeeIds: string[], periodStart: string, periodEnd: string) {
   if (!employeeIds.length) return [];
   return db.Quotation.findAll({
     where: {
-      created_by: { [Op.in]: employeeIds },
       status: 'approved',
       project_id: { [Op.ne]: null },
       created_at: { [Op.gte]: periodStart, [Op.lt]: periodEndExclusive(periodEnd) }
@@ -64,8 +78,8 @@ async function fetchQualifyingRows(employeeIds: string[], periodStart: string, p
         // Installation was marked done) — that stage is retired from Project
         // Progress (management decision, 2026-09), so status === 'won' is now
         // the qualifying signal on its own.
-        where: { status: 'won' } as never,
-        attributes: []
+        where: { status: 'won', created_by: { [Op.in]: employeeIds } } as never,
+        attributes: ['created_by']
       }
     ] as never
   });
@@ -97,7 +111,10 @@ export async function computeAchievementForEmployees(
   const rows = await fetchQualifyingRows(employeeIds, periodStart, periodEnd);
   for (const row of rows) {
     const plain = row.get({ plain: true }) as Record<string, unknown>;
-    const employeeId = plain.created_by as string;
+    // Grouped by the linked project's owner (what the query above already
+    // filtered on), not plain.created_by — see fetchQualifyingRows' comment.
+    const employeeId = (plain.project as { created_by?: string } | null)?.created_by as string;
+    if (!employeeId) continue;
     if (!result[employeeId]) result[employeeId] = { employeeId, achievedAmount: 0, qualifyingQuotationIds: [] };
     result[employeeId].achievedAmount += toNumber(plain.total);
     result[employeeId].qualifyingQuotationIds.push(plain.id as string);
@@ -105,15 +122,17 @@ export async function computeAchievementForEmployees(
   return result;
 }
 
+// Same project-owner attribution as fetchQualifyingRows above — this
+// drilldown has to list exactly the quotations computeAchievement summed
+// for this employee, or the modal total and the card total disagree.
 export async function listQualifyingQuotations(employeeId: string, periodStart: string, periodEnd: string): Promise<QualifyingQuotation[]> {
   const rows = await db.Quotation.findAll({
     where: {
-      created_by: employeeId,
       status: 'approved',
       project_id: { [Op.ne]: null },
       created_at: { [Op.gte]: periodStart, [Op.lt]: periodEndExclusive(periodEnd) }
     } as never,
-    include: [{ model: db.Project, as: 'project', required: true, where: { status: 'won' } as never, attributes: [] }] as never,
+    include: [{ model: db.Project, as: 'project', required: true, where: { status: 'won', created_by: employeeId } as never, attributes: [] }] as never,
     order: [['created_at', 'DESC']]
   });
   return rows.map((row) => {

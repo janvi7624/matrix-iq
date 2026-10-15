@@ -137,12 +137,39 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
   // quotation would be counted as whatever it was last saved as and the
   // summary would disagree with the rows below it.
   const teamSummary = useMemo(() => {
+    // Pass 1: learn name -> real id from whichever rows happen to carry
+    // both — prepared_by_user_id is only set on quotations created after
+    // that feature shipped, so the SAME person's older quotations often
+    // only have the snapshotted prepared_by NAME. Without this, a mixed
+    // history (some rows with an id, some without) would split one real
+    // person into two rows — one keyed by their id, one by their bare name.
+    const idByPreparedName = new Map<string, string>();
+    for (const r of rows) {
+      const name = (r.prepared_by || '').trim();
+      if (name && r.prepared_by_user_id) idByPreparedName.set(name, r.prepared_by_user_id);
+    }
+
     const byPerson = new Map<string, QuotationSummaryRow>();
     for (const r of rows) {
-      const who = r.created_by || r.prepared_by || 'Unattributed';
+      // Keyed by the real sales owner's id, not created_by (whoever's
+      // session actually submitted the form) — a technical/ops account can
+      // prepare a quotation "on behalf of" a sales person's pipeline
+      // (lib/quotationOnBehalf.ts), and this summary has to credit the
+      // owner, same as lib/salesTeamSummary.ts's Dashboard table does.
+      // created_by is NEVER the right fallback here on its own: one
+      // technical account can prepare quotations for SEVERAL different
+      // real sales people, and falling back to created_by would silently
+      // merge all of them into whichever one of those people's name the
+      // map happened to see first under that account. The snapshotted name
+      // (resolved to an id via pass 1 when possible) is the actual "whose
+      // pipeline is this" signal; created_by is the last resort, for
+      // quotations old enough to have neither.
+      const preparedByName = (r.prepared_by || '').trim();
+      const who = r.prepared_by_user_id || (preparedByName && idByPreparedName.get(preparedByName)) || preparedByName || r.created_by || 'unattributed';
+      const displayName = preparedByName || r.created_by || 'Unattributed';
       let row = byPerson.get(who);
       if (!row) {
-        row = { name: who, value: 0, total: 0, draft: 0, sent: 0, approved: 0, followUps: 0 };
+        row = { name: displayName, value: 0, total: 0, draft: 0, sent: 0, approved: 0, followUps: 0 };
         byPerson.set(who, row);
       }
       row.total += 1;
@@ -176,10 +203,15 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
   const peopleCount = teamSummary.filter((r) => !r.isTotal).length;
 
   const salesPeople = useMemo(() => {
+    // Real names of the actual sales owners, same attribution as
+    // teamSummary above — not the technical/ops accounts that sometimes
+    // typed a quotation in on their behalf. The filter itself already
+    // matches prepared_by on the server (searchQuotationsFiltered), so
+    // these display names work as filter values without any extra lookup.
     const set = new Set<string>();
     for (const r of rows) {
-      if (r.created_by) set.add(r.created_by);
-      else if (r.prepared_by) set.add(r.prepared_by);
+      if (r.prepared_by) set.add(r.prepared_by);
+      else if (r.created_by) set.add(r.created_by);
     }
     return Array.from(set).sort();
   }, [rows]);

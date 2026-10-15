@@ -178,17 +178,35 @@ describe('buildSalesTeamSummary', () => {
     expect(asha.billing).toBe(1000);
   });
 
-  it('bills against a won project owned by someone else on the roster', () => {
-    // The qualifying rule is about the quotation's own owner and the linked
-    // project's status — not about the two matching.
+  it('bills the LINKED PROJECT\'S owner, not whoever typed the quotation', () => {
+    // asha prepared this quotation (e.g. a technical/ops account filing on
+    // someone's behalf — lib/quotationOnBehalf.ts), but it belongs to
+    // vikram's pipeline: his won project. Billing credits vikram, same as
+    // lib/salesAchievement.ts's identical rule.
     const rows = buildSalesTeamSummary(
       ROSTER,
       [],
       [project({ id: 'p-v', created_by: 'vikram', status: 'won' })],
       [quotation({ created_by: 'asha', status: 'approved', project_id: 'p-v', total: 700 })]
     );
-    expect(rowFor(rows, 'asha').billing).toBe(700);
-    expect(rowFor(rows, 'vikram').billing).toBe(0);
+    expect(rowFor(rows, 'vikram').billing).toBe(700);
+    expect(rowFor(rows, 'asha').billing).toBe(0);
+  });
+
+  it('falls back to quotation.created_by when the linked project is outside this roster call', () => {
+    // A quotation can reference a project id the caller didn't pass in (out
+    // of scope, or simply not fetched) — attribution shouldn't silently
+    // disappear, it should fall back to whoever filed the quotation. (Billing
+    // still requires the project to be known-won, so this only exercises the
+    // quotations count — see the "bills only..." test above for billing.)
+    const rows = buildSalesTeamSummary(
+      ROSTER,
+      [],
+      [],
+      [quotation({ created_by: 'asha', status: 'draft', project_id: 'unknown-project', total: 300 })]
+    );
+    expect(rowFor(rows, 'asha').quotations).toBe(1);
+    expect(rowFor(rows, 'vikram').quotations).toBe(0);
   });
 
   it('orders by billing desc, then name, so the ranking is stable with no billing', () => {

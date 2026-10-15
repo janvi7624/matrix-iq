@@ -131,8 +131,10 @@ export function buildSalesTeamSummary(
   // person (see lib/projectSalesOwner.ts's header: the sales_person column
   // is only a label). Won/Lost come off the same pass.
   const wonProjectIds = new Set<string>();
+  const projectOwnerById = new Map<string, string>();
   for (const project of projects) {
     if (project.status === 'won') wonProjectIds.add(project.id);
+    projectOwnerById.set(project.id, project.created_by);
     const row = byUsername.get(project.created_by);
     if (!row) continue;
     row.enquiries += 1;
@@ -142,12 +144,23 @@ export function buildSalesTeamSummary(
 
   // Billing: lib/salesAchievement.ts's qualifying rule re-applied to rows
   // already in memory rather than paid for as a second query — an approved
-  // quotation, attached to a project, where that project is won. Same
-  // created_by attribution that file uses, so a person's Billing here and
-  // their achievement under Target Details agree. Unbounded by period on
-  // purpose: this is a standing team summary, not a target window.
+  // quotation, attached to a project, where that project is won.
+  //
+  // Credited to the LINKED PROJECT'S owner, not quotation.created_by — the
+  // same split QuotationRecord.sales_person documents (created_by is
+  // "whoever typed it", which is a technical/ops account whenever a
+  // quotation was prepared on a sales person's behalf; see
+  // lib/quotationOnBehalf.ts). Resolved from `projects` above rather than
+  // quotation.sales_person (a display NAME, not a username — wrong shape
+  // for this map's key) or prepared_by_user_id (can go stale if the project
+  // is reassigned after the quotation is filed; the project's CURRENT owner
+  // never can). Falls back to created_by only when there's no project to
+  // attribute to, matching sales_person's own documented fallback rule.
+  // lib/salesAchievement.ts applies the identical rule, so a person's
+  // Billing here and their achievement under Target Details still agree.
   for (const quotation of quotations) {
-    const row = byUsername.get(quotation.created_by);
+    const owner = (quotation.project_id && projectOwnerById.get(quotation.project_id)) || quotation.created_by;
+    const row = byUsername.get(owner);
     if (!row) continue;
     row.quotations += 1;
     if (quotation.status === 'approved' && quotation.project_id && wonProjectIds.has(quotation.project_id)) {
