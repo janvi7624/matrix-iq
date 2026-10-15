@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Play, Settings2, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Play, Settings2, ShieldAlert, UserMinus } from 'lucide-react';
 import { DailyReportConfigRecord, DailyReportConfigResponse, DailyReportTemplateAssignment } from '@/lib/dailyReportTypes';
 import { DailyReportTemplateKey } from '@/lib/dailyReportTemplates';
 import AppShell from './AppShell';
@@ -58,6 +58,8 @@ export default function DailyReportConfigView() {
   const [data, setData] = useState<DailyReportConfigResponse | null>(null);
   const [config, setConfig] = useState<DailyReportConfigRecord | null>(null);
   const [holidaysText, setHolidaysText] = useState('');
+  const [exemptIds, setExemptIds] = useState<string[]>([]);
+  const [peopleSearch, setPeopleSearch] = useState('');
   const [preview, setPreview] = useState<SweepPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState('');
@@ -79,6 +81,7 @@ export default function DailyReportConfigView() {
       setData(next);
       setConfig(next.config);
       setHolidaysText(next.config.holidays.join('\n'));
+      setExemptIds(next.config.exempt_employee_ids);
       if (previewResponse.ok) setPreview(await previewResponse.json().catch(() => null));
     } catch (error) {
       setLoadFailed(error instanceof Error ? error.message : 'Could not load the daily report configuration.');
@@ -93,6 +96,28 @@ export default function DailyReportConfigView() {
 
   function set<K extends keyof DailyReportConfigRecord>(key: K, value: DailyReportConfigRecord[K]) {
     setConfig((previous) => (previous ? { ...previous, [key]: value } : previous));
+  }
+
+  const SATURDAY = 6;
+  const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th'];
+
+  /** Which Saturdays of the month are currently marked off. */
+  function saturdaysOff(): number[] {
+    return (config?.off_nth_weekdays ?? []).filter((r) => r.weekday === SATURDAY).map((r) => r.nth);
+  }
+
+  function toggleSaturdayOff(nth: number) {
+    setConfig((previous) => {
+      if (!previous) return previous;
+      const rules = previous.off_nth_weekdays ?? [];
+      const on = rules.some((r) => r.weekday === SATURDAY && r.nth === nth);
+      return {
+        ...previous,
+        off_nth_weekdays: on
+          ? rules.filter((r) => !(r.weekday === SATURDAY && r.nth === nth))
+          : [...rules, { nth, weekday: SATURDAY }].sort((a, b) => a.weekday - b.weekday || a.nth - b.nth)
+      };
+    });
   }
 
   function toggleDay(day: number) {
@@ -130,6 +155,7 @@ export default function DailyReportConfigView() {
             working_days: config.working_days,
             holidays: holidaysText.split('\n').map((line) => line.trim()).filter(Boolean),
             observe_holidays: config.observe_holidays,
+            off_nth_weekdays: config.off_nth_weekdays,
             deadline_time: config.deadline_time,
             evening_reminder_time: config.evening_reminder_time,
             final_reminder_time: config.final_reminder_time,
@@ -137,7 +163,8 @@ export default function DailyReportConfigView() {
             reconcile_window_days: config.reconcile_window_days,
             scheduler_enabled: config.scheduler_enabled,
             dry_run: config.dry_run,
-            leave_rejection_policy: config.leave_rejection_policy
+            leave_rejection_policy: config.leave_rejection_policy,
+            exempt_employee_ids: exemptIds
           }
         })
       });
@@ -363,6 +390,50 @@ export default function DailyReportConfigView() {
           </div>
         </div>
 
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Saturdays off each month</label>
+          <div className={styles.dayToggleRow}>
+            {ORDINALS.map((label, i) => {
+              const nth = i + 1;
+              const on = saturdaysOff().includes(nth);
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  className={`${styles.dayToggle} ${on ? styles.dayToggleOn : ''}`}
+                  aria-pressed={on}
+                  disabled={!config.working_days.includes(SATURDAY)}
+                  onClick={() => toggleSaturdayOff(nth)}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <div className={calcStyles.small}>
+            {config.working_days.includes(SATURDAY) ? (
+              <>
+                A Saturday marked here is treated exactly like a Sunday — no report is expected, no reminder is sent, and the Friday before it
+                becomes due on the following Monday. Recurring rules, so they never need topping up each year. Not all months have a 5th Saturday;
+                that rule simply does not apply in those.
+              </>
+            ) : (
+              <>Saturday is not a working day at all, so there is nothing to switch off here.</>
+            )}
+          </div>
+          {/* A rule for some other weekday can be set through the API; show
+              it rather than let it sit invisible behind a Saturday-only UI. */}
+          {(config.off_nth_weekdays ?? []).some((r) => r.weekday !== SATURDAY) && (
+            <div className={calcStyles.small}>
+              Also off:{' '}
+              {(config.off_nth_weekdays ?? [])
+                .filter((r) => r.weekday !== SATURDAY)
+                .map((r) => `${ORDINALS[r.nth - 1]} ${DAY_LABELS[r.weekday]}`)
+                .join(', ')}
+            </div>
+          )}
+        </div>
+
         <div className={`${calcStyles.row} ${calcStyles.columns}`}>
           <div className={calcStyles.field}>
             <label className={calcStyles.label} htmlFor="deadline-time">Deadline (IST)</label>
@@ -446,6 +517,72 @@ export default function DailyReportConfigView() {
               into a retroactive warning spree.
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ----------------------------------------------- excused people */}
+      <div className={styles.sectionHead}>
+        <h2 className={styles.sectionTitle}>Excused from daily reports</h2>
+      </div>
+      <p className={styles.sectionHint}>
+        These people are not expected to file. They get no form, no reminders and no missed-report warnings, and they are left out of compliance
+        figures entirely rather than counted as missing. Use it for admin and super-admin accounts, test logins, and anyone whose role genuinely
+        does not involve daily activity reporting. Everyone else in a department with an approved format still files as normal.
+      </p>
+      <div className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`}>
+        {exemptIds.length > 0 && (
+          <div className={styles.pickerSummary}>
+            {data.employees
+              .filter((e) => exemptIds.includes(e.id))
+              .map((e) => (
+                <span key={e.id} className={`${styles.badge} ${styles.badgeNotConfigured}`}>
+                  <UserMinus size={12} /> {e.name}
+                </span>
+              ))}
+          </div>
+        )}
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label} htmlFor="people-search">
+            Search {data.employees.length} active accounts
+          </label>
+          <Input
+            id="people-search"
+            type="text"
+            value={peopleSearch}
+            placeholder="Name, username, department or role…"
+            onChange={(e) => setPeopleSearch(e.target.value)}
+          />
+        </div>
+        <div className={styles.pickerBox}>
+          {data.employees
+            .filter((e) => {
+              const q = peopleSearch.trim().toLowerCase();
+              if (!q) return true;
+              return `${e.name} ${e.username} ${e.department_name} ${e.role}`.toLowerCase().includes(q);
+            })
+            .map((employee) => {
+              const on = exemptIds.includes(employee.id);
+              return (
+                <label key={employee.id} className={`${styles.pickerRow} ${on ? styles.pickerRowOn : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={(e) =>
+                      setExemptIds((prev) => (e.target.checked ? [...prev, employee.id] : prev.filter((id) => id !== employee.id)))
+                    }
+                  />
+                  <span className={styles.pickerName}>{employee.name}</span>
+                  {/* Department AND role, because names collide — this org
+                      has two Mansis in different departments. */}
+                  <span className={styles.pickerMeta}>
+                    {employee.username} · {employee.department_name || 'no department'} · {employee.role || '—'}
+                  </span>
+                </label>
+              );
+            })}
+        </div>
+        <div className={calcStyles.small}>
+          {exemptIds.length} excused. Changes take effect when you press Save Policy below.
         </div>
       </div>
 

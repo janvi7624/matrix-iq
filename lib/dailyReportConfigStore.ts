@@ -1,5 +1,5 @@
 import { Model } from 'sequelize';
-import { db } from './db';
+import { db, isUuid } from './db';
 import { cached, invalidateCache } from './memoCache';
 import { DailyReportConfigRecord } from './dailyReportTypes';
 import { DeadlinePolicy, isClockTime, isIsoDate } from './dailyReportTime';
@@ -29,6 +29,8 @@ export const DEFAULT_DAILY_REPORT_CONFIG: Omit<DailyReportConfigRecord, 'id' | '
   working_days: [1, 2, 3, 4, 5, 6],
   holidays: [],
   observe_holidays: false,
+  // This company's policy: the third Saturday of every month is off.
+  off_nth_weekdays: [{ nth: 3, weekday: 6 }],
   deadline_time: '11:00',
   evening_reminder_time: '21:00',
   final_reminder_time: '10:00',
@@ -36,7 +38,8 @@ export const DEFAULT_DAILY_REPORT_CONFIG: Omit<DailyReportConfigRecord, 'id' | '
   reconcile_window_days: 7,
   scheduler_enabled: false,
   dry_run: true,
-  leave_rejection_policy: 'reinstate'
+  leave_rejection_policy: 'reinstate',
+  exempt_employee_ids: []
 };
 
 const updaterInclude = { model: db.User, as: 'updater', attributes: ['id', 'username', 'name'] };
@@ -54,6 +57,11 @@ function toRecord(row: Model): DailyReportConfigRecord {
     working_days: workingDays.length ? workingDays : [...DEFAULT_DAILY_REPORT_CONFIG.working_days],
     holidays: Array.isArray(plain.holidays) ? (plain.holidays as unknown[]).filter(isIsoDate) : [],
     observe_holidays: Boolean(plain.observe_holidays),
+    off_nth_weekdays: Array.isArray(plain.off_nth_weekdays)
+      ? (plain.off_nth_weekdays as { nth?: unknown; weekday?: unknown }[])
+          .map((rule) => ({ nth: Number(rule?.nth), weekday: Number(rule?.weekday) }))
+          .filter((rule) => Number.isInteger(rule.nth) && rule.nth >= 1 && rule.nth <= 5 && Number.isInteger(rule.weekday) && rule.weekday >= 0 && rule.weekday <= 6)
+      : [],
     deadline_time: isClockTime(plain.deadline_time) ? (plain.deadline_time as string) : DEFAULT_DAILY_REPORT_CONFIG.deadline_time,
     evening_reminder_time: isClockTime(plain.evening_reminder_time) ? (plain.evening_reminder_time as string) : DEFAULT_DAILY_REPORT_CONFIG.evening_reminder_time,
     final_reminder_time: isClockTime(plain.final_reminder_time) ? (plain.final_reminder_time as string) : DEFAULT_DAILY_REPORT_CONFIG.final_reminder_time,
@@ -62,6 +70,9 @@ function toRecord(row: Model): DailyReportConfigRecord {
     scheduler_enabled: Boolean(plain.scheduler_enabled),
     dry_run: Boolean(plain.dry_run),
     leave_rejection_policy: plain.leave_rejection_policy === 'waive' ? 'waive' : 'reinstate',
+    exempt_employee_ids: Array.isArray(plain.exempt_employee_ids)
+      ? (plain.exempt_employee_ids as unknown[]).filter((id): id is string => typeof id === 'string' && isUuid(id))
+      : [],
     updated_at: isoOrEmpty(plain.updatedAt),
     updated_by_name: updater?.name ?? updater?.username ?? ''
   };
@@ -92,6 +103,7 @@ export async function getDeadlinePolicy(): Promise<DeadlinePolicy> {
     workingDays: config.working_days,
     holidays: config.holidays,
     observeHolidays: config.observe_holidays,
+    offNthWeekdays: config.off_nth_weekdays,
     deadlineTime: config.deadline_time,
     eveningReminderTime: config.evening_reminder_time,
     finalReminderTime: config.final_reminder_time
@@ -104,6 +116,7 @@ export interface DailyReportConfigPatch {
   working_days?: number[];
   holidays?: string[];
   observe_holidays?: boolean;
+  off_nth_weekdays?: { nth: number; weekday: number }[];
   deadline_time?: string;
   evening_reminder_time?: string;
   final_reminder_time?: string;
@@ -112,6 +125,7 @@ export interface DailyReportConfigPatch {
   scheduler_enabled?: boolean;
   dry_run?: boolean;
   leave_rejection_policy?: 'reinstate' | 'waive';
+  exempt_employee_ids?: string[];
 }
 
 // Validated here rather than only in the route, because the scheduler reads
@@ -135,6 +149,22 @@ export async function updateDailyReportConfig(patch: DailyReportConfigPatch, upd
     attrs.holidays = Array.from(new Set(patch.holidays)).sort();
   }
   if (patch.observe_holidays !== undefined) attrs.observe_holidays = !!patch.observe_holidays;
+  if (patch.off_nth_weekdays !== undefined) {
+    const rules = (patch.off_nth_weekdays || []).map((rule) => ({ nth: Number(rule?.nth), weekday: Number(rule?.weekday) }));
+    for (const rule of rules) {
+      if (!Number.isInteger(rule.nth) || rule.nth < 1 || rule.nth > 5) throw new InvalidDailyReportConfigError('A recurring day off must be the 1st to 5th occurrence.');
+      if (!Number.isInteger(rule.weekday) || rule.weekday < 0 || rule.weekday > 6) throw new InvalidDailyReportConfigError('A recurring day off must name a valid weekday.');
+    }
+    // De-duplicated: the same rule twice would be harmless but would read as
+    // two separate policies in the UI.
+    const seen = new Set<string>();
+    attrs.off_nth_weekdays = rules.filter((rule) => {
+      const key = `${rule.nth}:${rule.weekday}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
 
   for (const key of ['deadline_time', 'evening_reminder_time', 'final_reminder_time'] as const) {
     if (patch[key] === undefined) continue;
@@ -162,6 +192,21 @@ export async function updateDailyReportConfig(patch: DailyReportConfigPatch, upd
       throw new InvalidDailyReportConfigError('The leave rejection policy must be "reinstate" or "waive".');
     }
     attrs.leave_rejection_policy = patch.leave_rejection_policy;
+  }
+
+  if (patch.exempt_employee_ids !== undefined) {
+    const ids = Array.from(new Set((patch.exempt_employee_ids || []).filter((id) => typeof id === 'string' && isUuid(id))));
+    // Verified against real accounts rather than stored as given: a stale id
+    // left here after someone is deleted would silently excuse nobody while
+    // looking like it excused someone, which is the wrong way for a
+    // compliance exemption to fail.
+    if (ids.length) {
+      const found = await db.User.findAll({ where: { id: ids } as never, attributes: ['id'] });
+      const real = new Set(found.map((u) => u.get('id') as string));
+      const unknown = ids.filter((id) => !real.has(id));
+      if (unknown.length) throw new InvalidDailyReportConfigError('One or more selected people no longer exist.');
+    }
+    attrs.exempt_employee_ids = ids;
   }
 
   const row = await db.DailyReportConfig.findOne();

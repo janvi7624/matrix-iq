@@ -123,6 +123,7 @@ export async function buildMyDailyReport(employee: EmployeeIdentity, date?: stri
     employee: { id: employee.id, name: employee.name, username: employee.username, department_name: employee.departmentName },
     template: resolved.template,
     template_configured: resolved.configured,
+    exempt: config.exempt_employee_ids.includes(employee.id),
     report,
     revisions,
     leave_claim: leaveClaim,

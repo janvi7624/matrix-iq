@@ -14,6 +14,9 @@ module.exports = (sequelize, DataTypes) => {
     // holiday calendar is curated, so the list above stays inert rather than
     // being half-applied. See the migration for the full reasoning.
     observe_holidays: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // Recurring days off, e.g. [{ nth: 3, weekday: 6 }] — the third Saturday
+    // of every month. A rule rather than generated dates, so it never lapses.
+    off_nth_weekdays: { type: DataTypes.JSONB, allowNull: false, defaultValue: [{ nth: 3, weekday: 6 }] },
     deadline_time: { type: DataTypes.STRING, allowNull: false, defaultValue: '11:00' },
     evening_reminder_time: { type: DataTypes.STRING, allowNull: false, defaultValue: '21:00' },
     final_reminder_time: { type: DataTypes.STRING, allowNull: false, defaultValue: '10:00' },
@@ -24,6 +27,10 @@ module.exports = (sequelize, DataTypes) => {
     // 'reinstate' | 'waive' — what a rejected leave claim does to the
     // reporting obligation for that date.
     leave_rejection_policy: { type: DataTypes.STRING, allowNull: false, defaultValue: 'reinstate' },
+    // User ids excused from filing. They leave the expected set entirely —
+    // no form, no reminders, no warnings, and they are not counted in
+    // anyone's compliance denominator.
+    exempt_employee_ids: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     updated_by: { type: DataTypes.UUID }
   }, {
     tableName: 'daily_report_config',

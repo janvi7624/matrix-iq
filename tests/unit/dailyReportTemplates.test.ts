@@ -9,6 +9,7 @@ import {
   ROBOTICS_STATUS_OPTIONS,
   SALES_CHANNELS,
   SALES_MEASURES,
+  TEMPLATE_KEYS,
   computeDerivedValues,
   computeMatrixTotals,
   defaultTemplateForDepartment,
@@ -130,15 +131,86 @@ describe('the specified formats', () => {
     expect(accounts.rowFields.find((f) => f.key === 'remarks')?.required).toBeFalsy();
   });
 
-  it('gives Back Office a serial number, task name, description and remarks', () => {
+  it('gives Back Office a Task ID, task name, description and remarks', () => {
     const backoffice = BUILT_IN_TEMPLATES.backoffice;
-    expect(backoffice.rowFields.map((f) => f.key)).toEqual(['sr_no', 'task_name', 'description', 'remarks']);
-    // Sr. No. is computed, so it cannot be typed, forged, or left to drift
-    // out of order after a row is deleted.
-    expect(backoffice.rowFields[0].computed).toBe('serial');
+    expect(backoffice.rowFields.map((f) => f.key)).toEqual(['task_code', 'task_name', 'description', 'remarks']);
+    // One identifier, not two. The Task ID already ends in the row's
+    // position, so a separate Sr. No. was the same number twice.
+    expect(backoffice.rowFields[0].computed).toBe('entry_code');
     expect(backoffice.rowFields.find((f) => f.key === 'task_name')?.required).toBe(true);
     expect(backoffice.rowFields.find((f) => f.key === 'description')?.required).toBe(true);
     expect(backoffice.rowFields.find((f) => f.key === 'remarks')?.required).toBeFalsy();
+  });
+
+  it('gives no template a second numbering column beside its Task ID', () => {
+    // The redundancy this removal was about: exactly one read-only
+    // identifier per row. AI legitimately has a second computed column, but
+    // it is Days Left, which is not an identifier.
+    for (const key of TEMPLATE_KEYS) {
+      const template = BUILT_IN_TEMPLATES[key];
+      const identifiers = template.rowFields.filter((f) => f.computed === 'entry_code');
+      expect(identifiers.length, `${key} has ${identifiers.length} identifier columns`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('gives every row-based template a Task ID', () => {
+    // The request was that it be consistent: some departments had one and
+    // some did not. A new row template added later without one fails here.
+    for (const key of TEMPLATE_KEYS) {
+      const template = BUILT_IN_TEMPLATES[key];
+      if (template.layout !== 'rows') continue;
+      const field = template.rowFields.find((f) => f.computed === 'entry_code');
+      expect(field, `${key} has no Task ID`).toBeDefined();
+      expect(field?.label).toBe('Task ID');
+      // Computed, so it can never be typed or forged.
+      expect(field?.type).toBe('computed');
+    }
+  });
+
+  it('gives each template a short, distinct Task ID prefix', () => {
+    const seen = new Map<string, string>();
+    for (const key of TEMPLATE_KEYS) {
+      const template = BUILT_IN_TEMPLATES[key];
+      if (template.layout !== 'rows') continue;
+      const prefix = template.codePrefix ?? key.toUpperCase();
+      // Short enough to read in a narrow column — 'BACKOFFICE-2026-10-14-01'
+      // is what this guards against.
+      expect(prefix.length, `${key} prefix "${prefix}" is too long`).toBeLessThanOrEqual(4);
+      // Two departments sharing a prefix would make two different tasks
+      // quotable by the same id on the same day.
+      expect(seen.has(prefix), `${prefix} is used by both ${seen.get(prefix)} and ${key}`).toBe(false);
+      seen.set(prefix, key);
+    }
+  });
+
+  it('generates the documented Task ID shape for each department', () => {
+    const expected: Record<string, string> = {
+      hr: 'HR-2026-10-14-01',
+      rnd: 'RND-2026-10-14-01',
+      ai: 'AI-2026-10-14-01',
+      marketing: 'MKT-2026-10-14-01',
+      robotics: 'ROB-2026-10-14-01',
+      accounts: 'ACC-2026-10-14-01',
+      backoffice: 'BO-2026-10-14-01'
+    };
+    for (const [key, id] of Object.entries(expected)) {
+      expect(computeDerivedValues(BUILT_IN_TEMPLATES[key as keyof typeof BUILT_IN_TEMPLATES], '2026-10-14', {}, 0).task_code).toBe(id);
+    }
+  });
+
+  it('numbers Task IDs by position and keeps the reporting date', () => {
+    const hr = BUILT_IN_TEMPLATES.hr;
+    expect(computeDerivedValues(hr, '2026-10-14', {}, 1).task_code).toBe('HR-2026-10-14-02');
+    expect(computeDerivedValues(hr, '2026-10-14', {}, 11).task_code).toBe('HR-2026-10-14-12');
+    expect(computeDerivedValues(hr, '2026-11-02', {}, 0).task_code).toBe('HR-2026-11-02-01');
+  });
+
+  it('leaves the one-record-a-day templates without one', () => {
+    // Sales is a numeric grid and AV is a single narrative — there are no
+    // rows for an id to identify.
+    for (const key of ['sales', 'av'] as const) {
+      expect(BUILT_IN_TEMPLATES[key].rowFields).toHaveLength(0);
+    }
   });
 
   it('expects no fields at all for an unconfigured department', () => {
@@ -360,17 +432,24 @@ describe('the Back Office format', () => {
     expect(validateReportPayload(backoffice, { header: {}, matrix: {}, entries: [task({ remarks: '' })] }, true).ok).toBe(true);
   });
 
-  it('numbers rows 1, 2, 3 and renumbers them after a reorder', () => {
-    expect(computeDerivedValues(backoffice, '2026-10-14', {}, 0).serial).toBe(1);
-    expect(computeDerivedValues(backoffice, '2026-10-14', {}, 1).serial).toBe(2);
-    expect(computeDerivedValues(backoffice, '2026-10-14', {}, 9).serial).toBe(10);
+  it('numbers rows through the Task ID and renumbers them after a reorder', () => {
+    // The position lives in the id's suffix, which is why a separate Sr. No.
+    // column was redundant.
+    expect(computeDerivedValues(backoffice, '2026-10-14', {}, 0).task_code).toBe('BO-2026-10-14-01');
+    expect(computeDerivedValues(backoffice, '2026-10-14', {}, 1).task_code).toBe('BO-2026-10-14-02');
+    expect(computeDerivedValues(backoffice, '2026-10-14', {}, 9).task_code).toBe('BO-2026-10-14-10');
   });
 
-  it('ignores a client-supplied Sr. No.', () => {
-    // Computed, so it cannot be typed or forged — the same rule the AI
-    // template's Task ID follows.
-    const result = validateReportPayload(backoffice, { header: {}, matrix: {}, entries: [task({ sr_no: '99' })] }, true);
+  it('discards a client-supplied Task ID or a stale sr_no', () => {
+    // Computed, so it cannot be typed or forged. sr_no is no longer a field
+    // at all, so a cached client still posting one must not store it.
+    const result = validateReportPayload(
+      backoffice,
+      { header: {}, matrix: {}, entries: [task({ task_code: 'FORGED-01', sr_no: '99' })] },
+      true
+    );
     expect(result.ok).toBe(true);
+    expect(result.normalized.entries[0].task_code).toBeUndefined();
     expect(result.normalized.entries[0].sr_no).toBeUndefined();
   });
 });
