@@ -688,6 +688,27 @@ export default function ReimbursementView({ currentUser }: Props) {
 
           <StepIndicator currentStep={statusCfg.step} status={sheetStatus} />
 
+          {/* Per-stage approval dates — previously only shown to a reviewer
+              (the manager-approved line inside the HR decision panel below)
+              or, for payment, in the summary further down. The employee
+              filing the sheet had no way to see WHEN their own manager or HR
+              acted, only that they had. Shown to everyone viewing this card,
+              same as the payment summary already is. */}
+          {(sheet.manager_action_at || sheet.hr_reviewed_at) && (
+            <div className={styles.approvalTimeline}>
+              {sheet.manager_action_at && (
+                <div className={styles.approvalTimelineRow}>
+                  Manager approved{sheet.manager_name ? ` by ${sheet.manager_name}` : ''} on {formatDate(sheet.manager_action_at)}
+                </div>
+              )}
+              {sheet.hr_reviewed_at && (
+                <div className={styles.approvalTimelineRow}>
+                  HR approved{sheet.hr_reviewer_name ? ` by ${sheet.hr_reviewer_name}` : ''} on {formatDate(sheet.hr_reviewed_at)}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Change request remarks */}
           {sheet.change_request_remarks && (sheetStatus === 'manager_change_requested' || sheetStatus === 'hr_change_requested') && (
             <div className={styles.changeRequestNote}>

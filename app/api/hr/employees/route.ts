@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         { model: db.Department, as: 'departmentRef', attributes: ['name'] },
         { model: db.Role, as: 'role', attributes: ['key', 'label'] }
       ],
-      attributes: ['id', 'username', 'name', 'designation', 'email', 'phone'],
+      attributes: ['id', 'username', 'name', 'designation', 'email', 'phone', 'employeeId'],
       order: [['name', 'ASC']]
     });
 
@@ -42,8 +42,14 @@ export async function GET(request: NextRequest) {
           designation: plain.designation || '',
           department: (plain.departmentRef as { name?: string } | null)?.name ?? '',
           role: role?.label || role?.key || '',
+          // The role KEY, separate from the display label above — the edit
+          // form's role <Select> is keyed by role.key (same options list the
+          // create form already uses), and the label alone can't round-trip
+          // back into a valid selection.
+          roleKey: role?.key || '',
           email: plain.email || '',
-          phone: plain.phone || ''
+          phone: plain.phone || '',
+          employeeId: plain.employeeId || ''
         };
       })
       .filter((e): e is NonNullable<typeof e> => !!e);

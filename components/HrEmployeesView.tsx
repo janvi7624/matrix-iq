@@ -16,6 +16,7 @@ import Input from './ui/Input';
 import Select from './ui/Select';
 import SubmitButton from './ui/SubmitButton';
 import ToolbarButton from './ui/ToolbarButton';
+import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
 
 interface Employee {
@@ -25,9 +26,20 @@ interface Employee {
   designation: string;
   department: string;
   role: string;
+  roleKey: string;
   email: string;
   phone: string;
+  employeeId: string;
 }
+
+const EMPTY_EDIT_FORM = {
+  name: '',
+  phone: '',
+  email: '',
+  employeeId: '',
+  designation: '',
+  role: ''
+};
 
 interface RoleOption {
   key: string;
@@ -65,6 +77,9 @@ export default function HrEmployeesView({ canCreate }: HrEmployeesViewProps) {
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
+  const [saving, setSaving] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -121,6 +136,44 @@ export default function HrEmployeesView({ canCreate }: HrEmployeesViewProps) {
     }
   }
 
+  function startEdit(employee: Employee) {
+    setEditingId(employee.id);
+    setEditForm({
+      name: employee.name,
+      phone: employee.phone,
+      email: employee.email,
+      employeeId: employee.employeeId,
+      designation: employee.designation,
+      role: employee.roleKey
+    });
+  }
+
+  async function handleEditSave(e: FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    if (!editForm.name.trim()) return toast.error('Name is required.');
+
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/hr/employees/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || String(response.status));
+      }
+      setEditingId(null);
+      await load();
+      toast.success('Employee profile updated.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update this employee.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return employees;
@@ -133,7 +186,14 @@ export default function HrEmployeesView({ canCreate }: HrEmployeesViewProps) {
     { key: 'designation', header: 'Designation', render: (e) => e.designation || '-' },
     { key: 'role', header: 'Role', render: (e) => e.role || '-' },
     { key: 'email', header: 'Email', render: (e) => e.email || '-' },
-    { key: 'phone', header: 'Phone', render: (e) => e.phone || '-' }
+    { key: 'phone', header: 'Phone', render: (e) => e.phone || '-' },
+    // Fixes a mistake after the fact — name typo, wrong phone/email,
+    // designation, or job-function role. Department is deliberately not
+    // editable here; reassigning someone already in the system stays
+    // admin-only (see the PATCH route's own comment).
+    ...(canCreate
+      ? [{ key: 'actions', header: 'Actions', render: (e: Employee) => <ToolbarButton onClick={() => startEdit(e)}>Edit</ToolbarButton> } as TableColumn<Employee>]
+      : [])
   ];
 
   if (loading) {
@@ -228,6 +288,55 @@ export default function HrEmployeesView({ canCreate }: HrEmployeesViewProps) {
         rowKey={(e) => e.id}
         empty={<EmptyState icon={Users} title="No employees found" message="Active employees will appear here." />}
       />
+
+      {editingId && (
+        <Modal
+          title="Edit Employee"
+          ariaLabel="Edit employee profile"
+          onClose={() => setEditingId(null)}
+          dismissible={!saving}
+          footer={
+            <>
+              <ToolbarButton onClick={() => setEditingId(null)} disabled={saving}>Cancel</ToolbarButton>
+              <SubmitButton form="hr-employee-edit" disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</SubmitButton>
+            </>
+          }
+        >
+          <form id="hr-employee-edit" onSubmit={handleEditSave}>
+            <FieldRow>
+              <Field label="Full Name">
+                <Input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} required />
+              </Field>
+              <Field label="Designation">
+                <Input value={editForm.designation} onChange={(e) => setEditForm((f) => ({ ...f, designation: e.target.value }))} />
+              </Field>
+            </FieldRow>
+            <FieldRow>
+              <Field label="Role">
+                <Select value={editForm.role} onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value }))}>
+                  <option value="">Employee (default)</option>
+                  {roles.map((r) => (
+                    <option key={r.key} value={r.key}>{r.label}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Employee ID">
+                <Input value={editForm.employeeId} onChange={(e) => setEditForm((f) => ({ ...f, employeeId: e.target.value }))} />
+              </Field>
+            </FieldRow>
+            <FieldRow>
+              <Field label="Phone">
+                <Input value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} />
+              </Field>
+              <Field label="Email">
+                <Input type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} />
+              </Field>
+            </FieldRow>
+            {/* Department isn't here on purpose — reassigning an existing
+                employee to a different department stays admin-only. */}
+          </form>
+        </Modal>
+      )}
     </AppShell>
   );
 }

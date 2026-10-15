@@ -46,9 +46,10 @@ export async function GET(request: NextRequest) {
         include: [{ model: db.User, as: 'employee', attributes: ['id', 'username', 'name'] }] as never
       }),
       resolveHrRecipients(),
-      // Every active account, so the picker can offer anyone — including
-      // admins and test logins, which are exactly who tends to need excusing
-      // and who a department-scoped list would omit.
+      // Every active account (Super Admin excluded below), so the picker can
+      // offer anyone — including admins and test logins, which are exactly
+      // who tends to need excusing and who a department-scoped list would
+      // omit.
       db.User.findAll({
         where: { status: 'active' } as never,
         attributes: ['id', 'name', 'username'],
@@ -60,16 +61,24 @@ export async function GET(request: NextRequest) {
       })
     ]);
 
-    const employees = employeeRows.map((row) => {
-      const plain = row.get({ plain: true }) as Record<string, unknown>;
-      return {
-        id: plain.id as string,
-        name: (plain.name as string) || (plain.username as string),
-        username: plain.username as string,
-        department_name: ((plain.departmentRef as { name?: string } | null)?.name as string) ?? '',
-        role: ((plain.role as { key?: string } | null)?.key as string) ?? ''
-      };
-    });
+    const employees = employeeRows
+      .map((row) => {
+        const plain = row.get({ plain: true }) as Record<string, unknown>;
+        return {
+          id: plain.id as string,
+          name: (plain.name as string) || (plain.username as string),
+          username: plain.username as string,
+          department_name: ((plain.departmentRef as { name?: string } | null)?.name as string) ?? '',
+          role: ((plain.role as { key?: string } | null)?.key as string) ?? ''
+        };
+      })
+      // Super Admin is excluded from this whole page, not just the "add new"
+      // picker — an already-excused super admin stays exempt in the
+      // database (exempt_employee_ids is untouched), it just isn't shown or
+      // manageable here. The one person with the access to grant their own
+      // exemption shouldn't be the one account this screen puts in front of
+      // them to toggle.
+      .filter((e) => e.role !== 'superadmin');
     const exemptSet = new Set(config.exempt_employee_ids);
 
     const response: DailyReportConfigResponse = {

@@ -259,13 +259,16 @@ export default function DailyReportConfigView() {
   const configuredCount = data.templates.filter((template) => template.status === 'active').length;
   const affectedEmployees = data.templates.filter((t) => t.status === 'active').reduce((sum, t) => sum + t.employee_count, 0);
 
-  // Super Admin accounts don't show up as NEW candidates in the excuse
-  // picker — a super admin is the one person who'd be granting their own
-  // exemption, which isn't a decision this picker should make easy. An
-  // already-excused super admin (added before this rule, or by a direct
-  // config edit) still appears so it stays visible and can be un-excused —
-  // it just can't be newly added through this list.
-  const pickerCandidates = data.employees.filter((e) => e.role !== 'superadmin' || exemptIds.includes(e.id));
+  // Super Admin is excluded from `data.employees` entirely server-side (see
+  // the API route) — the one person with access to grant their own
+  // exemption shouldn't be an account this screen puts in front of them to
+  // toggle. An already-excused super admin stays exempt in the database
+  // regardless; it just isn't shown or manageable from this page.
+  const pickerCandidates = data.employees;
+  // Badges/count below only resolve names for ids present in `employees`,
+  // so a hidden (super admin) id in exempt_employee_ids silently doesn't
+  // count here — intentional, so the number always matches what's shown.
+  const resolvedExemptEmployees = data.employees.filter((e) => exemptIds.includes(e.id));
   const filteredPickerCandidates = pickerCandidates.filter((e) => {
     const q = peopleSearch.trim().toLowerCase();
     if (!q) return true;
@@ -539,19 +542,18 @@ export default function DailyReportConfigView() {
       </div>
       <p className={styles.sectionHint}>
         These people are not expected to file. They get no form, no reminders and no missed-report warnings, and they are left out of compliance
-        figures entirely rather than counted as missing. Use it for admin and super-admin accounts, test logins, and anyone whose role genuinely
-        does not involve daily activity reporting. Everyone else in a department with an approved format still files as normal.
+        figures entirely rather than counted as missing. Use it for admin accounts, test logins, and anyone whose role genuinely does not involve
+        daily activity reporting. (Super Admin accounts don&apos;t appear in this list at all — manage those directly if one is ever assigned to a
+        reporting department.) Everyone else in a department with an approved format still files as normal.
       </p>
       <div className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`}>
-        {exemptIds.length > 0 && (
+        {resolvedExemptEmployees.length > 0 && (
           <div className={styles.pickerSummary}>
-            {data.employees
-              .filter((e) => exemptIds.includes(e.id))
-              .map((e) => (
-                <span key={e.id} className={`${styles.badge} ${styles.badgeNotConfigured}`}>
-                  <UserMinus size={12} /> {e.name}
-                </span>
-              ))}
+            {resolvedExemptEmployees.map((e) => (
+              <span key={e.id} className={`${styles.badge} ${styles.badgeNotConfigured}`}>
+                <UserMinus size={12} /> {e.name}
+              </span>
+            ))}
           </div>
         )}
         <div className={calcStyles.field}>
@@ -590,7 +592,7 @@ export default function DailyReportConfigView() {
           })}
         </div>
         <div className={calcStyles.small}>
-          {exemptIds.length} excused. Changes take effect when you press Save Policy below.
+          {resolvedExemptEmployees.length} excused. Changes take effect when you press Save Policy below.
         </div>
       </div>
 
