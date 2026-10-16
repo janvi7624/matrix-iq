@@ -5,8 +5,10 @@ import {
   escalationKey,
   eventKey,
   missedDatePattern,
+  planAutoSubmits,
   planEscalations,
   planSweep,
+  planZeroTotalWarnings,
   subjectKey,
   sweepWindow,
   warningBanner
@@ -269,5 +271,133 @@ describe('missed-date pattern', () => {
 
   it('does not care what order the dates arrive in', () => {
     expect(missedDatePattern(['2026-10-21', '2026-10-19', '2026-10-20'])).toBe('consecutive');
+  });
+});
+
+describe('Sales/GEM-Sales auto-submit', () => {
+  const subjects = [{ employeeId: EMP, reportDate: MONDAY }];
+  // Monday's report, auto-submitted 10:30 IST Tuesday — 30 minutes before
+  // the 11:00 deadline/warning used throughout the rest of this file.
+  const TUESDAY_1029AM = new Date('2026-10-20T04:59:00Z');
+  const TUESDAY_1030AM = new Date('2026-10-20T05:00:00Z');
+
+  it('issues nothing before the configured auto-submit time', () => {
+    const planned = planAutoSubmits(subjects, state(), TUESDAY_1029AM, '10:30', MON_SAT);
+    expect(planned).toEqual([]);
+  });
+
+  it('is due once the configured time passes, for an unsubmitted report', () => {
+    const planned = planAutoSubmits(subjects, state(), TUESDAY_1030AM, '10:30', MON_SAT);
+    expect(planned.map((p) => p.employeeId)).toEqual([EMP]);
+    expect(planned[0].reportDate).toBe(MONDAY);
+    expect(planned[0].late).toBe(false);
+  });
+
+  it('is not due for a report already submitted', () => {
+    const submitted = new Set([subjectKey(EMP, MONDAY)]);
+    const planned = planAutoSubmits(subjects, state({ submitted }), TUESDAY_1030AM, '10:30', MON_SAT);
+    expect(planned).toEqual([]);
+  });
+
+  it('is not due for a date covered by a leave claim', () => {
+    const leaveCovered = new Set([subjectKey(EMP, MONDAY)]);
+    const planned = planAutoSubmits(subjects, state({ leaveCovered }), TUESDAY_1030AM, '10:30', MON_SAT);
+    expect(planned).toEqual([]);
+  });
+
+  it("uses Monday's auto-submit time for a Saturday report, not Sunday's", () => {
+    const saturday = [{ employeeId: EMP, reportDate: '2026-10-17' }];
+    // Sunday 10:30 IST — nothing due yet, Monday is the next working day.
+    const sundayMorning = new Date('2026-10-18T05:00:00Z');
+    expect(planAutoSubmits(saturday, state(), sundayMorning, '10:30', MON_SAT)).toEqual([]);
+    expect(planAutoSubmits(saturday, state(), TUESDAY_1030AM, '10:30', MON_SAT).length).toBe(1);
+  });
+
+  it('flags a catch-up run as late', () => {
+    const now = new Date('2026-10-21T05:00:00Z'); // a full day after it was due
+    const planned = planAutoSubmits(subjects, state(), now, '10:30', MON_SAT);
+    expect(planned[0].late).toBe(true);
+  });
+});
+
+describe('the 2-zero-day streak warning', () => {
+  const D1 = '2026-10-19';
+  const D2 = '2026-10-20';
+  const D3 = '2026-10-21';
+
+  it('does not warn on a single zero day', () => {
+    const totals = new Map([[subjectKey(EMP, D1), 0]]);
+    const planned = planZeroTotalWarnings(new Map([[EMP, [D1]]]), totals, new Set());
+    expect(planned).toEqual([]);
+  });
+
+  it('warns on the second consecutive zero day', () => {
+    const totals = new Map([
+      [subjectKey(EMP, D1), 0],
+      [subjectKey(EMP, D2), 0]
+    ]);
+    const planned = planZeroTotalWarnings(new Map([[EMP, [D1, D2]]]), totals, new Set());
+    expect(planned).toEqual([{ employeeId: EMP, reportDate: D2 }]);
+  });
+
+  it('keeps warning on a third consecutive zero day too', () => {
+    const totals = new Map([
+      [subjectKey(EMP, D1), 0],
+      [subjectKey(EMP, D2), 0],
+      [subjectKey(EMP, D3), 0]
+    ]);
+    const planned = planZeroTotalWarnings(new Map([[EMP, [D1, D2, D3]]]), totals, new Set());
+    expect(planned).toEqual([
+      { employeeId: EMP, reportDate: D2 },
+      { employeeId: EMP, reportDate: D3 }
+    ]);
+  });
+
+  it('a non-zero day breaks the streak', () => {
+    const totals = new Map([
+      [subjectKey(EMP, D1), 0],
+      [subjectKey(EMP, D2), 4],
+      [subjectKey(EMP, D3), 0]
+    ]);
+    const planned = planZeroTotalWarnings(new Map([[EMP, [D1, D2, D3]]]), totals, new Set());
+    expect(planned).toEqual([]);
+  });
+
+  it('a date that was never submitted breaks the streak rather than counting as zero', () => {
+    // D2 has no entry at all — not submitted, so it is neither a zero day
+    // nor a non-zero day, it simply is not there to extend the streak.
+    const totals = new Map([
+      [subjectKey(EMP, D1), 0],
+      [subjectKey(EMP, D3), 0]
+    ]);
+    const planned = planZeroTotalWarnings(new Map([[EMP, [D1, D2, D3]]]), totals, new Set());
+    expect(planned).toEqual([]);
+  });
+
+  it('does not re-warn a date already recorded', () => {
+    const totals = new Map([
+      [subjectKey(EMP, D1), 0],
+      [subjectKey(EMP, D2), 0]
+    ]);
+    const alreadyWarned = new Set([subjectKey(EMP, D2)]);
+    const planned = planZeroTotalWarnings(new Map([[EMP, [D1, D2]]]), totals, alreadyWarned);
+    expect(planned).toEqual([]);
+  });
+
+  it('tracks a separate streak per employee', () => {
+    const totals = new Map([
+      [subjectKey(EMP, D1), 0],
+      [subjectKey(EMP, D2), 0],
+      [subjectKey(EMP2, D1), 5],
+      [subjectKey(EMP2, D2), 0]
+    ]);
+    const datesByEmployee = new Map([
+      [EMP, [D1, D2]],
+      [EMP2, [D1, D2]]
+    ]);
+    const planned = planZeroTotalWarnings(datesByEmployee, totals, new Set());
+    // EMP2's D1 was non-zero, so EMP2's D2 is only a first zero day, not a
+    // second — only EMP warns.
+    expect(planned).toEqual([{ employeeId: EMP, reportDate: D2 }]);
   });
 });

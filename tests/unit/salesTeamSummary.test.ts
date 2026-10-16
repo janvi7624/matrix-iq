@@ -44,7 +44,7 @@ function project(overrides: Partial<Projects[number]> = {}): Projects[number] {
 }
 
 function quotation(overrides: Partial<Quotations[number]> = {}): Quotations[number] {
-  return { created_by: 'asha', status: 'draft', project_id: '', total: 0, ...overrides };
+  return { created_by: 'asha', status: 'draft', project_id: '', total: 0, prepared_by: '', prepared_by_user_id: '', ...overrides };
 }
 
 function rowFor(rows: ReturnType<typeof buildSalesTeamSummary>, username: string) {
@@ -178,27 +178,36 @@ describe('buildSalesTeamSummary', () => {
     expect(asha.billing).toBe(1000);
   });
 
-  it('bills the LINKED PROJECT\'S owner, not whoever typed the quotation', () => {
+  it('bills whoever the quotation NAMES as salesperson, not whoever typed it', () => {
     // asha prepared this quotation (e.g. a technical/ops account filing on
-    // someone's behalf — lib/quotationOnBehalf.ts), but it belongs to
-    // vikram's pipeline: his won project. Billing credits vikram, same as
-    // lib/salesAchievement.ts's identical rule.
+    // someone's behalf — lib/quotationOnBehalf.ts) for vikram by id. Billing
+    // credits vikram, regardless of who created the row or who owns any
+    // linked project.
     const rows = buildSalesTeamSummary(
       ROSTER,
       [],
-      [project({ id: 'p-v', created_by: 'vikram', status: 'won' })],
-      [quotation({ created_by: 'asha', status: 'approved', project_id: 'p-v', total: 700 })]
+      [project({ id: 'p-v', created_by: 'asha', status: 'won' })],
+      [quotation({ created_by: 'asha', prepared_by_user_id: 'u-vikram', status: 'approved', project_id: 'p-v', total: 700 })]
     );
     expect(rowFor(rows, 'vikram').billing).toBe(700);
     expect(rowFor(rows, 'asha').billing).toBe(0);
   });
 
-  it('falls back to quotation.created_by when the linked project is outside this roster call', () => {
-    // A quotation can reference a project id the caller didn't pass in (out
-    // of scope, or simply not fetched) — attribution shouldn't silently
-    // disappear, it should fall back to whoever filed the quotation. (Billing
-    // still requires the project to be known-won, so this only exercises the
-    // quotations count — see the "bills only..." test above for billing.)
+  it('falls back to the prepared_by NAME when no id was captured (a legacy quotation)', () => {
+    const rows = buildSalesTeamSummary(
+      ROSTER,
+      [],
+      [project({ id: 'p-v', created_by: 'asha', status: 'won' })],
+      [quotation({ created_by: 'asha', prepared_by: 'Vikram S', status: 'approved', project_id: 'p-v', total: 450 })]
+    );
+    expect(rowFor(rows, 'vikram').billing).toBe(450);
+    expect(rowFor(rows, 'asha').billing).toBe(0);
+  });
+
+  it('falls back to quotation.created_by when neither prepared_by field is set', () => {
+    // The oldest class of quotation — predates both prepared_by fields.
+    // Attribution shouldn't silently disappear, it should fall back to
+    // whoever filed it, same as it always did before on-behalf existed.
     const rows = buildSalesTeamSummary(
       ROSTER,
       [],

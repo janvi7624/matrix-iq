@@ -179,6 +179,24 @@ export interface MyDailyReportResponse {
   exempt: boolean;
   /** null when nothing has been started for this date. */
   report: DailyReportRecord | null;
+  /**
+   * The Sales/GEM-Sales auto-fetched measures for `report_date`, read fresh
+   * on every load — independent of `report`, so the very first visit to an
+   * unstarted day still shows real numbers instead of blanks. null for any
+   * template with no auto measures, or once the report is submitted (its
+   * own `report.matrix` is the frozen record at that point, not a moving
+   * preview). When `report` already exists, this is the same data already
+   * merged into `report.matrix` — exposed separately only so a client with
+   * no report yet still has it to render from.
+   */
+  auto_preview: Record<string, Record<string, number>> | null;
+  /**
+   * GEM Sales' auto-generated Proposal Creation rows, merged with whatever
+   * else is already in the draft — the rows-layout counterpart to
+   * auto_preview above, for the same "first visit, no report yet" reason.
+   * null for any template with no autoEntryActivity, or once submitted.
+   */
+  gem_entries_preview: Record<string, unknown>[] | null;
   revisions: DailyReportRevisionRecord[];
   /** The live claim for this date, if any. */
   leave_claim: DailyReportLeaveClaimRecord | null;
@@ -261,6 +279,12 @@ export interface DailyReportConfigRecord {
   deadline_time: string;
   evening_reminder_time: string;
   final_reminder_time: string;
+  /**
+   * 'HH:MM' IST on the next working day after the reporting date — when an
+   * unsubmitted Sales/GEM-Sales report (any auto-measures template) is
+   * auto-submitted by the system. See lib/salesDailyAutoFetch.ts.
+   */
+  sales_auto_submit_time: string;
   warning_threshold: number;
   reconcile_window_days: number;
   scheduler_enabled: boolean;

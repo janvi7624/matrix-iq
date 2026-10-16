@@ -81,9 +81,11 @@ export function buildSalesTeamSummary(
     | 'callback_at'
   >[],
   projects: Pick<ProjectRecord, 'id' | 'created_by' | 'status'>[],
-  quotations: Pick<QuotationRecord, 'created_by' | 'status' | 'project_id' | 'total'>[]
+  quotations: Pick<QuotationRecord, 'created_by' | 'status' | 'project_id' | 'total' | 'prepared_by' | 'prepared_by_user_id'>[]
 ): SalesTeamSummaryRow[] {
   const byUsername = new Map<string, SalesTeamSummaryRow>();
+  const usernameById = new Map<string, string>();
+  const usernameByName = new Map<string, string>();
   const rows: SalesTeamSummaryRow[] = roster.map((member) => {
     const row: SalesTeamSummaryRow = {
       id: member.id,
@@ -99,6 +101,8 @@ export function buildSalesTeamSummary(
       lost: 0
     };
     byUsername.set(member.username, row);
+    usernameById.set(member.id, member.username);
+    if (member.name) usernameByName.set(member.name, member.username);
     return row;
   });
   if (!rows.length) return rows;
@@ -131,10 +135,8 @@ export function buildSalesTeamSummary(
   // person (see lib/projectSalesOwner.ts's header: the sales_person column
   // is only a label). Won/Lost come off the same pass.
   const wonProjectIds = new Set<string>();
-  const projectOwnerById = new Map<string, string>();
   for (const project of projects) {
     if (project.status === 'won') wonProjectIds.add(project.id);
-    projectOwnerById.set(project.id, project.created_by);
     const row = byUsername.get(project.created_by);
     if (!row) continue;
     row.enquiries += 1;
@@ -146,20 +148,20 @@ export function buildSalesTeamSummary(
   // already in memory rather than paid for as a second query — an approved
   // quotation, attached to a project, where that project is won.
   //
-  // Credited to the LINKED PROJECT'S owner, not quotation.created_by — the
-  // same split QuotationRecord.sales_person documents (created_by is
-  // "whoever typed it", which is a technical/ops account whenever a
-  // quotation was prepared on a sales person's behalf; see
-  // lib/quotationOnBehalf.ts). Resolved from `projects` above rather than
-  // quotation.sales_person (a display NAME, not a username — wrong shape
-  // for this map's key) or prepared_by_user_id (can go stale if the project
-  // is reassigned after the quotation is filed; the project's CURRENT owner
-  // never can). Falls back to created_by only when there's no project to
-  // attribute to, matching sales_person's own documented fallback rule.
+  // Simple rule: a quotation counts for whoever it NAMES as the salesperson
+  // (prepared_by_user_id, falling back to the prepared_by name when the id
+  // wasn't captured — a legacy quotation) — never quotation.created_by,
+  // which is just whoever's session physically submitted the form. Maulik
+  // or Khushi filing a quote "as Mahendra" must land in Mahendra's row only,
+  // regardless of who typed it (lib/quotationOnBehalf.ts). created_by is
+  // the last resort, for a quotation old enough to have neither field set.
   // lib/salesAchievement.ts applies the identical rule, so a person's
   // Billing here and their achievement under Target Details still agree.
   for (const quotation of quotations) {
-    const owner = (quotation.project_id && projectOwnerById.get(quotation.project_id)) || quotation.created_by;
+    const owner =
+      (quotation.prepared_by_user_id && usernameById.get(quotation.prepared_by_user_id)) ||
+      (quotation.prepared_by && usernameByName.get(quotation.prepared_by)) ||
+      quotation.created_by;
     const row = byUsername.get(owner);
     if (!row) continue;
     row.quotations += 1;

@@ -114,7 +114,11 @@ function issuesToMap(issues: { path: string; message: string }[] | undefined): R
 }
 
 function payloadFromResponse(data: MyDailyReportResponse): DailyReportPayloadInput {
-  if (!data.report) return { header: {}, entries: [], matrix: {} };
+  // No draft saved yet today — still seed the matrix from auto_preview so
+  // the Auto-badged cells show real numbers on the very first visit,
+  // matching what a saved draft already gets from the server (see
+  // buildMyDailyReport). Everything else starts blank, same as before.
+  if (!data.report) return { header: {}, entries: data.gem_entries_preview ?? [], matrix: data.auto_preview ?? {} };
   return {
     header: data.report.payload ?? {},
     entries: data.report.entries.map((entry) => ({ ...entry.data })),

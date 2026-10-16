@@ -159,6 +159,7 @@ export default function DailyReportConfigView() {
             deadline_time: config.deadline_time,
             evening_reminder_time: config.evening_reminder_time,
             final_reminder_time: config.final_reminder_time,
+            sales_auto_submit_time: config.sales_auto_submit_time,
             warning_threshold: config.warning_threshold,
             reconcile_window_days: config.reconcile_window_days,
             scheduler_enabled: config.scheduler_enabled,
@@ -462,6 +463,19 @@ export default function DailyReportConfigView() {
           <div className={calcStyles.field}>
             <label className={calcStyles.label} htmlFor="final-reminder">Final reminder, on the deadline day (IST)</label>
             <Input id="final-reminder" type="time" value={config.final_reminder_time} onChange={(e) => set('final_reminder_time', e.target.value)} />
+          </div>
+          <div className={calcStyles.field}>
+            <label className={calcStyles.label} htmlFor="sales-auto-submit">Sales/GEM-Sales auto-submit, next working day (IST)</label>
+            <Input
+              id="sales-auto-submit"
+              type="time"
+              value={config.sales_auto_submit_time}
+              onChange={(e) => set('sales_auto_submit_time', e.target.value)}
+            />
+            <div className={calcStyles.small}>
+              Applies only to employees on a template with auto-fetched measures. If they have not submitted by this time, the system files it for
+              them using their tracked leads, quotations and purchase orders.
+            </div>
           </div>
         </div>
 

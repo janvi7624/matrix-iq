@@ -13,7 +13,7 @@
 //
 // Pure: no DB, no clock of its own (`now` is always passed in), no I/O.
 
-import { DeadlinePolicy, monthKey, scheduleFor, workingDaysBetween } from './dailyReportTime';
+import { DeadlinePolicy, istInstant, monthKey, nextWorkingDay, scheduleFor, WorkingDayPolicy, workingDaysBetween } from './dailyReportTime';
 
 /**
  * The three time-triggered events, in the order they fire for one reporting
@@ -124,6 +124,113 @@ export function planSweep(subjects: SweepSubject[], state: SweepState, now: Date
   // Oldest first, so a catch-up run sends Monday's missed reminder before
   // Tuesday's and an employee's inbox reads in chronological order.
   return planned.sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime() || a.employeeId.localeCompare(b.employeeId) || a.kind.localeCompare(b.kind));
+}
+
+// ---------------------------------------------------------------------------
+// Sales / GEM-Sales auto-submit
+// ---------------------------------------------------------------------------
+
+export interface PlannedAutoSubmit {
+  employeeId: string;
+  reportDate: string;
+  dueAt: Date;
+  late: boolean;
+}
+
+/**
+ * Who still owes a report once the Sales/GEM-Sales auto-submit time has
+ * passed on the next working day.
+ *
+ * Deliberately separate from planSweep rather than a fourth kind inside it:
+ * the caller here has already narrowed `subjects` to employees on an
+ * auto-measures template (see TemplateDefinition.autoMeasures), which
+ * planSweep has no reason to know about, and the due time is a configured
+ * clock time distinct from the deadline/reminder times planSweep reads from
+ * DeadlinePolicy. Reusing `submitted`/`leaveCovered` from the same SweepState
+ * shape keeps the "recheck immediately before acting" guarantee identical to
+ * every other effect in the sweep.
+ */
+export function planAutoSubmits(
+  subjects: SweepSubject[],
+  state: Pick<SweepState, 'submitted' | 'leaveCovered'>,
+  now: Date,
+  autoSubmitTime: string,
+  policy: WorkingDayPolicy
+): PlannedAutoSubmit[] {
+  const planned: PlannedAutoSubmit[] = [];
+  const nowMs = now.getTime();
+
+  for (const subject of subjects) {
+    const key = subjectKey(subject.employeeId, subject.reportDate);
+    if (state.submitted.has(key)) continue;
+    if (state.leaveCovered.has(key)) continue;
+
+    const dueAt = istInstant(nextWorkingDay(subject.reportDate, policy), autoSubmitTime);
+    if (dueAt.getTime() > nowMs) continue;
+    planned.push({
+      employeeId: subject.employeeId,
+      reportDate: subject.reportDate,
+      dueAt,
+      late: nowMs - dueAt.getTime() > LATE_FIRE_TOLERANCE_MS
+    });
+  }
+
+  return planned.sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime() || a.employeeId.localeCompare(b.employeeId));
+}
+
+// ---------------------------------------------------------------------------
+// The 2-zero-day streak warning
+// ---------------------------------------------------------------------------
+
+export interface PlannedZeroTotalWarning {
+  employeeId: string;
+  reportDate: string;
+}
+
+/**
+ * The second (and every further) consecutive reporting day an employee's
+ * AUTO-FETCHED total — not their full matrix, just the measures
+ * lib/salesDailyAutoFetch.ts fills in — comes to zero.
+ *
+ * `datesByEmployee` must list each employee's OWED reporting dates in
+ * chronological order, starting one working day before the earliest date a
+ * warning could be recorded for this sweep — otherwise the first in-window
+ * date has no predecessor to compare against and a streak that started
+ * before the window can never be detected.
+ *
+ * `autoTotalByKey` (subjectKey -> summed auto measures) has an entry ONLY
+ * for a date that was genuinely submitted. A missing entry breaks the streak
+ * rather than counting as a zero day — an employee who simply never filed is
+ * already the missed-report warning's problem, a different one from "filed,
+ * but nothing came through the auto fetch."
+ */
+export function planZeroTotalWarnings(
+  datesByEmployee: Map<string, string[]>,
+  autoTotalByKey: Map<string, number>,
+  alreadyWarned: Set<string>
+): PlannedZeroTotalWarning[] {
+  const planned: PlannedZeroTotalWarning[] = [];
+
+  for (const [employeeId, dates] of datesByEmployee) {
+    let streak = 0;
+    for (const reportDate of dates) {
+      const total = autoTotalByKey.get(subjectKey(employeeId, reportDate));
+      if (total === undefined) {
+        streak = 0;
+        continue;
+      }
+      if (total > 0) {
+        streak = 0;
+        continue;
+      }
+      streak += 1;
+      if (streak >= 2 && !alreadyWarned.has(subjectKey(employeeId, reportDate))) {
+        planned.push({ employeeId, reportDate });
+      }
+    }
+  }
+
+  return planned.sort((a, b) => a.reportDate.localeCompare(b.reportDate) || a.employeeId.localeCompare(b.employeeId));
 }
 
 /**

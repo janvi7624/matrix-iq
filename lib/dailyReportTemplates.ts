@@ -18,9 +18,32 @@
 // (and any admin overrides to its dropdown options) lives in
 // lib/dailyReportTemplateStore.ts; this file is the catalogue and the rules.
 
-export type DailyReportTemplateKey = 'hr' | 'sales' | 'av' | 'rnd' | 'ai' | 'marketing' | 'robotics' | 'accounts' | 'backoffice' | 'not_configured';
+export type DailyReportTemplateKey =
+  | 'hr'
+  | 'sales'
+  | 'gem_sales'
+  | 'av'
+  | 'rnd'
+  | 'ai'
+  | 'marketing'
+  | 'robotics'
+  | 'accounts'
+  | 'backoffice'
+  | 'not_configured';
 
-export const TEMPLATE_KEYS: DailyReportTemplateKey[] = ['hr', 'sales', 'av', 'rnd', 'ai', 'marketing', 'robotics', 'accounts', 'backoffice', 'not_configured'];
+export const TEMPLATE_KEYS: DailyReportTemplateKey[] = [
+  'hr',
+  'sales',
+  'gem_sales',
+  'av',
+  'rnd',
+  'ai',
+  'marketing',
+  'robotics',
+  'accounts',
+  'backoffice',
+  'not_configured'
+];
 
 export type DailyReportLayout = 'rows' | 'narrative' | 'matrix';
 
@@ -29,6 +52,7 @@ export type DailyReportFieldType =
   | 'textarea'
   | 'select'
   | 'date'
+  | 'time'
   | 'number'
   // Server-computed and read-only in the UI — see `computed` below. Never
   // trusted from the client even if a value is posted for it.
@@ -60,17 +84,73 @@ export interface DailyReportFieldDef {
   /** For 'select'. Admin-overridable per department — see resolveTemplate(). */
   options?: string[];
   /**
+   * For 'select' — narrows what a PERSON can choose from in the dropdown,
+   * while `options` (validateField's source of truth for what's a valid
+   * stored value) stays the full set. Absent means the dropdown offers
+   * everything in `options`, same as before this existed.
+   *
+   * Exists for a value nobody should be able to pick by hand but that a
+   * system-generated row legitimately carries — GEM Sales' gem_team_activity
+   * excludes 'Proposal Creation' here (see autoEntryActivity) while still
+   * accepting it as a stored value, so an auto row renders correctly and a
+   * person simply has no way to create one manually, rather than merely
+   * finding it locked after the fact.
+   */
+  selectableOptions?: string[];
+  /**
    * Linked dropdown: this field's options are chosen by the value of
    * `dependsOn`. HR & Admin's Activity depends on Activity Category, so the
    * two can never be combined into a pair that doesn't exist.
    */
   dependsOn?: string;
   linkedOptions?: Record<string, string[]>;
+  /**
+   * Conditional field: rendered, and required, ONLY when another field in
+   * the same row/header holds one of these values. Distinct from
+   * dependsOn/linkedOptions above, which narrows a dropdown's options —
+   * this hides the field outright.
+   *
+   * Honoured in both validateField (so the server never demands a field it
+   * is not showing) and the form renderer. Those two must agree: a field
+   * required but hidden would make the report impossible to submit.
+   */
+  showWhen?: { field: string; equals: string[] };
+  /**
+   * UI-only (read by components/DailyReportForm.tsx, not validateField):
+   * when this field's value changes and that would blank an already-filled
+   * dependsOn/showWhen dependent in the same row, the employee is asked to
+   * confirm before the swap proceeds — rather than the usual silent clear
+   * (see setEntry). Opt-in per field; every existing field defaults to the
+   * original silent behaviour.
+   */
+  confirmOnChange?: boolean;
   computed?: DailyReportComputedKind;
   placeholder?: string;
   maxLength?: number;
   /** Non-negative integers only — every numeric field in this module is a count. */
   integer?: boolean;
+  /** 'number' only — renders and is labelled as an INR amount. Storage and
+   *  validation are unchanged; this is presentation only. */
+  currency?: boolean;
+  /** 'text' only — validated as a well-formed http(s) URL when non-blank. */
+  format?: 'url';
+  /**
+   * 'time' or 'date' only — this field's value, if both it and the named
+   * sibling field are present and valid, must not come before the
+   * sibling's. 'time' is STRICT (must be strictly later — a meeting can't
+   * start and end the same minute); 'date' is INCLUSIVE (may be the same
+   * day — a one-day site visit has From == To). E.g. a "To" field naming
+   * its "From" field.
+   */
+  afterField?: string;
+  /**
+   * Present in the stored entry and persisted like any other field, but
+   * never rendered as an input — for system bookkeeping a row carries
+   * alongside its visible fields (e.g. the source-record id an
+   * autoEntryActivity row is linked to). Distinct from `computed`, which
+   * IS rendered, just as read-only derived text.
+   */
+  hidden?: boolean;
   /** Relative column width hint for the row/grid renderer. */
   width?: 'sm' | 'md' | 'lg' | 'xl';
   help?: string;
@@ -98,11 +178,31 @@ export interface TemplateDefinition {
   measures?: string[];
   /** layout 'matrix' only — the numeric columns that are summed. */
   channels?: string[];
+  /**
+   * layout 'matrix' only — a subset of `measures` the system fills in itself
+   * (lib/salesDailyAutoFetch.ts) from real Lead/Quotation/Project data, read-
+   * only in the form. Every other measure stays a normal manual cell. Empty/
+   * absent means "nothing is automated", the same as every template besides
+   * Sales/GEM-Sales today.
+   */
+  autoMeasures?: string[];
   /** Minimum entries a SUBMITTED report must carry (drafts are never checked). */
   minEntries?: number;
   maxEntries?: number;
   /** Singular noun for the "Add <x>" button and validation messages. */
   entryNoun?: string;
+  /**
+   * layout 'rows' only — the value of the template's governing activity
+   * field (gem_team_activity for GEM Sales) whose rows are auto-generated
+   * from a real system record rather than typed by hand
+   * (lib/gemProposalAutoFetch.ts, for GEM Sales' 'Proposal Creation', from
+   * the day's own Quotation activity). Such a row carries a hidden id field
+   * linking it back to its source record, is locked in the form, and is
+   * re-derived fresh on every save — the rows-layout counterpart to
+   * autoMeasures above. Absent means nothing is automated, same as every
+   * rows template besides GEM Sales today.
+   */
+  autoEntryActivity?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,9 +230,16 @@ const TASK_ID_FIELD: DailyReportFieldDef = {
 
 export const HR_STATUS_OPTIONS = ['In Progress', 'Completed', 'Pending'];
 export const AI_STATUS_OPTIONS = ['In Progress', 'Completed', 'Pending'];
+export const RND_STATUS_OPTIONS = ['In Progress', 'Completed', 'Pending'];
 export const MARKETING_STATUS_OPTIONS = ['In Progress', 'Completed'];
 export const ROBOTICS_STATUS_OPTIONS = ['In Progress', 'Completed', 'On Hold'];
 export const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical'];
+
+// AI sheet: what kind of work a task belongs to. "Other" is the only
+// option that opens a free-text box (project_other below), so the common
+// cases stay a clean two-click choice instead of free text everyone spells
+// differently.
+export const AI_PROJECT_CATEGORY_OPTIONS = ['Client', 'Internal', 'Other'];
 
 // HR & Admin's linked Category → Activity pairs. Seeded here and editable
 // per department from Daily Report Configuration, so HR can add an activity
@@ -229,11 +336,531 @@ const SALES_TEMPLATE: TemplateDefinition = {
   layout: 'matrix',
   measures: SALES_MEASURES,
   channels: SALES_CHANNELS,
+  // The 4 measures with a real system of record (lib/salesDailyAutoFetch.ts)
+  // vs the 4 that stay manual (Customer Calls, Meetings Completed, Meetings
+  // Scheduled, Follow-ups Completed) — this app has no call/meeting log to
+  // read those from.
+  autoMeasures: ['New Leads Generated', 'Quotations Prepared', 'Quotations Sent', 'Purchase Orders Received'],
   headerFields: [
     TASK_ID_FIELD,
     { key: 'notes', label: 'Notes', type: 'textarea', maxLength: 2000, placeholder: 'Context for today’s numbers — a large deal, a blocked follow-up, travel.', width: 'xl' }
   ],
   rowFields: []
+};
+
+// GEM Sales — tender/bid-portal activity, a different business process from
+// product Sales (government/B2B tender exploration, proposals, vendor
+// follow-ups, bid submission, portal empanelment, document prep,
+// communication, and in-office/on-site time) with no leads-or-quotations
+// concept at all. One 'rows' template — one entry per activity logged that
+// day, "Add Activity" already free from the generic rows engine — rather
+// than nine separate forms: every activity-specific field is just the SAME
+// row, with only the fields for the chosen GEM_ACTIVITY shown (showWhen).
+//
+// A handful of fields are intentionally NOT split per-activity even where
+// the brief's required-ness or label varies slightly, to avoid inventing a
+// field per activity for what is really the same concept — see each
+// field's own comment for the specific simplification and why.
+const GEM_ACTIVITY = {
+  TENDER_EXPLORE: 'Tender Explore',
+  PROPOSAL_CREATION: 'Proposal Creation',
+  VENDOR_FOLLOWUP: 'Vendor Followup',
+  BID_SUBMISSION: 'Bid Submission',
+  EMPANELMENT: 'Empanelment',
+  TENDER_DOCS: 'Tender Documents Preparation',
+  COMMUNICATION: 'Communication',
+  IN_OFFICE: 'In Office: Meeting / Training / Presentation / Activities',
+  ONSITE: 'OnSite: Visit / Meeting / Demo'
+} as const;
+
+const GEM_QUALIFICATION_STATUS_OPTIONS = ['Qualified', 'Not Qualified', 'Under Evaluation', 'Pending'];
+const GEM_FOLLOW_UP_METHOD_OPTIONS = ['Call', 'Email', 'WhatsApp', 'Meeting', 'Other'];
+const GEM_SUBMISSION_STATUS_OPTIONS = ['In Progress', 'Submitted Successfully', 'Pending', 'Rejected', 'Technical Issue'];
+const GEM_DOCUMENT_PREP_STATUS_OPTIONS = ['Not Started', 'In Progress', 'Pending Information', 'Ready for Review', 'Completed'];
+const GEM_COMMUNICATION_WITH_OPTIONS = ['Client', 'Vendor', 'Internal Team', 'Other'];
+const GEM_COMMUNICATION_MODE_OPTIONS = ['Call', 'Email', 'WhatsApp', 'Video Conference', 'In-Person', 'Other'];
+const GEM_MEETING_TYPE_OPTIONS = ['Meeting', 'Training', 'Presentation', 'Internal Discussion', 'Review', 'Other'];
+const GEM_PARTICIPANTS_OPTIONS = ['Internal Team', 'Client', 'Vendor'];
+const GEM_YES_NO = ['Yes', 'No'];
+
+// "Current Status" — same label, four different option sets, across the
+// four activities that use it. One field (dependsOn + linkedOptions) rather
+// than four, the same pattern HR_TEMPLATE already uses for Category ->
+// Activity — showWhen still hides it entirely for every other activity.
+const GEM_CURRENT_STATUS_OPTIONS: Record<string, string[]> = {
+  [GEM_ACTIVITY.TENDER_EXPLORE]: ['Identified', 'Under Review', 'Qualified', 'Disqualified', 'On Hold', 'Completed'],
+  [GEM_ACTIVITY.PROPOSAL_CREATION]: ['Not Started', 'In Progress', 'Internal Review', 'Sent to Client', 'Revision Required', 'Completed'],
+  [GEM_ACTIVITY.VENDOR_FOLLOWUP]: ['Awaiting Response', 'Response Received', 'Negotiation', 'Follow-up Required', 'Completed'],
+  [GEM_ACTIVITY.EMPANELMENT]: ['Not Started', 'Documents Pending', 'In Progress', 'Submitted', 'Under Review', 'Approved', 'Rejected']
+};
+
+const GEM_SALES_TEMPLATE: TemplateDefinition = {
+  key: 'gem_sales',
+  codePrefix: 'GEM',
+  label: 'GEM Sales — Daily Activity Report',
+  description: 'One row per tender/bid-portal activity logged today — fields change with the activity picked.',
+  layout: 'rows',
+  entryNoun: 'Activity',
+  minEntries: 1,
+  headerFields: [],
+  // 'Proposal Creation' rows are auto-generated from the day's own
+  // Quotation activity (lib/gemProposalAutoFetch.ts) and locked — no manual
+  // entry for who/what/how-much, matching the Sales grid's auto-measures
+  // precedent for the same reason (the system already has this data; typing
+  // it again is both busywork and a second, driftable copy of the truth).
+  autoEntryActivity: GEM_ACTIVITY.PROPOSAL_CREATION,
+  rowFields: [
+    TASK_ID_FIELD,
+    {
+      key: 'gem_team_activity',
+      label: 'GEM Team Activity',
+      type: 'select',
+      required: true,
+      options: Object.values(GEM_ACTIVITY),
+      // Proposal Creation is a valid STORED value (an auto-generated row
+      // carries it) but not a CHOSEN one — excluded here so there is no way
+      // to manually create a "Proposal Creation" activity that then sits
+      // there editable; the only way one exists is the real thing, via
+      // autoEntryActivity.
+      selectableOptions: Object.values(GEM_ACTIVITY).filter((activity) => activity !== GEM_ACTIVITY.PROPOSAL_CREATION),
+      width: 'lg',
+      // Switching this after other fields are already filled in would
+      // silently clear them (the same rule every showWhen field in this app
+      // already follows) — but here that rule can erase a whole activity's
+      // work by one misclick, so this one field asks first.
+      confirmOnChange: true
+    },
+
+    // ---- Client / organization identity — shared where the label and
+    // required-ness genuinely match; a differently-labelled or
+    // differently-required variant gets its own field below instead of
+    // forcing a mismatch onto this one. ----
+    {
+      key: 'client',
+      label: 'Client',
+      type: 'text',
+      required: true,
+      maxLength: 255,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.BID_SUBMISSION] }
+    },
+    {
+      // Simplification: the brief doesn't always mark Location required for
+      // every activity it appears on (e.g. Vendor Followup, Communication)
+      // — rather than a second near-duplicate field, it's required
+      // everywhere it's shown. Being asked for a place is a low-friction
+      // ask on a form about tender/vendor/site activity.
+      key: 'location',
+      label: 'Location',
+      type: 'text',
+      required: true,
+      maxLength: 255,
+      width: 'md',
+      showWhen: {
+        field: 'gem_team_activity',
+        equals: [
+          GEM_ACTIVITY.TENDER_EXPLORE,
+          GEM_ACTIVITY.PROPOSAL_CREATION,
+          GEM_ACTIVITY.VENDOR_FOLLOWUP,
+          GEM_ACTIVITY.BID_SUBMISSION,
+          GEM_ACTIVITY.EMPANELMENT,
+          GEM_ACTIVITY.TENDER_DOCS,
+          GEM_ACTIVITY.COMMUNICATION,
+          GEM_ACTIVITY.ONSITE
+        ]
+      }
+    },
+    {
+      // Simplification: required only for Bid Submission in the brief, a
+      // plain text field for Tender Explore / Tender Documents Preparation.
+      // Shared as one NOT-required field across all three rather than
+      // splitting it — enforcing it everywhere would wrongly block a Tender
+      // Explore entry filed before a reference number even exists yet.
+      key: 'tender_reference_number',
+      label: 'Tender Reference Number',
+      type: 'text',
+      maxLength: 120,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE, GEM_ACTIVITY.BID_SUBMISSION, GEM_ACTIVITY.TENDER_DOCS] }
+    },
+    {
+      key: 'project_value',
+      label: 'Project Value (₹)',
+      type: 'number',
+      integer: false,
+      currency: true,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.BID_SUBMISSION, GEM_ACTIVITY.TENDER_DOCS] }
+    },
+    {
+      key: 'current_status',
+      label: 'Current Status',
+      type: 'select',
+      dependsOn: 'gem_team_activity',
+      linkedOptions: GEM_CURRENT_STATUS_OPTIONS,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.VENDOR_FOLLOWUP, GEM_ACTIVITY.EMPANELMENT] }
+    },
+    {
+      key: 'activity_brief',
+      label: 'Activity Brief',
+      type: 'textarea',
+      required: true,
+      maxLength: 2000,
+      width: 'xl',
+      showWhen: {
+        field: 'gem_team_activity',
+        equals: [GEM_ACTIVITY.TENDER_EXPLORE, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.VENDOR_FOLLOWUP, GEM_ACTIVITY.BID_SUBMISSION, GEM_ACTIVITY.EMPANELMENT, GEM_ACTIVITY.TENDER_DOCS]
+      }
+    },
+
+    // ---- Tender Explore only ----
+    { key: 'due_date', label: 'Due Date', type: 'date', width: 'sm', showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE] } },
+    {
+      key: 'qualification_status',
+      label: 'Qualification Status',
+      type: 'select',
+      options: GEM_QUALIFICATION_STATUS_OPTIONS,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE] }
+    },
+
+    // ---- Proposal Creation only — every field here is auto-filled from
+    // the day's own Quotation activity (lib/gemProposalAutoFetch.ts) and
+    // locked in the form, same as the Sales grid's auto measures. No field
+    // here is typed by hand. ----
+    {
+      key: 'sales_person',
+      label: 'Sales Person',
+      type: 'text',
+      required: true,
+      maxLength: 255,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.PROPOSAL_CREATION] }
+    },
+    {
+      // Links this row back to the quotation it was generated from —
+      // what mergeAutoGemEntries matches on to update an already-saved
+      // auto row rather than duplicating it, and what the form uses to
+      // know which rows to lock.
+      key: 'proposal_quotation_id',
+      label: 'Quotation Reference',
+      type: 'text',
+      hidden: true,
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.PROPOSAL_CREATION] }
+    },
+
+    // ---- Vendor Followup only ----
+    {
+      key: 'vendor_name',
+      label: 'Vendor Name',
+      type: 'text',
+      required: true,
+      maxLength: 255,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.VENDOR_FOLLOWUP] }
+    },
+    {
+      key: 'client_project_name',
+      label: 'Client / Project Name',
+      type: 'text',
+      maxLength: 255,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.VENDOR_FOLLOWUP] }
+    },
+    {
+      key: 'proposal_tender_reference',
+      label: 'Proposal / Tender Reference',
+      type: 'text',
+      maxLength: 120,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.VENDOR_FOLLOWUP] }
+    },
+    { key: 'follow_up_date', label: 'Follow-up Date', type: 'date', width: 'sm', showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.VENDOR_FOLLOWUP] } },
+    {
+      key: 'follow_up_method',
+      label: 'Follow-up Method',
+      type: 'select',
+      options: GEM_FOLLOW_UP_METHOD_OPTIONS,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.VENDOR_FOLLOWUP] }
+    },
+    {
+      key: 'vendor_next_follow_up_date',
+      label: 'Next Follow-up Date',
+      type: 'date',
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.VENDOR_FOLLOWUP] }
+    },
+
+    // ---- Bid Submission only ----
+    { key: 'submission_date', label: 'Submission Date', type: 'date', width: 'sm', showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.BID_SUBMISSION] } },
+    {
+      key: 'submission_status',
+      label: 'Submission Status',
+      type: 'select',
+      options: GEM_SUBMISSION_STATUS_OPTIONS,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.BID_SUBMISSION] }
+    },
+    {
+      // Simplification: "optional file upload or reference link" — a real
+      // upload needs this module's own storage wiring; a link covers the
+      // explicitly-offered simpler alternative without that extra scope.
+      key: 'submission_proof_link',
+      label: 'Submission Proof / Acknowledgement (link)',
+      type: 'text',
+      format: 'url',
+      maxLength: 500,
+      width: 'lg',
+      placeholder: 'https://…',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.BID_SUBMISSION] }
+    },
+
+    // ---- Empanelment only ----
+    {
+      key: 'client_organization',
+      label: 'Client / Organization',
+      type: 'text',
+      required: true,
+      maxLength: 255,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.EMPANELMENT] }
+    },
+    {
+      key: 'empanelment_portal_link',
+      label: 'Empanelment Portal Link',
+      type: 'text',
+      format: 'url',
+      maxLength: 500,
+      width: 'lg',
+      placeholder: 'https://…',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.EMPANELMENT] }
+    },
+    {
+      key: 'registration_reference',
+      label: 'Registration / Application Reference',
+      type: 'text',
+      maxLength: 120,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.EMPANELMENT] }
+    },
+
+    // ---- Tender Documents Preparation only ----
+    {
+      key: 'documents_required',
+      label: 'Documents Required / Prepared',
+      type: 'textarea',
+      maxLength: 2000,
+      width: 'xl',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_DOCS] }
+    },
+    {
+      key: 'document_preparation_status',
+      label: 'Document Preparation Status',
+      type: 'select',
+      options: GEM_DOCUMENT_PREP_STATUS_OPTIONS,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_DOCS] }
+    },
+    {
+      key: 'submission_due_date',
+      label: 'Submission Due Date',
+      type: 'date',
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_DOCS] }
+    },
+
+    // ---- Communication only ----
+    {
+      key: 'communication_with',
+      label: 'Communication With',
+      type: 'select',
+      options: GEM_COMMUNICATION_WITH_OPTIONS,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.COMMUNICATION] }
+    },
+    {
+      key: 'contact_organization_name',
+      label: 'Contact / Organization Name',
+      type: 'text',
+      maxLength: 255,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.COMMUNICATION] }
+    },
+    {
+      key: 'communication_date',
+      label: 'Communication Date',
+      type: 'date',
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.COMMUNICATION] }
+    },
+    {
+      key: 'communication_mode',
+      label: 'Communication Mode',
+      type: 'select',
+      options: GEM_COMMUNICATION_MODE_OPTIONS,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.COMMUNICATION] }
+    },
+    {
+      key: 'comm_outcome_next_action',
+      label: 'Outcome / Next Action',
+      type: 'textarea',
+      maxLength: 2000,
+      width: 'lg',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.COMMUNICATION] }
+    },
+    {
+      key: 'follow_up_required',
+      label: 'Follow-up Required',
+      type: 'select',
+      options: GEM_YES_NO,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.COMMUNICATION] }
+    },
+    {
+      // Chained on follow_up_required rather than gem_team_activity
+      // directly: follow_up_required itself only ever has a value under
+      // Communication, so this is "Communication AND Yes" without a
+      // multi-field showWhen the engine doesn't support.
+      key: 'comm_next_follow_up_date',
+      label: 'Next Follow-up Date',
+      type: 'date',
+      width: 'sm',
+      showWhen: { field: 'follow_up_required', equals: ['Yes'] }
+    },
+
+    // ---- In Office / OnSite shared shape (purpose, outcome, next action —
+    // but NOT the date/time range, which differs: In Office is a single day
+    // with a time-of-day range, OnSite is a visit that can itself span more
+    // than one day, so it gets a date range instead of a time-of-day one) ----
+    {
+      key: 'purpose_brief',
+      label: 'Purpose Brief',
+      type: 'textarea',
+      required: true,
+      maxLength: 2000,
+      width: 'xl',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.COMMUNICATION, GEM_ACTIVITY.IN_OFFICE, GEM_ACTIVITY.ONSITE] }
+    },
+
+    // ---- In Office only: single day, time-of-day range ----
+    {
+      key: 'activity_date',
+      label: 'Activity Date',
+      type: 'date',
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.IN_OFFICE] }
+    },
+    {
+      key: 'from_time',
+      label: 'From',
+      type: 'time',
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.IN_OFFICE] }
+    },
+    {
+      key: 'to_time',
+      label: 'To',
+      type: 'time',
+      width: 'sm',
+      afterField: 'from_time',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.IN_OFFICE] }
+    },
+
+    // ---- OnSite only: a visit can span more than one day, so this is a
+    // DATE range, not a time-of-day one ----
+    {
+      key: 'from_date',
+      label: 'From',
+      type: 'date',
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.ONSITE] }
+    },
+    {
+      key: 'to_date',
+      label: 'To',
+      type: 'date',
+      width: 'sm',
+      afterField: 'from_date',
+      // Inclusive (see afterField's own doc comment) — a one-day visit has
+      // From == To, which is the common case, not an edge case.
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.ONSITE] }
+    },
+
+    {
+      key: 'next_action_required',
+      label: 'Next Action Required',
+      type: 'select',
+      options: GEM_YES_NO,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.IN_OFFICE, GEM_ACTIVITY.ONSITE] }
+    },
+    {
+      // Chained on next_action_required — see comm_next_follow_up_date's
+      // comment above for why.
+      key: 'next_action_details',
+      label: 'Next Action Details',
+      type: 'textarea',
+      maxLength: 1000,
+      width: 'lg',
+      showWhen: { field: 'next_action_required', equals: ['Yes'] }
+    },
+
+    // ---- In Office only ----
+    {
+      key: 'activity_participants',
+      label: 'Activity Participants',
+      type: 'select',
+      options: GEM_PARTICIPANTS_OPTIONS,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.IN_OFFICE] }
+    },
+    {
+      key: 'meeting_activity_type',
+      label: 'Meeting / Activity Type',
+      type: 'select',
+      options: GEM_MEETING_TYPE_OPTIONS,
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.IN_OFFICE] }
+    },
+    {
+      key: 'inoffice_outcome_action_items',
+      label: 'Outcome / Action Items',
+      type: 'textarea',
+      maxLength: 2000,
+      width: 'lg',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.IN_OFFICE] }
+    },
+
+    // ---- OnSite only ----
+    {
+      key: 'visit_with',
+      label: 'Visit With',
+      type: 'select',
+      options: ['Client', 'Vendor', 'Internal Team'],
+      width: 'sm',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.ONSITE] }
+    },
+    {
+      key: 'client_vendor_name',
+      label: 'Client / Vendor Name',
+      type: 'text',
+      required: true,
+      maxLength: 255,
+      width: 'md',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.ONSITE] }
+    },
+    {
+      key: 'onsite_outcome_feedback',
+      label: 'Visit Outcome / Demo Feedback',
+      type: 'textarea',
+      maxLength: 2000,
+      width: 'lg',
+      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.ONSITE] }
+    }
+  ]
 };
 
 const AV_TEMPLATE: TemplateDefinition = {
@@ -271,6 +898,8 @@ const RND_TEMPLATE: TemplateDefinition = {
     { key: 'task_description', label: 'Task Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
     { key: 'impact', label: 'Impact on Company', type: 'textarea', required: true, maxLength: 2000, width: 'lg' },
     { key: 'time_spent_hours', label: 'Time Spent (hours)', type: 'number', required: true, width: 'sm' },
+    { key: 'priority', label: 'Priority', type: 'select', required: true, options: PRIORITY_OPTIONS, width: 'sm' },
+    { key: 'status', label: 'Status', type: 'select', required: true, options: RND_STATUS_OPTIONS, width: 'sm' },
     { key: 'blockers', label: 'Blockers', type: 'textarea', maxLength: 2000, width: 'lg' },
     { key: 'project', label: 'Project / Experiment', type: 'text', maxLength: 255, width: 'md' },
     { key: 'notes', label: 'Notes', type: 'textarea', maxLength: 1000, width: 'lg' }
@@ -289,11 +918,23 @@ const AI_TEMPLATE: TemplateDefinition = {
   rowFields: [
     TASK_ID_FIELD,
     { key: 'task_description', label: 'Task Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
-    { key: 'project', label: 'Project / Category', type: 'text', required: true, maxLength: 255, width: 'md' },
+    { key: 'project', label: 'Project / Category', type: 'select', required: true, options: AI_PROJECT_CATEGORY_OPTIONS, width: 'md' },
+    // Appears only for "Other", and is required only then — see showWhen on
+    // DailyReportFieldDef. Without it, choosing Other would record a task
+    // whose category says nothing.
+    {
+      key: 'project_other',
+      label: 'Which project / category?',
+      type: 'text',
+      required: true,
+      maxLength: 255,
+      width: 'md',
+      showWhen: { field: 'project', equals: ['Other'] }
+    },
     { key: 'priority', label: 'Priority', type: 'select', required: true, options: PRIORITY_OPTIONS, width: 'sm' },
     { key: 'status', label: 'Status', type: 'select', required: true, options: AI_STATUS_OPTIONS, width: 'sm' },
     { key: 'due_date', label: 'Due Date', type: 'date', required: true, width: 'sm' },
-    { key: 'days_left', label: 'Days Left', type: 'computed', computed: 'days_left', width: 'sm', help: 'From the reporting date to the due date. Negative means overdue.' },
+    { key: 'days_left', label: 'Days Left', type: 'computed', computed: 'days_left', width: 'sm', help: 'From today to the due date, so it keeps counting down after the report is filed. A completed task shows the date it was completed instead.' },
     { key: 'notes', label: 'Notes', type: 'textarea', maxLength: 1000, width: 'lg' }
   ]
 };
@@ -399,6 +1040,7 @@ const NOT_CONFIGURED_TEMPLATE: TemplateDefinition = {
 export const BUILT_IN_TEMPLATES: Record<DailyReportTemplateKey, TemplateDefinition> = {
   hr: HR_TEMPLATE,
   sales: SALES_TEMPLATE,
+  gem_sales: GEM_SALES_TEMPLATE,
   av: AV_TEMPLATE,
   rnd: RND_TEMPLATE,
   ai: AI_TEMPLATE,
@@ -541,6 +1183,15 @@ function validateField(field: DailyReportFieldDef, raw: Record<string, unknown>,
   // client-supplied value is ignored rather than validated or trusted.
   if (field.type === 'computed') return;
 
+  // A hidden conditional field is neither validated nor required. This is
+  // the server-side half of showWhen, and it has to match the renderer: if
+  // the form hides a field the server still requires, the report simply
+  // cannot be submitted and the message points at a box nobody can see.
+  if (field.showWhen) {
+    const governing = asTrimmedString(raw[field.showWhen.field]);
+    if (!field.showWhen.equals.includes(governing)) return;
+  }
+
   const path = `${pathPrefix}.${field.key}`;
   const value = asTrimmedString(raw[field.key]);
 
@@ -563,8 +1214,37 @@ function validateField(field: DailyReportFieldDef, raw: Record<string, unknown>,
     return;
   }
 
-  if (field.type === 'date' && !isIsoDateLike(value)) {
-    issues.push({ path, message: `${field.label} must be a valid date.` });
+  if (field.type === 'date') {
+    if (!isIsoDateLike(value)) {
+      issues.push({ path, message: `${field.label} must be a valid date.` });
+      return;
+    }
+    if (field.afterField) {
+      const sibling = asTrimmedString(raw[field.afterField]);
+      // Inclusive, unlike 'time' below: a one-day visit has From == To.
+      if (sibling && isIsoDateLike(sibling) && value < sibling) {
+        issues.push({ path, message: `${field.label} cannot be before the start date.` });
+      }
+    }
+    return;
+  }
+
+  if (field.type === 'time') {
+    if (!isClockTimeLike(value)) {
+      issues.push({ path, message: `${field.label} must be a valid time.` });
+      return;
+    }
+    if (field.afterField) {
+      const sibling = asTrimmedString(raw[field.afterField]);
+      if (sibling && isClockTimeLike(sibling) && value <= sibling) {
+        issues.push({ path, message: `${field.label} must be later than the start time.` });
+      }
+    }
+    return;
+  }
+
+  if (field.type === 'text' && field.format === 'url' && !isUrlLike(value)) {
+    issues.push({ path, message: `${field.label} must be a valid web address, starting with http:// or https://.` });
     return;
   }
 
@@ -587,6 +1267,21 @@ function isIsoDateLike(value: string): boolean {
   const [y, m, d] = value.split('-').map(Number);
   const utc = new Date(Date.UTC(y, m - 1, d));
   return utc.getUTCFullYear() === y && utc.getUTCMonth() === m - 1 && utc.getUTCDate() === d;
+}
+
+/** 'HH:MM', 24-hour. Same shape lib/dailyReportTime.ts's isClockTime checks,
+ *  duplicated rather than imported for the same reason as isIsoDateLike above. */
+function isClockTimeLike(value: string): boolean {
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value);
+}
+
+function isUrlLike(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 /** True when an entry has nothing in it — such rows are dropped, not rejected. */
@@ -650,6 +1345,17 @@ export function validateReportPayload(template: TemplateDefinition, input: Daily
       const clean: Record<string, unknown> = {};
       template.rowFields.forEach((field) => {
         if (field.type === 'computed') return;
+        // A field hidden by its own showWhen (or whose dependsOn parent is
+        // unset) is never persisted, even if the raw row still carries a
+        // stale value for it — e.g. a multi-level showWhen chain the client
+        // only clears one level of (see setEntry's own clearing logic),
+        // or simply an old cached payload. The server never trusts the
+        // client to have cleared what it can check for itself.
+        if (field.showWhen) {
+          const governing = asTrimmedString(row[field.showWhen.field]);
+          if (!field.showWhen.equals.includes(governing)) return;
+        }
+        if (field.dependsOn && !asTrimmedString(row[field.dependsOn])) return;
         const value = asTrimmedString(row[field.key]);
         if (value) clean[field.key] = field.type === 'number' ? Number(value) : value;
       });
@@ -735,24 +1441,49 @@ export function computeMatrixTotals(template: TemplateDefinition, matrix: Record
 
 export interface DerivedEntryValues {
   task_code?: string;
+  /** Days from TODAY to the due date. Absent once the task is Completed. */
   days_left?: number;
+  /**
+   * The due date has passed and the task was never marked Completed.
+   * Derived here, in one place, so the form and the server can never
+   * disagree about what counts as late.
+   */
+  overdue?: boolean;
+  /**
+   * The IST date the task was FIRST marked Completed. Absent for an open
+   * task, and also for rows that were completed before this was stamped.
+   */
+  completed_on?: string;
 }
 
 /**
- * The read-only columns: a stable per-entry code and days-left.
+ * The read-only columns: a stable per-entry code, days-left, whether the task
+ * is now overdue, and when it was completed.
  *
- * Computed on the server at every read rather than stored, so that editing a
- * report's rows can't leave a stale "4 days left" behind, and so the days-left
- * an employee sees is the same arithmetic analytics uses to call a task
- * overdue. The code is positional within one report
+ * Computed at every read rather than stored, so editing a report's rows can't
+ * leave a stale "4 days left" behind. The code is positional within one report
  * ("AI-2026-10-14-03") — unique and meaningful in context without needing a
  * global sequence.
+ *
+ * days-left is measured from TODAY, not from the reporting date. Measuring it
+ * from the reporting date made it a number that could never change and an
+ * overdue flag that could never fire: a task filed on the 16th and due on the
+ * 18th read "2 days" for the rest of time, however long it actually stayed
+ * open. The report is still a snapshot of what was reported that day —
+ * report_date and due_date are both stored, so that question stays answerable
+ * — but a column labelled "Days Left" is read as "from now", and answering it
+ * from a frozen anchor is the kind of honest-looking wrong number nobody
+ * thinks to check.
+ *
+ * today is passed in rather than read off the clock, so this stays pure and
+ * the caller owns the timezone (IST, via istDate()).
  */
 export function computeDerivedValues(
   template: TemplateDefinition,
   reportDate: string,
   entry: Record<string, unknown>,
-  index: number
+  index: number,
+  today: string
 ): DerivedEntryValues {
   const derived: DerivedEntryValues = {};
   // Includes headerFields as well as rowFields: a 'narrative'/'matrix'
@@ -766,21 +1497,71 @@ export function computeDerivedValues(
       derived.task_code = `${template.codePrefix ?? template.key.toUpperCase()}-${reportDate}-${String(index + 1).padStart(2, '0')}`;
     }
     if (field.computed === 'days_left') {
+      // A finished task has no countdown; what matters is when it was
+      // finished, so the same cell carries the completion date instead.
+      // That is also what stops a row edited to Completed from being
+      // indistinguishable from one that was already done when it was filed.
+      if (asTrimmedString(entry.status) === 'Completed') {
+        const stamp = asTrimmedString(entry.completed_on).slice(0, 10);
+        if (isIsoDateLike(stamp)) derived.completed_on = stamp;
+        derived.overdue = false;
+        continue;
+      }
       const due = asTrimmedString(entry.due_date);
       if (due && isIsoDateLike(due)) {
-        const a = Date.UTC(Number(reportDate.slice(0, 4)), Number(reportDate.slice(5, 7)) - 1, Number(reportDate.slice(8, 10)));
+        // Falls back to the reporting date if the caller passed no today,
+        // so a missing argument degrades to the old behaviour rather than
+        // to NaN.
+        const from = isIsoDateLike(today) ? today : reportDate;
+        const a = Date.UTC(Number(from.slice(0, 4)), Number(from.slice(5, 7)) - 1, Number(from.slice(8, 10)));
         const b = Date.UTC(Number(due.slice(0, 4)), Number(due.slice(5, 7)) - 1, Number(due.slice(8, 10)));
         derived.days_left = Math.round((b - a) / 86_400_000);
+        derived.overdue = derived.days_left < 0;
       }
     }
   }
   return derived;
 }
 
-/** An entry whose due date has passed relative to its reporting date. */
-export function isEntryOverdue(template: TemplateDefinition, reportDate: string, entry: Record<string, unknown>, index: number): boolean {
-  const { days_left: daysLeft } = computeDerivedValues(template, reportDate, entry, index);
-  if (typeof daysLeft !== 'number') return false;
-  const status = asTrimmedString(entry.status);
-  return daysLeft < 0 && status !== 'Completed';
+/** An entry whose due date has passed and which was never marked Completed. */
+export function isEntryOverdue(
+  template: TemplateDefinition,
+  reportDate: string,
+  entry: Record<string, unknown>,
+  index: number,
+  today: string
+): boolean {
+  return computeDerivedValues(template, reportDate, entry, index, today).overdue === true;
+}
+
+/**
+ * Stamps completed_on the first time a row is marked Completed, and keeps the
+ * original stamp on every save after that.
+ *
+ * Without this, a task filed as In Progress on the 16th and edited to
+ * Completed on the 18th is stored identically to one that was already done
+ * when it was filed — the row just reads "Completed" with nothing to say when
+ * that became true.
+ *
+ * Lives beside computeDerivedValues deliberately: that function is the READ
+ * rule for this value and this is the WRITE rule, and a read rule that drifts
+ * from its write rule is how a field starts lying. The stamp is server-side
+ * only — validateReportPayload drops every key that is not a template field,
+ * so an incoming payload can neither forge one nor wipe one out.
+ *
+ * Re-opening a completed task clears the stamp, so it can never describe a row
+ * that no longer claims to be finished.
+ */
+export function stampCompletion(
+  data: Record<string, unknown>,
+  prior: Record<string, unknown> | undefined,
+  today: string
+): Record<string, unknown> {
+  if (asTrimmedString(data.status) !== 'Completed') {
+    if (!('completed_on' in data)) return data;
+    const { completed_on: _reopened, ...rest } = data;
+    return rest;
+  }
+  const carried = asTrimmedString(prior?.status) === 'Completed' ? asTrimmedString(prior?.completed_on) : '';
+  return { ...data, completed_on: carried || today };
 }

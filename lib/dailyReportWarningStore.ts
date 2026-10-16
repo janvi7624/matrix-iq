@@ -61,7 +61,16 @@ export interface RecordWarningInput {
   employeeId: string;
   departmentId: string | null;
   reportDate: string;
-  source?: 'scheduler' | 'leave_rejected';
+  /**
+   * 'scheduler' (missed entirely) | 'leave_rejected' (reinstated obligation)
+   * | 'zero_total' (filed, but the auto-fetched Sales/GEM-Sales total was
+   * zero for a second consecutive reporting day — see planZeroTotalWarnings
+   * in lib/dailyReportSweepPlan.ts). A zero_total warning can never collide
+   * with the other two on the same date: both of those only ever fire for a
+   * date that was NOT submitted, and zero_total only ever fires for one that
+   * was.
+   */
+  source?: 'scheduler' | 'leave_rejected' | 'zero_total';
 }
 
 /**
@@ -149,12 +158,20 @@ export async function loadActiveCountsByMonth(employeeIds: string[], monthKeys: 
   return map;
 }
 
-export async function loadWarningKeys(employeeIds: string[], from: string, to: string): Promise<Set<string>> {
+/**
+ * `sources`, when given, narrows to warnings recorded for one of those
+ * reasons only. Needed by the zero-total-streak check: a date can carry a
+ * 'scheduler' (missed entirely) warning from BEFORE it was later
+ * auto-submitted — that date's one (employee, date) slot is occupied, but
+ * by an unrelated warning, not a zero_total one, so the zero-total check
+ * must not read it as "already warned about zero activity" and silently
+ * suppress the dedicated check for it.
+ */
+export async function loadWarningKeys(employeeIds: string[], from: string, to: string, sources?: string[]): Promise<Set<string>> {
   if (!employeeIds.length) return new Set();
-  const rows = await db.DailyReportWarning.findAll({
-    where: { employee_id: employeeIds, report_date: { [Op.between]: [from, to] } } as never,
-    attributes: ['employee_id', 'report_date']
-  });
+  const where: Record<string, unknown> = { employee_id: employeeIds, report_date: { [Op.between]: [from, to] } };
+  if (sources?.length) where.source = sources;
+  const rows = await db.DailyReportWarning.findAll({ where: where as never, attributes: ['employee_id', 'report_date'] });
   return new Set(rows.map((r) => `${r.get('employee_id') as string}|${dateOnly(r.get('report_date'))}`));
 }
 

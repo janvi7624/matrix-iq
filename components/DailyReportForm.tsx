@@ -6,15 +6,18 @@ import {
   DailyReportFieldDef,
   DailyReportPayloadInput,
   TemplateDefinition,
+  DerivedEntryValues,
   computeDerivedValues,
   computeMatrixTotals
 } from '@/lib/dailyReportTemplates';
+import { istDate } from '@/lib/dailyReportTime';
 import calcStyles from './calculator.module.css';
 import styles from './dailyReport.module.css';
 import Input from './ui/Input';
 import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import Button from './ui/Button';
+import { useConfirm } from './ui/ConfirmDialog';
 
 // The renderer half of the form engine. One component for all eight
 // department formats, driven by the TemplateDefinition the server sends —
@@ -56,6 +59,16 @@ function asString(value: unknown): string {
 
 /** Options for a plain or dependent select. Empty when the parent is unset. */
 function optionsFor(field: DailyReportFieldDef, row: Record<string, unknown>): string[] {
+  // What a PERSON may choose — narrower than what's a valid stored value
+  // when selectableOptions is set (see its own doc comment). The row's OWN
+  // current value is always included even if selectableOptions excludes
+  // it, so a system-set value (e.g. an auto row's gem_team_activity) still
+  // displays correctly as the chosen option instead of rendering blank —
+  // selectableOptions keeps it from being PICKED, not from being SHOWN.
+  if (field.selectableOptions) {
+    const current = asString(row[field.key]);
+    return current && !field.selectableOptions.includes(current) ? [...field.selectableOptions, current] : field.selectableOptions;
+  }
   if (field.dependsOn && field.linkedOptions) {
     const parent = asString(row[field.dependsOn]);
     return parent ? field.linkedOptions[parent] ?? [] : [];
@@ -70,10 +83,19 @@ interface FieldProps {
   issues: Record<string, string>;
   disabled: boolean;
   onFieldChange: (key: string, value: string) => void;
-  derived?: { task_code?: string; days_left?: number };
+  derived?: DerivedEntryValues;
 }
 
 function FieldControl({ field, row, path, issues, disabled, onFieldChange, derived }: FieldProps) {
+  // Conditional field: not rendered unless the field it depends on holds a
+  // listed value. validateField applies the identical rule, so a hidden
+  // field is never required — if these two ever disagree the report becomes
+  // unsubmittable, complaining about a box that is not on screen.
+  if (field.showWhen && !field.showWhen.equals.includes(asString(row[field.showWhen.field]))) return null;
+  // System bookkeeping (e.g. the quotation id an auto-generated GEM row is
+  // linked to) — persisted, but nothing to show a person.
+  if (field.hidden) return null;
+
   const error = issues[path];
   const id = `${path}.${field.key}`.replace(/[^a-zA-Z0-9_-]/g, '-');
   const value = asString(row[field.key]);
@@ -82,18 +104,27 @@ function FieldControl({ field, row, path, issues, disabled, onFieldChange, deriv
   // disabled input invites the reader to wonder what would happen if it
   // weren't — these are server-computed and never submitted.
   if (field.type === 'computed') {
+    // The Days Left cell has three states, because a countdown is only one
+    // of them: a finished task shows WHEN it was finished, an open one past
+    // its due date reads as overdue, and anything else is a plain countdown.
+    //
+    // overdue comes from derived, which is the server's own rule rather than
+    // a second copy of it here — so what this cell is coloured by can never
+    // disagree with what the report records.
+    const overdue = field.computed === 'days_left' && derived?.overdue === true;
     const text =
       field.computed === 'entry_code'
         ? derived?.task_code ?? '—'
-        : typeof derived?.days_left === 'number'
-          ? `${derived.days_left} day${Math.abs(derived.days_left) === 1 ? '' : 's'}`
-          : '—';
-    const overdue = field.computed === 'days_left' && typeof derived?.days_left === 'number' && derived.days_left < 0;
+        : derived?.completed_on
+          ? `Completed ${derived.completed_on}`
+          : typeof derived?.days_left === 'number'
+            ? `${Math.abs(derived.days_left)} day${Math.abs(derived.days_left) === 1 ? '' : 's'}${overdue ? ' overdue' : ''}`
+            : '—';
     return (
       <div className={`${calcStyles.field} ${WIDTH_CLASS[field.width ?? 'md']}`}>
         <label className={calcStyles.label} htmlFor={id}>{field.label}</label>
         <div className={`${styles.computedValue} ${overdue ? styles.computedOverdue : ''}`} id={id}>
-          {overdue ? `${text} overdue` : text}
+          {text}
         </div>
         {field.help && <div className={calcStyles.small}>{field.help}</div>}
       </div>
@@ -138,7 +169,22 @@ function FieldControl({ field, row, path, issues, disabled, onFieldChange, deriv
         );
       }
       case 'number':
-        return (
+        return field.currency ? (
+          <div className={styles.currencyField}>
+            <span className={styles.currencyPrefix} aria-hidden="true">₹</span>
+            <Input
+              id={id}
+              type="number"
+              min={0}
+              step={field.integer === false ? '0.01' : '1'}
+              value={value}
+              disabled={disabled}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? `${id}-error` : undefined}
+              onChange={(e) => onFieldChange(field.key, e.target.value)}
+            />
+          </div>
+        ) : (
           <Input
             id={id}
             type="number"
@@ -156,6 +202,18 @@ function FieldControl({ field, row, path, issues, disabled, onFieldChange, deriv
           <Input
             id={id}
             type="date"
+            value={value}
+            disabled={disabled}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `${id}-error` : undefined}
+            onChange={(e) => onFieldChange(field.key, e.target.value)}
+          />
+        );
+      case 'time':
+        return (
+          <Input
+            id={id}
+            type="time"
             value={value}
             disabled={disabled}
             aria-invalid={error ? true : undefined}
@@ -194,7 +252,12 @@ function FieldControl({ field, row, path, issues, disabled, onFieldChange, deriv
 }
 
 export default function DailyReportForm({ template, value, onChange, issues = {}, disabled = false, reportDate }: DailyReportFormProps) {
+  const confirm = useConfirm();
   const entries = value.entries ?? [];
+  // Days-left is relative to now, not to the date being reported on, so the
+  // form needs today as well as reportDate: opening a report filed last week
+  // has to show the countdown as it stands now, not as it stood when filed.
+  const today = useMemo(() => istDate(new Date()), []);
   const totals = useMemo(
     () => (template.layout === 'matrix' ? computeMatrixTotals(template, (value.matrix ?? {}) as Record<string, Record<string, number>>) : null),
     [template, value.matrix]
@@ -202,25 +265,58 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
   // Only meaningful for 'narrative'/'matrix' templates (AV, Sales) — their
   // Task ID lives in headerFields rather than on a row, computed at index 0
   // the same way a 'rows' template's first entry would be.
-  const headerDerived = useMemo(() => computeDerivedValues(template, reportDate, value.header ?? {}, 0), [template, reportDate, value.header]);
+  const headerDerived = useMemo(() => computeDerivedValues(template, reportDate, value.header ?? {}, 0, today), [template, reportDate, value.header, today]);
 
   function setHeader(key: string, next: string) {
     onChange({ ...value, header: { ...value.header, [key]: next } });
   }
 
-  function setEntry(index: number, key: string, next: string) {
-    const updated = entries.map((entry, i) => {
-      if (i !== index) return entry;
-      const patched = { ...entry, [key]: next };
-      // Changing a parent clears its dependent, so a stale
-      // "Recruitment + Payroll input" pairing can never be submitted — the
-      // server rejects exactly that combination, so silently keeping it
-      // would produce a validation error the user can't see the cause of.
+  /**
+   * Blanks every field that is now hidden (showWhen no longer matches) or
+   * whose dependsOn parent is now unset, repeating until a pass changes
+   * nothing. Transitive on purpose: a field can itself govern another (e.g.
+   * GEM Sales' follow_up_required gates comm_next_follow_up_date, and
+   * follow_up_required is itself only shown for one activity) — clearing
+   * only the field that directly named the changed key would leave a
+   * now-doubly-hidden field's stale value sitting in the payload, unseen
+   * but still submittable. Always correct regardless of WHY a field is
+   * hidden, not just as a reaction to this one change.
+   */
+  function clearHiddenFields(patched: Record<string, unknown>): Record<string, unknown> {
+    let changed = true;
+    while (changed) {
+      changed = false;
       for (const field of template.rowFields) {
-        if (field.dependsOn === key) patched[field.key] = '';
+        const current = patched[field.key];
+        if (current === undefined || current === '') continue;
+        const dependsOnUnset = field.dependsOn && !asString(patched[field.dependsOn]);
+        const hiddenByShowWhen = field.showWhen && !field.showWhen.equals.includes(asString(patched[field.showWhen.field]));
+        if (dependsOnUnset || hiddenByShowWhen) {
+          patched[field.key] = '';
+          changed = true;
+        }
       }
-      return patched;
-    });
+    }
+    return patched;
+  }
+
+  async function setEntry(index: number, key: string, next: string) {
+    const entry = entries[index] ?? {};
+    const governingField = template.rowFields.find((f) => f.key === key);
+    if (governingField?.confirmOnChange) {
+      const probe = clearHiddenFields({ ...entry, [key]: next });
+      const wouldClear = template.rowFields.some((field) => asString(entry[field.key]) !== '' && asString(probe[field.key]) === '');
+      if (wouldClear) {
+        const ok = await confirm({
+          title: `Change ${governingField.label.toLowerCase()}?`,
+          message: 'Switching this will clear the details you already entered for it.',
+          confirmLabel: 'Switch anyway',
+          danger: true
+        });
+        if (!ok) return;
+      }
+    }
+    const updated = entries.map((entry2, i) => (i === index ? clearHiddenFields({ ...entry2, [key]: next }) : entry2));
     onChange({ ...value, entries: updated });
   }
 
@@ -281,32 +377,42 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
               </tr>
             </thead>
             <tbody>
-              {(template.measures ?? []).map((measure) => (
-                <tr key={measure}>
-                  <th scope="row" className={styles.measureCell}>{measure}</th>
-                  {(template.channels ?? []).map((channel) => {
-                    const cellIssue = issues[`matrix.${measure}.${channel}`];
-                    return (
-                      <td key={channel} className={styles.numCol}>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          inputMode="numeric"
-                          className={`${styles.matrixInput} ${cellIssue ? styles.matrixInputError : ''}`}
-                          value={asString(value.matrix?.[measure]?.[channel])}
-                          disabled={disabled}
-                          placeholder="0"
-                          aria-label={`${measure}, ${channel}`}
-                          aria-invalid={cellIssue ? true : undefined}
-                          onChange={(e) => setMatrixCell(measure, channel, e.target.value)}
-                        />
-                      </td>
-                    );
-                  })}
-                  <td className={styles.totalCell}>{totals.byMeasure[measure] ?? 0}</td>
-                </tr>
-              ))}
+              {(template.measures ?? []).map((measure) => {
+                const isAuto = template.autoMeasures?.includes(measure);
+                return (
+                  <tr key={measure}>
+                    <th scope="row" className={styles.measureCell}>
+                      {measure}
+                      {isAuto && (
+                        <span className={styles.autoMeasureBadge} title="Filled in automatically from your leads/quotations — not editable.">
+                          Auto
+                        </span>
+                      )}
+                    </th>
+                    {(template.channels ?? []).map((channel) => {
+                      const cellIssue = issues[`matrix.${measure}.${channel}`];
+                      return (
+                        <td key={channel} className={styles.numCol}>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            inputMode="numeric"
+                            className={`${styles.matrixInput} ${isAuto ? styles.matrixInputAuto : ''} ${cellIssue ? styles.matrixInputError : ''}`}
+                            value={asString(value.matrix?.[measure]?.[channel])}
+                            disabled={disabled || isAuto}
+                            placeholder="0"
+                            aria-label={`${measure}, ${channel}${isAuto ? ' (automatic)' : ''}`}
+                            aria-invalid={cellIssue ? true : undefined}
+                            onChange={(e) => setMatrixCell(measure, channel, e.target.value)}
+                          />
+                        </td>
+                      );
+                    })}
+                    <td className={styles.totalCell}>{totals.byMeasure[measure] ?? 0}</td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr>
@@ -326,15 +432,26 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
           {issues.entries && <div className={styles.errorText} role="alert">{issues.entries}</div>}
           <div className={styles.entryList}>
             {entries.map((entry, index) => {
-              const derived = computeDerivedValues(template, reportDate, entry, index);
+              const derived = computeDerivedValues(template, reportDate, entry, index, today);
+              // A row the system generated (its autoEntryActivity marker —
+              // a `hidden` field — is set) is re-derived fresh on every
+              // save, so nothing on it is worth hand-editing or reordering:
+              // locked, the rows-layout counterpart to the Sales grid's
+              // "Auto" cells.
+              const isAutoRow = template.rowFields.some((f) => f.hidden && asString(entry[f.key]) !== '');
               return (
                 <div className={styles.entryCard} key={index}>
                   <div className={styles.entryHead}>
                     <span className={styles.entryIndex}>
                       {template.entryNoun ?? 'Entry'} {index + 1}
                       {derived.task_code && <span className={styles.entryCode}>{derived.task_code}</span>}
+                      {isAutoRow && (
+                        <span className={styles.autoMeasureBadge} title="Filled in automatically from your quotation activity — not editable.">
+                          Auto
+                        </span>
+                      )}
                     </span>
-                    {!disabled && (
+                    {!disabled && !isAutoRow && (
                       <div className={styles.entryTools}>
                         <button
                           type="button"
@@ -373,7 +490,7 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                         row={entry}
                         path={`entries.${index}`}
                         issues={issues}
-                        disabled={disabled}
+                        disabled={disabled || isAutoRow}
                         derived={derived}
                         onFieldChange={(key, next) => setEntry(index, key, next)}
                       />

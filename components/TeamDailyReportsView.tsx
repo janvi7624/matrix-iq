@@ -1,9 +1,9 @@
 'use client';
 
 import { ReactNode, useCallback, useEffect, useState } from 'react';
-import { ClipboardCheck, Eye, FilePlus2, Pencil } from 'lucide-react';
+import { ClipboardCheck, Eye, FilePlus2, History, Pencil } from 'lucide-react';
 import { DailyReportPayloadInput, EMPTY_PAYLOAD, TemplateDefinition } from '@/lib/dailyReportTemplates';
-import { DailyReportRecord, TeamDailyReportResponse, TeamDailyReportRow } from '@/lib/dailyReportTypes';
+import { DailyReportRecord, DailyReportRevisionRecord, TeamDailyReportResponse, TeamDailyReportRow } from '@/lib/dailyReportTypes';
 import AppShell from './AppShell';
 import DailyReportForm from './DailyReportForm';
 import calcStyles from './calculator.module.css';
@@ -93,10 +93,21 @@ export default function TeamDailyReportsView({
   const [dialogReport, setDialogReport] = useState<DailyReportRecord | null>(null);
   const [dialogTemplate, setDialogTemplate] = useState<TemplateDefinition | null>(null);
   const [dialogPayload, setDialogPayload] = useState<DailyReportPayloadInput>(EMPTY_PAYLOAD);
+  const [dialogRevisions, setDialogRevisions] = useState<DailyReportRevisionRecord[]>([]);
   const [dialogIssues, setDialogIssues] = useState<Record<string, string>>({});
   const [dialogLoading, setDialogLoading] = useState(false);
   const [dialogSaving, setDialogSaving] = useState(false);
   const [reviewNote, setReviewNote] = useState('');
+
+  // The most recent change made AFTER this report was submitted, if there was
+  // one. listRevisions orders newest first, so the first match is the latest.
+  //
+  // This matters because an edit is deliberately silent — it mails nobody, so
+  // that a typo fix does not become an inbox event — and the dialog otherwise
+  // showed the ORIGINAL submission time beside content that might have been
+  // rewritten days later, with nothing to suggest it had moved. Surfacing it
+  // here is what makes the silence safe rather than merely quiet.
+  const lastEditAfterSubmission = dialogRevisions.find((r) => r.action === 'edited') ?? null;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -131,6 +142,7 @@ export default function TeamDailyReportsView({
       setDialog({ kind, row });
       setDialogLoading(true);
       setDialogIssues({});
+      setDialogRevisions([]);
       setReviewNote('');
       try {
         const response = await fetch(`/api/daily-reports/${row.report_id}`);
@@ -143,6 +155,7 @@ export default function TeamDailyReportsView({
           entries: (body.report.entries ?? []).map((entry: { data: Record<string, unknown> }) => ({ ...entry.data })),
           matrix: body.report.matrix ?? {}
         });
+        setDialogRevisions((body.revisions ?? []) as DailyReportRevisionRecord[]);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Could not open this report.');
         setDialog(null);
@@ -469,6 +482,15 @@ export default function TeamDailyReportsView({
                     <span className={styles.metaLabel}>Submitted at</span>
                     <span className={styles.metaValue}>{formatDateTime(dialogReport.submitted_at)}</span>
                   </div>
+                  {lastEditAfterSubmission && (
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Changed since</span>
+                      <span className={styles.metaValue}>
+                        {formatDateTime(lastEditAfterSubmission.at)}
+                        {lastEditAfterSubmission.actor_name ? ` by ${lastEditAfterSubmission.actor_name}` : ''}
+                      </span>
+                    </div>
+                  )}
                   <div className={styles.metaItem}>
                     <span className={styles.metaLabel}>Deadline was</span>
                     <span className={styles.metaValue}>{formatDateTime(dialogReport.deadline_at)}</span>
@@ -495,6 +517,37 @@ export default function TeamDailyReportsView({
                   disabled={dialog.kind === 'view'}
                   reportDate={dialogReport.report_date}
                 />
+
+                {/* Collapsed: useful when something looks wrong, noise otherwise.
+                    Mirrors the same panel on the employee's own page. */}
+                {dialogRevisions.length > 0 && (
+                  <details className={styles.detailsBlock}>
+                    <summary className={styles.detailsSummary}>
+                      <History size={15} />
+                      Change history
+                      <span className={styles.detailsCount}>({dialogRevisions.length})</span>
+                    </summary>
+                    <div className={styles.detailsBody}>
+                      <div className={historyStyles.tableWrap}>
+                        <table className={historyStyles.table}>
+                          <thead>
+                            <tr><th>When</th><th>Who</th><th>Action</th><th>Note</th></tr>
+                          </thead>
+                          <tbody>
+                            {dialogRevisions.map((revision) => (
+                              <tr key={revision.id}>
+                                <td>{formatDateTime(revision.at)}</td>
+                                <td>{revision.actor_name || '—'}</td>
+                                <td>{revision.action.replace(/_/g, ' ')}</td>
+                                <td>{revision.note || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </details>
+                )}
 
                 {dialog.kind === 'view' && (
                   <>

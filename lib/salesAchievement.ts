@@ -17,11 +17,12 @@ import { findSalesTarget } from './salesTargetStore';
 // containing the quotation's created_at (the only timestamp on a qualifying
 // quotation that means "when this happened").
 //
-// "Attributed to employeeId" means the linked PROJECT's owner (created_by),
-// not the quotation's own created_by — a technical/ops account can prepare
-// a quotation on a sales person's behalf (lib/quotationOnBehalf.ts), and the
-// achievement has to land on the sales person whose pipeline it actually
-// belongs to, same split lib/salesTeamSummary.ts applies for its Billing
+// "Attributed to employeeId" means whoever the quotation NAMES as its
+// salesperson — prepared_by_user_id, falling back to the prepared_by name
+// for a quotation old enough not to have captured the id — never the
+// quotation's own created_by. Maulik or Khushi filing a quote "as Mahendra"
+// (lib/quotationOnBehalf.ts) has to land the achievement on Mahendra, full
+// stop, same simple rule lib/salesTeamSummary.ts applies for its Billing
 // column.
 export type TargetStatus = 'not_started' | 'on_track' | 'at_risk' | 'achieved' | 'exceeded';
 
@@ -53,16 +54,49 @@ function toNumber(v: unknown): number {
   return Number(v) || 0;
 }
 
-// Qualifying rows are matched by the LINKED PROJECT'S owner, not the
-// quotation's own created_by — the same split lib/salesTeamSummary.ts
-// applies (its Billing column reads through here too). created_by is
-// "whoever typed the quotation", which is a technical/ops account whenever
-// one was prepared on a sales person's behalf (lib/quotationOnBehalf.ts);
-// the project's created_by is the actual pipeline owner the achievement
-// should count against, same as a standalone quotation with no project
-// never qualifies.
-async function fetchQualifyingRows(employeeIds: string[], periodStart: string, periodEnd: string) {
-  if (!employeeIds.length) return [];
+// Who a qualifying quotation actually counts for — prepared_by_user_id when
+// captured, else the prepared_by name resolved through `nameToId` (a legacy
+// quotation old enough to predate that id column), else created_by as the
+// last resort (predates prepared_by entirely). Never created_by on its own:
+// that's whoever's session physically submitted the form, which is a
+// technical/ops account whenever a quotation was filed on a sales person's
+// behalf (lib/quotationOnBehalf.ts).
+export function resolveQuotationOwner(plain: Record<string, unknown>, nameToId: Map<string, string>): string | undefined {
+  const preparedByUserId = plain.prepared_by_user_id as string | null;
+  if (preparedByUserId) return preparedByUserId;
+  const preparedByName = (plain.prepared_by as string | null)?.trim();
+  if (preparedByName) {
+    const id = nameToId.get(preparedByName);
+    if (id) return id;
+  }
+  return (plain.created_by as string | null) || undefined;
+}
+
+// name -> id for every active user, cached per call rather than per-module:
+// this runs rarely enough (Target cards, employee table, drilldown — not a
+// hot path) that a plain query beats the staleness risk of a longer-lived
+// cache, and it's one cheap indexed query either way.
+export async function fetchNameToId(): Promise<Map<string, string>> {
+  // Active only: a suspended/exited former employee's name should never
+  // silently absorb attribution (quotation ownership, daily-report
+  // auto-fetch) meant for a current one. Soft-deleted rows are already
+  // excluded by the model's paranoid default.
+  const rows = await db.User.findAll({ where: { status: 'active' } as never, attributes: ['id', 'name'] });
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    const name = row.get('name') as string | null;
+    if (name) map.set(name, row.get('id') as string);
+  }
+  return map;
+}
+
+// Qualifying = approved, linked to a won project — the project join exists
+// only to enforce that (see the header comment), never to attribute; who
+// the row counts for is resolved per-row by resolveQuotationOwner once
+// fetched. Fetched for every qualifying quotation in the period (not
+// filtered to employeeIds at the SQL level) because that attribution can't
+// be expressed as a WHERE clause once it may hinge on a name lookup.
+async function fetchQualifyingRows(periodStart: string, periodEnd: string) {
   return db.Quotation.findAll({
     where: {
       status: 'approved',
@@ -78,19 +112,20 @@ async function fetchQualifyingRows(employeeIds: string[], periodStart: string, p
         // Installation was marked done) — that stage is retired from Project
         // Progress (management decision, 2026-09), so status === 'won' is now
         // the qualifying signal on its own.
-        where: { status: 'won', created_by: { [Op.in]: employeeIds } } as never,
-        attributes: ['created_by']
+        where: { status: 'won' } as never,
+        attributes: []
       }
     ] as never
   });
 }
 
 export async function computeAchievement(employeeId: string, periodStart: string, periodEnd: string): Promise<AchievementResult> {
-  const rows = await fetchQualifyingRows([employeeId], periodStart, periodEnd);
+  const [rows, nameToId] = await Promise.all([fetchQualifyingRows(periodStart, periodEnd), fetchNameToId()]);
   let achievedAmount = 0;
   const qualifyingQuotationIds: string[] = [];
   for (const row of rows) {
     const plain = row.get({ plain: true }) as Record<string, unknown>;
+    if (resolveQuotationOwner(plain, nameToId) !== employeeId) continue;
     achievedAmount += toNumber(plain.total);
     qualifyingQuotationIds.push(plain.id as string);
   }
@@ -108,44 +143,38 @@ export async function computeAchievementForEmployees(
   for (const id of employeeIds) result[id] = { employeeId: id, achievedAmount: 0, qualifyingQuotationIds: [] };
   if (!employeeIds.length) return result;
 
-  const rows = await fetchQualifyingRows(employeeIds, periodStart, periodEnd);
+  const employeeIdSet = new Set(employeeIds);
+  const [rows, nameToId] = await Promise.all([fetchQualifyingRows(periodStart, periodEnd), fetchNameToId()]);
   for (const row of rows) {
     const plain = row.get({ plain: true }) as Record<string, unknown>;
-    // Grouped by the linked project's owner (what the query above already
-    // filtered on), not plain.created_by — see fetchQualifyingRows' comment.
-    const employeeId = (plain.project as { created_by?: string } | null)?.created_by as string;
-    if (!employeeId) continue;
-    if (!result[employeeId]) result[employeeId] = { employeeId, achievedAmount: 0, qualifyingQuotationIds: [] };
+    const employeeId = resolveQuotationOwner(plain, nameToId);
+    if (!employeeId || !employeeIdSet.has(employeeId)) continue;
     result[employeeId].achievedAmount += toNumber(plain.total);
     result[employeeId].qualifyingQuotationIds.push(plain.id as string);
   }
   return result;
 }
 
-// Same project-owner attribution as fetchQualifyingRows above — this
-// drilldown has to list exactly the quotations computeAchievement summed
-// for this employee, or the modal total and the card total disagree.
+// Same attribution rule as fetchQualifyingRows/resolveQuotationOwner above —
+// this drilldown has to list exactly the quotations computeAchievement
+// summed for this employee, or the modal total and the card total disagree.
 export async function listQualifyingQuotations(employeeId: string, periodStart: string, periodEnd: string): Promise<QualifyingQuotation[]> {
-  const rows = await db.Quotation.findAll({
-    where: {
-      status: 'approved',
-      project_id: { [Op.ne]: null },
-      created_at: { [Op.gte]: periodStart, [Op.lt]: periodEndExclusive(periodEnd) }
-    } as never,
-    include: [{ model: db.Project, as: 'project', required: true, where: { status: 'won', created_by: employeeId } as never, attributes: [] }] as never,
-    order: [['created_at', 'DESC']]
-  });
-  return rows.map((row) => {
-    const plain = row.get({ plain: true }) as Record<string, unknown>;
-    return {
+  const [rows, nameToId] = await Promise.all([fetchQualifyingRows(periodStart, periodEnd), fetchNameToId()]);
+  return rows
+    .map((row) => row.get({ plain: true }) as Record<string, unknown>)
+    .filter((plain) => resolveQuotationOwner(plain, nameToId) === employeeId)
+    .sort((a, b) => {
+      const at = (v: unknown) => (v instanceof Date ? v.toISOString() : String(v ?? ''));
+      return at(b.createdAt).localeCompare(at(a.createdAt));
+    })
+    .map((plain) => ({
       id: plain.id as string,
       quotationNumber: (plain.quotation_number as string) ?? '',
       clientName: (plain.client_name as string) || (plain.client_company as string) || '',
       total: toNumber(plain.total),
       createdAt: plain.createdAt instanceof Date ? plain.createdAt.toISOString() : String(plain.createdAt ?? ''),
       projectId: (plain.project_id as string) ?? ''
-    };
-  });
+    }));
 }
 
 // Simple, explainable thresholds — no existing status-band convention to

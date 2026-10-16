@@ -34,6 +34,7 @@ export const DEFAULT_DAILY_REPORT_CONFIG: Omit<DailyReportConfigRecord, 'id' | '
   deadline_time: '11:00',
   evening_reminder_time: '21:00',
   final_reminder_time: '10:00',
+  sales_auto_submit_time: '10:30',
   warning_threshold: 3,
   reconcile_window_days: 7,
   scheduler_enabled: false,
@@ -65,6 +66,7 @@ function toRecord(row: Model): DailyReportConfigRecord {
     deadline_time: isClockTime(plain.deadline_time) ? (plain.deadline_time as string) : DEFAULT_DAILY_REPORT_CONFIG.deadline_time,
     evening_reminder_time: isClockTime(plain.evening_reminder_time) ? (plain.evening_reminder_time as string) : DEFAULT_DAILY_REPORT_CONFIG.evening_reminder_time,
     final_reminder_time: isClockTime(plain.final_reminder_time) ? (plain.final_reminder_time as string) : DEFAULT_DAILY_REPORT_CONFIG.final_reminder_time,
+    sales_auto_submit_time: isClockTime(plain.sales_auto_submit_time) ? (plain.sales_auto_submit_time as string) : DEFAULT_DAILY_REPORT_CONFIG.sales_auto_submit_time,
     warning_threshold: Math.max(1, Number(plain.warning_threshold) || DEFAULT_DAILY_REPORT_CONFIG.warning_threshold),
     reconcile_window_days: Math.max(0, Number(plain.reconcile_window_days) ?? DEFAULT_DAILY_REPORT_CONFIG.reconcile_window_days),
     scheduler_enabled: Boolean(plain.scheduler_enabled),
@@ -120,6 +122,7 @@ export interface DailyReportConfigPatch {
   deadline_time?: string;
   evening_reminder_time?: string;
   final_reminder_time?: string;
+  sales_auto_submit_time?: string;
   warning_threshold?: number;
   reconcile_window_days?: number;
   scheduler_enabled?: boolean;
@@ -166,7 +169,7 @@ export async function updateDailyReportConfig(patch: DailyReportConfigPatch, upd
     });
   }
 
-  for (const key of ['deadline_time', 'evening_reminder_time', 'final_reminder_time'] as const) {
+  for (const key of ['deadline_time', 'evening_reminder_time', 'final_reminder_time', 'sales_auto_submit_time'] as const) {
     if (patch[key] === undefined) continue;
     if (!isClockTime(patch[key])) throw new InvalidDailyReportConfigError(`${key.replace(/_/g, ' ')} must be a 24-hour HH:MM time.`);
     attrs[key] = patch[key];

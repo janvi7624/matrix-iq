@@ -6,6 +6,7 @@ import {
   HR_ACTIVITY_CATALOGUE,
   MARKETING_STATUS_OPTIONS,
   MAX_ENTRIES_PER_REPORT,
+  PRIORITY_OPTIONS,
   ROBOTICS_STATUS_OPTIONS,
   SALES_CHANNELS,
   SALES_MEASURES,
@@ -16,6 +17,7 @@ import {
   isEntryOverdue,
   isTemplateKey,
   resolveTemplate,
+  stampCompletion,
   templateIsConfigured,
   validateReportPayload
 } from '../../lib/dailyReportTemplates';
@@ -28,6 +30,10 @@ import {
 
 function payload(over: Partial<DailyReportPayloadInput> = {}): DailyReportPayloadInput {
   return { header: {}, entries: [], matrix: {}, ...over };
+}
+
+function gemPayload(entries: Record<string, unknown>[]): DailyReportPayloadInput {
+  return payload({ entries });
 }
 
 describe('department to template mapping', () => {
@@ -338,7 +344,7 @@ describe('validation rules', () => {
             task_code: 'FORGED-001',
             days_left: '9999',
             task_description: 'Trained the detector on the new dataset.',
-            project: 'VisitIQ',
+            project: 'Client',
             priority: 'High',
             status: 'In Progress',
             due_date: '2026-10-25'
@@ -368,10 +374,94 @@ describe('validation rules', () => {
 
   it('requires R&D time spent to be a non-negative whole number', () => {
     const rnd = BUILT_IN_TEMPLATES.rnd;
-    const base = { task_description: 'Bench-tested the gripper.', impact: 'Unblocks the pilot.', time_spent_hours: '-3' };
+    const base = { task_description: 'Bench-tested the gripper.', impact: 'Unblocks the pilot.', priority: 'High', status: 'In Progress', time_spent_hours: '-3' };
     expect(validateReportPayload(rnd, payload({ entries: [base] }), true).issues.some((i) => i.path === 'entries.0.time_spent_hours')).toBe(true);
     expect(validateReportPayload(rnd, payload({ entries: [{ ...base, time_spent_hours: '2.5' }] }), true).issues.some((i) => i.path === 'entries.0.time_spent_hours')).toBe(true);
     expect(validateReportPayload(rnd, payload({ entries: [{ ...base, time_spent_hours: '6' }] }), true).ok).toBe(true);
+  });
+});
+
+describe('R&D priority and status', () => {
+  const rnd = BUILT_IN_TEMPLATES.rnd;
+  const base = {
+    task_description: 'Bench-tested the gripper.',
+    impact: 'Unblocks the pilot.',
+    time_spent_hours: '6'
+  };
+
+  it('offers the same priority list as every other sheet', () => {
+    const field = rnd.rowFields.find((f) => f.key === 'priority');
+    expect(field?.type).toBe('select');
+    expect(field?.options).toEqual(PRIORITY_OPTIONS);
+  });
+
+  it('offers the same three statuses as the AI sheet', () => {
+    const field = rnd.rowFields.find((f) => f.key === 'status');
+    expect(field?.type).toBe('select');
+    expect(field?.options).toEqual(['In Progress', 'Completed', 'Pending']);
+  });
+
+  it('requires both on submit', () => {
+    const issues = validateReportPayload(rnd, payload({ entries: [base] }), true).issues.map((i) => i.path);
+    expect(issues).toContain('entries.0.priority');
+    expect(issues).toContain('entries.0.status');
+  });
+
+  it('rejects a status that is not on the list', () => {
+    const row = { ...base, priority: 'High', status: 'Nearly done' };
+    const issues = validateReportPayload(rnd, payload({ entries: [row] }), true).issues.map((i) => i.path);
+    expect(issues).toContain('entries.0.status');
+  });
+
+  it('accepts a complete row', () => {
+    const row = { ...base, priority: 'Medium', status: 'Completed' };
+    expect(validateReportPayload(rnd, payload({ entries: [row] }), true).ok).toBe(true);
+  });
+});
+
+// The conditional free-text box behind Project / Category = Other. The rule
+// that matters is that it is required ONLY then — a field required while
+// hidden would make the whole report unsubmittable, complaining about a box
+// that is not on screen.
+describe('the AI project category', () => {
+  const ai = BUILT_IN_TEMPLATES.ai;
+  const base = {
+    task_description: 'Trained the detector.',
+    priority: 'High',
+    status: 'In Progress',
+    due_date: '2026-10-25'
+  };
+
+  it('is a dropdown of Client, Internal and Other', () => {
+    const field = ai.rowFields.find((f) => f.key === 'project');
+    expect(field?.type).toBe('select');
+    expect(field?.options).toEqual(['Client', 'Internal', 'Other']);
+  });
+
+  it('rejects a category that is not on the list', () => {
+    const issues = validateReportPayload(ai, payload({ entries: [{ ...base, project: 'VisitIQ' }] }), true).issues.map((i) => i.path);
+    expect(issues).toContain('entries.0.project');
+  });
+
+  it.each(['Client', 'Internal'])('needs no explanation for %s', (project) => {
+    expect(validateReportPayload(ai, payload({ entries: [{ ...base, project }] }), true).ok).toBe(true);
+  });
+
+  it('demands an explanation for Other', () => {
+    const issues = validateReportPayload(ai, payload({ entries: [{ ...base, project: 'Other' }] }), true).issues.map((i) => i.path);
+    expect(issues).toContain('entries.0.project_other');
+  });
+
+  it('accepts Other once explained', () => {
+    const row = { ...base, project: 'Other', project_other: 'Internal tooling spike' };
+    expect(validateReportPayload(ai, payload({ entries: [row] }), true).ok).toBe(true);
+  });
+
+  // A stale value left over from switching Other -> Client must not be
+  // validated either, or a since-hidden box could block submission.
+  it('ignores a leftover explanation when the category is not Other', () => {
+    const row = { ...base, project: 'Client', project_other: 'x'.repeat(500) };
+    expect(validateReportPayload(ai, payload({ entries: [row] }), true).ok).toBe(true);
   });
 });
 
@@ -507,22 +597,113 @@ describe('computed columns', () => {
   const ai = BUILT_IN_TEMPLATES.ai;
 
   it('numbers the task code by position within the report', () => {
-    expect(computeDerivedValues(ai, '2026-10-14', {}, 0).task_code).toBe('AI-2026-10-14-01');
-    expect(computeDerivedValues(ai, '2026-10-14', {}, 11).task_code).toBe('AI-2026-10-14-12');
+    expect(computeDerivedValues(ai, '2026-10-14', {}, 0, '2026-10-14').task_code).toBe('AI-2026-10-14-01');
+    expect(computeDerivedValues(ai, '2026-10-14', {}, 11, '2026-10-14').task_code).toBe('AI-2026-10-14-12');
   });
 
-  it('counts days left from the reporting date to the due date', () => {
-    expect(computeDerivedValues(ai, '2026-10-14', { due_date: '2026-10-20' }, 0).days_left).toBe(6);
-    expect(computeDerivedValues(ai, '2026-10-14', { due_date: '2026-10-14' }, 0).days_left).toBe(0);
-    // Negative means overdue.
-    expect(computeDerivedValues(ai, '2026-10-14', { due_date: '2026-10-10' }, 0).days_left).toBe(-4);
-    expect(computeDerivedValues(ai, '2026-10-14', {}, 0).days_left).toBeUndefined();
+  // The code is keyed to the day being REPORTED on, never to today: it has to
+  // read back as the same string every time that report is opened.
+  it('keeps the task code anchored to the reporting date, not to today', () => {
+    expect(computeDerivedValues(ai, '2026-10-14', {}, 0, '2026-11-30').task_code).toBe('AI-2026-10-14-01');
+  });
+
+  it('counts days left from today to the due date', () => {
+    const open = { due_date: '2026-10-20', status: 'In Progress' };
+    expect(computeDerivedValues(ai, '2026-10-14', open, 0, '2026-10-14').days_left).toBe(6);
+    // The SAME stored row, read four days later: the countdown has moved on.
+    expect(computeDerivedValues(ai, '2026-10-14', open, 0, '2026-10-18').days_left).toBe(2);
+    expect(computeDerivedValues(ai, '2026-10-14', open, 0, '2026-10-20').days_left).toBe(0);
+    expect(computeDerivedValues(ai, '2026-10-14', {}, 0, '2026-10-14').days_left).toBeUndefined();
+  });
+
+  // The regression this change exists for. A task filed on the 16th and due
+  // on the 18th used to read "2 days" for the rest of time, because days-left
+  // was measured from the reporting date — so the one row that most needed to
+  // raise its hand was the one that never could.
+  it('goes overdue once the due date passes, on a row nobody touched again', () => {
+    const row = { due_date: '2026-10-18', status: 'In Progress' };
+    const onTheDay = computeDerivedValues(ai, '2026-10-16', row, 0, '2026-10-16');
+    expect(onTheDay.days_left).toBe(2);
+    expect(onTheDay.overdue).toBe(false);
+
+    const twoDaysLater = computeDerivedValues(ai, '2026-10-16', row, 0, '2026-10-20');
+    expect(twoDaysLater.days_left).toBe(-2);
+    expect(twoDaysLater.overdue).toBe(true);
+  });
+
+  it('degrades to the reporting date when no today is supplied', () => {
+    // A caller that forgets the argument gets the old behaviour, not NaN.
+    expect(computeDerivedValues(ai, '2026-10-14', { due_date: '2026-10-20' }, 0, '').days_left).toBe(6);
   });
 
   it('flags an overdue task unless it is already completed', () => {
-    expect(isEntryOverdue(ai, '2026-10-14', { due_date: '2026-10-10', status: 'In Progress' }, 0)).toBe(true);
-    expect(isEntryOverdue(ai, '2026-10-14', { due_date: '2026-10-10', status: 'Completed' }, 0)).toBe(false);
-    expect(isEntryOverdue(ai, '2026-10-14', { due_date: '2026-10-20', status: 'In Progress' }, 0)).toBe(false);
+    expect(isEntryOverdue(ai, '2026-10-16', { due_date: '2026-10-18', status: 'In Progress' }, 0, '2026-10-20')).toBe(true);
+    expect(isEntryOverdue(ai, '2026-10-16', { due_date: '2026-10-18', status: 'Completed' }, 0, '2026-10-20')).toBe(false);
+    expect(isEntryOverdue(ai, '2026-10-16', { due_date: '2026-10-18', status: 'In Progress' }, 0, '2026-10-17')).toBe(false);
+  });
+
+  describe('a completed task', () => {
+    it('reports when it was finished instead of a countdown', () => {
+      const done = { due_date: '2026-10-18', status: 'Completed', completed_on: '2026-10-17' };
+      const d = computeDerivedValues(ai, '2026-10-16', done, 0, '2026-10-30');
+      expect(d.completed_on).toBe('2026-10-17');
+      expect(d.days_left).toBeUndefined();
+      expect(d.overdue).toBe(false);
+    });
+
+    it('is never overdue, even when it was finished late', () => {
+      const late = { due_date: '2026-10-18', status: 'Completed', completed_on: '2026-10-25' };
+      expect(computeDerivedValues(ai, '2026-10-16', late, 0, '2026-10-30').overdue).toBe(false);
+    });
+
+    // Rows completed before the stamp existed have nothing to show, and must
+    // not invent a date — an absent stamp is honest, a guessed one is not.
+    it('shows no completion date for a row stamped before this existed', () => {
+      const d = computeDerivedValues(ai, '2026-10-16', { due_date: '2026-10-18', status: 'Completed' }, 0, '2026-10-30');
+      expect(d.completed_on).toBeUndefined();
+      expect(d.overdue).toBe(false);
+    });
+  });
+
+  describe('stampCompletion', () => {
+    it('stamps today the first time a row is marked Completed', () => {
+      expect(stampCompletion({ status: 'Completed' }, undefined, '2026-10-18').completed_on).toBe('2026-10-18');
+    });
+
+    // The point of the field: it records when the task was FIRST finished, so
+    // a later save must not quietly turn it into "last edited".
+    it('keeps the original stamp on every later save', () => {
+      const prior = { status: 'Completed', completed_on: '2026-10-18' };
+      expect(stampCompletion({ status: 'Completed' }, prior, '2026-10-25').completed_on).toBe('2026-10-18');
+    });
+
+    it('stamps the transition out of an open row', () => {
+      const prior = { status: 'In Progress' };
+      expect(stampCompletion({ status: 'Completed' }, prior, '2026-10-18').completed_on).toBe('2026-10-18');
+    });
+
+    it('clears the stamp when a completed task is re-opened', () => {
+      const prior = { status: 'Completed', completed_on: '2026-10-18' };
+      const out = stampCompletion({ status: 'In Progress' }, prior, '2026-10-25');
+      expect('completed_on' in out).toBe(false);
+    });
+
+    it('strips a leftover stamp the payload carried back', () => {
+      const out = stampCompletion({ status: 'In Progress', completed_on: '2026-10-18' }, undefined, '2026-10-25');
+      expect('completed_on' in out).toBe(false);
+    });
+
+    it('leaves an open row otherwise untouched', () => {
+      const row = { status: 'In Progress', task_description: 'Bench-tested the gripper.' };
+      expect(stampCompletion(row, undefined, '2026-10-18')).toEqual(row);
+    });
+
+    // Validation drops any key that is not a template field before this runs,
+    // so a forged stamp can never reach storage — but don't rely on that alone.
+    it('overrides a stamp the payload tried to supply', () => {
+      const out = stampCompletion({ status: 'Completed', completed_on: '2020-01-01' }, undefined, '2026-10-18');
+      expect(out.completed_on).toBe('2026-10-18');
+    });
   });
 });
 
@@ -551,5 +732,220 @@ describe('per-department overrides', () => {
 
   it('returns the built-in template untouched when there are no overrides', () => {
     expect(resolveTemplate('hr', null)).toBe(BUILT_IN_TEMPLATES.hr);
+  });
+});
+
+describe('In Office — time-of-day range (From/To are times, same day)', () => {
+  const gem = BUILT_IN_TEMPLATES.gem_sales;
+
+  function inOfficeEntry(over: Record<string, unknown> = {}) {
+    return {
+      gem_team_activity: 'In Office: Meeting / Training / Presentation / Activities',
+      purpose_brief: 'Weekly sync.',
+      activity_date: '2026-10-14',
+      from_time: '10:00',
+      to_time: '11:30',
+      ...over
+    };
+  }
+
+  it('accepts a well-formed time and a To strictly later than From', () => {
+    expect(validateReportPayload(gem, gemPayload([inOfficeEntry()]), true).ok).toBe(true);
+  });
+
+  it('rejects a malformed time', () => {
+    const result = validateReportPayload(gem, gemPayload([inOfficeEntry({ from_time: '25:61' })]), true);
+    expect(result.issues.some((i) => i.path === 'entries.0.from_time')).toBe(true);
+  });
+
+  it('rejects a To time that is not strictly later than From — same minute is NOT enough', () => {
+    const result = validateReportPayload(gem, gemPayload([inOfficeEntry({ to_time: '10:00' })]), true);
+    expect(result.issues.some((i) => i.path === 'entries.0.to_time')).toBe(true);
+    expect(validateReportPayload(gem, gemPayload([inOfficeEntry({ to_time: '09:00' })]), true).ok).toBe(false);
+  });
+
+  it('is silent about To when From is blank (nothing to compare against)', () => {
+    const result = validateReportPayload(gem, gemPayload([inOfficeEntry({ from_time: '' })]), true);
+    expect(result.issues.some((i) => i.path === 'entries.0.to_time')).toBe(false);
+  });
+});
+
+describe('OnSite — date range (From/To are dates, a visit can span more than one day)', () => {
+  const gem = BUILT_IN_TEMPLATES.gem_sales;
+
+  function onsiteEntry(over: Record<string, unknown> = {}) {
+    return {
+      gem_team_activity: 'OnSite: Visit / Meeting / Demo',
+      visit_with: 'Client',
+      client_vendor_name: 'Acme Corp',
+      location: 'Pune',
+      purpose_brief: 'Demo of the new AV rig.',
+      from_date: '2026-10-14',
+      to_date: '2026-10-14',
+      ...over
+    };
+  }
+
+  it('renders From/To as date fields, not time', () => {
+    expect(gem.rowFields.find((f) => f.key === 'from_date')?.type).toBe('date');
+    expect(gem.rowFields.find((f) => f.key === 'to_date')?.type).toBe('date');
+  });
+
+  it('accepts a one-day visit — From and To the SAME day is the common case, not an error', () => {
+    expect(validateReportPayload(gem, gemPayload([onsiteEntry()]), true).ok).toBe(true);
+  });
+
+  it('accepts a multi-day visit', () => {
+    expect(validateReportPayload(gem, gemPayload([onsiteEntry({ to_date: '2026-10-16' })]), true).ok).toBe(true);
+  });
+
+  it('rejects a To date before the From date', () => {
+    const result = validateReportPayload(gem, gemPayload([onsiteEntry({ to_date: '2026-10-13' })]), true);
+    expect(result.issues.some((i) => i.path === 'entries.0.to_date')).toBe(true);
+  });
+
+  it('no longer has a separate Activity Date for OnSite — From/To cover it', () => {
+    const activityDateField = gem.rowFields.find((f) => f.key === 'activity_date');
+    expect(activityDateField?.showWhen?.equals).not.toContain('OnSite: Visit / Meeting / Demo');
+  });
+});
+
+describe('url-formatted text fields', () => {
+  const gem = BUILT_IN_TEMPLATES.gem_sales;
+
+  function empanelmentEntry(over: Record<string, unknown> = {}) {
+    return {
+      gem_team_activity: 'Empanelment',
+      client_organization: 'GeM Portal',
+      location: 'Delhi',
+      activity_brief: 'Began empanelment paperwork.',
+      ...over
+    };
+  }
+
+  it('accepts a well-formed https URL and leaves a blank one alone', () => {
+    expect(validateReportPayload(gem, gemPayload([empanelmentEntry({ empanelment_portal_link: 'https://gem.gov.in/x' })]), true).ok).toBe(true);
+    expect(validateReportPayload(gem, gemPayload([empanelmentEntry()]), true).ok).toBe(true);
+  });
+
+  it('rejects something that is not a real http(s) URL', () => {
+    const result = validateReportPayload(gem, gemPayload([empanelmentEntry({ empanelment_portal_link: 'not a link' })]), true);
+    expect(result.issues.some((i) => i.path === 'entries.0.empanelment_portal_link')).toBe(true);
+  });
+});
+
+describe('GEM Sales — activity-conditional fields', () => {
+  const gem = BUILT_IN_TEMPLATES.gem_sales;
+
+  it('is a rows layout with no header fields, and Add Activity already free from the generic engine', () => {
+    expect(gem.layout).toBe('rows');
+    expect(gem.entryNoun).toBe('Activity');
+    expect(gem.headerFields).toEqual([]);
+  });
+
+  it("marks Proposal Creation as auto-generated, with a hidden quotation-link field", () => {
+    expect(gem.autoEntryActivity).toBe('Proposal Creation');
+    const linkField = gem.rowFields.find((f) => f.key === 'proposal_quotation_id');
+    expect(linkField?.hidden).toBe(true);
+  });
+
+  it('Proposal Creation is a valid stored activity value but not a pickable one', () => {
+    const activityField = gem.rowFields.find((f) => f.key === 'gem_team_activity');
+    expect(activityField?.options).toContain('Proposal Creation');
+    expect(activityField?.selectableOptions).not.toContain('Proposal Creation');
+    // Still validates fine as a stored value — an auto row carries it.
+    const base = { gem_team_activity: 'Proposal Creation', client: 'X', location: 'Y', sales_person: 'Z', activity_brief: 'W' };
+    expect(validateReportPayload(gem, gemPayload([base]), true).ok).toBe(true);
+  });
+
+  it('lists all nine activities, verbatim', () => {
+    const activityField = gem.rowFields.find((f) => f.key === 'gem_team_activity');
+    expect(activityField?.options).toEqual([
+      'Tender Explore',
+      'Proposal Creation',
+      'Vendor Followup',
+      'Bid Submission',
+      'Empanelment',
+      'Tender Documents Preparation',
+      'Communication',
+      'In Office: Meeting / Training / Presentation / Activities',
+      'OnSite: Visit / Meeting / Demo'
+    ]);
+  });
+
+  it('only persists the fields for the chosen activity, never a stale value left over from a different one', () => {
+    // A row carrying both Tender Explore's and Proposal Creation's fields —
+    // as if the client never cleared the previous activity's answers —
+    // with gem_team_activity set to Tender Explore.
+    const entry = {
+      gem_team_activity: 'Tender Explore',
+      client: 'Acme Corp',
+      location: 'Mumbai',
+      due_date: '2026-10-20',
+      qualification_status: 'Qualified',
+      activity_brief: 'Explored a new tender listing.',
+      // Stale Proposal Creation-only field — must never be the one that
+      // explains why this doesn't validate, and must never be persisted.
+      sales_person: 'Someone Else'
+    };
+    const result = validateReportPayload(gem, gemPayload([entry]), true);
+    expect(result.ok).toBe(true);
+    expect(result.normalized.entries[0]).not.toHaveProperty('sales_person');
+    expect(result.normalized.entries[0].due_date).toBe('2026-10-20');
+  });
+
+  it('current_status offers a different option set per activity under the same field', () => {
+    const statusField = gem.rowFields.find((f) => f.key === 'current_status');
+    expect(statusField?.linkedOptions?.['Tender Explore']).toContain('Disqualified');
+    expect(statusField?.linkedOptions?.['Empanelment']).toContain('Documents Pending');
+    expect(statusField?.linkedOptions?.['Tender Explore']).not.toEqual(statusField?.linkedOptions?.['Empanelment']);
+
+    const base = { gem_team_activity: 'Tender Explore', client: 'X', location: 'Y', activity_brief: 'Z' };
+    expect(validateReportPayload(gem, gemPayload([{ ...base, current_status: 'Disqualified' }]), true).ok).toBe(true);
+    // A real status, just not one Tender Explore offers.
+    expect(validateReportPayload(gem, gemPayload([{ ...base, current_status: 'Documents Pending' }]), true).ok).toBe(false);
+  });
+
+  it("Communication's follow-up date is required only when Follow-up Required is Yes — a 2-level showWhen chain", () => {
+    const base = {
+      gem_team_activity: 'Communication',
+      location: 'Chennai',
+      communication_with: 'Client',
+      communication_mode: 'Call',
+      purpose_brief: 'Discussed delivery timelines.'
+    };
+    // No follow-up requested: fine without a date.
+    expect(validateReportPayload(gem, gemPayload([{ ...base, follow_up_required: 'No' }]), true).ok).toBe(true);
+    // Follow-up requested, with a date: fine, and the date is persisted.
+    const withDate = validateReportPayload(
+      gem,
+      gemPayload([{ ...base, follow_up_required: 'Yes', comm_next_follow_up_date: '2026-10-20' }]),
+      true
+    );
+    expect(withDate.ok).toBe(true);
+    expect(withDate.normalized.entries[0].comm_next_follow_up_date).toBe('2026-10-20');
+  });
+
+  it('a stale next_action_details value is dropped once next_action_required is switched back to No', () => {
+    const entry = {
+      gem_team_activity: 'In Office: Meeting / Training / Presentation / Activities',
+      purpose_brief: 'Weekly sync.',
+      next_action_required: 'No',
+      // Stale — as if the employee had typed this while it was 'Yes' and
+      // then changed their mind, without the client managing to clear it.
+      next_action_details: 'Follow up with finance.'
+    };
+    const result = validateReportPayload(gem, gemPayload([entry]), true);
+    expect(result.ok).toBe(true);
+    expect(result.normalized.entries[0]).not.toHaveProperty('next_action_details');
+  });
+
+  it('Project Value is a plain non-negative number field under the hood, currency is presentation-only', () => {
+    const field = gem.rowFields.find((f) => f.key === 'project_value');
+    expect(field?.type).toBe('number');
+    expect(field?.currency).toBe(true);
+    const base = { gem_team_activity: 'Proposal Creation', client: 'X', location: 'Y', sales_person: 'Y', activity_brief: 'Z' };
+    expect(validateReportPayload(gem, gemPayload([{ ...base, project_value: '-5' }]), true).ok).toBe(false);
+    expect(validateReportPayload(gem, gemPayload([{ ...base, project_value: '125000.50' }]), true).ok).toBe(true);
   });
 });

@@ -20,6 +20,10 @@ module.exports = (sequelize, DataTypes) => {
     deadline_time: { type: DataTypes.STRING, allowNull: false, defaultValue: '11:00' },
     evening_reminder_time: { type: DataTypes.STRING, allowNull: false, defaultValue: '21:00' },
     final_reminder_time: { type: DataTypes.STRING, allowNull: false, defaultValue: '10:00' },
+    // 'HH:MM' IST, next working day — when the system auto-submits an
+    // unsubmitted Sales/GEM-Sales report (any auto-measures template) using
+    // whatever was auto-fetched. See lib/salesDailyAutoFetch.ts.
+    sales_auto_submit_time: { type: DataTypes.STRING, allowNull: false, defaultValue: '10:30' },
     warning_threshold: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 3 },
     reconcile_window_days: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 7 },
     scheduler_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },

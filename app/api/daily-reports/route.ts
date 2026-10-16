@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Your account has no department assigned, so a report cannot be filed.' }, { status: 409 });
     }
 
-    const { report, justSubmitted } = await saveReport({
+    const { report, justSubmitted, wasEdited } = await saveReport({
       employeeId: employee.id,
       departmentId: employee.departmentId,
       reportDate,
@@ -75,6 +75,21 @@ export async function POST(request: NextRequest) {
         previousStatus: 'DRAFT',
         newStatus: report.submission_status,
         remarks: report.is_late ? 'Submitted after the deadline' : '',
+        ip: getClientIp(request)
+      });
+    } else if (wasEdited) {
+      // A change to an already-submitted report. No manager mail (see
+      // SaveReportResult.wasEdited) — this row is the record, and it is what
+      // makes "this was altered after it was filed" answerable at all.
+      await logAudit({
+        by: viewer.username,
+        role: viewer.role,
+        entityType: 'daily_report',
+        entityId: report.id,
+        action: `Daily report edited after submission for ${reportDate}`,
+        previousStatus: report.submission_status,
+        newStatus: report.submission_status,
+        remarks: `${report.entries.length} ${report.entries.length === 1 ? 'entry' : 'entries'} after the edit`,
         ip: getClientIp(request)
       });
     }

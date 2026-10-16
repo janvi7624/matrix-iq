@@ -387,6 +387,19 @@
   color: var(--mx-ink);
 }
 
+.autoMeasureBadge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--mx-radius-pill, 999px);
+  background: var(--mx-info-soft, var(--mx-surface-sunken));
+  color: var(--mx-info, var(--mx-ink-muted));
+  font-size: 10px;
+  font-weight: var(--mx-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
 .matrixInput {
   width: 100%;
   min-width: 64px;
@@ -409,6 +422,31 @@
 
 .matrixInputError {
   border-color: var(--mx-danger);
+}
+
+.matrixInputAuto {
+  background: var(--mx-surface-sunken);
+  color: var(--mx-ink-muted);
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.currencyField {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currencyPrefix {
+  position: absolute;
+  left: 10px;
+  color: var(--mx-ink-muted);
+  font-size: var(--mx-text-input);
+  pointer-events: none;
+}
+
+.currencyField input {
+  padding-left: 24px;
 }
 
 .totalCell {

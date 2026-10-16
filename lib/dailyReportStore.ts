@@ -9,16 +9,21 @@ import {
   DailyReportSubmissionStatus
 } from './dailyReportTypes';
 import {
+  BUILT_IN_TEMPLATES,
   DailyReportPayloadInput,
+  DailyReportTemplateKey,
   EMPTY_PAYLOAD,
   TemplateDefinition,
   computeDerivedValues,
   isEntryOverdue,
+  stampCompletion,
   validateReportPayload
 } from './dailyReportTemplates';
-import { DeadlinePolicy, isIsoDate, isLateSubmission, scheduleFor } from './dailyReportTime';
+import { DeadlinePolicy, isIsoDate, isLateSubmission, istDate, scheduleFor } from './dailyReportTime';
 import { resolveTemplateForDepartment, resolveTemplateForStoredReport } from './dailyReportTemplateStore';
 import { getDeadlinePolicy } from './dailyReportConfigStore';
+import { computeSalesAutoMatrix, mergeAutoMatrix } from './salesDailyAutoFetch';
+import { computeGemProposalEntries, mergeAutoGemEntries } from './gemProposalAutoFetch';
 
 // Reports, their entries, and their revision history.
 //
@@ -86,15 +91,19 @@ function personName(value: unknown): string {
 /**
  * A stored row plus the template it must be read with, as the API record.
  *
- * The derived columns (Task ID, Days Left) are computed here on every read
- * rather than stored: days-left relative to a fixed reporting date is a pure
- * function of the due date, and persisting it would leave a stale "4 days
- * left" behind the moment a row is edited — while recomputing guarantees the
- * number the employee sees is the same one analytics calls overdue.
+ * The derived columns (Task ID, Days Left, overdue) are computed here on every
+ * read rather than stored. Days-left is measured from today, so recomputing is
+ * what makes it true at all — a stored value would be wrong by one the next
+ * morning — and it guarantees the number the employee sees is the same one
+ * that decides whether the row reads as overdue.
  */
 function toRecord(row: Model, template: TemplateDefinition): DailyReportRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
   const reportDate = dateOnly(plain.report_date);
+  // Days-left and overdue are relative to now rather than to the reporting
+  // date, so the clock is read here — at the edge — and the arithmetic itself
+  // stays a pure function of it.
+  const today = istDate(new Date());
   const rawEntries = (Array.isArray(plain.entries) ? plain.entries : []) as { id: string; position: number; data: Record<string, unknown> }[];
   const sorted = [...rawEntries].sort((a, b) => a.position - b.position);
 
@@ -102,8 +111,8 @@ function toRecord(row: Model, template: TemplateDefinition): DailyReportRecord {
     id: entry.id,
     position: entry.position,
     data: entry.data ?? {},
-    derived: computeDerivedValues(template, reportDate, entry.data ?? {}, index),
-    overdue: isEntryOverdue(template, reportDate, entry.data ?? {}, index)
+    derived: computeDerivedValues(template, reportDate, entry.data ?? {}, index, today),
+    overdue: isEntryOverdue(template, reportDate, entry.data ?? {}, index, today)
   }));
 
   return {
@@ -118,7 +127,7 @@ function toRecord(row: Model, template: TemplateDefinition): DailyReportRecord {
     submission_status: plain.submission_status as DailyReportSubmissionStatus,
     review_status: plain.review_status as DailyReportReviewStatus,
     payload: (plain.payload as Record<string, unknown>) ?? {},
-    header_derived: computeDerivedValues(template, reportDate, (plain.payload as Record<string, unknown>) ?? {}, 0),
+    header_derived: computeDerivedValues(template, reportDate, (plain.payload as Record<string, unknown>) ?? {}, 0, today),
     matrix: (plain.matrix as Record<string, Record<string, number>>) ?? {},
     entries,
     submitted_at: isoOrEmpty(plain.submitted_at),
@@ -173,9 +182,19 @@ export interface SaveReportInput {
   /** Omitted on a bare submit of already-saved content. */
   payload?: DailyReportPayloadInput;
   mode: SaveMode;
-  actorId: string;
+  /** Null only for the scheduler's own auto-submit — see `auto` below. */
+  actorId: string | null;
   /** True when a manager is filing for someone else — recorded, not implied. */
   onBehalf: boolean;
+  /**
+   * True only for the scheduler's Sales/GEM-Sales auto-submit
+   * (lib/dailyReportStore.ts's autoSubmitReport, called from
+   * lib/dailyReportScheduler.ts). Nobody "acted" — actorId is null and
+   * onBehalf is false — but a human must still never get a silent pass on
+   * the all-zero-grid rule, so this flag is what lets a genuinely empty day
+   * explain itself automatically instead of bypassing the rule.
+   */
+  auto?: boolean;
 }
 
 export interface SaveReportResult {
@@ -187,6 +206,17 @@ export interface SaveReportResult {
    * or a retried request from mailing a manager twice.
    */
   justSubmitted: boolean;
+  /**
+   * True when this save CHANGED a report that was already submitted.
+   *
+   * Managers are deliberately NOT mailed for an edit — most edits are typo
+   * fixes, and mailing every save would train a manager to ignore the mail
+   * that matters. It is audited instead, because a retroactive change to a
+   * submitted report is exactly the kind of thing someone later needs to be
+   * able to ask about, and before this the only trace was a revision row no
+   * screen displayed.
+   */
+  wasEdited: boolean;
 }
 
 function isDuplicateKeyError(error: unknown): boolean {
@@ -205,10 +235,35 @@ async function replaceEntries(reportId: string, entries: Record<string, unknown>
   // be more code for an identical result — and a hard-deleted previous
   // generation is fine because the content of every revision is preserved in
   // daily_report_revisions.
+  //
+  // The one value that must SURVIVE the replacement is completed_on, which
+  // records when a task was first marked Completed: re-stamping it on every
+  // save would make it mean "last saved" instead, which is not a fact anyone
+  // needs. It is read back off the outgoing generation and matched by
+  // position — the same identity the Task ID already uses, and the only one
+  // this table has. Reordering rows therefore moves a completion stamp with
+  // the position rather than with the task; that is the known cost of
+  // positional identity, and removing it means giving an entry a real id
+  // that outlives a save.
+  const outgoing = await db.DailyReportEntry.findAll({
+    where: { report_id: reportId } as never,
+    transaction: t
+  });
+  const priorByPosition = new Map<number, Record<string, unknown>>();
+  for (const row of outgoing) {
+    const plain = row.get({ plain: true }) as { position: number; data: Record<string, unknown> | null };
+    priorByPosition.set(plain.position, plain.data ?? {});
+  }
+
   await db.DailyReportEntry.destroy({ where: { report_id: reportId } as never, force: true, transaction: t });
   if (!entries.length) return;
+  const today = istDate(new Date());
   await db.DailyReportEntry.bulkCreate(
-    entries.map((data, position) => ({ report_id: reportId, position, data })) as never,
+    entries.map((data, position) => ({
+      report_id: reportId,
+      position,
+      data: stampCompletion(data, priorByPosition.get(position), today)
+    })) as never,
     { transaction: t }
   );
 }
@@ -275,6 +330,46 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
     payload = EMPTY_PAYLOAD;
   }
 
+  // Sales/GEM-Sales' 4 auto measures are never trusted from the client —
+  // recomputed and overlaid here regardless of what payload.matrix carried,
+  // on every save AND every submit, so there is no window where a client
+  // could post a fabricated number for one of them. The other 4 measures
+  // (whatever's manual for this template, usually everything) pass through
+  // untouched. See lib/salesDailyAutoFetch.ts.
+  if (resolved.template.layout === 'matrix' && resolved.template.autoMeasures?.length) {
+    const auto = await computeSalesAutoMatrix(input.employeeId, input.reportDate, resolved.template.autoMeasures, resolved.template.channels ?? []);
+    payload = { ...payload, matrix: mergeAutoMatrix(payload.matrix as Record<string, Record<string, number>>, auto) };
+  }
+
+  // GEM Sales' Proposal Creation rows — same reasoning as the Sales matrix
+  // overlay above, just for a rows-layout template: never trusted from the
+  // client, recomputed from the day's own Quotation activity and merged in
+  // on every save and submit. See lib/gemProposalAutoFetch.ts.
+  if (resolved.template.layout === 'rows' && resolved.template.autoEntryActivity) {
+    const employeeRow = await db.User.findByPk(input.employeeId, { attributes: ['name', 'username'] });
+    const employeeName = (employeeRow?.get('name') as string) || (employeeRow?.get('username') as string) || '';
+    const autoEntries = await computeGemProposalEntries(input.employeeId, employeeName, input.reportDate);
+    payload = { ...payload, entries: mergeAutoGemEntries(payload.entries ?? [], autoEntries) };
+  }
+
+  // The system's own auto-submit is the one caller allowed to hit a
+  // genuinely all-zero grid — that is exactly the day the 2-zero-day warning
+  // (lib/dailyReportSweepPlan.ts's planZeroTotalWarnings) needs to see land
+  // as SUBMITTED, not rejected. Rather than weakening the all-zero rule
+  // below for everyone, an auto-submit with nothing in it explains itself
+  // the same way a human is asked to: by filling in the one escape hatch the
+  // rule already has. A human-entered note, or any non-zero cell, is left
+  // exactly as given.
+  if (input.auto && input.mode === 'submit') {
+    const header = (payload.header ?? {}) as Record<string, unknown>;
+    const hasNote = typeof header.notes === 'string' && header.notes.trim().length > 0;
+    const matrixValues = Object.values(payload.matrix ?? {}).flatMap((row) => Object.values(row ?? {}));
+    const allZero = matrixValues.every((value) => !Number(value));
+    if (allZero && !hasNote) {
+      payload = { ...payload, header: { ...header, notes: 'Auto-submitted by the system — no activity recorded for the day.' } };
+    }
+  }
+
   // strict only on submit: a draft is explicitly a private scratchpad and
   // must be saveable half-finished.
   const validation = validateReportPayload(resolved.template, payload, input.mode === 'submit');
@@ -291,6 +386,7 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
   const submittedStatus: DailyReportSubmissionStatus = late ? 'SUBMITTED_LATE' : 'SUBMITTED';
 
   let justSubmitted = false;
+  let wasEdited = false;
 
   const reportId = await db.sequelize.transaction(async (t) => {
     const snapshot = { payload: validation.normalized.header, matrix: validation.normalized.matrix, entries: validation.normalized.entries };
@@ -329,7 +425,7 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
       await recordRevision(
         id,
         input.actorId,
-        input.onBehalf ? 'filed_for_employee' : input.mode === 'submit' ? 'submitted' : 'created',
+        input.auto ? 'auto_submitted' : input.onBehalf ? 'filed_for_employee' : input.mode === 'submit' ? 'submitted' : 'created',
         attrs.submission_status as string,
         snapshot,
         '',
@@ -340,6 +436,17 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
 
     const id = existing.get('id') as string;
     const wasSubmitted = SUBMITTED_STATUSES.includes(existing.get('submission_status') as DailyReportSubmissionStatus);
+
+    // The system's own auto-submit racing a real human submission: the
+    // employee (or their manager) got there first, between the scheduler's
+    // planning read and this write. A true no-op — touching the row here
+    // would null out updated_by (actorId is null for auto-submit) and log a
+    // spurious 'edited' revision for content nobody actually edited.
+    // processAutoSubmit's caller distinguishes this from a fresh auto-submit
+    // via justSubmitted, which recomputing matrix/overlay doesn't change.
+    if (input.auto && wasSubmitted) {
+      return id;
+    }
 
     const attrs: Record<string, unknown> = {
       payload: validation.normalized.header,
@@ -362,6 +469,7 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
       // is_late and deadline_at are deliberately absent from attrs, so the
       // original verdict stands no matter how many times this is called.
       attrs.submission_status = existing.get('submission_status');
+      wasEdited = true;
     }
 
     // Editing a report a manager had flagged clears the flag: the employee
@@ -376,7 +484,7 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
     await recordRevision(
       id,
       input.actorId,
-      justSubmitted ? (input.onBehalf ? 'filed_for_employee' : 'submitted') : wasSubmitted ? 'edited' : 'draft_saved',
+      justSubmitted ? (input.auto ? 'auto_submitted' : input.onBehalf ? 'filed_for_employee' : 'submitted') : wasSubmitted ? 'edited' : 'draft_saved',
       (attrs.submission_status as string) ?? (existing.get('submission_status') as string),
       snapshot,
       '',
@@ -385,7 +493,7 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
     return id;
   });
 
-  return { report: await hydrate(reportId), justSubmitted };
+  return { report: await hydrate(reportId), justSubmitted, wasEdited };
 }
 
 /** Submit a report that already exists, by id. */
@@ -400,6 +508,20 @@ export async function submitReportById(id: string, actorId: string, onBehalf = f
     actorId,
     onBehalf
   });
+}
+
+/**
+ * The scheduler's Sales/GEM-Sales auto-submit — called from
+ * lib/dailyReportScheduler.ts once planAutoSubmits says one is due.
+ *
+ * Unlike submitReportById, there may be no existing row at all: an employee
+ * who never opened the Daily Report page that day has no draft to submit
+ * from, and saveReport's own create branch already does the right thing —
+ * EMPTY_PAYLOAD plus the auto-measures overlay is exactly "they entered
+ * nothing manually, here is what really happened that day."
+ */
+export async function autoSubmitReport(employeeId: string, departmentId: string, reportDate: string): Promise<SaveReportResult> {
+  return saveReport({ employeeId, departmentId, reportDate, mode: 'submit', actorId: null, onBehalf: false, auto: true });
 }
 
 export async function reviewReport(
@@ -501,6 +623,43 @@ export async function loadSubmittedKeys(employeeIds: string[], from: string, to:
     attributes: ['employee_id', 'report_date']
   });
   return new Set(rows.map((r) => lookupKey(r.get('employee_id') as string, dateOnly(r.get('report_date')))));
+}
+
+/**
+ * subjectKey -> the sum of a SUBMITTED report's auto-fetched measure cells
+ * only (lib/salesDailyAutoFetch.ts's 4 Sales/GEM-Sales measures) — never the
+ * other, manually-typed measures on the same report. This is what
+ * lib/dailyReportSweepPlan.ts's planZeroTotalWarnings tracks: whether the
+ * auto fetch itself found anything, not whether the employee typed anything.
+ *
+ * Reads the already-stored `matrix` rather than recomputing from
+ * Lead/Quotation — saveReport overlays fresh auto values on every save and
+ * submit (see computeSalesAutoMatrix), so a submitted report's stored value
+ * for an auto measure key already IS the auto-fetched one.
+ *
+ * A row whose template has no autoMeasures contributes nothing — harmless,
+ * since the caller is expected to have already narrowed `employeeIds` to
+ * auto-measures employees, but correct either way.
+ */
+export async function loadAutoTotalsByKey(employeeIds: string[], from: string, to: string): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!employeeIds.length) return map;
+  const rows = await db.DailyReport.findAll({
+    where: { employee_id: employeeIds, report_date: { [Op.between]: [from, to] }, submission_status: SUBMITTED_STATUSES } as never,
+    attributes: ['employee_id', 'report_date', 'template_key', 'matrix']
+  });
+  for (const row of rows) {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    const autoMeasures = BUILT_IN_TEMPLATES[plain.template_key as DailyReportTemplateKey]?.autoMeasures;
+    if (!autoMeasures?.length) continue;
+    const matrix = (plain.matrix as Record<string, Record<string, unknown>>) ?? {};
+    let total = 0;
+    for (const measure of autoMeasures) {
+      for (const value of Object.values(matrix[measure] ?? {})) total += Number(value) || 0;
+    }
+    map.set(lookupKey(plain.employee_id as string, dateOnly(plain.report_date)), total);
+  }
+  return map;
 }
 
 export async function listRevisions(reportId: string): Promise<DailyReportRevisionRecord[]> {

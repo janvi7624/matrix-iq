@@ -1,27 +1,40 @@
 import { getDailyReportConfig, getDeadlinePolicy } from './dailyReportConfigStore';
-import { EligibleEmployee, expandSubjects, listEligibleEmployees } from './dailyReportEligibility';
-import { loadSubmittedKeys } from './dailyReportStore';
+import { EligibleEmployee, employeeOwesDate, expandSubjects, listEligibleEmployees } from './dailyReportEligibility';
+import { autoSubmitReport, loadAutoTotalsByKey, loadSubmittedKeys } from './dailyReportStore';
 import { loadLeaveCoveredKeys } from './dailyReportLeaveClaimStore';
 import {
   claimEscalation,
   loadActiveCountsByMonth,
   loadEscalatedKeys,
+  loadWarningKeys,
   markEscalationNotified,
   recordWarning
 } from './dailyReportWarningStore';
 import {
+  PlannedAutoSubmit,
   PlannedEvent,
+  PlannedZeroTotalWarning,
   escalationKey,
   eventKey,
+  planAutoSubmits,
   planEscalations,
   planSweep,
+  planZeroTotalWarnings,
   subjectKey,
   sweepWindow
 } from './dailyReportSweepPlan';
-import { claimNotificationEvent, deliver, loadSentEventKeys, NotifyTarget, recordEventOutcome } from './dailyReportNotify';
+import { claimNotificationEvent, clearFailedClaim, deliver, loadSentEventKeys, NotifyTarget, recordEventOutcome } from './dailyReportNotify';
 import { resolveHrRecipients } from './dailyReportAccess';
-import { formatIst, monthKey, scheduleFor } from './dailyReportTime';
+import { addDays, formatIst, istDate, monthKey, previousWorkingDay, scheduleFor } from './dailyReportTime';
+import { BUILT_IN_TEMPLATES } from './dailyReportTemplates';
 import { db } from './db';
+
+/**
+ * How far back auto-submit catches up, independent of reconcile_window_days
+ * (which still governs reminders/warnings). See its use in
+ * runDailyReportSweep for why this is deliberately short.
+ */
+const AUTO_SUBMIT_LOOKBACK_DAYS = 2;
 
 // The sweep: the one server-side job behind every reminder, warning and HR
 // escalation.
@@ -170,10 +183,75 @@ export async function runDailyReportSweep(options: SweepOptions = {}): Promise<S
     const subjects = expandSubjects(employees, reportDates);
     stats.subjects = subjects.length;
 
+    // Sales/GEM-Sales today — anyone on a template with auto-fetched
+    // measures (lib/dailyReportTemplates.ts's autoMeasures). Named off the
+    // template shape, not a department name, so a future department given
+    // the same template is covered with no change here.
+    const salesEmployees = employees.filter((e) => BUILT_IN_TEMPLATES[e.templateKey]?.autoMeasures?.length);
+
+    // Used only to plan the auto-submit pass below — reloaded fresh,
+    // together with `submitted`, immediately before planSweep further down.
+    // Reusing this same snapshot for planSweep was a real bug: the
+    // auto-submit pass between the two can run long during backlog catch-up,
+    // and a leave claim filed or approved in that window must still count.
+    const leaveCoveredEarly = await loadLeaveCoveredKeys(employeeIds, from, to);
+
+    // Auto-submit runs BEFORE the reminder/warning plan is built below, and
+    // against its own freshly-loaded `submitted` set, so that a report this
+    // very pass just auto-filed already reads as submitted by the time the
+    // warning step decides who missed the deadline — the same
+    // "recheck immediately before acting" rule the warning step already
+    // follows for a late-arriving human submission or leave claim. Without
+    // this ordering, a cron interval wide enough to span both the 10:30
+    // auto-submit time and the (later) global deadline in one sweep would
+    // warn someone the same pass that just auto-submitted for them.
+    if (salesEmployees.length) {
+      const salesIdSet = new Set(salesEmployees.map((e) => e.id));
+      // Capped to a short, separate lookback rather than the full
+      // reconcile_window_days: auto-submit's own premise is "by tomorrow
+      // morning", not "resurrect a week of backlog" — and this schema has
+      // no department-assignment HISTORY anywhere (a transfer just
+      // overwrites users.departmentId), so a catch-up for an OLD date
+      // always files it under whoever's CURRENT department, which is wrong
+      // for a date that predates a transfer. A short lookback keeps that
+      // pre-existing, schema-level gap to "the scheduler was briefly down"
+      // rather than "any transfer in the last week". The ordinary
+      // missed-report warning (unaffected by this cap) still covers every
+      // date in the full window regardless.
+      const autoSubmitFloor = addDays(istDate(now), -AUTO_SUBMIT_LOOKBACK_DAYS);
+      const salesSubjects = subjects.filter((s) => salesIdSet.has(s.employeeId) && s.reportDate >= autoSubmitFloor);
+      const salesSubmitted = await loadSubmittedKeys([...salesIdSet], from, to);
+      const plannedAutoSubmits = planAutoSubmits(salesSubjects, { submitted: salesSubmitted, leaveCovered: leaveCoveredEarly }, now, config.sales_auto_submit_time, policy);
+
+      for (const event of plannedAutoSubmits) {
+        bump(stats.planned, 'AUTO_SUBMIT');
+        if (event.late) stats.catchUp += 1;
+      }
+      for (const event of plannedAutoSubmits) {
+        const employee = employeeById.get(event.employeeId);
+        if (!employee) continue;
+        try {
+          const handled = await processAutoSubmit(event, employee, dryRun);
+          if (handled) bump(stats.sent, 'AUTO_SUBMIT');
+          else stats.skipped += 1;
+        } catch (error) {
+          stats.failures.push({
+            employeeId: event.employeeId,
+            reportDate: event.reportDate,
+            kind: 'AUTO_SUBMIT',
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+    }
+
     // All three state sets are loaded in one pass each, immediately before
     // planning — this is the "recheck submission and leave status before
     // recording a warning" requirement, and it is also why planning is a
-    // pure function over sets rather than a loop of queries.
+    // pure function over sets rather than a loop of queries. `submitted` AND
+    // `leaveCovered` are both read fresh here (not reused from above) so the
+    // plan reflects any auto-submit this pass just performed, and any leave
+    // claim filed or approved while that pass was running.
     const [submitted, leaveCovered, sent] = await Promise.all([
       loadSubmittedKeys(employeeIds, from, to),
       loadLeaveCoveredKeys(employeeIds, from, to),
@@ -203,6 +281,53 @@ export async function runDailyReportSweep(options: SweepOptions = {}): Promise<S
           kind: event.kind,
           error: error instanceof Error ? error.message : String(error)
         });
+      }
+    }
+
+    // The 2-zero-day streak check runs BEFORE processEscalations, not after
+    // — processEscalations's own doc comment is explicit that it must run
+    // "after every warning for the run has landed" so a threshold-crossing
+    // warning recorded earlier in the SAME run escalates immediately rather
+    // than waiting a full sweep cycle. It also reads whatever just landed as
+    // submitted from the auto-submit pass above — a day the system just
+    // auto-filed with a genuinely empty grid is exactly the kind of day this
+    // is watching for, not an exception to it.
+    if (salesEmployees.length) {
+      const salesIds = salesEmployees.map((e) => e.id);
+      // One extra working day prepended so the EARLIEST date in the window
+      // still has a predecessor to compare against — otherwise a streak that
+      // started before the window could never be detected the day the
+      // window first includes it.
+      const extendedFrom = previousWorkingDay(from, policy);
+      const [autoTotalByKey, alreadyWarned] = await Promise.all([
+        loadAutoTotalsByKey(salesIds, extendedFrom, to),
+        // Scoped to zero_total only: a date can already carry a 'scheduler'
+        // (missed entirely) warning from before it was later auto-submitted
+        // — that date's one (employee, date) slot is occupied by an
+        // unrelated warning, and must not be read as "already warned about
+        // zero activity", which would silently suppress the dedicated
+        // zero-total warning and email for it.
+        loadWarningKeys(salesIds, extendedFrom, to, ['zero_total'])
+      ]);
+      const extendedDates = [extendedFrom, ...reportDates];
+      const datesByEmployee = new Map(salesEmployees.map((e) => [e.id, extendedDates.filter((d) => employeeOwesDate(e, d))]));
+      const plannedZero = planZeroTotalWarnings(datesByEmployee, autoTotalByKey, alreadyWarned);
+
+      for (const zero of plannedZero) {
+        const employee = employeeById.get(zero.employeeId);
+        if (!employee) continue;
+        try {
+          const handled = await processZeroTotalWarning(zero, employee, dryRun, stats);
+          if (handled) bump(stats.sent, 'ZERO_TOTAL_WARNING');
+          else stats.skipped += 1;
+        } catch (error) {
+          stats.failures.push({
+            employeeId: zero.employeeId,
+            reportDate: zero.reportDate,
+            kind: 'ZERO_TOTAL_WARNING',
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
       }
     }
 
@@ -312,6 +437,141 @@ async function processWarning(
     { inApp: result.inApp, email: result.email, warningId: warning?.id ?? null, failures: result.emailFailures },
     result.emailFailures.length ? `Email not delivered to: ${result.emailFailures.join(', ')}` : undefined
   );
+  return true;
+}
+
+/**
+ * Files a Sales/GEM-Sales report on an employee's behalf once the
+ * configured auto-submit time has passed with nothing submitted — the
+ * employee's own tracked activity (lib/salesDailyAutoFetch.ts) stands in for
+ * whatever they did not type themselves.
+ */
+async function processAutoSubmit(event: PlannedAutoSubmit, employee: EligibleEmployee, dryRun: boolean): Promise<boolean> {
+  // See clearFailedClaim's own comment: this is the one and only path that
+  // actually auto-files the report, so a dead 'failed' claim from an
+  // earlier interrupted attempt must not permanently block every future
+  // retry the way it is acceptable to for a plain notification.
+  await clearFailedClaim(event.employeeId, event.reportDate, 'AUTO_SUBMIT');
+  const claim = await claimNotificationEvent(event.employeeId, event.reportDate, 'AUTO_SUBMIT', event.dueAt, dryRun);
+  if (!claim) return false;
+
+  if (dryRun) {
+    await recordEventOutcome(claim.id, 'dry_run', { autoSubmit: 'would submit' });
+    console.info(`[daily-report][dry-run] would auto-submit ${employee.username}'s ${event.reportDate} report`);
+    return true;
+  }
+
+  try {
+    const result = await autoSubmitReport(event.employeeId, employee.departmentId, event.reportDate);
+
+    // A race with the employee's own submit lands here as an ordinary edit,
+    // not a fresh submission (see saveReport's wasSubmitted branch) —
+    // justSubmitted is false, and telling them "this was auto-submitted"
+    // would be simply wrong, so nothing is sent and the ledger row records
+    // why.
+    if (!result.justSubmitted) {
+      await recordEventOutcome(claim.id, 'skipped', { reason: 'employee submitted before the auto-submit ran' });
+      return true;
+    }
+
+    const delivery = await deliver({
+      kind: 'auto_submitted',
+      recipients: [targetFor(employee)],
+      title: `Daily report auto-submitted — ${event.reportDate}`,
+      body: `Your ${event.reportDate} daily report was not submitted, so it has been filed automatically from your tracked activity.`,
+      entityType: 'daily_report',
+      entityId: result.report.id,
+      type: 'daily_report_auto_submitted',
+      reportDate: event.reportDate,
+      deadlineLabel: formatIst(event.dueAt),
+      actionPath: `/daily-reports?date=${event.reportDate}`,
+      departmentName: employee.departmentName,
+      dryRun
+    });
+
+    await recordEventOutcome(
+      claim.id,
+      delivery.inApp || delivery.email ? 'sent' : 'failed',
+      { inApp: delivery.inApp, email: delivery.email, reportId: result.report.id, failures: delivery.emailFailures },
+      delivery.emailFailures.length ? `Email not delivered to: ${delivery.emailFailures.join(', ')}` : undefined
+    );
+  } catch (error) {
+    await recordEventOutcome(claim.id, 'failed', {}, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
+  return true;
+}
+
+/**
+ * Records (and notifies on) the second or later consecutive reporting day a
+ * Sales/GEM-Sales employee's auto-fetched total came to zero.
+ *
+ * Deliberately the SAME warning ledger and HR escalation pipeline as a
+ * missed report, just a different `source` tag: both are "something about
+ * this person's reporting needs a human look", and splitting them into two
+ * separately-counted systems would need HR to watch two places instead of
+ * one. A date warned here was, by construction, actually submitted, so it
+ * can never collide with a missed-report warning on the same date.
+ */
+async function processZeroTotalWarning(planned: PlannedZeroTotalWarning, employee: EligibleEmployee, dryRun: boolean, stats: SweepStats): Promise<boolean> {
+  // See clearFailedClaim's own comment: this is the one and only path that
+  // actually records the streak warning, so a dead 'failed' claim must not
+  // permanently block every future retry.
+  await clearFailedClaim(planned.employeeId, planned.reportDate, 'ZERO_TOTAL_WARNING');
+  const claim = await claimNotificationEvent(planned.employeeId, planned.reportDate, 'ZERO_TOTAL_WARNING', null, dryRun);
+  if (!claim) return false;
+
+  if (dryRun) {
+    await recordEventOutcome(claim.id, 'dry_run', { zeroTotalWarning: 'would record' });
+    console.info(`[daily-report][dry-run] would record a zero-activity warning for ${employee.username} on ${planned.reportDate}`);
+    return true;
+  }
+
+  try {
+    const warning = await recordWarning({
+      employeeId: planned.employeeId,
+      departmentId: employee.departmentId,
+      reportDate: planned.reportDate,
+      source: 'zero_total'
+    });
+    if (warning) stats.warningsRecorded += 1;
+
+    const counts = await loadActiveCountsByMonth([planned.employeeId], [monthKey(planned.reportDate)]);
+    const activeCount = counts.get(escalationKey(planned.employeeId, monthKey(planned.reportDate))) ?? 0;
+
+    const result = await deliver({
+      kind: 'zero_total_warning',
+      recipients: [targetFor(employee)],
+      title: `No sales activity recorded — ${planned.reportDate}`,
+      body: `Your auto-tracked sales activity has been zero for two reporting days in a row, through ${planned.reportDate}. You have ${activeCount} active warning${activeCount === 1 ? '' : 's'} this month.`,
+      // Same reasoning as processWarning's own fallback: a null `warning`
+      // means the row already existed, so the notification still resolves
+      // somewhere sensible via the claimed ledger row instead.
+      ...(warning ? { entityType: 'daily_report_warning' as const, entityId: warning.id } : { entityType: 'daily_report_reminder' as const, entityId: claim.id }),
+      type: 'daily_report_zero_total_warning',
+      reportDate: planned.reportDate,
+      deadlineLabel: '',
+      actionPath: `/daily-reports?date=${planned.reportDate}`,
+      departmentName: employee.departmentName,
+      extra: { activeWarnings: activeCount },
+      dryRun
+    });
+
+    await recordEventOutcome(
+      claim.id,
+      result.inApp || result.email ? 'sent' : 'failed',
+      { inApp: result.inApp, email: result.email, warningId: warning?.id ?? null, failures: result.emailFailures },
+      result.emailFailures.length ? `Email not delivered to: ${result.emailFailures.join(', ')}` : undefined
+    );
+  } catch (error) {
+    // Unlike processWarning (same gap, pre-existing, out of scope here),
+    // this path is caught: recordWarning may already have committed a real,
+    // escalation-counted row before a later step throws, and without this
+    // the claimed ledger slot would be stuck at its optimistic 'sent'
+    // status forever with no notification ever having gone out.
+    await recordEventOutcome(claim.id, 'failed', {}, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
   return true;
 }
 
@@ -426,26 +686,59 @@ export async function previewDailyReportSweep(now = new Date()): Promise<{
   dueNow: PlannedEvent[];
   eligibleEmployees: number;
   byKind: Record<string, number>;
+  autoSubmitDue: number;
+  zeroTotalWarningsDue: number;
 }> {
   const config = await getDailyReportConfig();
   const policy = await getDeadlinePolicy();
   const reportDates = sweepWindow(now, config.reconcile_window_days, policy);
   const employees = await listEligibleEmployees();
   if (!reportDates.length || !employees.length) {
-    return { reportDates, dueNow: [], eligibleEmployees: employees.length, byKind: {} };
+    return { reportDates, dueNow: [], eligibleEmployees: employees.length, byKind: {}, autoSubmitDue: 0, zeroTotalWarningsDue: 0 };
   }
   const employeeIds = employees.map((e) => e.id);
   const from = reportDates[0];
   const to = reportDates[reportDates.length - 1];
+  const subjects = expandSubjects(employees, reportDates);
   const [submitted, leaveCovered, sent] = await Promise.all([
     loadSubmittedKeys(employeeIds, from, to),
     loadLeaveCoveredKeys(employeeIds, from, to),
     loadSentEventKeys(employeeIds, from, to)
   ]);
-  const dueNow = planSweep(expandSubjects(employees, reportDates), { submitted, leaveCovered, sent }, now, policy);
+  const dueNow = planSweep(subjects, { submitted, leaveCovered, sent }, now, policy);
   const byKind: Record<string, number> = {};
   for (const event of dueNow) bump(byKind, event.kind);
-  return { reportDates, dueNow, eligibleEmployees: employees.length, byKind };
+
+  // Read-only mirror of the live auto-submit / zero-total passes inside
+  // runDailyReportSweep, so the admin's rehearsal reflects everything the
+  // sweep actually does, not just the three original reminder/warning kinds.
+  let autoSubmitDue = 0;
+  let zeroTotalWarningsDue = 0;
+  const salesEmployees = employees.filter((e) => BUILT_IN_TEMPLATES[e.templateKey]?.autoMeasures?.length);
+  if (salesEmployees.length) {
+    const salesIdSet = new Set(salesEmployees.map((e) => e.id));
+    const salesIds = [...salesIdSet];
+    // Same short lookback as the live sweep — see runDailyReportSweep's own
+    // comment — so this preview doesn't overstate what auto-submit will
+    // actually do.
+    const autoSubmitFloor = addDays(istDate(now), -AUTO_SUBMIT_LOOKBACK_DAYS);
+    const salesSubjects = subjects.filter((s) => salesIdSet.has(s.employeeId) && s.reportDate >= autoSubmitFloor);
+
+    autoSubmitDue = planAutoSubmits(salesSubjects, { submitted, leaveCovered }, now, config.sales_auto_submit_time, policy).length;
+    if (autoSubmitDue) byKind.AUTO_SUBMIT = autoSubmitDue;
+
+    const extendedFrom = previousWorkingDay(from, policy);
+    const [autoTotalByKey, alreadyWarned] = await Promise.all([
+      loadAutoTotalsByKey(salesIds, extendedFrom, to),
+      loadWarningKeys(salesIds, extendedFrom, to, ['zero_total'])
+    ]);
+    const extendedDates = [extendedFrom, ...reportDates];
+    const datesByEmployee = new Map(salesEmployees.map((e) => [e.id, extendedDates.filter((d) => employeeOwesDate(e, d))]));
+    zeroTotalWarningsDue = planZeroTotalWarnings(datesByEmployee, autoTotalByKey, alreadyWarned).length;
+    if (zeroTotalWarningsDue) byKind.ZERO_TOTAL_WARNING = zeroTotalWarningsDue;
+  }
+
+  return { reportDates, dueNow, eligibleEmployees: employees.length, byKind, autoSubmitDue, zeroTotalWarningsDue };
 }
 
 /** Re-exported for the route's own logging. */

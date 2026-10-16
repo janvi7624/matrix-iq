@@ -14,30 +14,20 @@ import Button from './ui/Button';
 import StatTile from './ui/StatTile';
 import { useToast } from './ui/ToastProvider';
 import { formatMoneyWhole } from '@/lib/format';
+import {
+  DATA_START_YEAR,
+  Granularity,
+  PeriodScope,
+  firstMonthOf,
+  monthIsSelectable,
+  quarterIsSelectable,
+  resolveRange
+} from '@/lib/hrReportPeriod';
 
 type SourceKey = 'reimbursement' | 'admin_expense' | 'office_operation';
-type Granularity = 'month' | 'quarter' | 'year';
 type GroupBy = 'employee' | 'department' | 'source';
-// 'all' = every bucket in the selected year; otherwise one specific month
-// (1-12) or quarter (1-4). What this picker offers follows the granularity,
-// which is the whole point: a monthly report asks you for a month, a
-// quarterly one for a quarter, and a yearly one for nothing but the year.
-type PeriodScope = 'all' | number;
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-// None of the three registers holds anything before July 2026, so the
-// pickers don't offer earlier periods and a whole-year range starts at July
-// rather than opening with six guaranteed-empty columns. Raise these when
-// the first real entry moves; they are the only place the floor is stated.
-const DATA_START_YEAR = 2026;
-const DATA_START_MONTH = 7;
-
-// The first month that exists for a given year — July for the first year,
-// January for every year after it.
-function firstMonthOf(year: number): number {
-  return year === DATA_START_YEAR ? DATA_START_MONTH : 1;
-}
 
 const GRANULARITY_WORD: Record<Granularity, string> = { month: 'monthly', quarter: 'quarterly', year: 'yearly' };
 const GROUP_HEADING: Record<GroupBy, string> = { employee: 'By Employee', department: 'By Department', source: 'By Expense Type' };
@@ -78,61 +68,6 @@ interface Report {
 interface FilterOptions {
   employees: { id: string; name: string; employeeId: string; department: string }[];
   departments: string[];
-}
-
-function iso(year: number, month: number, day: number): string {
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-// Day 0 of the following month is the last day of this one — no
-// days-per-month or leap-year table needed.
-function lastDayOf(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
-}
-
-// The last month worth reporting on for a given year: the month in progress
-// for the current year, December for any year already finished. Capping here
-// is what keeps months that haven't happened out of the table — and what
-// makes a new one appear on its own the day it begins, with no code change.
-function lastMonthOf(year: number, now: { year: number; month: number }): number {
-  return year === now.year ? now.month : 12;
-}
-
-function monthIsSelectable(month: number, year: number, now: { year: number; month: number }): boolean {
-  return month >= firstMonthOf(year) && month <= lastMonthOf(year, now);
-}
-
-function quarterIsSelectable(quarter: number, year: number, now: { year: number; month: number }): boolean {
-  return quarter * 3 >= firstMonthOf(year) && (quarter - 1) * 3 + 1 <= lastMonthOf(year, now);
-}
-
-// The picker's (year, granularity, scope) turned into the from/to range the
-// API already speaks, so the server keeps one date-range contract and the
-// UI decides what a "period" means. Both ends are clamped: no earlier than
-// the first month with data, no later than the month in progress.
-function resolveRange(
-  year: number,
-  granularity: Granularity,
-  scope: PeriodScope,
-  now: { year: number; month: number }
-): { from: string; to: string } {
-  const firstMonth = firstMonthOf(year);
-  const lastMonth = lastMonthOf(year, now);
-
-  if (granularity === 'month' && scope !== 'all') {
-    return { from: iso(year, scope, 1), to: iso(year, scope, lastDayOf(year, scope)) };
-  }
-  if (granularity === 'quarter' && scope !== 'all') {
-    const startMonth = (scope - 1) * 3 + 1;
-    // The quarter in progress ends at the current month, not at a future
-    // quarter-end date.
-    const endMonth = Math.min(startMonth + 2, lastMonth);
-    return { from: iso(year, startMonth, 1), to: iso(year, endMonth, lastDayOf(year, endMonth)) };
-  }
-  // Yearly, or "all months"/"all quarters" — everything that has happened
-  // this year, which the report then splits into however many buckets the
-  // granularity asks for (months, quarters, or the one year).
-  return { from: iso(year, firstMonth, 1), to: iso(year, lastMonth, lastDayOf(year, lastMonth)) };
 }
 
 // One labelled control. A filter whose purpose is only legible from its
@@ -277,8 +212,8 @@ export default function HrReportsView() {
   );
 
   // Switching year can invalidate the selected month/quarter (the first year
-  // starts in July, the current one ends at this month), so an out-of-range
-  // scope falls back to "all".
+  // starts at the data floor, the current one ends at this month), so an
+  // out-of-range scope falls back to "all".
   function changeYear(next: number) {
     setYear(next);
     if (scope === 'all') return;
@@ -311,9 +246,9 @@ export default function HrReportsView() {
     }
   }
 
-  // Derived from the RESOLVED range, not from the picker: "All Months" of
-  // the current year really means July to this month, and the label has to
-  // say so rather than implying a full year of data.
+  // Derived from the RESOLVED range, not from the picker: "All Months" of a
+  // part-finished year really means its first month with data to the month in
+  // progress, and the label has to say so rather than implying a full year.
   const periodLabel = useMemo(() => {
     if (granularity === 'quarter' && scope !== 'all') return `Q${scope} ${year}`;
     const fromMonth = Number(from.slice(5, 7));

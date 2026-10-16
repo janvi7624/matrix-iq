@@ -71,7 +71,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const mode = (body as { mode?: unknown })?.mode === 'submit' ? 'submit' : isDraft ? 'draft' : 'submit';
 
-    const { report } = await saveReport({
+    const { report, wasEdited } = await saveReport({
       employeeId: existing.employee_id,
       departmentId: existing.department_id,
       reportDate: existing.report_date,
@@ -91,6 +91,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         entityType: 'daily_report',
         entityId: report.id,
         action: `Edited ${report.employee_name}'s daily report for ${report.report_date}`,
+        previousStatus: existing.submission_status,
+        newStatus: report.submission_status,
+        ip: getClientIp(request)
+      });
+    } else if (wasEdited) {
+      // Editing your OWN already-submitted report. Still audited, for the
+      // same reason: the edit mails nobody and rewrites the stored rows in
+      // place, so without this row the only trace that the filed content
+      // changed is a revision entry — and the content it replaced is gone
+      // from daily_report_entries entirely.
+      await logAudit({
+        by: viewer.username,
+        role: viewer.role,
+        entityType: 'daily_report',
+        entityId: report.id,
+        action: `Daily report edited after submission for ${report.report_date}`,
         previousStatus: existing.submission_status,
         newStatus: report.submission_status,
         ip: getClientIp(request)

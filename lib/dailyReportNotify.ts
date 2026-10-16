@@ -24,8 +24,11 @@ import { formatIst } from './dailyReportTime';
 // notification failure must never abort the sweep or fail the employee's
 // submit.
 
-/** Ledger keys. The three scheduled ones plus the submission notice. */
-export type NotificationEventKey = SweepEventKind | 'SUBMITTED';
+/**
+ * Ledger keys. The three scheduled ones, the submission notice, the Sales/
+ * GEM-Sales auto-submit, and the 2-zero-day streak warning.
+ */
+export type NotificationEventKey = SweepEventKind | 'SUBMITTED' | 'AUTO_SUBMIT' | 'ZERO_TOTAL_WARNING';
 
 export interface ClaimedEvent {
   id: string;
@@ -67,6 +70,28 @@ export async function claimNotificationEvent(
     if ((error as { name?: string }).name === 'SequelizeUniqueConstraintError') return null;
     throw error;
   }
+}
+
+/**
+ * Frees a stuck claim so a state-changing event can be retried.
+ *
+ * claimNotificationEvent's unique index has no status scoping — a 'failed'
+ * row (a crash, a dropped connection, the process restarting mid-call) is
+ * indistinguishable from a successful one to a later claim attempt, which
+ * just collides and returns null forever. That is an acceptable trade for a
+ * pure NOTIFICATION (REMINDER/WARNING/SUBMITTED): at worst a mail is lost
+ * while the state it would have announced is unaffected or separately
+ * guarded. It is not acceptable for an event whose claim gates the ONLY
+ * path to a state change — AUTO_SUBMIT (the one and only way a report gets
+ * auto-filed) and ZERO_TOTAL_WARNING (the one and only way the streak gets
+ * flagged) — so those two callers clear a dead 'failed' row before
+ * reclaiming, rather than accepting a permanent stuck slot. Never touches a
+ * 'sent' or 'dry_run' row — those are done, not stuck.
+ */
+export async function clearFailedClaim(employeeId: string, reportDate: string, eventKey: NotificationEventKey): Promise<void> {
+  await db.DailyReportNotificationEvent.destroy({
+    where: { employee_id: employeeId, report_date: reportDate, event_key: eventKey, status: 'failed' } as never
+  });
 }
 
 export async function recordEventOutcome(

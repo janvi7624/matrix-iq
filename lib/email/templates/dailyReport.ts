@@ -21,7 +21,11 @@ export type DailyReportEmailKind =
   /** A new leave claim, to HR. */
   | 'leave_claim'
   /** HR's decision, back to the employee. */
-  | 'leave_decision';
+  | 'leave_decision'
+  /** Sales/GEM-Sales: the employee never submitted, so the system filed it for them. */
+  | 'auto_submitted'
+  /** Sales/GEM-Sales: auto-fetched activity has been zero for 2 reporting days running. */
+  | 'zero_total_warning';
 
 export interface DailyReportEmailData {
   kind: DailyReportEmailKind;
@@ -59,7 +63,9 @@ const ACCENT = {
   hr_escalation: '#b91c1c',
   submitted: '#059669',
   leave_claim: '#2563eb',
-  leave_decision: '#059669'
+  leave_decision: '#059669',
+  auto_submitted: '#2563eb',
+  zero_total_warning: '#b91c1c'
 } as const;
 
 interface Composed {
@@ -169,6 +175,24 @@ function compose(data: DailyReportEmailData): Composed {
         actionLabel: 'Open Daily Report'
       };
     }
+
+    case 'auto_submitted':
+      return {
+        subject: subject(`Your daily report for ${data.reportDate} was auto-submitted`),
+        intro: `You did not submit a daily report for ${data.reportDate}, so it was filed automatically using the leads, quotations and purchase orders tracked against your name for that day.`,
+        facts: [`Reporting date: ${data.reportDate}`, `Auto-submitted: ${data.submittedAtLabel || data.deadlineLabel}`],
+        emphasis: 'Nothing further is needed. If any of the numbers look wrong, open the report and let your manager know.',
+        actionLabel: 'View My Report'
+      };
+
+    case 'zero_total_warning':
+      return {
+        subject: subject(`No sales activity recorded for 2 days — ${data.reportDate}`),
+        intro: `Your daily report for ${data.reportDate} was filed, but the automatically-tracked activity (new leads, quotations, purchase orders) has come to zero for two reporting days in a row.`,
+        facts: [`Reporting date: ${data.reportDate}`, `Active warnings this month: ${data.activeWarnings ?? 0} of ${data.threshold ?? 3}`],
+        emphasis: 'If this is expected — travel, a quiet pipeline — no action is needed. If leads or quotations are going unrecorded, please log them as they happen.',
+        actionLabel: 'Open Daily Report'
+      };
   }
 }
 

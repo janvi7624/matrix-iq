@@ -14,6 +14,9 @@ import { buildWarningSummary, loadWarningStatusByDate, loadWarningKeys } from '.
 import { EligibleEmployee, employeeOwesDate, listEligibleEmployees } from './dailyReportEligibility';
 import { resolveDailyReportScope } from './dailyReportAccess';
 import { addDays, isWorkingDay, istDate, monthKey, navigableWorkingDays, scheduleFor, workingDaysBetween } from './dailyReportTime';
+import { computeSalesAutoMatrix, mergeAutoMatrix } from './salesDailyAutoFetch';
+import { computeGemProposalEntries, mergeAutoGemEntries } from './gemProposalAutoFetch';
+import { computeDerivedValues, isEntryOverdue } from './dailyReportTemplates';
 
 // The two composite reads behind the employee page and the manager
 // dashboard. Both live here rather than in their route handlers because the
@@ -106,6 +109,46 @@ export async function buildMyDailyReport(employee: EmployeeIdentity, date?: stri
 
   const submitted = !!report && SUBMITTED_STATUSES.includes(report.submission_status);
 
+  // Live preview of the 4 auto measures (lib/salesDailyAutoFetch.ts) for as
+  // long as the day is still open — so the employee sees today's real
+  // numbers building up through the day, not just at submit time
+  // (saveReport() already recomputes and overlays the same way on every
+  // save/submit regardless of whether this ran, so this is a read-only
+  // preview, never the only place correctness comes from).
+  //
+  // Computed whether or not a draft already exists: the FIRST visit to an
+  // unstarted day has no `report` to merge into, and without this the
+  // employee would see blanks under the "Auto" badge until they saved a
+  // draft once — exactly backwards for a feature whose point is "no manual
+  // entry needed". See auto_preview on the response for the no-report case.
+  let autoPreview: Record<string, Record<string, number>> | null = null;
+  if (!submitted && resolved.template.layout === 'matrix' && resolved.template.autoMeasures?.length) {
+    autoPreview = await computeSalesAutoMatrix(employee.id, reportDate, resolved.template.autoMeasures, resolved.template.channels ?? []);
+    if (report) report.matrix = mergeAutoMatrix(report.matrix, autoPreview);
+  }
+
+  // GEM Sales' Proposal Creation rows — the rows-layout counterpart to the
+  // matrix preview above, and for the identical reason: the first visit to
+  // an unstarted day has no `report.entries` to merge into, so this is
+  // computed whether or not a draft already exists. See
+  // gem_entries_preview on the response for the no-report case.
+  let gemEntriesPreview: Record<string, unknown>[] | null = null;
+  if (!submitted && resolved.template.layout === 'rows' && resolved.template.autoEntryActivity) {
+    const autoEntries = await computeGemProposalEntries(employee.id, employee.name, reportDate);
+    const existingData = report ? report.entries.map((e) => e.data) : [];
+    const mergedData = mergeAutoGemEntries(existingData, autoEntries);
+    gemEntriesPreview = mergedData;
+    if (report) {
+      report.entries = mergedData.map((data, index) => ({
+        id: report!.entries[index]?.id ?? '',
+        position: index,
+        data,
+        derived: computeDerivedValues(resolved.template, reportDate, data, index, today),
+        overdue: isEntryOverdue(resolved.template, reportDate, data, index, today)
+      }));
+    }
+  }
+
   return {
     report_date: reportDate,
     is_working_day: isWorkingDay(reportDate, policy),
@@ -125,6 +168,8 @@ export async function buildMyDailyReport(employee: EmployeeIdentity, date?: stri
     template_configured: resolved.configured,
     exempt: config.exempt_employee_ids.includes(employee.id),
     report,
+    auto_preview: autoPreview,
+    gem_entries_preview: gemEntriesPreview,
     revisions,
     leave_claim: leaveClaim,
     warnings,
