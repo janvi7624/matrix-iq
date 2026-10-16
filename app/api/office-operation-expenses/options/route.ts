@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { viewerCanAccessOfficeOperationExpenses } from '@/lib/officeOperationExpenseAccess';
 import {
+  ITEM_FREE_TEXT_ITEMS,
   ITEM_FROM_DEPARTMENT_MASTER,
   ITEM_SUB_OPTIONS,
   OFFICE_EXPENSE_ITEMS,
@@ -31,7 +32,8 @@ export async function GET(request: NextRequest) {
       usecaseSubOptions: USECASE_SUB_OPTIONS,
       usecaseFreeText: USECASE_FREE_TEXT,
       items: OFFICE_EXPENSE_ITEMS,
-      itemSubOptions
+      itemSubOptions,
+      itemFreeTextItems: ITEM_FREE_TEXT_ITEMS
     });
   } catch (error) {
     return apiErrorResponse(error);

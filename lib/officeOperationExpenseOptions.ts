@@ -56,8 +56,21 @@ export const OFFICE_EXPENSE_ITEMS = [
   'Department',
   'Godown 30',
   'Godown 31',
-  'Flowers'
+  'Flowers',
+  'Maintenance & Rent'
 ] as const;
+
+// Items whose detail is typed rather than picked from a fixed list — the
+// item-level counterpart to USECASE_FREE_TEXT above, and a different shape
+// from ITEM_SUB_OPTIONS' per-item 'Other' escape hatch: there is no fixed
+// list to pick from at all here, just one blank. An item listed here must
+// NOT also have an ITEM_SUB_OPTIONS entry — the form renders one or the
+// other, never both.
+export const ITEM_FREE_TEXT_ITEMS = ['Maintenance & Rent'] as const;
+
+export function itemIsFreeText(itemName: string): boolean {
+  return (ITEM_FREE_TEXT_ITEMS as readonly string[]).includes(itemName);
+}
 
 // Godown 30 and Godown 31 are two premises billed the same way, so they share
 // one list rather than repeating it — edit here and both stay in step.
@@ -75,7 +88,7 @@ const GODOWN_SUB_OPTIONS = ['Rent', 'Maintenance', 'Tax', 'Water', 'Tea', 'Mobil
 // ITEM_FROM_DEPARTMENT_MASTER below and the /options route.
 export const ITEM_SUB_OPTIONS: Record<string, string[]> = {
   'Stationary and Printing': ['Xerox', 'Color Print', 'Stationery Items', 'Other'],
-  Pantry: ['Milk', 'Tea', 'Tea Powder', 'Coffee Powder', 'Sugar', 'Ginger', 'Lemon', 'Phudino', 'Green Tea', 'Snacks', 'Lunch', 'Dinner', 'Coffee', 'Grocery', 'Other'],
+  Pantry: ['Milk', 'Tea', 'Tea Powder', 'Coffee Powder', 'Sugar', 'Ginger', 'Lemon', 'Phudino', 'Green Tea', 'Snacks', 'Lunch', 'Dinner', 'Coffee', 'Grocery', 'Water Bottle', 'Other'],
   Tempo: ['Fastag', 'Insurance', 'Tax', 'CNG', 'Petrol'],
   'IT Materials': ['Laptop', 'Mouse', 'Chargers', 'Repair', 'Keyboards', 'Other'],
   Salary: ['Sweeper', 'Parin', 'Papa', 'Other'],

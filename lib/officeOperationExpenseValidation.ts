@@ -6,7 +6,8 @@ import {
   USECASE_SUB_OPTIONS,
   isValidItem,
   isValidOfficeLocation,
-  isValidUsecase
+  isValidUsecase,
+  itemIsFreeText
 } from './officeOperationExpenseOptions';
 import { listActiveDepartments } from './departmentStore';
 
@@ -116,9 +117,24 @@ async function validateItemSubNames(itemName: string, itemSubNames: string[]): P
     return invalid ? `"${invalid}" is not an active department` : null;
   }
 
+  // No fixed list at all for these — one typed description is the whole
+  // answer (see ITEM_FREE_TEXT_ITEMS' own doc comment).
+  if (itemIsFreeText(itemName)) {
+    if (!itemSubNames.length || !itemSubNames[0]?.trim()) return `Describe the ${itemName} expense`;
+    if (itemSubNames.length > 1) return `Only one description is expected for ${itemName}`;
+    return null;
+  }
+
   const subs = ITEM_SUB_OPTIONS[itemName];
   if (!subs?.length) return null;
   if (!itemSubNames.length) return `Select at least one Item Name for ${itemName}`;
-  const invalid = itemSubNames.find((n) => !subs.includes(n));
-  return invalid ? `"${invalid}" is not a valid Item Name for ${itemName}` : null;
+  const invalid = itemSubNames.filter((n) => !subs.includes(n));
+  if (!invalid.length) return null;
+  // Not one of the fixed options — allowed ONLY as the single typed
+  // description standing in for 'Other' (the client never submits the
+  // literal word "Other"; see handleSubmit in OfficeOperationExpensesView),
+  // same reasoning as Paid By's free-typed name.
+  if (!subs.includes('Other')) return `"${invalid[0]}" is not a valid Item Name for ${itemName}`;
+  if (invalid.length > 1) return `Only one custom Item Name can be typed for ${itemName}`;
+  return null;
 }

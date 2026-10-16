@@ -17,6 +17,7 @@ interface OptionsPayload {
   usecaseFreeText: string;
   items: string[];
   itemSubOptions: Record<string, string[]>;
+  itemFreeTextItems: string[];
 }
 
 const MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -47,6 +48,14 @@ const emptyForm = {
   usecaseDetail: '',
   itemName: '',
   itemSubNames: [] as string[],
+  // Only used while itemSubNames includes 'Other' — the typed description
+  // that replaces the literal "Other" in what's actually submitted, same
+  // pattern as remarksOther below.
+  itemSubOther: '',
+  // Only used while itemName is one of ITEM_FREE_TEXT_ITEMS (e.g.
+  // "Maintenance & Rent") — the whole sub-selection is this one typed
+  // description rather than a checkbox list. See handleSubmit.
+  itemFreeTextDetail: '',
   itemQty: '',
   amount: '',
   description: '',
@@ -85,12 +94,16 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
   // Sub-items are multi-select, so this toggles one value in or out of the list.
   const toggleSubItem = useCallback((value: string) => {
-    setForm((prev) => ({
-      ...prev,
-      itemSubNames: prev.itemSubNames.includes(value)
-        ? prev.itemSubNames.filter((v) => v !== value)
-        : [...prev.itemSubNames, value]
-    }));
+    setForm((prev) => {
+      const nowOn = !prev.itemSubNames.includes(value);
+      return {
+        ...prev,
+        itemSubNames: nowOn ? [...prev.itemSubNames, value] : prev.itemSubNames.filter((v) => v !== value),
+        // Unchecking 'Other' clears its typed description too, so a stale
+        // answer can't survive being deselected and then re-checked blank.
+        itemSubOther: value === 'Other' && !nowOn ? '' : prev.itemSubOther
+      };
+    });
   }, []);
 
   // Which second-level fields the current selections call for. Driven entirely
@@ -100,6 +113,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
   const usecaseSubs = options && form.usecase ? options.usecaseSubOptions[form.usecase] : undefined;
   const usecaseIsFreeText = !!options && form.usecase === options.usecaseFreeText;
   const itemSubs = options && form.itemName ? options.itemSubOptions[form.itemName] : undefined;
+  const itemIsFreeTextSelected = !!options && !!form.itemName && options.itemFreeTextItems.includes(form.itemName);
 
   // Deliberately does NOT flip `loading` on at the top: this runs from the
   // month/year effect below, and a synchronous setState in an effect body
@@ -151,13 +165,26 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     // 'Other' (see handleSubmit) — reopen it the same way it was entered,
     // rather than as a blank, unrecognized select value.
     const isNamedOption = (PAID_BY_OPTIONS as readonly string[]).includes(record.remarks) && record.remarks !== 'Other';
+    // Same idea for an Item Name sub-option: a stored value outside the
+    // known list for this item only ever got there via a typed 'Other'
+    // description — reopen it as 'Other' checked, with its text restored,
+    // rather than a selection the checkboxes don't recognise.
+    const knownSubs = options?.itemSubOptions[record.item_name] ?? [];
+    const customSub = record.item_sub_names.find((n) => !knownSubs.includes(n));
+    const isFreeTextItem = !!options?.itemFreeTextItems.includes(record.item_name);
     setForm({
       date: record.date,
       officeLocation: record.office_location,
       usecase: record.usecase,
       usecaseDetail: record.usecase_detail,
       itemName: record.item_name,
-      itemSubNames: record.item_sub_names,
+      itemSubNames: isFreeTextItem
+        ? []
+        : customSub
+          ? record.item_sub_names.map((n) => (n === customSub ? 'Other' : n))
+          : record.item_sub_names,
+      itemSubOther: !isFreeTextItem ? (customSub ?? '') : '',
+      itemFreeTextDetail: isFreeTextItem ? (record.item_sub_names[0] ?? '') : '',
       // null must reopen as an empty field, not the string "null".
       itemQty: record.item_qty === null ? '' : String(record.item_qty),
       amount: String(record.amount),
@@ -197,6 +224,8 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     if (usecaseIsFreeText && !form.usecaseDetail.trim()) { toast.error('Describe the category'); return; }
     if (!form.itemName) { toast.error('Select an expense head'); return; }
     if (itemSubs?.length && !form.itemSubNames.length) { toast.error(form.itemName === 'Department' ? 'Select at least one department' : `Select at least one Item Name for ${form.itemName}`); return; }
+    if (form.itemSubNames.includes('Other') && !form.itemSubOther.trim()) { toast.error(`Describe the "Other" ${form.itemName} item`); return; }
+    if (itemIsFreeTextSelected && !form.itemFreeTextDetail.trim()) { toast.error(`Describe the ${form.itemName} expense`); return; }
     if (!form.remarks) { toast.error('Select who paid'); return; }
     if (form.remarks === 'Other' && !form.remarksOther.trim()) { toast.error('Enter the name of who paid'); return; }
     // Qty is optional — only complain when something was typed and it's not a
@@ -212,7 +241,14 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         usecase: form.usecase,
         usecaseDetail: usecaseSubs || usecaseIsFreeText ? form.usecaseDetail : '',
         itemName: form.itemName,
-        itemSubNames: itemSubs?.length ? form.itemSubNames : [],
+        itemSubNames: itemIsFreeTextSelected
+          ? [form.itemFreeTextDetail.trim()]
+          : // 'Other' itself is never stored — same reasoning as remarks below —
+            // the typed description replaces it so the register reads what the
+            // item actually was, not the literal word "Other".
+            itemSubs?.length
+            ? form.itemSubNames.map((n) => (n === 'Other' ? form.itemSubOther.trim() : n))
+            : [],
         // Empty string, not 0 — the server reads '' as "not specified" and
         // stores NULL, whereas 0 would fail its positive-number check.
         itemQty: form.itemQty.trim(),
@@ -379,7 +415,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                 <select
                   className={`${calcStyles.formControl} ${styles.fullWidth}`}
                   value={form.itemName}
-                  onChange={(e) => { setField('itemName', e.target.value); setForm((prev) => ({ ...prev, itemSubNames: [] })); }}
+                  onChange={(e) => { setField('itemName', e.target.value); setForm((prev) => ({ ...prev, itemSubNames: [], itemSubOther: '', itemFreeTextDetail: '' })); }}
                   disabled={!options}
                 >
                   <option value="">Select expense head…</option>
@@ -422,6 +458,29 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                       );
                     })}
                   </div>
+                  {form.itemSubNames.includes('Other') && (
+                    <input
+                      type="text"
+                      className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                      placeholder="What is it?"
+                      value={form.itemSubOther}
+                      onChange={(e) => setField('itemSubOther', e.target.value)}
+                      style={{ marginTop: 8 }}
+                    />
+                  )}
+                </div>
+              )}
+
+              {itemIsFreeTextSelected && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label className={styles.fieldLabel}>{form.itemName} — what is it? *</label>
+                  <input
+                    type="text"
+                    className={`${calcStyles.formControl} ${styles.fullWidth}`}
+                    placeholder="e.g. October office rent, AC servicing"
+                    value={form.itemFreeTextDetail}
+                    onChange={(e) => setField('itemFreeTextDetail', e.target.value)}
+                  />
                 </div>
               )}
 
