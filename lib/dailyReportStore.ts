@@ -15,8 +15,8 @@ import {
   EMPTY_PAYLOAD,
   TemplateDefinition,
   computeDerivedValues,
+  carryCompletions,
   isEntryOverdue,
-  stampCompletion,
   validateReportPayload
 } from './dailyReportTemplates';
 import { DeadlinePolicy, isIsoDate, isLateSubmission, istDate, scheduleFor } from './dailyReportTime';
@@ -229,41 +229,34 @@ function isDuplicateKeyError(error: unknown): boolean {
   return constraint.includes('daily_reports_employee_department_date_unique') || constraint === '';
 }
 
+/**
+ * The entry data a report currently holds, in display order.
+ *
+ * Read inside the caller's transaction and BEFORE replaceEntries destroys
+ * it — carryCompletions needs the outgoing generation to know which rows
+ * were already finished, and this is the last moment it exists.
+ */
+async function loadEntryData(reportId: string, t: Transaction): Promise<Record<string, unknown>[]> {
+  const rows = await db.DailyReportEntry.findAll({
+    where: { report_id: reportId } as never,
+    order: [['position', 'ASC']],
+    transaction: t
+  });
+  return rows.map((row) => (row.get({ plain: true }) as { data: Record<string, unknown> | null }).data ?? {});
+}
+
 async function replaceEntries(reportId: string, entries: Record<string, unknown>[], t: Transaction): Promise<void> {
   // Replace-all rather than diff-and-patch. The client owns the row order
   // (add/remove/reorder are all one edit to it), so reconciling by id would
   // be more code for an identical result — and a hard-deleted previous
   // generation is fine because the content of every revision is preserved in
-  // daily_report_revisions.
-  //
-  // The one value that must SURVIVE the replacement is completed_on, which
-  // records when a task was first marked Completed: re-stamping it on every
-  // save would make it mean "last saved" instead, which is not a fact anyone
-  // needs. It is read back off the outgoing generation and matched by
-  // position — the same identity the Task ID already uses, and the only one
-  // this table has. Reordering rows therefore moves a completion stamp with
-  // the position rather than with the task; that is the known cost of
-  // positional identity, and removing it means giving an entry a real id
-  // that outlives a save.
-  const outgoing = await db.DailyReportEntry.findAll({
-    where: { report_id: reportId } as never,
-    transaction: t
-  });
-  const priorByPosition = new Map<number, Record<string, unknown>>();
-  for (const row of outgoing) {
-    const plain = row.get({ plain: true }) as { position: number; data: Record<string, unknown> | null };
-    priorByPosition.set(plain.position, plain.data ?? {});
-  }
-
+  // daily_report_revisions, completion stamps included: saveReport resolves
+  // those before it takes the snapshot, precisely so this delete cannot be
+  // the one thing that loses them.
   await db.DailyReportEntry.destroy({ where: { report_id: reportId } as never, force: true, transaction: t });
   if (!entries.length) return;
-  const today = istDate(new Date());
   await db.DailyReportEntry.bulkCreate(
-    entries.map((data, position) => ({
-      report_id: reportId,
-      position,
-      data: stampCompletion(data, priorByPosition.get(position), today)
-    })) as never,
+    entries.map((data, position) => ({ report_id: reportId, position, data })) as never,
     { transaction: t }
   );
 }
@@ -389,7 +382,19 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
   let wasEdited = false;
 
   const reportId = await db.sequelize.transaction(async (t) => {
-    const snapshot = { payload: validation.normalized.header, matrix: validation.normalized.matrix, entries: validation.normalized.entries };
+    // Completion stamps are resolved HERE, ahead of the snapshot, for two
+    // reasons: the revision row then records exactly the rows that get
+    // written (completed_on is the one entry value the client never sends,
+    // so a snapshot taken from the validator output would be the only
+    // place it was missing), and carryCompletions needs the outgoing
+    // generation, which replaceEntries is about to destroy.
+    const stampedEntries = carryCompletions(
+      validation.normalized.entries,
+      existing ? await loadEntryData(existing.get('id') as string, t) : [],
+      input.reportDate,
+      istDate(new Date())
+    );
+    const snapshot = { payload: validation.normalized.header, matrix: validation.normalized.matrix, entries: stampedEntries };
 
     if (!existing) {
       const attrs: Record<string, unknown> = {
@@ -421,7 +426,7 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
         throw error;
       }
       const id = created.get('id') as string;
-      await replaceEntries(id, validation.normalized.entries, t);
+      await replaceEntries(id, stampedEntries, t);
       await recordRevision(
         id,
         input.actorId,
@@ -469,7 +474,6 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
       // is_late and deadline_at are deliberately absent from attrs, so the
       // original verdict stands no matter how many times this is called.
       attrs.submission_status = existing.get('submission_status');
-      wasEdited = true;
     }
 
     // Editing a report a manager had flagged clears the flag: the employee
@@ -479,8 +483,17 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
       attrs.review_status = 'NOT_REVIEWED';
     }
 
+    // ANY write over an already-submitted report is a retroactive edit,
+    // whichever mode it arrived as — classified here rather than in the
+    // submit branch above, and deliberately alongside the 'edited' revision
+    // label below so the two can never disagree. A mode:'draft' POST over a
+    // submitted report replaces the filed content just as thoroughly as a
+    // re-submit does, and that was the one path where the manager's
+    // "Changed since" badge appeared while the audit log said nothing.
+    wasEdited = !justSubmitted && wasSubmitted;
+
     await existing.update(attrs as never, { transaction: t });
-    await replaceEntries(id, validation.normalized.entries, t);
+    await replaceEntries(id, stampedEntries, t);
     await recordRevision(
       id,
       input.actorId,

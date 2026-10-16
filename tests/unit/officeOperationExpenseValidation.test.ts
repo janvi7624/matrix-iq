@@ -55,25 +55,34 @@ describe('Item Name sub-selection — the Other escape hatch', () => {
   });
 });
 
-describe('Maintenance & Rent — a free-text Expense Head with no fixed list at all', () => {
+describe.each(['Maintenance', 'Rent'])('%s — a free-text Expense Head with no fixed list at all', (itemName) => {
   it('accepts one typed description', async () => {
-    const result = await parseExpenseBody(body({ itemName: 'Maintenance & Rent', itemSubNames: ['October office rent'] }));
+    const result = await parseExpenseBody(body({ itemName, itemSubNames: ['A description'] }));
     expect('data' in result).toBe(true);
-    if ('data' in result) expect(result.data.item_sub_names).toEqual(['October office rent']);
+    if ('data' in result) expect(result.data.item_sub_names).toEqual(['A description']);
   });
 
   it('rejects an empty selection — unlike Water Jug/Porter/etc., this one always needs its one description', async () => {
-    const result = await parseExpenseBody(body({ itemName: 'Maintenance & Rent', itemSubNames: [] }));
+    const result = await parseExpenseBody(body({ itemName, itemSubNames: [] }));
     expect('error' in result).toBe(true);
   });
 
   it('rejects a blank/whitespace-only description', async () => {
-    const result = await parseExpenseBody(body({ itemName: 'Maintenance & Rent', itemSubNames: ['   '] }));
+    const result = await parseExpenseBody(body({ itemName, itemSubNames: ['   '] }));
     expect('error' in result).toBe(true);
   });
 
   it('rejects more than one description', async () => {
-    const result = await parseExpenseBody(body({ itemName: 'Maintenance & Rent', itemSubNames: ['Rent', 'AC servicing'] }));
+    const result = await parseExpenseBody(body({ itemName, itemSubNames: ['First', 'Second'] }));
+    expect('error' in result).toBe(true);
+  });
+
+  it('does not accidentally accept the OTHER free-text item\'s name as if it were a fixed-list sub-option', async () => {
+    // Guards against the two sharing a list by accident now that they're
+    // split — each is independently free-text, neither is a valid
+    // "sub-option of" the other.
+    const other = itemName === 'Maintenance' ? 'Rent' : 'Maintenance';
+    const result = await parseExpenseBody(body({ itemName, itemSubNames: [other, 'Second'] }));
     expect('error' in result).toBe(true);
   });
 });

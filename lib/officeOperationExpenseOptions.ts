@@ -57,7 +57,8 @@ export const OFFICE_EXPENSE_ITEMS = [
   'Godown 30',
   'Godown 31',
   'Flowers',
-  'Maintenance & Rent'
+  'Maintenance',
+  'Rent'
 ] as const;
 
 // Items whose detail is typed rather than picked from a fixed list — the
@@ -66,7 +67,11 @@ export const OFFICE_EXPENSE_ITEMS = [
 // list to pick from at all here, just one blank. An item listed here must
 // NOT also have an ITEM_SUB_OPTIONS entry — the form renders one or the
 // other, never both.
-export const ITEM_FREE_TEXT_ITEMS = ['Maintenance & Rent'] as const;
+//
+// Maintenance and Rent are two separate Expense Heads, each with its own
+// blank, NOT one combined "Maintenance & Rent" item — they're different
+// kinds of spend and belong in the register as different rows.
+export const ITEM_FREE_TEXT_ITEMS = ['Maintenance', 'Rent'] as const;
 
 export function itemIsFreeText(itemName: string): boolean {
   return (ITEM_FREE_TEXT_ITEMS as readonly string[]).includes(itemName);

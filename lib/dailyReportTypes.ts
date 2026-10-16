@@ -32,8 +32,14 @@ export interface DailyReportEntryRecord {
   position: number;
   /** Template row-field values, keyed by field key. */
   data: Record<string, unknown>;
-  /** Server-computed read-only columns (Task ID, Days Left). */
-  derived: { task_code?: string; days_left?: number };
+  /**
+   * Server-computed read-only columns — Task ID, Days Left, whether the row
+   * is overdue, and when it was completed. Carries the full
+   * DerivedEntryValues rather than restating a subset of it: the narrowed
+   * version silently hid overdue and completed_on from every consumer even
+   * though toRecord was already sending them.
+   */
+  derived: DerivedEntryValues;
   overdue: boolean;
 }
 

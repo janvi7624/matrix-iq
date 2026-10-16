@@ -52,9 +52,9 @@ const emptyForm = {
   // that replaces the literal "Other" in what's actually submitted, same
   // pattern as remarksOther below.
   itemSubOther: '',
-  // Only used while itemName is one of ITEM_FREE_TEXT_ITEMS (e.g.
-  // "Maintenance & Rent") — the whole sub-selection is this one typed
-  // description rather than a checkbox list. See handleSubmit.
+  // Only used while itemName is one of ITEM_FREE_TEXT_ITEMS (Maintenance,
+  // Rent) — the whole sub-selection is this one typed description rather
+  // than a checkbox list. See handleSubmit.
   itemFreeTextDetail: '',
   itemQty: '',
   amount: '',
@@ -477,7 +477,13 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                   <input
                     type="text"
                     className={`${calcStyles.formControl} ${styles.fullWidth}`}
-                    placeholder="e.g. October office rent, AC servicing"
+                    placeholder={
+                      form.itemName === 'Rent'
+                        ? 'e.g. October office rent'
+                        : form.itemName === 'Maintenance'
+                          ? 'e.g. AC servicing, plumbing repair'
+                          : 'Describe what this was for'
+                    }
                     value={form.itemFreeTextDetail}
                     onChange={(e) => setField('itemFreeTextDetail', e.target.value)}
                   />

@@ -17,7 +17,7 @@ import {
   isEntryOverdue,
   isTemplateKey,
   resolveTemplate,
-  stampCompletion,
+  carryCompletions,
   templateIsConfigured,
   validateReportPayload
 } from '../../lib/dailyReportTemplates';
@@ -665,44 +665,114 @@ describe('computed columns', () => {
     });
   });
 
-  describe('stampCompletion', () => {
-    it('stamps today the first time a row is marked Completed', () => {
-      expect(stampCompletion({ status: 'Completed' }, undefined, '2026-10-18').completed_on).toBe('2026-10-18');
+  describe('carryCompletions', () => {
+    const REPORT = '2026-10-16';
+    const row = (name: string, extra: Record<string, unknown> = {}) =>
+      ({ task_description: name, due_date: '2026-10-18', ...extra });
+    const carry = (
+      incoming: Record<string, unknown>[],
+      prior: Record<string, unknown>[],
+      today = '2026-10-25'
+    ) => carryCompletions(incoming, prior, REPORT, today);
+
+    // The report date, not today: the deadline is 11:00 on D+1, so filing
+    // yesterday's report this morning is the designed flow, and a manager can
+    // back-fill a missing day weeks later.
+    it('stamps the report date on a row filed as already Completed', () => {
+      const [out] = carry([row('Ship ingest', { status: 'Completed' })], [], '2026-10-17');
+      expect(out.completed_on).toBe(REPORT);
     });
 
-    // The point of the field: it records when the task was FIRST finished, so
-    // a later save must not quietly turn it into "last edited".
-    it('keeps the original stamp on every later save', () => {
-      const prior = { status: 'Completed', completed_on: '2026-10-18' };
-      expect(stampCompletion({ status: 'Completed' }, prior, '2026-10-25').completed_on).toBe('2026-10-18');
+    it('stamps today when an open row transitions to Completed', () => {
+      const prior = [row('Ship ingest', { status: 'In Progress' })];
+      const [out] = carry([row('Ship ingest', { status: 'Completed' })], prior, '2026-10-20');
+      expect(out.completed_on).toBe('2026-10-20');
     });
 
-    it('stamps the transition out of an open row', () => {
-      const prior = { status: 'In Progress' };
-      expect(stampCompletion({ status: 'Completed' }, prior, '2026-10-18').completed_on).toBe('2026-10-18');
+    // It records when the task was FIRST finished, so a later save must not
+    // quietly turn it into "last edited".
+    it('keeps the first stamp on every later save', () => {
+      const prior = [row('Ship ingest', { status: 'Completed', completed_on: '2026-10-18' })];
+      const [out] = carry([row('Ship ingest', { status: 'Completed' })], prior, '2026-10-25');
+      expect(out.completed_on).toBe('2026-10-18');
+    });
+
+    // Every row submitted before this field existed is Completed with no
+    // stamp. Re-dating those to today would assert a completion that did not
+    // happen today — the read side shows nothing for them, and nothing is the
+    // honest answer.
+    it('leaves an already-completed row unstamped rather than inventing a date', () => {
+      const prior = [row('Ship ingest', { status: 'Completed' })];
+      const [out] = carry([row('Ship ingest', { status: 'Completed' })], prior);
+      expect('completed_on' in out).toBe(false);
     });
 
     it('clears the stamp when a completed task is re-opened', () => {
-      const prior = { status: 'Completed', completed_on: '2026-10-18' };
-      const out = stampCompletion({ status: 'In Progress' }, prior, '2026-10-25');
+      const prior = [row('Ship ingest', { status: 'Completed', completed_on: '2026-10-18' })];
+      const [out] = carry([row('Ship ingest', { status: 'In Progress' })], prior);
       expect('completed_on' in out).toBe(false);
     });
 
-    it('strips a leftover stamp the payload carried back', () => {
-      const out = stampCompletion({ status: 'In Progress', completed_on: '2026-10-18' }, undefined, '2026-10-25');
-      expect('completed_on' in out).toBe(false);
+    // Matching the outgoing generation by array position meant any row added
+    // or removed ABOVE a completed one re-paired it with a different task —
+    // rewriting its stamp to today, or handing it a neighbour's older date.
+    // The entries table has no stable row id, so identity is content.
+    describe('survives the row set changing shape', () => {
+      const prior = [
+        row('A', { status: 'Completed', completed_on: '2026-10-18' }),
+        row('B', { status: 'In Progress' })
+      ];
+
+      it('when a row is inserted above it', () => {
+        const out = carry([
+          row('C', { status: 'In Progress' }),
+          row('A', { status: 'Completed' }),
+          row('B', { status: 'In Progress' })
+        ], prior);
+        expect(out[1].completed_on).toBe('2026-10-18');
+      });
+
+      it('when a row is deleted above it', () => {
+        const withExtra = [
+          row('Z', { status: 'In Progress' }),
+          row('A', { status: 'Completed', completed_on: '2026-10-18' })
+        ];
+        const [out] = carry([row('A', { status: 'Completed' })], withExtra);
+        expect(out.completed_on).toBe('2026-10-18');
+      });
+
+      it('when two rows are swapped', () => {
+        const out = carry([
+          row('B', { status: 'In Progress' }),
+          row('A', { status: 'Completed' })
+        ], prior);
+        expect(out[1].completed_on).toBe('2026-10-18');
+      });
     });
 
-    it('leaves an open row otherwise untouched', () => {
-      const row = { status: 'In Progress', task_description: 'Bench-tested the gripper.' };
-      expect(stampCompletion(row, undefined, '2026-10-18')).toEqual(row);
+    // Two rows identical in every field are indistinguishable by content, so
+    // position is the only key left — and is correct, because either pairing
+    // produces the same answer.
+    it('falls back to position for genuinely identical rows', () => {
+      const done = row('Same', { status: 'Completed', completed_on: '2026-10-18' });
+      const out = carry([
+        row('Same', { status: 'Completed' }),
+        row('Same', { status: 'Completed' })
+      ], [done, done]);
+      expect(out[0].completed_on).toBe('2026-10-18');
+      expect(out[1].completed_on).toBe('2026-10-18');
     });
 
-    // Validation drops any key that is not a template field before this runs,
-    // so a forged stamp can never reach storage — but don't rely on that alone.
+    it('leaves an open row untouched', () => {
+      const open = row('Ship ingest', { status: 'In Progress' });
+      expect(carry([open], [])).toEqual([open]);
+    });
+
+    // validateReportPayload rebuilds every row from the template field list,
+    // so a forged stamp cannot reach storage — but don't rely on that alone.
     it('overrides a stamp the payload tried to supply', () => {
-      const out = stampCompletion({ status: 'Completed', completed_on: '2020-01-01' }, undefined, '2026-10-18');
-      expect(out.completed_on).toBe('2026-10-18');
+      const [out] = carry([row('Ship ingest', { status: 'Completed', completed_on: '2020-01-01' })], [], '2026-10-17');
+      expect(out.completed_on).toBe(REPORT);
     });
   });
 });

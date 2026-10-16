@@ -1535,33 +1535,95 @@ export function isEntryOverdue(
 }
 
 /**
- * Stamps completed_on the first time a row is marked Completed, and keeps the
- * original stamp on every save after that.
+ * A row's identity for the purpose of carrying a completion stamp:
+ * everything about it EXCEPT its status and the stamp itself.
  *
- * Without this, a task filed as In Progress on the 16th and edited to
- * Completed on the 18th is stored identically to one that was already done
- * when it was filed — the row just reads "Completed" with nothing to say when
- * that became true.
+ * The entries table has no stable per-row id — replaceEntries hard-deletes
+ * and recreates every row on every save, so the UUIDs change each time and
+ * the Task ID is positional. Matching on content is therefore the only
+ * identity available that survives the row moving, and it is what stops an
+ * inserted or deleted row from shifting every stamp below it onto the wrong
+ * task. Editing the task description does break the match, which is the
+ * right answer: a rewritten task is a different task.
+ */
+function completionKeyOf(data: Record<string, unknown>): string {
+  return JSON.stringify(
+    Object.keys(data)
+      .filter((key) => key !== 'status' && key !== 'completed_on')
+      .sort()
+      .map((key) => [key, data[key]])
+  );
+}
+
+/**
+ * Resolves completed_on across a whole generation of entries: the date a row
+ * was FIRST marked Completed, carried forward unchanged on every later save.
+ *
+ * Without it, a task filed as In Progress on the 16th and edited to Completed
+ * on the 18th is stored identically to one that was already done when it was
+ * filed — the row just reads "Completed" with nothing to say when that became
+ * true.
  *
  * Lives beside computeDerivedValues deliberately: that function is the READ
  * rule for this value and this is the WRITE rule, and a read rule that drifts
  * from its write rule is how a field starts lying. The stamp is server-side
- * only — validateReportPayload drops every key that is not a template field,
- * so an incoming payload can neither forge one nor wipe one out.
+ * only — validateReportPayload rebuilds every row from the template field
+ * list, so an incoming payload can neither forge one nor wipe one out.
  *
- * Re-opening a completed task clears the stamp, so it can never describe a row
- * that no longer claims to be finished.
+ * Four cases, and the third is the one worth reading twice:
+ *
+ *  - not Completed    -> no stamp. Re-opening a finished task clears it, so
+ *                        it can never describe a row that no longer claims to
+ *                        be finished.
+ *  - no prior row     -> reportDate. The row is being filed as already done,
+ *                        so the day it reports on IS the completion date —
+ *                        not today, which may be the next morning, since the
+ *                        deadline is 11:00 on D+1 and a manager may back-fill
+ *                        a missing day weeks later.
+ *  - prior was        -> carry it. If the prior row was Completed but carries
+ *    Completed           NO stamp (every row filed before this field existed),
+ *                        the stamp stays ABSENT rather than becoming today.
+ *                        computeDerivedValues shows nothing for those rows and
+ *                        nothing is the honest answer; writing today would
+ *                        assert a completion that did not happen today.
+ *  - prior was open   -> today. This save is the transition, so today is the
+ *                        date it actually happened.
  */
-export function stampCompletion(
-  data: Record<string, unknown>,
-  prior: Record<string, unknown> | undefined,
+export function carryCompletions(
+  incoming: Record<string, unknown>[],
+  prior: Record<string, unknown>[],
+  reportDate: string,
   today: string
-): Record<string, unknown> {
-  if (asTrimmedString(data.status) !== 'Completed') {
-    if (!('completed_on' in data)) return data;
-    const { completed_on: _reopened, ...rest } = data;
-    return rest;
+): Record<string, unknown>[] {
+  const byKey = new Map<string, Record<string, unknown>[]>();
+  for (const row of prior) {
+    const key = completionKeyOf(row);
+    const bucket = byKey.get(key);
+    if (bucket) bucket.push(row);
+    else byKey.set(key, [row]);
   }
-  const carried = asTrimmedString(prior?.status) === 'Completed' ? asTrimmedString(prior?.completed_on) : '';
-  return { ...data, completed_on: carried || today };
+
+  const withoutStamp = (data: Record<string, unknown>) => {
+    if (!('completed_on' in data)) return data;
+    const { completed_on: _dropped, ...rest } = data;
+    return rest;
+  };
+
+  return incoming.map((data, index) => {
+    if (asTrimmedString(data.status) !== 'Completed') return withoutStamp(data);
+
+    // Content match where it is unambiguous, position only as a fallback —
+    // two genuinely identical rows are indistinguishable either way.
+    const sameKey = byKey.get(completionKeyOf(data)) ?? [];
+    const match = sameKey.length === 1 ? sameKey[0] : prior[index];
+
+    if (!match) return { ...data, completed_on: reportDate };
+
+    if (asTrimmedString(match.status) === 'Completed') {
+      const carried = asTrimmedString(match.completed_on);
+      return carried ? { ...data, completed_on: carried } : withoutStamp(data);
+    }
+
+    return { ...data, completed_on: today };
+  });
 }

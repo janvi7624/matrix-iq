@@ -112,11 +112,18 @@ function FieldControl({ field, row, path, issues, disabled, onFieldChange, deriv
     // a second copy of it here — so what this cell is coloured by can never
     // disagree with what the report records.
     const overdue = field.computed === 'days_left' && derived?.overdue === true;
+    // Keyed off the row's own status, not off the stamp, so the cell reads as
+    // completed the instant the employee picks Completed. The stamp is
+    // written server-side, so an unsaved row has none yet and this would
+    // otherwise blank to an em dash until the save round-tripped. The same
+    // branch covers rows finished before the stamp existed, which will never
+    // have one — hence the bare "Completed" fallback rather than a guess.
+    const completed = field.computed === 'days_left' && asString(row.status) === 'Completed';
     const text =
       field.computed === 'entry_code'
         ? derived?.task_code ?? '—'
-        : derived?.completed_on
-          ? `Completed ${derived.completed_on}`
+        : completed
+          ? (derived?.completed_on ? `Completed ${derived.completed_on}` : 'Completed')
           : typeof derived?.days_left === 'number'
             ? `${Math.abs(derived.days_left)} day${Math.abs(derived.days_left) === 1 ? '' : 's'}${overdue ? ' overdue' : ''}`
             : '—';
@@ -257,7 +264,14 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
   // Days-left is relative to now, not to the date being reported on, so the
   // form needs today as well as reportDate: opening a report filed last week
   // has to show the countdown as it stands now, not as it stood when filed.
-  const today = useMemo(() => istDate(new Date()), []);
+  //
+  // Deliberately NOT memoized on mount. It is an IST date string, so it is
+  // already stable within a day and costs nothing to recompute — whereas
+  // freezing it meant a page left open across midnight kept yesterday's
+  // countdown, which is the same class of staleness this change exists to
+  // remove. Being a per-day string, it still keeps the memos below from
+  // thrashing.
+  const today = istDate(new Date());
   const totals = useMemo(
     () => (template.layout === 'matrix' ? computeMatrixTotals(template, (value.matrix ?? {}) as Record<string, Record<string, number>>) : null),
     [template, value.matrix]
