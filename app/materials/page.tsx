@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 import { findUserById } from '@/lib/userStore';
-import { resolveIsPrivileged, isMarketingManager } from '@/lib/permissions';
+import { resolveIsPrivileged, canManageMaterials } from '@/lib/permissions';
 import MaterialsView from '@/components/MaterialsView';
 
 // Readable by every signed-in user — the point of the module is that anyone
@@ -18,7 +18,7 @@ export default async function MaterialsPage() {
   if (!user) redirect('/login');
 
   const isPrivileged = await resolveIsPrivileged(user.role);
-  const canManage = await isMarketingManager({ username: user.username, role: user.role, isPrivileged });
+  const canManage = await canManageMaterials({ username: user.username, role: user.role, isPrivileged });
 
   return <MaterialsView canManage={canManage} />;
 }

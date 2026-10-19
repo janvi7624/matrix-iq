@@ -144,6 +144,24 @@ export interface DailyReportWarningSummary {
   warnings: DailyReportWarningRecord[];
 }
 
+/**
+ * The minimum a shortcut needs to know: should this person be asked to file
+ * today, and have they. Deliberately NOT MyDailyReportResponse — that loads
+ * the template, the history strip, the warning summary and the revision
+ * list, none of which a button renders.
+ */
+export interface MyDailyReportStatus {
+  /** False for an excused account, an unconfigured department, or a non-working day. */
+  required: boolean;
+  /** Why it is not required, for the caller's own wording. '' when it is. */
+  not_required_reason: 'exempt' | 'not_configured' | 'non_working_day' | 'no_department' | '';
+  report_date: string;
+  /** 'MISSING' when nothing exists yet; DRAFT does not count as filed. */
+  submission_status: DailyReportSubmissionStatus | 'MISSING';
+  deadline_at: string;
+  past_deadline: boolean;
+}
+
 /** Everything the employee's own page needs for one reporting date. */
 export interface MyDailyReportResponse {
   report_date: string;

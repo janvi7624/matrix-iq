@@ -2256,3 +2256,51 @@ a.kpiCardNew:hover .kpiHoverArrow {
     border-radius: var(--mx-radius-full);
     flex-shrink: 0;
 }
+
+/* Daily Report shortcut in the hero.
+   Its own variant rather than reusing .heroSecondaryBtn because it is the
+   only hero action that carries STATE — it is a prompt when today is
+   unfiled, and a confirmation once it is done. The two need to look
+   different or the button says nothing. */
+.heroDailyBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 18px;
+    border-radius: var(--mx-radius-full);
+    font-size: var(--mx-text-control);
+    font-weight: var(--mx-weight-semibold);
+    text-decoration: none;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    transition: background var(--mx-duration-fast) var(--mx-ease), color var(--mx-duration-fast) var(--mx-ease);
+}
+
+/* Outstanding — reads as a call to action. */
+.heroDailyPending {
+    background: #ffffff;
+    color: var(--mx-brand-text);
+    border-color: rgba(255, 255, 255, 0.9);
+}
+.heroDailyPending:hover {
+    background: var(--mx-amber-50);
+}
+
+/* Past the deadline. Still filable, so it stays a button, not a warning. */
+.heroDailyLate {
+    background: var(--mx-amber-400);
+    color: var(--mx-amber-900);
+}
+.heroDailyLate:hover {
+    background: var(--mx-amber-500);
+}
+
+/* Done. Quiet on purpose — it is a receipt, not an instruction. */
+.heroDailyDone {
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.35);
+}
+.heroDailyDone:hover {
+    background: rgba(255, 255, 255, 0.22);
+}

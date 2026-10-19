@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { isMarketingManager } from '@/lib/permissions';
+import { canManageMaterials } from '@/lib/permissions';
 import { createMaterial, listMaterials, listProductNames } from '@/lib/materialStore';
 import { isMaterialCategory, MATERIAL_CATEGORIES } from '@/lib/materialCategories';
 import { groupByCategory } from '@/lib/materialGrouping';
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         folderId,
         anyFolder: flatMode
       }),
-      isMarketingManager(viewer),
+      canManageMaterials(viewer),
       // No subfolders while searching: a flat result list with a folder grid
       // above it would imply the folders were results too.
       flatMode ? Promise.resolve([]) : listSubfolders(folderId),
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await isMarketingManager(viewer))) {
+  if (!(await canManageMaterials(viewer))) {
     return NextResponse.json({ error: 'Only the Marketing team can add materials.' }, { status: 403 });
   }
 

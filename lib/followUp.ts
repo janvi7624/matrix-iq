@@ -1,5 +1,8 @@
 // Pure helpers shared between server (API routes) and client (history table) —
 // no fs/blob imports here so this can run in 'use client' components too.
+// lib/types.ts is safe to pull in: its own imports are all type-only, so
+// nothing but plain constants comes across.
+import { LEAD_CLOSED_OUTCOMES, LeadCallOutcome } from './types';
 
 export const FOLLOW_UP_DAYS = 3;
 
@@ -65,7 +68,12 @@ export function isLeadUnattended(lead: {
 }): boolean {
   if (!lead.assigned_to_id) return false;
   if (lead.project_id) return false;
-  if (lead.call_outcome === 'not_suitable' || lead.call_outcome === 'suitable') return false;
+  // Any outcome that closed the lead stops the clock. This used to name
+  // 'suitable' and 'not_suitable' inline and was never updated when
+  // 'completed' was added, so a rep who had explicitly finished with a lead
+  // watched it keep accruing as unattended. 'callback' is handled below —
+  // it is the one outcome that leaves the lead in the queue.
+  if (lead.call_outcome && LEAD_CLOSED_OUTCOMES.includes(lead.call_outcome as LeadCallOutcome)) return false;
   // A promised call-back is its own deadline: overdue the day after it passes.
   if (lead.call_outcome === 'callback' && lead.callback_at) {
     return daysSince(`${lead.callback_at}T00:00:00`) > 0;

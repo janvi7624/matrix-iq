@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { isMarketingManager } from '@/lib/permissions';
+import { canManageMaterials } from '@/lib/permissions';
 import { isMaterialCategory } from '@/lib/materialCategories';
 import { parseDriveLink } from '@/lib/driveLink';
 import { deleteMaterial, findMaterialById, MaterialPatch, updateMaterial } from '@/lib/materialStore';
@@ -12,7 +12,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await isMarketingManager(viewer))) {
+  if (!(await canManageMaterials(viewer))) {
     return NextResponse.json({ error: 'Only the Marketing team can edit materials.' }, { status: 403 });
   }
 
@@ -72,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await isMarketingManager(viewer))) {
+  if (!(await canManageMaterials(viewer))) {
     return NextResponse.json({ error: 'Only the Marketing team can remove materials.' }, { status: 403 });
   }
 

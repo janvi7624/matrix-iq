@@ -3,20 +3,24 @@ import type { RoleRecord, RolePermissions } from '../../lib/types';
 
 vi.mock('../../lib/roleStore', () => ({ findRoleByKey: vi.fn() }));
 vi.mock('../../lib/departmentStore', () => ({ listDepartmentManagers: vi.fn() }));
+vi.mock('../../lib/userStore', () => ({ findUserNameAndDeptByUsername: vi.fn() }));
 
 import { findRoleByKey } from '../../lib/roleStore';
 import { listDepartmentManagers } from '../../lib/departmentStore';
+import { findUserNameAndDeptByUsername } from '../../lib/userStore';
 import {
   resolveIsPrivileged,
   canViewRole,
   hasCapability,
   isModuleActionAllowed,
   canAssignLeads,
-  isMarketingManager
+  isMarketingManager,
+  canManageMaterials
 } from '../../lib/permissions';
 
 const findRoleByKeyMock = vi.mocked(findRoleByKey);
 const listDepartmentManagersMock = vi.mocked(listDepartmentManagers);
+const findUserDeptMock = vi.mocked(findUserNameAndDeptByUsername);
 
 function makePermissions(over: Partial<RolePermissions> = {}): RolePermissions {
   return {
@@ -250,5 +254,72 @@ describe('isMarketingManager', () => {
 
     findRoleByKeyMock.mockResolvedValue(makeRole({ status: 'active', permissions: makePermissions({ modules: { 'marketing-requests': { approve: false } } }) }));
     expect(await isMarketingManager(viewer())).toBe(false);
+  });
+});
+
+describe('canManageMaterials', () => {
+  // The Materials library was gated on isMarketingManager, which resolves to
+  // whoever Department Master lists as a MANAGER of Marketing. So an
+  // ordinary Marketing team member could not upload a brochure while the API
+  // told them "Only the Marketing team can add materials" — and the only way
+  // to grant it was to make them a department manager, which also hands over
+  // approval authority for every Marketing Request. These pin the split.
+
+  const teamMember = { username: 'jaimin', role: 'marketing', isPrivileged: false };
+  const marketingManager = { username: 'manoj', role: 'user', isPrivileged: false };
+  const outsider = { username: 'sachin', role: 'user', isPrivileged: false };
+
+  beforeEach(() => {
+    findRoleByKeyMock.mockResolvedValue(undefined);
+    listDepartmentManagersMock.mockResolvedValue({ Marketing: [{ id: 'm1', username: 'manoj', name: 'Manoj Menon' }] });
+    findUserDeptMock.mockResolvedValue(undefined);
+  });
+
+  it('lets a Marketing team member who is not a manager curate the library', async () => {
+    // The reported bug, exactly.
+    findUserDeptMock.mockResolvedValue({ name: 'Jaimin Rathwa', department: 'Marketing', designation: '' });
+    expect(await canManageMaterials(teamMember)).toBe(true);
+  });
+
+  it('still lets the Marketing department manager curate it', async () => {
+    expect(await canManageMaterials(marketingManager)).toBe(true);
+  });
+
+  it('refuses somebody outside Marketing', async () => {
+    findUserDeptMock.mockResolvedValue({ name: 'Sachin Kacha', department: 'Sales', designation: '' });
+    expect(await canManageMaterials(outsider)).toBe(false);
+  });
+
+  it('refuses an account that cannot be found', async () => {
+    findUserDeptMock.mockResolvedValue(undefined);
+    expect(await canManageMaterials(outsider)).toBe(false);
+  });
+
+  it('matches a renamed Marketing department by its leading word', async () => {
+    // Department names are admin-editable free text — "HR" is already
+    // "HR & Admin" on this instance, and an exact match silently grants
+    // nobody.
+    findUserDeptMock.mockResolvedValue({ name: 'Jaimin', department: 'Marketing & Communications', designation: '' });
+    expect(await canManageMaterials(teamMember)).toBe(true);
+    findUserDeptMock.mockResolvedValue({ name: 'Jaimin', department: '  marketing  ', designation: '' });
+    expect(await canManageMaterials(teamMember)).toBe(true);
+  });
+
+  it('does not match a department that merely contains the word', async () => {
+    findUserDeptMock.mockResolvedValue({ name: 'X', department: 'Product Marketing', designation: '' });
+    expect(await canManageMaterials(teamMember)).toBe(false);
+  });
+
+  it('does NOT widen Marketing Request approval', async () => {
+    // The whole point of splitting the two: a team member may publish
+    // collateral without gaining authority over other departments' requests.
+    findUserDeptMock.mockResolvedValue({ name: 'Jaimin Rathwa', department: 'Marketing', designation: '' });
+    expect(await canManageMaterials(teamMember)).toBe(true);
+    expect(await isMarketingManager(teamMember)).toBe(false);
+  });
+
+  it('keeps letting an org-wide viewer in', async () => {
+    findRoleByKeyMock.mockResolvedValue(makeRole({ permissions: makePermissions({ viewAllDepartments: true }) }));
+    expect(await canManageMaterials(outsider)).toBe(true);
   });
 });

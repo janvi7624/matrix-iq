@@ -3,6 +3,7 @@ import { ViewerContext } from './viewerContext';
 import {
   DailyReportHistoryItem,
   MyDailyReportResponse,
+  MyDailyReportStatus,
   TeamDailyReportResponse,
   TeamDailyReportRow
 } from './dailyReportTypes';
@@ -174,6 +175,63 @@ export async function buildMyDailyReport(employee: EmployeeIdentity, date?: stri
     leave_claim: leaveClaim,
     warnings,
     history
+  };
+}
+
+/**
+ * "Should this person be asked to file today, and have they." Nothing more.
+ *
+ * Kept separate from buildMyDailyReport — which loads the template, a
+ * fortnight of history, the month's warning summary and the revision list —
+ * because the dashboard shortcut runs on a screen every person opens on
+ * every visit. Three lookups, not nine.
+ *
+ * Every `required: false` branch mirrors a rule the scheduler already
+ * applies, so the shortcut can never prompt somebody the module itself does
+ * not expect a report from.
+ */
+export async function buildMyDailyReportStatus(employeeId: string): Promise<MyDailyReportStatus> {
+  const policy = await getDeadlinePolicy();
+  const reportDate = istDate(new Date());
+  const schedule = scheduleFor(reportDate, policy);
+
+  const base: MyDailyReportStatus = {
+    required: false,
+    not_required_reason: '',
+    report_date: reportDate,
+    submission_status: 'MISSING',
+    deadline_at: schedule.deadlineAt.toISOString(),
+    past_deadline: false
+  };
+
+  const employee = await resolveEmployeeIdentity(employeeId);
+  // Superadmin accounts carry no department at all — there is no format to
+  // file, so there is nothing to prompt them about.
+  if (!employee?.departmentId) return { ...base, not_required_reason: 'no_department' };
+
+  const config = await getDailyReportConfig();
+  if (config.exempt_employee_ids.includes(employee.id)) return { ...base, not_required_reason: 'exempt' };
+
+  const resolved = await resolveTemplateForDepartment(employee.departmentId);
+  if (!resolved.configured) return { ...base, not_required_reason: 'not_configured' };
+
+  const report = await findReportForDate(employee.id, employee.departmentId, reportDate);
+  const filed = report ? report.submission_status : 'MISSING';
+
+  // Not a working day, or already excused by a pending/approved leave claim.
+  // Both are rules the scheduler applies, so prompting here would be the
+  // shortcut contradicting the module. A report filed anyway is still
+  // reported, rather than claiming nothing happened.
+  if (!isWorkingDay(reportDate, policy) || (await findLiveClaim(employee.id, reportDate))) {
+    return { ...base, not_required_reason: 'non_working_day', submission_status: filed };
+  }
+
+  const submitted = !!report && SUBMITTED_STATUSES.includes(report.submission_status);
+  return {
+    ...base,
+    required: true,
+    submission_status: filed,
+    past_deadline: !submitted && Date.now() > schedule.deadlineAt.getTime()
   };
 }
 

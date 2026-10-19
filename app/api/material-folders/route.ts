@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { isMarketingManager } from '@/lib/permissions';
+import { canManageMaterials } from '@/lib/permissions';
 import { createFolder, listFolderTree, FolderTreeError } from '@/lib/materialFolderStore';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    return NextResponse.json({ folders: await listFolderTree(), canManage: await isMarketingManager(viewer) });
+    return NextResponse.json({ folders: await listFolderTree(), canManage: await canManageMaterials(viewer) });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await isMarketingManager(viewer))) {
+  if (!(await canManageMaterials(viewer))) {
     return NextResponse.json({ error: 'Only the Marketing team can create folders.' }, { status: 403 });
   }
 

@@ -1486,6 +1486,21 @@ export type LeadCallOutcome = '' | 'suitable' | 'not_suitable' | 'completed' | '
 
 export const LEAD_CALL_OUTCOMES: LeadCallOutcome[] = ['suitable', 'not_suitable', 'completed', 'callback'];
 
+/**
+ * Outcomes that mean the rep has DEALT with the lead, so it stops being
+ * chased as unattended (see isLeadUnattended in lib/followUp.ts).
+ *
+ * 'callback' is deliberately absent: it is the one outcome that leaves the
+ * lead in the queue, and it carries its own deadline in callback_at.
+ *
+ * Named rather than written inline because it was inline, and 'completed'
+ * was added to LeadCallOutcome later without that list being updated — so
+ * 456 leads a rep had explicitly closed kept ageing into the Unattended
+ * count with nothing to do about them. A fifth outcome added here must be
+ * classified here too.
+ */
+export const LEAD_CLOSED_OUTCOMES: LeadCallOutcome[] = ['suitable', 'not_suitable', 'completed'];
+
 // A colleague the capturer can hand a scanned card over to on the wizard's
 // Confirm Details step — see lib/leadHandover.ts.
 export interface LeadHandoverRecipient {

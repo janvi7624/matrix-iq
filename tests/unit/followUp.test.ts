@@ -183,3 +183,47 @@ describe('daysSince (the clock behind the SLA)', () => {
     expect(daysSince(new Date(Date.now() + 2 * DAY_MS).toISOString())).toBeLessThan(0);
   });
 });
+
+describe('isLeadUnattended — closed outcomes', () => {
+  // The reported bug: a rep records 'completed' on a call, and the lead
+  // carries on accruing in the Unattended count forever. isLeadUnattended
+  // named 'suitable' and 'not_suitable' inline and was never updated when
+  // 'completed' was added to LeadCallOutcome. 456 live leads were affected.
+  //
+  // lib/types.ts documents 'completed' as "same no-project rule as
+  // 'not_suitable', just without implying the lead was a bad fit", so it
+  // must stop the clock exactly as 'not_suitable' does.
+  const longOverdue = { assigned_to_id: 'u1', assigned_at: daysAgo(30), called_at: daysAgo(30) };
+
+  it('does not chase a lead marked completed', () => {
+    expect(isLeadUnattended(lead({ ...longOverdue, call_outcome: 'completed' }))).toBe(false);
+  });
+
+  it('treats completed exactly like not_suitable and suitable', () => {
+    for (const outcome of ['completed', 'not_suitable', 'suitable']) {
+      expect(isLeadUnattended(lead({ ...longOverdue, call_outcome: outcome })), outcome).toBe(false);
+    }
+  });
+
+  it('still chases a lead with no outcome recorded', () => {
+    // The fix must not silence leads nobody has actually dealt with.
+    expect(isLeadUnattended(lead({ ...longOverdue, call_outcome: '' }))).toBe(true);
+    expect(isLeadUnattended(lead({ ...longOverdue }))).toBe(true);
+  });
+
+  it('still chases an overdue callback', () => {
+    // 'callback' is the one outcome that leaves the lead in the queue, and
+    // it keeps its own deadline rather than being closed.
+    expect(isLeadUnattended(lead({ ...longOverdue, call_outcome: 'callback', callback_at: dayKey(-2) }))).toBe(true);
+  });
+
+  it('does not chase a callback that is not due yet', () => {
+    expect(isLeadUnattended(lead({ ...longOverdue, call_outcome: 'callback', callback_at: dayKey(3) }))).toBe(false);
+  });
+
+  it('ignores an outcome value it does not recognise', () => {
+    // A value outside LeadCallOutcome must not silently close a lead — it
+    // falls through to the ordinary SLA clock.
+    expect(isLeadUnattended(lead({ ...longOverdue, call_outcome: 'something-else' }))).toBe(true);
+  });
+});

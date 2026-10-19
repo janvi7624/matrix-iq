@@ -17,6 +17,7 @@ import AppShell from './AppShell';
 import HealthGauge, { BAND_COLOR, BAND_TEXT } from './ui/HealthGauge';
 import DepartmentHealthDetail from './DepartmentHealthDetail';
 import { BRAND } from '@/lib/branding';
+import type { MyDailyReportStatus } from '@/lib/dailyReportTypes';
 import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
@@ -50,7 +51,8 @@ import {
   Activity,
   Table as TableIcon,
   Copy,
-  Check
+  Check,
+  ClipboardList
 } from 'lucide-react';
 import Modal from './ui/Modal';
 import { hasSeenCelebrationPopup, markCelebrationPopupSeen } from '@/lib/celebrationPopupSeen';
@@ -147,6 +149,10 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
 };
 
 export default function Dashboard({ currentUser }: DashboardProps) {
+  // Just enough to decide whether to prompt, and with what wording. The
+  // dedicated /status endpoint exists so this costs three lookups rather
+  // than the full employee page payload — every person loads this screen.
+  const [dailyReport, setDailyReport] = useState<MyDailyReportStatus | null>(null);
   const [followUpCount, setFollowUpCount] = useState<number | null>(null);
   const [reminderCount, setReminderCount] = useState<number | null>(null);
   const [kpis, setKpis] = useState<Kpis | null>(null);
@@ -267,6 +273,24 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       // Same reasoning as above — keep the gauges that are on screen.
       .catch(() => {});
   }
+
+  // Its own request rather than part of /api/dashboard: that payload is
+  // shared by every role and this is personal to the viewer, and a failure
+  // here must only hide the shortcut, never break the dashboard.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/daily-reports/me/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled) setDailyReport(data);
+      })
+      .catch(() => {
+        if (!cancelled) setDailyReport(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     void loadDashboard(true);
@@ -667,6 +691,38 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         </div>
 
         <div className={styles.heroActions}>
+          {/* Only rendered when this person genuinely owes a report today —
+              see /api/daily-reports/me/status, which returns required:false
+              for an excused account, an unconfigured department, a
+              non-working day, and a day already covered by a leave claim.
+              A shortcut that opened a page saying "you are not required to
+              file" would be worse than no shortcut. */}
+          {dailyReport?.required && (
+            <Link
+              href="/daily-reports"
+              className={`${styles.heroDailyBtn} ${
+                dailyReport.submission_status === 'MISSING' || dailyReport.submission_status === 'DRAFT'
+                  ? dailyReport.past_deadline
+                    ? styles.heroDailyLate
+                    : styles.heroDailyPending
+                  : styles.heroDailyDone
+              }`}
+            >
+              {dailyReport.submission_status === 'SUBMITTED' || dailyReport.submission_status === 'SUBMITTED_LATE' ? (
+                <>
+                  <CheckCircle2 size={15} /> Daily Report Filed
+                </>
+              ) : (
+                <>
+                  <ClipboardList size={15} />
+                  {/* A saved draft is NOT filed, and saying "File" rather
+                      than "Finish" would hide that it is still outstanding. */}
+                  {dailyReport.submission_status === 'DRAFT' ? 'Finish Daily Report' : 'File Daily Report'}
+                  {dailyReport.past_deadline && ' · Overdue'}
+                </>
+              )}
+            </Link>
+          )}
           <Link href="/quotation" className={styles.heroPrimaryBtn}>
             <Plus size={16} strokeWidth={2.5} /> New Quotation
           </Link>

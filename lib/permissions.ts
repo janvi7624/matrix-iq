@@ -1,5 +1,6 @@
 import { findRoleByKey } from './roleStore';
 import { listDepartmentManagers } from './departmentStore';
+import { findUserNameAndDeptByUsername } from './userStore';
 import { GlobalCapability, ModulePermissionAction } from './types';
 
 // Legacy fallback if a role key isn't found in the store at all (shouldn't
@@ -102,6 +103,40 @@ export async function canAssignLeads(viewer: { username: string; role: string; i
   if (await isSalesLeadManager(viewer.username)) return true;
   if (viewer.isPrivileged) return true;
   return isModuleActionAllowed(viewer, 'leads', 'assign');
+}
+
+// Marketing's department name, matched as a leading word rather than by
+// exact equality — same reasoning as findHrManagers in lib/departmentStore.ts,
+// where "HR" had already been renamed to "HR & Admin" and an exact lookup
+// silently matched nothing.
+const MARKETING_DEPARTMENT_RE = /^marketing\b/i;
+
+/**
+ * Who may curate the shared Materials library — add, rename, re-describe and
+ * remove datasheets, case studies and the folders they live in.
+ *
+ * Deliberately WIDER than isMarketingManager, and deliberately separate from
+ * it. Materials was gated on that function, which resolves to whoever is
+ * listed in Department Master as a manager of the Marketing department — so
+ * an ordinary Marketing team member could not upload a brochure, while the
+ * API told them "Only the Marketing team can add materials." The message and
+ * the behaviour disagreed, and the only way to grant the upload was to make
+ * someone a department manager, which ALSO hands them approval authority
+ * over every Marketing Request, their timelines, their assignment and their
+ * status. Publishing collateral is ordinary team work; approving other
+ * departments' requests is not, and the two should not be the same grant.
+ *
+ * So: anyone in the Marketing department, plus everyone isMarketingManager
+ * already allowed (its manager, org-wide viewers, and its configured
+ * fallbacks). The Marketing Request approval chain is untouched and still
+ * runs on isMarketingManager.
+ */
+export async function canManageMaterials(viewer: { username: string; role: string; isPrivileged: boolean }): Promise<boolean> {
+  if (await isMarketingManager(viewer)) return true;
+  // ViewerContext carries no department, so this is the one extra lookup —
+  // paid only when the cheaper manager check has already said no.
+  const user = await findUserNameAndDeptByUsername(viewer.username);
+  return !!user && MARKETING_DEPARTMENT_RE.test((user.department || '').trim());
 }
 
 export async function isMarketingManager(viewer: { username: string; role: string; isPrivileged: boolean }): Promise<boolean> {

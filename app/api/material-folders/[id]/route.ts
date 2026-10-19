@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { isMarketingManager } from '@/lib/permissions';
+import { canManageMaterials } from '@/lib/permissions';
 import { deleteFolder, findFolderById, FolderTreeError, updateFolder } from '@/lib/materialFolderStore';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -10,7 +10,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await isMarketingManager(viewer))) {
+  if (!(await canManageMaterials(viewer))) {
     return NextResponse.json({ error: 'Only the Marketing team can edit folders.' }, { status: 403 });
   }
 
@@ -39,7 +39,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await isMarketingManager(viewer))) {
+  if (!(await canManageMaterials(viewer))) {
     return NextResponse.json({ error: 'Only the Marketing team can remove folders.' }, { status: 403 });
   }
 
