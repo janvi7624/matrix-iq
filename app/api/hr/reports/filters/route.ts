@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { requireHrModule } from '@/lib/hrAccess';
 import { apiErrorResponse } from '@/lib/apiError';
 import { db } from '@/lib/db';
+import { getExpenseDataBounds } from '@/lib/hrExpenseReportStore';
 
 // Just enough to populate the report's Department/Employee pickers, gated on
 // the report module itself — the HR directory endpoint can't be reused for
@@ -14,12 +15,15 @@ export async function GET(request: NextRequest) {
   if (!(await requireHrModule(viewer, 'hr-reports'))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
-    const rows = await db.User.findAll({
+    // Bounds ride along with the pickers rather than getting their own
+    // endpoint: the view already fetches this on mount, and it needs the
+    // window before it can build a period picker or request a range.
+    const [bounds, rows] = await Promise.all([getExpenseDataBounds(), db.User.findAll({
       where: { status: 'active' } as never,
       include: [{ model: db.Department, as: 'departmentRef', attributes: ['name'] }],
       attributes: ['id', 'name', 'username', 'employeeId'],
       order: [['name', 'ASC']]
-    });
+    })]);
 
     const employees = rows.map((row) => {
       const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -34,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     const departments = [...new Set(employees.map((e) => e.department).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
-    return NextResponse.json({ employees, departments });
+    return NextResponse.json({ employees, departments, bounds });
   } catch (error) {
     return apiErrorResponse(error);
   }

@@ -197,6 +197,57 @@ function creatorOf(plain: Record<string, unknown>): { employeeId: string; employ
 // moduleConfigStore's HR_RESTRICTED_KEYS), and a spend report that silently
 // showed one viewer a different total than another would be worse than no
 // report at all.
+export interface ExpenseDataBounds {
+  min: { year: number; month: number };
+  max: { year: number; month: number };
+}
+
+/**
+ * The real first and last month that any expense exists in.
+ *
+ * This replaces a hand-maintained DATA_START_MONTH constant that had to be
+ * lowered by a developer every time somebody back-dated an entry — a process
+ * whose failure mode is SILENT (the month is simply not offered, so the
+ * spend is invisible with nothing on screen to suggest it) and which had
+ * already failed twice. Reading it from the data means it cannot fail a
+ * third time.
+ *
+ * Both ends matter. The floor was wrong at 2026-04 while Office Operation
+ * had a January entry; the ceiling was capped at the month in progress while
+ * Reimbursement carried future-dated November and December rows.
+ */
+export async function getExpenseDataBounds(): Promise<ExpenseDataBounds | null> {
+  const [oo, rb] = await Promise.all([
+    db.OfficeOperationExpense.findAll({
+      attributes: [
+        [db.Sequelize.fn('min', db.Sequelize.col('date')), 'min'],
+        [db.Sequelize.fn('max', db.Sequelize.col('date')), 'max']
+      ],
+      raw: true
+    }),
+    db.Reimbursement.findAll({
+      attributes: [
+        [db.Sequelize.fn('min', db.Sequelize.col('date')), 'min'],
+        [db.Sequelize.fn('max', db.Sequelize.col('date')), 'max']
+      ],
+      raw: true
+    })
+  ]);
+
+  const toIso = (value: unknown): string => {
+    if (!value) return '';
+    return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+  };
+  const mins = [toIso((oo[0] as never as { min: unknown })?.min), toIso((rb[0] as never as { min: unknown })?.min)].filter(Boolean).sort();
+  const maxes = [toIso((oo[0] as never as { max: unknown })?.max), toIso((rb[0] as never as { max: unknown })?.max)].filter(Boolean).sort();
+  // No expenses at all yet — the caller falls back to its own default rather
+  // than being handed a nonsense range.
+  if (!mins.length || !maxes.length) return null;
+
+  const parse = (iso: string) => ({ year: Number(iso.slice(0, 4)), month: Number(iso.slice(5, 7)) });
+  return { min: parse(mins[0]), max: parse(maxes[maxes.length - 1]) };
+}
+
 export async function getHrExpenseReport(params: HrExpenseReportParams): Promise<HrExpenseReport> {
   const { from, to, sources, approvedOnly } = params;
   const wantReimbursement = sources.includes('reimbursement');

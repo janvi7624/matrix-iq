@@ -15,10 +15,11 @@ import StatTile from './ui/StatTile';
 import { useToast } from './ui/ToastProvider';
 import { formatMoneyWhole } from '@/lib/format';
 import {
-  DATA_START_YEAR,
   Granularity,
   PeriodScope,
-  firstMonthOf,
+  PeriodBounds,
+  FALLBACK_BOUNDS,
+  selectableYears,
   monthIsSelectable,
   quarterIsSelectable,
   resolveRange
@@ -68,6 +69,8 @@ interface Report {
 interface FilterOptions {
   employees: { id: string; name: string; employeeId: string; department: string }[];
   departments: string[];
+  /** Null until the first fetch lands, or when there is no spend at all. */
+  bounds: PeriodBounds | null;
 }
 
 // One labelled control. A filter whose purpose is only legible from its
@@ -142,7 +145,7 @@ export default function HrReportsView() {
   const [employeeId, setEmployeeId] = useState('');
   const [approvedOnly, setApprovedOnly] = useState(false);
 
-  const [options, setOptions] = useState<FilterOptions>({ employees: [], departments: [] });
+  const [options, setOptions] = useState<FilterOptions>({ employees: [], departments: [], bounds: null });
   const [exporting, setExporting] = useState(false);
   // One state object keyed by the request it answered, rather than separate
   // report/loading/failed flags: `loading` is then DERIVED from "the newest
@@ -152,7 +155,10 @@ export default function HrReportsView() {
   const [result, setResult] = useState<{ key: string; report: Report | null; failed: boolean } | null>(null);
   const [attempt, setAttempt] = useState(0);
 
-  const { from, to } = useMemo(() => resolveRange(year, granularity, scope, now), [year, granularity, scope, now]);
+  // One resolved window every picker and the range itself read from, so a
+  // call site cannot be left on the old hardcoded floor by accident.
+  const bounds = options.bounds ?? FALLBACK_BOUNDS;
+  const { from, to } = useMemo(() => resolveRange(year, granularity, scope, now, bounds), [year, granularity, scope, now, bounds]);
 
   // The query string is built once and reused verbatim by the export, which
   // is what guarantees the spreadsheet matches the table on screen.
@@ -194,21 +200,20 @@ export default function HrReportsView() {
   }
 
   // Newest first, back to the first year with data — never further.
-  const yearChoices = useMemo(
-    () => Array.from({ length: Math.max(1, currentYear - DATA_START_YEAR + 1) }, (_, i) => currentYear - i),
-    [currentYear]
-  );
+  // `bounds` is in every dependency list below on purpose: it starts as the
+  // fallback and is replaced once /filters lands, so a list memoised without
+  // it would keep showing the fallback window forever.
+  const yearChoices = useMemo(() => selectableYears(now, bounds), [now, bounds]);
 
-  // Only periods that have actually started, between the data floor and the
-  // month in progress — same predicates changeYear re-checks below, so the
-  // list and the validation can't disagree.
+  // Only periods inside the real data window — same predicates changeYear
+  // re-checks below, so the list and the validation can't disagree.
   const monthChoices = useMemo(
-    () => MONTH_NAMES.map((name, i) => ({ name, value: i + 1 })).filter((m) => monthIsSelectable(m.value, year, now)),
-    [year, now]
+    () => MONTH_NAMES.map((name, i) => ({ name, value: i + 1 })).filter((m) => monthIsSelectable(m.value, year, now, bounds)),
+    [year, now, bounds]
   );
   const quarterChoices = useMemo(
-    () => [1, 2, 3, 4].filter((q) => quarterIsSelectable(q, year, now)),
-    [year, now]
+    () => [1, 2, 3, 4].filter((q) => quarterIsSelectable(q, year, now, bounds)),
+    [year, now, bounds]
   );
 
   // Switching year can invalidate the selected month/quarter (the first year
@@ -218,8 +223,8 @@ export default function HrReportsView() {
     setYear(next);
     if (scope === 'all') return;
     const stillValid = granularity === 'month'
-      ? monthIsSelectable(scope, next, now)
-      : quarterIsSelectable(scope, next, now);
+      ? monthIsSelectable(scope, next, now, bounds)
+      : quarterIsSelectable(scope, next, now, bounds);
     if (!stillValid) setScope('all');
   }
 
