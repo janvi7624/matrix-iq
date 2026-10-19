@@ -29,6 +29,9 @@ interface PeriodProgress {
   hasTarget: boolean;
   targetAmount: number;
   achievedAmount: number;
+  ownAchievedAmount: number;
+  teamAchievedAmount: number;
+  teamMemberCount: number;
   achievementPercent: number;
   remainingAmount: number;
   status: string;
@@ -40,6 +43,7 @@ interface PeriodProgress {
 
 interface MyTargetPayload {
   hasAnyTarget: boolean;
+  teamMembers: string[];
   periods: Record<Scale, PeriodProgress>;
 }
 
@@ -81,6 +85,13 @@ export default function MyTargetPanel() {
         </div>
         <SegmentedToggle options={SCALE_OPTIONS} value={scale} onChange={setScale} />
       </div>
+
+      {p.teamMemberCount > 0 && (
+        <div className={styles.teamNote} title={data.teamMembers.join(', ')}>
+          Includes <b>{formatMoney(p.teamAchievedAmount)}</b> from your team ({p.teamMemberCount}{' '}
+          {p.teamMemberCount === 1 ? 'teammate' : 'teammates'}) — your own: {formatMoney(p.ownAchievedAmount)}
+        </div>
+      )}
 
       {!p.hasTarget ? (
         <div className={styles.empty}>

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { periodContainingDate, TargetPeriodType } from '@/lib/targetPeriod';
 import { findSalesTarget } from '@/lib/salesTargetStore';
-import { computeAchievement } from '@/lib/salesAchievement';
+import { computeAchievement, computeAchievementForEmployees } from '@/lib/salesAchievement';
 import { buildTargetProgress } from '@/lib/targetProgress';
+import { listOwnManagedSalesTeam } from '@/lib/targetAccess';
 import { apiErrorResponse } from '@/lib/apiError';
 
 // The viewer's OWN target and achievement, for the Dashboard panel. No
@@ -25,13 +26,27 @@ export async function GET(request: NextRequest) {
 
   try {
     const now = new Date();
+    // A Sales/GEM-Sales department manager's own figure here rolls up their
+    // directly-managed team too (explicit ask: a teammate closing a deal
+    // "should also count in [the manager] too") — resolved once since who
+    // manages whom doesn't vary by period scale.
+    const team = await listOwnManagedSalesTeam(viewer.username, viewer.userId);
+    const teamMemberIds = team.map((m) => m.id);
+
     const entries = await Promise.all(
       SCALES.map(async (periodType) => {
         const period = periodContainingDate(periodType, now);
-        const [target, achievement] = await Promise.all([
+        const [target, achievement, teamAchievements] = await Promise.all([
           findSalesTarget(viewer.userId, periodType, period.periodStart),
-          computeAchievement(viewer.userId, period.periodStart, period.periodEnd)
+          computeAchievement(viewer.userId, period.periodStart, period.periodEnd),
+          teamMemberIds.length
+            ? computeAchievementForEmployees(teamMemberIds, period.periodStart, period.periodEnd)
+            : Promise.resolve({})
         ]);
+
+        const teamAchievedAmount = Object.values(teamAchievements).reduce((sum, a) => sum + a.achievedAmount, 0);
+        const teamDealCount = Object.values(teamAchievements).reduce((sum, a) => sum + a.qualifyingQuotationIds.length, 0);
+        const combinedAchievedAmount = achievement.achievedAmount + teamAchievedAmount;
 
         return [
           periodType,
@@ -43,8 +58,16 @@ export async function GET(request: NextRequest) {
             fiscalYear: period.fiscalYear,
             hasTarget: !!target,
             notes: target?.notes ?? '',
-            dealCount: achievement.qualifyingQuotationIds.length,
-            ...buildTargetProgress(target?.targetAmount ?? 0, achievement.achievedAmount, period.periodStart, period.periodEnd, now)
+            dealCount: achievement.qualifyingQuotationIds.length + teamDealCount,
+            // achievedAmount below (from buildTargetProgress) is the combined
+            // figure that now drives the bar/%/status; these two are kept
+            // alongside it so the UI can show WHERE the number came from
+            // instead of a total that silently grew past what the rep closed
+            // themself.
+            ownAchievedAmount: achievement.achievedAmount,
+            teamAchievedAmount,
+            teamMemberCount: teamMemberIds.length,
+            ...buildTargetProgress(target?.targetAmount ?? 0, combinedAchievedAmount, period.periodStart, period.periodEnd, now)
           }
         ] as const;
       })
@@ -57,6 +80,7 @@ export async function GET(request: NextRequest) {
       // carrying a number — HR, Accounts, Technical — rather than showing
       // them an empty "₹0 of ₹0".
       hasAnyTarget: entries.some(([, p]) => p.hasTarget),
+      teamMembers: team.map((m) => m.name),
       periods
     });
   } catch (error) {

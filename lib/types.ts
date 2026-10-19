@@ -789,7 +789,15 @@ export interface MarketingRequestRecord {
 // be reconstructed and shown as one timeline.
 // ---------------------------------------------------------------------------
 
+// The stage vocabulary. Postgres cannot drop an enum value, so retired
+// stages stay here as long as real projects still carry them — see
+// lib/salesStageRules.ts, which owns which of these are live pipeline
+// stages, which are retired, and which need a human to re-grade them.
+//
+// 'prospect' is the current spelling of 'cold_call' (both are accepted
+// while the old value survives in the enum) and 'commit' is new.
 export const PROJECT_STAGES = [
+  'prospect',
   'cold_call',
   'catalogue_offered',
   'site_visit',
@@ -797,6 +805,7 @@ export const PROJECT_STAGES = [
   'demo',
   'customer_response',
   'negotiation',
+  'commit',
   'po_received',
   'installation',
   'completed',
@@ -862,7 +871,28 @@ export interface ProjectRecord {
   // project closes — set at creation, editable later from Overview. ''
   // means no estimate has been given (never 0 by default — 0% is a real,
   // deliberate estimate, not "unset").
+  /**
+   * DERIVED on read from the stage, never stored — see
+   * lib/salesStageRules.ts resolveClosingPercent. '' means genuinely
+   * unknown (a retired stage awaiting re-triage) and must NOT be read as
+   * zero: those projects carry real pipeline value.
+   */
   closing_probability_percent: number | '';
+  /** Where the number above came from, so the UI can mark an override. */
+  closing_percent_source: 'status' | 'override' | 'stage' | 'unknown';
+  /** The hand-typed figure from before Closing % was derived. '' = none. */
+  legacy_closing_percent: number | '';
+  closing_percent_override: number | '';
+  closing_percent_override_reason: string;
+  closing_percent_override_by: string;
+  closing_percent_override_at: string;
+  expected_po_date: string;
+  confirmed_by_contact: string;
+  lost_reason: string;
+  quote_value: number | '';
+  quotation_date: string;
+  /** When the project entered its CURRENT stage. Drives Days in Stage. */
+  stage_entered_at: string;
   // Mandatory on manual creation (app/api/projects/route.ts) — '' only for
   // an auto-created-from-lead project awaiting the assignee to fill it in
   // (see lib/leadProjectAutomation.ts and ProjectRecord.lead_confirmation_status).

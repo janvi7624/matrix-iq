@@ -1,5 +1,6 @@
+import { Op } from 'sequelize';
 import { hasCapability, isModuleActionAllowed } from './permissions';
-import { listDepartmentManagers } from './departmentStore';
+import { listDepartmentManagers, departmentsManagedBy } from './departmentStore';
 import { resolveVisibilityScope } from './departmentScope';
 import { db } from './db';
 
@@ -56,5 +57,35 @@ export async function listSalesTeamRoster(viewerUsername: string): Promise<Sales
     const p = r.get({ plain: true }) as Record<string, unknown>;
     const dept = p.departmentRef as { name?: string } | null;
     return { id: p.id as string, username: p.username as string, name: (p.name as string) || (p.username as string), department: dept?.name ?? '', designation: (p.designation as string) ?? '' };
+  });
+}
+
+export interface ManagedTeamMember {
+  id: string;
+  name: string;
+}
+
+// "His team" for the My Target rollup, specifically: active users in
+// whichever Sales/GEM-Sales department(s) Department Master lists THIS
+// person as a manager of, excluding themself. Deliberately NOT
+// resolveVisibilityScope/listSalesTeamRoster above — those widen to "every
+// department" for an org-wide viewer, which must never leak into a manager's
+// own personal achievement number. A manager's own figure only ever grows by
+// the people they were actually put in charge of.
+export async function listOwnManagedSalesTeam(viewerUsername: string, viewerUserId: string): Promise<ManagedTeamMember[]> {
+  const managed = await departmentsManagedBy(viewerUsername);
+  const managedSalesDepartmentIds = managed
+    .filter((d) => TARGET_MANAGER_DEPARTMENTS.includes(d.name))
+    .map((d) => d.id);
+  if (!managedSalesDepartmentIds.length) return [];
+
+  const rows = await db.User.findAll({
+    where: { status: 'active', departmentId: managedSalesDepartmentIds, id: { [Op.ne]: viewerUserId } } as never,
+    attributes: ['id', 'name', 'username'],
+    order: [['name', 'ASC']]
+  });
+  return rows.map((r) => {
+    const p = r.get({ plain: true }) as Record<string, unknown>;
+    return { id: p.id as string, name: (p.name as string) || (p.username as string) };
   });
 }

@@ -80,3 +80,10 @@
 .meta b { color: var(--mx-ink); font-variant-numeric: tabular-nums; font-weight: var(--mx-weight-semibold); }
 
 .empty { font-size: 13px; color: var(--mx-ink-muted); }
+
+.teamNote {
+    font-size: 12px;
+    color: var(--mx-ink-muted);
+    margin-bottom: 10px;
+}
+.teamNote b { color: var(--mx-ink); font-variant-numeric: tabular-nums; font-weight: var(--mx-weight-semibold); }

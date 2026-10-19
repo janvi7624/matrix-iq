@@ -14,6 +14,7 @@ import SiteVisitWizard, { SiteVisitWizardForm } from './SiteVisitWizard';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
+import Modal from './ui/Modal';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import historyStyles from './quotationHistory.module.css';
@@ -25,7 +26,14 @@ interface SiteVisitsViewProps {
   currentUser: { username: string; role: UserRole; isPrivileged: boolean };
 }
 
-const EMPTY_UPDATE_FORM = { teamTechnical: [] as string[], teamSales: [] as string[], projectDetails: '', ongoingActivities: '', remarks: '' };
+const EMPTY_UPDATE_FORM = { teamTechnical: [] as string[], teamSales: [] as string[], projectDetails: '', ongoingActivities: '', remarks: '', updatedOn: '' };
+
+// Today has to be computed per form, not once per module: this screen stays
+// open for hours and a date baked in at import would quietly start logging
+// updates against yesterday — which is the bug being fixed, not a new one.
+function emptyUpdateForm(): typeof EMPTY_UPDATE_FORM {
+  return { ...EMPTY_UPDATE_FORM, updatedOn: todayDateInputValue() };
+}
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -84,7 +92,7 @@ function SiteVisitDetail({
   const [status, setStatus] = useState(visit.status);
   const [remarks, setRemarks] = useState(visit.remarks);
   const [busy, setBusy] = useState(false);
-  const [updateForm, setUpdateForm] = useState(EMPTY_UPDATE_FORM);
+  const [updateForm, setUpdateForm] = useState(emptyUpdateForm);
   const [addingUpdate, setAddingUpdate] = useState(false);
 
   async function handleSaveDetails() {
@@ -105,19 +113,20 @@ function SiteVisitDetail({
     setAddingUpdate(true);
     try {
       await onAddUpdate(visit.id, updateForm);
-      setUpdateForm(EMPTY_UPDATE_FORM);
+      setUpdateForm(emptyUpdateForm());
     } finally {
       setAddingUpdate(false);
     }
   }
 
   return (
-    <div className={historyStyles.detailPanel}>
+    // No .detailPanel wrapper and no title/Close of its own: this renders
+    // inside a Modal now, which supplies the card, the heading and the
+    // dismiss affordance. Keeping them would read as a panel inside a panel
+    // with two close buttons.
+    <div>
       <div className={styles.headerRow}>
         <div>
-          <h2 className={`${calcStyles.h2} ${calcStyles.h2Reset}`}>
-            {visit.company_name}
-          </h2>
           <div className={calcStyles.small}>
             Visited {formatDate(visit.visit_date)} by {visit.created_by}
             {visit.contact_person ? ` · Contact: ${visit.contact_person}` : ''}
@@ -129,9 +138,6 @@ function SiteVisitDetail({
             ) : ''}
           </div>
         </div>
-        <button type="button" className={historyStyles.button} onClick={onClose}>
-          Close
-        </button>
       </div>
 
       <div className={`${calcStyles.row} ${calcStyles.columns}`}>
@@ -271,8 +277,21 @@ function SiteVisitDetail({
             onChange={(e) => setUpdateForm((f) => ({ ...f, remarks: e.target.value }))}
           />
         </div>
-        <div className={`${calcStyles.small} ${calcStyles.mb8}`}>
-          Date of updation is recorded automatically: {formatDateTime(new Date().toISOString())}
+        {/* Editable, because an update is routinely written up a day or two
+            after the visit it describes. It used to stamp "now" with no way
+            to say otherwise, so the log recorded when someone got round to
+            typing rather than when anything happened. Defaults to today,
+            and cannot be set in the future. */}
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label} htmlFor="sv-update-date">Date of update</label>
+          <input
+            id="sv-update-date"
+            type="date"
+            className={calcStyles.formControl}
+            value={updateForm.updatedOn}
+            max={todayDateInputValue()}
+            onChange={(e) => setUpdateForm((f) => ({ ...f, updatedOn: e.target.value }))}
+          />
         </div>
         <button type="submit" className={calcStyles.btn} disabled={addingUpdate}>
           {addingUpdate ? 'Saving…' : 'Add update'}
@@ -458,7 +477,7 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
                     <td>{v.created_by}</td>
                     <td className={historyStyles.rowActionsInline}>
                       <button type="button" className={historyStyles.button} onClick={() => setOpenId(v.id)}>
-                        Open
+                        View / Edit
                       </button>
                       <Link className={historyStyles.button} href={`/quotation${v.project_id ? `?projectId=${v.project_id}` : ''}`}>
                         Create Quotation
@@ -476,8 +495,24 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
           </table>
         )}
 
+        {/* A dialog rather than a panel appended after the table: the panel
+            rendered below every row in the list, so opening a visit left the
+            detail off-screen and the person had to scroll past the whole
+            table to reach what they had just clicked. */}
         {openVisit && (
-          <SiteVisitDetail visit={openVisit} onPatch={handlePatch} onAddUpdate={handleAddUpdate} onClose={() => setOpenId(null)} />
+          <Modal
+            title={openVisit.company_name}
+            ariaLabel={`Site visit — ${openVisit.company_name}`}
+            size="wide"
+            onClose={() => setOpenId(null)}
+          >
+            <SiteVisitDetail
+              visit={openVisit}
+              onPatch={handlePatch}
+              onAddUpdate={handleAddUpdate}
+              onClose={() => setOpenId(null)}
+            />
+          </Modal>
         )}
     </AppShell>
   );

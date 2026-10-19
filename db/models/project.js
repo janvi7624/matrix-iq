@@ -37,7 +37,52 @@ module.exports = (sequelize, DataTypes) => {
     // The sales person's own gut-feel estimate (0-100) of the chance this
     // project closes — set at creation, editable later. Null = no estimate
     // given. See lib/projectStore.ts's FIELDS (kind 'nullable').
+    // SUPERSEDED as a stored value. Closing % is now DERIVED from the stage
+    // on every read (lib/projectStore.ts normalizeProject ->
+    // lib/salesStageRules.ts resolveClosingPercent), because a stored
+    // percentage drifting from the stage it claims to describe IS the defect
+    // this was changed to fix. Nothing writes this column any more; the
+    // hand-typed history it used to hold was copied to
+    // legacy_closing_percent by migration 20261016120000. Read the derived
+    // value, never this.
     closing_probability_percent: { type: DataTypes.INTEGER },
+    // The hand-typed figures as they stood before Closing % became derived.
+    // Null is meaningful and preserved: 100 of 185 live projects never had
+    // an estimate at all.
+    legacy_closing_percent: { type: DataTypes.INTEGER },
+    // An admin's manual figure, which outranks the stage's standard one but
+    // NOT a won/lost outcome, and which any stage change discards. The
+    // reason is mandatory at the API; it cannot be NOT NULL here because
+    // every existing row has no override.
+    closing_percent_override: { type: DataTypes.INTEGER },
+    closing_percent_override_reason: { type: DataTypes.TEXT },
+    // Denormalised actor/time so the dashboard can mark an overridden row
+    // without joining audit_logs per row. audit_logs remains the real trail.
+    closing_percent_override_by: { type: DataTypes.UUID },
+    closing_percent_override_at: { type: DataTypes.DATE },
+    // Commit gate: when the PO is expected, and who at the customer
+    // verbally confirmed it.
+    expected_po_date: { type: DataTypes.DATEONLY },
+    confirmed_by_contact: { type: DataTypes.STRING },
+    // Lost gate. A plain string rather than an enum, following
+    // cold_call_responded's own stated reasoning in this file: a short
+    // vocabulary that may grow is not worth an ALTER TYPE each time. The
+    // allowed values live in lib/salesStageRules.ts (LOST_REASONS) and are
+    // enforced on every write.
+    lost_reason: { type: DataTypes.STRING, allowNull: false, defaultValue: '' },
+    // Quotation gate. Auto-filled from the newest linked quotation when the
+    // project has one (Project hasMany Quotation, with revisions), typed in
+    // when the quote went out from outside the app — which is the common
+    // case: only 19 of 185 projects have a quotation record.
+    quote_value: { type: DataTypes.DECIMAL(14, 2) },
+    quotation_date: { type: DataTypes.DATEONLY },
+    // When this project entered the stage it is in now — maintained by
+    // lib/projectStore.ts on every stage change, because the timeline
+    // cannot be asked (its `stage` is stamped on every event, not only on
+    // moves). Backfilled by migration 20261016120100 as the start of the
+    // most recent contiguous run in the current stage, falling back to
+    // created_at for the 118 projects that never moved.
+    stage_entered_at: { type: DataTypes.DATE },
     // Mandatory on manual creation (enforced in app/api/projects/route.ts,
     // not here) — nullable at the DB level since an auto-created-from-lead
     // project deliberately starts without one (see lib/leadProjectAutomation.ts;

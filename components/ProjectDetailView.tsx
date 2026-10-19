@@ -20,7 +20,10 @@ import {
   Users,
   Wrench,
   Clock,
-  Hourglass
+  Hourglass,
+  Download,
+  Loader2,
+  Pencil
 } from 'lucide-react';
 import {
   CustomerResponseRecord,
@@ -55,6 +58,7 @@ import { getPoPaymentStatus } from '@/lib/poPaymentStatus';
 import { checkProjectCompleteness, PROJECT_FIELD_LABEL } from '@/lib/projectCompleteness';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
+import { downloadQuotationFromRecord } from '@/lib/quotationPdfFromRecord';
 import calcStyles from './calculator.module.css';
 import ProjectDepartmentField from './ui/ProjectDepartmentField';
 import { DepartmentAmounts, ProjectDepartment, formatProjectDepartments } from '@/lib/projectDepartmentOptions';
@@ -225,6 +229,58 @@ const EMPTY_RESPONSE = { feedback: '', responseType: '' as CustomerResponseRecor
 interface ProjectDetailViewProps {
   projectId: string;
   currentUser: { username: string; role: UserRole; isPrivileged: boolean };
+}
+
+/**
+ * One quotation on a project's Quotations tab.
+ *
+ * The row used to be a bare line of text — number and total — so the only
+ * way to actually see a quotation listed here was to leave the project, find
+ * it again in Quotation History, and open it there. Download reuses the same
+ * helper the main list uses (which rebuilds the PDF from the stored
+ * products_json, or opens the uploaded file for a proposal), and Revise
+ * reuses the same reviseId route, so all three surfaces behave identically.
+ */
+function ProjectQuotationRow({ quotation }: { quotation: QuotationRecord }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function handleDownload() {
+    setBusy(true);
+    try {
+      const outcome = await downloadQuotationFromRecord(quotation);
+      if (outcome === 'nothing-to-download') {
+        toast.error('This quotation has no PDF and no uploaded file to open.');
+      }
+    } catch {
+      toast.error('Could not build this quotation PDF.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={`${historyStyles.miniCardRow} ${historyStyles.miniCardRowSplit}`}>
+      <div>
+        <strong>{quotation.quotation_number}</strong>
+        {quotation.revision_number > 0 ? ` · rev ${quotation.revision_number}` : ''}
+        {' — ₹'}
+        {quotation.total.toLocaleString('en-IN')}
+        {quotation.status ? ` · ${quotation.status}` : ''}
+      </div>
+      <div className={historyStyles.rowActionsInline}>
+        {/* Revise leads, as it does in the main list: it is the action
+            people come to a past quotation for. */}
+        <Link className={historyStyles.button} href={`/quotation?reviseId=${quotation.id}`}>
+          <Pencil size={13} aria-hidden /> Revise
+        </Link>
+        <button type="button" className={historyStyles.button} onClick={handleDownload} disabled={busy}>
+          {busy ? <Loader2 size={13} aria-hidden /> : <Download size={13} aria-hidden />}
+          {busy ? ' Working…' : ' Download'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function ProjectDetailView({ projectId, currentUser }: ProjectDetailViewProps) {
@@ -1843,7 +1899,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
           <div className={historyStyles.miniCard}>
             <div className={historyStyles.miniCardTitle}>Quotations ({quotations.length})<Link href={`/quotation?projectId=${project.id}`}>+ Add</Link></div>
             {quotations.length === 0 ? <div className={historyStyles.miniCardEmpty}>No quotations yet.</div> : quotations.map((q) => (
-              <div key={q.id} className={historyStyles.miniCardRow}>{q.quotation_number} — ₹{q.total.toLocaleString('en-IN')}</div>
+              <ProjectQuotationRow key={q.id} quotation={q} />
             ))}
             <div className={`${historyStyles.miniCardTitle} ${calcStyles.mt14}`}>Follow-ups ({followUps.length})</div>
             {followUps.length === 0 ? <div className={historyStyles.miniCardEmpty}>No follow-ups logged yet.</div> : followUps.slice(0, 8).map((f, idx) => (

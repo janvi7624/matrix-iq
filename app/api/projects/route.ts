@@ -77,10 +77,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Source is required' }, { status: 400 });
   }
 
-  const closingProbabilityPercent = parseClosingProbability(body.closingProbabilityPercent);
-  if (closingProbabilityPercent === undefined) {
-    return NextResponse.json({ error: 'Closing probability must be a whole number between 0 and 100' }, { status: 400 });
-  }
+  // Closing % is no longer taken from the request. It is derived from the
+  // stage on every read (lib/salesStageRules.ts), so a caller's figure
+  // would be overwritten the moment the record was read back — and
+  // accepting one was how a Cold Call deal came to claim 100%. Anything
+  // sent under this key is ignored rather than rejected, so the existing
+  // New Project form keeps working while the field is removed from it.
 
   const approxPrice = parseApproxPrice(body.approxPrice);
   if (approxPrice === undefined) {
@@ -203,7 +205,21 @@ export async function POST(request: NextRequest) {
     expected_closing_date: typeof body.expectedClosingDate === 'string' ? body.expectedClosingDate : '',
     next_follow_up_date: typeof body.nextFollowUpDate === 'string' ? body.nextFollowUpDate : '',
     remarks: typeof body.remarks === 'string' ? body.remarks.trim() : '',
-    closing_probability_percent: closingProbabilityPercent,
+    closing_probability_percent: '',
+    // Closing % is derived on read from the stage, so these are the
+    // starting state, not an estimate anybody typed.
+    closing_percent_source: 'stage',
+    legacy_closing_percent: '',
+    closing_percent_override: '',
+    closing_percent_override_reason: '',
+    closing_percent_override_by: '',
+    closing_percent_override_at: '',
+    expected_po_date: '',
+    confirmed_by_contact: '',
+    lost_reason: '',
+    quote_value: '',
+    quotation_date: '',
+    stage_entered_at: '',
     approx_price: approxPrice,
     notes: [],
     attachments: [],

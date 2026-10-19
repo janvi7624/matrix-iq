@@ -1,5 +1,6 @@
 import { Model, Op, QueryTypes, Transaction } from 'sequelize';
 import { ProjectNote, ProjectRecord, ProjectStage, ProjectTimelineEvent } from './types';
+import { clearOverrideOnStageChange, clampPercent, resolveClosingPercent } from './salesStageRules';
 import { db, isUuid, sequelize } from './db';
 import { resolveVisibilityScope } from './departmentScope';
 import { isUserADepartmentManager, departmentsManagedBy } from './departmentStore';
@@ -22,7 +23,27 @@ const FIELDS = [
   { name: 'expected_closing_date', kind: 'nullable' as const },
   { name: 'next_follow_up_date', kind: 'nullable' as const },
   { name: 'remarks' },
-  { name: 'closing_probability_percent', kind: 'nullable' as const },
+  // readOnly: mapped on the way OUT but never accepted from a patch.
+  // Closing % is derived from the stage, so letting a request set it would
+  // reopen the exact hole this change closes — and the dashboard is not the
+  // only way in: a crafted PATCH straight at /api/projects/[id] used to be
+  // enough. An admin changes it through the dedicated override route, which
+  // demands a reason and writes an audit row.
+  { name: 'closing_probability_percent', kind: 'nullable' as const, readOnly: true },
+  { name: 'legacy_closing_percent', kind: 'nullable' as const, readOnly: true },
+  { name: 'closing_percent_override', kind: 'nullable' as const, readOnly: true },
+  { name: 'closing_percent_override_reason', readOnly: true },
+  { name: 'closing_percent_override_by', kind: 'nullable' as const, readOnly: true },
+  { name: 'closing_percent_override_at', kind: 'nullable' as const, readOnly: true },
+  { name: 'expected_po_date', kind: 'nullable' as const },
+  { name: 'confirmed_by_contact' },
+  { name: 'lost_reason' },
+  { name: 'quote_value', kind: 'decimal' as const },
+  { name: 'quotation_date', kind: 'nullable' as const },
+  // Maintained by the store on every stage change, never by a caller —
+  // otherwise a client could reset a deal's age and make a stale pipeline
+  // look fresh, which is one of the two things this dashboard is for.
+  { name: 'stage_entered_at', kind: 'nullable' as const, readOnly: true },
   { name: 'approx_price', kind: 'decimal' as const },
   { name: 'attachments', kind: 'json' as const },
   { name: 'skipped_stages', kind: 'json' as const },
@@ -205,7 +226,12 @@ async function listOwnedBy(username: string): Promise<ProjectRecord[]> {
 
 async function create(record: ProjectRecord): Promise<ProjectRecord> {
   const attrs: Record<string, unknown> = {};
-  for (const { name, kind = 'string' } of FIELDS) attrs[name] = toAttr((record as unknown as Record<string, unknown>)[name], kind);
+  // Same read-only rule as update(): a new project gets the Closing % its
+  // starting stage implies, and no caller may post one in.
+  for (const { name, kind = 'string', readOnly } of FIELDS) {
+    if (readOnly) continue;
+    attrs[name] = toAttr((record as unknown as Record<string, unknown>)[name], kind);
+  }
   // created_by is "the sales person" (see comment below), which is usually
   // but not guaranteed to be a real logged-in account — falls back to NULL
   // (viewer-privileged-only visibility) rather than failing the write.
@@ -228,7 +254,13 @@ async function update(id: string, patch: Partial<ProjectRecord>): Promise<Projec
   return sequelize.transaction(async (t) => {
     const attrs: Record<string, unknown> = {};
     const patchObj = patch as unknown as Record<string, unknown>;
-    for (const { name, kind = 'string' } of FIELDS) {
+    for (const { name, kind = 'string', readOnly } of FIELDS) {
+      // A read-only field is silently ignored rather than rejected: this
+      // loop runs for every PATCH, and a client echoing back the record it
+      // just read (which the detail view does) would otherwise fail every
+      // save. The percentage fields it drops are derived or override-only,
+      // so dropping them loses nothing a caller is entitled to set.
+      if (readOnly) continue;
       if (name in patchObj) attrs[name] = toAttr(patchObj[name], kind);
     }
     // closed_at (see ProjectRecord's comment) — derived here, never accepted
@@ -238,6 +270,23 @@ async function update(id: string, patch: Partial<ProjectRecord>): Promise<Projec
     // 90-day auto-hide.
     if (typeof patch.status === 'string' && patch.status !== (row.get('status') as string)) {
       attrs.closed_at = patch.status === 'won' || patch.status === 'lost' ? new Date() : null;
+    }
+    // An admin override does not survive a stage change. It is a judgement
+    // about a deal AT a point in the pipeline ("this Negotiation is better
+    // than 70%"), so carrying it into the next stage would assert a
+    // judgement nobody made — and would be invisible, since the number
+    // looks the same either way. Cleared here rather than taken from the
+    // patch, exactly like closed_at above, so every caller that moves a
+    // stage gets it for free.
+    if (typeof patch.stage === 'string'
+        && clearOverrideOnStageChange(row.get('stage') as ProjectStage, patch.stage as ProjectStage)) {
+      attrs.closing_percent_override = null;
+      attrs.closing_percent_override_reason = '';
+      attrs.closing_percent_override_by = null;
+      attrs.closing_percent_override_at = null;
+      // Same trigger, same reason it is derived here: every path that
+      // moves a stage must restart the clock, and no path may set it.
+      attrs.stage_entered_at = new Date();
     }
     // created_by is deliberately NOT in FIELDS (it's the real ownership/
     // visibility key, resolved from a username same as create() above) —
@@ -301,9 +350,110 @@ async function remove(id: string, viewerUsername: string, viewerIsPrivileged: bo
 // have them in blob storage — every reader of a single project must go
 // through this so the View page (and anything else touching `.notes`/
 // `.attachments`) never crashes on `undefined.length`.
+/**
+ * The shape every read path hands out — and the one place Closing % is
+ * decided.
+ *
+ * Deriving it HERE rather than storing it is what makes the dashboard, the
+ * project detail view, the PDF export and the CSV/Excel exports agree by
+ * construction: they all come through this function, so there is no second
+ * copy to fall out of step. A stored percentage that disagreed with its own
+ * stage is precisely the defect being fixed, and the surest way not to
+ * reintroduce it is to leave nothing to go stale.
+ *
+ * The stored closing_probability_percent column is deliberately overwritten
+ * in the returned record and never read: it still holds the pre-change
+ * hand-typed figure for rows nobody has touched, which is exactly the number
+ * that must not be trusted. Its history lives in legacy_closing_percent.
+ */
+export interface ClosingPercentOverrideInput {
+  percent: number;
+  reason: string;
+  actorUserId: string | null;
+}
+
+/**
+ * Writes an admin's manual Closing %, with the reason that justifies it.
+ *
+ * Separate from update() on purpose: the override columns are marked
+ * readOnly in FIELDS, so the ordinary project PATCH cannot reach them no
+ * matter how the request is crafted. This is the only door, and the route
+ * that calls it is the only place the admin check lives.
+ *
+ * Returns the previous value alongside the updated record, because the
+ * audit row has to state what the figure was before — which is the part
+ * that makes an override reviewable rather than merely recorded.
+ */
+export async function setClosingPercentOverride(
+  id: string,
+  input: ClosingPercentOverrideInput
+): Promise<{ project: ProjectRecord; previousPercent: number | ''; previousReason: string } | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.Project.findByPk(id);
+  if (!row) return null;
+
+  const previousRaw = row.get('closing_percent_override');
+  const previousPercent = previousRaw === null || previousRaw === undefined ? '' : Number(previousRaw);
+  const previousReason = String(row.get('closing_percent_override_reason') ?? '');
+
+  await row.update({
+    closing_percent_override: clampPercent(input.percent),
+    closing_percent_override_reason: input.reason.trim(),
+    closing_percent_override_by: input.actorUserId,
+    closing_percent_override_at: new Date()
+  } as never);
+
+  const withAssoc = await db.Project.findByPk(id, { include: allIncludes });
+  return {
+    project: normalizeProject(toRecord(withAssoc as Model)),
+    previousPercent,
+    previousReason
+  };
+}
+
+/**
+ * Removes an override, restoring the stage's standard figure.
+ *
+ * Returns null when the project does not exist, and the previous value
+ * otherwise — including when there was nothing to clear, so the caller can
+ * tell "cleared" from "there was no override" and avoid writing a
+ * meaningless audit row.
+ */
+export async function clearClosingPercentOverride(
+  id: string
+): Promise<{ project: ProjectRecord; previousPercent: number | '' } | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.Project.findByPk(id);
+  if (!row) return null;
+
+  const previousRaw = row.get('closing_percent_override');
+  const previousPercent = previousRaw === null || previousRaw === undefined ? '' : Number(previousRaw);
+
+  await row.update({
+    closing_percent_override: null,
+    closing_percent_override_reason: '',
+    closing_percent_override_by: null,
+    closing_percent_override_at: null
+  } as never);
+
+  const withAssoc = await db.Project.findByPk(id, { include: allIncludes });
+  return { project: normalizeProject(toRecord(withAssoc as Model)), previousPercent };
+}
+
 function normalizeProject(project: ProjectRecord): ProjectRecord {
+  const { percent, source } = resolveClosingPercent({
+    stage: project.stage,
+    status: project.status,
+    closing_percent_override: project.closing_percent_override === '' ? null : project.closing_percent_override
+  });
+
   return {
     ...project,
+    // Empty string rather than 0 when unknown — a retired stage awaiting
+    // re-triage has no answer, and 0 would quietly understate the forecast
+    // by the full value of the deal while looking like a real figure.
+    closing_probability_percent: percent === null ? '' : percent,
+    closing_percent_source: source,
     notes: project.notes ?? [],
     attachments: project.attachments ?? [],
     skipped_stages: project.skipped_stages ?? [],
@@ -472,8 +622,22 @@ export async function appendProjectTimeline(
       { transaction: t }
     );
     const current = row.get({ plain: true }) as Record<string, unknown>;
+    // The other way a stage moves (the route uses this, not update(), when
+    // the stage itself changes), so the override has to be discarded here
+    // too — see update() above for why.
+    const overrideCleared = advanceStageTo
+      && clearOverrideOnStageChange(current.stage as ProjectStage, advanceStageTo)
+      ? {
+          closing_percent_override: null,
+          closing_percent_override_reason: '',
+          closing_percent_override_by: null,
+          closing_percent_override_at: null,
+          stage_entered_at: new Date()
+        }
+      : {};
     await row.update(
       {
+        ...overrideCleared,
         stage: advanceStageTo || current.stage,
         status: advanceStageTo === 'completed' ? 'won' : advanceStageTo === 'closed_lost' ? 'lost' : current.status,
         // See ProjectRecord.closed_at / update()'s own version of this rule —

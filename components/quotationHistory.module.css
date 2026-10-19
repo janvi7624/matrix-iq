@@ -691,6 +691,19 @@
 .miniCardRow { font-size: 12.5px; color: #374151; padding: 4px 0; border-top: 1px solid #f3f4f6; }
 .miniCardRow:first-of-type { border-top: none; }
 
+/* Project detail -> Quotations: the number and total on the left, Revise and
+   Download on the right, wrapping onto a second line on a narrow screen rather
+   than squeezing the buttons. Shares .miniCardRow's type size and divider --
+   only the layout differs, so the two compose rather than one copying the
+   other. */
+.miniCardRowSplit {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .wizardSteps {
     display: flex;
     justify-content: space-between;

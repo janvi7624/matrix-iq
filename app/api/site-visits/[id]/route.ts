@@ -6,6 +6,7 @@ import { sendFieldOpsLifecycleEmail } from '@/lib/email/notifications';
 import { findUserByUsername } from '@/lib/userStore';
 import { DomainKey, SiteVisitRecord, SiteVisitUpdateEntry, VisitStage } from '@/lib/types';
 import { canAccessOwnedRecord } from '@/lib/departmentScope';
+import { istDate } from '@/lib/dailyReportTime';
 
 const VALID_CATEGORIES: (DomainKey | '')[] = ['', 'av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_STAGES: (VisitStage | '')[] = ['', 'hot', 'warm', 'cold'];
@@ -39,9 +40,34 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!projectDetails && !ongoingActivities) {
         return NextResponse.json({ error: 'Project details or ongoing activities are required' }, { status: 400 });
       }
+      // The date the update actually happened, which is not always today:
+      // an update is routinely written up a day or two after the visit it
+      // describes, and stamping "now" recorded when someone got round to
+      // typing rather than when anything happened.
+      //
+      // Noon IST rather than midnight, so the stored instant cannot read
+      // back as the previous calendar day for a viewer in IST. A date of
+      // today keeps the real clock time instead, so several updates logged
+      // on one day stay in the order they were written.
+      //
+      // Anything unparseable or in the future falls back to now. A future
+      // date would let someone log work that has not happened yet, and the
+      // form already caps the picker at today — but the form is not the
+      // control.
+      const requestedOn =
+        typeof body.updatedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.updatedOn)
+          ? body.updatedOn
+          : '';
+      const now = new Date();
+      let updatedAt = now;
+      if (requestedOn && requestedOn !== istDate(now)) {
+        const parsed = new Date(`${requestedOn}T12:00:00+05:30`);
+        if (!Number.isNaN(parsed.getTime()) && parsed.getTime() <= now.getTime()) updatedAt = parsed;
+      }
+
       const entry: SiteVisitUpdateEntry = {
         id: `${Date.now()}`,
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt.toISOString(),
         updated_by: viewer.username,
         team_technical: toStringArray(body.teamTechnical),
         team_sales: toStringArray(body.teamSales),

@@ -16,6 +16,12 @@ import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus } from '@/lib/types';
 import { ASSIGNABLE_STAGES, FORWARD_STAGES } from '@/lib/projectStages';
+import { normalizeStage, stageGateFailures } from '@/lib/salesStageRules';
+import {
+  latestPurchaseOrderForProject,
+  latestQuotationForProject,
+  recordWinningPurchaseOrder
+} from '@/lib/salesStageGateSources';
 import { findUserById } from '@/lib/userStore';
 import { findSalesPersonCandidate, SalesOwnerError } from '@/lib/projectSalesOwner';
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
@@ -255,15 +261,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
-    if ('closingProbabilityPercent' in body) {
-      const raw = body.closingProbabilityPercent;
-      const isBlank = raw === '' || raw === null || raw === undefined;
-      const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
-      if (!isBlank && (!Number.isInteger(num) || num < 0 || num > 100)) {
-        return NextResponse.json({ error: 'Closing probability must be a whole number between 0 and 100' }, { status: 400 });
-      }
-      patch.closing_probability_percent = isBlank ? '' : num;
-    }
+    // closingProbabilityPercent is deliberately NOT read from the body any
+    // more. Closing % is derived from the stage on every read, and an admin
+    // changes it only through POST /api/projects/[id]/closing-percent, which
+    // demands a reason and writes an audit row.
+    //
+    // Anything sent under the old key is ignored rather than rejected, so a
+    // client that has not been updated keeps saving successfully instead of
+    // failing on a field it is no longer allowed to set. projectStore marks
+    // the column readOnly, so even a hand-crafted patch cannot reach it —
+    // this route is a convenience, not the control.
     if ('approxPrice' in body) {
       const raw = body.approxPrice;
       const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
@@ -318,6 +325,96 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         );
       }
     }
+    // --- stage gates ------------------------------------------------
+    // Checked here, which is before BOTH the patch and
+    // appendProjectTimeline: a refused transition must not leave a "Stage
+    // moved to ..." event behind describing a move that never happened, and
+    // must not half-apply the rest of the patch either.
+    //
+    // Judged against the record AS IT WOULD BE — existing merged with the
+    // patch — so a request that supplies the missing field in the same call
+    // as the stage change passes. Making someone save twice to advance a
+    // deal would be its own kind of broken.
+    //
+    // Only on a TRANSITION. A project merely sitting in a stage is never
+    // re-judged, which is what keeps the 100 active projects with no
+    // expected closing date and the 48 with no price editable: a legacy
+    // record stays readable and correctable, and only has to satisfy the
+    // gate on its way forward.
+    const nextStage = (stage ?? existing.stage) as ProjectStage;
+    const nextStatus = (patch.status ?? existing.status) as ProjectStatus;
+    const stageChanging = Boolean(stage) && stage !== existing.stage;
+    const closingOut = (nextStatus === 'won' || nextStatus === 'lost') && nextStatus !== existing.status;
+
+    if (stageChanging || closingOut) {
+      const merged: Record<string, unknown> = {
+        ...(existing as unknown as Record<string, unknown>),
+        ...(patch as Record<string, unknown>)
+      };
+
+      // Quotation: fill from the newest linked quotation before judging.
+      // The quotation module is authoritative wherever it is actually used,
+      // and asking someone to retype a total the app already holds would be
+      // absurd. Where no quotation exists — the common case, since the quote
+      // often goes out by email — the typed-in fields stand.
+      if (normalizeStage(nextStage) === 'quotation') {
+        if (!merged.quote_value || !merged.quotation_date) {
+          const quote = await latestQuotationForProject(id);
+          if (quote) {
+            if (!merged.quote_value && quote.total !== null) {
+              merged.quote_value = quote.total;
+              patch.quote_value = quote.total;
+            }
+            if (!merged.quotation_date && quote.date) {
+              merged.quotation_date = quote.date;
+              patch.quotation_date = quote.date;
+            }
+          }
+        }
+      }
+
+      // Won: the PO lives in purchase_orders, never on the project. An
+      // existing linked PO satisfies the gate; otherwise the transition has
+      // to carry the details, and they are written as a real PO row once
+      // the save succeeds.
+      let winningPo: { po_number: string; po_value: unknown; po_date: string } | null = null;
+      if (nextStatus === 'won') {
+        const linked = await latestPurchaseOrderForProject(id);
+        if (linked) {
+          merged.po_number = linked.po_number;
+          merged.po_value = linked.amount;
+          merged.po_date = linked.po_date;
+        } else {
+          winningPo = {
+            po_number: typeof body.poNumber === 'string' ? body.poNumber.trim() : '',
+            po_value: body.poValue,
+            po_date: typeof body.poDate === 'string' ? body.poDate : ''
+          };
+          merged.po_number = winningPo.po_number;
+          merged.po_value = winningPo.po_value;
+          merged.po_date = winningPo.po_date;
+        }
+      }
+
+      const failures = stageGateFailures(nextStage, nextStatus, merged);
+      if (failures.length) {
+        return NextResponse.json(
+          {
+            error: failures.map((f) => f.message).join(' '),
+            fields: failures.map((f) => ({ field: f.field, label: f.label, message: f.message }))
+          },
+          { status: 400 }
+        );
+      }
+
+      // Past the gate, so the PO is a fact worth recording. Outside the
+      // project transaction on purpose: a PO is a separate business record,
+      // and failing to write it must not roll back a legitimate win.
+      if (winningPo) {
+        await recordWinningPurchaseOrder(id, viewer.userId, winningPo);
+      }
+    }
+
     if (stage && stage !== existing.stage) {
       updated = await appendProjectTimeline(id, { by: viewer.username, stage, label: `Stage moved to ${stage.replace(/_/g, ' ')}` }, stage);
       if (Object.keys(patch).length > 1) updated = await projectStore.update(id, patch);
