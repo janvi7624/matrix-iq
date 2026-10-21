@@ -19,6 +19,10 @@ export const PROJECT_SOURCE_OPTIONS = [
   // historical row falls through to "Other".
   'GeM / Tender',
   'Self / Existing Customer',
+  // Set automatically on every partner submission (lib/partnerProjectStore.ts)
+  // — never picked by hand, but listed here so the Projects list's Source
+  // filter offers it like any other channel.
+  'Partner',
   'Website',
   'Other',
 ] as const;

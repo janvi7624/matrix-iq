@@ -6,7 +6,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DemoOutcome, DemoScheduleRecord } from '@/lib/types';
-import { findUserByUsername } from '@/lib/userStore';
+import { findUserById, findUserByUsername } from '@/lib/userStore';
 import { sendDemoLifecycleEmail } from '@/lib/email/notifications';
 
 const VALID_OUTCOMES: (DemoOutcome | '')[] = ['', 'successful', 'need_followup', 'pending_decision', 'cancelled'];
@@ -39,6 +39,52 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const patch: Partial<DemoScheduleRecord> = {};
     const previousStatus = existing.status;
+
+    // Assigning the technical person.
+    //
+    // Only the SALES PERSON this demo belongs to (its created_by — for a
+    // partner-requested demo that is the partner's relationship manager, who
+    // owns the deal) or a privileged viewer. Deliberately NOT the pipeline
+    // operators allowed through above: an engineer or back-office user may
+    // move a demo along, but choosing who performs it is the sales person's
+    // call, and an engineer assigning themselves would bypass that entirely.
+    //
+    // A partner can never reach this route at all — proxy.ts confines them
+    // to /api/partner/** — so their request carries no technical person and
+    // there is nothing for them to override here.
+    if (body.assignedTechnicalPersonId !== undefined || body.technicalMembers !== undefined) {
+      const isSalesOwner = existing.created_by === viewer.username;
+      if (!viewer.isPrivileged && !isSalesOwner) {
+        return NextResponse.json(
+          { error: 'Only the sales person this demo belongs to can assign the technical person.' },
+          { status: 403 }
+        );
+      }
+      // Reassignment stays open until the demo has actually happened —
+      // swapping an engineer mid-preparation is routine, rewriting history
+      // after the fact is not.
+      if (existing.status === 'demo_completed' || existing.status === 'material_returned' || existing.status === 'dc_closed') {
+        return NextResponse.json({ error: 'This demo is already complete.' }, { status: 409 });
+      }
+
+      if (typeof body.assignedTechnicalPersonId === 'string') {
+        const id = body.assignedTechnicalPersonId.trim();
+        if (id) {
+          const person = await findUserById(id);
+          if (!person) return NextResponse.json({ error: 'That technical person could not be found.' }, { status: 400 });
+          patch.assigned_technical_person_id = person.id;
+          // The display name is snapshotted alongside the id for the same
+          // reason POST does it: older consumers (PDFs) read the text field.
+          patch.assigned_technical_person = person.name || person.username;
+        } else {
+          patch.assigned_technical_person_id = '';
+          patch.assigned_technical_person = '';
+        }
+      }
+      if (Array.isArray(body.technicalMembers)) {
+        patch.technical_members = toStringArray(body.technicalMembers);
+      }
+    }
 
     // Simple status nudges that don't need a structured approval payload —
     // technical-approval and manager-approval have their own sub-routes.

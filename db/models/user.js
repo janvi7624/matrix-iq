@@ -27,7 +27,13 @@ module.exports = (sequelize, DataTypes) => {
     celebrationPopupViewCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     // Set true only by the bulk employee import (lib/userImportStore.ts) —
     // cleared the moment the employee successfully changes their password.
-    mustChangePassword: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
+    mustChangePassword: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // Which external partner company this login belongs to. NULL for every
+    // internal employee — that NULL is the discriminator the entire Partner
+    // Portal is built on (`partnerId IS NULL` === internal staff). Never
+    // defaulted: an account's partner binding is always an explicit decision
+    // at creation time. See the 20261020091000 migration.
+    partnerId: { type: DataTypes.UUID }
   }, {
     tableName: 'users',
     underscored: false,
@@ -37,6 +43,7 @@ module.exports = (sequelize, DataTypes) => {
   User.associate = (models) => {
     User.belongsTo(models.Role, { foreignKey: 'roleId', as: 'role' });
     User.belongsTo(models.Department, { foreignKey: 'departmentId', as: 'departmentRef' });
+    User.belongsTo(models.Partner, { foreignKey: 'partnerId', as: 'partner' });
   };
 
   return User;

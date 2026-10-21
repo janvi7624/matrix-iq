@@ -4,6 +4,7 @@ import { ViewerContext } from './viewerContext';
 import { resolveVisibilityScope } from './departmentScope';
 import { departmentsManagedBy } from './departmentStore';
 import { GeneralTaskPriority, GeneralTaskRecord, GeneralTaskStatus, GeneralTaskUpdateRecord, GeneralTaskSourceModule } from './types';
+import { projectLabel } from './projectLabel';
 
 const FIELDS = [
   { name: 'source_module' },
@@ -35,7 +36,7 @@ const ALL_INCLUDES = [
   { model: db.User, as: 'assignee', attributes: ['id', 'username', 'name'] },
   { model: db.User, as: 'reviewer', attributes: ['id', 'username', 'name'] },
   { model: db.Department, as: 'department', attributes: ['id', 'name'] },
-  { model: db.Project, as: 'project', attributes: ['id', 'client_name', 'company'] },
+  { model: db.Project, as: 'project', attributes: ['id', 'project_name', 'client_name', 'company'] },
   { model: db.TmsProject, as: 'tmsProject', attributes: ['id', 'name'] }
 ];
 
@@ -54,7 +55,7 @@ function toRecord(row: Model): GeneralTaskRecord {
     assignee_username: assignee?.username ?? '',
     reviewer_name: reviewer?.name ?? '',
     reviewer_username: reviewer?.username ?? '',
-    project_name: project ? project.client_name || project.company || '' : '',
+    project_name: project ? projectLabel(project) : '',
     tms_project_name: tmsProject?.name ?? '',
     updated_at: isoOrEmpty(plain.updatedAt)
   };

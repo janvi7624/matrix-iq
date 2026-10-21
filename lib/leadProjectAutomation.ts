@@ -129,6 +129,18 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     assigned_technical_person_name: '',
     tms_project_id: '',
     lead_confirmation_status: opts.autoCreated ? 'pending_confirmation' : '',
+    // Partner Portal overlay — always blank here: these two paths create
+    // DIRECT projects (manual entry, and Lead -> Project automation).
+    // A partner submission is created by lib/partnerProjectStore.ts instead.
+    partner_id: '',
+    partner_submission_status: '',
+    partner_reviewed_by: '',
+    partner_reviewed_at: '',
+    partner_review_remarks: '',
+    partner_submitted_value: '',
+    partner_expected_timeline: '',
+    partner_name: '',
+    partner_code: '',
     confirmed_by: '',
     confirmed_at: '',
     timeline: [{

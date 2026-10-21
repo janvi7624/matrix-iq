@@ -210,6 +210,7 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
             onLogFollowUp={handleLogFollowUp}
             showSalesPerson
             onChangeStatus={handleChangeStatus}
+            onRefresh={loadQuotations}
           />
         )}
     </AppShell>

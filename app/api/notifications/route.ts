@@ -18,12 +18,16 @@ const DISPLAY_LIMIT = 30;
 // most recent 30 notifications include a few stale ones still sees a full
 // page of real, clickable notifications instead of an artificially short list.
 export async function GET(request: NextRequest) {
-  const viewer = await getViewerContext(request);
+  // The notification bell renders inside the partner portal too, so this
+  // route resolves partners. Destinations differ entirely by audience — the
+  // same record lives at /projects/<id> internally and /partner/projects/<id>
+  // in the portal, and each side may only reach its own.
+  const viewer = await getViewerContext(request, { allowPartner: true });
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const raw = await listForUser(viewer.username, DISPLAY_LIMIT * 3);
-    const actionable = (await resolveActionableNotifications(raw)).slice(0, DISPLAY_LIMIT);
+    const actionable = (await resolveActionableNotifications(raw, { isPartner: !!viewer.partnerId })).slice(0, DISPLAY_LIMIT);
     const unread = actionable.filter((n) => !n.is_read).length;
     return NextResponse.json({ notifications: actionable, unreadCount: unread });
   } catch (error) {
@@ -32,7 +36,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const viewer = await getViewerContext(request);
+  const viewer = await getViewerContext(request, { allowPartner: true });
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json().catch(() => null);

@@ -68,7 +68,22 @@ const FIELDS = [
   { name: 'tms_project_id', kind: 'nullable' as const },
   { name: 'lead_confirmation_status', kind: 'nullable' as const },
   { name: 'confirmed_by', kind: 'nullable' as const },
-  { name: 'confirmed_at', kind: 'nullable' as const }
+  { name: 'confirmed_at', kind: 'nullable' as const },
+  // Partner Portal overlay. ALL readOnly: these are mapped on the way OUT
+  // (so the Projects list and detail view can show the partner badge and the
+  // review state) but never accepted from a patch — same rule, and the same
+  // reasoning, as the closing-percentage fields above. A crafted
+  // PATCH /api/projects/[id] must not be able to attach a project to a
+  // partner, mark its own submission approved, or forge a reviewer. Those
+  // moves go through the dedicated functions at the bottom of this file,
+  // which check authorization and write a timeline event.
+  { name: 'partner_id', kind: 'nullable' as const, readOnly: true },
+  { name: 'partner_submission_status', kind: 'nullable' as const, readOnly: true },
+  { name: 'partner_reviewed_by', kind: 'nullable' as const, readOnly: true },
+  { name: 'partner_reviewed_at', kind: 'nullable' as const, readOnly: true },
+  { name: 'partner_review_remarks', readOnly: true },
+  { name: 'partner_submitted_value', kind: 'decimal' as const, readOnly: true },
+  { name: 'partner_expected_timeline', readOnly: true }
 ];
 
 // Lead -> Project automation's completeness check lives in
@@ -120,14 +135,18 @@ const assignedTechnicalPersonInclude = { model: db.User, as: 'assignedTechnicalP
 const projectLeadInclude = { model: db.User, as: 'projectLeadRef', attributes: ['id', 'name'] };
 const notesInclude = { model: db.ProjectNote, as: 'notes' };
 const timelineInclude = { model: db.ProjectTimelineEvent, as: 'timeline' };
-const allIncludes = [creatorInclude, assignedTechnicalPersonInclude, projectLeadInclude, notesInclude, timelineInclude];
+// attributes narrowed to the two fields the badge needs — this join now runs
+// on every Projects list read, and the partner row carries address, notes and
+// contact details that no list view wants.
+const partnerInclude = { model: db.Partner, as: 'partner', attributes: ['id', 'company_name', 'partner_code'], required: false };
+const allIncludes = [creatorInclude, assignedTechnicalPersonInclude, projectLeadInclude, notesInclude, timelineInclude, partnerInclude];
 // List views (Dashboard, Projects table, KPIs, search) only ever read the
 // plain project fields — never .notes/.timeline, which for a project with a
 // long history can be the bulk of the row's join cost. toRecord() already
 // defaults both to [] when the include isn't present, so this is a drop-in
 // lighter read for anything that isn't rendering a single project's full
 // history (see findProjectById / performance-review, which still need them).
-const lightIncludes = [creatorInclude, assignedTechnicalPersonInclude, projectLeadInclude];
+const lightIncludes = [creatorInclude, assignedTechnicalPersonInclude, projectLeadInclude, partnerInclude];
 
 function toRecord(row: Model): ProjectRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -138,6 +157,10 @@ function toRecord(row: Model): ProjectRecord {
     updated_at: isoOrEmpty(plain.updatedAt),
     assigned_technical_person_name: (plain.assignedTechnicalPersonRef as { name?: string } | null)?.name ?? '',
     project_lead_name: (plain.projectLeadRef as { name?: string } | null)?.name ?? '',
+    // Resolved display fields for the partner badge on the internal Projects
+    // list / detail view. Empty on every direct (non-partner) project.
+    partner_name: (plain.partner as { company_name?: string } | null)?.company_name ?? '',
+    partner_code: (plain.partner as { partner_code?: string } | null)?.partner_code ?? '',
     notes: ((plain.notes as Record<string, unknown>[]) ?? []).map(rowToNote).sort((a, b) => (a.at < b.at ? -1 : 1)),
     timeline: ((plain.timeline as Record<string, unknown>[]) ?? []).map(rowToTimelineEvent).sort((a, b) => (a.at < b.at ? -1 : 1)),
     // Populated only by the Dashboard read path (see listLastRemarks below,

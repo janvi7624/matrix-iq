@@ -40,7 +40,17 @@ module.exports = (sequelize, DataTypes) => {
     unanswered_queries: { type: DataTypes.TEXT },
     suggested_next_action: { type: DataTypes.TEXT },
     next_follow_up_date: { type: DataTypes.DATEONLY },
-    attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
+    attachments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // Partner Portal overlay — NULL on every internally-raised demo. See the
+    // 20261020095000 migration. Nothing here lets a partner influence
+    // assignment; assigned_technical_person_id stays purely internal.
+    partner_id: { type: DataTypes.UUID },
+    requested_by_partner_user_id: { type: DataTypes.UUID },
+    // Partner-facing status note — deliberately separate from `notes`, which
+    // is internal coordination.
+    partner_remark: { type: DataTypes.TEXT },
+    partner_requested_date: { type: DataTypes.DATE },
+    partner_requirements: { type: DataTypes.TEXT }
   }, {
     tableName: 'demo_schedule',
     underscored: true,
@@ -52,6 +62,7 @@ module.exports = (sequelize, DataTypes) => {
     DemoSchedule.belongsTo(models.User, { foreignKey: 'assigned_technical_person_id', as: 'assignedTechnicalPersonRef' });
     DemoSchedule.belongsTo(models.Project, { foreignKey: 'project_id', as: 'project' });
     DemoSchedule.belongsTo(models.Quotation, { foreignKey: 'quotation_id', as: 'quotation' });
+    DemoSchedule.belongsTo(models.Partner, { foreignKey: 'partner_id', as: 'partner' });
     DemoSchedule.hasMany(models.DemoProductLine, { foreignKey: 'demo_schedule_id', as: 'productLines' });
     DemoSchedule.hasMany(models.CustomerResponse, { foreignKey: 'demo_id', as: 'customerResponses' });
     DemoSchedule.hasMany(models.DeliveryChallan, { foreignKey: 'demo_id', as: 'deliveryChallans' });

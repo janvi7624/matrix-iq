@@ -21,7 +21,14 @@ module.exports = (sequelize, DataTypes) => {
     // everything added before folders existed stays.
     folder_id: { type: DataTypes.UUID, allowNull: true },
     created_by: { type: DataTypes.UUID, allowNull: true },
-    updated_by: { type: DataTypes.UUID, allowNull: true }
+    updated_by: { type: DataTypes.UUID, allowNull: true },
+    // Published to the Partner Portal. Default false — the library is
+    // internal, and holds competitor comparisons and internal decks
+    // alongside customer-facing brochures. See the 20261020097000 migration.
+    partner_visible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // [] = every partner (once visible); a populated array = only those
+    // partner ids.
+    partner_audience: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
   }, {
     tableName: 'materials',
     underscored: true,

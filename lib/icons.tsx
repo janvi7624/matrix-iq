@@ -65,7 +65,10 @@ export const SECTION_ICON: Record<string, LucideIcon> = {
   Reports: BarChart3,
   Administration: Building2,
   HR: Users,
-  Accounts: ReceiptIndianRupee
+  Accounts: ReceiptIndianRupee,
+  // After-sales support — its own section, distinct from Operations
+  // (Back Office). See SUPPORT_RESECTION_KEY in lib/moduleConfigStore.ts.
+  Support: Wrench
 };
 
 export const DEFAULT_SECTION_ICON: LucideIcon = FolderKanban;

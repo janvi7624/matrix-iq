@@ -44,6 +44,9 @@ function toAttr(value: unknown, kind: string): unknown {
 
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
 const productLinesInclude = { model: db.DemoProductLine, as: 'productLines' };
+// Narrow attributes: this join now runs on every demo list read and the
+// partner row carries address/notes/contact detail no list view wants.
+const demoPartnerInclude = { model: db.Partner, as: 'partner', attributes: ['id', 'company_name', 'partner_code'], required: false };
 
 function toRecord(row: Model): DemoScheduleRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -54,6 +57,14 @@ function toRecord(row: Model): DemoScheduleRecord {
     // plain.productLines entries are already plain objects (a parent row's
     // `.get({ plain: true })` recursively flattens included associations),
     // not Model instances.
+    // Partner Portal — '' on every internally-raised demo. Lets the Demo
+    // Schedule list tell an incoming partner request apart from a sales
+    // person's own abandoned draft, which otherwise look identical.
+    partner_id: (plain.partner_id as string) ?? '',
+    partner_name: (() => {
+      const partner = plain.partner as { company_name?: string; partner_code?: string } | null;
+      return partner ? `${partner.company_name} (${partner.partner_code})` : '';
+    })(),
     products_required: ((plain.productLines as Record<string, unknown>[]) ?? []).map(
       (p) => ({ product: p.product as string, quantity: p.quantity as number } as DemoProductLine)
     )
@@ -69,7 +80,7 @@ function toRecord(row: Model): DemoScheduleRecord {
 }
 
 async function readAll(): Promise<DemoScheduleRecord[]> {
-  const rows = await db.DemoSchedule.findAll({ include: [creatorInclude, productLinesInclude], order: [['created_at', 'DESC']] });
+  const rows = await db.DemoSchedule.findAll({ include: [creatorInclude, productLinesInclude, demoPartnerInclude], order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
@@ -79,7 +90,7 @@ async function list(viewerUsername: string, viewerIsPrivileged: boolean): Promis
     const user = await db.User.findOne({ where: { username: viewerUsername } as never });
     where.created_by = user ? user.get('id') : '00000000-0000-0000-0000-000000000000';
   }
-  const rows = await db.DemoSchedule.findAll({ where: where as never, include: [creatorInclude, productLinesInclude], order: [['created_at', 'DESC']] });
+  const rows = await db.DemoSchedule.findAll({ where: where as never, include: [creatorInclude, productLinesInclude, demoPartnerInclude], order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
@@ -96,7 +107,7 @@ async function create(record: DemoScheduleRecord): Promise<DemoScheduleRecord> {
         { transaction: t }
       );
     }
-    const withAssoc = await db.DemoSchedule.findByPk(row.get('id') as string, { include: [creatorInclude, productLinesInclude], transaction: t });
+    const withAssoc = await db.DemoSchedule.findByPk(row.get('id') as string, { include: [creatorInclude, productLinesInclude, demoPartnerInclude], transaction: t });
     return toRecord(withAssoc as Model);
   });
 }
@@ -124,7 +135,7 @@ async function update(id: string, patch: Partial<DemoScheduleRecord>): Promise<D
       }
     }
 
-    const withAssoc = await db.DemoSchedule.findByPk(id, { include: [creatorInclude, productLinesInclude], transaction: t });
+    const withAssoc = await db.DemoSchedule.findByPk(id, { include: [creatorInclude, productLinesInclude, demoPartnerInclude], transaction: t });
     return toRecord(withAssoc as Model);
   });
 }

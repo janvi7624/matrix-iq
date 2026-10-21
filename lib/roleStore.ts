@@ -68,6 +68,44 @@ const TMS_SEED_ROLES: { key: string; label: string; description: string; isSyste
   { key: 'technician', label: 'Technician', description: 'Same as Engineer, without Procurement access, within TMS.', isSystem: true, isPrivileged: false, status: 'active', order: 10, permissions: { modules: TECHNICIAN_MODULES, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: false } }
 ];
 
+// Partner Portal roles — EXTERNAL accounts (channel partners, distributors,
+// dealers), the first roles in this app that do not belong to an employee.
+//
+// Both carry isPrivileged: false and viewAllDepartments: false, like every
+// non-admin role. Note that neither flag is what isolates a partner: an
+// ordinary unprivileged employee has exactly the same two values and can
+// still reach every Sales module. Isolation comes from `users.partnerId` and
+// the three layers built on it (proxy.ts route gating, getViewerContext's
+// deny-by-default, and partner_id in every partner query) — see
+// lib/partnerRoles.ts.
+//
+// `modules` is left empty on purpose. Portal tiles are granted by key in
+// lib/moduleConfigStore.ts (PARTNER_PORTAL_MODULE_KEYS), not through this
+// matrix, so that an admin editing a partner role in Role Management cannot
+// accidentally hand a partner an internal module by ticking a box.
+const PARTNER_SEED_ROLES: { key: string; label: string; description: string; isSystem: boolean; isPrivileged: boolean; status: 'active'; order: number; permissions: RolePermissions }[] = [
+  {
+    key: 'partner-admin',
+    label: 'Partner Admin',
+    description: 'External partner — primary account. Submits leads/projects, requests demos, raises support tickets, and manages their own company’s portal users.',
+    isSystem: true,
+    isPrivileged: false,
+    status: 'active',
+    order: 14,
+    permissions: blankPermissions()
+  },
+  {
+    key: 'partner-user',
+    label: 'Partner User',
+    description: 'External partner — team member. Same portal access as Partner Admin, without the ability to manage their company’s other portal users.',
+    isSystem: true,
+    isPrivileged: false,
+    status: 'active',
+    order: 15,
+    permissions: blankPermissions()
+  }
+];
+
 // Roles are edited only via Role Management (rare) but read on nearly every
 // authenticated request (resolveIsPrivileged/hasCapability/isModuleActionAllowed
 // all funnel through findRoleByKey). Caching the one underlying query and
@@ -142,7 +180,7 @@ const MERGED_ENGINEER_DESCRIPTION =
   'Technical Team — TMS own-tasks visibility and BOM creation, plus demo-request technical approval, Sales project assignment, and marketing technical review.';
 
 async function ensureSeeded(): Promise<void> {
-  const all = [...SEED_ROLES, ...TMS_SEED_ROLES];
+  const all = [...SEED_ROLES, ...TMS_SEED_ROLES, ...PARTNER_SEED_ROLES];
   const count = await db.Role.count();
   if (count === 0) {
     await db.Role.bulkCreate(all.map((r) => ({ ...r })) as never);

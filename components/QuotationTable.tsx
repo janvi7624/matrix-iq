@@ -8,6 +8,7 @@ import { formatMoney } from '@/lib/format';
 import { daysSince, needsFollowUp, parseFollowUpNotes } from '@/lib/followUp';
 import { computeEffectiveStatusClient } from '@/lib/quotationStatus';
 import { downloadQuotationFromRecord } from '@/lib/quotationPdfFromRecord';
+import QuotationSharePartnerButton from './QuotationSharePartnerButton';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useToast } from './ui/ToastProvider';
 import EmptyState from './ui/EmptyState';
@@ -140,9 +141,11 @@ interface QuotationRowProps {
   showSalesPerson?: boolean;
   onChangeStatus?: (id: string, status: QuotationRecord['status']) => Promise<void>;
   highlight?: boolean;
+  /** Re-fetch the list after a partner share is granted or withdrawn. */
+  onRefresh?: () => void;
 }
 
-function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus, highlight }: QuotationRowProps) {
+function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus, highlight, onRefresh }: QuotationRowProps) {
   const confirm = useConfirm();
   // Arriving highlighted (from Dashboard's Recent Quotations) starts this row
   // already expanded, so the visitor sees its detail immediately rather than
@@ -299,6 +302,17 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
                 {downloadBusy ? 'Working…' : 'Download'}
               </span>
             </button>
+            {/* Renders nothing unless this quotation's project came from a
+                partner — see the component. */}
+            <QuotationSharePartnerButton
+              quotationId={row.id}
+              quotationNumber={row.quotation_number}
+              partnerId={row.partner_id}
+              partnerName={row.partner_name}
+              sharedWithPartner={row.shared_with_partner}
+              shareable={row.status !== 'draft'}
+              onChanged={() => onRefresh?.()}
+            />
             {onDelete && (
               <button
                 type="button"
@@ -427,9 +441,10 @@ interface QuotationTableProps {
   showSalesPerson?: boolean;
   onChangeStatus?: (id: string, status: QuotationRecord['status']) => Promise<void>;
   highlightId?: string;
+  onRefresh?: () => void;
 }
 
-export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus, highlightId }: QuotationTableProps) {
+export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus, highlightId, onRefresh }: QuotationTableProps) {
   return (
     <TableWrap className={styles.quotationViewport}>
     <table className={styles.table}>
@@ -467,6 +482,7 @@ export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSale
               showSalesPerson={showSalesPerson}
               onChangeStatus={onChangeStatus}
               highlight={!!highlightId && row.id === highlightId}
+              onRefresh={onRefresh}
             />
           ))
         )}

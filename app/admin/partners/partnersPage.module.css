@@ -1,0 +1,77 @@
+/* Partner Management — internal screens. Layout-only helpers; everything
+   visual comes from the shared calculator/quotationHistory modules so these
+   pages look like the rest of Administration. */
+
+.actionsRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.codeCell {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.muted {
+  opacity: 0.55;
+}
+
+.statusPillPending {
+  background: var(--mx-warning-subtle);
+  color: var(--mx-warning);
+}
+
+.statusPillSuspended {
+  background: var(--mx-danger-subtle);
+  color: var(--mx-danger);
+}
+
+/* Shown once after a login is issued or reset. Deliberately loud: it is the
+   only moment the temporary password is visible, and SES may not have
+   delivered it. */
+.credentialBox {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border-radius: var(--mx-radius-md, 12px);
+  border: 1px solid var(--mx-warning);
+  background: var(--mx-warning-subtle);
+  color: var(--mx-ink);
+}
+
+.credentialBox code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 20px;
+  margin-bottom: 8px;
+}
+
+.detailItem {
+  min-width: 0;
+}
+
+.detailLabel {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mx-ink-faint);
+  margin-bottom: 3px;
+}
+
+.detailValue {
+  font-size: 0.9rem;
+  color: var(--mx-ink);
+  overflow-wrap: anywhere;
+}

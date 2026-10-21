@@ -163,6 +163,48 @@ export type UserRole = string;
 // etc.) stays intact for someone who's left or is on leave.
 export type UserStatus = 'active' | 'inactive';
 
+/**
+ * Partner Portal — the external partner company master.
+ *
+ * pending   : created, invitation not yet accepted. Cannot sign in.
+ * active    : the only status that may use the portal.
+ * suspended : temporarily cut off (payment, compliance, dispute). Reversible;
+ *             every record is retained and reappears on reactivation.
+ * inactive  : the relationship has ended. Same effect as suspended at the
+ *             access layer — kept separate so "paused" and "over" are
+ *             distinguishable in reporting rather than collapsed into one
+ *             ambiguous flag.
+ *
+ * Checked live on every partner request (lib/partnerContext.ts), never from
+ * the session token, so a status change takes effect immediately.
+ */
+export type PartnerStatus = 'pending' | 'active' | 'suspended' | 'inactive';
+
+export interface PartnerRecord {
+  id: string;
+  partner_code: string;
+  company_name: string;
+  contact_person: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  gst_number: string;
+  status: PartnerStatus;
+  // Same vocabulary as ProjectRecord.departments — see lib/projectDepartmentOptions.ts.
+  departments: string[];
+  product_categories: string[];
+  territory: string[];
+  relationship_manager_id: string;
+  // Resolved for display; '' when no RM is assigned or the account is gone.
+  relationship_manager_name: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UserRecord {
   id: string;
   username: string;
@@ -265,6 +307,13 @@ export interface QuotationRecord {
   original_quotation_id: string;
   revision_number: number;
   revision_reason: string;
+  // Partner Portal — resolved for display, not stored on the quotation.
+  // Empty / false on an ordinary direct quotation, which is what tells the
+  // UI to render no share control. See attachPartnerShareState in
+  // lib/quotationStore.ts.
+  partner_id?: string;
+  partner_name?: string;
+  shared_with_partner?: boolean;
   // Project / Tender Proposal (lib/quotationProposal.ts). '' and null on a
   // Standard or Custom quotation, which price line items instead.
   proposal_kind: 'project' | 'tender' | '';
@@ -405,6 +454,10 @@ export interface DemoScheduleRecord {
   suggested_next_action: string;
   next_follow_up_date: string;
   attachments: string[];
+  // Partner Portal — resolved for display, '' on an internally-raised demo.
+  // See attachPartner handling in lib/demoScheduleStore.ts.
+  partner_id?: string;
+  partner_name?: string;
 }
 
 export type TravelScheduleStatus =
@@ -950,6 +1003,21 @@ export interface ProjectRecord {
   // for every normal, manually-created project. `status` itself is never
   // touched by this feature.
   lead_confirmation_status: 'pending_confirmation' | 'confirmed' | '';
+  // Partner Portal overlay — all '' on a direct (non-partner) project.
+  // Read-only everywhere: set by lib/partnerProjectStore.ts, never by a
+  // PATCH (see the readOnly flags in lib/projectStore.ts's FIELDS).
+  partner_id: string;
+  partner_submission_status: 'submitted' | 'info_requested' | 'approved' | 'rejected' | '';
+  partner_reviewed_by: string;
+  partner_reviewed_at: string;
+  partner_review_remarks: string;
+  // The partner's own estimate — NOT approx_price, which is Sales' vetted
+  // figure and the one that feeds the forecast.
+  partner_submitted_value: number | '';
+  partner_expected_timeline: string;
+  // Resolved for display on the internal Projects list / detail view.
+  partner_name: string;
+  partner_code: string;
   confirmed_by: string;
   confirmed_at: string;
   // Resolved display-only fields, populated ONLY by the Dashboard list read
@@ -1128,7 +1196,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request' | 'office_operation_expense' | 'daily_report' | 'daily_report_leave_claim' | 'daily_report_warning' | 'daily_report_config';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request' | 'office_operation_expense' | 'daily_report' | 'daily_report_leave_claim' | 'daily_report_warning' | 'daily_report_config' | 'partner' | 'partner_user' | 'material' | 'support_ticket';
   entity_id: string;
   action: string;
   previous_status: string;

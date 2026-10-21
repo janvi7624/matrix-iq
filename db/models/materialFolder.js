@@ -8,7 +8,10 @@ module.exports = (sequelize, DataTypes) => {
     parent_id: { type: DataTypes.UUID, allowNull: true },
     description: { type: DataTypes.TEXT, allowNull: true },
     created_by: { type: DataTypes.UUID, allowNull: true },
-    updated_by: { type: DataTypes.UUID, allowNull: true }
+    updated_by: { type: DataTypes.UUID, allowNull: true },
+    // A published document inside an UNpublished folder stays hidden — the
+    // folder acts as a containing boundary. See the 20261020097000 migration.
+    partner_visible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
   }, {
     tableName: 'material_folders',
     underscored: true,
