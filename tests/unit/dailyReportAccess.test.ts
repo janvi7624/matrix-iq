@@ -229,3 +229,88 @@ describe('per-employee access', () => {
     expect(access).toEqual({ canView: true, canEdit: true, canFileForThem: true, isSelf: false });
   });
 });
+
+
+describe('HR reads every department, and manages only its own', () => {
+  // HR's grant is VISIBILITY. The split exists because resolveEmployeeAccess
+  // derives edit and file-on-behalf rights from the scope too — widening one
+  // list without the other would have handed HR the power to rewrite any
+  // employee's report in the company as a side effect of letting them read it.
+
+  const DEPTS = [
+    { id: 'd-hr', name: 'HR & Admin' },
+    { id: 'd-ai', name: 'AI' },
+    { id: 'd-av', name: 'AV' }
+  ];
+
+  function asHr() {
+    hrManager.mockResolvedValue(true);
+    // HR manages its own department and nothing else.
+    managed.mockResolvedValue([DEPTS[0]] as never);
+    vi.mocked(db.Department.findAll).mockResolvedValue(
+      DEPTS.map((d) => ({ get: (k: string) => (d as Record<string, string>)[k] })) as never
+    );
+  }
+
+  it('reads every active department', async () => {
+    asHr();
+    const scope = await resolveDailyReportScope(viewer({ role: 'hr' }));
+    expect(scope.departmentIds).toEqual(['d-hr', 'd-ai', 'd-av']);
+    expect(scope.departments).toHaveLength(3);
+  });
+
+  it('manages only the department it actually manages', async () => {
+    asHr();
+    const scope = await resolveDailyReportScope(viewer({ role: 'hr' }));
+    expect(scope.manageDepartmentIds).toEqual(['d-hr']);
+  });
+
+  it('is NOT marked as seeing org-wide', async () => {
+    // seesOrgWide is the "may do anything to anyone" tier — it grants edit
+    // and file rights unconditionally in resolveEmployeeAccess. HR must not
+    // reach the data through that door.
+    asHr();
+    const scope = await resolveDailyReportScope(viewer({ role: 'hr' }));
+    expect(scope.seesOrgWide).toBe(false);
+  });
+
+  it('can open the team dashboard', async () => {
+    asHr();
+    await expect(canAccessTeamDashboard(viewer({ role: 'hr' }))).resolves.toBe(true);
+  });
+
+  it('may VIEW an employee outside its department but not change anything', async () => {
+    asHr();
+    vi.mocked(db.User.findByPk).mockResolvedValue({ get: (k: string) => (k === 'departmentId' ? 'd-ai' : OTHER) } as never);
+    const access = await resolveEmployeeAccess(viewer({ role: 'hr' }), OTHER);
+    expect(access.canView).toBe(true);
+    expect(access.canEdit).toBe(false);
+    expect(access.canFileForThem).toBe(false);
+  });
+
+  it('may still edit and file within its own department', async () => {
+    asHr();
+    vi.mocked(db.User.findByPk).mockResolvedValue({ get: (k: string) => (k === 'departmentId' ? 'd-hr' : OTHER) } as never);
+    const access = await resolveEmployeeAccess(viewer({ role: 'hr' }), OTHER);
+    expect(access.canView).toBe(true);
+    expect(access.canEdit).toBe(true);
+    expect(access.canFileForThem).toBe(true);
+  });
+});
+
+describe('an ordinary department manager is unaffected', () => {
+  it('keeps the two lists identical', async () => {
+    managed.mockResolvedValue([{ id: 'd-ai', name: 'AI' }] as never);
+    const scope = await resolveDailyReportScope(viewer({ role: 'technical-manager' }));
+    expect(scope.departmentIds).toEqual(['d-ai']);
+    expect(scope.manageDepartmentIds).toEqual(['d-ai']);
+  });
+
+  it('cannot see a department it does not manage', async () => {
+    managed.mockResolvedValue([{ id: 'd-ai', name: 'AI' }] as never);
+    vi.mocked(db.User.findByPk).mockResolvedValue({ get: (k: string) => (k === 'departmentId' ? 'd-av' : OTHER) } as never);
+    const access = await resolveEmployeeAccess(viewer({ role: 'technical-manager' }), OTHER);
+    expect(access.canView).toBe(false);
+    expect(access.canEdit).toBe(false);
+  });
+});

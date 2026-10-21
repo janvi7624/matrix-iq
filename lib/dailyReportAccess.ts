@@ -35,8 +35,21 @@ export type DailyReportModuleKey = (typeof DAILY_REPORT_MODULE_KEYS)[number];
 export interface DailyReportScope {
   /** No department filtering needed — this viewer sees every employee. */
   seesOrgWide: boolean;
-  /** Departments this viewer may read. Empty + !seesOrgWide = own records only. */
+  /** Departments this viewer may READ. Empty + !seesOrgWide = own records only. */
   departmentIds: string[];
+  /**
+   * Departments this viewer may ACT on — edit a report, or file one on an
+   * employee's behalf.
+   *
+   * Split from departmentIds because the two stopped being the same thing
+   * when HR was given company-wide visibility: HR reads every department's
+   * reports but manages only its own, and resolveEmployeeAccess would
+   * otherwise have handed them edit-and-file rights over the whole company
+   * as a side effect of widening the view.
+   *
+   * For everyone else the two lists are identical.
+   */
+  manageDepartmentIds: string[];
   departments: { id: string; name: string }[];
   /** Whether "File for Them" is available to this viewer. */
   canFileForOthers: boolean;
@@ -65,23 +78,45 @@ export async function resolveDailyReportScope(viewer: ViewerContext): Promise<Da
   const seesOrgWide = orgWide || viewer.isPrivileged;
 
   if (seesOrgWide) {
-    const all = await db.Department.findAll({ where: { status: 'active' } as never, attributes: ['id', 'name'], order: [['order', 'ASC']] });
-    const departments = all.map((d) => ({ id: d.get('id') as string, name: d.get('name') as string }));
-    return { seesOrgWide: true, departmentIds: departments.map((d) => d.id), departments, canFileForOthers: true, isHr: hr };
+    const departments = await listActiveDepartments();
+    const ids = departments.map((d) => d.id);
+    return { seesOrgWide: true, departmentIds: ids, manageDepartmentIds: ids, departments, canFileForOthers: true, isHr: hr };
   }
 
-  // HR without a manager relationship still needs to see the whole company's
-  // leave claims and warnings (that is their job), but NOT to read everyone's
-  // report content — so HR breadth is granted on the HR screens, not here.
+  // HR reads every department's reports.
+  //
+  // Deliberately NOT seesOrgWide: that flag is the "may do anything to
+  // anyone" tier, and resolveEmployeeAccess grants edit and file-on-behalf
+  // from it. HR's grant is visibility only — they still manage just their own
+  // department, so manageDepartmentIds and canFileForOthers stay exactly as
+  // they were.
+  if (hr) {
+    const departments = await listActiveDepartments();
+    return {
+      seesOrgWide: false,
+      departmentIds: departments.map((d) => d.id),
+      manageDepartmentIds: managed.map((d) => d.id),
+      departments,
+      canFileForOthers: managed.length > 0,
+      isHr: true
+    };
+  }
+
   return {
     seesOrgWide: false,
     departmentIds: managed.map((d) => d.id),
+    manageDepartmentIds: managed.map((d) => d.id),
     departments: managed,
     // Filing on someone's behalf is a manager action; a team member with no
     // managed department can never do it, whatever the module matrix says.
     canFileForOthers: managed.length > 0,
     isHr: hr
   };
+}
+
+async function listActiveDepartments(): Promise<{ id: string; name: string }[]> {
+  const all = await db.Department.findAll({ where: { status: 'active' } as never, attributes: ['id', 'name'], order: [['order', 'ASC']] });
+  return all.map((d) => ({ id: d.get('id') as string, name: d.get('name') as string }));
 }
 
 /** Can this viewer open the team dashboard at all? */
@@ -152,8 +187,12 @@ export async function resolveEmployeeAccess(viewer: ViewerContext, employeeId: s
   }
   const employee = await db.User.findByPk(employeeId, { attributes: ['id', 'departmentId'] });
   if (!employee) return { canView: false, canEdit: false, canFileForThem: false, isSelf: false };
-  const inScope = scope.departmentIds.includes(employee.get('departmentId') as string);
-  return { canView: inScope, canEdit: inScope, canFileForThem: inScope, isSelf: false };
+  const department = employee.get('departmentId') as string;
+  // Two different questions, two different lists. HR may read a report from
+  // any department while being able to change one only in their own.
+  const canView = scope.departmentIds.includes(department);
+  const canManage = scope.manageDepartmentIds.includes(department);
+  return { canView, canEdit: canManage, canFileForThem: canManage, isSelf: false };
 }
 
 export interface NotificationRecipient {

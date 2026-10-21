@@ -13,7 +13,18 @@ import { canAccessTeamDashboard } from '@/lib/dailyReportAccess';
 // see, so passing someone else's department id returns their own scope
 // rather than a leak.
 export async function GET(request: NextRequest) {
-  const guard = await guardDailyReport(request, 'team-daily-reports');
+  // Coarse gate only — 'daily-report', the module every employee has.
+  //
+  // Deliberately NOT 'team-daily-reports': that key is manager-gated, and the
+  // gate reads a department-manager fact this guard does not carry, so it
+  // refuses everyone who is not privileged — including HR and real
+  // department managers. It was therefore STRICTER than the authority below,
+  // which inverts the intent stated in the next comment.
+  //
+  // canAccessTeamDashboard is the actual control: it resolves the viewer's
+  // scope and refuses anyone who neither manages a department nor reads
+  // company-wide.
+  const guard = await guardDailyReport(request, 'daily-report');
   if (isGuardFailure(guard)) return guard.response;
   const { viewer } = guard;
 
