@@ -1222,6 +1222,13 @@ export interface DeliveryChallanRecord {
   created_at: string;
   created_by: string;
   project_id: string;
+  /**
+   * The linked project's display name, resolved on the read path only (like
+   * ProjectRecord.project_lead_name) — there is no such column on
+   * delivery_challans. Empty when there is no linked project, in which case
+   * custom_project_name below is what to show.
+   */
+  project_name: string;
   // Set only when project_id is empty — a free-text project label Back
   // Office typed in for a manual DC with no real linked Project.
   custom_project_name: string;
@@ -1232,6 +1239,12 @@ export interface DeliveryChallanRecord {
   client_address: string;
   client_phone: string;
   items: DcLineItem[];
+  /**
+   * What the demo cost, recorded when the DC was closed. Empty string means
+   * nothing was recorded — deliberately distinct from 0, which means someone
+   * was asked and answered zero.
+   */
+  demo_cost_amount: number | '';
   issued_by: string;
   issued_by_phone: string;
   issued_date: string;

@@ -2,6 +2,86 @@
    panel/table/form chrome still comes from quotationHistory.module.css and
    calculator.module.css; these are the layout rules unique to this view. */
 
+/* The Project cell: one line with an ellipsis, expanding to the full name
+   when clicked.
+
+   display:block AND an explicit max-width are both load-bearing. This table
+   is table-layout:auto, where a <td> sizes itself to its content — so
+   text-overflow has no boundary to clip against and silently does nothing
+   unless the cell is given one. Rendered as a real <button> so it is
+   reachable by keyboard and announces its state, rather than a div that
+   only responds to a mouse. */
+/* The Expense cell. Deliberately NOT historyStyles.amount: that class sets
+   text-align:right at specificity 0,1,0, which loses to `.table td`'s 0,1,1
+   — so it silently does nothing on a table cell (PoView's money columns are
+   left-aligned today for exactly this reason). Tabular figures and a weight
+   are what actually read as money in a column. */
+.dcExpenseCell {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.dcExpenseNone {
+    color: var(--mx-text-muted);
+    font-weight: 400;
+}
+
+/* The inline "did it cost anything?" step that replaces the Close DC button
+   until it is answered. */
+.dcCloseStep {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: var(--mx-radius-sm);
+    background: var(--mx-surface-sunken);
+}
+
+.dcCloseChoices {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+}
+
+.dcCloseChoice {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.dcProjectCell {
+    display: block;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.dcProjectCellExpanded {
+    max-width: none;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: break-word;
+}
+
+/* The DC number and its status badge, side by side in the dialog title. */
+.dcDialogTitle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .detailHeaderRow { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
 .itemsHeading { margin-bottom: 8px; margin-top: 12px; }
 .addItemRow { margin-top: 8px; }

@@ -69,6 +69,7 @@ import { useConfirm } from './ui/ConfirmDialog';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import ProjectDeadlineExtendModal from './ProjectDeadlineExtendModal';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
+import { LOST_REASONS, LOST_REASON_LABEL, LostReason } from '@/lib/salesStageRules';
 import ProjectSourceField from './ui/ProjectSourceField';
 import ProjectLeadField from './ui/ProjectLeadField';
 import OpportunityTypeField from './ui/OpportunityTypeField';
@@ -980,28 +981,47 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     }
   }
 
+  // The Lost reason dialog. A select rather than free text, because the
+  // server validates against a fixed five-value vocabulary and would reject
+  // anything else.
+  const [closeLostOpen, setCloseLostOpen] = useState(false);
+  const [lostReason, setLostReason] = useState<LostReason | ''>('');
+
   async function handleCloseProject() {
     if (!data) return;
     const won = await confirm({ title: 'Close project', message: 'Close this project as won or lost?', confirmLabel: 'Won', cancelLabel: 'Lost' });
-    const normalized = won ? 'won' : 'lost';
-    // The API enforces this regardless; checked here so the person gets a
-    // useful instruction instead of a rejected request. Deliberately points
-    // at the existing Technical Person picker rather than asking inline: an
-    // assignment has to go through that approval request (with its note and
-    // needed-by), and a second way to start one would fork that flow.
-    if (normalized === 'won' && !data.project.assigned_technical_person_id && !data.technicalRequests.length) {
-      toast.error('Assign a technical owner first — use "Request a technical person" in the Technical Person field below, then close as won.');
+
+    if (won) {
+      // The API enforces this regardless; checked here so the person gets a
+      // useful instruction instead of a rejected request. Deliberately
+      // points at the existing Technical Person picker rather than asking
+      // inline: an assignment has to go through that approval request (with
+      // its note and needed-by), and a second way to start one would fork
+      // that flow.
+      if (!data.project.assigned_technical_person_id && !data.technicalRequests.length) {
+        toast.error('Assign a technical owner first — use "Request a technical person" in the Technical Person field below, then close as won.');
+        return;
+      }
+      if (!(await confirm({ message: 'Close this project as Won? This updates the final stage.', danger: true }))) return;
+      // 'completed' is a retired Project Progress stage — closing as Won now
+      // sets status directly instead (stage stays at whatever it already
+      // was, e.g. PO Received).
+      await patchProject({ status: 'won' });
       return;
     }
-    if (!(await confirm({ message: `Close this project as ${normalized === 'won' ? 'Won' : 'Closed Lost'}? This updates the final stage.`, danger: true }))) return;
-    // 'completed' is a retired Project Progress stage — closing as Won now
-    // sets status directly instead (stage stays at whatever it already was,
-    // e.g. PO Received). Closed Lost still works via the stage, unchanged.
-    if (normalized === 'won') {
-      await patchProject({ status: 'won' });
-    } else {
-      await patchProject({ stage: 'closed_lost' });
-    }
+
+    // Lost needs a reason: the Lost gate rejects the transition without one
+    // (lib/salesStageRules.ts). This dialog IS the confirmation step, so
+    // there is no second confirm — a reason has to be chosen before the
+    // button does anything, which makes the intent explicit on its own.
+    setLostReason('');
+    setCloseLostOpen(true);
+  }
+
+  async function handleConfirmCloseLost() {
+    if (!lostReason) return;
+    const saved = await patchProject({ stage: 'closed_lost', lostReason });
+    if (saved) setCloseLostOpen(false);
   }
 
   if (status && !data) {
@@ -1020,7 +1040,19 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // records may still carry them, but no project can be set to them going
   // forward) — the select still needs to render the CURRENT value correctly
   // for those legacy records without offering it as a choice for anyone else.
-  const stageSelectOptions = ASSIGNABLE_STAGES.includes(project.stage) ? ASSIGNABLE_STAGES : [...ASSIGNABLE_STAGES, project.stage];
+  // 'closed_lost' is deliberately NOT offered in the stage dropdown. Losing a
+  // deal requires a reason (the Lost gate in lib/salesStageRules.ts), and the
+  // Close Project action is what collects it — picking Closed Lost from here
+  // would stage an edit that the server then refuses, with nowhere on screen to
+  // answer it. That was the bug.
+  //
+  // Won already works this way: an outcome reached through Close Project, not a
+  // stage anyone picks. Lost now matches.
+  //
+  // Still rendered when the project is ALREADY closed lost, so the select shows
+  // its real current value rather than silently appearing to be something else.
+  const stageSelectOptions = (ASSIGNABLE_STAGES.includes(project.stage) ? ASSIGNABLE_STAGES : [...ASSIGNABLE_STAGES, project.stage])
+    .filter((s) => s !== 'closed_lost' || project.stage === 'closed_lost');
   // status === 'won' covers a project closed via the current "Close Project
   // → Won" path (which no longer sets stage to the retired 'completed'
   // value) — stage === 'completed' is kept for existing legacy records.
@@ -1212,7 +1244,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         </div>
         <div className={historyStyles.stepper}>
           {isClosed && project.stage === 'closed_lost' ? (
-            <span className={`${historyStyles.step} ${historyStyles.stepLost}`}>✕ Closed Lost</span>
+            // The reason is shown, not just stored: a required field nobody
+            // can read back is just an obstacle.
+            <span className={`${historyStyles.step} ${historyStyles.stepLost}`}>
+              ✕ Closed Lost
+              {project.lost_reason ? ` — ${LOST_REASON_LABEL[project.lost_reason as LostReason] ?? project.lost_reason}` : ''}
+            </span>
           ) : (
             FORWARD_STAGES.map((s, idx) => {
               const skipped = skippedStages.includes(s);
@@ -2193,6 +2230,42 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             </Modal>
           );
         })()}
+
+        {/* Closing a deal as Lost needs a reason, and this is where it is
+            asked for. A select, not free text: the server validates against a
+            fixed five-value vocabulary (LOST_REASONS) and rejects anything
+            else, so a text box would only invite a value that fails. */}
+        {closeLostOpen && (
+          <Modal
+            title="Close project as Lost"
+            ariaLabel="Close project as Lost"
+            onClose={() => setCloseLostOpen(false)}
+            footer={
+              <>
+                <ModalCancelButton onClick={() => setCloseLostOpen(false)}>Cancel</ModalCancelButton>
+                <ModalOkButton disabled={!lostReason} onClick={handleConfirmCloseLost}>Close as Lost</ModalOkButton>
+              </>
+            }
+          >
+            <p className={calcStyles.small}>
+              This finalises the project as lost and cannot be undone from here. The reason is recorded on the project and feeds the pipeline reporting.
+            </p>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="lost-reason">Lost Reason</label>
+              <select
+                id="lost-reason"
+                className={calcStyles.formControl}
+                value={lostReason}
+                onChange={(e) => setLostReason(e.target.value as LostReason | '')}
+              >
+                <option value="">Select a reason…</option>
+                {LOST_REASONS.map((reason) => (
+                  <option key={reason} value={reason}>{LOST_REASON_LABEL[reason]}</option>
+                ))}
+              </select>
+            </div>
+          </Modal>
+        )}
 
         {showSalesOwner && (
           <Modal

@@ -18,7 +18,8 @@ const FIELDS = [
   { name: 'expected_return_date', kind: 'nullable' as const },
   { name: 'assigned_engineer' },
   { name: 'status' },
-  { name: 'material_return', kind: 'json' as const }
+  { name: 'material_return', kind: 'json' as const },
+  { name: 'demo_cost_amount', kind: 'decimal' as const }
 ];
 
 function isoOrEmpty(value: unknown): string {
@@ -28,6 +29,11 @@ function isoOrEmpty(value: unknown): string {
 
 function toAttr(value: unknown, kind: string): unknown {
   if (kind === 'nullable') return value === '' || value === undefined ? null : value;
+  // A DECIMAL column rejects an empty string, and NULL is the meaningful
+  // "not recorded" value here — so blank must become null, never 0.
+  if (kind === 'decimal') {
+    return value === '' || value === undefined || value === null ? null : value;
+  }
   return value;
 }
 
@@ -57,6 +63,34 @@ function rowToItem(plain: Record<string, unknown>): DcLineItem {
 
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
 const itemsInclude = { model: db.DeliveryChallanItem, as: 'items' };
+// The `attributes` list is mandatory, not tidiness: the Project model
+// declares around sixty columns, and omitting it would pull every one of
+// them into each DC row to render a single label.
+const projectInclude = {
+  model: db.Project,
+  as: 'project',
+  attributes: ['id', 'project_name', 'company', 'client_name']
+};
+const allIncludes = [creatorInclude, itemsInclude, projectInclude];
+
+/**
+ * What to call the linked project, for display only.
+ *
+ * project_name first, and the order matters: a DC copies client_name FROM
+ * the project when it is created, so leading with the project's client_name
+ * would make the Project column print the same string as the Client column
+ * sitting next to it. company is the better second choice for that reason.
+ *
+ * Worth knowing: projects.project_name is an optional intake field with no
+ * required check and no backfill, so in practice this column reads "the deal
+ * name where somebody typed one, the company where nobody did". That is a
+ * real improvement on a UUID, but it is not a clean dataset.
+ */
+function projectLabelOf(project: unknown): string {
+  const p = project as { project_name?: string; company?: string; client_name?: string } | null | undefined;
+  if (!p) return '';
+  return p.project_name || p.company || p.client_name || '';
+}
 
 function toRecord(row: Model): DeliveryChallanRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -65,19 +99,26 @@ function toRecord(row: Model): DeliveryChallanRecord {
     created_at: isoOrEmpty(plain.createdAt),
     created_by: (plain.creator as { username?: string } | null)?.username ?? '',
     updated_at: isoOrEmpty(plain.updatedAt),
-    items: ((plain.items as Record<string, unknown>[]) ?? []).map(rowToItem)
+    items: ((plain.items as Record<string, unknown>[]) ?? []).map(rowToItem),
+    project_name: projectLabelOf(plain.project)
   };
   for (const { name, kind = 'string' } of FIELDS) {
     const raw = plain[name];
     if (kind === 'nullable') record[name] = raw ?? '';
     else if (kind === 'json') record[name] = raw ?? {};
+    // node-postgres hands back DECIMAL as a STRING to preserve precision, so
+    // without this the amount reaches the UI as "1500.00" — where
+    // toLocaleString('en-IN') is a no-op and every numeric total sums it as
+    // 0. Empty string, not 0, when the column is NULL: the dash the table
+    // shows for "nothing recorded" depends on telling those apart.
+    else if (kind === 'decimal') record[name] = raw === null || raw === undefined ? '' : Number(raw);
     else record[name] = raw ?? '';
   }
   return record as unknown as DeliveryChallanRecord;
 }
 
 async function readAll(): Promise<DeliveryChallanRecord[]> {
-  const rows = await db.DeliveryChallan.findAll({ include: [creatorInclude, itemsInclude], order: [['created_at', 'DESC']] });
+  const rows = await db.DeliveryChallan.findAll({ include: allIncludes, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
@@ -99,7 +140,7 @@ async function list(viewerUsername: string, _viewerIsPrivileged?: boolean, inclu
     allowedIds = Array.from(new Set([...allowedIds, ...backofficeUsers.map((u) => u.get('id') as string)]));
   }
   const where: Record<string, unknown> = allowedIds ? { created_by: { [Op.in]: allowedIds } } : {};
-  const rows = await db.DeliveryChallan.findAll({ where: where as never, include: [creatorInclude, itemsInclude], order: [['created_at', 'DESC']] });
+  const rows = await db.DeliveryChallan.findAll({ where: where as never, include: allIncludes, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
@@ -109,7 +150,7 @@ async function list(viewerUsername: string, _viewerIsPrivileged?: boolean, inclu
 async function listOwnedBy(username: string): Promise<DeliveryChallanRecord[]> {
   const user = await db.User.findOne({ where: { username } as never, attributes: ['id'] });
   const where = { created_by: user ? user.get('id') : '00000000-0000-0000-0000-000000000000' };
-  const rows = await db.DeliveryChallan.findAll({ where: where as never, include: [creatorInclude, itemsInclude], order: [['created_at', 'DESC']] });
+  const rows = await db.DeliveryChallan.findAll({ where: where as never, include: allIncludes, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 
@@ -123,7 +164,7 @@ async function create(record: DeliveryChallanRecord): Promise<DeliveryChallanRec
     if (record.items?.length) {
       await db.DeliveryChallanItem.bulkCreate(record.items.map((i) => itemToRow(i, row.get('id') as string)) as never, { transaction: t });
     }
-    const withAssoc = await db.DeliveryChallan.findByPk(row.get('id') as string, { include: [creatorInclude, itemsInclude], transaction: t });
+    const withAssoc = await db.DeliveryChallan.findByPk(row.get('id') as string, { include: allIncludes, transaction: t });
     return toRecord(withAssoc as Model);
   });
 }
@@ -148,7 +189,7 @@ async function update(id: string, patch: Partial<DeliveryChallanRecord>): Promis
       }
     }
 
-    const withAssoc = await db.DeliveryChallan.findByPk(id, { include: [creatorInclude, itemsInclude], transaction: t });
+    const withAssoc = await db.DeliveryChallan.findByPk(id, { include: allIncludes, transaction: t });
     return toRecord(withAssoc as Model);
   });
 }
@@ -166,7 +207,7 @@ export const deliveryChallanStore = { list, listOwnedBy, create, update, remove 
 
 export async function findDeliveryChallanById(id: string): Promise<DeliveryChallanRecord | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.DeliveryChallan.findByPk(id, { include: [creatorInclude, itemsInclude] });
+  const row = await db.DeliveryChallan.findByPk(id, { include: allIncludes });
   return row ? toRecord(row) : undefined;
 }
 
