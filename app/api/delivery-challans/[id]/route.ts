@@ -85,6 +85,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const patch: Partial<DeliveryChallanRecord> = { updated_at: new Date().toISOString() };
     let demoStatus: DemoRequestStatus | null = null;
     let action = '';
+    // A line about the demo cost, for the project timeline and the audit
+    // row. Both already fire on close and both currently pass an empty
+    // remark for this action, so recording the amount costs one string
+    // rather than any new plumbing.
+    let closeNote = '';
     const previousStatus = dc.status;
 
     if (body.action === 'updateItems') {
@@ -125,6 +130,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.status = 'closed';
       demoStatus = 'dc_closed';
       action = 'Closed DC';
+
+      // What the demo cost. Omitted, null or blank all mean "nothing
+      // recorded" and leave the column NULL — not 0, which would assert that
+      // someone was asked and said zero.
+      const rawCost = (body as { demoCostAmount?: unknown }).demoCostAmount;
+      if (rawCost !== undefined && rawCost !== null && rawCost !== '') {
+        const amount = typeof rawCost === 'number' ? rawCost : Number(rawCost);
+        if (!Number.isFinite(amount) || amount < 0) {
+          return NextResponse.json({ error: 'Demo cost must be a number of 0 or more.' }, { status: 400 });
+        }
+        // The column is DECIMAL(12,2); anything larger would be a Postgres
+        // overflow rather than a validation message.
+        if (amount > 9_999_999_999.99) {
+          return NextResponse.json({ error: 'Demo cost is too large.' }, { status: 400 });
+        }
+        // Rounded to the stored scale so the figure the table prints is the
+        // figure the database holds.
+        patch.demo_cost_amount = Math.round(amount * 100) / 100;
+        closeNote = `Demo cost recorded: ₹${patch.demo_cost_amount.toLocaleString('en-IN')}`;
+      } else {
+        closeNote = 'No demo cost recorded';
+      }
     } else {
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }
@@ -137,7 +164,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (dc.project_id) {
       const remarksNote = patch.material_return
         ? `${patch.material_return.remarkTags.join(', ')}${patch.material_return.remarks ? ` — ${patch.material_return.remarks}` : ''}`
-        : '';
+        : closeNote;
       await appendProjectTimeline(dc.project_id, { by: viewer.username, stage: 'demo', label: `DC ${dc.dc_number}: ${action}`, remarks: remarksNote });
     }
     await logAudit({
@@ -148,7 +175,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       action,
       previousStatus,
       newStatus: patch.status || previousStatus,
-      remarks: patch.material_return ? patch.material_return.remarks : '',
+      remarks: patch.material_return ? patch.material_return.remarks : closeNote,
       ip: getClientIp(request)
     });
 
