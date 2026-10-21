@@ -16,7 +16,7 @@ import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus } from '@/lib/types';
 import { ASSIGNABLE_STAGES, FORWARD_STAGES } from '@/lib/projectStages';
-import { normalizeStage, stageGateFailures } from '@/lib/salesStageRules';
+import { LOST_REASONS, LOST_REASON_LABEL, isLostReason, normalizeStage, stageGateFailures } from '@/lib/salesStageRules';
 import {
   latestPurchaseOrderForProject,
   latestQuotationForProject,
@@ -261,6 +261,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
+    // Why a deal was lost. Required by the Lost gate
+    // (lib/salesStageRules.ts STATUS_GATES), and validated against the
+    // agreed vocabulary HERE rather than trusted: the gate only checks the
+    // value is non-blank and on the list, so free text would clear the
+    // blank check and then fail the membership check with a message about a
+    // field the person thought they had just filled in.
+    if (typeof body.lostReason === 'string' && body.lostReason.trim()) {
+      const reason = body.lostReason.trim();
+      if (!isLostReason(reason)) {
+        return NextResponse.json(
+          { error: `Lost Reason must be one of ${LOST_REASONS.map((r) => LOST_REASON_LABEL[r]).join(', ')}.` },
+          { status: 400 }
+        );
+      }
+      patch.lost_reason = reason;
+    }
     // closingProbabilityPercent is deliberately NOT read from the body any
     // more. Closing % is derived from the stage on every read, and an admin
     // changes it only through POST /api/projects/[id]/closing-percent, which
