@@ -61,6 +61,7 @@ import StatusBadge from './ui/StatusBadge';
 import EmptyState from './ui/EmptyState';
 import CelebrationsSection from './CelebrationsSection';
 import MyTargetPanel from './MyTargetPanel';
+import DailyReportAdminBriefWidget from './DailyReportAdminBriefWidget';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 import styles from './dashboard.module.css';
 
@@ -884,6 +885,9 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
       {/* 4. MY TARGET PANEL (When applicable) */}
       <MyTargetPanel />
+
+      {/* 4b. ALL-DEPARTMENTS DAILY REPORT BRIEF (org-wide visibility only) */}
+      <DailyReportAdminBriefWidget />
 
       {/* 5. PERSONAL ASSIGNMENTS HUB (When applicable) */}
       {(myAssignedProjects.length > 0 || myAssignedDemos.length > 0) && (

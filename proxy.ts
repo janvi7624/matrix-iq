@@ -38,7 +38,8 @@ const PUBLIC_PATHS = new Set([
   '/manifest.webmanifest',
   '/api/integrations/meta/webhook',
   '/api/cron/daily-report-sweep',
-  '/api/cron/backoffice-monthly-summary'
+  '/api/cron/backoffice-monthly-summary',
+  '/api/cron/daily-report-monthly-summary'
 ]);
 // admin + superadmin only — plain 'user' accounts are blocked from all of these.
 const ADMIN_ONLY_PREFIXES = ['/admin', '/quotation-history', '/api/admin'];

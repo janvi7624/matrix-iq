@@ -5,6 +5,8 @@ import {
   MyDailyReportResponse,
   MyDailyReportStatus,
   TeamDailyReportResponse,
+  TeamDailyReportRangeResponse,
+  TeamDailyReportRangeRow,
   TeamDailyReportRow
 } from './dailyReportTypes';
 import { getDailyReportConfig, getDeadlinePolicy } from './dailyReportConfigStore';
@@ -353,6 +355,161 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
     departments: scope.departments,
     can_file_for_others: scope.canFileForOthers
   };
+}
+
+export interface RangeSummaryOptions {
+  label?: string;
+  search?: string;
+}
+
+/**
+ * The viewer-independent core: "how did these departments do between these
+ * two dates" — compliance COUNTS per employee, not TeamDailyReportRow's
+ * one-row-per-employee-for-one-day roster, because "who is missing right
+ * now" stops meaning anything once more than one day is in view.
+ *
+ * Split out from buildTeamDailyReportsRange (below, which resolves a VIEWER's
+ * scope and delegates here) specifically so the monthly summary cron —
+ * app/api/cron/daily-report-monthly-summary — can compute the exact same
+ * numbers for an explicit department list with no logged-in viewer to scope
+ * from at all. The screen and the mailbox can then never disagree, because
+ * both ultimately call this one function.
+ */
+export async function computeDailyReportRangeSummary(
+  departmentIds: string[],
+  from: string,
+  to: string,
+  options: RangeSummaryOptions = {}
+): Promise<TeamDailyReportRangeResponse> {
+  const policy = await getDeadlinePolicy();
+  const employees = departmentIds.length ? await listEligibleEmployees(departmentIds) : [];
+  const employeeIds = employees.map((e) => e.id);
+  const dates = workingDaysBetween(from, to, policy);
+
+  const [statuses, leaveCovered] = await Promise.all([
+    loadReportStatuses(employeeIds, from, to),
+    loadLeaveCoveredKeys(employeeIds, from, to)
+  ]);
+
+  let rows: TeamDailyReportRangeRow[] = employees.map((employee) => {
+    const owedDates = dates.filter((d) => employeeOwesDate(employee, d));
+    let submitted = 0;
+    let submittedLate = 0;
+    let leaveCoveredCount = 0;
+    for (const d of owedDates) {
+      const key = `${employee.id}|${d}`;
+      const found = statuses.get(key);
+      if (found && SUBMITTED_STATUSES.includes(found.submission_status)) {
+        submitted += 1;
+        if (found.is_late) submittedLate += 1;
+      } else if (leaveCovered.has(key)) {
+        leaveCoveredCount += 1;
+      }
+    }
+    const expected = owedDates.length;
+    const missing = Math.max(0, expected - submitted - leaveCoveredCount);
+    return {
+      employee_id: employee.id,
+      employee_name: employee.name,
+      employee_username: employee.username,
+      department_id: employee.departmentId,
+      department_name: employee.departmentName,
+      expected,
+      submitted,
+      submitted_late: submittedLate,
+      missing,
+      leave_covered: leaveCoveredCount,
+      // Leave counts as neither a compliance hit nor a credit — it is
+      // excluded from the denominator, same as it already reads on the
+      // single-date view (On leave is its own badge, not Missing).
+      compliance_percent: expected - leaveCoveredCount > 0 ? Math.round((submitted / (expected - leaveCoveredCount)) * 100) : 100
+    };
+  });
+
+  const search = (options.search ?? '').trim().toLowerCase();
+  if (search) {
+    rows = rows.filter((row) => `${row.employee_name} ${row.employee_username} ${row.department_name}`.toLowerCase().includes(search));
+  }
+  rows.sort((a, b) => a.department_name.localeCompare(b.department_name) || a.employee_name.localeCompare(b.employee_name));
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      expected: acc.expected + r.expected,
+      submitted: acc.submitted + r.submitted,
+      submitted_late: acc.submitted_late + r.submitted_late,
+      missing: acc.missing + r.missing,
+      leave_covered: acc.leave_covered + r.leave_covered
+    }),
+    { expected: 0, submitted: 0, submitted_late: 0, missing: 0, leave_covered: 0 }
+  );
+
+  // Every department actually represented in the (unfiltered-by-search)
+  // employee set — for the UI's filter dropdown, this is the same set as the
+  // viewer's own scope.departments by construction, since the wrapper below
+  // passes exactly scope.departmentIds in.
+  const departmentMap = new Map<string, string>();
+  for (const e of employees) if (e.departmentId) departmentMap.set(e.departmentId, e.departmentName);
+  const departments = Array.from(departmentMap, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+
+  return { from, to, label: options.label ?? `${from} – ${to}`, rows, totals, departments };
+}
+
+export interface TeamRangeFilters {
+  from: string;
+  to: string;
+  label?: string;
+  departmentId?: string;
+  search?: string;
+}
+
+/**
+ * "How did my team do over [a month/quarter/year/custom range]" — the
+ * filters this was built for (Daily Report filter: Employee search, Month,
+ * Quarter, Year, Custom Range), scoped to whatever this viewer may see.
+ * The actual computation is computeDailyReportRangeSummary above.
+ */
+export async function buildTeamDailyReportsRange(viewer: ViewerContext, filters: TeamRangeFilters): Promise<TeamDailyReportRangeResponse> {
+  const scope = await resolveDailyReportScope(viewer);
+  const departmentIds = filters.departmentId && scope.departmentIds.includes(filters.departmentId) ? [filters.departmentId] : scope.departmentIds;
+  return computeDailyReportRangeSummary(departmentIds, filters.from, filters.to, { label: filters.label, search: filters.search });
+}
+
+export interface DepartmentRollupRow {
+  department_id: string;
+  department_name: string;
+  expected: number;
+  submitted: number;
+  submitted_late: number;
+  missing: number;
+  leave_covered: number;
+  compliance_percent: number;
+}
+
+// Per-employee rows -> one row per department. Pure (no DB) — built for the
+// all-departments admin brief, where a per-EMPLOYEE table across the whole
+// company would be a wall of rows nobody reads; a department manager's own
+// monthly email stays per-employee (TeamDailyReportRangeRow as-is), since
+// that is the one actually actionable at that level.
+export function aggregateRangeRowsByDepartment(rows: TeamDailyReportRangeRow[]): DepartmentRollupRow[] {
+  const byDept = new Map<string, DepartmentRollupRow>();
+  for (const r of rows) {
+    let bucket = byDept.get(r.department_id);
+    if (!bucket) {
+      bucket = { department_id: r.department_id, department_name: r.department_name, expected: 0, submitted: 0, submitted_late: 0, missing: 0, leave_covered: 0, compliance_percent: 0 };
+      byDept.set(r.department_id, bucket);
+    }
+    bucket.expected += r.expected;
+    bucket.submitted += r.submitted;
+    bucket.submitted_late += r.submitted_late;
+    bucket.missing += r.missing;
+    bucket.leave_covered += r.leave_covered;
+  }
+  const result = Array.from(byDept.values());
+  for (const b of result) {
+    const denominator = b.expected - b.leave_covered;
+    b.compliance_percent = denominator > 0 ? Math.round((b.submitted / denominator) * 100) : 100;
+  }
+  return result.sort((a, b) => a.department_name.localeCompare(b.department_name));
 }
 
 // Declared after use above by hoisting — kept down here so the two exported

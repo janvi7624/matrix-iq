@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, IndianRupee, Receipt } from 'lucide-react';
 import { BillingRow, BillingTotals, OwnerBillingSummary, billableValue } from '@/lib/billingSummary';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, formatMoneyCompact } from '@/lib/format';
 import { toCsv } from '@/lib/csv';
 import { exportListToPdf } from '@/lib/exportPdf';
 import AppShell from './AppShell';
@@ -196,15 +196,32 @@ export default function BillingView({ currentUser }: Props) {
       {totals && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 18 }}>
           <StatTile label="Won deals" value={totals.count} icon={<Receipt size={16} />} />
+          {/* Compact in the tile, exact on hover — the convention
+              ProjectsView established for the same reason: a seven-figure
+              rupee value does not fit a tile and wraps mid-number. */}
           <StatTile
             label="Billable value"
-            value={<span title={formatMoney(totals.value)}>{formatMoney(totals.value)}</span>}
+            value={<span title={formatMoney(totals.value)}>{formatMoneyCompact(totals.value)}</span>}
             tone="brand"
             icon={<IndianRupee size={16} />}
           />
-          <StatTile label="With a PO" value={`${totals.withPurchaseOrder} · ${formatMoney(totals.purchaseOrderValue)}`} tone="success" />
-          <StatTile label="On quotation" value={formatMoney(totals.byBasis.quotation.value)} tone="info" />
-          <StatTile label="Estimate only" value={formatMoney(totals.byBasis.estimate.value)} tone="warning" />
+          {/* The count belongs in the label. Crammed into the value it
+              read as "4 · ₹10,77,980" and wrapped onto two lines. */}
+          <StatTile
+            label={`With a PO (${totals.withPurchaseOrder})`}
+            value={<span title={formatMoney(totals.purchaseOrderValue)}>{formatMoneyCompact(totals.purchaseOrderValue)}</span>}
+            tone="success"
+          />
+          <StatTile
+            label={`On quotation (${totals.byBasis.quotation.count})`}
+            value={<span title={formatMoney(totals.byBasis.quotation.value)}>{formatMoneyCompact(totals.byBasis.quotation.value)}</span>}
+            tone="info"
+          />
+          <StatTile
+            label={`Estimate only (${totals.byBasis.estimate.count})`}
+            value={<span title={formatMoney(totals.byBasis.estimate.value)}>{formatMoneyCompact(totals.byBasis.estimate.value)}</span>}
+            tone="warning"
+          />
           {/* Surfaced rather than buried: a won deal nobody has priced is a
               gap in the forecast, not a zero. */}
           <StatTile label="Not valued" value={totals.unvalued} tone={totals.unvalued > 0 ? 'danger' : undefined} />

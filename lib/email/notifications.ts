@@ -22,6 +22,7 @@ import { renderLeadHandoverEmail, LeadHandoverEmailData } from './templates/lead
 import { renderMissingProjectDetailsEmail, MissingProjectDetailsEmailData } from './templates/missingProjectDetails';
 import { renderDailyReportEmail, DailyReportEmailData } from './templates/dailyReport';
 import { renderBackOfficeMonthlySummaryEmail, BackOfficeMonthlySummaryEmailData } from './templates/backOfficeMonthlySummary';
+import { renderDailyReportMonthlySummaryEmail, DailyReportMonthlySummaryEmailData } from './templates/dailyReportMonthlySummary';
 
 // APP_URL must be this app's absolute public origin (e.g.
 // https://app.example.com, see .env.example) — every link embedded in an
@@ -371,6 +372,28 @@ export async function sendBackOfficeMonthlySummaryEmail(
   } catch (error) {
     console.error(
       `[email] Back Office monthly summary for ${data.monthLabel} could not be sent to ${data.email}:`,
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+// 1st-of-month Daily Report recap — one recipient per call (the cron route
+// loops over department managers, plus the single all-departments brief
+// recipient). Never throws, same reason as every other sender in this file.
+export async function sendDailyReportMonthlySummaryEmail(
+  data: { email: string } & Omit<DailyReportMonthlySummaryEmailData, 'dashboardUrl'>
+): Promise<boolean> {
+  if (!data.email) return false;
+  try {
+    const appUrl = resolveAppUrl();
+    const dashboardUrl = appUrl ? `${appUrl}/daily-reports?tab=team` : '/daily-reports?tab=team';
+    const { subject, html, text } = renderDailyReportMonthlySummaryEmail({ ...data, dashboardUrl });
+    await sendEmail({ to: data.email, subject, html, text });
+    return true;
+  } catch (error) {
+    console.error(
+      `[email] Daily Report monthly summary for ${data.monthLabel} could not be sent to ${data.email}:`,
       error instanceof Error ? error.message : error
     );
     return false;

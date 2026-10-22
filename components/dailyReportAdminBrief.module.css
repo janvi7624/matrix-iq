@@ -1,0 +1,50 @@
+/* All-departments Daily Report brief — the dashboard half of the 1st-of-
+   month email to Mayank Jani. Same panel/head shape as myTarget.module.css,
+   plus a compact table since this is one row per department, not one figure. */
+
+.panel {
+    background: var(--mx-surface);
+    border-radius: var(--mx-radius-xl);
+    box-shadow: var(--mx-shadow-xs);
+    padding: 16px 18px;
+    margin-top: 18px;
+}
+
+.head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.title { font-size: 14px; font-weight: var(--mx-weight-bold); color: var(--mx-ink); }
+.period { font-size: 12px; color: var(--mx-ink-muted); margin-left: 8px; font-weight: 400; }
+
+.tableWrap { overflow-x: auto; }
+
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: var(--mx-weight-semibold);
+    color: var(--mx-ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--mx-border);
+}
+.table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--mx-border);
+    color: var(--mx-ink);
+    font-variant-numeric: tabular-nums;
+}
+.table tfoot td {
+    font-weight: var(--mx-weight-semibold);
+    border-bottom: none;
+    border-top: 1px solid var(--mx-border);
+}
+
+.missingCell { color: var(--mx-danger); font-weight: var(--mx-weight-semibold); }
