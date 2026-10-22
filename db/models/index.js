@@ -86,7 +86,8 @@ const modelDefiners = [
   require('./dailyReportWarning.js'),
   require('./dailyReportEscalation.js'),
   require('./dailyReportNotificationEvent.js'),
-  require('./dailyReportSchedulerRun.js')
+  require('./dailyReportSchedulerRun.js'),
+  require('./backOfficeMonthlySummaryRun.js')
 ];
 
 const db = {};

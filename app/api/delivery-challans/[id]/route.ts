@@ -3,7 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { deliveryChallanStore, findDeliveryChallanById } from '@/lib/deliveryChallanStore';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { appendProjectTimeline } from '@/lib/projectStore';
-import { logAudit } from '@/lib/auditLogStore';
+import { logAudit, listAuditLog } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { sendFieldOpsLifecycleEmail } from '@/lib/email/notifications';
@@ -57,7 +57,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const result = await requireDc(viewer, id);
     if ('error' in result) return result.error;
-    return NextResponse.json(result.dc);
+    // Added for the closed-DC edit history — every existing field stays at
+    // the top level exactly as before, so this is purely additive for any
+    // caller that was already treating this response as the DC record.
+    const activity = await listAuditLog('delivery_challan', id);
+    return NextResponse.json({ ...result.dc, activity });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -95,6 +99,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.action === 'updateItems') {
       if (dc.status !== 'prepared') return NextResponse.json({ error: 'Items can only be edited before dispatch' }, { status: 400 });
       patch.items = toItems(body.items);
+      // Not required to match an active employee — RequestedBySelect's
+      // 'Other' option is a deliberate free-text escape hatch.
       if (typeof body.assignedEngineer === 'string') patch.assigned_engineer = body.assignedEngineer.trim();
       if (typeof body.expectedReturnDate === 'string') patch.expected_return_date = body.expectedReturnDate;
       action = 'Updated DC items';
@@ -152,6 +158,74 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       } else {
         closeNote = 'No demo cost recorded';
       }
+    } else if (body.action === 'editClosed') {
+      // A closed DC is otherwise frozen — every other action above requires
+      // a specific PRIOR status, and 'closed' isn't one of them. This is the
+      // one deliberate exception: Back Office correcting a mistake (a typo'd
+      // client name, a wrong serial number) after the fact, never a status
+      // change. Every field defaults to its current value when omitted, so a
+      // partial body can't blank out the rest.
+      if (dc.status !== 'closed') {
+        return NextResponse.json({ error: 'Only a closed DC can be edited this way.' }, { status: 400 });
+      }
+
+      const nextClientName = typeof body.clientName === 'string' ? body.clientName.trim() : dc.client_name;
+      const nextClientAddress = typeof body.clientAddress === 'string' ? body.clientAddress.trim() : dc.client_address;
+      const nextClientPhone = typeof body.clientPhone === 'string' ? body.clientPhone.trim() : dc.client_phone;
+      const nextAssignedEngineer = typeof body.assignedEngineer === 'string' ? body.assignedEngineer.trim() : dc.assigned_engineer;
+      const nextIssuedDate = typeof body.issuedDate === 'string' && body.issuedDate ? body.issuedDate : dc.issued_date;
+      const nextExpectedReturnDate = typeof body.expectedReturnDate === 'string' ? body.expectedReturnDate : dc.expected_return_date;
+      const nextItems = Array.isArray(body.items) ? toItems(body.items) : dc.items;
+
+      let nextDemoCostAmount: number | '' = dc.demo_cost_amount;
+      if ('demoCostAmount' in body) {
+        const raw = (body as { demoCostAmount?: unknown }).demoCostAmount;
+        if (raw === '' || raw === null || raw === undefined) {
+          nextDemoCostAmount = '';
+        } else {
+          const amount = typeof raw === 'number' ? raw : Number(raw);
+          if (!Number.isFinite(amount) || amount < 0) {
+            return NextResponse.json({ error: 'Demo cost must be a number of 0 or more.' }, { status: 400 });
+          }
+          if (amount > 9_999_999_999.99) {
+            return NextResponse.json({ error: 'Demo cost is too large.' }, { status: 400 });
+          }
+          nextDemoCostAmount = Math.round(amount * 100) / 100;
+        }
+      }
+
+      if (!nextClientName) return NextResponse.json({ error: 'Client name is required' }, { status: 400 });
+      if (!nextItems.length) return NextResponse.json({ error: 'At least one material line is required' }, { status: 400 });
+
+      // The diff IS the point of this action — "edited" with no detail would
+      // satisfy nothing an auditor actually wants to know. Built from `dc`
+      // (the pre-update values) before anything is written, since afterwards
+      // there is nothing left to compare against.
+      const changes: string[] = [];
+      const noteIfChanged = (label: string, before: string, after: string) => {
+        if (before !== after) changes.push(`${label}: "${before || '-'}" → "${after || '-'}"`);
+      };
+      noteIfChanged('Client', dc.client_name, nextClientName);
+      noteIfChanged('Address', dc.client_address, nextClientAddress);
+      noteIfChanged('Phone', dc.client_phone, nextClientPhone);
+      noteIfChanged('Requested By', dc.assigned_engineer, nextAssignedEngineer);
+      noteIfChanged('Issued Date', dc.issued_date, nextIssuedDate);
+      noteIfChanged('Expected Return', dc.expected_return_date, nextExpectedReturnDate);
+      noteIfChanged('Demo Cost', String(dc.demo_cost_amount), String(nextDemoCostAmount));
+      if (JSON.stringify(dc.items) !== JSON.stringify(nextItems)) changes.push('Materials updated');
+
+      if (!changes.length) return NextResponse.json({ error: 'No changes to save.' }, { status: 400 });
+
+      patch.client_name = nextClientName;
+      patch.client_address = nextClientAddress;
+      patch.client_phone = nextClientPhone;
+      patch.assigned_engineer = nextAssignedEngineer;
+      patch.issued_date = nextIssuedDate;
+      patch.expected_return_date = nextExpectedReturnDate;
+      patch.items = nextItems;
+      patch.demo_cost_amount = nextDemoCostAmount;
+      action = 'Edited closed DC';
+      closeNote = changes.join('; ');
     } else {
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }

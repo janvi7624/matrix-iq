@@ -97,3 +97,20 @@
 .awaitingList { margin-top: 12px; list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .awaitingListItem { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .allDcHeadingSpaced { margin-top: 24px; }
+
+/* Activity Log — same card-row shape as tmsDetail.module.css's
+   .activityList/.activityItem, repeated here rather than shared because
+   nothing in this codebase shares CSS Modules across view files. */
+.activityList { display: flex; flex-direction: column; gap: 8px; }
+.activityItem { padding: 10px 12px; background: var(--mx-surface-sunken); border-radius: var(--mx-radius-sm); font-size: 13px; }
+.activityAction { font-weight: var(--mx-weight-semibold); }
+.activityMeta { color: var(--mx-ink-muted); font-size: 12px; margin-top: 2px; }
+.activityRemarks { color: var(--mx-ink-muted); font-size: 12px; margin-top: 4px; }
+
+/* Demo & Expense Summary dashboard. */
+.summaryTilesRow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin: 14px 0 20px;
+}

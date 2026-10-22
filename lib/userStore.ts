@@ -95,6 +95,48 @@ export async function listUsers(): Promise<PublicUser[]> {
   return rows.map((r) => toPublicUser(toUserRecord(r)));
 }
 
+export interface ActiveEmployeeOption {
+  id: string;
+  username: string;
+  name: string;
+  department: string;
+  designation: string;
+}
+
+// 'partner-admin' / 'partner-user' are external partner accounts (Role
+// Management's role keys for them), not this org's own staff — excluded from
+// every "pick an employee" picker that genuinely means employees, same as
+// Delivery Challan's "Requested By". Not the same filter /api/users/lite
+// applies (that one is shared by ~9 unrelated features and includes
+// partners), so this is a dedicated, narrower query rather than a reuse of
+// that endpoint.
+const EXTERNAL_PARTNER_ROLE_KEYS = ['partner-admin', 'partner-user'];
+
+export async function listActiveInternalEmployees(): Promise<ActiveEmployeeOption[]> {
+  const rows = await db.User.findAll({
+    where: { status: 'active' } as never,
+    include: [roleInclude, deptInclude],
+    attributes: ['id', 'username', 'name', 'designation'],
+    order: [['name', 'ASC']]
+  });
+  return rows
+    .filter((r) => {
+      const role = r.get('role') as { key?: string } | null;
+      return !EXTERNAL_PARTNER_ROLE_KEYS.includes(role?.key ?? '');
+    })
+    .map((r) => {
+      const plain = r.get({ plain: true }) as Record<string, unknown>;
+      const dept = plain.departmentRef as { name?: string } | null;
+      return {
+        id: plain.id as string,
+        username: plain.username as string,
+        name: (plain.name as string) || (plain.username as string),
+        department: dept?.name ?? '',
+        designation: (plain.designation as string) ?? ''
+      };
+    });
+}
+
 export async function findUserById(id: string): Promise<UserRecord | undefined> {
   // A session cookie issued before the Supabase migration carries an old
   // Date.now()-based id — treat that the same as "no such user" (forces
