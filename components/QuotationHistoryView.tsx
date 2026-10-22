@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { QuotationEffectiveStatus, QuotationRecord } from '@/lib/types';
 import { needsFollowUp } from '@/lib/followUp';
-import { CLOSED_QUOTATION_HIDE_AFTER_DAYS, isAgedClosedQuotation } from '@/lib/quotationVisibility';
+import { closedQuotationsVisible, isClosedQuotation } from '@/lib/quotationVisibility';
 import AppShell from './AppShell';
 import QuotationTable from './QuotationTable';
 import { useToast } from './ui/ToastProvider';
@@ -44,6 +44,15 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   const [fProjectId, setFProjectId] = useState('');
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
+  const [includeClosed, setIncludeClosed] = useState(false);
+
+  // Same three ways in as the Projects list: an explicit Status pick, any
+  // date range, or the person asking outright.
+  const showClosed = closedQuotationsVisible({
+    statusFilter: fStatus,
+    dateFilterActive: Boolean(fFrom || fTo),
+    userOverride: includeClosed
+  });
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -85,22 +94,20 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
   }, [loadQuotations]);
 
   const visibleRows = useMemo(() => {
-    const now = new Date();
     return rows.filter((r) => {
       if (followUpOnly && !needsFollowUp(r)) return false;
-      // No explicit Status pick -> a quote closed (or expired) long ago
-      // drops out of the default view. Filtering Status to Approved,
-      // Rejected, or Expired still shows every one of them, however old —
-      // see lib/quotationVisibility.ts.
-      if (!fStatus && isAgedClosedQuotation(r, now)) return false;
+      // Finished work is out of the default view — approved, rejected or
+      // expired. Not age-based: see lib/quotationVisibility.ts for why 90
+      // days hid none of the 16 closed quotations.
+      if (!showClosed && isClosedQuotation(r)) return false;
       return true;
     });
-  }, [rows, followUpOnly, fStatus]);
-  const hiddenAgedClosedCount = useMemo(() => {
-    if (fStatus) return 0;
-    const now = new Date();
-    return rows.filter((r) => isAgedClosedQuotation(r, now)).length;
-  }, [rows, fStatus]);
+  }, [rows, followUpOnly, showClosed]);
+
+  const hiddenClosedCount = useMemo(() => {
+    if (showClosed) return 0;
+    return rows.filter((r) => isClosedQuotation(r)).length;
+  }, [rows, showClosed]);
   const salesPeople = useMemo(() => Array.from(new Set(rows.map((r) => r.created_by).filter(Boolean))).sort(), [rows]);
 
   async function handleDelete(id: string) {
@@ -198,9 +205,19 @@ export default function QuotationHistoryView({ title, subtitle, showXlsxExport =
           )}
         </FilterBar>
         <div className={styles.status}>{status}</div>
-        {loaded && hiddenAgedClosedCount > 0 && (
+        {loaded && hiddenClosedCount > 0 && (
           <div className={styles.status}>
-            {hiddenAgedClosedCount} quotation{hiddenAgedClosedCount === 1 ? '' : 's'} older than {CLOSED_QUOTATION_HIDE_AFTER_DAYS} days (Approved/Rejected/Expired) {hiddenAgedClosedCount === 1 ? 'is' : 'are'} hidden — filter Status to see {hiddenAgedClosedCount === 1 ? 'it' : 'them'}.
+            {hiddenClosedCount} closed quotation{hiddenClosedCount === 1 ? '' : 's'} (Approved/Rejected/Expired) {hiddenClosedCount === 1 ? 'is' : 'are'} hidden.{' '}
+            <button type="button" className={styles.linkBtn} onClick={() => setIncludeClosed(true)}>
+              Show {hiddenClosedCount === 1 ? 'it' : 'them'}
+            </button>
+            {' '}— or pick a Status, or set any date range.
+          </div>
+        )}
+        {loaded && includeClosed && (
+          <div className={styles.status}>
+            Closed quotations are shown.{' '}
+            <button type="button" className={styles.linkBtn} onClick={() => setIncludeClosed(false)}>Hide them again</button>
           </div>
         )}
         {loaded && (

@@ -245,6 +245,24 @@
 .statusPill { display: inline-block; padding: 3px 10px; border-radius: var(--mx-radius-full); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
 .statusPillActive { background: var(--mx-success-subtle); color: var(--mx-success); }
 .statusPillInactive { background: rgba(107, 114, 128, 0.14); color: var(--mx-ink-muted); }
+/* An inline textual action sitting inside a status line — "Show them" on the
+   hidden-closed notice. A real <button> rather than an <a>, because it changes
+   what the list shows rather than navigating anywhere, but it has to read as
+   part of the sentence it lives in. */
+.linkBtn {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--mx-brand);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.linkBtn:hover {
+    text-decoration: none;
+}
+
 .tableWrap {
     /* Every table in the app scrolls through this wrapper, so the visible
        scrollbar is opted into once, here, rather than per view. */

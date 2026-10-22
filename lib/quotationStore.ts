@@ -437,7 +437,22 @@ export async function searchQuotationsFiltered(filters: QuotationFilters): Promi
   const rows = await db.Quotation.findAll({ where: where as never, include: QUOTATION_INCLUDE as never, order: [['created_at', 'DESC']] });
   let records = rows.map(toRecord);
 
-  if (filters.status) records = records.filter((r) => computeEffectiveStatus(r) === filters.status);
+  // Rejected is the UMBRELLA for a dead quotation: a validity window that ran
+  // out with no answer is a rejection by default, so filtering to Rejected
+  // returns the expired ones too. Without this the Quotations list hides 29
+  // expired quotes as closed and then shows none of them under the only
+  // status a person would think to pick.
+  //
+  // Picking Expired specifically still narrows to just those, which is the
+  // more useful question of the two — "which died from silence" rather than
+  // "which were turned down".
+  if (filters.status) {
+    records = records.filter((r) => {
+      const effective = computeEffectiveStatus(r);
+      if (filters.status === 'rejected') return effective === 'rejected' || effective === 'expired';
+      return effective === filters.status;
+    });
+  }
   if (filters.dateFrom) records = records.filter((r) => r.created_at.slice(0, 10) >= filters.dateFrom!);
   if (filters.dateTo) records = records.filter((r) => r.created_at.slice(0, 10) <= filters.dateTo!);
   if (filters.query && filters.query.trim()) {

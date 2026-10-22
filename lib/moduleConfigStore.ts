@@ -109,6 +109,12 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // Read-only directory derived from Projects (+ their Quotations) —
   // deliberately visible to the same broad audience as the rest of Sales,
   // not narrowed to admins, per the request that it be visible to everyone.
+  // Won work and what it is billable at. Visible to the same roles as the
+  // pipeline modules, because WHAT each person sees is decided by
+  // resolveVisibilityScope inside lib/billingStore.ts — own deals for a
+  // salesperson, the whole team for a manager — rather than by role here. A
+  // narrower role list would lock salespeople out of their own figures.
+  { key: 'billing', label: 'Billing', desc: 'Won deals and approved quotations — what is billable, what has a purchase order, and what nobody has priced yet.', icon: 'receipt-indian-rupee', href: '/billing', section: 'Sales', order: 9, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'client-master', label: 'Client Master', desc: "Every client across your projects, their contact details, and who's handling which product for them.", icon: 'users', href: '/clients', section: 'Sales', order: 8, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   // Visible to every TMS role too (not just ALL_ROLES) — HR Dashboard,
   // Travel Schedule, and Reimbursement apply to technical-manager/team-lead/

@@ -6,6 +6,8 @@ import { fileKindFromMime, isMaterialCategory, MaterialCategory, MaterialFileKin
 // Drive. MatrixIQ stores the LINK, never the file — so this table is small,
 // and nothing here needs Google credentials.
 
+export type MaterialSource = 'drive' | 'upload';
+
 export interface MaterialRecord {
   id: string;
   folderId: string | null;
@@ -15,6 +17,7 @@ export interface MaterialRecord {
   description: string;
   webViewLink: string;
   isFolder: boolean;
+  source: MaterialSource;
   fileKind: MaterialFileKind;
   addedBy: string;
   updatedAt: string;
@@ -32,6 +35,7 @@ function toRecord(row: Model): MaterialRecord {
   const creator = plain.creator as { name?: string; username?: string } | null;
   const title = (plain.title as string) ?? '';
   const rawCategory = plain.category as string;
+  const rawSource = plain.source as string;
   return {
     id: plain.id as string,
     folderId: (plain.folder_id as string) ?? null,
@@ -43,9 +47,11 @@ function toRecord(row: Model): MaterialRecord {
     description: (plain.description as string) ?? '',
     webViewLink: (plain.web_view_link as string) ?? '',
     isFolder: Boolean(plain.is_folder),
-    // No mime type is stored — nothing reads the file — so the icon comes
-    // from the name the person typed. A folder is its own kind.
-    fileKind: plain.is_folder ? 'folder' : fileKindFromMime('', title),
+    source: rawSource === 'upload' ? 'upload' : 'drive',
+    // An uploaded file carries its real content-type; a Drive link has none
+    // to read, so the icon still has to come from the name the person typed.
+    // A folder is its own kind regardless.
+    fileKind: plain.is_folder ? 'folder' : fileKindFromMime((plain.mime_type as string) || '', title),
     addedBy: creator?.name || creator?.username || '',
     updatedAt: isoOrEmpty(plain.updatedAt)
   };
@@ -105,10 +111,14 @@ export interface MaterialInput {
   title: string;
   description: string;
   // Already parsed and normalised by lib/driveLink.ts — the store never
-  // re-parses, so exactly one place decides what a valid link is.
+  // re-parses, so exactly one place decides what a valid link is. Empty for
+  // an uploaded material (source: 'upload') — it has no Drive id at all.
   driveFileId: string;
   webViewLink: string;
   isFolder: boolean;
+  source: MaterialSource;
+  // The uploaded file's real content-type. Always '' for a Drive link.
+  mimeType: string;
   actorId: string;
 }
 
@@ -124,6 +134,8 @@ export async function createMaterial(input: MaterialInput): Promise<MaterialReco
     drive_file_id: input.driveFileId || null,
     web_view_link: input.webViewLink,
     is_folder: input.isFolder,
+    source: input.source,
+    mime_type: input.mimeType || null,
     created_by: input.actorId || null,
     updated_by: input.actorId || null
   } as never);
@@ -150,6 +162,13 @@ export async function updateMaterial(id: string, patch: MaterialPatch): Promise<
     attrs.web_view_link = patch.webViewLink;
     attrs.drive_file_id = patch.driveFileId || null;
     attrs.is_folder = Boolean(patch.isFolder);
+    // source/mime_type are a package deal with the link itself — changing
+    // WHERE the material points has to also change WHAT KIND of pointer it
+    // is, or an edit from upload back to a Drive link would leave the old
+    // upload's mime_type and source:'upload' stale on a row that no longer
+    // has an uploaded file behind it at all.
+    attrs.source = patch.source ?? 'drive';
+    attrs.mime_type = patch.mimeType || null;
   }
 
   await row.update(attrs as never);

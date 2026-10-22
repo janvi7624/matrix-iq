@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { canManageMaterials } from '@/lib/permissions';
 import { isMaterialCategory } from '@/lib/materialCategories';
-import { parseDriveLink } from '@/lib/driveLink';
+import { materialLinkFieldsPresent, resolveMaterialLink } from '@/lib/materialLinkInput';
 import { deleteMaterial, findMaterialById, MaterialPatch, updateMaterial } from '@/lib/materialStore';
 import { findFolderById } from '@/lib/materialFolderStore';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -50,17 +50,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.title === 'string') patch.title = body.title.trim() || (patch.product ?? existing.product);
     if (typeof body.description === 'string') patch.description = body.description.trim();
 
-    if (body.driveLink !== undefined) {
-      const parsed = parseDriveLink(typeof body.driveLink === 'string' ? body.driveLink : '');
-      if (!parsed) {
-        return NextResponse.json(
-          { error: 'That doesn’t look like a Google Drive link. Paste the link from Drive’s Share dialog or the address bar.' },
-          { status: 400 }
-        );
-      }
-      patch.driveFileId = parsed.id;
-      patch.webViewLink = parsed.url;
-      patch.isFolder = parsed.kind === 'folder';
+    if (materialLinkFieldsPresent(body)) {
+      const resolved = await resolveMaterialLink({
+        driveLink: typeof body.driveLink === 'string' ? body.driveLink : undefined,
+        uploadedFileUrl: typeof body.uploadedFileUrl === 'string' ? body.uploadedFileUrl : undefined,
+        mimeType: typeof body.mimeType === 'string' ? body.mimeType : undefined
+      });
+      if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: 400 });
+      patch.driveFileId = resolved.value.driveFileId;
+      patch.webViewLink = resolved.value.webViewLink;
+      patch.isFolder = resolved.value.isFolder;
+      patch.source = resolved.value.source;
+      patch.mimeType = resolved.value.mimeType;
     }
 
     return NextResponse.json({ material: await updateMaterial(id, patch) });

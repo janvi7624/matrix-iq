@@ -1066,7 +1066,19 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     .sort((a, b) => (a.at < b.at ? 1 : -1));
   const latestQuotation = [...quotations].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
   const latestDemo = [...demos].sort((a, b) => (a.scheduled_at < b.scheduled_at ? 1 : -1))[0];
-  const technicalTeam = [...new Set([...demos.flatMap((d) => d.technical_members), ...demos.map((d) => d.assigned_technical_person), ...siteVisits.flatMap((v) => v.team_technical)].filter(Boolean))];
+  // The formally assigned lead (project.assigned_technical_person_name — set
+  // once a technical-person request is approved or a direct assignment is
+  // made, see lib/projectTechnicalRequest.ts's applyTechnicalAssignment) has
+  // to be in this set explicitly: a freshly-approved project with no demo or
+  // site visit logged yet would otherwise have nothing here at all and the
+  // card would wrongly read "Unassigned" despite a real, approved assignment.
+  const technicalTeam = [
+    ...new Set(
+      [project.assigned_technical_person_name, ...demos.flatMap((d) => d.technical_members), ...demos.map((d) => d.assigned_technical_person), ...siteVisits.flatMap((v) => v.team_technical)].filter(
+        Boolean
+      )
+    )
+  ];
   const skippedStages = project.skipped_stages ?? [];
   // Show Save only once the pick actually differs from what is stored — both
   // sides are canonically ordered by parseProjectDepartments/the picker, so a

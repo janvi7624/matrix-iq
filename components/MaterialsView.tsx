@@ -32,6 +32,7 @@ import { Skeleton } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
+import SegmentedToggle from './ui/SegmentedToggle';
 import { isDriveLink } from '@/lib/driveLink';
 import {
   MATERIAL_CATEGORIES,
@@ -43,6 +44,8 @@ import {
 import calcStyles from './calculator.module.css';
 import styles from './materials.module.css';
 
+type MaterialSource = 'drive' | 'upload';
+
 interface MaterialDocument {
   id: string;
   product: string;
@@ -51,6 +54,7 @@ interface MaterialDocument {
   description: string;
   webViewLink: string;
   isFolder: boolean;
+  source: MaterialSource;
   fileKind: MaterialFileKind;
   addedBy: string;
   updatedAt: string;
@@ -133,7 +137,17 @@ function formatWhen(iso: string): string {
   return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-const EMPTY_FORM = { product: '', category: 'datasheet' as MaterialCategory, title: '', description: '', driveLink: '' };
+const EMPTY_FORM = {
+  product: '',
+  category: 'datasheet' as MaterialCategory,
+  title: '',
+  description: '',
+  mode: 'drive' as MaterialSource,
+  driveLink: '',
+  uploadedFileUrl: '',
+  uploadedFileName: '',
+  mimeType: ''
+};
 type FormValues = typeof EMPTY_FORM;
 
 export default function MaterialsView({ canManage: canManageInitial }: { canManage: boolean }) {
@@ -240,7 +254,10 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
 
   async function handleDelete(document: MaterialDocument) {
     const confirmed = await confirm({
-      message: `Remove "${document.title}" from the library? The file stays in Drive — only this entry is removed.`,
+      message:
+        document.source === 'upload'
+          ? `Remove "${document.title}" from the library? Only this entry is removed — the uploaded file is not deleted.`
+          : `Remove "${document.title}" from the library? The file stays in Drive — only this entry is removed.`,
       danger: true
     });
     if (!confirmed) return;
@@ -675,12 +692,18 @@ function MaterialDialog({
           category: existing.category,
           title: existing.title,
           description: existing.description,
-          driveLink: existing.webViewLink
+          mode: existing.source,
+          driveLink: existing.source === 'drive' ? existing.webViewLink : '',
+          uploadedFileUrl: existing.source === 'upload' ? existing.webViewLink : '',
+          uploadedFileName: '',
+          mimeType: ''
         }
       : { ...EMPTY_FORM, category: defaultCategory }
   );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const toast = useToast();
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -692,13 +715,39 @@ function MaterialDialog({
   const linkValid = isDriveLink(values.driveLink);
   const linkIsFolder = linkValid && /\/folders\//.test(values.driveLink);
 
+  // Uploaded immediately on selection (same pattern as PO/Reimbursement
+  // attachments), not deferred to Save — so a mistake surfaces as an upload
+  // error right away instead of after the whole form is filled in.
+  async function handleFileSelected(file: File | null) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append('folder', 'materials');
+      body.append('files', file);
+      const response = await fetch('/api/uploads', { method: 'POST', body });
+      if (!response.ok) throw new Error(String(response.status));
+      const data: { urls: string[] } = await response.json();
+      const url = data.urls[0] || '';
+      setValues((prev) => ({ ...prev, uploadedFileUrl: url, uploadedFileName: file.name, mimeType: file.type || '' }));
+    } catch {
+      toast.error('Could not upload this file.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function handleSubmit() {
     if (!values.product.trim()) {
       setError('Enter the product or document name');
       return;
     }
-    if (!linkValid) {
+    if (values.mode === 'drive' && !linkValid) {
       setError('Paste a Google Drive link — from Drive’s Share dialog or the address bar');
+      return;
+    }
+    if (values.mode === 'upload' && !values.uploadedFileUrl) {
+      setError(uploading ? 'Wait for the upload to finish.' : 'Choose a file to upload.');
       return;
     }
     setError('');
@@ -708,7 +757,7 @@ function MaterialDialog({
       product: values.product.trim(),
       title: values.title.trim() || values.product.trim(),
       description: values.description.trim(),
-      driveLink: values.driveLink.trim()
+      driveLink: values.mode === 'drive' ? values.driveLink.trim() : ''
     });
   }
 
@@ -766,23 +815,55 @@ function MaterialDialog({
       </div>
 
       <div className={calcStyles.field}>
-        <label htmlFor="materialLink">Google Drive link *</label>
-        <input
-          id="materialLink"
-          type="url"
-          className={calcStyles.formControl}
-          value={values.driveLink}
-          onChange={(e) => set('driveLink', e.target.value)}
-          placeholder="https://drive.google.com/file/d/… or /drive/folders/…"
+        <label>Where is this document? *</label>
+        <SegmentedToggle
+          options={[
+            { value: 'drive', label: 'Google Drive link' },
+            { value: 'upload', label: 'Upload a file' }
+          ]}
+          value={values.mode}
+          onChange={(mode) => set('mode', mode)}
         />
-        <div className={linkTouched && !linkValid ? styles.fieldWarn : calcStyles.small}>
-          {linkTouched && !linkValid
-            ? 'That doesn’t look like a Google Drive link.'
-            : linkIsFolder
-              ? 'Folder link — “Open folder” will show every document for this product.'
-              : 'A file link opens that one document. Use a folder link when a product has several.'}
-        </div>
       </div>
+
+      {values.mode === 'drive' ? (
+        <div className={calcStyles.field}>
+          <label htmlFor="materialLink">Google Drive link *</label>
+          <input
+            id="materialLink"
+            type="url"
+            className={calcStyles.formControl}
+            value={values.driveLink}
+            onChange={(e) => set('driveLink', e.target.value)}
+            placeholder="https://drive.google.com/file/d/… or /drive/folders/…"
+          />
+          <div className={linkTouched && !linkValid ? styles.fieldWarn : calcStyles.small}>
+            {linkTouched && !linkValid
+              ? 'That doesn’t look like a Google Drive link.'
+              : linkIsFolder
+                ? 'Folder link — “Open folder” will show every document for this product.'
+                : 'A file link opens that one document. Use a folder link when a product has several.'}
+          </div>
+        </div>
+      ) : (
+        <div className={calcStyles.field}>
+          <label htmlFor="materialUpload">File *</label>
+          <input
+            id="materialUpload"
+            type="file"
+            disabled={uploading}
+            onChange={(e) => handleFileSelected(e.target.files?.[0] || null)}
+          />
+          {uploading && <div className={calcStyles.small}>Uploading…</div>}
+          {!uploading && values.uploadedFileUrl && (
+            <div className={calcStyles.small}>
+              Uploaded{values.uploadedFileName ? `: ${values.uploadedFileName}` : ''} —{' '}
+              <a href={values.uploadedFileUrl} target="_blank" rel="noreferrer">View file</a>
+            </div>
+          )}
+          <div className={calcStyles.small}>Up to 10MB. For a larger file (e.g. a long product video), use a Google Drive link instead.</div>
+        </div>
+      )}
 
       <div className={calcStyles.field}>
         <label htmlFor="materialTitle">Document name</label>
@@ -810,8 +891,17 @@ function MaterialDialog({
       </div>
 
       <div className={styles.formNote}>
-        MatrixIQ stores the <strong>link</strong>, not the file. Anyone opening it needs access in Drive — if it’s set
-        to “Restricted”, share it with the team first.
+        {values.mode === 'drive' ? (
+          <>
+            MatrixIQ stores the <strong>link</strong>, not the file. Anyone opening it needs access in Drive — if
+            it’s set to “Restricted”, share it with the team first.
+          </>
+        ) : (
+          <>
+            The file itself is uploaded and stored in MatrixIQ — every signed-in employee can open it directly, with
+            no Drive access needed.
+          </>
+        )}
       </div>
     </Modal>
   );

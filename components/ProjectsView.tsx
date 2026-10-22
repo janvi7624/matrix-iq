@@ -6,7 +6,7 @@ import { FolderKanban } from 'lucide-react';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
 import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { findClosestClient } from '@/lib/clientSimilarity';
-import { CLOSED_PROJECT_HIDE_AFTER_DAYS, isAgedClosedProject } from '@/lib/projectVisibility';
+import { closedProjectsVisible, isClosedProject } from '@/lib/projectVisibility';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { exportListToPdf } from '@/lib/exportPdf';
 import { formatMoneyCompact } from '@/lib/format';
@@ -244,6 +244,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [fPriority, setFPriority] = useState<ProjectPriority | ''>('');
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
+  // An explicit "show me the finished ones too", independent of the other
+  // filters, so the hidden-count notice has something to offer.
+  const [includeClosed, setIncludeClosed] = useState(false);
   const [fSearch, setFSearch] = useState('');
   const [fClosingPreset, setFClosingPreset] = useState<ClosingDatePreset>('all');
   const [fClosingFrom, setFClosingFrom] = useState('');
@@ -391,26 +394,35 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     });
   }, [projects, fLead, selectedLead, fType, fDepartment, fSalesPerson, fSource, fStage, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
 
+  // Any date range in play means closed deals belong in the answer: someone
+  // searching a range is asking what happened then, and omitting everything
+  // that closed would make the search quietly wrong. Covers both the created
+  // range and the expected-closing range.
+  const dateFilterActive = Boolean(fFrom || fTo || closingRange.from || closingRange.to);
+  const showClosed = closedProjectsVisible({
+    statusFilter: fStatus,
+    dateFilterActive,
+    userOverride: includeClosed
+  });
+
   const filtered = useMemo(() => {
-    const now = new Date();
     return filteredExceptStatus.filter((p) => {
       if (fStatus) return p.status === fStatus;
-      // No explicit Won/Lost pick -> a deal closed long ago drops out of the
-      // default view (it was piling up alongside everything still active).
-      // Picking Won or Lost still shows every one of them, however old — see
-      // lib/projectVisibility.ts. Unchanged behaviour, just relocated so the
-      // clause sits with the status test it depends on.
-      return !isAgedClosedProject(p, now);
+      // Finished work is out of the default view. Not age-based: see
+      // lib/projectVisibility.ts for why 90 days hid nothing at all.
+      return showClosed || !isClosedProject(p);
     });
-  }, [filteredExceptStatus, fStatus]);
+  }, [filteredExceptStatus, fStatus, showClosed]);
 
-  // Surfaced next to the filter bar so the auto-hide above never looks like
-  // data went missing — see the comment in the filter itself.
-  const hiddenAgedClosedCount = useMemo(() => {
-    if (fStatus) return 0;
-    const now = new Date();
-    return projects.filter((p) => isAgedClosedProject(p, now)).length;
-  }, [projects, fStatus]);
+  // Surfaced next to the filter bar so hiding never looks like data went
+  // missing. Counted off filteredExceptStatus rather than the raw list, so
+  // the number describes what THIS view is holding back — a count of every
+  // closed project in the database would be a different, misleading fact
+  // when a department or lead filter is also on.
+  const hiddenClosedCount = useMemo(() => {
+    if (showClosed) return 0;
+    return filteredExceptStatus.filter((p) => isClosedProject(p)).length;
+  }, [filteredExceptStatus, showClosed]);
 
   // KPI tiles (Part 1.3) — deliberately derived from `filtered`, never
   // `projects`, so they can never show a stale count against the visible
@@ -1100,9 +1112,19 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         {!loading && !loadFailed && selectedLead && (
           <div className={historyStyles.status}>Showing projects led by {selectedLead.name} and projects {selectedLead.name} owns.</div>
         )}
-        {!loading && !loadFailed && hiddenAgedClosedCount > 0 && (
+        {!loading && !loadFailed && hiddenClosedCount > 0 && (
           <div className={historyStyles.status}>
-            {hiddenAgedClosedCount} closed project{hiddenAgedClosedCount === 1 ? '' : 's'} older than {CLOSED_PROJECT_HIDE_AFTER_DAYS} days {hiddenAgedClosedCount === 1 ? 'is' : 'are'} hidden — filter Status to Won or Lost to see {hiddenAgedClosedCount === 1 ? 'it' : 'them'}.
+            {hiddenClosedCount} closed project{hiddenClosedCount === 1 ? '' : 's'} (Won/Lost) {hiddenClosedCount === 1 ? 'is' : 'are'} hidden.{' '}
+            <button type="button" className={historyStyles.linkBtn} onClick={() => setIncludeClosed(true)}>
+              Show {hiddenClosedCount === 1 ? 'it' : 'them'}
+            </button>
+            {' '}— or filter Status to Won/Lost, or set any date range.
+          </div>
+        )}
+        {!loading && !loadFailed && includeClosed && (
+          <div className={historyStyles.status}>
+            Closed projects are shown.{' '}
+            <button type="button" className={historyStyles.linkBtn} onClick={() => setIncludeClosed(false)}>Hide them again</button>
           </div>
         )}
 
