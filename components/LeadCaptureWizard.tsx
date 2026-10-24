@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DomainKey, LeadHandoverOutcome, LeadHandoverRecipient, LeadOrigin, LeadPriority, LeadRecord } from '@/lib/types';
 import { LEAD_ORIGIN_OPTIONS } from '@/lib/leadSources';
+import { LEAD_REFERENCE_OPTIONS, LeadReference } from '@/lib/leadReferenceOptions';
 import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { preprocessCardImage, scanBusinessCard } from '@/lib/cardOcr';
 import { Camera, User, Target, Flame, StickyNote, CheckCircle2, RefreshCw, Images, PenLine, Send, UserCheck } from 'lucide-react';
@@ -22,6 +23,11 @@ interface LeadForm {
   designation: string;
   company: string;
   city: string;
+  // Full postal address, optional — lib/leadReferenceOptions.ts.
+  companyAddress: string;
+  // Who personally referred this lead, optional — see
+  // lib/leadReferenceOptions.ts for the fixed list.
+  reference: LeadReference;
   cardImageUrl: string;
   interests: DomainKey[];
   subInterests: string[];
@@ -37,7 +43,7 @@ interface LeadForm {
 }
 
 function emptyForm(): LeadForm {
-  return { name: '', mobile: '', altMobile: '', email: '', designation: '', company: '', city: '', cardImageUrl: '', interests: [], subInterests: [], priority: '', followUpActions: [], budget: '', notes: '', leadSource: '', handoverToId: '' };
+  return { name: '', mobile: '', altMobile: '', email: '', designation: '', company: '', city: '', companyAddress: '', reference: '', cardImageUrl: '', interests: [], subInterests: [], priority: '', followUpActions: [], budget: '', notes: '', leadSource: '', handoverToId: '' };
 }
 
 const STEPS = [
@@ -374,6 +380,10 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
               <label className={calcStyles.label}>Company</label>
               <input className={calcStyles.formControl} value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} />
             </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Company Full Address (optional)</label>
+              <input className={calcStyles.formControl} value={form.companyAddress} onChange={(e) => setForm((f) => ({ ...f, companyAddress: e.target.value }))} placeholder="Building, street, city, state, PIN" />
+            </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Mobile</label>
@@ -407,6 +417,20 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
                 <option value="">Select a source…</option>
                 {LEAD_ORIGIN_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </Select>
+            </div>
+
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="lead-reference">Reference (optional)</label>
+              <Select
+                id="lead-reference"
+                value={form.reference}
+                onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value as LeadReference }))}
+              >
+                <option value="">— None —</option>
+                {LEAD_REFERENCE_OPTIONS.map((name) => (
+                  <option key={name} value={name}>{name}</option>
                 ))}
               </Select>
             </div>
@@ -566,10 +590,12 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
               <div className={historyStyles.reviewRow}><strong>Name:</strong> {form.name || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Designation:</strong> {form.designation || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Company:</strong> {form.company || '-'}</div>
+              <div className={historyStyles.reviewRow}><strong>Company Address:</strong> {form.companyAddress || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Mobile:</strong> {form.mobile || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Alternate Mobile:</strong> {form.altMobile || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Email:</strong> {form.email || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>City:</strong> {form.city || '-'}</div>
+              <div className={historyStyles.reviewRow}><strong>Reference:</strong> {form.reference || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Interests:</strong> {form.interests.join(', ') || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Specifics:</strong> {form.subInterests.join(', ') || '-'}</div>
               <div className={historyStyles.reviewRow}><strong>Priority:</strong> {form.priority ? LEAD_PRIORITY_META[form.priority].label : '-'}</div>

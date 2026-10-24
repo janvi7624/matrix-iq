@@ -127,6 +127,16 @@ export interface WorkingDayPolicy {
    */
   offNthWeekdays?: NthWeekdayRule[];
   /**
+   * 'YYYY-MM-DD'. The day tracking began: no date before it is ever an
+   * obligation, so nothing earlier can be missing, warned about, reminded
+   * about, or shown in a history strip. See TRACKING_START_DATE below.
+   *
+   * Optional, and absent means no floor — which keeps this module's date
+   * arithmetic testable on historical dates, and leaves every caller that
+   * builds a policy by hand behaving exactly as before.
+   */
+  trackingStartDate?: string;
+  /**
    * False (the default) means "public holidays are treated as working days",
    * which is the documented interim policy until a real holiday calendar is
    * maintained — the list above is then inert rather than silently applied.
@@ -188,10 +198,38 @@ export function previousWorkingDay(date: string, policy: WorkingDayPolicy): stri
   throw new Error(`No working day found within ${MAX_WORKING_DAY_SEARCH} days before ${date} — check the working-day configuration.`);
 }
 
-/** Every working day in [from, to], inclusive. */
+/**
+ * The day Daily Report tracking actually began, and the default for
+ * `WorkingDayPolicy.trackingStartDate`.
+ *
+ * The module spent October being rehearsed with dry_run on, which claimed
+ * every notification slot without sending anything (see
+ * lib/dailyReportNotify.ts's note on claimed events), so those dates were
+ * never really tracked: nobody was reminded and no warning was recorded.
+ * Counting them would show the whole company as weeks behind on reports they
+ * were never asked for, which is worse than not counting them at all.
+ *
+ * It is supplied by getDeadlinePolicy (lib/dailyReportConfigStore.ts) — the
+ * one place the module builds a policy — rather than being hard-coded into
+ * the arithmetic below, which stays pure date handling that can be tested on
+ * any dates at all.
+ */
+export const TRACKING_START_DATE = '2026-10-24';
+
+/**
+ * Every working day in [from, to], inclusive — never earlier than the
+ * policy's trackingStartDate, however far back `from` reaches.
+ *
+ * A range entirely before that date returns [], which every caller already
+ * reads as "nothing was expected" rather than "everything is missing": the
+ * period summary reports a null compliance percentage for it and sorts it
+ * last, instead of 0%.
+ */
 export function workingDaysBetween(from: string, to: string, policy: WorkingDayPolicy): string[] {
   const days: string[] = [];
-  for (let d = from; d <= to; d = addDays(d, 1)) {
+  const floor = policy.trackingStartDate;
+  const start = floor && from < floor ? floor : from;
+  for (let d = start; d <= to; d = addDays(d, 1)) {
     if (isWorkingDay(d, policy)) days.push(d);
   }
   return days;
@@ -256,7 +294,17 @@ export function isLateSubmission(reportDate: string, submittedAt: Date, policy: 
  */
 export function navigableWorkingDays(reportDate: string, today: string, policy: WorkingDayPolicy): { prev: string; next: string } {
   const candidate = nextWorkingDay(reportDate, policy);
-  return { prev: previousWorkingDay(reportDate, policy), next: candidate <= today ? candidate : '' };
+  // Stepping back stops at the policy's trackingStartDate. Without this the
+  // arrows would walk into dates where workingDaysBetween now reports nothing
+  // expected, so the page would show a day with no obligation and no history
+  // behind it. '' is the sentinel the UI already understands — DailyReportView
+  // disables the button and says "No earlier day in your history".
+  const earlier = previousWorkingDay(reportDate, policy);
+  const floor = policy.trackingStartDate;
+  return {
+    prev: floor && earlier < floor ? '' : earlier,
+    next: candidate <= today ? candidate : ''
+  };
 }
 
 /**

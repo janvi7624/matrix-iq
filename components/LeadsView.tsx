@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DomainKey, LeadCallOutcome, LeadHandoverOutcome, LeadOrigin, LeadPriority, LeadRecord, LeadSource, UserRole, LEAD_CALL_OUTCOMES } from '@/lib/types';
 import { LEAD_ORIGIN_OPTIONS, LEAD_ORIGIN_UNSET_LABEL, leadOriginLabel } from '@/lib/leadSources';
+import { LEAD_REFERENCE_OPTIONS, LeadReference } from '@/lib/leadReferenceOptions';
 import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
 import { todayDateInputValue } from '@/lib/dateHelpers';
@@ -237,7 +238,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [metaInfoLead, setMetaInfoLead] = useState<LeadRecord | null>(null);
   const [editingLead, setEditingLead] = useState<LeadRecord | null>(null);
   const [editForm, setEditForm] = useState({
-    name: '', company: '', designation: '', mobile: '', alt_mobile: '', email: '', city: '', budget: '', priority: '' as LeadPriority, notes: '',
+    name: '', company: '', designation: '', mobile: '', alt_mobile: '', email: '', city: '', company_address: '', reference: '' as LeadReference, budget: '', priority: '' as LeadPriority, notes: '',
     source: 'manual' as LeadSource, leadSource: '' as LeadOrigin, interests: [] as DomainKey[], subInterests: [] as string[], followUpActions: [] as string[]
   });
   const [savingEdit, setSavingEdit] = useState(false);
@@ -548,7 +549,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   }
 
   async function handleSubmitLead(form: {
-    name: string; mobile: string; altMobile: string; email: string; designation: string; company: string; city: string; cardImageUrl: string;
+    name: string; mobile: string; altMobile: string; email: string; designation: string; company: string; city: string; companyAddress: string; reference: string; cardImageUrl: string;
     interests: DomainKey[]; subInterests: string[]; priority: LeadPriority; followUpActions: string[]; budget: string; notes: string;
     leadSource: LeadOrigin;
     handoverToId: string;
@@ -779,6 +780,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       alt_mobile: lead.alt_mobile,
       email: lead.email,
       city: lead.city,
+      company_address: lead.company_address,
+      reference: (lead.reference as LeadReference) || '',
       budget: lead.budget,
       priority: lead.priority,
       notes: lead.notes,
@@ -1499,6 +1502,19 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               </Field>
               <Field label="City">
                 <Input value={editForm.city} onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))} />
+              </Field>
+            </FieldRow>
+            <FieldRow>
+              <Field label="Company Full Address (optional)">
+                <Input value={editForm.company_address} onChange={(e) => setEditForm((f) => ({ ...f, company_address: e.target.value }))} placeholder="Building, street, city, state, PIN" />
+              </Field>
+              <Field label="Reference (optional)">
+                <Select value={editForm.reference} onChange={(e) => setEditForm((f) => ({ ...f, reference: e.target.value as LeadReference }))}>
+                  <option value="">— None —</option>
+                  {LEAD_REFERENCE_OPTIONS.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </Select>
               </Field>
             </FieldRow>
             <FieldRow>

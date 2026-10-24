@@ -1532,6 +1532,13 @@ export interface LeadRecord {
   designation: string;
   company: string;
   city: string;
+  // Full postal address, separate from city — see
+  // lib/leadReferenceOptions.ts and the 20261024100000 migration. Optional,
+  // '' for every lead where nobody filled it in.
+  company_address: string;
+  // Who personally referred this lead, when it was one of
+  // lib/leadReferenceOptions.ts's fixed names. '' for everything else.
+  reference: string;
   card_image_url: string;
   interests: DomainKey[];
   sub_interests: string[];

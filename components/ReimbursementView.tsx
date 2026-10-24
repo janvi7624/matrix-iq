@@ -877,7 +877,7 @@ export default function ReimbursementView({ currentUser }: Props) {
       {showForm && canEdit && (
         <>
           <h2 className={`${calcStyles.h2} ${styles.h2SpacedTop}`}>{editId ? 'Edit Entry' : 'New Reimbursement Entry'}</h2>
-          <form className={calcStyles.sectionPanel} onSubmit={handleSubmit}>
+          <form ref={formRef} className={calcStyles.sectionPanel} onSubmit={handleSubmit}>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Date *</label>

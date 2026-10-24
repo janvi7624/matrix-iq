@@ -44,7 +44,6 @@ import FilterPanel, {
 } from './ui/FilterPanel';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
-import Popover from './ui/Popover';
 import Modal, { ModalCancelButton } from './ui/Modal';
 import ProjectSourceField from './ui/ProjectSourceField';
 import ProjectLeadField from './ui/ProjectLeadField';
@@ -692,14 +691,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       )
     },
     { key: 'stage', header: 'Stage', headerClassName: historyStyles.colStage, render: (p) => STAGE_LABEL[p.stage] },
-    // Status, Confirmation and Next Follow-up used to sit here. Fifteen
-    // columns could not fit any screen — measured in the browser, the table
-    // needed 1420px against 968px available at 1280px wide and 1384px at
-    // 1920px, so it scrolled sideways at EVERY size. The three are shown in
-    // the quick-view popup instead (renderStatus / renderConfirmation above),
-    // and Status additionally survives in the Progress column, which already
-    // prints "Won" and "Closed Lost" in place of a percentage.
-    { key: 'updated', header: 'Last Updated', headerClassName: historyStyles.colUpdated, render: (p) => formatDateTime(p.updated_at) },
+    // Status, Confirmation, Next Follow-up and Last Updated used to sit here.
+    // Fifteen columns could not fit any screen — measured in the browser, the
+    // table needed 1420px against 968px available at 1280px wide and 1384px
+    // at 1920px, so it scrolled sideways at EVERY size. All four are in the
+    // quick-view popup instead, and Status additionally survives in the
+    // Progress column, which already prints "Won" and "Closed Lost" in place
+    // of a percentage. Last Updated went last, to free the width two row
+    // buttons need.
     {
       key: 'closingProbability',
       header: 'Closing %',
@@ -769,7 +768,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     {
       key: 'actions',
       header: '',
-      headerClassName: historyStyles.colActions,
+      headerClassName: historyStyles.colActionsWide,
       cellClassName: historyStyles.rowActionsInline,
       render: (p) => (
         <>
@@ -778,30 +777,24 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               than two side-by-side buttons because this column is 8% of a
               table that must not scroll sideways — two buttons plus Delete
               did not fit. */}
-          <Popover ariaLabel={`View ${p.client_name || 'project'}`} trigger="View ▾">
-            {(close) => (
-              <>
-                {/* close() on both: the menu must not stay open behind the
-                    popup it just opened, and on navigation it would otherwise
-                    still be there when the back button returns to the list. */}
-                <button
-                  type="button"
-                  className={historyStyles.popoverAction}
-                  onClick={() => {
-                    close();
-                    setQuickView(p);
-                  }}
-                >
-                  <strong>Quick view</strong>
-                  <span>In a popup, without leaving the list</span>
-                </button>
-                <Link className={historyStyles.popoverAction} href={`/projects/${p.id}`} onClick={close}>
-                  <strong>Full details</strong>
-                  <span>Opens the whole project page</span>
-                </Link>
-              </>
-            )}
-          </Popover>
+          {/* Two plain buttons rather than a dropdown: both choices are one
+              click, and nothing has to be opened to discover what the options
+              are. Last Updated gave up its column to make room. */}
+          <button
+            type="button"
+            className={`${historyStyles.rowAction} ${historyStyles.rowActionPrimary}`}
+            onClick={() => setQuickView(p)}
+            title={`Quick view — ${p.client_name || 'project'}`}
+          >
+            View
+          </button>
+          <Link
+            className={historyStyles.rowAction}
+            href={`/projects/${p.id}`}
+            title={`Open the full project page for ${p.client_name || 'this project'}`}
+          >
+            Details
+          </Link>
           {isSuperAdmin && (
             <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(p.id)}>
               Delete
@@ -1237,7 +1230,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         )}
 
         {loading ? (
-          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={12} /></div>
+          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={11} /></div>
         ) : loadFailed ? (
           <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
         ) : (

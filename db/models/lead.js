@@ -9,6 +9,10 @@ module.exports = (sequelize, DataTypes) => {
     designation: { type: DataTypes.STRING },
     company: { type: DataTypes.STRING },
     city: { type: DataTypes.STRING },
+    // See db/migrations/20261024100000-lead-reference-company-address.js —
+    // both optional.
+    reference: { type: DataTypes.STRING },
+    company_address: { type: DataTypes.TEXT },
     card_image_url: { type: DataTypes.STRING },
     interests: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     sub_interests: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },

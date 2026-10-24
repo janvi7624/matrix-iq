@@ -7,6 +7,7 @@ import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { DomainKey, LeadPriority } from '@/lib/types';
 import { isLeadOrigin } from '@/lib/leadSources';
+import { isLeadReference } from '@/lib/leadReferenceOptions';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITIES: LeadPriority[] = ['hot', 'warm', 'cool', ''];
@@ -54,6 +55,13 @@ export async function POST(request: NextRequest) {
   const priority: LeadPriority = VALID_PRIORITIES.includes(body.priority) ? body.priority : '';
   const designation = typeof body.designation === 'string' ? body.designation.trim() : '';
   const city = typeof body.city === 'string' ? body.city.trim() : '';
+  const companyAddress = typeof body.companyAddress === 'string' ? body.companyAddress.trim() : '';
+  // Optional — '' (no reference) is always valid; only a non-blank value
+  // outside the fixed list is refused.
+  const reference = typeof body.reference === 'string' ? body.reference.trim() : '';
+  if (reference && !isLeadReference(reference)) {
+    return NextResponse.json({ error: 'That is not a recognised reference.' }, { status: 400 });
+  }
   const cardImageUrl = typeof body.cardImageUrl === 'string' ? body.cardImageUrl : '';
   const budget = typeof body.budget === 'string' ? body.budget.trim() : '';
   // "Whose lead is this?" on the Confirm Details step — '' leaves the lead
@@ -72,7 +80,7 @@ export async function POST(request: NextRequest) {
     // instead of creating a duplicate (spec: two reps scanning the same card
     // at an event must not fork into two records).
     const result = await createOrMergeLead(
-      { name, mobile, altMobile, email, designation, company, city, cardImageUrl, interests, subInterests, followUpActions, priority, budget, notes, source: cardImageUrl ? 'business_card' : 'manual', leadSource: leadSource },
+      { name, mobile, altMobile, email, designation, company, city, companyAddress, reference, cardImageUrl, interests, subInterests, followUpActions, priority, budget, notes, source: cardImageUrl ? 'business_card' : 'manual', leadSource: leadSource },
       viewer.username
     );
 
