@@ -7,7 +7,7 @@ import {
   Megaphone, CheckCircle2, AlertTriangle, Send, UserCheck, ShieldAlert,
   Clock, FileText, Paperclip, ChevronDown, ChevronUp, Trash2,
   Lock, ArrowRight, MessageSquare, Wrench, Sparkles, Check, X,
-  ExternalLink, Layers, RefreshCw
+  ExternalLink, Layers, RefreshCw, Handshake
 } from 'lucide-react';
 import {
   MARKETING_PRODUCT_CATEGORIES,
@@ -88,6 +88,25 @@ function formatDateTime(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+/**
+ * Marks a request that came in through the Partner Portal.
+ *
+ * Renders nothing for an internal request, so it can sit unconditionally
+ * wherever the requester is shown. Keyed on partner_id — the column stamped
+ * at creation — rather than on the creator's account, so the mark survives
+ * the partner user being renamed, moved or deactivated.
+ */
+function PartnerOriginBadge({ request }: { request: MarketingRequestRecord }) {
+  if (!request.partner_id) return null;
+  const company = request.partner_company || 'Partner';
+  return (
+    <span className={styles.partnerOriginBadge} title={`Raised by ${company} through the Partner Portal`}>
+      <Handshake size={12} /> From partner · {company}
+      {request.partner_code ? ` (${request.partner_code})` : ''}
+    </span>
+  );
 }
 
 function PriorityBadge({ priority }: { priority: MarketingRequestPriority }) {
@@ -464,6 +483,7 @@ function MarketingRequestRow({
         </td>
         <td>
           <span className={styles.creatorName}>{r.creator_name || r.created_by}</span>
+          <PartnerOriginBadge request={r} />
         </td>
         <td>
           {r.assigned_to ? (
@@ -521,8 +541,15 @@ function MarketingRequestRow({
               <div className={`${historyStyles.summaryCardGrid} ${styles.contextGrid}`}>
                 <div className={styles.contextCardRequester}>
                   <div className={styles.contextLabelSlate}>Original Requester</div>
-                  <div className={styles.contextValueSlate}>{r.creator_name || r.created_by}</div>
-                  <div className={styles.contextMetaSlate}>Created on {formatDate(r.created_at)}</div>
+                  <div className={styles.contextValueSlate}>
+                    {r.creator_name || r.created_by}
+                    <PartnerOriginBadge request={r} />
+                  </div>
+                  <div className={styles.contextMetaSlate}>
+                    {r.partner_id
+                      ? `Raised through the Partner Portal on ${formatDate(r.created_at)}`
+                      : `Created on ${formatDate(r.created_at)}`}
+                  </div>
                 </div>
 
                 <div className={styles.contextCardMarketing}>
@@ -1132,6 +1159,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   // Deep-linked from the Dashboard/sidebar's "due today or overdue" count (?filter=due).
   const [dueOnly, setDueOnly] = useState(startFilter === 'due');
+  const [partnerOnly, setPartnerOnly] = useState(false);
 
   async function loadRequests() {
     setLoading(true);
@@ -1192,6 +1220,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
       rows = rows.filter((r) => r.priority === priorityFilter);
     }
 
+    // Partner-raised only. Keyed on partner_id, the column set at creation —
+    // not on the creator's account, which can be moved or deactivated.
+    if (partnerOnly) {
+      rows = rows.filter((r) => Boolean(r.partner_id));
+    }
+
     // Due today or overdue only
     if (dueOnly) {
       rows = rows.filter((r) => {
@@ -1205,14 +1239,14 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
       const needle = q.trim().toLowerCase();
       rows = rows.filter(
         (r) =>
-          `${r.title} ${r.description} ${r.created_by} ${r.creator_name || ''} ${r.assigned_to || ''} ${r.technical_member_name || ''} ${r.product_category || ''}`
+          `${r.title} ${r.description} ${r.created_by} ${r.creator_name || ''} ${r.assigned_to || ''} ${r.technical_member_name || ''} ${r.product_category || ''} ${r.partner_company || ''} ${r.partner_code || ''}`
             .toLowerCase()
             .includes(needle)
       );
     }
 
     return [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-  }, [requests, tab, categoryFilter, priorityFilter, dueOnly, q, currentUser.username]);
+  }, [requests, tab, categoryFilter, priorityFilter, dueOnly, partnerOnly, q, currentUser.username]);
 
   function replaceRecord(updated: MarketingRequestRecord) {
     setRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -1408,7 +1442,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
           <div className={historyStyles.toolbar}>
             <input
               type="text"
-              placeholder="Search title, category, requester, marketing, technical..."
+              placeholder="Search title, category, requester, partner, marketing, technical..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -1443,7 +1477,12 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
               Due today or overdue
             </label>
 
-            {(categoryFilter || priorityFilter || dueOnly || q) && (
+            <label className={styles.dueOnlyLabel}>
+              <input type="checkbox" checked={partnerOnly} onChange={(e) => setPartnerOnly(e.target.checked)} />
+              From partners only
+            </label>
+
+            {(categoryFilter || priorityFilter || dueOnly || partnerOnly || q) && (
               <button
                 type="button"
                 className={historyStyles.button}
@@ -1451,6 +1490,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                   setCategoryFilter('');
                   setPriorityFilter('');
                   setDueOnly(false);
+                  setPartnerOnly(false);
                   setQ('');
                 }}
               >

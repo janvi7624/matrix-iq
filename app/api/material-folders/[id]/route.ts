@@ -25,6 +25,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const patch: Parameters<typeof updateFolder>[1] = { actorId: viewer.userId };
     if (typeof body.name === 'string') patch.name = body.name;
     if (typeof body.description === 'string') patch.description = body.description.trim();
+    if (typeof body.partnerVisible === 'boolean') patch.partnerVisible = body.partnerVisible;
     // Present-but-null means "move to the top level", which is why this
     // checks for the key rather than for a truthy value.
     if ('parentId' in body) patch.parentId = typeof body.parentId === 'string' && body.parentId ? body.parentId : null;

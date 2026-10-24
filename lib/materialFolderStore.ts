@@ -28,6 +28,15 @@ export interface MaterialFolderRecord {
   // Materials sitting directly in this folder.
   materialCount: number;
   updatedAt: string;
+  /**
+   * Whether this folder is open to partners.
+   *
+   * The SECOND gate of lib/materialPublication.ts: a published document
+   * inside a closed folder stays hidden, and so does a published folder
+   * inside a closed one. Surfaced here so the internal grid can show the
+   * state and explain why a shared document is not reaching anyone.
+   */
+  partnerVisible: boolean;
 }
 
 export { FolderTreeError };
@@ -63,9 +72,30 @@ export async function listFolderTree(): Promise<FolderNode[]> {
 }
 
 // The breadcrumb for a folder, root first.
-export async function folderBreadcrumb(folderId: string | null): Promise<FolderNode[]> {
+/**
+ * A crumb carries the folder's publication state as well as its name.
+ *
+ * The breadcrumb IS the folder chain, which is precisely what the second
+ * gate of lib/materialPublication.ts walks. Returning partnerVisible on each
+ * crumb lets the internal library answer "would a partner actually see
+ * anything I put here?" without a second round trip or a reimplementation of
+ * the rule in the browser.
+ */
+export interface BreadcrumbFolder extends FolderNode {
+  partnerVisible: boolean;
+}
+
+export async function folderBreadcrumb(folderId: string | null): Promise<BreadcrumbFolder[]> {
+  // The top level is not a folder and cannot be un-published — an empty
+  // breadcrumb therefore means "no chain to close", matching
+  // folderChainPublished's treatment of a null folderId.
   if (!folderId) return [];
-  return folderPath(await allNodes(), folderId);
+  const rows = await allFolderRows();
+  const publishedById = new Map(rows.map((row) => [row.get('id') as string, row.get('partner_visible') === true]));
+  return folderPath(rows.map(toNode), folderId).map((node) => ({
+    ...node,
+    partnerVisible: publishedById.get(node.id) === true
+  }));
 }
 
 // The subfolders shown inside one folder, each with the counts that tell
@@ -107,7 +137,8 @@ export async function listSubfolders(parentId: string | null): Promise<MaterialF
       description: (plain.description as string) ?? '',
       subfolderCount: subfolderCountBy.get(child.id) ?? 0,
       materialCount: materialCountBy.get(child.id) ?? 0,
-      updatedAt: isoOrEmpty(plain.updatedAt)
+      updatedAt: isoOrEmpty(plain.updatedAt),
+      partnerVisible: plain.partner_visible === true
     };
   });
 }
@@ -122,6 +153,7 @@ export interface CreateFolderInput {
   name: string;
   parentId: string | null;
   description?: string;
+  partnerVisible?: boolean;
   actorId: string;
 }
 
@@ -142,6 +174,9 @@ export async function createFolder(input: CreateFolderInput): Promise<FolderNode
     name,
     parent_id: input.parentId,
     description: input.description ?? '',
+    // Opt-in, same as a document. A new folder is internal until someone
+    // says otherwise.
+    partner_visible: input.partnerVisible === true,
     created_by: input.actorId || null,
     updated_by: input.actorId || null
   } as never);
@@ -154,6 +189,7 @@ export interface UpdateFolderInput {
   // why this can't just be a falsy check.
   parentId?: string | null;
   description?: string;
+  partnerVisible?: boolean;
   actorId: string;
 }
 
@@ -182,6 +218,7 @@ export async function updateFolder(id: string, patch: UpdateFolderInput): Promis
   if (patch.name !== undefined) attrs.name = nextName;
   if (patch.parentId !== undefined) attrs.parent_id = patch.parentId;
   if (patch.description !== undefined) attrs.description = patch.description;
+  if (patch.partnerVisible !== undefined) attrs.partner_visible = patch.partnerVisible === true;
 
   await row.update(attrs as never);
   return toNode(row);

@@ -68,6 +68,24 @@ export function folderChainPublished(folders: PublishableFolder[], folderId: str
   return true;
 }
 
+/**
+ * The same second gate, evaluated over a BREADCRUMB rather than the whole
+ * folder list.
+ *
+ * The internal library already holds the chain from the open folder to the
+ * root, so it can answer "would anything I publish here actually reach a
+ * partner?" without refetching the tree. Expressed here, beside the rule it
+ * mirrors, so the two cannot drift: a screen that says "shared" while the
+ * server hides the document is worse than no indicator at all.
+ *
+ * An empty breadcrumb is the library's top level — not a folder, cannot be
+ * closed — so it passes, exactly as folderChainPublished treats a null
+ * folderId.
+ */
+export function breadcrumbChainPublished(crumbs: { partnerVisible: boolean }[]): boolean {
+  return crumbs.every((crumb) => crumb.partnerVisible);
+}
+
 /** Does this partner fall inside the document's audience? */
 export function audienceAllows(partnerAudience: string[], partnerId: string): boolean {
   // Empty = published to every partner. This is the common case: most

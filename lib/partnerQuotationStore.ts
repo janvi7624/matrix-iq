@@ -1,7 +1,7 @@
 import { Model } from 'sequelize';
 import { db, isUuid } from './db';
 import { QuotationRecord } from './types';
-import { computeEffectiveStatusClient } from './quotationStatus';
+import { computeEffectiveStatusClient, SHAREABLE_QUOTATION_STATUSES } from './quotationStatus';
 import { flattenStoredProductGroups, parseStoredProductGroups } from './quotationProductGroups';
 import type { LineItem, ProductGroup } from './types';
 
@@ -20,7 +20,9 @@ export class PartnerShareError extends Error {}
  * than in the route, so no future caller can share one by taking a different
  * path in.
  */
-const SHAREABLE_STATUSES = ['sent', 'approved', 'rejected'];
+// Re-exported from the client-safe module so there is one definition: this
+// file imports Sequelize and cannot be reached from a 'use client' component.
+const SHAREABLE_STATUSES = SHAREABLE_QUOTATION_STATUSES;
 
 export interface PartnerSharedQuotation {
   id: string;

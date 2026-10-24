@@ -17,7 +17,7 @@ interface EntityResolver {
   exists: (entityId: string) => Promise<boolean>;
 }
 
-const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation', 'SupportTicket'] as const;
+const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation', 'SupportTicket', 'PartnerQuotationRequest'] as const;
 
 async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: string): Promise<boolean> {
   if (!isUuid(entityId)) return false;
@@ -66,6 +66,12 @@ const RESOLVERS: Record<string, EntityResolver> = {
   partner_project: { href: (id) => `/projects/${id}`, exists: (id) => existsIn('Project', id) },
   partner_quotation: { href: (id) => `/my-quotations?highlight=${id}`, exists: (id) => existsIn('Quotation', id) },
   support_ticket: { href: (id) => `/support/${id}`, exists: (id) => existsIn('SupportTicket', id) },
+  // The sales-side queue. Highlighted by id so the row opens directly rather
+  // than leaving someone to find it in a list.
+  partner_quotation_request: {
+    href: (id) => `/quotation?tab=partner-requests&highlight=${id}`,
+    exists: (id) => existsIn('PartnerQuotationRequest', id)
+  },
   partner_support_ticket: { href: (id) => `/support/${id}`, exists: (id) => existsIn('SupportTicket', id) },
   // Daily Report Management. Three entity types, because the three
   // notifications want three different destinations: a submitted report
@@ -163,6 +169,14 @@ const PARTNER_RESOLVERS: Record<string, EntityResolver> = {
   partner_quotation: { href: () => '/partner/quotations', exists: (id) => existsIn('Quotation', id) },
   demo: { href: () => '/partner/demos', exists: (id) => existsIn('DemoSchedule', id) },
   partner_support_ticket: { href: () => '/partner/support', exists: (id) => existsIn('SupportTicket', id) },
+  partner_quotation_request: {
+    href: () => '/partner/quotations',
+    exists: (id) => existsIn('PartnerQuotationRequest', id)
+  },
+  // A partner-raised marketing request notifies on the same 'marketing_request'
+  // type the internal flow already uses (final submission, rejection). Only
+  // the href differs — /marketing-requests is refused to partners by Layer 1.
+  marketing_request: { href: () => '/partner/marketing-requests', exists: (id) => existsIn('MarketingRequest', id) },
   support_ticket: { href: () => '/partner/support', exists: (id) => existsIn('SupportTicket', id) }
 };
 

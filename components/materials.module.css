@@ -591,3 +591,53 @@
 .folderCard:hover .cardTitle {
     color: var(--mx-brand);
 }
+
+/* Partner publication controls.
+   The checkbox and its explanation sit on one row with the label text
+   wrapping under the heading, so the hint reads as part of the control
+   rather than as a separate paragraph. */
+.shareToggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.shareToggle input {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.shareToggle > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* At-a-glance publication state on folder and product cards. The blocked
+   variant is visually distinct because the two states are NOT the same
+   message: "shared" is done, "blocked" is a job still outstanding. */
+.sharedPill,
+.sharedPillBlocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sharedPill {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.sharedPillBlocked {
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}

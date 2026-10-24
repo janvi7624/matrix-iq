@@ -3,6 +3,8 @@ import { db, isUuid, sequelize } from './db';
 import { ProjectRecord } from './types';
 import { findPartnerById } from './partnerStore';
 import { PartnerSubmissionStatus, canReviewTransition } from './partnerProjectStages';
+import { PARTNER_REVIEW_EVENT_LABEL, PARTNER_SUBMISSION_EVENT_LABEL } from './partnerReviewThread';
+import { SubmissionChange, formatChangeSummary, summariseSubmissionChanges } from './partnerSubmissionDiff';
 import { PartnerVisibleProject, toPartnerVisibleProject } from './partnerVisibility';
 
 // Partner-sourced projects: intake, the partner's own reads, and the Sales
@@ -133,7 +135,7 @@ export async function submitPartnerProject(
         at: new Date(),
         by: submittedByUsername,
         stage: 'created',
-        label: 'Submitted by partner',
+        label: PARTNER_SUBMISSION_EVENT_LABEL,
         remarks: `${partner.company_name} (${partner.partner_code})`,
         // The partner's own milestone — one of the few events that starts
         // life visible to them. See the 20261020094000 migration.
@@ -329,12 +331,9 @@ export async function reviewPartnerSubmission(projectId: string, input: ReviewIn
 
     await row.update(attrs as never, { transaction: t });
 
-    const label =
-      input.decision === 'approved'
-        ? 'Accepted by sales'
-        : input.decision === 'rejected'
-          ? 'Not taken forward'
-          : 'More information requested';
+    // From the shared constants, not literals: lib/partnerReviewThread.ts
+    // derives who wrote an event from its label, so the two must never drift.
+    const label = PARTNER_REVIEW_EVENT_LABEL[input.decision as 'approved' | 'rejected' | 'info_requested'];
 
     await db.ProjectTimelineEvent.create(
       {
@@ -386,6 +385,112 @@ export async function respondToInfoRequest(partnerId: string, projectId: string,
     );
   });
   return true;
+}
+
+/**
+ * The partner REVISING their submission after Sales asked for changes.
+ *
+ * Only while partner_submission_status is 'info_requested'. That gate is the
+ * whole safety model: before review the submission is theirs to correct, and
+ * once accepted it is an ordinary MatrixIQ project that Sales is working —
+ * letting an external account rewrite the customer name, value or closing
+ * date underneath a live quotation is exactly what must not happen.
+ *
+ * Writes the same two things a reply writes — a partner-visible note and a
+ * return to 'submitted' — plus a named list of what moved, so the reviewer
+ * who asked for the change can see it was made without re-reading the form.
+ */
+export type PartnerRevisionInput = Partial<PartnerSubmissionInput>;
+
+export async function reviseSubmission(
+  partnerId: string,
+  projectId: string,
+  input: PartnerRevisionInput,
+  message: string,
+  byUsername: string
+): Promise<{ changes: SubmissionChange[] } | null> {
+  if (!isUuid(partnerId) || !isUuid(projectId)) return null;
+
+  const row = await db.Project.findOne({ where: { id: projectId, partner_id: partnerId } as never });
+  if (!row) return null;
+  if ((row.get('partner_submission_status') as string) !== 'info_requested') {
+    throw new PartnerSubmissionError('This project is not open for changes');
+  }
+  const before = row.get({ plain: true }) as Record<string, unknown>;
+
+  // Checked against what the project would END UP with, not against the
+  // payload alone: a revision that touches only the phone number must not be
+  // refused for "missing" a name it was never going to change.
+  const nextClient = input.client_name === undefined ? String(before.client_name ?? '') : input.client_name;
+  const nextCompany = input.company === undefined ? String(before.company ?? '') : input.company;
+  if (!nextClient.trim() && !nextCompany.trim()) {
+    throw new PartnerSubmissionError('Customer name or company is required');
+  }
+
+  // Built field by field from the same allow-list the create path uses — the
+  // body is never spread. A partner revising must not be able to reach
+  // sales_person, stage, status, approx_price or partner_submission_status.
+  // A field the revision did not mention is LEFT ALONE, not cleared. The
+  // create path can default a missing field to empty because there is
+  // nothing to lose; here, a form that posts a subset would otherwise wipe
+  // the attachments or the description the partner never touched.
+  const next: Record<string, unknown> = {};
+  const put = (key: string, value: unknown) => {
+    if (value !== undefined) next[key] = value;
+  };
+  const text = (value: string | undefined) => (value === undefined ? undefined : value.trim());
+
+  put('project_name', text(input.project_name));
+  put('client_name', text(input.client_name));
+  put('company', text(input.company));
+  put('contact_person', text(input.contact_person));
+  put('alt_contact_phone', text(input.alt_contact_phone));
+  put('phone', text(input.phone));
+  put('email', text(input.email));
+  put('address', text(input.address));
+  put('city', text(input.city));
+  put('state', text(input.state));
+  put(
+    'opportunity_type',
+    input.opportunity_type === undefined ? undefined : OPPORTUNITY_TYPES.includes(input.opportunity_type) ? input.opportunity_type : null
+  );
+  put('departments', input.departments);
+  put('expected_closing_date', input.expected_closing_date === undefined ? undefined : input.expected_closing_date || null);
+  put('remarks', text(input.remarks));
+  put('attachments', input.attachments);
+  put('priority', input.priority === undefined ? undefined : PRIORITIES.includes(input.priority) ? input.priority : 'medium');
+  put(
+    'partner_submitted_value',
+    input.partner_submitted_value === undefined ? undefined : input.partner_submitted_value === '' ? null : input.partner_submitted_value
+  );
+  put('partner_expected_timeline', text(input.partner_expected_timeline));
+
+  const changes = summariseSubmissionChanges(before, next);
+  if (!changes.length && !message.trim()) {
+    throw new PartnerSubmissionError('Make a change or add a message before sending this back');
+  }
+
+  await sequelize.transaction(async (t) => {
+    await row.update({ ...next, partner_submission_status: 'submitted' } as never, { transaction: t });
+
+    const summary = formatChangeSummary(changes);
+    const text = [message.trim(), summary && `Updated:\n${summary}`].filter(Boolean).join('\n\n');
+
+    await db.ProjectNote.create(
+      {
+        project_id: projectId,
+        at: new Date(),
+        by: byUsername,
+        text,
+        // The partner wrote it, and the reviewer who asked for the change
+        // needs to read it — visible to both.
+        partner_visible: true
+      } as never,
+      { transaction: t }
+    );
+  });
+
+  return { changes };
 }
 
 /** Submissions awaiting a decision — the internal review queue. */

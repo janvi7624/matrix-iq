@@ -47,6 +47,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.category = body.category;
     }
 
+    if (typeof body.partnerVisible === 'boolean') patch.partnerVisible = body.partnerVisible;
     if (typeof body.title === 'string') patch.title = body.title.trim() || (patch.product ?? existing.product);
     if (typeof body.description === 'string') patch.description = body.description.trim();
 

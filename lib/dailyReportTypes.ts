@@ -284,6 +284,87 @@ export interface TeamDailyReportResponse {
   can_file_for_others: boolean;
 }
 
+/**
+ * One employee/date square in the team matrix.
+ *
+ * A deliberately flatter shape than TeamDailyReportRow: the matrix renders
+ * hundreds of these, and every field here is one a cell actually paints.
+ * Anything needing more detail opens the day itself.
+ */
+export interface TeamMatrixCell {
+  /** 'MISSING' covers "nothing filed" and "draft" — see TeamDailyReportRow. */
+  status: DailyReportSubmissionStatus | 'MISSING';
+  is_late: boolean;
+  leave_status: DailyReportLeaveClaimStatus | '';
+  warning_status: DailyReportWarningStatus | '';
+  review_status: DailyReportReviewStatus | '';
+  report_id: string | null;
+  entry_count: number;
+  /** False when the employee did not owe a report that day (leave rota, exemption). */
+  owed: boolean;
+}
+
+export interface TeamMatrixEmployee {
+  employee_id: string;
+  employee_name: string;
+  employee_username: string;
+  department_id: string;
+  department_name: string;
+  template_key: DailyReportTemplateKey;
+  /** Keyed by ISO date. Dates the employee did not owe are present with owed:false. */
+  cells: Record<string, TeamMatrixCell>;
+  totals: {
+    owed: number;
+    submitted: number;
+    submitted_late: number;
+    missing: number;
+    leave: number;
+    entries: number;
+  };
+}
+
+/** One day's tasks for the expanded employee, in template-field order. */
+export interface TeamMatrixDayDetail {
+  report_date: string;
+  report_id: string | null;
+  status: DailyReportSubmissionStatus | 'MISSING';
+  is_late: boolean;
+  submitted_at: string;
+  leave_status: DailyReportLeaveClaimStatus | '';
+  /** Row-based templates. Each entry is field key -> display string. */
+  entries: Record<string, string>[];
+  /** Narrative templates put their whole answer here instead of entries. */
+  narrative: Record<string, string>;
+}
+
+export interface TeamMatrixExpansion {
+  employee_id: string;
+  employee_name: string;
+  template_key: DailyReportTemplateKey;
+  /** The template's row columns, in order — what the sheet's headers are. */
+  columns: { key: string; label: string }[];
+  days: TeamMatrixDayDetail[];
+}
+
+export interface TeamMatrixResponse {
+  from: string;
+  to: string;
+  /** Working days in the range, oldest first — the sheet's column headers. */
+  dates: string[];
+  employees: TeamMatrixEmployee[];
+  departments: { id: string; name: string }[];
+  totals: {
+    employees: number;
+    owed: number;
+    submitted: number;
+    submitted_late: number;
+    missing: number;
+    leave: number;
+  };
+  /** Present only when ?expand= asked for one employee's tasks. */
+  expansion: TeamMatrixExpansion | null;
+}
+
 export interface ExemptCandidate {
   id: string;
   name: string;

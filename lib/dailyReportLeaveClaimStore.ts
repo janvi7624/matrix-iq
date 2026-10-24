@@ -340,6 +340,36 @@ export async function loadClaimStatusByDate(employeeId: string, from: string, to
   return map;
 }
 
+/**
+ * The same lookup for MANY employees over a range, keyed `employeeId|date`.
+ *
+ * The team matrix needs one query for the whole grid; calling
+ * loadClaimStatusByDate per employee would be one round trip per row.
+ * Key shape matches loadReportStatuses and loadWarningKeys so a cell can be
+ * built from all three with one key.
+ */
+export async function loadClaimStatusKeys(
+  employeeIds: string[],
+  from: string,
+  to: string
+): Promise<Map<string, DailyReportLeaveClaimStatus>> {
+  const map = new Map<string, DailyReportLeaveClaimStatus>();
+  if (!employeeIds.length) return map;
+  const rows = await db.DailyReportLeaveClaim.findAll({
+    where: { employee_id: employeeIds, report_date: { [Op.between]: [from, to] } } as never,
+    attributes: ['employee_id', 'report_date', 'status'],
+    order: [['createdAt', 'ASC']]
+  });
+  // Later rows win, so a re-raised claim after a rejection is what shows.
+  for (const row of rows) {
+    map.set(
+      `${row.get('employee_id') as string}|${dateOnly(row.get('report_date'))}`,
+      row.get('status') as DailyReportLeaveClaimStatus
+    );
+  }
+  return map;
+}
+
 export function claimMonthKey(reportDate: string): string {
   return monthKey(reportDate);
 }

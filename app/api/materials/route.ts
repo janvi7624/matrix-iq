@@ -131,6 +131,9 @@ export async function POST(request: NextRequest) {
       driveFileId: parsed.id,
       webViewLink: parsed.url,
       isFolder: parsed.kind === 'folder',
+      // Opt-in, never inferred: the library also holds internal sales decks
+      // and competitor comparisons, so a missing field means "internal".
+      partnerVisible: body.partnerVisible === true,
       actorId: viewer.userId
     });
     return NextResponse.json({ material }, { status: 201 });
