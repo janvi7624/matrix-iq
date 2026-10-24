@@ -26,6 +26,19 @@ interface PartnerFolder {
   parentId: string | null;
 }
 
+// Belt and braces for the one surface that hands a MatrixIQ-entered URL to
+// another company's users. Materials may now point at any web address
+// (lib/customLink.ts), and that parser is what actually keeps a hostile scheme
+// out of the column — but this app sets no Content-Security-Policy, and React
+// blocks only `javascript:`, so the render site refuses anything that is not
+// plainly an http(s) address or an in-app path rather than trusting the row.
+// An empty href renders a dead card, which is the right failure here.
+function safeHref(url: string): string {
+  const value = (url || '').trim();
+  if (value.startsWith('/') && !value.startsWith('//')) return value;
+  return /^https?:\/\//i.test(value) ? value : '';
+}
+
 export default function PartnerMaterialsView({ partner }: { partner: PartnerRecord }) {
   const [materials, setMaterials] = useState<PartnerMaterial[]>([]);
   const [folders, setFolders] = useState<PartnerFolder[]>([]);
@@ -146,7 +159,7 @@ export default function PartnerMaterialsView({ partner }: { partner: PartnerReco
               <a
                 key={m.id}
                 className={styles.card}
-                href={m.webViewLink}
+                href={safeHref(m.webViewLink)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => open(m)}

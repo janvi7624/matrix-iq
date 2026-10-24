@@ -84,8 +84,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Publish a material: a product, a category, and either its Drive link or an
-// uploaded file. Marketing-only — this writes what the whole company sees.
+// Publish a material: a product, a category, and one of a Drive link, an
+// uploaded file, or any other web address. Marketing-only — this writes what
+// the whole company sees.
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -108,8 +109,12 @@ export async function POST(request: NextRequest) {
   // rather than merely stored: a mistyped Drive URL or a dropped upload is
   // caught here, not left to become an "Open" button that leads nowhere.
   const resolved = await resolveMaterialLink({
+    // The form's chosen tab, so the resolver picks a path rather than
+    // guessing from which field came back populated.
+    source: typeof body.mode === 'string' ? body.mode : undefined,
     driveLink: typeof body.driveLink === 'string' ? body.driveLink : undefined,
     uploadedFileUrl: typeof body.uploadedFileUrl === 'string' ? body.uploadedFileUrl : undefined,
+    customLink: typeof body.customLink === 'string' ? body.customLink : undefined,
     mimeType: typeof body.mimeType === 'string' ? body.mimeType : undefined
   });
   if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: 400 });

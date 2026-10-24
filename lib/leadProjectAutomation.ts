@@ -76,6 +76,9 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     created_by: opts.attributeToUsername,
     client_name: lead.name,
     company: lead.company,
+    // Not known from a lead — the sales person who completes this project
+    // writes it before Won (lib/salesStageRules.ts's STATUS_GATES).
+    project_brief: '',
     contact_person: lead.name,
     alt_contact_phone: '',
     phone: lead.mobile,

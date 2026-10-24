@@ -205,6 +205,9 @@ export async function POST(request: NextRequest) {
     expected_closing_date: typeof body.expectedClosingDate === 'string' ? body.expectedClosingDate : '',
     next_follow_up_date: typeof body.nextFollowUpDate === 'string' ? body.nextFollowUpDate : '',
     remarks: typeof body.remarks === 'string' ? body.remarks.trim() : '',
+    // Optional at creation, same as project_name — only enforced at Won (see
+    // lib/salesStageRules.ts's STATUS_GATES).
+    project_brief: typeof body.projectBrief === 'string' ? body.projectBrief.trim() : '',
     closing_probability_percent: '',
     // Closing % is derived on read from the stage, so these are the
     // starting state, not an estimate anybody typed.

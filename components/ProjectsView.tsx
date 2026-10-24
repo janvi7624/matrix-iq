@@ -44,6 +44,8 @@ import FilterPanel, {
 } from './ui/FilterPanel';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import Popover from './ui/Popover';
+import Modal, { ModalCancelButton } from './ui/Modal';
 import ProjectSourceField from './ui/ProjectSourceField';
 import ProjectLeadField from './ui/ProjectLeadField';
 import OpportunityTypeField from './ui/OpportunityTypeField';
@@ -177,6 +179,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // just reaching another button in that row made the layout jump. Click is
   // deliberate and stays put, so it's a plain per-row toggle instead.
   const [expandedRemarkIds, setExpandedRemarkIds] = useState<Set<string>>(new Set());
+  // The project shown in the quick-view popup, or null. A popup rather than an
+  // inline expanding panel: the panel grew the row and pushed the rest of the
+  // list down, so reading one project meant scrolling to find your place again.
+  const [quickView, setQuickView] = useState<ProjectRecord | null>(null);
   function toggleRemarkExpanded(id: string) {
     setExpandedRemarkIds((prev) => {
       const next = new Set(prev);
@@ -594,6 +600,27 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     );
   }
 
+  // The three fields the table no longer has room for. Defined once and used
+  // by the quick-view popup so there is a single rendering of each — the old
+  // columns and a second copy in the popup would have drifted.
+  function renderStatus(p: ProjectRecord) {
+    return p.status === 'won' || p.status === 'lost' ? (
+      <StatusBadge tone={p.status} label={p.status === 'lost' ? 'Closed Lost' : STATUS_LABEL[p.status]} />
+    ) : (
+      <>{STATUS_LABEL[p.status]}</>
+    );
+  }
+
+  function renderConfirmation(p: ProjectRecord) {
+    return p.lead_confirmation_status === 'pending_confirmation' ? (
+      <StatusBadge tone="pending" label="Pending Confirmation" />
+    ) : p.lead_confirmation_status === 'confirmed' ? (
+      <StatusBadge tone="confirmed" label="Confirmed" />
+    ) : (
+      <>-</>
+    );
+  }
+
   const columns: TableColumn<ProjectRecord>[] = [
     {
       key: 'client',
@@ -665,32 +692,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       )
     },
     { key: 'stage', header: 'Stage', headerClassName: historyStyles.colStage, render: (p) => STAGE_LABEL[p.stage] },
-    {
-      key: 'status',
-      header: 'Status',
-      headerClassName: historyStyles.colStatus,
-      render: (p) =>
-        p.status === 'won' || p.status === 'lost' ? (
-          <StatusBadge tone={p.status} label={p.status === 'lost' ? 'Closed Lost' : STATUS_LABEL[p.status]} />
-        ) : (
-          STATUS_LABEL[p.status]
-        )
-    },
-    {
-      key: 'confirmation',
-      header: 'Confirmation',
-      headerClassName: historyStyles.colConfirmation,
-      render: (p) =>
-        p.lead_confirmation_status === 'pending_confirmation' ? (
-          <div className={historyStyles.wrapBadge}><StatusBadge tone="pending" label="Pending Confirmation" /></div>
-        ) : p.lead_confirmation_status === 'confirmed' ? (
-          <div className={historyStyles.wrapBadge}><StatusBadge tone="confirmed" label="Confirmed" /></div>
-        ) : (
-          '-'
-        )
-    },
+    // Status, Confirmation and Next Follow-up used to sit here. Fifteen
+    // columns could not fit any screen — measured in the browser, the table
+    // needed 1420px against 968px available at 1280px wide and 1384px at
+    // 1920px, so it scrolled sideways at EVERY size. The three are shown in
+    // the quick-view popup instead (renderStatus / renderConfirmation above),
+    // and Status additionally survives in the Progress column, which already
+    // prints "Won" and "Closed Lost" in place of a percentage.
     { key: 'updated', header: 'Last Updated', headerClassName: historyStyles.colUpdated, render: (p) => formatDateTime(p.updated_at) },
-    { key: 'nextFollowUp', header: 'Next Follow-up', headerClassName: historyStyles.colNextFollowUp, render: (p) => formatDate(p.next_follow_up_date) },
     {
       key: 'closingProbability',
       header: 'Closing %',
@@ -764,9 +773,35 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       cellClassName: historyStyles.rowActionsInline,
       render: (p) => (
         <>
-          <Link className={historyStyles.button} href={`/projects/${p.id}`}>
-            View
-          </Link>
+          {/* Two ways in: a popup for a quick look without losing your place
+              in the list, and the full page for the real work. A menu rather
+              than two side-by-side buttons because this column is 8% of a
+              table that must not scroll sideways — two buttons plus Delete
+              did not fit. */}
+          <Popover ariaLabel={`View ${p.client_name || 'project'}`} trigger="View ▾">
+            {(close) => (
+              <>
+                {/* close() on both: the menu must not stay open behind the
+                    popup it just opened, and on navigation it would otherwise
+                    still be there when the back button returns to the list. */}
+                <button
+                  type="button"
+                  className={historyStyles.popoverAction}
+                  onClick={() => {
+                    close();
+                    setQuickView(p);
+                  }}
+                >
+                  <strong>Quick view</strong>
+                  <span>In a popup, without leaving the list</span>
+                </button>
+                <Link className={historyStyles.popoverAction} href={`/projects/${p.id}`} onClick={close}>
+                  <strong>Full details</strong>
+                  <span>Opens the whole project page</span>
+                </Link>
+              </>
+            )}
+          </Popover>
           {isSuperAdmin && (
             <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(p.id)}>
               Delete
@@ -847,6 +882,53 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         </div>
 
         {showReminders && <ProjectDetailRemindersDialog onClose={() => setShowReminders(false)} />}
+
+        {/* Quick view. A fixed-size popup, deliberately: it shows everything
+            the table dropped (Status, Confirmation, Next Follow-up) at a
+            glance, with no scrolling of its own and without moving the list
+            underneath. "Full details" is one click away for anything more. */}
+        {quickView && (
+          <Modal
+            title={quickView.client_name || quickView.company || 'Project'}
+            ariaLabel={`Quick view — ${quickView.client_name || quickView.company || 'project'}`}
+            onClose={() => setQuickView(null)}
+            // Wide so .quickFacts' auto-fit grid gets two columns: in the
+            // default card it measured 372px, which fits only one, turning
+            // twelve facts into a tall single file.
+            size="wide"
+            footer={
+              <>
+                <ModalCancelButton onClick={() => setQuickView(null)}>Close</ModalCancelButton>
+                <Link className={calcStyles.btn} href={`/projects/${quickView.id}`}>
+                  Open full details
+                </Link>
+              </>
+            }
+          >
+            <dl className={historyStyles.quickFacts}>
+              <div><dt>Company</dt><dd>{quickView.company || '-'}</dd></div>
+              <div><dt>Sales Person</dt><dd>{quickView.sales_person || '-'}</dd></div>
+              <div><dt>Department</dt><dd>{formatProjectDepartments(quickView.departments) || '-'}</dd></div>
+              <div><dt>Project Lead</dt><dd>{quickView.project_lead_name || '-'}</dd></div>
+              <div><dt>Opportunity</dt><dd>{quickView.opportunity_type ? OPPORTUNITY_TYPE_LABEL[quickView.opportunity_type] : '-'}</dd></div>
+              <div><dt>Source</dt><dd>{quickView.source || '-'}</dd></div>
+              <div><dt>Stage</dt><dd>{STAGE_LABEL[quickView.stage]}</dd></div>
+              <div><dt>Status</dt><dd>{renderStatus(quickView)}</dd></div>
+              <div><dt>Confirmation</dt><dd>{renderConfirmation(quickView)}</dd></div>
+              <div><dt>Next Follow-up</dt><dd>{formatDate(quickView.next_follow_up_date) || '-'}</dd></div>
+              <div><dt>Closing %</dt><dd>{quickView.closing_probability_percent != null ? `${quickView.closing_probability_percent}%` : '-'}</dd></div>
+              <div><dt>Last Updated</dt><dd>{formatDateTime(quickView.updated_at)}</dd></div>
+            </dl>
+            {quickView.last_remark && (
+              <div className={historyStyles.quickRemark}>
+                <div className={historyStyles.quickRemarkHead}>
+                  Last remark — {quickView.last_remark_by}, {formatDateTime(quickView.last_remark_at)}
+                </div>
+                <p>{quickView.last_remark}</p>
+              </div>
+            )}
+          </Modal>
+        )}
 
         {showForm && (
           <form className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`} onSubmit={handleCreate}>
@@ -1155,7 +1237,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         )}
 
         {loading ? (
-          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={15} /></div>
+          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={12} /></div>
         ) : loadFailed ? (
           <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
         ) : (

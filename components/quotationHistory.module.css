@@ -346,29 +346,92 @@
    added later without one, so they collapsed to zero width and their text
    spilled over the next column ("₹10,00,000" printed on top of "Cold Call",
    one character per line). Project Lead is the 14th column. */
-.colClient { width: 8%; }
-.colSalesPerson { width: 6%; }
-/* Holds "Robotics", the longest of the three department labels. The 6% for it was reclaimed from
-   Client, Project Lead, Confirmation, Last Remark and Actions so the widths
-   still total 100% — see the warning above about columns without one. */
-.colDepartment { width: 6%; }
-.colProjectLead { width: 7%; }
-.colSource { width: 6%; }
-.colApproxPrice { width: 7%; }
-.colStage { width: 6%; }
-.colStatus { width: 6%; }
-.colConfirmation { width: 7%; }
-.colUpdated { width: 7%; }
-.colNextFollowUp { width: 5%; }
+/* Re-cut for 12 columns. Status, Confirmation and Next Follow-up were taken
+   off this table — at 15 columns it needed 1420px against 968px of available
+   width at a 1280px screen and 1384px at 1920px, so it scrolled sideways at
+   every size there is. Their 18% was shared out among the columns that were
+   worst off, the free-text ones especially. Still totals 100%. */
+.colClient { width: 10%; }
+.colSalesPerson { width: 8%; }
+/* Holds "Robotics", the longest of the three department labels. */
+.colDepartment { width: 8%; }
+.colProjectLead { width: 9%; }
+.colSource { width: 7%; }
+.colApproxPrice { width: 9%; }
+.colStage { width: 8%; }
+.colUpdated { width: 9%; }
 /* nowrap: at 5% the header split as "Closin / g %". */
-.colClosingPct { width: 6%; white-space: nowrap; }
-.colLastRemark { width: 9%; }
+.colClosingPct { width: 7%; white-space: nowrap; }
+.colLastRemark { width: 11%; }
 .colProgress { width: 6%; white-space: nowrap; }
+/* Shared with AdminExpensesView, so this one keeps its width. */
 .colActions { width: 8%; }
 
 /* A status badge is nowrap by default; in a fixed-width column a long label
    ("Pending Confirmation") would spill into the next column. Let it wrap. */
 .tableFixed .wrapBadge > * { white-space: normal; max-width: 100%; text-align: center; }
+
+/* The two entries in the row-action "View" menu (Project Dashboard). Each is
+   a title plus a line saying where it takes you, so the choice between a
+   popup and the full page is made before clicking rather than after. */
+.popoverAction {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 9px 10px;
+    border: none;
+    border-radius: var(--mx-radius-sm);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: none;
+}
+.popoverAction:hover { background: var(--mx-surface-sunken); }
+.popoverAction strong { display: block; font-weight: 600; color: var(--mx-ink); }
+.popoverAction span { display: block; margin-top: 2px; font-size: 12px; color: var(--mx-ink-muted); }
+
+/* The quick-view popup's fact grid. Two columns on anything but a phone, and
+   auto-fit so it never needs a horizontal scrollbar of its own — the whole
+   point of the popup is that it holds still while you read it. */
+.quickFacts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px 18px;
+    margin: 0 0 4px;
+}
+.quickFacts dt {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mx-ink-muted);
+    margin-bottom: 2px;
+}
+.quickFacts dd { margin: 0; font-size: 13.5px; color: var(--mx-ink); overflow-wrap: break-word; }
+
+.quickRemark {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--mx-border);
+}
+.quickRemarkHead {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mx-ink-muted);
+    margin-bottom: 4px;
+}
+/* A ten-line remark must not turn the popup into its own scrolling page. */
+.quickRemark p {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+    max-height: 7.5em;
+    overflow-y: auto;
+    overflow-wrap: break-word;
+}
 
 /* Opt-in scroll viewport for a wide table (Table's `wrapClassName`).
    Two things it fixes on a laptop screen:
@@ -391,8 +454,13 @@
    TABLE the scrollport for its own sticky <th> — so the header scrolled away
    with the rows. The wrapper already carries the radius, so the table doesn't
    need to clip. */
-/* 1420 (was 1320 for 13 columns): Project Lead is the 14th. */
-.tableViewport .table { min-width: 1420px; overflow: visible; }
+/* 960 (was 1420 for 15 columns, 1320 for 13). Dropping Status, Confirmation
+   and Next Follow-up is what made this possible: measured in a browser, the
+   available width is 968px at a 1280px screen, 1128px at 1440px and 1384px
+   at 1920px, so 1420px scrolled sideways at all three. At 960px the table
+   fits every one of them, and a phone — where twelve columns cannot be read
+   whatever the width — still scrolls as before. */
+.tableViewport .table { min-width: 960px; overflow: visible; }
 .tableViewport .table th { z-index: 2; }
 /* On a short screen the filters/tiles above leave little room, so lean on
    the viewport rather than the fixed cap: still far less scrolling than a

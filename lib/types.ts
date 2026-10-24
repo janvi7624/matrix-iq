@@ -982,6 +982,10 @@ export interface ProjectRecord {
   // is only filled when source is 'GeM / Tender', referral_name only when
   // source is 'Referral'). '' throughout for a project that predates them.
   project_name: string;
+  // Plain-language explanation of the project, written by Sales so the
+  // technical team understands it on handover. Required before Won — see
+  // lib/salesStageRules.ts's STATUS_GATES. '' until written.
+  project_brief: string;
   state: string;
   city: string;
   referral_name: string;

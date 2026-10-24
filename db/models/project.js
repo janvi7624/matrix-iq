@@ -110,6 +110,9 @@ module.exports = (sequelize, DataTypes) => {
     opportunity_type: { type: DataTypes.STRING(20) },
     // Intake fields — see the 20260929120000-project-intake-fields migration.
     project_name: { type: DataTypes.STRING(255) },
+    // Plain-language explanation of the project for whoever picks it up at
+    // Won — see 20261024090000-project-won-gates migration.
+    project_brief: { type: DataTypes.TEXT },
     state: { type: DataTypes.STRING(120) },
     city: { type: DataTypes.STRING(120) },
     referral_name: { type: DataTypes.STRING(255) },

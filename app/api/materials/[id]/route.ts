@@ -52,8 +52,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (materialLinkFieldsPresent(body)) {
       const resolved = await resolveMaterialLink({
+        // The form's chosen tab, so switching a material from an upload to a
+        // Drive link (or to a web address) resolves the field the user
+        // actually filled in rather than whichever one is still populated.
+        source: typeof body.mode === 'string' ? body.mode : undefined,
         driveLink: typeof body.driveLink === 'string' ? body.driveLink : undefined,
         uploadedFileUrl: typeof body.uploadedFileUrl === 'string' ? body.uploadedFileUrl : undefined,
+        customLink: typeof body.customLink === 'string' ? body.customLink : undefined,
         mimeType: typeof body.mimeType === 'string' ? body.mimeType : undefined
       });
       if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: 400 });

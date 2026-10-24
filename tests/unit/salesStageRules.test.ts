@@ -262,8 +262,19 @@ describe('stage gates', () => {
   });
 
   it('requires the PO details to mark a deal Won', () => {
-    expect(fieldsMissing('commit', 'won', { approx_price: 500000, expected_po_date: '2026-11-01', confirmed_by_contact: 'R. Mehta' }))
-      .toEqual(['po_date', 'po_number', 'po_value']);
+    expect(fieldsMissing('commit', 'won', {
+      approx_price: 500000,
+      expected_po_date: '2026-11-01',
+      confirmed_by_contact: 'R. Mehta',
+      project_name: 'MeetIQ - Adani',
+      company: 'Adani Group',
+      project_brief: 'A meeting-room deployment across three sites.'
+    })).toEqual(['po_date', 'po_number', 'po_value']);
+  });
+
+  it('requires project name, company and a brief to mark a deal Won', () => {
+    expect(fieldsMissing('commit', 'won', { po_number: 'PO-4471', po_value: 2500000, po_date: '2026-10-16' }))
+      .toEqual(['company', 'project_brief', 'project_name']);
   });
 
   it('requires a lost reason to mark a deal Lost, by status or by stage', () => {
@@ -296,7 +307,10 @@ describe('stage gates', () => {
     expect(stageGateFailures('commit', 'won', {
       po_number: 'PO-4471',
       po_value: 2500000,
-      po_date: '2026-10-16'
+      po_date: '2026-10-16',
+      project_name: 'MeetIQ - Adani',
+      company: 'Adani Group',
+      project_brief: 'A meeting-room deployment across three sites.'
     })).toEqual([]);
   });
 

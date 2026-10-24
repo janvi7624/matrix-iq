@@ -53,6 +53,7 @@ const FIELDS = [
   { name: 'project_lead_id', kind: 'nullable' as const },
   { name: 'opportunity_type', kind: 'nullable' as const },
   { name: 'project_name' },
+  { name: 'project_brief' },
   { name: 'state' },
   { name: 'city' },
   { name: 'referral_name' },
