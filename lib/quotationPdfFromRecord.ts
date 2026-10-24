@@ -1,5 +1,5 @@
 import { generateQuotationPdf } from './pdf';
-import type { LineItem, ProductGroup, PublicAppConfig, QuotationRecord } from './types';
+import type { PublicAppConfig, QuotationRecord } from './types';
 
 // Re-downloading a quotation that was saved earlier.
 //
@@ -19,45 +19,17 @@ import type { LineItem, ProductGroup, PublicAppConfig, QuotationRecord } from '.
 // uploaded commercial document IS the quotation, so "download" there means
 // handing back that file.
 
-/** The shape QuotationCalculator writes into products_json. */
-interface StoredProductGroup {
-  label: string;
-  lineItems: LineItem[];
-  remark?: string;
-}
+// The saved-products shape and its flattening now live in
+// lib/quotationProductGroups.ts — pure, with no dependency on lib/pdf.ts — so
+// server code (the partner portal's download payload) can use them without
+// pulling jsPDF and browser APIs into the server bundle. Re-exported here so
+// every existing caller keeps importing from the same place.
+export { parseStoredProductGroups, flattenStoredProductGroups } from './quotationProductGroups';
+export type { StoredProductGroup } from './quotationProductGroups';
 
-export function parseStoredProductGroups(productsJson: string): StoredProductGroup[] {
-  try {
-    const parsed: unknown = JSON.parse(productsJson || '[]');
-    if (!Array.isArray(parsed)) return [];
-    // Older rows, or a row written by something else, may not match — a group
-    // without its own line items cannot contribute to the document, and
-    // dropping it is better than throwing on the whole download.
-    return parsed.filter((g): g is StoredProductGroup => {
-      const group = g as StoredProductGroup | null;
-      return !!group && typeof group.label === 'string' && Array.isArray(group.lineItems);
-    });
-  } catch {
-    return [];
-  }
-}
-
-// Exact inverse of the save-time `composition.lineItems.slice(g.start, g.end)`:
-// walk the groups in order, appending their items and recording the window
-// each one occupies in the flattened list.
-export function flattenStoredProductGroups(groups: StoredProductGroup[]): {
-  lineItems: LineItem[];
-  productGroups: ProductGroup[];
-} {
-  const lineItems: LineItem[] = [];
-  const productGroups: ProductGroup[] = [];
-  for (const group of groups) {
-    const start = lineItems.length;
-    lineItems.push(...group.lineItems);
-    productGroups.push({ label: group.label, start, end: lineItems.length, remark: group.remark });
-  }
-  return { lineItems, productGroups };
-}
+// Also imported for use below — a re-export alone does not bring the names
+// into this module's own scope.
+import { flattenStoredProductGroups, parseStoredProductGroups } from './quotationProductGroups';
 
 export function isProposalQuotation(record: Pick<QuotationRecord, 'proposal_kind'>): boolean {
   return record.proposal_kind === 'project' || record.proposal_kind === 'tender';

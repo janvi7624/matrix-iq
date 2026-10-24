@@ -60,6 +60,22 @@ export interface SessionPayload {
   // login, or their next password change) — same staleness class this app
   // already accepts for the `role` claim itself.
   isPrivileged: boolean;
+  // Which external partner company this account belongs to, or undefined for
+  // every internal employee. Baked into the signed token at login/reissue for
+  // exactly the same reason isPrivileged is (see above): proxy.ts has to
+  // decide whether a request may leave the /partner/* route area, and it
+  // cannot load Sequelize to ask the database.
+  //
+  // What this claim is and is NOT:
+  //   IS  — a route-area gate ("is this session confined to the portal").
+  //   NOT — the authorization used to read partner data. Every partner route
+  //         re-resolves the binding live through lib/partnerContext.ts, which
+  //         also checks the partner company's current status, so suspending a
+  //         partner takes effect on their next request instead of at their
+  //         next login. The staleness this claim accepts is the same class
+  //         already accepted for `role` and `isPrivileged`, and it is safe
+  //         here only because nothing reads tenant data off it.
+  partnerId?: string;
 }
 
 function toBase64Url(bytes: ArrayBuffer): string {
@@ -82,7 +98,14 @@ async function getSigningKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
 }
 
-export async function createSessionToken(user: { id: string; username: string; role: UserRole; mustChangePassword?: boolean; isPrivileged: boolean }): Promise<string> {
+export async function createSessionToken(user: {
+  id: string;
+  username: string;
+  role: UserRole;
+  mustChangePassword?: boolean;
+  isPrivileged: boolean;
+  partnerId?: string | null;
+}): Promise<string> {
   const secret = process.env.ADMIN_SESSION_SECRET;
   if (!secret) throw new Error('ADMIN_SESSION_SECRET is not configured');
   const payload: SessionPayload = {
@@ -91,7 +114,11 @@ export async function createSessionToken(user: { id: string; username: string; r
     role: user.role,
     exp: Date.now() + SESSION_TTL_MS,
     mustChangePassword: user.mustChangePassword || undefined,
-    isPrivileged: user.isPrivileged
+    isPrivileged: user.isPrivileged,
+    // `|| undefined` so an internal account's token carries no partner key at
+    // all, rather than an explicit null — keeps existing tokens and internal
+    // ones byte-identical in shape to what this app already issued.
+    partnerId: user.partnerId || undefined
   };
   const payloadJson = toBase64Url(encoder.encode(JSON.stringify(payload)).buffer as ArrayBuffer);
   const key = await getSigningKey(secret);

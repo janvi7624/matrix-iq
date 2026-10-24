@@ -4,6 +4,7 @@ import { hashPassword, verifyPassword } from './passwords';
 import { db, isUuid } from './db';
 import { listRoles, findRoleByKey } from './roleStore';
 import { sendUserCreatedEmail, sendAccountChangedEmail, sendPasswordChangedEmail } from './email/notifications';
+import { isPartnerRoleKey } from './partnerRoles';
 
 // fn/col/where sourced from db.Sequelize (the exact class the actual
 // connection/models were built from) rather than a separate top-level
@@ -103,15 +104,12 @@ export interface ActiveEmployeeOption {
   designation: string;
 }
 
-// 'partner-admin' / 'partner-user' are external partner accounts (Role
-// Management's role keys for them), not this org's own staff — excluded from
-// every "pick an employee" picker that genuinely means employees, same as
-// Delivery Challan's "Requested By". Not the same filter /api/users/lite
-// applies (that one is shared by ~9 unrelated features and includes
-// partners), so this is a dedicated, narrower query rather than a reuse of
-// that endpoint.
-const EXTERNAL_PARTNER_ROLE_KEYS = ['partner-admin', 'partner-user'];
-
+// Partner accounts (lib/partnerRoles.ts's PARTNER_ROLE_KEYS) are external,
+// not this org's own staff — excluded from every "pick an employee" picker
+// that genuinely means employees, same as Delivery Challan's "Requested By".
+// Not the same filter /api/users/lite applies (that one is shared by ~9
+// unrelated features and includes partners), so this is a dedicated,
+// narrower query rather than a reuse of that endpoint.
 export async function listActiveInternalEmployees(): Promise<ActiveEmployeeOption[]> {
   const rows = await db.User.findAll({
     where: { status: 'active' } as never,
@@ -122,7 +120,7 @@ export async function listActiveInternalEmployees(): Promise<ActiveEmployeeOptio
   return rows
     .filter((r) => {
       const role = r.get('role') as { key?: string } | null;
-      return !EXTERNAL_PARTNER_ROLE_KEYS.includes(role?.key ?? '');
+      return !isPartnerRoleKey(role?.key ?? '');
     })
     .map((r) => {
       const plain = r.get({ plain: true }) as Record<string, unknown>;
@@ -164,11 +162,22 @@ export async function findAdminUsers(): Promise<{ id: string; username: string; 
 // role+department joins are wasted work on what is the single most-called
 // user lookup in the app (runs on ~every authenticated request). No joins,
 // one column.
-export async function findUserStatusById(id: string): Promise<{ id: string; status: string; name: string } | undefined> {
+// partnerId is read here (rather than in a second query from
+// lib/viewerContext.ts) because this already runs on essentially every
+// authenticated request — adding one column to an existing primary-key
+// lookup is free, a second round trip is not.
+export async function findUserStatusById(
+  id: string
+): Promise<{ id: string; status: string; name: string; partnerId: string } | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.User.findByPk(id, { attributes: ['id', 'status', 'name'] });
+  const row = await db.User.findByPk(id, { attributes: ['id', 'status', 'name', 'partnerId'] });
   if (!row) return undefined;
-  return { id: row.get('id') as string, status: row.get('status') as string, name: (row.get('name') as string) || '' };
+  return {
+    id: row.get('id') as string,
+    status: row.get('status') as string,
+    name: (row.get('name') as string) || '',
+    partnerId: (row.get('partnerId') as string) || ''
+  };
 }
 
 export async function findUserByUsername(username: string): Promise<UserRecord | undefined> {
@@ -264,6 +273,10 @@ export interface CreateUserInput {
   birthday?: string;
   dateOfJoining?: string;
   mustChangePassword?: boolean;
+  // Partner Portal: binds this login to an external partner company. Omitted
+  // (undefined) for every internal employee — see db/models/user.js. Only
+  // lib/partnerUserStore.ts passes it, so no existing caller changes.
+  partnerId?: string;
 }
 
 export async function createUser(input: CreateUserInput): Promise<PublicUser> {
@@ -292,7 +305,8 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
     birthday: input.birthday || null,
     dateOfJoining: input.dateOfJoining || null,
     status: 'active',
-    mustChangePassword: input.mustChangePassword ?? false
+    mustChangePassword: input.mustChangePassword ?? false,
+    partnerId: input.partnerId || null
   } as never);
 
   const created = await db.User.findByPk(row.get('id') as string, { include: [roleInclude, deptInclude] });

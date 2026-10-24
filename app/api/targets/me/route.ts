@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { periodContainingDate, TargetPeriodType } from '@/lib/targetPeriod';
 import { findSalesTarget } from '@/lib/salesTargetStore';
-import { computeAchievement, computeAchievementForEmployees } from '@/lib/salesAchievement';
+import { computeAchievement, computeAchievementForEmployees, AchievementResult } from '@/lib/salesAchievement';
 import { buildTargetProgress } from '@/lib/targetProgress';
 import { listOwnManagedSalesTeam } from '@/lib/targetAccess';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
           computeAchievement(viewer.userId, period.periodStart, period.periodEnd),
           teamMemberIds.length
             ? computeAchievementForEmployees(teamMemberIds, period.periodStart, period.periodEnd)
-            : Promise.resolve({})
+            : Promise.resolve({} as Record<string, AchievementResult>)
         ]);
 
         const teamAchievedAmount = Object.values(teamAchievements).reduce((sum, a) => sum + a.achievedAmount, 0);

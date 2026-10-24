@@ -15,6 +15,15 @@ interface ProjectDepartmentFieldProps {
   amounts: DepartmentAmounts;
   onChange: (departments: ProjectDepartment[], amounts: DepartmentAmounts) => void;
   disabled?: boolean;
+  /**
+   * Hide the per-department value split (default: shown).
+   *
+   * Used by the partner submission form, where the split would be a division
+   * of approx_price — a figure Sales only sets when it accepts the
+   * submission. Rendering the boxes there would show inputs whose values are
+   * then discarded, which is worse than not offering them.
+   */
+  showAmounts?: boolean;
 }
 
 // Tick every department working the deal; once more than one is ticked, each
@@ -24,8 +33,8 @@ interface ProjectDepartmentFieldProps {
 // single department there is nothing to divide: its share is the project's
 // whole approx_price, and asking for the same number twice would just be a
 // second place for it to go stale (departmentValueOf relies on that).
-export default function ProjectDepartmentField({ departments, amounts, onChange, disabled }: ProjectDepartmentFieldProps) {
-  const multi = departments.length > 1;
+export default function ProjectDepartmentField({ departments, amounts, onChange, disabled, showAmounts = true }: ProjectDepartmentFieldProps) {
+  const multi = showAmounts && departments.length > 1;
   const splitTotal = sumDepartmentAmounts(amounts);
 
   function toggle(department: ProjectDepartment) {

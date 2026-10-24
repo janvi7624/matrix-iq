@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
 import { readUploadFormData, UploadTooLargeError } from '@/lib/uploadRequest';
+import { partnerUploadPrefix } from '@/lib/partnerUploads';
 
 // Generic attachment upload used by the project-pipeline modules (Demo
 // report attachments, PO documents, installation completion reports/client
@@ -11,7 +12,11 @@ import { readUploadFormData, UploadTooLargeError } from '@/lib/uploadRequest';
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
-  const viewer = await getViewerContext(request);
+  // Partners upload too — attachments on a submission, photos on a support
+  // ticket. Their files are written under a partner-scoped prefix so the
+  // download route can decide ownership from the path alone; see
+  // lib/partnerUploads.ts.
+  const viewer = await getViewerContext(request, { allowPartner: true });
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
@@ -26,7 +31,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `${file.name} is larger than 10MB` }, { status: 400 });
       }
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const pathname = `uploads/${folder}/${viewer.username}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeName}`;
+      const pathname = viewer.partnerId
+        ? `${partnerUploadPrefix(viewer.partnerId)}${folder}/${viewer.username}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeName}`
+        : `uploads/${folder}/${viewer.username}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeName}`;
       const { pathname: stored } = await putFile(pathname, file, viewer.username);
       urls.push(`/api/uploads/file/${stored.split('/').map(encodeURIComponent).join('/')}`);
     }

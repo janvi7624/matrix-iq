@@ -17,7 +17,7 @@ interface EntityResolver {
   exists: (entityId: string) => Promise<boolean>;
 }
 
-const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation'] as const;
+const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation', 'SupportTicket'] as const;
 
 async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: string): Promise<boolean> {
   if (!isUuid(entityId)) return false;
@@ -59,6 +59,14 @@ const RESOLVERS: Record<string, EntityResolver> = {
   // viewer (assignee, reviewer, creator, or manager) may see/do.
   general_task: { href: (id) => `/my-tasks/${id}`, exists: (id) => existsIn('GeneralTask', id) },
   leave_request: { href: () => '/hr/leave', exists: (id) => existsIn('LeaveRequest', id) },
+  // Partner Portal. A partner-submitted project is an ordinary Project row,
+  // so the INTERNAL destination is the normal project page — it is the
+  // PARTNER-side href that differs, which is why these also appear in
+  // PARTNER_RESOLVERS below.
+  partner_project: { href: (id) => `/projects/${id}`, exists: (id) => existsIn('Project', id) },
+  partner_quotation: { href: (id) => `/my-quotations?highlight=${id}`, exists: (id) => existsIn('Quotation', id) },
+  support_ticket: { href: (id) => `/support/${id}`, exists: (id) => existsIn('SupportTicket', id) },
+  partner_support_ticket: { href: (id) => `/support/${id}`, exists: (id) => existsIn('SupportTicket', id) },
   // Daily Report Management. Three entity types, because the three
   // notifications want three different destinations: a submitted report
   // opens the Team tab of the merged Daily Report page, a leave claim opens
@@ -132,12 +140,50 @@ const RESOLVERS: Record<string, EntityResolver> = {
 // have one — an entity_type this module doesn't recognize, a missing
 // entity_id, or a reference to a record that's since been deleted. Runs the
 // existence checks in parallel rather than per-row awaits in a loop.
+/**
+ * Destinations for a PARTNER session.
+ *
+ * A separate map rather than a branch inside each entry, and deliberately an
+ * ALLOW-LIST: an entity type absent from here resolves to nothing for a
+ * partner and is dropped as non-actionable. That is the safe direction. The
+ * internal map above sends almost everything to /projects, /my-quotations,
+ * /support and similar — every one of which proxy.ts refuses a partner — so
+ * falling back to it would hand partners a bell full of links that bounce
+ * them to the portal home with no explanation.
+ *
+ * It also means an internal-only notification that somehow reached a partner
+ * (a mis-targeted notifyUsers call) is silently hidden rather than
+ * advertising the existence of an internal record.
+ */
+const PARTNER_RESOLVERS: Record<string, EntityResolver> = {
+  partner_project: { href: (id) => `/partner/projects/${id}`, exists: (id) => existsIn('Project', id) },
+  // A partner-submitted project also notifies on the plain 'project' type
+  // (the assignment notice), so both map to the portal page.
+  project: { href: (id) => `/partner/projects/${id}`, exists: (id) => existsIn('Project', id) },
+  partner_quotation: { href: () => '/partner/quotations', exists: (id) => existsIn('Quotation', id) },
+  demo: { href: () => '/partner/demos', exists: (id) => existsIn('DemoSchedule', id) },
+  partner_support_ticket: { href: () => '/partner/support', exists: (id) => existsIn('SupportTicket', id) },
+  support_ticket: { href: () => '/partner/support', exists: (id) => existsIn('SupportTicket', id) }
+};
+
+export interface ResolveOptions {
+  /**
+   * Resolve for an external partner session. Partner and internal sessions
+   * get entirely different destinations for the same notification, because
+   * the same record lives at two different URLs and each audience may only
+   * reach one of them.
+   */
+  isPartner?: boolean;
+}
+
 export async function resolveActionableNotifications(
-  notifications: Omit<NotificationRecord, 'href'>[]
+  notifications: Omit<NotificationRecord, 'href'>[],
+  options: ResolveOptions = {}
 ): Promise<NotificationRecord[]> {
+  const map = options.isPartner ? PARTNER_RESOLVERS : RESOLVERS;
   const withHref = await Promise.all(
     notifications.map(async (n) => {
-      const resolver = RESOLVERS[n.entity_type];
+      const resolver = map[n.entity_type];
       if (!resolver || !n.entity_id) return null;
       const ok = await resolver.exists(n.entity_id);
       if (!ok) return null;

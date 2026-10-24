@@ -68,6 +68,7 @@ import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import ProjectDeadlineExtendModal from './ProjectDeadlineExtendModal';
+import PartnerSubmissionReviewPanel from './PartnerSubmissionReviewPanel';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import { LOST_REASONS, LOST_REASON_LABEL, LostReason } from '@/lib/salesStageRules';
 import ProjectSourceField from './ui/ProjectSourceField';
@@ -291,6 +292,11 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // re-derived from role name, since an admin can toggle a role's
   // privileged status independently of what the role is called.
   const isPrivileged = currentUser.isPrivileged;
+  // Sales members offered when accepting a partner submission. Fetched from
+  // the lead-assignee endpoint (same "who counts as a sales rep" rule), with
+  // /api/users/lite as the fallback for a viewer that endpoint refuses —
+  // better a wider list than an empty dropdown that blocks the review.
+  const [salesPeople, setSalesPeople] = useState<{ id: string; username: string; name: string }[]>([]);
   const isTechnical = isTechnicalRole(currentUser.role);
   const [data, setData] = useState<DetailResponse | null>(null);
   const [status, setStatus] = useState('Loading...');
@@ -468,6 +474,20 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  useEffect(() => {
+    if (!data?.project.partner_id) return;
+    let cancelled = false;
+    fetch('/api/leads/assignees')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => {
+        if (cancelled) return;
+        if (body?.assignees) setSalesPeople(body.assignees);
+        else return fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then((u) => { if (!cancelled) setSalesPeople(u); });
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [data?.project.partner_id]);
 
   const canEdit = useMemo(() => isPrivileged || data?.project.created_by === currentUser.username, [isPrivileged, data, currentUser.username]);
 
@@ -1109,6 +1129,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             Created From Lead: <strong>{linkedLead.name}</strong>{' '}
             <Link className={historyStyles.button} href="/leads" style={{ marginLeft: 8 }}>Open Lead</Link>
           </div>
+        )}
+
+        {project.partner_id && (
+          <PartnerSubmissionReviewPanel project={project} salesPeople={salesPeople} onReviewed={load} />
         )}
 
         {project.lead_confirmation_status === 'pending_confirmation' && project.created_by === currentUser.username && (

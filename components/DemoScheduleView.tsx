@@ -20,6 +20,7 @@ import { useConfirm } from './ui/ConfirmDialog';
 import ProjectSelect from './ui/ProjectSelect';
 import Button from './ui/Button';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
+import { DEMO_STATUS_LABEL, stagesForMode } from '@/lib/demoStages';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
 
 const ALL_DOMAINS = Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[];
@@ -42,19 +43,10 @@ const EMPTY_FORM = {
   notes: ''
 };
 
-const STATUS_LABEL: Record<DemoRequestStatus, string> = {
-  draft: 'Draft',
-  pending_technical: 'Pending Technical Approval',
-  pending_manager: 'Pending Manager Approval',
-  pending_backoffice: 'Pending Back Office',
-  ready_for_demo: 'Ready — Virtual Demo',
-  dc_generated: 'DC Generated',
-  material_dispatched: 'Material Dispatched',
-  demo_completed: 'Demo Completed',
-  material_returned: 'Material Returned',
-  dc_closed: 'DC Closed',
-  cancelled: 'Cancelled'
-};
+// STATUS_LABEL and the two stage chains now live in lib/demoStages.ts so the
+// partner portal renders the identical pipeline instead of a second copy
+// that drifts. Imported rather than redefined here.
+const STATUS_LABEL = DEMO_STATUS_LABEL;
 
 const STATUS_TONE: Record<DemoRequestStatus, StatusTone> = {
   draft: 'cancelled',
@@ -70,30 +62,6 @@ const STATUS_TONE: Record<DemoRequestStatus, StatusTone> = {
   cancelled: 'rejected'
 };
 
-// The approval chain has never had a visual representation beyond this flat
-// status badge — each named status IS a reached milestone once the record
-// is at or past it, so "done" is simply "index <= current index."
-const DEMO_STAGES: { key: DemoRequestStatus; label: string }[] = [
-  { key: 'pending_technical', label: 'Sales Request Submitted' },
-  { key: 'pending_manager', label: 'Technical Approval' },
-  { key: 'pending_backoffice', label: 'Manager Approval' },
-  { key: 'dc_generated', label: 'Back Office — DC Generated' },
-  { key: 'material_dispatched', label: 'Material Dispatched' },
-  { key: 'demo_completed', label: 'Demo Completed' },
-  { key: 'material_returned', label: 'Material Returned' },
-  { key: 'dc_closed', label: 'DC Closed' }
-];
-
-// The same chain with everything physical removed: nothing is challaned,
-// dispatched or returned for a demo given over a screen share, so the pipeline
-// ends the moment the demo itself is done.
-const VIRTUAL_DEMO_STAGES: { key: DemoRequestStatus; label: string }[] = [
-  { key: 'pending_technical', label: 'Sales Request Submitted' },
-  { key: 'pending_manager', label: 'Technical Approval' },
-  { key: 'ready_for_demo', label: 'Manager Approval' },
-  { key: 'demo_completed', label: 'Demo Completed' }
-];
-
 // Cancellation can happen from any status and doesn't record which stage it
 // was cancelled at, so a cancelled demo gets a plain badge instead of a
 // fabricated stepper position.
@@ -102,7 +70,7 @@ function buildDemoSteps(record: DemoScheduleRecord): StepperStep[] | null {
   // A virtual demo never goes through Back Office, so showing it four steps it
   // will never reach would make a finished demo look permanently unfinished.
   // Manager approval lands on 'ready_for_demo' instead of 'pending_backoffice'.
-  const stages = record.mode === 'virtual' ? VIRTUAL_DEMO_STAGES : DEMO_STAGES;
+  const stages = stagesForMode(record.mode);
   const idx = record.status === 'draft' ? -1 : stages.findIndex((s) => s.key === record.status);
   return stages.map((s, i) => {
     let meta: string | undefined;
@@ -254,6 +222,7 @@ function DemoRow({
   managersByDepartment,
   onCancel,
   onSubmitDraft,
+  onAssignTechnical,
   onMarkCompleted,
   onDelete,
   onSaveReport,
@@ -265,6 +234,7 @@ function DemoRow({
   managersByDepartment: Record<string, { id: string; username: string; name: string }[]>;
   onCancel: (id: string) => void;
   onSubmitDraft: (id: string) => void;
+  onAssignTechnical: (id: string, technicalPersonId: string) => void;
   onMarkCompleted: (id: string) => void;
   onDelete: (id: string) => void;
   onSaveReport: (id: string, patch: Record<string, unknown>) => Promise<void>;
@@ -356,12 +326,38 @@ function DemoRow({
         <td>{record.assigned_technical_person || '-'}</td>
         <td>
           <StatusBadge tone={STATUS_TONE[record.status]} label={STATUS_LABEL[record.status]} />
+          {/* A partner request arrives as a draft owned by their relationship
+              manager, which otherwise looks identical to that person's own
+              abandoned draft. Saying where it came from is what turns it
+              into something actionable. */}
+          {record.partner_name && (
+            <div className={calcStyles.small}>
+              <strong>Partner request</strong> — {record.partner_name}
+            </div>
+          )}
           {record.outcome && <div className={calcStyles.small}>Outcome: {OUTCOME_LABEL[record.outcome]}</div>}
         </td>
         <td>{record.created_by}</td>
         <td className={historyStyles.actionGroupButtons}>
           {record.status === 'draft' && isOwner && (
-            <Button variant="primary" compact onClick={() => onSubmitDraft(record.id)}>Submit for Approval</Button>
+            <>
+              {/* The sales person assigns the technical person before this
+                  goes for approval — a partner can never pick one (see the
+                  PATCH guard in app/api/demo-schedule/[id]). Shown inline so
+                  the whole action is one row, not a trip to another screen. */}
+              <select
+                className={calcStyles.formControl}
+                value={record.assigned_technical_person_id || ''}
+                onChange={(e) => onAssignTechnical(record.id, e.target.value)}
+                aria-label="Assign technical person"
+              >
+                <option value="">— Assign technical person —</option>
+                {technicalRoster.map((person) => (
+                  <option key={person.id} value={person.id}>{person.name || person.username}</option>
+                ))}
+              </select>
+              <Button variant="primary" compact onClick={() => onSubmitDraft(record.id)}>Submit for Approval</Button>
+            </>
           )}
           {record.status === 'pending_backoffice' && (
             <Link className={`${historyStyles.actionBtn} ${historyStyles.actionBtnPrimary} ${historyStyles.actionBtnCompact}`} href={`/backoffice?demoId=${record.id}`}>Generate DC →</Link>
@@ -624,6 +620,12 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
     patchRecord(id, { status: 'pending_technical' });
   }
 
+  // Assigning the technical person on a draft. The server re-checks that the
+  // caller is this demo's sales owner — see app/api/demo-schedule/[id].
+  function handleAssignTechnical(id: string, technicalPersonId: string) {
+    patchRecord(id, { assignedTechnicalPersonId: technicalPersonId });
+  }
+
   async function handleCancel(id: string) {
     if (!(await confirm({ message: 'Cancel this demo request?' }))) return;
     patchRecord(id, { status: 'cancelled' });
@@ -881,6 +883,7 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
                     managersByDepartment={managersByDepartment}
                     onCancel={handleCancel}
                     onSubmitDraft={handleSubmitDraft}
+                    onAssignTechnical={handleAssignTechnical}
                     onMarkCompleted={handleMarkCompleted}
                     onDelete={handleDelete}
                     onSaveReport={patchRecord}

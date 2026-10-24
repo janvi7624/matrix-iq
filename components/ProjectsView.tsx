@@ -619,7 +619,33 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         </>
       )
     },
-    { key: 'source', header: 'Source', headerClassName: historyStyles.colSource, render: (p) => p.source || '-' },
+    {
+      key: 'source',
+      header: 'Source',
+      headerClassName: historyStyles.colSource,
+      // Partner-sourced projects carry the partner's name and code under the
+      // source, and an "Awaiting review" marker while Sales has not yet
+      // accepted them — the requirement that these be visibly identified as
+      // partner-sourced wherever they appear.
+      render: (p) =>
+        p.partner_name ? (
+          <>
+            {p.source || 'Partner'}
+            <div className={calcStyles.small}>
+              {p.partner_name} ({p.partner_code})
+            </div>
+            {(p.partner_submission_status === 'submitted' || p.partner_submission_status === 'info_requested') && (
+              <div className={calcStyles.small}>
+                <strong>
+                  {p.partner_submission_status === 'submitted' ? 'Awaiting review' : 'Info requested'}
+                </strong>
+              </div>
+            )}
+          </>
+        ) : (
+          p.source || '-'
+        )
+    },
     {
       key: 'approxPrice',
       // Header names what is actually being shown: filtering to AI turns this

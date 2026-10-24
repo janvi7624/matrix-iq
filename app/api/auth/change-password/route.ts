@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, createSessionToken, getSessionFromRequest, sessionCookieOptions } from '@/lib/auth';
-import { findUserById, updateUser } from '@/lib/userStore';
+import { findUserById, updateUser, findUserStatusById } from '@/lib/userStore';
 import { verifyPassword } from '@/lib/passwords';
 import { apiErrorResponse } from '@/lib/apiError';
 import { resolveIsPrivileged } from '@/lib/permissions';
@@ -33,8 +33,18 @@ export async function POST(request: NextRequest) {
 
     await updateUser(user.id, { password: newPassword, mustChangePassword: false, passwordChangeInitiatedBy: 'self' });
 
-    const isPrivileged = await resolveIsPrivileged(user.role);
-    const token = await createSessionToken({ id: user.id, username: user.username, role: user.role, mustChangePassword: false, isPrivileged });
+    // The reissued token must carry every claim the original did —
+    // partnerId included, or a partner changing their password would be
+    // handed an internal-shaped session.
+    const [isPrivileged, partnerBinding] = await Promise.all([resolveIsPrivileged(user.role), findUserStatusById(user.id)]);
+    const token = await createSessionToken({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      mustChangePassword: false,
+      isPrivileged,
+      partnerId: partnerBinding?.partnerId
+    });
     const response = NextResponse.json({ ok: true });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
     return response;

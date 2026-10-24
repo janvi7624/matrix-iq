@@ -405,6 +405,7 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
             onLogFollowUp={handleLogFollowUp}
             onChangeStatus={handleChangeStatus}
             highlightId={highlightId}
+            onRefresh={load}
           />
         )
       )}

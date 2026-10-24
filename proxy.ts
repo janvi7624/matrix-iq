@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
+// Pure constants, no imports of their own — safe here under the
+// never-touch-the-database rule documented below.
+import { PARTNER_HOME, isPartnerPath } from '@/lib/partnerRoles';
 
 // IMPORTANT — this file must never import anything that touches the database
 // (Sequelize/lib/db.ts or anything built on it, directly or transitively).
@@ -70,6 +73,34 @@ export async function proxy(request: NextRequest) {
   if (session.mustChangePassword && !CHANGE_PASSWORD_ALLOWED_PATHS.has(pathname)) {
     if (isApi) return NextResponse.json({ error: 'Password change required' }, { status: 403 });
     return NextResponse.redirect(new URL('/change-password', request.url));
+  }
+
+  // Partner Portal route-area gate, in BOTH directions.
+  //
+  // This is the outermost of the three isolation layers (the other two are
+  // lib/viewerContext.ts, which refuses partner accounts on every internal
+  // API by default, and the mandatory partner_id in every partner store
+  // query). It is deliberately coarse — it answers "may this session be in
+  // this part of the app at all", never "may it see this record".
+  //
+  // session.partnerId is a token claim, so it is only safe to gate ROUTES on
+  // it, not data — see the SessionPayload.partnerId comment in lib/auth.ts.
+  // A suspended partner is still stopped, just one layer in, by
+  // lib/partnerContext.ts, which re-reads the partner's live status.
+  const isPartnerArea = pathname === '/partner' || pathname.startsWith('/partner/') || pathname.startsWith('/api/partner');
+  if (session.partnerId) {
+    // Outbound: a partner may never leave the portal.
+    if (!isPartnerPath(pathname)) {
+      if (isApi) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return NextResponse.redirect(new URL(PARTNER_HOME, request.url));
+    }
+  } else if (isPartnerArea) {
+    // Inbound: internal staff manage partners through the internal screens
+    // (/admin/partners), never by entering the partner-facing portal — there
+    // is no "view as partner" mode, and pretending there is would mean every
+    // partner route needed a second, staff-shaped authorization path.
+    if (isApi) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
   const isAdminOnly = ADMIN_ONLY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

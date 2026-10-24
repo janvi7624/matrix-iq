@@ -8,6 +8,7 @@ import { notifyUsers } from './notificationStore';
 import { sendProjectLifecycleEmail } from './email/notifications';
 import { syncTmsProjectForAssignment } from './tmsHandoff';
 import { ProjectRecord, ProjectTechnicalRequestRecord, ProjectTechnicalRequestView, UserRecord, UserRole } from './types';
+import { projectLabel } from './projectLabel';
 
 // Technical-person approval for Sales projects.
 //
@@ -134,9 +135,8 @@ async function findRequestById(requestId: string): Promise<ProjectTechnicalReque
   return row ? toRecord(row) : null;
 }
 
-function projectLabel(project: Pick<ProjectRecord, 'client_name' | 'company'>): string {
-  return project.client_name || project.company || 'Project';
-}
+// projectLabel now lives in lib/projectLabel.ts — it was duplicated here
+// and in three other files, and every copy ignored project_name.
 
 function formatNeededBy(date: string): string {
   if (!date) return '';
@@ -448,11 +448,11 @@ export async function listTechnicalRequestsAwaiting(viewer: Actor): Promise<{ pr
     .map(([department]) => department);
   const rows = await db.ProjectTechnicalRequest.findAll({
     where: { status: 'pending' } as never,
-    include: [...INCLUDES(), { model: db.Project, as: 'project', attributes: ['id', 'client_name', 'company'] }],
+    include: [...INCLUDES(), { model: db.Project, as: 'project', attributes: ['id', 'project_name', 'client_name', 'company'] }],
     order: [['created_at', 'ASC']]
   });
   return rows
     .map((row) => ({ record: toRecord(row), project: (row.get({ plain: true }) as { project?: { client_name?: string; company?: string } }).project }))
     .filter(({ record }) => record.requested_user_id === viewer.userId || managed.includes(record.requested_department))
-    .map(({ record, project }) => ({ project_id: record.project_id, project_label: project?.client_name || project?.company || 'Project', requested_name: record.requested_name }));
+    .map(({ record, project }) => ({ project_id: record.project_id, project_label: projectLabel(project), requested_name: record.requested_name }));
 }
