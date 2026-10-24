@@ -2,13 +2,25 @@ import { Op } from 'sequelize';
 import { db } from './db';
 import { istInstant, addDays } from './dailyReportTime';
 import { resolveQuotationOwner, fetchNameToId } from './salesAchievement';
+import { computeLeadCallCounts, fetchLeadCallDetail, LEAD_CALL_MEASURES } from './leadCallDailyStats';
 
 // Auto-fetched cells for the Sales / GEM-Sales daily report matrix — see
 // SALES_TEMPLATE.autoMeasures in lib/dailyReportTemplates.ts for which
-// measures this covers (New Leads Generated, Quotations Prepared,
-// Quotations Sent, Purchase Orders Received) and why the other 4 (Customer
-// Calls, Meetings Completed, Meetings Scheduled, Follow-ups Completed) stay
-// manual: this app has no call/meeting log anywhere else to read from.
+// measures this covers.
+//
+// Four come from Quotation/Lead records here: New Leads Generated, Quotations
+// Prepared, Quotations Sent, Purchase Orders Received.
+//
+// Two more — Customer Calls and Follow-ups Completed — come from the call a
+// rep logs on a lead (Leads -> Log Call), delegated to
+// lib/leadCallDailyStats.ts and merged in below. An earlier version of this
+// comment said they had to stay manual because the app had no call log; that
+// was wrong, lib/leadCall.ts is one. Read that module's header before
+// changing them: a lead keeps only its most recent call, which bounds what
+// the two measures can mean.
+//
+// Only Meetings Completed and Meetings Scheduled are still manual, and those
+// genuinely have no system of record anywhere in the app.
 //
 // "Channel" (AI / AV / Robotics, or whatever a department's template
 // override says) is resolved the SAME way everywhere else in this app
@@ -148,6 +160,16 @@ export async function computeSalesAutoMatrix(
     for (const channel of channels2) bump(matrix, 'Purchase Orders Received', channel);
   }
 
+  // Customer Calls and Follow-ups Completed, from the lead call log. Assigned
+  // rather than bumped: that module returns the finished per-channel counts
+  // for the day, and only for the measures actually in autoMeasures, so a
+  // template override that leaves one of them manual gets no key here and the
+  // employee's typed value survives mergeAutoMatrix untouched.
+  const callCounts = await computeLeadCallCounts(employeeId, reportDate, autoMeasures, channels);
+  for (const [measure, perChannel] of Object.entries(callCounts)) {
+    matrix[measure] = { ...(matrix[measure] ?? {}), ...perChannel };
+  }
+
   return matrix;
 }
 
@@ -190,6 +212,14 @@ export async function fetchSalesAutoDetail(
   measure: string,
   channel: string
 ): Promise<SalesAutoDetailItem[]> {
+  // The two call measures keep their query in lib/leadCallDailyStats.ts, where
+  // the count behind them is also computed — unlike the four below, that
+  // module shares one loader between its count and its list, so the number and
+  // the records behind it cannot disagree.
+  if ((LEAD_CALL_MEASURES as readonly string[]).includes(measure)) {
+    return fetchLeadCallDetail(employeeId, reportDate, measure, channel);
+  }
+
   const dayStart = istInstant(reportDate, '00:00');
   const dayEnd = istInstant(addDays(reportDate, 1), '00:00');
   const channelLower = channel.toLowerCase();
