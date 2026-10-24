@@ -682,6 +682,7 @@ export default function TeamDailyReportsView({
                   onChange={setDialogPayload}
                   issues={dialogIssues}
                   reportDate={date}
+                  employeeId={dialog.row.employee_id}
                 />
               )}
             </>
@@ -736,6 +737,7 @@ export default function TeamDailyReportsView({
                   issues={dialogIssues}
                   disabled={dialog.kind === 'view'}
                   reportDate={dialogReport.report_date}
+                  employeeId={dialog.row.employee_id}
                 />
 
                 {/* Collapsed: useful when something looks wrong, noise otherwise.

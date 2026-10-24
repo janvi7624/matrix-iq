@@ -1762,10 +1762,43 @@
 /* .table sets overflow:hidden for its rounded corners, which makes the TABLE
    its own scrollport and defeats the sticky header. The wrapper already
    carries the radius, so the table needn't clip. */
+/* 960 (was 1180 for 13 columns). Domain, Vertical and Products came off the
+   table — all three were already in the expanded row — which is what let
+   this drop. Measured in a browser, the available width is 968px at a
+   1280px screen, 1128px at 1440px and 1384px at 1920px, so 1180px scrolled
+   sideways on the first two. At 960px the table fits all three; a phone,
+   where ten columns cannot be read at any width, still scrolls. */
 .quotationViewport .table {
-    min-width: 1180px;
+    min-width: 960px;
     overflow: visible;
 }
+
+/* Per-column widths for the fixed layout. Every column needs an entry: under
+   table-layout:fixed a column without one gets only what is left over, which
+   is nothing once the rest add up. Totals 100% with Sales Person shown; the
+   views that hide it (org-wide history) come to 90% and the browser scales
+   the columns up proportionally, which is still an exact fit, not an
+   overflow. Client is widest — it is the longest free text and the thing
+   people scan the list for. */
+.colQExpand { width: 3%; }
+.colQNumber { width: 11%; }
+.colQDate { width: 8%; }
+.colQPreparedBy { width: 9%; }
+.colQSalesPerson { width: 9%; }
+.colQClient { width: 16%; }
+.colQTotal { width: 11%; }
+.colQStatus { width: 10%; }
+.colQFollowUp { width: 11%; }
+/* 12%, not 10%: measured at a 1280px screen the actions cell needs 112px for
+   its buttons (which are nowrap by design) and 10% gave it only 97px, so the
+   row spilled 15px past the table and the horizontal scrollbar came back for
+   the sake of one column. The 2% came from the two people columns, which had
+   room to spare. */
+.colQActions { width: 12%; }
+/* A select's intrinsic width is its widest option, which in a fixed-layout
+   cell overflows rather than clipping. Same fix the filter bar above already
+   needed for its selects. */
+.tableFixed .statusSelect { max-width: 100%; min-width: 0; }
 .quotationViewport .table th {
     z-index: 2;
 }
@@ -1774,11 +1807,12 @@
     .quotationViewport { max-height: 58vh; }
 }
 
-/* Client / Domain / Vertical / Products are free text and were routinely
-   long enough to stretch one column across half the table, squeezing Total
-   and Status into unreadable slivers. Clamped to one line with an ellipsis;
-   the full value stays available as a tooltip, and the expanded row below
-   shows all of it anyway. */
+/* Client is free text and was routinely long enough to stretch its column
+   across half the table, squeezing Total and Status into unreadable slivers.
+   Clamped to one line with an ellipsis; the full value stays available as a
+   tooltip, and the expanded row below shows all of it anyway.
+   (Domain, Vertical and Products used this too until they lost their columns
+   — it is kept as the base .quotationCellWide composes from, not dead code.) */
 .quotationCell {
     display: block;
     max-width: 200px;

@@ -388,7 +388,7 @@ export default function MyQuotationsView({ embedded }: MyQuotationsViewProps = {
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
       {loading ? (
         <TableWrap>
-          <SkeletonRows rows={8} columns={12} />
+          <SkeletonRows rows={8} columns={10} />
         </TableWrap>
       ) : loadFailed ? (
         <ErrorState message="Could not load quotations — check your connection and try again." onRetry={load} />

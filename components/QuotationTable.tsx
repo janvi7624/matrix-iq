@@ -241,9 +241,11 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
         <td>
           <span className={styles.quotationCellWide} title={clientLabel}>{clientLabel}</span>
         </td>
-        <td><span className={styles.quotationCell} title={row.domain_summary || undefined}>{row.domain_summary || '-'}</span></td>
-        <td><span className={styles.quotationCell} title={row.project_vertical || undefined}>{row.project_vertical || '-'}</span></td>
-        <td><span className={styles.quotationCellWide} title={row.products_summary || undefined}>{row.products_summary || '-'}</span></td>
+        {/* Domain, Vertical and Products used to have a column each. Thirteen
+            columns needed 1180px against 968px of available width on a
+            1280px screen, so the table scrolled sideways; these three were
+            the ones already repeated in the expanded row below, so they are
+            the ones that went. Open a row to see all three in full. */}
         <td className={styles.amount}>{formatMoney(row.total)}</td>
         <td>
           {onChangeStatus ? (
@@ -335,7 +337,7 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
       </tr>
       {expanded && (
         <tr className={styles.detailsRow}>
-          <td colSpan={showSalesPerson ? 13 : 12}>
+          <td colSpan={showSalesPerson ? 10 : 9}>
             <div className={styles.qdSection}>
               <div className={styles.qdSectionTitle}>Prepared By</div>
               <div className={styles.qdGrid}>
@@ -353,7 +355,13 @@ function QuotationRow({ row, onDelete, onLogFollowUp, showSalesPerson, onChangeS
                 <Field label="Email" value={row.client_email} />
                 <Field label="Phone" value={row.client_phone} />
                 <Field label="Address" value={row.client_address} />
+                {/* Domain lives here now that it has no column of its own —
+                    Vertical and Products were already in this panel, Domain
+                    was not, and removing its column without this would have
+                    put the value out of reach entirely. */}
+                <Field label="Domain" value={row.domain_summary} />
                 <Field label="Project vertical" value={row.project_vertical} />
+                <Field label="Products" value={row.products_summary} />
                 <Field label="Validity" value={`${row.validity_days} days`} />
               </div>
             </div>
@@ -447,28 +455,29 @@ interface QuotationTableProps {
 export default function QuotationTable({ rows, onDelete, onLogFollowUp, showSalesPerson, onChangeStatus, highlightId, onRefresh }: QuotationTableProps) {
   return (
     <TableWrap className={styles.quotationViewport}>
-    <table className={styles.table}>
+    {/* tableFixed + the per-column widths below: table-layout:auto sized each
+        column to its content on one line, which is what forced the wrapper's
+        horizontal scrollbar. Fixed layout makes the browser respect the
+        container instead, wrapping or clamping inside each column. */}
+    <table className={`${styles.table} ${styles.tableFixed}`}>
       <thead>
         <tr>
-          <th></th>
-          <th>Quotation No.</th>
-          <th>Date</th>
-          <th>Prepared By</th>
-          {showSalesPerson && <th>Sales Person</th>}
-          <th>Client</th>
-          <th>Domain</th>
-          <th>Vertical</th>
-          <th>Products</th>
-          <th>Total</th>
-          <th>Status</th>
-          <th>Follow-up</th>
-          <th></th>
+          <th className={styles.colQExpand}></th>
+          <th className={styles.colQNumber}>Quotation No.</th>
+          <th className={styles.colQDate}>Date</th>
+          <th className={styles.colQPreparedBy}>Prepared By</th>
+          {showSalesPerson && <th className={styles.colQSalesPerson}>Sales Person</th>}
+          <th className={styles.colQClient}>Client</th>
+          <th className={styles.colQTotal}>Total</th>
+          <th className={styles.colQStatus}>Status</th>
+          <th className={styles.colQFollowUp}>Follow-up</th>
+          <th className={styles.colQActions}></th>
         </tr>
       </thead>
       <tbody>
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={showSalesPerson ? 13 : 12}>
+            <td colSpan={showSalesPerson ? 10 : 9}>
               <EmptyState icon={FileText} title="No quotations yet" message="Create a quotation to see it listed here, with status, versions, and follow-ups." />
             </td>
           </tr>

@@ -160,3 +160,112 @@ export function mergeAutoMatrix(existing: Record<string, Record<string, number>>
   }
   return merged;
 }
+
+export interface SalesAutoDetailItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  href: string;
+}
+
+/**
+ * The real records behind ONE auto-filled cell — same one-measure-at-a-time
+ * slice of computeSalesAutoMatrix's query logic above, run on demand for
+ * whichever cell a person clicks, rather than for the whole matrix up
+ * front: a manager opening a team member's report never clicks most cells,
+ * so building every cell's record list on every load would be work nobody
+ * asked for.
+ *
+ * Kept deliberately duplicate of computeSalesAutoMatrix's filtering rather
+ * than factored to share it — these two return different shapes for
+ * different callers (a count for the save path, which runs on every report
+ * load; a labelled list for this one, which runs once per click), and
+ * forcing them through one shared code path would mean either the hot path
+ * pays for building labels it throws away, or this one loses the labels it
+ * exists for.
+ */
+export async function fetchSalesAutoDetail(
+  employeeId: string,
+  reportDate: string,
+  measure: string,
+  channel: string
+): Promise<SalesAutoDetailItem[]> {
+  const dayStart = istInstant(reportDate, '00:00');
+  const dayEnd = istInstant(addDays(reportDate, 1), '00:00');
+  const channelLower = channel.toLowerCase();
+
+  if (measure === 'New Leads Generated') {
+    const leads = await db.Lead.findAll({
+      where: { created_by: employeeId, created_at: { [Op.gte]: dayStart, [Op.lt]: dayEnd } } as never,
+      attributes: ['id', 'name', 'company', 'interests'],
+      order: [['created_at', 'ASC']]
+    });
+    return leads
+      .filter((l) => ((l.get('interests') as string[] | null) ?? []).some((d) => d.toLowerCase() === channelLower))
+      .map((l) => ({
+        id: l.get('id') as string,
+        title: (l.get('name') as string) || (l.get('company') as string) || 'Unnamed lead',
+        subtitle: (l.get('company') as string) || '',
+        // No per-lead deep link exists (lib/leadStore.ts has no public
+        // detail route) — the list is where it's found by name/company.
+        href: '/leads'
+      }));
+  }
+
+  if (measure === 'Quotations Prepared' || measure === 'Quotations Sent') {
+    const nameToId = await fetchNameToId();
+    const quotations = await db.Quotation.findAll({
+      where: { created_at: { [Op.gte]: dayStart, [Op.lt]: dayEnd } } as never,
+      include: [{ model: db.Project, as: 'project', attributes: ['id', 'project_name', 'company', 'departments'] }] as never,
+      attributes: ['id', 'quotation_number', 'created_by', 'prepared_by', 'prepared_by_user_id', 'status', 'total', 'project_id'],
+      order: [['created_at', 'ASC']]
+    });
+    return quotations
+      .filter((q) => {
+        const plain = q.get({ plain: true }) as Record<string, unknown>;
+        if (resolveQuotationOwner(plain, nameToId) !== employeeId) return false;
+        if (measure === 'Quotations Sent' && plain.status === 'draft') return false;
+        const departments = ((plain.project as { departments?: string[] } | null)?.departments ?? []) as string[];
+        return departments.some((d) => d.toLowerCase() === channelLower);
+      })
+      .map((q) => {
+        const plain = q.get({ plain: true }) as Record<string, unknown>;
+        const project = plain.project as { id?: string; project_name?: string; company?: string } | null;
+        return {
+          id: plain.id as string,
+          title: (plain.quotation_number as string) || 'Quotation',
+          subtitle: project?.project_name || project?.company || '',
+          href: project?.id ? `/projects/${project.id}` : '/quotation-history'
+        };
+      });
+  }
+
+  if (measure === 'Purchase Orders Received') {
+    const nameToId = await fetchNameToId();
+    const quotations = await db.Quotation.findAll({
+      where: { status: 'approved', status_changed_at: { [Op.gte]: dayStart, [Op.lt]: dayEnd } } as never,
+      include: [{ model: db.Project, as: 'project', attributes: ['id', 'project_name', 'company', 'departments'] }] as never,
+      attributes: ['id', 'quotation_number', 'created_by', 'prepared_by', 'prepared_by_user_id', 'status', 'total', 'project_id'],
+      order: [['status_changed_at', 'ASC']]
+    });
+    return quotations
+      .filter((q) => {
+        const plain = q.get({ plain: true }) as Record<string, unknown>;
+        if (resolveQuotationOwner(plain, nameToId) !== employeeId) return false;
+        const departments = ((plain.project as { departments?: string[] } | null)?.departments ?? []) as string[];
+        return departments.some((d) => d.toLowerCase() === channelLower);
+      })
+      .map((q) => {
+        const plain = q.get({ plain: true }) as Record<string, unknown>;
+        const project = plain.project as { id?: string; project_name?: string; company?: string } | null;
+        return {
+          id: plain.id as string,
+          title: (plain.quotation_number as string) || 'Quotation',
+          subtitle: project?.project_name || project?.company || '',
+          href: project?.id ? `/projects/${project.id}` : '/quotation-history'
+        };
+      });
+  }
+
+  return [];
+}
