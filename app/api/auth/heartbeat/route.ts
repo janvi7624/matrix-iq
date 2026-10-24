@@ -20,12 +20,20 @@ export async function POST(request: NextRequest) {
     // so a heartbeat can never widen what the session is allowed to do — role
     // and privilege changes still take effect on the next real login, the same
     // staleness trade-off the token already documents.
+    //
+    // EVERY claim must be carried forward. Omitting one does not leave it
+    // unchanged — it erases it, because the new token is built from this
+    // object alone. partnerId was missed when it was added, so each heartbeat
+    // quietly turned a partner session into an unconfined one and proxy.ts
+    // stopped keeping them inside /partner/**. A claim that restricts is the
+    // most damaging kind to drop.
     const token = await createSessionToken({
       id: session.sub,
       username: session.username,
       role: session.role,
       mustChangePassword: session.mustChangePassword,
-      isPrivileged: session.isPrivileged
+      isPrivileged: session.isPrivileged,
+      partnerId: session.partnerId
     });
 
     const response = NextResponse.json({ ok: true, expiresInMs: SESSION_IDLE_MS });

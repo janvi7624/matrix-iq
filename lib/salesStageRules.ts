@@ -328,7 +328,10 @@ export const GATE_FIELD_LABEL: Record<string, string> = {
   po_number: 'PO Number',
   po_value: 'PO Value',
   po_date: 'PO Date',
-  lost_reason: 'Lost Reason'
+  lost_reason: 'Lost Reason',
+  project_name: 'Project Name',
+  company: 'Company Name',
+  project_brief: 'Project Brief'
 };
 
 /**
@@ -350,9 +353,20 @@ export const STAGE_GATES: Partial<Record<ProjectStage, string[]>> = {
   commit: ['approx_price', 'expected_po_date', 'confirmed_by_contact']
 };
 
-/** Won and Lost are reached through status, so their gates key off that. */
+/**
+ * Won and Lost are reached through status, so their gates key off that.
+ *
+ * Won's gate is deliberately the handover checklist, not a pipeline-progress
+ * check: project_name/company so the deal has a name anyone can find it by,
+ * project_brief so the technical team taking it over knows what it is
+ * without reverse-engineering it from Approx. Price and a quotation total,
+ * and the po_* fields so the deal that funds the work is on record. (Whether
+ * a *quotation* exists is checked separately in the PATCH route — it is a
+ * row-existence question, not a blank-field one, so it cannot live in this
+ * field-blankness gate the way these can.)
+ */
 export const STATUS_GATES: Partial<Record<ProjectStatus, string[]>> = {
-  won: ['po_number', 'po_value', 'po_date'],
+  won: ['project_name', 'company', 'project_brief', 'po_number', 'po_value', 'po_date'],
   lost: ['lost_reason']
 };
 

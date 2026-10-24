@@ -32,7 +32,13 @@ import { Skeleton } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
+import SegmentedToggle from './ui/SegmentedToggle';
 import { isDriveLink } from '@/lib/driveLink';
+// The same validator the API resolves with. It lives in its own pure module
+// precisely so this client component can import it — lib/materialLinkInput.ts,
+// which calls it server-side, also imports lib/fileStorage.ts and so cannot be
+// pulled in here.
+import { isCustomLink } from '@/lib/customLink';
 import {
   MATERIAL_CATEGORIES,
   MATERIAL_CATEGORY_HINT,
@@ -43,6 +49,10 @@ import {
 import calcStyles from './calculator.module.css';
 import styles from './materials.module.css';
 
+// Kept in lockstep with lib/materialStore.ts's MaterialSource — a duplicate
+// of it rather than an import, as the rest of this file's payload types are.
+type MaterialSource = 'drive' | 'upload' | 'link';
+
 interface MaterialDocument {
   id: string;
   product: string;
@@ -51,6 +61,7 @@ interface MaterialDocument {
   description: string;
   webViewLink: string;
   isFolder: boolean;
+  source: MaterialSource;
   fileKind: MaterialFileKind;
   addedBy: string;
   updatedAt: string;
@@ -110,7 +121,10 @@ const KIND_ICON: Record<MaterialFileKind, LucideIcon> = {
   video: Video,
   archive: FileArchive,
   folder: FolderOpen,
-  file: FileText
+  file: FileText,
+  // Says "this one leaves MatrixIQ" at a glance, which a document icon would
+  // not — a web page titled "X200 spec.pdf" would otherwise wear a PDF mark.
+  link: ExternalLink
 };
 
 // A category reads faster with a mark beside it than as text alone — and the
@@ -133,7 +147,18 @@ function formatWhen(iso: string): string {
   return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-const EMPTY_FORM = { product: '', category: 'datasheet' as MaterialCategory, title: '', description: '', driveLink: '' };
+const EMPTY_FORM = {
+  product: '',
+  category: 'datasheet' as MaterialCategory,
+  title: '',
+  description: '',
+  mode: 'drive' as MaterialSource,
+  driveLink: '',
+  uploadedFileUrl: '',
+  uploadedFileName: '',
+  customLink: '',
+  mimeType: ''
+};
 type FormValues = typeof EMPTY_FORM;
 
 export default function MaterialsView({ canManage: canManageInitial }: { canManage: boolean }) {
@@ -240,7 +265,12 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
 
   async function handleDelete(document: MaterialDocument) {
     const confirmed = await confirm({
-      message: `Remove "${document.title}" from the library? The file stays in Drive — only this entry is removed.`,
+      message:
+        document.source === 'upload'
+          ? `Remove "${document.title}" from the library? Only this entry is removed — the uploaded file is not deleted.`
+          : document.source === 'link'
+            ? `Remove "${document.title}" from the library? Only this entry is removed — the page it points at is untouched.`
+            : `Remove "${document.title}" from the library? The file stays in Drive — only this entry is removed.`,
       danger: true
     });
     if (!confirmed) return;
@@ -321,7 +351,7 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
   return (
     <AppShell
       title="Materials"
-      subtitle="Datasheets, case studies and company documents — find what you need and open it in Drive."
+      subtitle="Datasheets, case studies and company documents — find what you need and open it."
     >
       <div className={styles.toolbar}>
         <div className={styles.searchWrap}>
@@ -437,7 +467,7 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
           title="The library is empty"
           message={
             canManage
-              ? 'Add your first material — a product name, a category, and the Drive link. Everyone in MatrixIQ will be able to find it.'
+              ? 'Add your first material — a product name, a category, and the link or file itself. Everyone in MatrixIQ will be able to find it.'
               : 'Marketing hasn’t published any materials yet. They’ll appear here as soon as they do.'
           }
           action={
@@ -675,12 +705,19 @@ function MaterialDialog({
           category: existing.category,
           title: existing.title,
           description: existing.description,
-          driveLink: existing.webViewLink
+          mode: existing.source,
+          driveLink: existing.source === 'drive' ? existing.webViewLink : '',
+          uploadedFileUrl: existing.source === 'upload' ? existing.webViewLink : '',
+          uploadedFileName: '',
+          customLink: existing.source === 'link' ? existing.webViewLink : '',
+          mimeType: ''
         }
       : { ...EMPTY_FORM, category: defaultCategory }
   );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const toast = useToast();
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -692,14 +729,61 @@ function MaterialDialog({
   const linkValid = isDriveLink(values.driveLink);
   const linkIsFolder = linkValid && /\/folders\//.test(values.driveLink);
 
+  // The web-link field's own pair. linkIsFolder above stays Drive-only on
+  // purpose: a Dropbox or SharePoint share routinely has "/folders/" in its
+  // path, and treating one as a Drive folder would mark the row is_folder and
+  // label its button "Open folder".
+  const urlTouched = values.customLink.trim().length > 0;
+  const urlValid = isCustomLink(values.customLink);
+  // A Drive link pasted in the wrong box. The API refuses it for a real
+  // reason — only the Drive path records the file id that stops one document
+  // being added twice — so the form says so before the save round-trip.
+  const urlIsDrive = isDriveLink(values.customLink);
+
+  // Uploaded immediately on selection (same pattern as PO/Reimbursement
+  // attachments), not deferred to Save — so a mistake surfaces as an upload
+  // error right away instead of after the whole form is filled in.
+  async function handleFileSelected(file: File | null) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append('folder', 'materials');
+      body.append('files', file);
+      const response = await fetch('/api/uploads', { method: 'POST', body });
+      if (!response.ok) throw new Error(String(response.status));
+      const data: { urls: string[] } = await response.json();
+      const url = data.urls[0] || '';
+      setValues((prev) => ({ ...prev, uploadedFileUrl: url, uploadedFileName: file.name, mimeType: file.type || '' }));
+    } catch {
+      toast.error('Could not upload this file.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function handleSubmit() {
     if (!values.product.trim()) {
       setError('Enter the product or document name');
       return;
     }
-    if (!linkValid) {
+    if (values.mode === 'drive' && !linkValid) {
       setError('Paste a Google Drive link — from Drive’s Share dialog or the address bar');
       return;
+    }
+    if (values.mode === 'upload' && !values.uploadedFileUrl) {
+      setError(uploading ? 'Wait for the upload to finish.' : 'Choose a file to upload.');
+      return;
+    }
+    if (values.mode === 'link') {
+      if (urlIsDrive) {
+        setError('That’s a Google Drive link — switch to “Google Drive link” above so it’s filed as one');
+        return;
+      }
+      if (!urlValid) {
+        setError('Paste the full web address — it has to start with https:// or http://');
+        return;
+      }
     }
     setError('');
     setSaving(true);
@@ -708,7 +792,14 @@ function MaterialDialog({
       product: values.product.trim(),
       title: values.title.trim() || values.product.trim(),
       description: values.description.trim(),
-      driveLink: values.driveLink.trim()
+      // Exactly one of the three is sent populated and the other two are
+      // blanked. Before this, uploadedFileUrl was never cleared, so uploading
+      // a file and then switching back to a Drive link saved the stale upload
+      // and silently discarded the link that had just been typed.
+      driveLink: values.mode === 'drive' ? values.driveLink.trim() : '',
+      uploadedFileUrl: values.mode === 'upload' ? values.uploadedFileUrl : '',
+      customLink: values.mode === 'link' ? values.customLink.trim() : '',
+      mimeType: values.mode === 'upload' ? values.mimeType : ''
     });
   }
 
@@ -766,23 +857,86 @@ function MaterialDialog({
       </div>
 
       <div className={calcStyles.field}>
-        <label htmlFor="materialLink">Google Drive link *</label>
-        <input
-          id="materialLink"
-          type="url"
-          className={calcStyles.formControl}
-          value={values.driveLink}
-          onChange={(e) => set('driveLink', e.target.value)}
-          placeholder="https://drive.google.com/file/d/… or /drive/folders/…"
+        <label>Where is this document? *</label>
+        {/* "Google Drive link" is shortened to "Drive link" to fit a third
+            pill: .modeToggle is an inline-flex with no wrap, and it is shared
+            with Leads and Quotation history, so the label gives way rather
+            than the shared CSS. */}
+        <SegmentedToggle
+          options={[
+            { value: 'drive', label: 'Drive link' },
+            { value: 'upload', label: 'Upload a file' },
+            { value: 'link', label: 'Web link' }
+          ]}
+          value={values.mode}
+          onChange={(mode) => set('mode', mode)}
         />
-        <div className={linkTouched && !linkValid ? styles.fieldWarn : calcStyles.small}>
-          {linkTouched && !linkValid
-            ? 'That doesn’t look like a Google Drive link.'
-            : linkIsFolder
-              ? 'Folder link — “Open folder” will show every document for this product.'
-              : 'A file link opens that one document. Use a folder link when a product has several.'}
-        </div>
       </div>
+
+      {values.mode === 'drive' ? (
+        // key differentiates this from the file input below: both are a bare
+        // <input> in the same tree position, and without a key React reuses
+        // the same DOM node across a mode switch instead of remounting —
+        // which flips one node between controlled (value=) and inherently-
+        // uncontrolled (a file input can't have a value prop), triggering
+        // React's "changing a controlled input to be uncontrolled" warning.
+        <div className={calcStyles.field} key="drive">
+          <label htmlFor="materialLink">Google Drive link *</label>
+          <input
+            id="materialLink"
+            type="url"
+            className={calcStyles.formControl}
+            value={values.driveLink}
+            onChange={(e) => set('driveLink', e.target.value)}
+            placeholder="https://drive.google.com/file/d/… or /drive/folders/…"
+          />
+          <div className={linkTouched && !linkValid ? styles.fieldWarn : calcStyles.small}>
+            {linkTouched && !linkValid
+              ? 'That doesn’t look like a Google Drive link.'
+              : linkIsFolder
+                ? 'Folder link — “Open folder” will show every document for this product.'
+                : 'A file link opens that one document. Use a folder link when a product has several.'}
+          </div>
+        </div>
+      ) : values.mode === 'link' ? (
+        // Keyed for the same reason as the two below it.
+        <div className={calcStyles.field} key="link">
+          <label htmlFor="materialExternalUrl">Web link *</label>
+          <input
+            id="materialExternalUrl"
+            type="url"
+            className={calcStyles.formControl}
+            value={values.customLink}
+            onChange={(e) => set('customLink', e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=… or any web address"
+          />
+          <div className={urlTouched && (!urlValid || urlIsDrive) ? styles.fieldWarn : calcStyles.small}>
+            {urlIsDrive
+              ? 'That’s a Google Drive link — switch to “Drive link” above so it’s filed as one and can’t be added twice.'
+              : urlTouched && !urlValid
+                ? 'Enter a full web address, starting with https:// or http://.'
+                : 'Any page on the web — a product video, a supplier’s page, a Dropbox or OneDrive share. “Open” takes people straight to it.'}
+          </div>
+        </div>
+      ) : (
+        <div className={calcStyles.field} key="upload">
+          <label htmlFor="materialUpload">File *</label>
+          <input
+            id="materialUpload"
+            type="file"
+            disabled={uploading}
+            onChange={(e) => handleFileSelected(e.target.files?.[0] || null)}
+          />
+          {uploading && <div className={calcStyles.small}>Uploading…</div>}
+          {!uploading && values.uploadedFileUrl && (
+            <div className={calcStyles.small}>
+              Uploaded{values.uploadedFileName ? `: ${values.uploadedFileName}` : ''} —{' '}
+              <a href={values.uploadedFileUrl} target="_blank" rel="noreferrer">View file</a>
+            </div>
+          )}
+          <div className={calcStyles.small}>Up to 10MB. For a larger file — a long product video, say — use a Drive link or a web link instead.</div>
+        </div>
+      )}
 
       <div className={calcStyles.field}>
         <label htmlFor="materialTitle">Document name</label>
@@ -810,8 +964,22 @@ function MaterialDialog({
       </div>
 
       <div className={styles.formNote}>
-        MatrixIQ stores the <strong>link</strong>, not the file. Anyone opening it needs access in Drive — if it’s set
-        to “Restricted”, share it with the team first.
+        {values.mode === 'drive' ? (
+          <>
+            MatrixIQ stores the <strong>link</strong>, not the file. Anyone opening it needs access in Drive — if
+            it’s set to “Restricted”, share it with the team first.
+          </>
+        ) : values.mode === 'link' ? (
+          <>
+            MatrixIQ stores the <strong>link</strong>, not the page. Open it in a private window before you add it —
+            if it needs a sign-in the team doesn’t have, “Open” will lead nowhere.
+          </>
+        ) : (
+          <>
+            The file itself is uploaded and stored in MatrixIQ — every signed-in employee can open it directly, with
+            no Drive access needed.
+          </>
+        )}
       </div>
     </Modal>
   );

@@ -73,6 +73,25 @@
 .stepSkipped { opacity: 0.55; text-decoration: line-through; }
 .stepSkippedNote { text-decoration: none; font-size: 11px; opacity: 0.85; }
 
+/* Always-visible Project Brief panel — see the comment above it in the
+   component for why it sits above the tabs rather than inside one. */
+.briefPanel { margin: 14px 0; border-left: 3px solid var(--mx-indigo-500); background: var(--mx-surface-sunken); padding: 14px 16px; border-radius: 8px; }
+.briefPanelTitle { font-weight: 600; margin-bottom: 6px; font-size: 12px; color: var(--mx-ink-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+.briefPanelBody { font-size: 14.5px; line-height: 1.55; white-space: pre-wrap; }
+.briefPanelEmpty { font-size: 13.5px; color: var(--mx-ink-muted); }
+
+/* "Close as Won" checklist — each requirement's live status. Green once
+   satisfied (including by what is typed into this same modal, unsaved),
+   amber while still missing. */
+.wonChecklistRow { padding: 10px 0; border-bottom: 1px solid var(--mx-slate-200); }
+.wonChecklistRow:last-child { border-bottom: none; }
+.wonChecklistHead { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+.wonChecklistHead svg { flex-shrink: 0; }
+.wonChecklistOk { color: var(--mx-success); }
+.wonChecklistMissing { color: var(--mx-amber-800); }
+.wonChecklistBody { margin-top: 8px; }
+.wonChecklistHint { font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 4px; }
+
 /* The "not required for this project" checkbox row under the stepper. */
 .skipStagesRow {
   display: flex;

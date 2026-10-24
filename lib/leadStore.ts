@@ -20,6 +20,8 @@ const LEAD_FIELDS = [
   { name: 'designation' },
   { name: 'company' },
   { name: 'city' },
+  { name: 'company_address' },
+  { name: 'reference' },
   { name: 'card_image_url' },
   { name: 'interests', kind: 'json' as const },
   { name: 'sub_interests', kind: 'json' as const },
@@ -287,6 +289,10 @@ export interface CreateOrMergeLeadInput {
   designation: string;
   company: string;
   city: string;
+  // Both optional — omitted entirely by callers that don't collect them
+  // (bulk import, Meta), same default-to-'' treatment as altMobile above.
+  companyAddress?: string;
+  reference?: string;
   cardImageUrl: string;
   interests: DomainKey[];
   subInterests: string[];
@@ -361,6 +367,8 @@ export async function createOrMergeLead(input: CreateOrMergeLeadInput, actorUser
       email: input.email || duplicate.email,
       designation: input.designation || duplicate.designation,
       city: input.city || duplicate.city,
+      company_address: input.companyAddress || duplicate.company_address,
+      reference: input.reference || duplicate.reference,
       card_image_url: input.cardImageUrl || duplicate.card_image_url,
       interests: unionStrings(duplicate.interests, input.interests) as DomainKey[],
       sub_interests: unionStrings(duplicate.sub_interests, input.subInterests),
@@ -386,6 +394,8 @@ export async function createOrMergeLead(input: CreateOrMergeLeadInput, actorUser
     designation: input.designation,
     company: input.company,
     city: input.city,
+    company_address: input.companyAddress || '',
+    reference: input.reference || '',
     card_image_url: input.cardImageUrl,
     interests: input.interests,
     sub_interests: input.subInterests,

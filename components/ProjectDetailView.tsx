@@ -23,7 +23,9 @@ import {
   Hourglass,
   Download,
   Loader2,
-  Pencil
+  Pencil,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import {
   CustomerResponseRecord,
@@ -68,6 +70,7 @@ import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import ProjectDeadlineExtendModal from './ProjectDeadlineExtendModal';
+import PartnerSubmissionReviewPanel from './PartnerSubmissionReviewPanel';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import { LOST_REASONS, LOST_REASON_LABEL, LostReason } from '@/lib/salesStageRules';
 import ProjectSourceField from './ui/ProjectSourceField';
@@ -85,7 +88,7 @@ import { OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@
 // reloading the page's data and overwriting whatever had been typed since.
 // Now the whole card is one form with one Save.
 type OverviewField =
-  | 'projectName'
+  | 'projectName' | 'projectBrief'
   | 'clientName' | 'company' | 'contactPerson' | 'altContactPhone' | 'phone' | 'email' | 'address' | 'source'
   | 'priority' | 'status' | 'stage' | 'coldCallResponded' | 'nextFollowUpDate'
   | 'closingProbabilityPercent' | 'approxPrice'
@@ -106,6 +109,7 @@ const OVERVIEW_PATCH_KEY: Partial<Record<OverviewField, string>> = { projectName
 function savedOverviewValue(project: ProjectRecord, field: OverviewField): string {
   switch (field) {
     case 'projectName': return project.project_name || '';
+    case 'projectBrief': return project.project_brief || '';
     case 'clientName': return project.client_name || '';
     case 'company': return project.company || '';
     case 'contactPerson': return project.contact_person || '';
@@ -291,6 +295,11 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // re-derived from role name, since an admin can toggle a role's
   // privileged status independently of what the role is called.
   const isPrivileged = currentUser.isPrivileged;
+  // Sales members offered when accepting a partner submission. Fetched from
+  // the lead-assignee endpoint (same "who counts as a sales rep" rule), with
+  // /api/users/lite as the fallback for a viewer that endpoint refuses —
+  // better a wider list than an empty dropdown that blocks the review.
+  const [salesPeople, setSalesPeople] = useState<{ id: string; username: string; name: string }[]>([]);
   const isTechnical = isTechnicalRole(currentUser.role);
   const [data, setData] = useState<DetailResponse | null>(null);
   const [status, setStatus] = useState('Loading...');
@@ -468,6 +477,20 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  useEffect(() => {
+    if (!data?.project.partner_id) return;
+    let cancelled = false;
+    fetch('/api/leads/assignees')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => {
+        if (cancelled) return;
+        if (body?.assignees) setSalesPeople(body.assignees);
+        else return fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then((u) => { if (!cancelled) setSalesPeople(u); });
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [data?.project.partner_id]);
 
   const canEdit = useMemo(() => isPrivileged || data?.project.created_by === currentUser.username, [isPrivileged, data, currentUser.username]);
 
@@ -987,6 +1010,18 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [closeLostOpen, setCloseLostOpen] = useState(false);
   const [lostReason, setLostReason] = useState<LostReason | ''>('');
 
+  // The Won checklist dialog. The server has always demanded project_name,
+  // company, a quotation, and PO details before allowing Won (see
+  // lib/salesStageRules.ts's STATUS_GATES and the PATCH route's won-closing
+  // gate) — what was missing was anywhere on screen that said so before the
+  // request came back with a wall of text naming fields nobody knew were
+  // required. This dialog shows the checklist live and, for the three plain
+  // text fields plus the PO, lets it be completed right here instead of
+  // bouncing to the Overview tab and back.
+  const [closeWonOpen, setCloseWonOpen] = useState(false);
+  const [wonDraft, setWonDraft] = useState({ projectName: '', company: '', projectBrief: '', poNumber: '', poValue: '', poDate: '' });
+  const [savingWon, setSavingWon] = useState(false);
+
   async function handleCloseProject() {
     if (!data) return;
     const won = await confirm({ title: 'Close project', message: 'Close this project as won or lost?', confirmLabel: 'Won', cancelLabel: 'Lost' });
@@ -997,16 +1032,22 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       // points at the existing Technical Person picker rather than asking
       // inline: an assignment has to go through that approval request (with
       // its note and needed-by), and a second way to start one would fork
-      // that flow.
+      // that flow. Kept as its own early check, outside the checklist dialog
+      // below — unlike the others, there is nothing to type here, only a
+      // picker to use, so a dialog row for it would just repeat this toast.
       if (!data.project.assigned_technical_person_id && !data.technicalRequests.length) {
         toast.error('Assign a technical owner first — use "Request a technical person" in the Technical Person field below, then close as won.');
         return;
       }
-      if (!(await confirm({ message: 'Close this project as Won? This updates the final stage.', danger: true }))) return;
-      // 'completed' is a retired Project Progress stage — closing as Won now
-      // sets status directly instead (stage stays at whatever it already
-      // was, e.g. PO Received).
-      await patchProject({ status: 'won' });
+      setWonDraft({
+        projectName: data.project.project_name || '',
+        company: data.project.company || '',
+        projectBrief: data.project.project_brief || '',
+        poNumber: '',
+        poValue: '',
+        poDate: ''
+      });
+      setCloseWonOpen(true);
       return;
     }
 
@@ -1024,6 +1065,32 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     if (saved) setCloseLostOpen(false);
   }
 
+  async function handleConfirmCloseWon() {
+    const hasLinkedPo = (data?.purchaseOrders.length ?? 0) > 0;
+    const patch: Record<string, unknown> = { status: 'won' };
+    // project_name is the one field the PATCH route reads in snake_case (see
+    // OVERVIEW_PATCH_KEY's comment above) — every other field here is
+    // camelCase, matching the route's body.company/body.projectBrief.
+    if (wonDraft.projectName.trim()) patch.project_name = wonDraft.projectName.trim();
+    if (wonDraft.company.trim()) patch.company = wonDraft.company.trim();
+    if (wonDraft.projectBrief.trim()) patch.projectBrief = wonDraft.projectBrief.trim();
+    // A PO already on record (the Purchase Orders tab) is what the server
+    // judges the gate against regardless — these are only sent as the
+    // fallback it uses when none exists yet, same as typing them straight
+    // into the Purchase Orders tab would do.
+    if (!hasLinkedPo) {
+      if (wonDraft.poNumber.trim()) patch.poNumber = wonDraft.poNumber.trim();
+      if (wonDraft.poValue.trim()) patch.poValue = Number(wonDraft.poValue);
+      if (wonDraft.poDate) patch.poDate = wonDraft.poDate;
+    }
+    setSavingWon(true);
+    try {
+      if (await patchProject(patch)) setCloseWonOpen(false);
+    } finally {
+      setSavingWon(false);
+    }
+  }
+
   if (status && !data) {
     return (
       <AppShell title="Project Detail" subtitle="Loading…">
@@ -1036,6 +1103,19 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
   const { project, siteVisits, quotations, demos, responses, negotiations, purchaseOrders, installations, deliveryChallans, marketingRequests, deadlineExtensions, deadlineTier, linkedLead, technicalRequests, canAssignSalesPerson } = data;
   const currentIdx = stageIndex(project.stage);
+  // "Close as Won" checklist — recomputed on every render so each row's icon
+  // and the button's disabled state track wonDraft live as it is typed.
+  // Quotation and PO are existence checks against separate tables (never
+  // fields on wonDraft itself), mirroring exactly what the PATCH route
+  // checks server-side.
+  const wonHasProjectName = wonDraft.projectName.trim().length > 0;
+  const wonHasCompany = wonDraft.company.trim().length > 0;
+  const wonHasBrief = wonDraft.projectBrief.trim().length > 0;
+  const wonHasQuotation = quotations.length > 0;
+  const wonHasLinkedPo = purchaseOrders.length > 0;
+  const wonHasPoDraft = wonDraft.poNumber.trim().length > 0 && wonDraft.poValue.trim().length > 0 && !!wonDraft.poDate;
+  const wonHasPo = wonHasLinkedPo || wonHasPoDraft;
+  const wonReady = wonHasProjectName && wonHasCompany && wonHasBrief && wonHasQuotation && wonHasPo;
   // Installation/Completed are retired Project Progress stages (existing
   // records may still carry them, but no project can be set to them going
   // forward) — the select still needs to render the CURRENT value correctly
@@ -1066,7 +1146,19 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     .sort((a, b) => (a.at < b.at ? 1 : -1));
   const latestQuotation = [...quotations].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
   const latestDemo = [...demos].sort((a, b) => (a.scheduled_at < b.scheduled_at ? 1 : -1))[0];
-  const technicalTeam = [...new Set([...demos.flatMap((d) => d.technical_members), ...demos.map((d) => d.assigned_technical_person), ...siteVisits.flatMap((v) => v.team_technical)].filter(Boolean))];
+  // The formally assigned lead (project.assigned_technical_person_name — set
+  // once a technical-person request is approved or a direct assignment is
+  // made, see lib/projectTechnicalRequest.ts's applyTechnicalAssignment) has
+  // to be in this set explicitly: a freshly-approved project with no demo or
+  // site visit logged yet would otherwise have nothing here at all and the
+  // card would wrongly read "Unassigned" despite a real, approved assignment.
+  const technicalTeam = [
+    ...new Set(
+      [project.assigned_technical_person_name, ...demos.flatMap((d) => d.technical_members), ...demos.map((d) => d.assigned_technical_person), ...siteVisits.flatMap((v) => v.team_technical)].filter(
+        Boolean
+      )
+    )
+  ];
   const skippedStages = project.skipped_stages ?? [];
   // Show Save only once the pick actually differs from what is stored — both
   // sides are canonically ordered by parseProjectDepartments/the picker, so a
@@ -1097,6 +1189,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             Created From Lead: <strong>{linkedLead.name}</strong>{' '}
             <Link className={historyStyles.button} href="/leads" style={{ marginLeft: 8 }}>Open Lead</Link>
           </div>
+        )}
+
+        {project.partner_id && (
+          <PartnerSubmissionReviewPanel project={project} salesPeople={salesPeople} onReviewed={load} />
         )}
 
         {project.lead_confirmation_status === 'pending_confirmation' && project.created_by === currentUser.username && (
@@ -1232,6 +1328,28 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={historyStyles.projectProgressRingLabel}>Progress</div>
             </div>
           </div>
+        </div>
+
+        {/* Always visible, independent of which tab is open — the problem
+            this exists for: a technical person landing on this page could
+            not tell what the project actually was without reading through
+            Quotations/Negotiations/Notes looking for it. Read-only here;
+            edited from the Overview tab's own Project Brief field above. */}
+        <div className={styles.briefPanel}>
+          <div className={styles.briefPanelTitle}>Project Brief</div>
+          {project.project_brief ? (
+            <div className={styles.briefPanelBody}>{project.project_brief}</div>
+          ) : (
+            <div className={styles.briefPanelEmpty}>
+              Not written yet — required before this project can close as Won.
+              {canEdit && (
+                <>
+                  {' '}
+                  <button type="button" className={styles.techPendingLink} onClick={() => setTab('overview')}>Add it in Overview</button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Project Progress Timeline — green done, blue current, grey pending, red delayed */}
@@ -1651,6 +1769,24 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     onKeyDown={overviewKeyDown}
                   />
                 ) : <div className={calcStyles.small}>{project.project_name || '-'}</div>}
+              </div>
+              {/* Required before Won (lib/salesStageRules.ts) — this is the
+                  one new field from that request: a plain-language summary
+                  so the technical team taking the project over at Won does
+                  not have to reconstruct what it even is from Approx. Price
+                  and a quotation total. Also shown read-only, unconditionally,
+                  above the tabs — see the always-visible panel below. */}
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Project Brief</label>
+                {canEdit ? (
+                  <textarea
+                    className={calcStyles.formControl}
+                    rows={3}
+                    placeholder="What is this project, in plain language? What is being delivered, and anything the technical team should know before starting."
+                    value={overviewValue('projectBrief')}
+                    onChange={(e) => setOverviewField('projectBrief', e.target.value)}
+                  />
+                ) : <div className={calcStyles.small}>{project.project_brief || '-'}</div>}
               </div>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Client Representative Name</label>
@@ -2263,6 +2399,133 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                   <option key={reason} value={reason}>{LOST_REASON_LABEL[reason]}</option>
                 ))}
               </select>
+            </div>
+          </Modal>
+        )}
+
+        {/* "Close as Won" checklist. Every row here is already enforced
+            server-side (lib/salesStageRules.ts's STATUS_GATES, plus the
+            quotation-existence check in the PATCH route) — this dialog's job
+            is only to show that checklist BEFORE the attempt instead of
+            after it fails, and to let the three text fields plus a missing
+            PO be completed right here. */}
+        {closeWonOpen && (
+          <Modal
+            title="Close project as Won"
+            ariaLabel="Close project as Won"
+            onClose={() => setCloseWonOpen(false)}
+            size="wide"
+            footer={
+              <>
+                <ModalCancelButton onClick={() => setCloseWonOpen(false)}>Cancel</ModalCancelButton>
+                <ModalOkButton disabled={!wonReady || savingWon} onClick={handleConfirmCloseWon}>
+                  {savingWon ? 'Closing…' : 'Close as Won'}
+                </ModalOkButton>
+              </>
+            }
+          >
+            <p className={calcStyles.small}>
+              This finalises the project as Won and hands it to the technical team. Everything below is required first.
+            </p>
+
+            <div className={styles.wonChecklistRow}>
+              <div className={wonHasProjectName ? styles.wonChecklistOk : styles.wonChecklistMissing}>
+                <div className={styles.wonChecklistHead}>
+                  {wonHasProjectName ? <CheckCircle2 size={16} /> : <XCircle size={16} />} Project Name
+                </div>
+              </div>
+              <div className={styles.wonChecklistBody}>
+                <input
+                  className={calcStyles.formControl}
+                  placeholder="e.g. MeetIQ - Adani"
+                  value={wonDraft.projectName}
+                  onChange={(e) => setWonDraft((d) => ({ ...d, projectName: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className={styles.wonChecklistRow}>
+              <div className={wonHasCompany ? styles.wonChecklistOk : styles.wonChecklistMissing}>
+                <div className={styles.wonChecklistHead}>
+                  {wonHasCompany ? <CheckCircle2 size={16} /> : <XCircle size={16} />} Company Name
+                </div>
+              </div>
+              <div className={styles.wonChecklistBody}>
+                <input
+                  className={calcStyles.formControl}
+                  value={wonDraft.company}
+                  onChange={(e) => setWonDraft((d) => ({ ...d, company: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className={styles.wonChecklistRow}>
+              <div className={wonHasBrief ? styles.wonChecklistOk : styles.wonChecklistMissing}>
+                <div className={styles.wonChecklistHead}>
+                  {wonHasBrief ? <CheckCircle2 size={16} /> : <XCircle size={16} />} Project Brief
+                </div>
+                <div className={styles.wonChecklistHint}>What is this project, in plain language — for the technical team taking it over.</div>
+              </div>
+              <div className={styles.wonChecklistBody}>
+                <textarea
+                  className={calcStyles.formControl}
+                  rows={3}
+                  placeholder="What is being delivered, and anything the technical team should know before starting."
+                  value={wonDraft.projectBrief}
+                  onChange={(e) => setWonDraft((d) => ({ ...d, projectBrief: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className={styles.wonChecklistRow}>
+              <div className={wonHasQuotation ? styles.wonChecklistOk : styles.wonChecklistMissing}>
+                <div className={styles.wonChecklistHead}>
+                  {wonHasQuotation ? <CheckCircle2 size={16} /> : <XCircle size={16} />} Quotation
+                </div>
+                {!wonHasQuotation && (
+                  <div className={styles.wonChecklistHint}>
+                    No quotation exists on this project yet.{' '}
+                    <button type="button" className={styles.techPendingLink} onClick={() => { setCloseWonOpen(false); setTab('quotations'); }}>
+                      Create one
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className={styles.wonChecklistRow}>
+              <div className={wonHasPo ? styles.wonChecklistOk : styles.wonChecklistMissing}>
+                <div className={styles.wonChecklistHead}>
+                  {wonHasPo ? <CheckCircle2 size={16} /> : <XCircle size={16} />} Purchase Order
+                </div>
+              </div>
+              {wonHasLinkedPo ? (
+                <div className={styles.wonChecklistHint}>Already on record — see the Purchase Orders tab.</div>
+              ) : (
+                <div className={styles.wonChecklistBody}>
+                  <input
+                    className={calcStyles.formControl}
+                    placeholder="PO Number"
+                    value={wonDraft.poNumber}
+                    onChange={(e) => setWonDraft((d) => ({ ...d, poNumber: e.target.value }))}
+                  />
+                  <input
+                    className={calcStyles.formControl}
+                    type="number"
+                    placeholder="PO Value"
+                    value={wonDraft.poValue}
+                    onChange={(e) => setWonDraft((d) => ({ ...d, poValue: e.target.value }))}
+                    style={{ marginTop: 8 }}
+                  />
+                  <input
+                    className={calcStyles.formControl}
+                    type="date"
+                    value={wonDraft.poDate}
+                    onChange={(e) => setWonDraft((d) => ({ ...d, poDate: e.target.value }))}
+                    style={{ marginTop: 8 }}
+                  />
+                </div>
+              )}
             </div>
           </Modal>
         )}

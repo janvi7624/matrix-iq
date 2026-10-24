@@ -6,7 +6,14 @@ import styles from './popover.module.css';
 
 export interface PopoverProps {
   trigger: ReactNode;
-  children: ReactNode;
+  // A function form is accepted so a panel that offers ACTIONS (rather than
+  // just showing information) can dismiss itself when one is chosen — the
+  // panel stops click propagation, so the outside-click handler below never
+  // fires for its own contents, and a menu left standing over the dialog it
+  // just opened is both wrong-looking and, since the panel carries
+  // role="dialog" too, ambiguous to assistive tech. Existing callers pass a
+  // plain node and are unaffected.
+  children: ReactNode | ((close: () => void) => ReactNode);
   triggerClassName?: string;
   ariaLabel: string;
 }
@@ -91,7 +98,7 @@ export default function Popover({ trigger, children, triggerClassName, ariaLabel
             style={{ top: coords.top, left: coords.left }}
             onClick={(e) => e.stopPropagation()}
           >
-            {children}
+            {typeof children === 'function' ? children(() => setOpen(false)) : children}
           </div>,
           document.body
         )}

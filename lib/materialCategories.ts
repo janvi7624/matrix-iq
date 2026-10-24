@@ -52,7 +52,12 @@ export function isMaterialCategory(value: unknown): value is MaterialCategory {
 // API in the picture nothing reads the file, so this works off the name the
 // person typed — which is why a wrong guess has to be harmless: it only ever
 // picks an icon.
-export type MaterialFileKind = 'pdf' | 'doc' | 'sheet' | 'slide' | 'image' | 'video' | 'archive' | 'folder' | 'file';
+// 'link' is not a document kind at all but a statement that the material
+// lives on somebody else's website — worth its own mark, because a web page
+// titled "X200 spec.pdf" would otherwise wear a PDF icon and read as a file
+// sitting in the library. Decided from the row's source, not from the mime
+// type, so it is set in materialStore's toRecord rather than here.
+export type MaterialFileKind = 'pdf' | 'doc' | 'sheet' | 'slide' | 'image' | 'video' | 'archive' | 'folder' | 'file' | 'link';
 
 export function fileKindFromMime(mimeType: string, fileName = ''): MaterialFileKind {
   const mime = (mimeType || '').toLowerCase();

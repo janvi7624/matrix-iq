@@ -365,3 +365,57 @@ describe('display formatting', () => {
     expect(formatIst(new Date('2026-10-20T05:30:00Z'))).toBe('2026-10-20 11:00 IST');
   });
 });
+
+// The tracking start date — the day the module began counting. October was
+// spent rehearsing the scheduler in dry-run, which claimed every notification
+// slot without sending anything, so those dates were never really tracked.
+// Counting them would have shown the whole company weeks behind on reports
+// nobody was ever asked for.
+describe('tracking start date', () => {
+  const TRACKED: DeadlinePolicy = { ...MON_SAT, trackingStartDate: '2026-10-24' };
+
+  it('is opt-in, so the date arithmetic is unchanged without one', () => {
+    // Every other test in this file relies on this: a policy with no floor
+    // behaves exactly as it did before the floor existed.
+    expect(workingDaysBetween('2026-10-05', '2026-10-07', MON_SAT)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07']);
+  });
+
+  it('reports nothing expected for a range entirely before it', () => {
+    // [] is what makes past "missing" counts read as zero: the period summary
+    // treats no obligation as a null compliance percentage, not 0%.
+    expect(workingDaysBetween('2026-10-01', '2026-10-23', TRACKED)).toEqual([]);
+  });
+
+  it('clips a range that straddles it rather than refusing the whole thing', () => {
+    // 2026-10-25 is a Sunday, so Saturday the 24th is followed by Monday 26th.
+    expect(workingDaysBetween('2026-10-01', '2026-10-26', TRACKED)).toEqual(['2026-10-24', '2026-10-26']);
+  });
+
+  it('leaves a range that starts after it completely alone', () => {
+    expect(workingDaysBetween('2026-10-26', '2026-10-28', TRACKED)).toEqual(['2026-10-26', '2026-10-27', '2026-10-28']);
+  });
+
+  it('counts the start date itself', () => {
+    // An off-by-one here would silently drop day one for everybody.
+    expect(workingDaysBetween('2026-10-24', '2026-10-24', TRACKED)).toEqual(['2026-10-24']);
+  });
+
+  it('still honours the working-day rules inside the tracked range', () => {
+    const withHoliday: DeadlinePolicy = { ...TRACKED, holidays: ['2026-10-26'], observeHolidays: true };
+    expect(workingDaysBetween('2026-10-01', '2026-10-27', withHoliday)).toEqual(['2026-10-24', '2026-10-27']);
+  });
+
+  it('stops the back arrow at the start date', () => {
+    // '' is the sentinel DailyReportView already renders as a disabled button
+    // reading "No earlier day in your history".
+    expect(navigableWorkingDays('2026-10-24', '2026-10-28', TRACKED).prev).toBe('');
+    // ...but stepping back WITHIN the tracked range still works: 2026-10-25
+    // is a Sunday, so Monday the 26th steps back to Saturday the 24th.
+    expect(navigableWorkingDays('2026-10-26', '2026-10-28', TRACKED).prev).toBe('2026-10-24');
+  });
+
+  it('leaves the forward arrow governed by today, not by the floor', () => {
+    expect(navigableWorkingDays('2026-10-24', '2026-10-28', TRACKED).next).toBe('2026-10-26');
+    expect(navigableWorkingDays('2026-10-28', '2026-10-28', TRACKED).next).toBe('');
+  });
+});

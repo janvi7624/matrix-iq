@@ -6,7 +6,7 @@ import { FolderKanban } from 'lucide-react';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
 import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
 import { findClosestClient } from '@/lib/clientSimilarity';
-import { CLOSED_PROJECT_HIDE_AFTER_DAYS, isAgedClosedProject } from '@/lib/projectVisibility';
+import { closedProjectsVisible, isClosedProject } from '@/lib/projectVisibility';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { exportListToPdf } from '@/lib/exportPdf';
 import { formatMoneyCompact } from '@/lib/format';
@@ -44,6 +44,7 @@ import FilterPanel, {
 } from './ui/FilterPanel';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import Modal, { ModalCancelButton } from './ui/Modal';
 import ProjectSourceField from './ui/ProjectSourceField';
 import ProjectLeadField from './ui/ProjectLeadField';
 import OpportunityTypeField from './ui/OpportunityTypeField';
@@ -177,6 +178,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // just reaching another button in that row made the layout jump. Click is
   // deliberate and stays put, so it's a plain per-row toggle instead.
   const [expandedRemarkIds, setExpandedRemarkIds] = useState<Set<string>>(new Set());
+  // The project shown in the quick-view popup, or null. A popup rather than an
+  // inline expanding panel: the panel grew the row and pushed the rest of the
+  // list down, so reading one project meant scrolling to find your place again.
+  const [quickView, setQuickView] = useState<ProjectRecord | null>(null);
   function toggleRemarkExpanded(id: string) {
     setExpandedRemarkIds((prev) => {
       const next = new Set(prev);
@@ -244,6 +249,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [fPriority, setFPriority] = useState<ProjectPriority | ''>('');
   const [fFrom, setFFrom] = useState('');
   const [fTo, setFTo] = useState('');
+  // An explicit "show me the finished ones too", independent of the other
+  // filters, so the hidden-count notice has something to offer.
+  const [includeClosed, setIncludeClosed] = useState(false);
   const [fSearch, setFSearch] = useState('');
   const [fClosingPreset, setFClosingPreset] = useState<ClosingDatePreset>('all');
   const [fClosingFrom, setFClosingFrom] = useState('');
@@ -391,26 +399,35 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     });
   }, [projects, fLead, selectedLead, fType, fDepartment, fSalesPerson, fSource, fStage, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
 
+  // Any date range in play means closed deals belong in the answer: someone
+  // searching a range is asking what happened then, and omitting everything
+  // that closed would make the search quietly wrong. Covers both the created
+  // range and the expected-closing range.
+  const dateFilterActive = Boolean(fFrom || fTo || closingRange.from || closingRange.to);
+  const showClosed = closedProjectsVisible({
+    statusFilter: fStatus,
+    dateFilterActive,
+    userOverride: includeClosed
+  });
+
   const filtered = useMemo(() => {
-    const now = new Date();
     return filteredExceptStatus.filter((p) => {
       if (fStatus) return p.status === fStatus;
-      // No explicit Won/Lost pick -> a deal closed long ago drops out of the
-      // default view (it was piling up alongside everything still active).
-      // Picking Won or Lost still shows every one of them, however old — see
-      // lib/projectVisibility.ts. Unchanged behaviour, just relocated so the
-      // clause sits with the status test it depends on.
-      return !isAgedClosedProject(p, now);
+      // Finished work is out of the default view. Not age-based: see
+      // lib/projectVisibility.ts for why 90 days hid nothing at all.
+      return showClosed || !isClosedProject(p);
     });
-  }, [filteredExceptStatus, fStatus]);
+  }, [filteredExceptStatus, fStatus, showClosed]);
 
-  // Surfaced next to the filter bar so the auto-hide above never looks like
-  // data went missing — see the comment in the filter itself.
-  const hiddenAgedClosedCount = useMemo(() => {
-    if (fStatus) return 0;
-    const now = new Date();
-    return projects.filter((p) => isAgedClosedProject(p, now)).length;
-  }, [projects, fStatus]);
+  // Surfaced next to the filter bar so hiding never looks like data went
+  // missing. Counted off filteredExceptStatus rather than the raw list, so
+  // the number describes what THIS view is holding back — a count of every
+  // closed project in the database would be a different, misleading fact
+  // when a department or lead filter is also on.
+  const hiddenClosedCount = useMemo(() => {
+    if (showClosed) return 0;
+    return filteredExceptStatus.filter((p) => isClosedProject(p)).length;
+  }, [filteredExceptStatus, showClosed]);
 
   // KPI tiles (Part 1.3) — deliberately derived from `filtered`, never
   // `projects`, so they can never show a stale count against the visible
@@ -582,6 +599,27 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     );
   }
 
+  // The three fields the table no longer has room for. Defined once and used
+  // by the quick-view popup so there is a single rendering of each — the old
+  // columns and a second copy in the popup would have drifted.
+  function renderStatus(p: ProjectRecord) {
+    return p.status === 'won' || p.status === 'lost' ? (
+      <StatusBadge tone={p.status} label={p.status === 'lost' ? 'Closed Lost' : STATUS_LABEL[p.status]} />
+    ) : (
+      <>{STATUS_LABEL[p.status]}</>
+    );
+  }
+
+  function renderConfirmation(p: ProjectRecord) {
+    return p.lead_confirmation_status === 'pending_confirmation' ? (
+      <StatusBadge tone="pending" label="Pending Confirmation" />
+    ) : p.lead_confirmation_status === 'confirmed' ? (
+      <StatusBadge tone="confirmed" label="Confirmed" />
+    ) : (
+      <>-</>
+    );
+  }
+
   const columns: TableColumn<ProjectRecord>[] = [
     {
       key: 'client',
@@ -607,7 +645,33 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         </>
       )
     },
-    { key: 'source', header: 'Source', headerClassName: historyStyles.colSource, render: (p) => p.source || '-' },
+    {
+      key: 'source',
+      header: 'Source',
+      headerClassName: historyStyles.colSource,
+      // Partner-sourced projects carry the partner's name and code under the
+      // source, and an "Awaiting review" marker while Sales has not yet
+      // accepted them — the requirement that these be visibly identified as
+      // partner-sourced wherever they appear.
+      render: (p) =>
+        p.partner_name ? (
+          <>
+            {p.source || 'Partner'}
+            <div className={calcStyles.small}>
+              {p.partner_name} ({p.partner_code})
+            </div>
+            {(p.partner_submission_status === 'submitted' || p.partner_submission_status === 'info_requested') && (
+              <div className={calcStyles.small}>
+                <strong>
+                  {p.partner_submission_status === 'submitted' ? 'Awaiting review' : 'Info requested'}
+                </strong>
+              </div>
+            )}
+          </>
+        ) : (
+          p.source || '-'
+        )
+    },
     {
       key: 'approxPrice',
       // Header names what is actually being shown: filtering to AI turns this
@@ -627,32 +691,14 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       )
     },
     { key: 'stage', header: 'Stage', headerClassName: historyStyles.colStage, render: (p) => STAGE_LABEL[p.stage] },
-    {
-      key: 'status',
-      header: 'Status',
-      headerClassName: historyStyles.colStatus,
-      render: (p) =>
-        p.status === 'won' || p.status === 'lost' ? (
-          <StatusBadge tone={p.status} label={p.status === 'lost' ? 'Closed Lost' : STATUS_LABEL[p.status]} />
-        ) : (
-          STATUS_LABEL[p.status]
-        )
-    },
-    {
-      key: 'confirmation',
-      header: 'Confirmation',
-      headerClassName: historyStyles.colConfirmation,
-      render: (p) =>
-        p.lead_confirmation_status === 'pending_confirmation' ? (
-          <div className={historyStyles.wrapBadge}><StatusBadge tone="pending" label="Pending Confirmation" /></div>
-        ) : p.lead_confirmation_status === 'confirmed' ? (
-          <div className={historyStyles.wrapBadge}><StatusBadge tone="confirmed" label="Confirmed" /></div>
-        ) : (
-          '-'
-        )
-    },
-    { key: 'updated', header: 'Last Updated', headerClassName: historyStyles.colUpdated, render: (p) => formatDateTime(p.updated_at) },
-    { key: 'nextFollowUp', header: 'Next Follow-up', headerClassName: historyStyles.colNextFollowUp, render: (p) => formatDate(p.next_follow_up_date) },
+    // Status, Confirmation, Next Follow-up and Last Updated used to sit here.
+    // Fifteen columns could not fit any screen — measured in the browser, the
+    // table needed 1420px against 968px available at 1280px wide and 1384px
+    // at 1920px, so it scrolled sideways at EVERY size. All four are in the
+    // quick-view popup instead, and Status additionally survives in the
+    // Progress column, which already prints "Won" and "Closed Lost" in place
+    // of a percentage. Last Updated went last, to free the width two row
+    // buttons need.
     {
       key: 'closingProbability',
       header: 'Closing %',
@@ -722,12 +768,32 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     {
       key: 'actions',
       header: '',
-      headerClassName: historyStyles.colActions,
+      headerClassName: historyStyles.colActionsWide,
       cellClassName: historyStyles.rowActionsInline,
       render: (p) => (
         <>
-          <Link className={historyStyles.button} href={`/projects/${p.id}`}>
+          {/* Two ways in: a popup for a quick look without losing your place
+              in the list, and the full page for the real work. A menu rather
+              than two side-by-side buttons because this column is 8% of a
+              table that must not scroll sideways — two buttons plus Delete
+              did not fit. */}
+          {/* Two plain buttons rather than a dropdown: both choices are one
+              click, and nothing has to be opened to discover what the options
+              are. Last Updated gave up its column to make room. */}
+          <button
+            type="button"
+            className={`${historyStyles.rowAction} ${historyStyles.rowActionPrimary}`}
+            onClick={() => setQuickView(p)}
+            title={`Quick view — ${p.client_name || 'project'}`}
+          >
             View
+          </button>
+          <Link
+            className={historyStyles.rowAction}
+            href={`/projects/${p.id}`}
+            title={`Open the full project page for ${p.client_name || 'this project'}`}
+          >
+            Details
           </Link>
           {isSuperAdmin && (
             <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(p.id)}>
@@ -809,6 +875,53 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         </div>
 
         {showReminders && <ProjectDetailRemindersDialog onClose={() => setShowReminders(false)} />}
+
+        {/* Quick view. A fixed-size popup, deliberately: it shows everything
+            the table dropped (Status, Confirmation, Next Follow-up) at a
+            glance, with no scrolling of its own and without moving the list
+            underneath. "Full details" is one click away for anything more. */}
+        {quickView && (
+          <Modal
+            title={quickView.client_name || quickView.company || 'Project'}
+            ariaLabel={`Quick view — ${quickView.client_name || quickView.company || 'project'}`}
+            onClose={() => setQuickView(null)}
+            // Wide so .quickFacts' auto-fit grid gets two columns: in the
+            // default card it measured 372px, which fits only one, turning
+            // twelve facts into a tall single file.
+            size="wide"
+            footer={
+              <>
+                <ModalCancelButton onClick={() => setQuickView(null)}>Close</ModalCancelButton>
+                <Link className={calcStyles.btn} href={`/projects/${quickView.id}`}>
+                  Open full details
+                </Link>
+              </>
+            }
+          >
+            <dl className={historyStyles.quickFacts}>
+              <div><dt>Company</dt><dd>{quickView.company || '-'}</dd></div>
+              <div><dt>Sales Person</dt><dd>{quickView.sales_person || '-'}</dd></div>
+              <div><dt>Department</dt><dd>{formatProjectDepartments(quickView.departments) || '-'}</dd></div>
+              <div><dt>Project Lead</dt><dd>{quickView.project_lead_name || '-'}</dd></div>
+              <div><dt>Opportunity</dt><dd>{quickView.opportunity_type ? OPPORTUNITY_TYPE_LABEL[quickView.opportunity_type] : '-'}</dd></div>
+              <div><dt>Source</dt><dd>{quickView.source || '-'}</dd></div>
+              <div><dt>Stage</dt><dd>{STAGE_LABEL[quickView.stage]}</dd></div>
+              <div><dt>Status</dt><dd>{renderStatus(quickView)}</dd></div>
+              <div><dt>Confirmation</dt><dd>{renderConfirmation(quickView)}</dd></div>
+              <div><dt>Next Follow-up</dt><dd>{formatDate(quickView.next_follow_up_date) || '-'}</dd></div>
+              <div><dt>Closing %</dt><dd>{quickView.closing_probability_percent != null ? `${quickView.closing_probability_percent}%` : '-'}</dd></div>
+              <div><dt>Last Updated</dt><dd>{formatDateTime(quickView.updated_at)}</dd></div>
+            </dl>
+            {quickView.last_remark && (
+              <div className={historyStyles.quickRemark}>
+                <div className={historyStyles.quickRemarkHead}>
+                  Last remark — {quickView.last_remark_by}, {formatDateTime(quickView.last_remark_at)}
+                </div>
+                <p>{quickView.last_remark}</p>
+              </div>
+            )}
+          </Modal>
+        )}
 
         {showForm && (
           <form className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`} onSubmit={handleCreate}>
@@ -1100,14 +1213,24 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         {!loading && !loadFailed && selectedLead && (
           <div className={historyStyles.status}>Showing projects led by {selectedLead.name} and projects {selectedLead.name} owns.</div>
         )}
-        {!loading && !loadFailed && hiddenAgedClosedCount > 0 && (
+        {!loading && !loadFailed && hiddenClosedCount > 0 && (
           <div className={historyStyles.status}>
-            {hiddenAgedClosedCount} closed project{hiddenAgedClosedCount === 1 ? '' : 's'} older than {CLOSED_PROJECT_HIDE_AFTER_DAYS} days {hiddenAgedClosedCount === 1 ? 'is' : 'are'} hidden — filter Status to Won or Lost to see {hiddenAgedClosedCount === 1 ? 'it' : 'them'}.
+            {hiddenClosedCount} closed project{hiddenClosedCount === 1 ? '' : 's'} (Won/Lost) {hiddenClosedCount === 1 ? 'is' : 'are'} hidden.{' '}
+            <button type="button" className={historyStyles.linkBtn} onClick={() => setIncludeClosed(true)}>
+              Show {hiddenClosedCount === 1 ? 'it' : 'them'}
+            </button>
+            {' '}— or filter Status to Won/Lost, or set any date range.
+          </div>
+        )}
+        {!loading && !loadFailed && includeClosed && (
+          <div className={historyStyles.status}>
+            Closed projects are shown.{' '}
+            <button type="button" className={historyStyles.linkBtn} onClick={() => setIncludeClosed(false)}>Hide them again</button>
           </div>
         )}
 
         {loading ? (
-          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={15} /></div>
+          <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={11} /></div>
         ) : loadFailed ? (
           <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
         ) : (

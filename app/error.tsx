@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { BRAND } from '@/lib/branding';
 import styles from '@/components/quotationHistory.module.css';
 
-export default function Error({ error, unstable_retry }: { error: Error & { digest?: string }; unstable_retry: () => void }) {
+export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -28,7 +28,7 @@ export default function Error({ error, unstable_retry }: { error: Error & { dige
         <p className={styles.errorBody}>An unexpected error occurred. You can try again, or head back to the dashboard.</p>
         {error.digest && <p className={styles.errorReference}>Reference: {error.digest}</p>}
         <div className={styles.errorActionsRow}>
-          <button type="button" className={`${styles.button} ${styles.primary}`} onClick={() => unstable_retry()}>
+          <button type="button" className={`${styles.button} ${styles.primary}`} onClick={() => reset()}>
             Try again
           </button>
           <Link href="/" className={styles.button}>

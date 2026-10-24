@@ -76,6 +76,9 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     created_by: opts.attributeToUsername,
     client_name: lead.name,
     company: lead.company,
+    // Not known from a lead — the sales person who completes this project
+    // writes it before Won (lib/salesStageRules.ts's STATUS_GATES).
+    project_brief: '',
     contact_person: lead.name,
     alt_contact_phone: '',
     phone: lead.mobile,
@@ -129,6 +132,18 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     assigned_technical_person_name: '',
     tms_project_id: '',
     lead_confirmation_status: opts.autoCreated ? 'pending_confirmation' : '',
+    // Partner Portal overlay — always blank here: these two paths create
+    // DIRECT projects (manual entry, and Lead -> Project automation).
+    // A partner submission is created by lib/partnerProjectStore.ts instead.
+    partner_id: '',
+    partner_submission_status: '',
+    partner_reviewed_by: '',
+    partner_reviewed_at: '',
+    partner_review_remarks: '',
+    partner_submitted_value: '',
+    partner_expected_timeline: '',
+    partner_name: '',
+    partner_code: '',
     confirmed_by: '',
     confirmed_at: '',
     timeline: [{

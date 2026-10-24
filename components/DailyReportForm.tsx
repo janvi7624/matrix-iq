@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { ArrowDown, ArrowUp, Plus, Trash2, Loader2 } from 'lucide-react';
 import {
   DailyReportFieldDef,
   DailyReportPayloadInput,
@@ -18,6 +19,7 @@ import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import Button from './ui/Button';
 import { useConfirm } from './ui/ConfirmDialog';
+import Modal, { ModalCancelButton } from './ui/Modal';
 
 // The renderer half of the form engine. One component for all eight
 // department formats, driven by the TemplateDefinition the server sends —
@@ -43,6 +45,13 @@ export interface DailyReportFormProps {
   disabled?: boolean;
   /** Needed to compute Task ID and Days Left exactly as the server will. */
   reportDate: string;
+  /**
+   * Whose auto-filled cells to look behind when one is clicked. Omitted on
+   * the employee's own page (the API defaults to the signed-in viewer);
+   * TeamDailyReportsView passes the team member's id explicitly, since
+   * there the viewer and the report's owner are different people.
+   */
+  employeeId?: string;
 }
 
 const WIDTH_CLASS: Record<NonNullable<DailyReportFieldDef['width']>, string> = {
@@ -258,9 +267,40 @@ function FieldControl({ field, row, path, issues, disabled, onFieldChange, deriv
   );
 }
 
-export default function DailyReportForm({ template, value, onChange, issues = {}, disabled = false, reportDate }: DailyReportFormProps) {
+export default function DailyReportForm({ template, value, onChange, issues = {}, disabled = false, reportDate, employeeId }: DailyReportFormProps) {
   const confirm = useConfirm();
   const entries = value.entries ?? [];
+
+  // The auto-cell detail popup — which records actually made up a clicked
+  // "4". Fetched on click (lib/salesDailyAutoFetch.ts's fetchSalesAutoDetail
+  // via /api/daily-reports/sales-auto-detail), not up front: most cells on a
+  // page like this are never clicked, so building every cell's record list
+  // on every load would be work nobody asked for.
+  const [autoDetail, setAutoDetail] = useState<{
+    measure: string;
+    channel: string;
+    loading: boolean;
+    items: { id: string; title: string; subtitle: string; href: string }[] | null;
+    error: string;
+  } | null>(null);
+
+  async function openAutoDetail(measure: string, channel: string) {
+    setAutoDetail({ measure, channel, loading: true, items: null, error: '' });
+    try {
+      const params = new URLSearchParams({ measure, channel, date: reportDate });
+      if (employeeId) params.set('employeeId', employeeId);
+      const response = await fetch(`/api/daily-reports/sales-auto-detail?${params.toString()}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setAutoDetail({ measure, channel, loading: false, items: null, error: body?.error || 'Could not load these records.' });
+        return;
+      }
+      const body: { items: { id: string; title: string; subtitle: string; href: string }[] } = await response.json();
+      setAutoDetail({ measure, channel, loading: false, items: body.items, error: '' });
+    } catch {
+      setAutoDetail({ measure, channel, loading: false, items: null, error: 'Could not reach the server.' });
+    }
+  }
   // Days-left is relative to now, not to the date being reported on, so the
   // form needs today as well as reportDate: opening a report filed last week
   // has to show the countdown as it stands now, not as it stood when filed.
@@ -405,6 +445,28 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                     </th>
                     {(template.channels ?? []).map((channel) => {
                       const cellIssue = issues[`matrix.${measure}.${channel}`];
+                      const cellCount = Number(value.matrix?.[measure]?.[channel]) || 0;
+                      // An auto cell with something in it is clickable — the
+                      // records behind that number, not just the number
+                      // (this is the whole point: "4" on its own can't be
+                      // checked, the leads/quotations it came from can). A
+                      // zero cell has nothing to show, so it stays a plain
+                      // disabled input same as before.
+                      if (isAuto && cellCount > 0) {
+                        return (
+                          <td key={channel} className={styles.numCol}>
+                            <button
+                              type="button"
+                              className={`${styles.matrixInput} ${styles.matrixInputAuto} ${styles.matrixAutoBtn}`}
+                              onClick={() => openAutoDetail(measure, channel)}
+                              title="Filled in automatically — click to see the records behind this number."
+                              aria-label={`${measure}, ${channel}: ${cellCount}. View the records behind this number.`}
+                            >
+                              {cellCount}
+                            </button>
+                          </td>
+                        );
+                      }
                       return (
                         <td key={channel} className={styles.numCol}>
                           <input
@@ -533,6 +595,37 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
             </div>
           )}
         </>
+      )}
+
+      {autoDetail && (
+        <Modal
+          title={`${autoDetail.measure} — ${autoDetail.channel}`}
+          ariaLabel={`${autoDetail.measure} — ${autoDetail.channel} records`}
+          onClose={() => setAutoDetail(null)}
+          footer={<ModalCancelButton onClick={() => setAutoDetail(null)}>Close</ModalCancelButton>}
+        >
+          {autoDetail.loading && (
+            <div className={calcStyles.small}>
+              <Loader2 size={14} className={styles.spin} /> Loading…
+            </div>
+          )}
+          {!autoDetail.loading && autoDetail.error && <div className={styles.errorText}>{autoDetail.error}</div>}
+          {!autoDetail.loading && !autoDetail.error && autoDetail.items && autoDetail.items.length === 0 && (
+            <div className={calcStyles.small}>Nothing found — the count may have changed since the page loaded. Refresh to see the latest.</div>
+          )}
+          {!autoDetail.loading && !autoDetail.error && autoDetail.items && autoDetail.items.length > 0 && (
+            <div className={styles.autoDetailList}>
+              {autoDetail.items.map((item) => (
+                <Link key={item.id} href={item.href} className={styles.autoDetailRow}>
+                  <span>
+                    <div className={styles.autoDetailTitle}>{item.title}</div>
+                    {item.subtitle && <div className={styles.autoDetailSubtitle}>{item.subtitle}</div>}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Modal>
       )}
     </div>
   );

@@ -20,8 +20,22 @@ module.exports = (sequelize, DataTypes) => {
     // Which library folder this sits in. Null = the top level, where
     // everything added before folders existed stays.
     folder_id: { type: DataTypes.UUID, allowNull: true },
+    // 'drive' | 'upload' — which of the two "add a material" paths this row
+    // came from. See 20261022110000-materials-upload-support.js for why this
+    // reuses a column name a dropped feature once used for something else.
+    source: { type: DataTypes.STRING(16), allowNull: false, defaultValue: 'drive' },
+    // The real content-type of an uploaded file (null for a Drive link,
+    // where nothing here can read the file to know it).
+    mime_type: { type: DataTypes.STRING(128), allowNull: true },
     created_by: { type: DataTypes.UUID, allowNull: true },
-    updated_by: { type: DataTypes.UUID, allowNull: true }
+    updated_by: { type: DataTypes.UUID, allowNull: true },
+    // Published to the Partner Portal. Default false — the library is
+    // internal, and holds competitor comparisons and internal decks
+    // alongside customer-facing brochures. See the 20261020097000 migration.
+    partner_visible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // [] = every partner (once visible); a populated array = only those
+    // partner ids.
+    partner_audience: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
   }, {
     tableName: 'materials',
     underscored: true,

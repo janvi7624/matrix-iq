@@ -3,6 +3,7 @@ import { ModuleConfigRecord, UserRole } from './types';
 import { db, isUuid } from './db';
 import { cached, invalidateCache } from './memoCache';
 import { TMS_ROLE_KEYS, TMS_DEPARTMENTS } from './tmsConstants';
+import { PARTNER_PORTAL_MODULE_KEYS, PARTNER_ROLE_KEYS, PARTNER_SECTION } from './partnerRoles';
 import { canAccessHrExpenseModule, isHrExpenseModule } from './hrExpenseAccess';
 
 // listModuleConfigs() (and its seed/reconcile pass) used to run in full on
@@ -64,6 +65,27 @@ const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-employees',
 const ACCOUNTS_MODULE_ROLES: UserRole[] = ['accounts', 'superadmin', 'admin'];
 const ACCOUNTS_RESTRICTED_KEYS = new Set(['accounts-payments']);
 
+// Partner Portal, for the same structural reason as TMS/HR/Accounts above,
+// but stricter — and this is the one set where the generic isPrivileged
+// bypass must be refused in BOTH directions:
+//
+//   outward  an internal account (every 'manager' has isPrivileged) would
+//            otherwise see six partner-facing tiles that would 403 the
+//            moment they were clicked, since proxy.ts blocks staff from the
+//            /partner area entirely.
+//   inward   partner roles are deliberately absent from ALL_ROLES (see
+//            lib/partnerRoles.ts), so the `visibleToRoles.includes(role)`
+//            fallback at the bottom of isModuleAccessAllowed would reject
+//            the very accounts these tiles exist for.
+//
+// So membership here is resolved by partnerId — the real binding — rather
+// than by role, which is also what keeps a mis-assigned partner role from
+// being enough on its own to reach the portal.
+const PARTNER_RESTRICTED_KEYS = new Set<string>(PARTNER_PORTAL_MODULE_KEYS);
+// The internal half of the feature: managing partners, and the support desk.
+// Ordinary internal modules — nothing special, listed only for readability.
+const PARTNER_INTERNAL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
+
 // Keys that need "is this viewer a recognized manager of ANY department"
 // instead of a static role list — HR/TMS above can hard-code a role set
 // because HR and TMS each map onto one fixed role family; a cross-department
@@ -109,6 +131,12 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // Read-only directory derived from Projects (+ their Quotations) —
   // deliberately visible to the same broad audience as the rest of Sales,
   // not narrowed to admins, per the request that it be visible to everyone.
+  // Won work and what it is billable at. Visible to the same roles as the
+  // pipeline modules, because WHAT each person sees is decided by
+  // resolveVisibilityScope inside lib/billingStore.ts — own deals for a
+  // salesperson, the whole team for a manager — rather than by role here. A
+  // narrower role list would lock salespeople out of their own figures.
+  { key: 'billing', label: 'Billing', desc: 'Won deals and approved quotations — what is billable, what has a purchase order, and what nobody has priced yet.', icon: 'receipt-indian-rupee', href: '/billing', section: 'Sales', order: 9, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'client-master', label: 'Client Master', desc: "Every client across your projects, their contact details, and who's handling which product for them.", icon: 'users', href: '/clients', section: 'Sales', order: 8, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   // Visible to every TMS role too (not just ALL_ROLES) — HR Dashboard,
   // Travel Schedule, and Reimbursement apply to technical-manager/team-lead/
@@ -175,6 +203,28 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // without being given access to the Drive folder it lives in. Syncing and
   // editing descriptions are gated separately, at the API, by Marketing.
   { key: 'materials', label: 'Materials', desc: 'Datasheets, case studies, brochures, presentations and certificates — the shared marketing library, synced from Drive.', icon: 'library', href: '/materials', section: 'Marketing', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  // ---- Partner Portal: the INTERNAL half (staff-facing) ----
+  // Ordinary modules with ordinary role lists. Partner Management sits in
+  // Sales because creating and owning a partner relationship is sales work;
+  // Technical Support gets its own section since it serves after-sales, not
+  // the pipeline.
+  { key: 'partners', label: 'Partner Management', desc: 'Channel partners, distributors and dealers — accounts, access, assigned relationship manager, and everything they have submitted.', icon: 'share-2', href: '/admin/partners', section: 'Sales', order: 10, enabled: true, isCustom: false, visibleToRoles: PARTNER_INTERNAL_ROLES },
+  { key: 'partner-analytics', label: 'Partner Analytics', desc: 'Compare partner performance — submissions, conversion, demos and won business.', icon: 'bar-chart', href: '/admin/partners/analytics', section: 'Reports', order: 5, enabled: true, isCustom: false, visibleToRoles: PARTNER_INTERNAL_ROLES },
+  { key: 'support-tickets', label: 'Technical Support', desc: 'After-sales support tickets — triage, assignment, SLA tracking, and resolution.', icon: 'inbox', href: '/support', section: 'Support', order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_INTERNAL_ROLES, 'technical-manager', 'team-lead', 'engineer', 'technician'] },
+
+  // ---- Partner Portal: the PARTNER half (external-facing) ----
+  // visibleToRoles names the partner roles for completeness, but it is NOT
+  // what grants access: PARTNER_RESTRICTED_KEYS routes these keys through a
+  // partnerId check instead (see isModuleAccessAllowed). Shipped `enabled`
+  // so the portal is usable as soon as a partner account exists; Module
+  // Manager can switch any tile off.
+  { key: 'partner-dashboard', label: 'Dashboard', desc: 'Your submissions, demos, quotations and support at a glance.', icon: 'layout-dashboard', href: '/partner', section: PARTNER_SECTION, order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-projects', label: 'My Leads / Projects', desc: 'Submit a new opportunity and track every one you have sent us.', icon: 'folder-kanban', href: '/partner/projects', section: PARTNER_SECTION, order: 2, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-quotations', label: 'Quotations', desc: 'Quotations shared with you, with their versions and validity.', icon: 'file-text', href: '/partner/quotations', section: PARTNER_SECTION, order: 3, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-demos', label: 'Demo Requests', desc: 'Request a product demonstration for your customer and follow it to completion.', icon: 'monitor', href: '/partner/demos', section: PARTNER_SECTION, order: 4, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-support', label: 'Technical Support', desc: 'Raise and track after-sales support tickets.', icon: 'inbox', href: '/partner/support', section: PARTNER_SECTION, order: 5, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-materials', label: 'Marketing Materials', desc: 'Brochures, datasheets, case studies and presentations published for partners.', icon: 'library', href: '/partner/materials', section: PARTNER_SECTION, order: 6, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+
   { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: 'user', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'role-management', label: 'Role Management', desc: 'What each role can see and do across the platform.', icon: 'shield', href: '/admin/roles', section: 'Administration', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'department-master', label: 'Department Master', desc: 'Departments used across user profiles.', icon: 'building', href: '/admin/departments', section: 'Administration', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -319,6 +369,19 @@ const NEW_SECTION = 'Sales Pipeline';
 const RESECTIONED_KEYS_V2 = new Set(['projects', 'quotation', 'my-quotations', 'site-visits', 'leads', 'demo-schedule', 'travel-schedule']);
 const OLD_SECTION_V2 = 'Sales Pipeline';
 const NEW_SECTION_V2 = 'Sales';
+
+// Technical Support was seeded under "Operations", which in this app means
+// Back Office — delivery challans, dispatch, material returns, owned by the
+// 'backoffice' role. Support is owned by the technical roster
+// (technical-manager / team-lead / engineer / technician) and deliberately
+// excludes backoffice from its queue, so sitting the two under one heading
+// implied a reporting line that does not exist. It gets its own section.
+//
+// Same don't-clobber-an-admin-edit guard as every reconciliation above: only
+// moves a row still holding the seeded section.
+const SUPPORT_RESECTION_KEY = 'support-tickets';
+const OLD_SUPPORT_SECTION = 'Operations';
+const NEW_SUPPORT_SECTION = 'Support';
 
 // Audit Log tightened from "any privileged role" to Super Admin only —
 // pre-launch security hardening. Only overwrites a row that still holds the
@@ -538,6 +601,13 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (key === 'tms-projects' && plain.order === 2) attrs.order = 1;
     if (RESECTIONED_KEYS.has(key) && plain.section === OLD_SECTION) attrs.section = NEW_SECTION;
     if (RESECTIONED_KEYS_V2.has(key) && plain.section === OLD_SECTION_V2) attrs.section = NEW_SECTION_V2;
+    if (key === SUPPORT_RESECTION_KEY && plain.section === OLD_SUPPORT_SECTION) attrs.section = NEW_SUPPORT_SECTION;
+    // Order is reset on its own condition rather than inside the move above:
+    // the two reconciliations are independent, and a row whose section has
+    // already been moved by an earlier pass would otherwise keep the order 2
+    // it only had because it sat second under Back Office. Guarded on the
+    // seeded value, so an admin's own ordering is never clobbered.
+    if (key === SUPPORT_RESECTION_KEY && plain.order === 2) attrs.order = 1;
     if (FORCED_VISIBILITY_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_VISIBILITY)) attrs.visibleToRoles = NEW_VISIBILITY;
     if (TMS_SALES_ACCESS_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_VISIBILITY_SALES)) attrs.visibleToRoles = NEW_VISIBILITY_SALES;
     if (TMS_ALL_ROLES_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_TMS_ALL_ROLES)) attrs.visibleToRoles = TMS_ALL_ROLES;
@@ -630,11 +700,19 @@ export async function listVisibleModules(viewer: {
   // callers compile; without it those three tiles show for the admin tier
   // only, which fails closed rather than open.
   username?: string;
+  // '' / undefined for internal staff. See PARTNER_RESTRICTED_KEYS.
+  partnerId?: string | null;
 }): Promise<ModuleConfigRecord[]> {
   const all = await listModuleConfigs();
+  const isPartner = !!viewer.partnerId;
   return all.filter((m) => {
     if (!m.enabled) return false;
     if (ABSORBED_INTO_MERGED_PAGE.has(m.key)) return false;
+    // A partner's nav is the portal and nothing else — checked before every
+    // other rule so no later branch (isPrivileged bypasses, department
+    // grants, named-individual grants) can widen it.
+    if (isPartner) return PARTNER_RESTRICTED_KEYS.has(m.key);
+    if (PARTNER_RESTRICTED_KEYS.has(m.key)) return false;
     // MANAGER_GATED_KEYS bypasses the role-list check entirely — a
     // department manager can hold ANY role (technical-manager, engineer,
     // plain 'user', legacy 'manager', ...; there's no one shared role a
@@ -662,11 +740,18 @@ export async function listVisibleModules(viewer: {
 // data by hitting the API directly even if they know the URL.
 export async function isModuleAccessAllowed(
   key: string,
-  viewer: { role: UserRole; isPrivileged: boolean; department?: string | null; isDepartmentManager?: boolean; username?: string }
+  viewer: { role: UserRole; isPrivileged: boolean; department?: string | null; isDepartmentManager?: boolean; username?: string; partnerId?: string | null }
 ): Promise<boolean> {
   const all = await listModuleConfigs();
   const config = all.find((m) => m.key === key);
   if (!config || !config.enabled) return false;
+
+  // Partner Portal gate, checked FIRST so neither direction can fall through
+  // to a later bypass — mirrors listVisibleModules above, and must stay in
+  // step with it so "can't see the tile" and "can't call the API" cannot
+  // drift apart. Keyed on partnerId (the real binding), never on role.
+  if (viewer.partnerId) return PARTNER_RESTRICTED_KEYS.has(key);
+  if (PARTNER_RESTRICTED_KEYS.has(key)) return false;
 
   // Named-individual grants (lib/hrExpenseAccess.ts). Checked before every
   // role rule below, including the isPrivileged bypass, so a 'manager'

@@ -110,6 +110,9 @@ module.exports = (sequelize, DataTypes) => {
     opportunity_type: { type: DataTypes.STRING(20) },
     // Intake fields — see the 20260929120000-project-intake-fields migration.
     project_name: { type: DataTypes.STRING(255) },
+    // Plain-language explanation of the project for whoever picks it up at
+    // Won — see 20261024090000-project-won-gates migration.
+    project_brief: { type: DataTypes.TEXT },
     state: { type: DataTypes.STRING(120) },
     city: { type: DataTypes.STRING(120) },
     referral_name: { type: DataTypes.STRING(255) },
@@ -131,6 +134,19 @@ module.exports = (sequelize, DataTypes) => {
     // only set on one auto-created from an assigned Lead
     // (lib/leadProjectAutomation.ts). `status` itself is never touched by
     // this feature. Values: 'pending_confirmation' | 'confirmed'.
+    // Partner Portal overlay — NULL on every direct project. See the
+    // 20261020093000 migration for why this is an overlay on `projects`
+    // rather than a separate submissions table.
+    partner_id: { type: DataTypes.UUID },
+    // 'submitted' | 'info_requested' | 'approved' | 'rejected'
+    partner_submission_status: { type: DataTypes.STRING(30) },
+    partner_reviewed_by: { type: DataTypes.UUID },
+    partner_reviewed_at: { type: DataTypes.DATE },
+    partner_review_remarks: { type: DataTypes.TEXT },
+    // The partner's own estimate — deliberately NOT approx_price, which
+    // feeds the sales forecast and is set by Sales on acceptance.
+    partner_submitted_value: { type: DataTypes.DECIMAL(14, 2) },
+    partner_expected_timeline: { type: DataTypes.STRING(120) },
     lead_confirmation_status: { type: DataTypes.STRING(30) },
     confirmed_by: { type: DataTypes.UUID },
     confirmed_at: { type: DataTypes.DATE }
@@ -145,6 +161,8 @@ module.exports = (sequelize, DataTypes) => {
     Project.belongsTo(models.User, { foreignKey: 'assigned_technical_person_id', as: 'assignedTechnicalPersonRef' });
     Project.belongsTo(models.User, { foreignKey: 'project_lead_id', as: 'projectLeadRef' });
     Project.belongsTo(models.TmsProject, { foreignKey: 'tms_project_id', as: 'tmsProject' });
+    Project.belongsTo(models.Partner, { foreignKey: 'partner_id', as: 'partner' });
+    Project.belongsTo(models.User, { foreignKey: 'partner_reviewed_by', as: 'partnerReviewer' });
     Project.hasMany(models.ProjectNote, { foreignKey: 'project_id', as: 'notes' });
     Project.hasMany(models.ProjectTimelineEvent, { foreignKey: 'project_id', as: 'timeline' });
     Project.hasMany(models.ProjectDeadlineExtension, { foreignKey: 'project_id', as: 'deadlineExtensions' });

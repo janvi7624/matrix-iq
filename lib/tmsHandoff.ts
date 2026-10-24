@@ -5,6 +5,7 @@ import { projectStore } from './projectStore';
 import { ProjectRecord, TmsProjectRecord, UserRecord } from './types';
 import { findTmsProjectSetupNotifyTargets } from './tmsAccess';
 import { notifyUsers } from './notificationStore';
+import { projectLabel } from './projectLabel';
 
 // Bridges a Sales assignment into TMS: when a technical person is assigned
 // to a Sales Project (assigned_technical_person_id), a matching TMS project
@@ -57,7 +58,7 @@ export async function syncTmsProjectForAssignment(project: ProjectRecord, assign
     project_code: await nextTmsProjectCode(),
     created_at: '',
     created_by: actorUsername,
-    name: project.client_name || project.company || 'Untitled project',
+    name: projectLabel(project) || 'Untitled project',
     client_name: project.client_name,
     client_contact: project.phone,
     description: `Handed off from Sales project ${project.id}.`,

@@ -437,7 +437,22 @@ export async function searchQuotationsFiltered(filters: QuotationFilters): Promi
   const rows = await db.Quotation.findAll({ where: where as never, include: QUOTATION_INCLUDE as never, order: [['created_at', 'DESC']] });
   let records = rows.map(toRecord);
 
-  if (filters.status) records = records.filter((r) => computeEffectiveStatus(r) === filters.status);
+  // Rejected is the UMBRELLA for a dead quotation: a validity window that ran
+  // out with no answer is a rejection by default, so filtering to Rejected
+  // returns the expired ones too. Without this the Quotations list hides 29
+  // expired quotes as closed and then shows none of them under the only
+  // status a person would think to pick.
+  //
+  // Picking Expired specifically still narrows to just those, which is the
+  // more useful question of the two — "which died from silence" rather than
+  // "which were turned down".
+  if (filters.status) {
+    records = records.filter((r) => {
+      const effective = computeEffectiveStatus(r);
+      if (filters.status === 'rejected') return effective === 'rejected' || effective === 'expired';
+      return effective === filters.status;
+    });
+  }
   if (filters.dateFrom) records = records.filter((r) => r.created_at.slice(0, 10) >= filters.dateFrom!);
   if (filters.dateTo) records = records.filter((r) => r.created_at.slice(0, 10) <= filters.dateTo!);
   if (filters.query && filters.query.trim()) {
@@ -450,7 +465,7 @@ export async function searchQuotationsFiltered(filters: QuotationFilters): Promi
   }
   // Resolved last, after every filter, so the project/owner lookup only runs
   // for the rows actually being returned.
-  return attachSalesPersons(records);
+  return attachPartnerShareState(await attachSalesPersons(records));
 }
 
 // Fills in sales_person for a page of quotations: one query for the linked
@@ -489,6 +504,54 @@ async function attachSalesPersons(records: QuotationRecord[]): Promise<Quotation
     const ownerId = ownerIdByProject.get(r.project_id);
     const label = ownerId ? labelByUserId.get(ownerId) || '' : '';
     return label ? { ...r, sales_person: label } : r;
+  });
+}
+
+/**
+ * Tag each quotation with the partner it MAY be shared with, and whether it
+ * already is.
+ *
+ * Batched over the whole result set — two queries regardless of how many
+ * quotations are listed. The alternative, a per-row eligibility fetch from
+ * the Share button, is one request per row: a list of thirty quotations
+ * would fire thirty requests just to decide whether to draw a button.
+ *
+ * Both fields are '' / false on an ordinary direct quotation, which is what
+ * tells the UI to render no share control at all.
+ */
+async function attachPartnerShareState(records: QuotationRecord[]): Promise<QuotationRecord[]> {
+  const projectIds = [...new Set(records.map((r) => r.project_id).filter((id) => id && isUuid(id)))];
+  if (!projectIds.length) return records;
+
+  const projectRows = await db.Project.findAll({
+    where: { id: { [Op.in]: projectIds } } as never,
+    attributes: ['id', 'partner_id'],
+    include: [{ model: db.Partner, as: 'partner', attributes: ['id', 'company_name', 'partner_code'], required: true }]
+  });
+  if (!projectRows.length) return records;
+
+  const partnerByProject = new Map<string, { id: string; label: string }>();
+  for (const row of projectRows) {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    const partner = plain.partner as { id?: string; company_name?: string; partner_code?: string } | null;
+    if (partner?.id) {
+      partnerByProject.set(plain.id as string, { id: partner.id, label: `${partner.company_name} (${partner.partner_code})` });
+    }
+  }
+  if (!partnerByProject.size) return records;
+
+  // Only live shares count — a revoked one must read as "not shared" so the
+  // button offers to share again rather than to withdraw.
+  const shareRows = await db.PartnerQuotationShare.findAll({
+    where: { quotation_id: { [Op.in]: records.map((r) => r.id) }, revoked_at: null } as never,
+    attributes: ['quotation_id']
+  });
+  const sharedIds = new Set(shareRows.map((r) => r.get('quotation_id') as string));
+
+  return records.map((r) => {
+    const partner = partnerByProject.get(r.project_id);
+    if (!partner) return r;
+    return { ...r, partner_id: partner.id, partner_name: partner.label, shared_with_partner: sharedIds.has(r.id) };
   });
 }
 

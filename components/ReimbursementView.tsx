@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { UserRole, ReimbursementRecord, ReimbursementSheetRecord, ReimbursementSheetStatus, ReimbursementDeadlineInfo } from '@/lib/types';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import { checkSubmittablePeriod, lastClaimableMonth, isWithinAddWindow } from '@/lib/reimbursementPeriod';
@@ -133,6 +133,13 @@ export default function ReimbursementView({ currentUser }: Props) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showBulkForm, setShowBulkForm] = useState(false);
+  // The form sits above the entries table in the page, so clicking Edit on a
+  // row reached by scrolling down otherwise repopulates and reveals a form
+  // the person can't see without scrolling back up themselves — it looks
+  // like the click did nothing. Scrolled into view whenever it opens or
+  // switches to a different entry, matching the only two ways showForm/editId
+  // change (see the Edit button and the "+ Add Entry" button).
+  const formRef = useRef<HTMLFormElement>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [guestNameInput, setGuestNameInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -326,6 +333,14 @@ export default function ReimbursementView({ currentUser }: Props) {
   }, []);
 
   useEffect(() => { if (tab === 'approved') fetchApproved(); }, [tab, fetchApproved]);
+
+  // Runs after the form has actually mounted/updated (editId changes in the
+  // same state batch that opens it), not inside startEdit itself — the form
+  // is conditionally rendered, so formRef.current is still null at the point
+  // startEdit sets showForm/editId.
+  useEffect(() => {
+    if (showForm) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [showForm, editId]);
 
   function openApprovedSheet(s: ReimbursementSheetRecord) {
     setSelectedApproved(s);
@@ -862,7 +877,7 @@ export default function ReimbursementView({ currentUser }: Props) {
       {showForm && canEdit && (
         <>
           <h2 className={`${calcStyles.h2} ${styles.h2SpacedTop}`}>{editId ? 'Edit Entry' : 'New Reimbursement Entry'}</h2>
-          <form className={calcStyles.sectionPanel} onSubmit={handleSubmit}>
+          <form ref={formRef} className={calcStyles.sectionPanel} onSubmit={handleSubmit}>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Date *</label>

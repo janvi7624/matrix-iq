@@ -14,6 +14,16 @@ const modelDefiners = [
   require('./role.js'),
   require('./user.js'),
   require('./department.js'),
+  // Partner Portal — the tenancy root. Listed near User because User
+  // belongsTo it; every definer runs before any associate() does (see the
+  // two loops below), so the order here is for readability, not correctness.
+  require('./partner.js'),
+  require('./partnerQuotationShare.js'),
+  require('./materialAccessLog.js'),
+  require('./supportSlaPolicy.js'),
+  require('./supportTicket.js'),
+  require('./supportTicketComment.js'),
+  require('./supportTicketStatusHistory.js'),
   require('./project.js'),
   require('./projectNote.js'),
   require('./projectTimelineEvent.js'),
@@ -86,7 +96,9 @@ const modelDefiners = [
   require('./dailyReportWarning.js'),
   require('./dailyReportEscalation.js'),
   require('./dailyReportNotificationEvent.js'),
-  require('./dailyReportSchedulerRun.js')
+  require('./dailyReportSchedulerRun.js'),
+  require('./backOfficeMonthlySummaryRun.js'),
+  require('./monthlySummaryRun.js')
 ];
 
 const db = {};

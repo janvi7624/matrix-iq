@@ -4,7 +4,7 @@ import { canManageMaterials } from '@/lib/permissions';
 import { createMaterial, listMaterials, listProductNames } from '@/lib/materialStore';
 import { isMaterialCategory, MATERIAL_CATEGORIES } from '@/lib/materialCategories';
 import { groupByCategory } from '@/lib/materialGrouping';
-import { parseDriveLink } from '@/lib/driveLink';
+import { resolveMaterialLink } from '@/lib/materialLinkInput';
 import { findFolderById, folderBreadcrumb, listSubfolders } from '@/lib/materialFolderStore';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -84,8 +84,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Publish a material: a product, a category, and its Drive link.
-// Marketing-only — this writes what the whole company sees.
+// Publish a material: a product, a category, and one of a Drive link, an
+// uploaded file, or any other web address. Marketing-only — this writes what
+// the whole company sees.
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -100,20 +101,23 @@ export async function POST(request: NextRequest) {
   const product = typeof body.product === 'string' ? body.product.trim() : '';
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const description = typeof body.description === 'string' ? body.description.trim() : '';
-  const link = typeof body.driveLink === 'string' ? body.driveLink.trim() : '';
 
   if (!product) return NextResponse.json({ error: 'A product or document name is required' }, { status: 400 });
   if (!isMaterialCategory(body.category)) return NextResponse.json({ error: 'Pick a category' }, { status: 400 });
 
-  // Parsed, not merely stored: a mistyped or non-Drive URL is caught here
-  // rather than becoming an "Open" button that leads nowhere.
-  const parsed = parseDriveLink(link);
-  if (!parsed) {
-    return NextResponse.json(
-      { error: 'That doesn’t look like a Google Drive link. Paste the link from Drive’s Share dialog or the address bar.' },
-      { status: 400 }
-    );
-  }
+  // Resolved (and for an upload, confirmed to actually exist in storage)
+  // rather than merely stored: a mistyped Drive URL or a dropped upload is
+  // caught here, not left to become an "Open" button that leads nowhere.
+  const resolved = await resolveMaterialLink({
+    // The form's chosen tab, so the resolver picks a path rather than
+    // guessing from which field came back populated.
+    source: typeof body.mode === 'string' ? body.mode : undefined,
+    driveLink: typeof body.driveLink === 'string' ? body.driveLink : undefined,
+    uploadedFileUrl: typeof body.uploadedFileUrl === 'string' ? body.uploadedFileUrl : undefined,
+    customLink: typeof body.customLink === 'string' ? body.customLink : undefined,
+    mimeType: typeof body.mimeType === 'string' ? body.mimeType : undefined
+  });
+  if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: 400 });
 
   try {
     // Checked rather than trusted: a folder deleted in another tab would
@@ -128,9 +132,11 @@ export async function POST(request: NextRequest) {
       category: body.category,
       title: title || product,
       description,
-      driveFileId: parsed.id,
-      webViewLink: parsed.url,
-      isFolder: parsed.kind === 'folder',
+      driveFileId: resolved.value.driveFileId,
+      webViewLink: resolved.value.webViewLink,
+      isFolder: resolved.value.isFolder,
+      source: resolved.value.source,
+      mimeType: resolved.value.mimeType,
       actorId: viewer.userId
     });
     return NextResponse.json({ material }, { status: 201 });

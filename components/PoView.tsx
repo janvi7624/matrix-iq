@@ -17,6 +17,7 @@ import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
 import StatusBadge from './ui/StatusBadge';
+import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import { getPoPaymentStatus } from '@/lib/poPaymentStatus';
 
 const EMPTY_FORM = { projectId: '', poNumber: '', poDate: '', amount: '', advanceReceived: '', paymentTerms: '', attachmentUrl: '' };
@@ -28,6 +29,127 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+// "Advance received, then the balance comes in later" was the whole reason
+// this dialog exists: before it, the only way to record a second payment on
+// an already-logged PO was to delete the row and re-enter everything —
+// PO number, date, attachment and all — from scratch. Now it's one field.
+function EditPoDialog({ po, onClose, onSaved }: { po: PoRecord; onClose: () => void; onSaved: (updated: PoRecord) => void }) {
+  const toast = useToast();
+  const [poNumber, setPoNumber] = useState(po.po_number);
+  const [poDate, setPoDate] = useState(po.po_date);
+  const [amount, setAmount] = useState(String(po.amount || ''));
+  const [advanceReceived, setAdvanceReceived] = useState(String(po.advance_received || ''));
+  const [paymentTerms, setPaymentTerms] = useState(po.payment_terms);
+  const [attachmentUrl, setAttachmentUrl] = useState(po.attachment_url);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const amountNum = Number(amount) || 0;
+  const receivedNum = Number(advanceReceived) || 0;
+  const balance = Math.max(0, amountNum - receivedNum);
+
+  async function handleAttachment(file: File | null) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append('folder', 'po');
+      body.append('files', file);
+      const response = await fetch('/api/uploads', { method: 'POST', body });
+      if (!response.ok) throw new Error(String(response.status));
+      const data: { urls: string[] } = await response.json();
+      setAttachmentUrl(data.urls[0] || attachmentUrl);
+    } catch {
+      toast.error('Could not upload this attachment.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!poNumber.trim()) {
+      toast.error('PO number is required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/po/${po.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poNumber,
+          poDate,
+          amount: amountNum,
+          advanceReceived: receivedNum,
+          paymentTerms,
+          attachmentUrl
+        })
+      });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || String(response.status));
+      }
+      const updated: PoRecord = await response.json();
+      toast.success('PO updated.');
+      onSaved(updated);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save this PO.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={`Edit PO ${po.po_number}`}
+      ariaLabel={`Edit PO ${po.po_number}`}
+      onClose={onClose}
+      footer={
+        <>
+          <ModalCancelButton onClick={onClose}>Cancel</ModalCancelButton>
+          <ModalOkButton onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</ModalOkButton>
+        </>
+      }
+    >
+      <FieldRow>
+        <Field label="PO number *">
+          <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} />
+        </Field>
+        <Field label="PO date">
+          <Input type="date" value={poDate} onChange={(e) => setPoDate(e.target.value)} />
+        </Field>
+      </FieldRow>
+      <FieldRow>
+        <Field label="Amount">
+          <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </Field>
+        <Field label="Received so far">
+          <Input type="number" value={advanceReceived} onChange={(e) => setAdvanceReceived(e.target.value)} />
+        </Field>
+      </FieldRow>
+      <div className={calcStyles.small}>
+        Balance due: <strong>{balance.toLocaleString('en-IN')}</strong>
+        {amountNum > 0 && receivedNum < amountNum && (
+          <>
+            {' · '}
+            <button type="button" className={historyStyles.linkBtn} onClick={() => setAdvanceReceived(String(amountNum))}>
+              Mark fully received
+            </button>
+          </>
+        )}
+      </div>
+      <Field label="Payment terms">
+        <Input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
+      </Field>
+      <Field label="Attachment">
+        <input type="file" disabled={uploading} onChange={(e) => handleAttachment(e.target.files?.[0] || null)} />
+        {uploading && <div className={calcStyles.small}>Uploading…</div>}
+        {attachmentUrl && <div className={calcStyles.small}><a href={attachmentUrl} target="_blank" rel="noreferrer">View current attachment</a></div>}
+      </Field>
+    </Modal>
+  );
 }
 
 interface PoViewProps {
@@ -48,6 +170,7 @@ export default function PoView({ currentUser }: PoViewProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [editingPo, setEditingPo] = useState<PoRecord | null>(null);
 
   async function load() {
     setStatus('Loading...');
@@ -120,6 +243,18 @@ export default function PoView({ currentUser }: PoViewProps) {
     }
   }
 
+  function handlePoUpdated(updated: PoRecord) {
+    setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    setEditingPo(null);
+  }
+
+  // Same gate the PATCH route enforces server-side (project owner, or
+  // privileged) — shown here only so the button isn't offered where it would
+  // just come back as a 403.
+  function canEditPo(r: PoRecord): boolean {
+    return isPrivileged || r.created_by === currentUser.username;
+  }
+
   function handleExportPdf() {
     exportListToPdf(
       'Purchase Orders',
@@ -146,7 +281,12 @@ export default function PoView({ currentUser }: PoViewProps) {
     {
       key: 'actions',
       header: '',
-      render: (r) => isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>Delete</button>
+      render: (r) => (
+        <>
+          {canEditPo(r) && <button type="button" className={historyStyles.linkBtn} onClick={() => setEditingPo(r)}>Edit</button>}
+          {isPrivileged && <button type="button" className={historyStyles.deleteBtn} onClick={() => handleDelete(r.id)}>Delete</button>}
+        </>
+      )
     }
   ];
 
@@ -203,6 +343,7 @@ export default function PoView({ currentUser }: PoViewProps) {
             empty={<div className={historyStyles.empty}>No POs logged yet.</div>}
           />
         )}
+        {editingPo && <EditPoDialog po={editingPo} onClose={() => setEditingPo(null)} onSaved={handlePoUpdated} />}
     </AppShell>
   );
 }

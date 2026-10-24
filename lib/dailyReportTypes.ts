@@ -284,6 +284,46 @@ export interface TeamDailyReportResponse {
   can_file_for_others: boolean;
 }
 
+// "How did my team do this month/quarter/year" — one row per employee,
+// summed across every working day in the range, instead of
+// TeamDailyReportRow's one-row-per-employee-for-one-day. "Who is missing
+// right now" (the single-date view above) and "how did we do over time"
+// (this one) are different questions with different shapes; this is not a
+// list of individual reports; buildTeamDailyReportsRange is a reporting
+// decision (see its doc comment) and `report_ids` under HISTORY_WORKING_DAYS
+// scale is what a UI would drill into for the individual documents.
+export interface TeamDailyReportRangeRow {
+  employee_id: string;
+  employee_name: string;
+  employee_username: string;
+  department_id: string;
+  department_name: string;
+  expected: number;
+  submitted: number;
+  submitted_late: number;
+  missing: number;
+  /** PENDING or APPROVED leave claims excluded from `missing` — not only
+   *  approved ones; see loadLeaveCoveredKeys. */
+  leave_covered: number;
+  /** Rounded 0-100; 100 when nothing was expected (nothing to fall short of). */
+  compliance_percent: number;
+}
+
+export interface TeamDailyReportRangeResponse {
+  from: string;
+  to: string;
+  label: string;
+  rows: TeamDailyReportRangeRow[];
+  totals: {
+    expected: number;
+    submitted: number;
+    submitted_late: number;
+    missing: number;
+    leave_covered: number;
+  };
+  departments: { id: string; name: string }[];
+}
+
 export interface ExemptCandidate {
   id: string;
   name: string;

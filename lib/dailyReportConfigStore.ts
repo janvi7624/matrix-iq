@@ -2,7 +2,7 @@ import { Model } from 'sequelize';
 import { db, isUuid } from './db';
 import { cached, invalidateCache } from './memoCache';
 import { DailyReportConfigRecord } from './dailyReportTypes';
-import { DeadlinePolicy, isClockTime, isIsoDate } from './dailyReportTime';
+import { DeadlinePolicy, isClockTime, isIsoDate, TRACKING_START_DATE } from './dailyReportTime';
 
 // The module's policy, as one singleton row. Read on every report page load,
 // every API write and every scheduler tick but written only from Daily
@@ -108,7 +108,11 @@ export async function getDeadlinePolicy(): Promise<DeadlinePolicy> {
     offNthWeekdays: config.off_nth_weekdays,
     deadlineTime: config.deadline_time,
     eveningReminderTime: config.evening_reminder_time,
-    finalReminderTime: config.final_reminder_time
+    finalReminderTime: config.final_reminder_time,
+    // The one place the floor is applied, so every obligation in the module —
+    // the sweep's window, the HR and team compliance views, analytics, the
+    // monthly summary, an employee's own history — starts from the same day.
+    trackingStartDate: TRACKING_START_DATE
   };
 }
 

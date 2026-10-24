@@ -5,6 +5,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { isLeadOrigin } from '@/lib/leadSources';
+import { isLeadReference } from '@/lib/leadReferenceOptions';
 import { DomainKey, LeadPriority, LeadRecord, LeadSource } from '@/lib/types';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
@@ -31,10 +32,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const patch: Partial<LeadRecord> = { updated_at: new Date().toISOString() };
-    const stringFields = ['name', 'mobile', 'alt_mobile', 'email', 'designation', 'company', 'city', 'budget', 'notes'] as const;
+    const stringFields = ['name', 'mobile', 'alt_mobile', 'email', 'designation', 'company', 'city', 'company_address', 'budget', 'notes'] as const;
     stringFields.forEach((field) => {
       if (typeof body[field] === 'string') patch[field] = body[field].trim();
     });
+    // Correcting or clearing a wrongly-picked reference has to be possible;
+    // an invalid non-blank value is refused rather than ignored, same as the
+    // POST route — a typo should be reported, not silently dropped.
+    if (typeof body.reference === 'string') {
+      const reference = body.reference.trim();
+      if (reference && !isLeadReference(reference)) {
+        return NextResponse.json({ error: 'That is not a recognised reference.' }, { status: 400 });
+      }
+      patch.reference = reference;
+    }
     if (Array.isArray(body.interests)) patch.interests = body.interests.filter((d: unknown): d is DomainKey => VALID_DOMAINS.includes(d as DomainKey));
     if (Array.isArray(body.subInterests)) patch.sub_interests = body.subInterests.filter((s: unknown): s is string => typeof s === 'string');
     if (Array.isArray(body.followUpActions)) patch.follow_up_actions = body.followUpActions.filter((s: unknown): s is string => typeof s === 'string');

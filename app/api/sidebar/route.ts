@@ -22,10 +22,33 @@ import { marketingReminderBand } from '@/lib/marketingRequestReminder';
 // Dashboard-specific payload) — this stays cheap since it runs on every page
 // navigation, not just the dashboard.
 export async function GET(request: NextRequest) {
-  const viewer = await getViewerContext(request);
+  // One of the few routes genuinely shared by both audiences — it renders the
+  // nav for whoever is signed in, so it opts into resolving partners. Every
+  // other internal API keeps the deny-by-default (see lib/viewerContext.ts).
+  const viewer = await getViewerContext(request, { allowPartner: true });
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
+    // Partners get their modules and nothing else. Returning early — rather
+    // than letting the badge work below run and filtering afterwards — is the
+    // point: every one of those queries is an internal-scope read (lead
+    // queues, approval backlogs, the Back Office DC pipeline), and none of
+    // them should ever be executed on behalf of an external account, however
+    // the results would have been filtered.
+    if (viewer.partnerId) {
+      const partnerModules = await listVisibleModules({
+        role: viewer.role,
+        username: viewer.username,
+        isPrivileged: false,
+        partnerId: viewer.partnerId
+      });
+      return NextResponse.json({
+        modules: partnerModules,
+        viewer: { username: viewer.username, name: viewer.name, role: viewer.role, isPartner: true },
+        badges: {}
+      });
+    }
+
     const isPrivileged = viewer.isPrivileged;
     const isBackOffice = viewer.role === 'backoffice' || isPrivileged;
     const isManagerTier = viewer.role === 'manager' || viewer.role === 'admin' || viewer.role === 'superadmin';
@@ -117,7 +140,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       modules,
-      viewer: user ? { username: viewer.username, name: user.name, role: viewer.role, department: user.department, designation: user.designation } : null,
+      viewer: user ? { username: viewer.username, name: user.name, role: viewer.role, department: user.department, designation: user.designation, isPartner: false } : null,
       badges
     });
   } catch (error) {

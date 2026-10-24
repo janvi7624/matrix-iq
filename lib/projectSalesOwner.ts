@@ -7,6 +7,7 @@ import { notifyUsers } from './notificationStore';
 import { sendProjectLifecycleEmail } from './email/notifications';
 import { isTechnicalRole, SALES_DEPARTMENTS } from './technicalRoles';
 import { ProjectRecord, UserRecord, UserRole } from './types';
+import { projectLabel } from './projectLabel';
 
 // A Sales project's sales person is its OWNER (created_by) — that's what puts
 // it in their pipeline, dashboard, KPIs, follow-ups and department health.
@@ -65,12 +66,11 @@ export async function canAssignSalesPerson(actor: SalesOwnerActor, project: Pick
   return project.assigned_technical_person_id === actor.userId || canAccessProject(actor.username, project);
 }
 
-function projectLabel(project: Pick<ProjectRecord, 'client_name' | 'company'>): string {
-  return project.client_name || project.company || 'Project';
-}
+// projectLabel now lives in lib/projectLabel.ts — it was duplicated here
+// and in three other files, and every copy ignored project_name.
 
 // In-app + email to the sales person a project was just handed to.
-export async function notifySalesPersonAssigned(project: Pick<ProjectRecord, 'id' | 'client_name' | 'company'>, salesPerson: UserRecord, actor: { username: string; name: string }): Promise<void> {
+export async function notifySalesPersonAssigned(project: Pick<ProjectRecord, 'id' | 'project_name' | 'client_name' | 'company'>, salesPerson: UserRecord, actor: { username: string; name: string }): Promise<void> {
   if (salesPerson.username === actor.username) return;
   await notifyUsers([salesPerson.username], {
     title: 'A project was assigned to you',

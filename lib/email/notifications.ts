@@ -21,6 +21,8 @@ import { renderAdminExpenseNoticeEmail, AdminExpenseNoticeEmailData } from './te
 import { renderLeadHandoverEmail, LeadHandoverEmailData } from './templates/leadHandover';
 import { renderMissingProjectDetailsEmail, MissingProjectDetailsEmailData } from './templates/missingProjectDetails';
 import { renderDailyReportEmail, DailyReportEmailData } from './templates/dailyReport';
+import { renderBackOfficeMonthlySummaryEmail, BackOfficeMonthlySummaryEmailData } from './templates/backOfficeMonthlySummary';
+import { renderDailyReportMonthlySummaryEmail, DailyReportMonthlySummaryEmailData } from './templates/dailyReportMonthlySummary';
 
 // APP_URL must be this app's absolute public origin (e.g.
 // https://app.example.com, see .env.example) — every link embedded in an
@@ -351,4 +353,49 @@ export async function sendDailyReportEmail(to: string, data: DailyReportEmailDat
 export function dailyReportUrl(path: string): string {
   const base = resolveAppUrl();
   return base ? `${base}${path}` : path;
+}
+
+// 1st-of-month recap to a Back Office manager — one recipient per call, same
+// as every other sender here (the cron route loops over however many
+// managers Department Master lists). Never throws, same reason as every
+// other sender in this file.
+export async function sendBackOfficeMonthlySummaryEmail(
+  data: { email: string } & Omit<BackOfficeMonthlySummaryEmailData, 'dashboardUrl'>
+): Promise<boolean> {
+  if (!data.email) return false;
+  try {
+    const appUrl = resolveAppUrl();
+    const dashboardUrl = appUrl ? `${appUrl}/backoffice` : '/backoffice';
+    const { subject, html, text } = renderBackOfficeMonthlySummaryEmail({ ...data, dashboardUrl });
+    await sendEmail({ to: data.email, subject, html, text });
+    return true;
+  } catch (error) {
+    console.error(
+      `[email] Back Office monthly summary for ${data.monthLabel} could not be sent to ${data.email}:`,
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
+}
+
+// 1st-of-month Daily Report recap — one recipient per call (the cron route
+// loops over department managers, plus the single all-departments brief
+// recipient). Never throws, same reason as every other sender in this file.
+export async function sendDailyReportMonthlySummaryEmail(
+  data: { email: string } & Omit<DailyReportMonthlySummaryEmailData, 'dashboardUrl'>
+): Promise<boolean> {
+  if (!data.email) return false;
+  try {
+    const appUrl = resolveAppUrl();
+    const dashboardUrl = appUrl ? `${appUrl}/daily-reports?tab=team` : '/daily-reports?tab=team';
+    const { subject, html, text } = renderDailyReportMonthlySummaryEmail({ ...data, dashboardUrl });
+    await sendEmail({ to: data.email, subject, html, text });
+    return true;
+  } catch (error) {
+    console.error(
+      `[email] Daily Report monthly summary for ${data.monthLabel} could not be sent to ${data.email}:`,
+      error instanceof Error ? error.message : error
+    );
+    return false;
+  }
 }

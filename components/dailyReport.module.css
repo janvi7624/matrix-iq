@@ -431,6 +431,62 @@
   cursor: not-allowed;
 }
 
+/* The auto-cell's clickable form — same box as matrixInputAuto above (it IS
+   one, visually), but it's a real button so the number can be clicked
+   through to the records that produced it, rather than just displayed. */
+.matrixAutoBtn {
+  font: inherit;
+  cursor: pointer;
+}
+.matrixAutoBtn:hover,
+.matrixAutoBtn:focus-visible {
+  border-color: var(--mx-info);
+  color: var(--mx-info);
+  outline: none;
+}
+
+.autoDetailList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.autoDetailRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--mx-border);
+  text-decoration: none;
+  color: inherit;
+}
+.autoDetailRow:last-child {
+  border-bottom: none;
+}
+.autoDetailRow:hover {
+  background: var(--mx-surface-sunken);
+}
+.autoDetailTitle {
+  font-weight: var(--mx-weight-semibold);
+  font-size: 14px;
+}
+.autoDetailSubtitle {
+  font-size: 12.5px;
+  color: var(--mx-ink-muted);
+}
+
+.spin {
+  animation: spin 900ms linear infinite;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}
+
 .currencyField {
   position: relative;
   display: flex;

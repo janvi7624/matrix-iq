@@ -336,11 +336,20 @@ const SALES_TEMPLATE: TemplateDefinition = {
   layout: 'matrix',
   measures: SALES_MEASURES,
   channels: SALES_CHANNELS,
-  // The 4 measures with a real system of record (lib/salesDailyAutoFetch.ts)
-  // vs the 4 that stay manual (Customer Calls, Meetings Completed, Meetings
-  // Scheduled, Follow-ups Completed) — this app has no call/meeting log to
-  // read those from.
-  autoMeasures: ['New Leads Generated', 'Quotations Prepared', 'Quotations Sent', 'Purchase Orders Received'],
+  // The 6 measures with a real system of record, vs the 2 that stay manual.
+  // Four come from Quotation/Lead records and two — Customer Calls and
+  // Follow-ups Completed — from the call a rep logs on a lead (Leads -> Log
+  // Call), via lib/leadCallDailyStats.ts. Only Meetings Completed and
+  // Meetings Scheduled are still typed by hand: nothing in the app records a
+  // meeting, so there is nothing to read them from.
+  autoMeasures: [
+    'New Leads Generated',
+    'Customer Calls',
+    'Quotations Prepared',
+    'Quotations Sent',
+    'Purchase Orders Received',
+    'Follow-ups Completed'
+  ],
   headerFields: [
     TASK_ID_FIELD,
     { key: 'notes', label: 'Notes', type: 'textarea', maxLength: 2000, placeholder: 'Context for today’s numbers — a large deal, a blocked follow-up, travel.', width: 'xl' }

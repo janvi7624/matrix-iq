@@ -166,6 +166,12 @@ export async function POST(request: NextRequest) {
     // was linked; a real project link always wins over the free-text name.
     const customProjectName = !projectId && typeof body.customProjectName === 'string' ? body.customProjectName.trim() : '';
 
+    // Not required to match an active employee: the picker (RequestedBySelect)
+    // offers an 'Other' escape hatch for exactly this route's own stated
+    // purpose — "a walk-in or custom dispatch" — so the requester may
+    // genuinely not be an employee at all.
+    const assignedEngineer = typeof body.assignedEngineer === 'string' ? body.assignedEngineer.trim() : '';
+
     const record: DeliveryChallanRecord = {
       id: `${Date.now()}`,
       dc_number: dcNumber,
@@ -186,7 +192,7 @@ export async function POST(request: NextRequest) {
       issued_by_phone: issuedByPhone,
       issued_date: now.slice(0, 10),
       expected_return_date: typeof body.expectedReturnDate === 'string' ? body.expectedReturnDate : '',
-      assigned_engineer: typeof body.assignedEngineer === 'string' ? body.assignedEngineer.trim() : '',
+      assigned_engineer: assignedEngineer,
       status: 'prepared',
       material_return: emptyChecklist(),
       updated_at: now

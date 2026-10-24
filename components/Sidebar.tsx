@@ -11,6 +11,7 @@ import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
 import { sectionIconFor, resolveModuleIcon, QUICK_ACTION_ICON, CHROME_ICON } from '@/lib/icons';
 import { TMS_ROLE_LABEL } from '@/lib/tmsLabels';
+import { PARTNER_ROLE_LABEL, PARTNER_HOME } from '@/lib/partnerRoles';
 import { Search, Star, X, Sparkles, ChevronRight, Pin } from 'lucide-react';
 import styles from './sidebar.module.css';
 import { forgetCelebrationPopups } from '@/lib/celebrationPopupSeen';
@@ -21,6 +22,10 @@ interface Viewer {
   role: UserRole;
   department?: string;
   designation?: string;
+  // External partner account — their home is the portal, not the internal
+  // dashboard. Comes from /api/sidebar rather than being inferred from the
+  // role key, so a mis-assigned role can't move someone's home link.
+  isPartner?: boolean;
 }
 
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -33,7 +38,8 @@ const ROLE_LABEL: Record<UserRole, string> = {
   marketing: 'Marketing',
   accounts: 'Accounts',
   hr: 'HR',
-  ...TMS_ROLE_LABEL
+  ...TMS_ROLE_LABEL,
+  ...PARTNER_ROLE_LABEL
 };
 
 const QUICK_ACTION_KEYS = ['quotation', 'site-visits', 'demo-schedule', 'projects'];
@@ -122,7 +128,27 @@ export default function Sidebar() {
     setOpen(false);
   }, [pathname]);
 
-  const sections = useModuleSections(modules);
+  // Where the "Dashboard" chrome link points. A partner's home is the portal
+  // — linking them at '/' would work (proxy.ts redirects it) but would show a
+  // visible bounce through a page they are never allowed to see.
+  const homeHref = viewer?.isPartner ? PARTNER_HOME : '/';
+
+  // The chrome "Dashboard" link above the nav already points at the viewer's
+  // home, so a module tile with the same href renders a second, identical
+  // entry — which is exactly what the Partner Portal's 'partner-dashboard'
+  // tile did. Drop it from the nav list rather than from the registry: the
+  // tile still has to exist for Module Manager and for the page guard's
+  // isModuleAccessAllowed('partner-dashboard') check.
+  //
+  // Safe to compare against homeHref directly — modules and viewer are set
+  // from the same response in one batch, so homeHref is already resolved
+  // whenever modules is non-null.
+  const navModules = useMemo(
+    () => (modules ? modules.filter((m) => m.href !== homeHref) : modules),
+    [modules, homeHref]
+  );
+
+  const sections = useModuleSections(navModules);
   const primarySection = primarySectionForDepartment(viewer?.department);
   const sectionLabels = useMemo(() => sections.map((s) => s.label), [sections]);
   const { isExpanded, toggle } = useCollapsibleSections(primarySection, { accordion: true, allLabels: sectionLabels });
@@ -244,7 +270,7 @@ export default function Sidebar() {
         <nav className={styles.nav}>
           {/* Main Dashboard Link */}
           {!searchQuery && (
-            <Link href="/" className={`${styles.link} ${isActive('/') ? styles.linkActive : ''}`} data-tooltip="Dashboard">
+            <Link href={homeHref} className={`${styles.link} ${isActive(homeHref) ? styles.linkActive : ''}`} data-tooltip="Dashboard">
               <span className={styles.linkIcon}><CHROME_ICON.dashboard size={16} /></span>
               <span className={styles.linkLabel}>Dashboard</span>
             </Link>

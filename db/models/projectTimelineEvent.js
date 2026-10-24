@@ -7,7 +7,9 @@ module.exports = (sequelize, DataTypes) => {
     // Includes 'created' plus all ProjectStage values, so STRING not ENUM.
     stage: { type: DataTypes.STRING },
     label: { type: DataTypes.STRING },
-    remarks: { type: DataTypes.TEXT }
+    remarks: { type: DataTypes.TEXT },
+    // Default false — internal by default. See the 20261020094000 migration.
+    partner_visible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
   }, {
     tableName: 'project_timeline_events',
     underscored: true,

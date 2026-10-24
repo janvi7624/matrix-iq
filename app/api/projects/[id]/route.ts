@@ -261,6 +261,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if (body.coldCallResponded === 'yes' || body.coldCallResponded === 'no' || body.coldCallResponded === '') patch.cold_call_responded = body.coldCallResponded;
     if (typeof body.remarks === 'string') patch.remarks = body.remarks.trim();
+    // Required before Won (STATUS_GATES), optional otherwise — same rule as
+    // project_name/company below in the gate block, not here.
+    if (typeof body.projectBrief === 'string') patch.project_brief = body.projectBrief.trim();
     // Why a deal was lost. Required by the Lost gate
     // (lib/salesStageRules.ts STATUS_GATES), and validated against the
     // agreed vocabulary HERE rather than trusted: the gate only checks the
@@ -413,6 +416,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
 
       const failures = stageGateFailures(nextStage, nextStatus, merged);
+      // Existence, not blankness — stageGateFailures judges fields ON the
+      // project row, and a quotation is a separate row, so it cannot be one
+      // of STATUS_GATES' entries the way project_name/company/project_brief
+      // are. A project that reached Won without ever generating a quotation
+      // has nothing for Accounts/Billing to reconcile the PO against.
+      if (nextStatus === 'won' && !(await latestQuotationForProject(id))) {
+        failures.push({
+          field: 'quotation',
+          label: 'Quotation',
+          message: 'At least one quotation must be created for this project before it can be closed as Won.'
+        });
+      }
       if (failures.length) {
         return NextResponse.json(
           {
