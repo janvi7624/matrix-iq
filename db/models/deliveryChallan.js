@@ -21,7 +21,16 @@ module.exports = (sequelize, DataTypes) => {
     assigned_engineer: { type: DataTypes.STRING },
     status: { type: DataTypes.ENUM('prepared', 'dispatched', 'returned', 'closed'), allowNull: false, defaultValue: 'prepared' },
     // MaterialReturnChecklist shape kept as ONE JSONB object column.
-    material_return: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} }
+    material_return: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
+    // What the demo actually cost, asked for when the DC is closed.
+    //
+    // NULL is meaningful and must stay reachable: it means nobody was asked, or
+    // the answer was "no cost". 0.00 would claim the question had been answered
+    // with zero — which is why this is nullable and why the close handler never
+    // coerces a blank into a number. Shape copied from
+    // travel_schedules.actual_cost, the same "cost captured at a workflow
+    // completion step" problem.
+    demo_cost_amount: { type: DataTypes.DECIMAL(12, 2) }
   }, {
     tableName: 'delivery_challans',
     underscored: true,

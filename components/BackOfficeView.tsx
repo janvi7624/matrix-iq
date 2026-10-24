@@ -16,8 +16,10 @@ import { useConfirm } from './ui/ConfirmDialog';
 import Button from './ui/Button';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { todayDateInputValue } from '@/lib/dateHelpers';
+import { formatMoney } from '@/lib/format';
 import styles from './backOffice.module.css';
 import FilterBar from './ui/FilterBar';
+import Modal, { ModalOkButton } from './ui/Modal';
 import Table, { TableColumn } from './ui/Table';
 
 const DC_STATUS_LABEL: Record<DcStatus, string> = { prepared: 'Prepared', dispatched: 'Dispatched', returned: 'Returned', closed: 'Closed' };
@@ -249,7 +251,7 @@ function ManualDcPanel({ projects, onGenerated, onCancel }: { projects: ProjectR
   );
 }
 
-function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanRecord; canManage: boolean; onUpdated: (dc: DeliveryChallanRecord) => void; onDelete: (id: string) => Promise<void> }) {
+function DcDetail({ dc, canManage, onUpdated, onDelete, onClose }: { dc: DeliveryChallanRecord; canManage: boolean; onUpdated: (dc: DeliveryChallanRecord) => void; onDelete: (id: string) => Promise<void>; onClose: () => void }) {
   const [items, setItems] = useState<DcLineItem[]>(dc.items);
   const [assignedEngineer, setAssignedEngineer] = useState(dc.assigned_engineer);
   const [expectedReturnDate, setExpectedReturnDate] = useState(dc.expected_return_date);
@@ -265,6 +267,12 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
   const [remarkTags, setRemarkTags] = useState<BackOfficeRemarkTag[]>(dc.material_return.remarkTags);
   const [remarks, setRemarks] = useState(dc.material_return.remarks);
   const [publicConfig, setPublicConfig] = useState<PublicAppConfig | null>(null);
+  // The close flow is two steps: "Close DC" reveals the cost question, and
+  // only "Confirm close" writes. Deliberately not a confirm() dialog — see
+  // the note on handleConfirmClose.
+  const [closing, setClosing] = useState(false);
+  const [hadCost, setHadCost] = useState<'' | 'no' | 'yes'>('');
+  const [costAmount, setCostAmount] = useState('');
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -275,7 +283,9 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
       .catch(() => setPublicConfig(null));
   }, []);
 
-  async function patch(action: string, extra: Record<string, unknown>) {
+  // Returns whether the write landed, so the caller can decide what to do
+  // next — closing a DC dismisses the dialog, but only if it actually closed.
+  async function patch(action: string, extra: Record<string, unknown>): Promise<boolean> {
     setBusy(true);
     try {
       const response = await fetch(`/api/delivery-challans/${dc.id}`, {
@@ -288,8 +298,10 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
         throw new Error(body?.error || String(response.status));
       }
       onUpdated(await response.json());
+      return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save this change.');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -332,29 +344,54 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
     patch('dispatch', {});
   }
 
-  async function handleCloseClick() {
-    if (!(await confirm({ message: `Close ${dc.dc_number}? This finalizes the Delivery Challan.`, danger: true }))) return;
-    patch('close', {});
+  /**
+   * Finalises the DC, recording what the demo cost.
+   *
+   * Inline rather than a confirm() over the dialog, for two reasons that are
+   * both structural: ConfirmDialog never registers in modalStack, so Escape
+   * over the confirm would close the Modal underneath it and leave the
+   * confirm orphaned; and ConfirmOptions has no slot for a number input, so
+   * the amount would need a form in the dialog AND a confirm on top of it.
+   *
+   * An empty string is sent for "no cost" on purpose — the server stores
+   * NULL for that, which stays distinguishable from a recorded 0.
+   */
+  async function handleConfirmClose() {
+    const amount = hadCost === 'yes' ? costAmount.trim() : '';
+    if (hadCost === 'yes') {
+      const parsed = Number(amount);
+      if (!amount || !Number.isFinite(parsed) || parsed < 0) {
+        toast.error('Enter the demo cost as a number of 0 or more.');
+        return;
+      }
+    }
+    const saved = await patch('close', { demoCostAmount: amount });
+    // No section of this detail renders for a closed DC, so staying open
+    // would leave the person looking at a dialog with nothing in it.
+    if (saved) onClose();
   }
 
   return (
-    <div className={historyStyles.detailPanel}>
+    // No .detailPanel, no heading and no status badge of its own: this
+    // renders inside a Modal now, which carries the card, the DC number and
+    // the status. Keeping them would be a panel inside a panel showing the
+    // same number twice.
+    <div>
       <div className={styles.detailHeaderRow}>
         <div>
-          <h2 className={`${calcStyles.h2} ${calcStyles.h2Reset}`}>{dc.dc_number}</h2>
           <div className={calcStyles.small}>
             {dc.client_name} · Issued by {dc.issued_by} on {formatDate(dc.issued_date)}
             {dc.project_id ? (
               <>
                 {' · '}
-                <Link href={`/projects/${dc.project_id}`}>Project {dc.project_id}</Link>
+                {/* The name, not the id — this line printed the raw UUID too. */}
+                <Link href={`/projects/${dc.project_id}`}>{dc.project_name || 'Project'}</Link>
               </>
             ) : (
               dc.custom_project_name && <>{' · '}Project: {dc.custom_project_name}</>
             )}
           </div>
         </div>
-        <StatusBadge tone={DC_STATUS_TONE[dc.status]} label={DC_STATUS_LABEL[dc.status]} />
       </div>
 
       <div className={`${historyStyles.actionBar} ${historyStyles.actionBarTight}`}>
@@ -550,9 +587,64 @@ function DcDetail({ dc, canManage, onUpdated, onDelete }: { dc: DeliveryChallanR
           {canManage && (
             <div className={`${historyStyles.actionGroup} ${styles.sectionSpacingTop10}`}>
               <div className={historyStyles.actionGroupLabel}>Primary Actions</div>
-              <div className={historyStyles.actionGroupButtons}>
-                <Button variant="success" icon={<Lock size={16} />} loading={busy} loadingLabel="Closing…" onClick={handleCloseClick}>Close DC</Button>
-              </div>
+              {!closing ? (
+                <div className={historyStyles.actionGroupButtons}>
+                  <Button variant="success" icon={<Lock size={16} />} onClick={() => setClosing(true)}>Close DC</Button>
+                </div>
+              ) : (
+                <div className={styles.dcCloseStep}>
+                  <div className={calcStyles.label}>Did anything cost money during this demo?</div>
+                  <div className={styles.dcCloseChoices}>
+                    <label className={styles.dcCloseChoice}>
+                      <input
+                        type="radio"
+                        name="dc-had-cost"
+                        checked={hadCost === 'no'}
+                        onChange={() => { setHadCost('no'); setCostAmount(''); }}
+                      />
+                      No
+                    </label>
+                    <label className={styles.dcCloseChoice}>
+                      <input
+                        type="radio"
+                        name="dc-had-cost"
+                        checked={hadCost === 'yes'}
+                        onChange={() => setHadCost('yes')}
+                      />
+                      Yes
+                    </label>
+                  </div>
+                  {hadCost === 'yes' && (
+                    <div className={calcStyles.field}>
+                      <label className={calcStyles.label} htmlFor="dc-demo-cost">Amount (₹)</label>
+                      <input
+                        id="dc-demo-cost"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        className={calcStyles.formControl}
+                        value={costAmount}
+                        onChange={(e) => setCostAmount(e.target.value)}
+                      />
+                    </div>
+                  )}
+                  <div className={historyStyles.actionGroupButtons}>
+                    <Button
+                      variant="success"
+                      icon={<Lock size={16} />}
+                      loading={busy}
+                      loadingLabel="Closing…"
+                      disabled={!hadCost || (hadCost === 'yes' && !costAmount.trim())}
+                      onClick={handleConfirmClose}
+                    >
+                      Confirm close
+                    </Button>
+                    <Button variant="ghost" onClick={() => { setClosing(false); setHadCost(''); setCostAmount(''); }}>Cancel</Button>
+                  </div>
+                  <div className={calcStyles.small}>Closing finalises this Delivery Challan and cannot be undone.</div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -610,6 +702,32 @@ function BackOfficeContent({ canManage }: { canManage: boolean }) {
 
   const linkedDc = useMemo(() => (demoIdParam ? dcs.find((d) => d.demo_id === demoIdParam) : null), [demoIdParam, dcs]);
 
+  // Which Project cells have been clicked open. A Set rather than a single
+  // id so two long names can be read at once, matching how ProjectsView
+  // handles its clamped Remark column.
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  function toggleProjectExpanded(id: string) {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // The record the dialog shows, re-derived from the list so an edit saved
+  // inside it is reflected immediately (handleUpdated replaces the row).
+  const openDc = useMemo(() => dcs.find((d) => d.id === openId) ?? null, [dcs, openId]);
+
+  // A ?demoId= deep link that resolves to an existing DC opens it. Keyed on
+  // the ID and not the record: handleUpdated swaps in a fresh object on every
+  // save, so depending on the object would re-open the dialog the instant
+  // someone dismissed it after an edit.
+  const linkedDcId = linkedDc?.id ?? '';
+  useEffect(() => {
+    if (linkedDcId) setOpenId(linkedDcId);
+  }, [linkedDcId]);
+
   // The "Demo(s) awaiting a Delivery Challan" attention item on the
   // Dashboard just links to plain /backoffice with no demoId — landing here
   // showed nothing actionable. This lists every such demo so that link (and
@@ -617,6 +735,9 @@ function BackOfficeContent({ canManage }: { canManage: boolean }) {
   // per-demo "Generate DC ->" link on Demo Schedule stays the direct path.
   const demosAwaitingDc = useMemo(() => demos.filter((d) => d.status === 'pending_backoffice'), [demos]);
 
+  // Deleting from inside the dialog has to dismiss it too. The old inline
+  // panel disappeared with the row it was rendered under; a dialog gated on
+  // a record that no longer exists would otherwise just blank out.
   async function handleDelete(id: string) {
     if (!(await confirm({ message: 'Delete this Delivery Challan? This cannot be undone.', danger: true }))) return;
     try {
@@ -634,17 +755,52 @@ function BackOfficeContent({ canManage }: { canManage: boolean }) {
 
   const dcColumns: TableColumn<DeliveryChallanRecord>[] = [
     { key: 'dcNumber', header: 'DC Number', cellClassName: historyStyles.num, render: (dc) => dc.dc_number },
-    { key: 'project', header: 'Project', render: (dc) => (dc.project_id ? <Link href={`/projects/${dc.project_id}`}>{dc.project_id}</Link> : '-') },
+    {
+      key: 'project',
+      header: 'Project',
+      render: (dc) => {
+        // The project NAME, resolved server-side (see
+        // lib/deliveryChallanStore.ts projectLabelOf). This used to print
+        // dc.project_id — a raw UUID — as its own link text.
+        //
+        // custom_project_name is the fallback that manual DCs depend on:
+        // they have no linked project at all, so a label is all there is.
+        const label = dc.project_name || dc.custom_project_name || '';
+        if (!label) return '-';
+        const expanded = expandedProjects.has(dc.id);
+        return (
+          <button
+            type="button"
+            className={`${styles.dcProjectCell} ${expanded ? styles.dcProjectCellExpanded : ''}`}
+            title={label}
+            onClick={() => toggleProjectExpanded(dc.id)}
+            aria-expanded={expanded}
+          >
+            {label}
+          </button>
+        );
+      }
+    },
     { key: 'client', header: 'Client', render: (dc) => dc.client_name },
     { key: 'requestedBy', header: 'Requested By', render: (dc) => dc.assigned_engineer || '-' },
+    {
+      key: 'expense',
+      header: 'Expense',
+      cellClassName: styles.dcExpenseCell,
+      // An em dash, not ₹0: no cost recorded is a different fact from a
+      // recorded zero, and the column would otherwise claim every DC closed
+      // before this existed had been checked and cost nothing.
+      render: (dc) =>
+        dc.demo_cost_amount === '' ? <span className={styles.dcExpenseNone}>—</span> : formatMoney(dc.demo_cost_amount)
+    },
     { key: 'status', header: 'Status', render: (dc) => <StatusBadge tone={DC_STATUS_TONE[dc.status]} label={DC_STATUS_LABEL[dc.status]} /> },
     { key: 'issuedDate', header: 'Issued Date', render: (dc) => formatDate(dc.issued_date) },
     {
       key: 'actions',
       header: '',
       render: (dc) => (
-        <button type="button" className={historyStyles.button} onClick={() => setOpenId(openId === dc.id ? null : dc.id)}>
-          {openId === dc.id ? 'Hide' : 'View'}
+        <button type="button" className={historyStyles.button} onClick={() => setOpenId(dc.id)}>
+          View
         </button>
       )
     }
@@ -666,9 +822,7 @@ function BackOfficeContent({ canManage }: { canManage: boolean }) {
           </div>
         )}
         {demoForGenerate && <GenerateDcPanel demo={demoForGenerate} onGenerated={(dc) => { setDcs((prev) => [dc, ...prev]); }} />}
-        {linkedDc && (
-          <DcDetail dc={linkedDc} canManage={canManage} onUpdated={handleUpdated} onDelete={handleDelete} />
-        )}
+
         {canManage && showManualDc && (
           <ManualDcPanel
             projects={projects}
@@ -677,7 +831,7 @@ function BackOfficeContent({ canManage }: { canManage: boolean }) {
           />
         )}
 
-        <h2 className={`${calcStyles.h2} ${demoForGenerate || linkedDc || showManualDc ? styles.allDcHeadingSpaced : calcStyles.h2Flush}`}>All Delivery Challans</h2>
+        <h2 className={`${calcStyles.h2} ${demoForGenerate || showManualDc ? styles.allDcHeadingSpaced : calcStyles.h2Flush}`}>All Delivery Challans</h2>
         <FilterBar>
           {canManage && !showManualDc && <Button variant="primary" icon={<Plus size={16} />} compact onClick={() => setShowManualDc(true)}>Create Manual DC</Button>}
           <button type="button" className={historyStyles.button} onClick={load}>Refresh</button>
@@ -691,11 +845,43 @@ function BackOfficeContent({ canManage }: { canManage: boolean }) {
             empty={<div className={historyStyles.empty}>No Delivery Challans yet — generate one from an approved demo request.</div>}
           />
         )}
-        {openId && !linkedDc && (
-          (() => {
-            const dc = dcs.find((d) => d.id === openId);
-            return dc ? <DcDetail dc={dc} canManage={canManage} onUpdated={handleUpdated} onDelete={handleDelete} /> : null;
-          })()
+        {/* One dialog for both entry paths — the View button and a ?demoId=
+            deep link. Previously the deep link rendered its own inline panel
+            AND suppressed this one via `!linkedDc`, so arriving with
+            ?demoId= left the View button dead on every row.
+
+            Gated on the record found in `dcs`, never on `openId` alone, so a
+            stale id cannot hold an empty dialog open. `key` re-mounts the
+            detail per DC, which matters because it seeds eleven useState
+            values from its props.
+
+            The footer says "Done", deliberately not "Close": "Close DC" is
+            an irreversible status change sitting a few pixels away in the
+            body, and two buttons both reading Close is how someone
+            finalises a challan they only meant to dismiss. Modal has no
+            close button of its own, so without this there is none. */}
+        {openDc && (
+          <Modal
+            title={(
+              <span className={styles.dcDialogTitle}>
+                {openDc.dc_number}
+                <StatusBadge tone={DC_STATUS_TONE[openDc.status]} label={DC_STATUS_LABEL[openDc.status]} />
+              </span>
+            )}
+            ariaLabel={`Delivery Challan ${openDc.dc_number}`}
+            size="wide"
+            onClose={() => setOpenId(null)}
+            footer={<ModalOkButton onClick={() => setOpenId(null)}>Done</ModalOkButton>}
+          >
+            <DcDetail
+              key={openDc.id}
+              dc={openDc}
+              canManage={canManage}
+              onUpdated={handleUpdated}
+              onDelete={handleDelete}
+              onClose={() => setOpenId(null)}
+            />
+          </Modal>
         )}
     </AppShell>
   );

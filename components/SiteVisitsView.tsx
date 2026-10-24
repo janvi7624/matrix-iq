@@ -14,7 +14,7 @@ import SiteVisitWizard, { SiteVisitWizardForm } from './SiteVisitWizard';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { SkeletonRows } from './ui/Skeleton';
-import Modal from './ui/Modal';
+import Modal, { ModalOkButton } from './ui/Modal';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import historyStyles from './quotationHistory.module.css';
@@ -498,13 +498,19 @@ function SiteVisitsContent({ currentUser }: SiteVisitsViewProps) {
         {/* A dialog rather than a panel appended after the table: the panel
             rendered below every row in the list, so opening a visit left the
             detail off-screen and the person had to scroll past the whole
-            table to reach what they had just clicked. */}
+            table to reach what they had just clicked.
+
+            The explicit footer is not decoration: Modal, unlike Drawer, renders
+            no close button of its own, and moving the detail in here removed
+            the panel's own Close — which left Escape and overlay-click as the
+            only way out, discoverable by nobody. */}
         {openVisit && (
           <Modal
             title={openVisit.company_name}
             ariaLabel={`Site visit — ${openVisit.company_name}`}
             size="wide"
             onClose={() => setOpenId(null)}
+            footer={<ModalOkButton onClick={() => setOpenId(null)}>Done</ModalOkButton>}
           >
             <SiteVisitDetail
               visit={openVisit}

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { periodContainingDate, TargetPeriodType } from '@/lib/targetPeriod';
 import { findSalesTarget } from '@/lib/salesTargetStore';
-import { computeAchievement, computeAchievementForEmployees } from '@/lib/salesAchievement';
+import { AchievementResult, computeAchievement, computeAchievementForEmployees } from '@/lib/salesAchievement';
 import { buildTargetProgress } from '@/lib/targetProgress';
 import { listOwnManagedSalesTeam } from '@/lib/targetAccess';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -39,9 +39,15 @@ export async function GET(request: NextRequest) {
         const [target, achievement, teamAchievements] = await Promise.all([
           findSalesTarget(viewer.userId, periodType, period.periodStart),
           computeAchievement(viewer.userId, period.periodStart, period.periodEnd),
+          // The empty fallback has to be TYPED. A bare Promise.resolve({})
+          // makes this element of the tuple `Record<string, AchievementResult>
+          // | {}`, and Object.values() cannot infer an element type from that
+          // union — it falls through to the `(o: {}) => any[]` overload, every
+          // reduce below sees `unknown`, and the production build fails type
+          // checking even though the code is correct at runtime.
           teamMemberIds.length
             ? computeAchievementForEmployees(teamMemberIds, period.periodStart, period.periodEnd)
-            : Promise.resolve({})
+            : Promise.resolve<Record<string, AchievementResult>>({})
         ]);
 
         const teamAchievedAmount = Object.values(teamAchievements).reduce((sum, a) => sum + a.achievedAmount, 0);

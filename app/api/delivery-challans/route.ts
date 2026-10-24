@@ -98,6 +98,10 @@ export async function POST(request: NextRequest) {
         created_at: now,
         created_by: viewer.username,
         project_id: demo.project_id,
+        // Resolved on read from the Project include; create() discards it.
+        project_name: '',
+        // Nothing recorded yet — a cost is only ever captured at close.
+        demo_cost_amount: '',
         custom_project_name: '',
         demo_id: demo.id,
         client_name: demo.client_name,
@@ -168,6 +172,10 @@ export async function POST(request: NextRequest) {
       created_at: now,
       created_by: viewer.username,
       project_id: projectId,
+      // Resolved on read from the Project include; create() discards it.
+      project_name: '',
+      // Nothing recorded yet — a cost is only ever captured at close.
+      demo_cost_amount: '',
       custom_project_name: customProjectName,
       demo_id: '',
       client_name: clientName,

@@ -58,7 +58,8 @@ export const OFFICE_EXPENSE_ITEMS = [
   'Godown 31',
   'Flowers',
   'Maintenance',
-  'Rent'
+  'Rent',
+  'Training'
 ] as const;
 
 // Items whose detail is typed rather than picked from a fixed list — the
