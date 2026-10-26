@@ -217,6 +217,32 @@ export function previousWorkingDay(date: string, policy: WorkingDayPolicy): stri
 export const TRACKING_START_DATE = '2026-10-24';
 
 /**
+ * 'HH:MM' IST. Before this time, TODAY's unfiled report reads as "not due
+ * yet" rather than "missing".
+ *
+ * Calling somebody missing at 09:00 for a day they still have the whole of
+ * is wrong twice over: it is not true yet, and a dashboard showing the entire
+ * team as missing every morning is one nobody reads by the afternoon. Only
+ * the LABEL waits — the obligation, the reminders at
+ * evening_reminder_time/final_reminder_time and the warning at deadline_time
+ * are all unchanged, and any earlier day is missing from the moment it closes.
+ */
+export const MISSING_VISIBLE_AFTER = '19:00';
+
+/**
+ * Whether an unfiled report for `reportDate` should be shown as missing yet.
+ *
+ * True for every past date. For today it turns true at MISSING_VISIBLE_AFTER.
+ * A future date is never missing.
+ */
+export function missingIsVisibleYet(reportDate: string, now: Date): boolean {
+  const today = istDate(now);
+  if (reportDate < today) return true;
+  if (reportDate > today) return false;
+  return istClock(now) >= MISSING_VISIBLE_AFTER;
+}
+
+/**
  * Every working day in [from, to], inclusive — never earlier than the
  * policy's trackingStartDate, however far back `from` reaches.
  *

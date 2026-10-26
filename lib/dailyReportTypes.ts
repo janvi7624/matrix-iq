@@ -252,8 +252,14 @@ export interface TeamDailyReportRow {
   template_configured: boolean;
   /** 'MISSING' when nothing was filed — a DRAFT also reads as MISSING here,
    *  because draft contents stay private and a draft does not satisfy the
-   *  filing requirement. */
-  submission_status: DailyReportSubmissionStatus | 'MISSING';
+   *  filing requirement.
+   *
+   *  'PENDING' is the same absence of a report, but for TODAY before
+   *  MISSING_VISIBLE_AFTER (lib/dailyReportTime.ts) — the day is still open,
+   *  so nothing is late yet. It is a separate value rather than a flavour of
+   *  MISSING so the missing KPI and the Missing filter keep meaning exactly
+   *  what they say. */
+  submission_status: DailyReportSubmissionStatus | 'MISSING' | 'PENDING';
   submitted_at: string;
   is_late: boolean;
   review_status: DailyReportReviewStatus | '';
@@ -275,6 +281,9 @@ export interface TeamDailyReportResponse {
     submitted: number;
     submitted_late: number;
     missing: number;
+    /** Not filed, but today is still open — see MISSING_VISIBLE_AFTER. Always
+     *  0 for a past date, where everything unfiled is simply missing. */
+    pending: number;
     pending_leave: number;
     approved_leave: number;
     not_configured: number;

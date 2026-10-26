@@ -16,7 +16,7 @@ import { findLiveClaim, loadClaimStatusByDate, loadLeaveCoveredKeys } from './da
 import { buildWarningSummary, loadWarningStatusByDate, loadWarningKeys } from './dailyReportWarningStore';
 import { EligibleEmployee, employeeOwesDate, listEligibleEmployees } from './dailyReportEligibility';
 import { resolveDailyReportScope } from './dailyReportAccess';
-import { addDays, isWorkingDay, istDate, monthKey, navigableWorkingDays, scheduleFor, workingDaysBetween } from './dailyReportTime';
+import { addDays, isWorkingDay, istDate, missingIsVisibleYet, monthKey, navigableWorkingDays, scheduleFor, workingDaysBetween } from './dailyReportTime';
 import { computeSalesAutoMatrix, mergeAutoMatrix } from './salesDailyAutoFetch';
 import { computeGemProposalEntries, mergeAutoGemEntries } from './gemProposalAutoFetch';
 import { computeDerivedValues, isEntryOverdue } from './dailyReportTemplates';
@@ -292,7 +292,13 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
       report_date: reportDate,
       template_key: employee.templateKey,
       template_configured: true,
-      submission_status: isSubmitted ? (found as NonNullable<typeof found>).submission_status : 'MISSING',
+      // Not filed splits two ways: MISSING once the day is genuinely past
+      // being open, PENDING while it still is. See missingIsVisibleYet.
+      submission_status: isSubmitted
+        ? (found as NonNullable<typeof found>).submission_status
+        : missingIsVisibleYet(reportDate, new Date())
+          ? 'MISSING'
+          : 'PENDING',
       submitted_at: isSubmitted ? (found as NonNullable<typeof found>).submitted_at : '',
       is_late: isSubmitted ? (found as NonNullable<typeof found>).is_late : false,
       review_status: isSubmitted ? (found as NonNullable<typeof found>).review_status : '',
@@ -311,7 +317,9 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
     if (search && !`${row.employee_name} ${row.employee_username} ${row.department_name}`.toLowerCase().includes(search)) return false;
     switch (filters.status) {
       case 'submitted':
-        return row.submission_status !== 'MISSING';
+        // Tested positively, not as "not missing" — PENDING is also not
+        // missing, and it certainly is not submitted.
+        return SUBMITTED_STATUSES.includes(row.submission_status as (typeof SUBMITTED_STATUSES)[number]);
       case 'late':
         return row.submission_status === 'SUBMITTED_LATE';
       case 'missing':
@@ -327,9 +335,13 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
   // missing today, not four missing among the rows that match a search box.
   const kpis = {
     expected: rows.length,
-    submitted: rows.filter((r) => r.submission_status !== 'MISSING').length,
+    submitted: rows.filter((r) => SUBMITTED_STATUSES.includes(r.submission_status as (typeof SUBMITTED_STATUSES)[number])).length,
     submitted_late: rows.filter((r) => r.submission_status === 'SUBMITTED_LATE').length,
     missing: rows.filter((r) => r.submission_status === 'MISSING' && !leaveCovered.has(`${r.employee_id}|${reportDate}`)).length,
+    // Not filed, but the day is still open. Reported so expected still adds
+    // up: without it a manager sees 30 expected, 2 submitted, 0 missing and
+    // has no idea where the other 28 went.
+    pending: rows.filter((r) => r.submission_status === 'PENDING' && !leaveCovered.has(`${r.employee_id}|${reportDate}`)).length,
     pending_leave: rows.filter((r) => r.leave_status === 'PENDING').length,
     approved_leave: rows.filter((r) => r.leave_status === 'APPROVED').length,
     // Active employees in scope who are NOT expected to file today —

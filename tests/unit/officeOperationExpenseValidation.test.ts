@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { parseExpenseBody } from '../../lib/officeOperationExpenseValidation';
+import {
+  ITEM_FREE_TEXT_ITEMS,
+  ITEM_SUB_OPTIONS,
+  OFFICE_EXPENSE_ITEMS,
+  isValidItem,
+  itemIsFreeText
+} from '../../lib/officeOperationExpenseOptions';
 
 // Covers the 'Other' escape hatch for an Item Name sub-selection (e.g.
 // Pantry -> Other -> a typed description) — the server-side counterpart to
@@ -84,5 +91,54 @@ describe.each(['Maintenance', 'Rent'])('%s — a free-text Expense Head with no 
     const other = itemName === 'Maintenance' ? 'Rent' : 'Maintenance';
     const result = await parseExpenseBody(body({ itemName, itemSubNames: [other, 'Second'] }));
     expect('error' in result).toBe(true);
+  });
+});
+
+// Structural checks on the picklists themselves, rather than on one request.
+// lib/officeOperationExpenseOptions.ts states these rules in comments and
+// nothing enforced them, so a new Expense Head could be added in a shape the
+// form cannot render — and the failure is silent: a mis-keyed sub-option map
+// renders no sub-field at all rather than erroring.
+describe('Expense Head picklist shape', () => {
+  it('never lists one head as both a fixed sub-list and a free-text blank', () => {
+    // The form renders one or the other, never both, so an item in both lists
+    // would be unreachable one way or the other.
+    const both = (ITEM_FREE_TEXT_ITEMS as readonly string[]).filter((item) => item in ITEM_SUB_OPTIONS);
+    expect(both).toEqual([]);
+  });
+
+  it('keys every sub-option list to a head that actually exists', () => {
+    // A typo here ('Stationery and Printing' for 'Stationary and Printing')
+    // silently drops the sub-field instead of failing.
+    const unknown = Object.keys(ITEM_SUB_OPTIONS).filter(
+      (key) => !(OFFICE_EXPENSE_ITEMS as readonly string[]).includes(key)
+    );
+    expect(unknown).toEqual([]);
+  });
+
+  it('names a real head in the free-text list too', () => {
+    const unknown = (ITEM_FREE_TEXT_ITEMS as readonly string[]).filter(
+      (item) => !(OFFICE_EXPENSE_ITEMS as readonly string[]).includes(item)
+    );
+    expect(unknown).toEqual([]);
+  });
+
+  it('lists no head twice', () => {
+    // A duplicate shows the option twice in the dropdown.
+    const seen = new Set<string>();
+    const duplicates = (OFFICE_EXPENSE_ITEMS as readonly string[]).filter((item) => {
+      if (seen.has(item)) return true;
+      seen.add(item);
+      return false;
+    });
+    expect(duplicates).toEqual([]);
+  });
+
+  it('offers EXPO / Event, with no sub-selection to make', () => {
+    // Event spend varies every time, so the detail goes in the entry's own
+    // description/remarks rather than a fixed sub-list.
+    expect(isValidItem('EXPO / Event')).toBe(true);
+    expect(ITEM_SUB_OPTIONS['EXPO / Event']).toBeUndefined();
+    expect(itemIsFreeText('EXPO / Event')).toBe(false);
   });
 });

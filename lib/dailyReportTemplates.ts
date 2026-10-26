@@ -288,13 +288,21 @@ export const ACCOUNTS_ACTIVITY_OPTIONS = [
   'Other'
 ];
 
+// 'Quotations Sent' was a seventh measure here and is deliberately gone.
+// It and 'Quotations Prepared' were read as the same thing on the floor —
+// a quotation is sent the moment it is made — so the grid showed two columns
+// with identical numbers in them. The one that remains counts EVERY
+// quotation created that day, drafts included: it is the more generous of the
+// two readings, and this grid is reviewed by HR, so a rep who saved a
+// quotation without sending it should not read as having produced nothing.
+// Already-submitted reports keep their stored 'Quotations Sent' figure in the
+// matrix; it simply stops being displayed.
 export const SALES_MEASURES = [
   'New Leads Generated',
   'Customer Calls',
   'Meetings Completed',
   'Meetings Scheduled',
   'Quotations Prepared',
-  'Quotations Sent',
   'Purchase Orders Received',
   'Follow-ups Completed'
 ];
@@ -346,7 +354,6 @@ const SALES_TEMPLATE: TemplateDefinition = {
     'New Leads Generated',
     'Customer Calls',
     'Quotations Prepared',
-    'Quotations Sent',
     'Purchase Orders Received',
     'Follow-ups Completed'
   ],

@@ -70,12 +70,23 @@ export async function resolveDailyReportScope(viewer: ViewerContext): Promise<Da
     isHrManager(viewer)
   ]);
 
-  // isPrivileged is the fallback tier rather than the primary test, matching
-  // lib/departmentScope.ts: an admin-created role granted
-  // viewAllDepartments sees everything even if it isn't "privileged", and the
-  // built-in admin/superadmin tier keeps working without being granted a new
-  // capability.
-  const seesOrgWide = orgWide || viewer.isPrivileged;
+  // Admin and superadmin only.
+  //
+  // This used to fall back to `viewer.isPrivileged`, which is ALSO true for
+  // the manager role (lib/permissions.ts:10) — so every department manager
+  // silently read every department's daily reports, which is the opposite of
+  // what a team dashboard is for. A manager now gets exactly the departments
+  // they manage, from departmentsManagedBy below.
+  //
+  // The capability check stays first so an admin-created role explicitly
+  // granted viewAllDepartments still works; the role test is the floor that
+  // keeps the two built-in admin tiers working even if that capability is
+  // ever cleared from the matrix. Same predicate as
+  // canReviewDailyReportWarnings further down this file.
+  //
+  // HR is unaffected: its company-wide READ access is granted separately
+  // below, deliberately, and without the manage/file rights this flag carries.
+  const seesOrgWide = orgWide || viewer.role === 'admin' || viewer.role === 'superadmin';
 
   if (seesOrgWide) {
     const departments = await listActiveDepartments();

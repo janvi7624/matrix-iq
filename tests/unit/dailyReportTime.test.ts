@@ -19,6 +19,7 @@ import {
   nextWorkingDay,
   previousWorkingDay,
   scheduleFor,
+  missingIsVisibleYet,
   workingDaysBetween
 } from '../../lib/dailyReportTime';
 
@@ -417,5 +418,43 @@ describe('tracking start date', () => {
   it('leaves the forward arrow governed by today, not by the floor', () => {
     expect(navigableWorkingDays('2026-10-24', '2026-10-28', TRACKED).next).toBe('2026-10-26');
     expect(navigableWorkingDays('2026-10-28', '2026-10-28', TRACKED).next).toBe('');
+  });
+});
+
+// "Missing" is a judgement about a day that has finished being open, so it
+// waits until the evening rather than appearing at midnight. Only the label
+// waits: the obligation, the reminders and the warning are all unchanged.
+describe('when an unfiled report starts reading as missing', () => {
+  // 2026-10-26 13:30 IST == 08:00Z; 19:00 IST == 13:30Z.
+  const at = (iso: string) => new Date(iso);
+
+  it('says nothing is missing earlier in the day', () => {
+    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T03:30:00Z'))).toBe(false); // 09:00 IST
+    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T08:00:00Z'))).toBe(false); // 13:30 IST
+  });
+
+  it('turns over exactly at 19:00 IST, not a minute before', () => {
+    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T13:29:00Z'))).toBe(false); // 18:59 IST
+    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T13:30:00Z'))).toBe(true); // 19:00 IST
+    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T15:00:00Z'))).toBe(true); // 20:30 IST
+  });
+
+  it('treats any earlier day as missing from the moment it closes', () => {
+    // 00:30 IST on the 27th — the 26th is over, so it is missing even though
+    // the cut-off time of day has not come round again.
+    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T19:00:00Z'))).toBe(true);
+    expect(missingIsVisibleYet('2026-10-19', at('2026-10-26T03:30:00Z'))).toBe(true);
+  });
+
+  it('never calls a future day missing', () => {
+    expect(missingIsVisibleYet('2026-10-27', at('2026-10-26T15:00:00Z'))).toBe(false);
+  });
+
+  // The IST boundary is the bit most likely to be broken by a refactor: at
+  // 19:30Z it is already the NEXT day in India, so today's date has moved on.
+  it('reads the day in IST, not UTC', () => {
+    // 2026-10-26T19:30:00Z is 2026-10-27 01:00 IST.
+    expect(missingIsVisibleYet('2026-10-27', at('2026-10-26T19:30:00Z'))).toBe(false);
+    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T19:30:00Z'))).toBe(true);
   });
 });

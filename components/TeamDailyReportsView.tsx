@@ -86,6 +86,11 @@ function SubmissionBadge({ row }: { row: TeamDailyReportRow }) {
   if (row.submission_status === 'SUBMITTED_LATE') return <span className={`${styles.badge} ${styles.badgeLate}`}>Submitted late</span>;
   if (row.submission_status === 'SUBMITTED') return <span className={`${styles.badge} ${styles.badgeSubmitted}`}>Submitted</span>;
   if (row.leave_status === 'PENDING') return <span className={`${styles.badge} ${styles.badgeLeave}`}>Leave pending</span>;
+  // Today, before the cut-off: nothing is filed but nothing is late either,
+  // so it must not wear the Missing badge. See MISSING_VISIBLE_AFTER.
+  if (row.submission_status === 'PENDING') {
+    return <span className={`${styles.badge} ${styles.badgePending}`}>Not due yet</span>;
+  }
   return <span className={`${styles.badge} ${styles.badgeMissing}`}>{row.warning_status === 'ACTIVE' ? 'Missing · warned' : 'Missing'}</span>;
 }
 
