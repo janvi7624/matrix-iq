@@ -2,6 +2,13 @@
 
 import { useState } from 'react';
 import { ProjectRecord } from '@/lib/types';
+import {
+  awaitingSide,
+  buildPartnerReviewThread,
+  informationRequestCount,
+  ReviewThreadEntry
+} from '@/lib/partnerReviewThread';
+import ReviewThread from './PartnerReviewThread';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -31,6 +38,13 @@ export default function PartnerSubmissionReviewPanel({ project, salesPeople, onR
   const [approxPrice, setApproxPrice] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // Assembled from the rows the project already carries — no extra fetch.
+  const thread: ReviewThreadEntry[] = buildPartnerReviewThread({
+    timeline: project.timeline ?? [],
+    notes: (project.notes ?? []).map((n) => ({ at: n.at, label: 'Update', remarks: n.text }))
+  });
+  const rounds = informationRequestCount(thread);
 
   const pending = project.partner_submission_status === 'submitted' || project.partner_submission_status === 'info_requested';
   if (!pending) return null;
@@ -77,6 +91,23 @@ export default function PartnerSubmissionReviewPanel({ project, salesPeople, onR
         <> Their estimate: ₹{project.partner_submitted_value.toLocaleString('en-IN')}.</>
       )}
       {project.partner_expected_timeline && <> Expected timeline: {project.partner_expected_timeline}.</>}
+      {rounds > 0 && (
+        <>
+          {' '}
+          <strong>
+            {rounds === 1 ? 'Information has been requested once' : `Information has been requested ${rounds} times`}
+          </strong>{' '}
+          on this submission.
+        </>
+      )}
+
+      {/* The reviewer sees the exchange BEFORE the buttons. Deciding without
+          it is how a second information request repeats the first. */}
+      <ReviewThread
+        entries={thread}
+        partnerLabel={project.partner_name || 'the partner'}
+        waitingOn={awaitingSide(project.partner_submission_status || '')}
+      />
 
       {error && <div className={historyStyles.loginError} style={{ marginTop: 10 }}>{error}</div>}
 

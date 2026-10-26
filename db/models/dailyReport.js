@@ -16,19 +16,18 @@ module.exports = (sequelize, DataTypes) => {
     template_key: { type: DataTypes.STRING, allowNull: false },
     // 'DRAFT' | 'SUBMITTED' | 'SUBMITTED_LATE'
     submission_status: { type: DataTypes.STRING, allowNull: false, defaultValue: 'DRAFT' },
-    // 'NOT_REVIEWED' | 'REVIEWED' | 'CHANGES_REQUESTED' — deliberately
-    // independent of submission_status; manager review is informational and
-    // never an approval gate.
-    review_status: { type: DataTypes.STRING, allowNull: false, defaultValue: 'NOT_REVIEWED' },
     payload: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
     matrix: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
     // Written once on first submit and never rewritten.
     submitted_at: { type: DataTypes.DATE },
     is_late: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     deadline_at: { type: DataTypes.DATE },
-    reviewed_by: { type: DataTypes.UUID },
-    reviewed_at: { type: DataTypes.DATE },
-    review_note: { type: DataTypes.TEXT },
+    // review_status / reviewed_by / reviewed_at / review_note are deliberately
+    // NOT declared here. Manager review was removed; the four Postgres columns
+    // are left in place rather than dropped, because review_note is the only
+    // record of anything a manager ever asked for and a drop is irreversible.
+    // Undeclared means Sequelize neither SELECTs nor writes them, and
+    // review_status keeps its NOT NULL DEFAULT so inserts still succeed.
     // Non-null only when a manager filed on the employee's behalf.
     filed_by_user_id: { type: DataTypes.UUID },
     created_by: { type: DataTypes.UUID },
@@ -42,7 +41,6 @@ module.exports = (sequelize, DataTypes) => {
   DailyReport.associate = (models) => {
     DailyReport.belongsTo(models.User, { foreignKey: 'employee_id', as: 'employee' });
     DailyReport.belongsTo(models.Department, { foreignKey: 'department_id', as: 'department' });
-    DailyReport.belongsTo(models.User, { foreignKey: 'reviewed_by', as: 'reviewer' });
     DailyReport.belongsTo(models.User, { foreignKey: 'filed_by_user_id', as: 'filedBy' });
     DailyReport.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
     DailyReport.belongsTo(models.User, { foreignKey: 'updated_by', as: 'updater' });

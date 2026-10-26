@@ -521,6 +521,22 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
   }
 
   async function saveQuotationToServer(): Promise<{ id: string; quotation_number: string } | null> {
+    // Already logged — hand back the record that exists instead of creating a
+    // second one.
+    //
+    // The button is disabled while a save runs (pdfBusy), so a fast
+    // double-click was never the problem. What happened is slower and easier
+    // to do: the first press finishes, pdfBusy clears, the button re-enables,
+    // the PDF download is not obvious, so the quotation is pressed again —
+    // and a second POST mints a second number. That produced
+    // NT-GEN-24/10/2026/003 and /004, same client and same total, seven
+    // seconds apart. Pressing again now simply re-downloads the PDF for the
+    // quotation already saved, which is what the person wanted both times.
+    //
+    // Guards a revision too: pressing twice there created revision 2 of the
+    // same original, which is the identical bug one level along.
+    if (savedQuotation) return savedQuotation;
+
     const isRevision = !!revisingFrom;
     const url = isRevision ? `/api/quotations/${revisingFrom!.id}/revise` : '/api/quotations';
     const payload = isRevision ? { ...buildQuotationPayload(), reason: revisionReason } : buildQuotationPayload();

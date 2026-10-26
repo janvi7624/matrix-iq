@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       name: typeof body.name === 'string' ? body.name : '',
       parentId: typeof body.parentId === 'string' && body.parentId ? body.parentId : null,
       description: typeof body.description === 'string' ? body.description.trim() : '',
+      partnerVisible: body.partnerVisible === true,
       actorId: viewer.userId
     });
     return NextResponse.json({ folder }, { status: 201 });

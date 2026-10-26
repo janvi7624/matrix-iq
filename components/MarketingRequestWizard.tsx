@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import {
   Megaphone, Flame, Paperclip, CheckCircle2,
   FileText, Share2, Image as ImageIcon, Video, Mail, Globe, Camera, Calendar, MoreHorizontal,
@@ -11,7 +11,6 @@ import {
   MARKETING_PRODUCT_CATEGORIES,
   MarketingProductCategory,
   MarketingRequestPriority,
-  MarketingRequestRecord,
   MarketingRequestType
 } from '@/lib/types';
 import { MARKETING_PRIORITY_META, MARKETING_REQUEST_TYPE_LABEL, getProductCategoryStyle } from '@/lib/marketingRequestHelpers';
@@ -67,19 +66,42 @@ const STEPS: { icon: LucideIcon; label: string }[] = [
   { icon: CheckCircle2, label: 'Review & Submit' }
 ];
 
-interface MarketingRequestWizardProps {
-  creating: boolean;
-  onSubmit: (form: MarketingRequestForm) => Promise<MarketingRequestRecord | null>;
-  onViewAllRequests: () => void;
+/**
+ * The confirmation screen reads three fields off whatever the submit handler
+ * returned. Declared structurally rather than as MarketingRequestRecord so
+ * the Partner Portal can reuse this wizard unchanged: it submits to
+ * /api/partner/marketing-requests, which answers with the whitelisted
+ * PartnerVisibleMarketingRequest (lib/partnerMarketingVisibility.ts) and
+ * deliberately has no created_by.
+ */
+export interface SubmittedRequestSummary {
+  title: string;
+  product_category: string;
+  created_by?: string;
 }
 
-export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRequests }: MarketingRequestWizardProps) {
+interface MarketingRequestWizardProps {
+  creating: boolean;
+  onSubmit: (form: MarketingRequestForm) => Promise<SubmittedRequestSummary | null>;
+  onViewAllRequests: () => void;
+  /**
+   * Overrides the project picker. The default, ProjectSelect, self-fetches
+   * /api/projects — a route Layer 1 refuses to a partner session — so the
+   * portal passes its own picker over /api/partner/projects. Everything else
+   * about the form stays identical, which is the point: field parity between
+   * the two audiences comes from sharing this component, not from keeping two
+   * forms in step by hand.
+   */
+  renderProjectPicker?: (value: string, onChange: (projectId: string) => void) => ReactNode;
+}
+
+export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRequests, renderProjectPicker }: MarketingRequestWizardProps) {
   const toast = useToast();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<MarketingRequestForm>(emptyForm());
   const [errors, setErrors] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [successRecord, setSuccessRecord] = useState<MarketingRequestRecord | null>(null);
+  const [successRecord, setSuccessRecord] = useState<SubmittedRequestSummary | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function validateStep(index: number): string[] {
@@ -157,9 +179,13 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
           <div className={styles.categoryStrip}>
             <span className={styles.stripLabel}>Category:</span>
             <span className={styles.stripValue}>{successRecord.product_category}</span>
-            <span className={styles.stripDot}>•</span>
-            <span className={styles.stripLabel}>Requester:</span>
-            <span className={styles.stripValue}>{successRecord.created_by}</span>
+            {successRecord.created_by && (
+              <>
+                <span className={styles.stripDot}>•</span>
+                <span className={styles.stripLabel}>Requester:</span>
+                <span className={styles.stripValue}>{successRecord.created_by}</span>
+              </>
+            )}
           </div>
           <div className={historyStyles.successActions}>
             <button type="button" className={historyStyles.bigBtn} onClick={handleRequestAnother}>Submit Another Request</button>
@@ -261,11 +287,15 @@ export default function MarketingRequestWizard({ creating, onSubmit, onViewAllRe
 
             <div className={calcStyles.field}>
               <label className={calcStyles.label}>Related Sales Project (Optional)</label>
-              <ProjectSelect
-                value={form.projectId}
-                placeholder="-- Not linked to a specific project --"
-                onChange={(projectId) => setForm((f) => ({ ...f, projectId }))}
-              />
+              {renderProjectPicker ? (
+                renderProjectPicker(form.projectId, (projectId) => setForm((f) => ({ ...f, projectId })))
+              ) : (
+                <ProjectSelect
+                  value={form.projectId}
+                  placeholder="-- Not linked to a specific project --"
+                  onChange={(projectId) => setForm((f) => ({ ...f, projectId }))}
+                />
+              )}
             </div>
           </>
         )}

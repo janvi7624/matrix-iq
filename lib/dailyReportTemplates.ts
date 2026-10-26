@@ -288,13 +288,21 @@ export const ACCOUNTS_ACTIVITY_OPTIONS = [
   'Other'
 ];
 
+// 'Quotations Sent' was a seventh measure here and is deliberately gone.
+// It and 'Quotations Prepared' were read as the same thing on the floor —
+// a quotation is sent the moment it is made — so the grid showed two columns
+// with identical numbers in them. The one that remains counts EVERY
+// quotation created that day, drafts included: it is the more generous of the
+// two readings, and this grid is reviewed by HR, so a rep who saved a
+// quotation without sending it should not read as having produced nothing.
+// Already-submitted reports keep their stored 'Quotations Sent' figure in the
+// matrix; it simply stops being displayed.
 export const SALES_MEASURES = [
   'New Leads Generated',
   'Customer Calls',
   'Meetings Completed',
   'Meetings Scheduled',
   'Quotations Prepared',
-  'Quotations Sent',
   'Purchase Orders Received',
   'Follow-ups Completed'
 ];
@@ -346,7 +354,6 @@ const SALES_TEMPLATE: TemplateDefinition = {
     'New Leads Generated',
     'Customer Calls',
     'Quotations Prepared',
-    'Quotations Sent',
     'Purchase Orders Received',
     'Follow-ups Completed'
   ],
@@ -1125,6 +1132,20 @@ export interface TemplateOverrides {
   options?: Record<string, string[]>;
   /** Replacement linked catalogue for a dependent field (HR's Activity). */
   linkedOptions?: Record<string, Record<string, string[]>>;
+  /**
+   * A sub-category level a MANAGER added to a select that had none.
+   *
+   * Keyed by the PARENT field's key. resolveTemplate turns each entry into a
+   * real dependent select inserted straight after its parent, so the rest of
+   * the module — the form, the validator, the sheet columns — sees an
+   * ordinary field and needs no special case.
+   *
+   * Separate from `linkedOptions`, which replaces the catalogue of a
+   * dependent field the template already declares (HR's Specific Activity).
+   * Using one key for both would make "edit the built-in child" and "invent
+   * a child" indistinguishable, and only the second may be removed again.
+   */
+  subCategories?: Record<string, { label: string; catalogue: Record<string, string[]> }>;
   minEntries?: number;
   /** Replaces the measure rows of a 'matrix' template. */
   measures?: string[];
@@ -1133,6 +1154,17 @@ export interface TemplateOverrides {
 }
 
 /** A built-in template with this department's admin overrides applied. */
+/**
+ * The field key a manager-added sub-category takes.
+ *
+ * Derived from the parent rather than chosen, so the stored entry data keeps
+ * the same key across edits — renaming the LABEL must never orphan values
+ * already filed under it.
+ */
+export function subCategoryKeyFor(parentKey: string): string {
+  return `${parentKey}_sub`;
+}
+
 export function resolveTemplate(key: DailyReportTemplateKey, overrides?: TemplateOverrides | null): TemplateDefinition {
   const base = BUILT_IN_TEMPLATES[key] ?? NOT_CONFIGURED_TEMPLATE;
   if (!overrides) return base;
@@ -1148,10 +1180,41 @@ export function resolveTemplate(key: DailyReportTemplateKey, overrides?: Templat
     };
   };
 
+  /**
+   * Insert each manager-defined sub-category field directly after its
+   * parent. Placement matters: the form reads fields in order, and a
+   * sub-category that rendered after Notes would not read as belonging to
+   * the category above it.
+   *
+   * A parent that is not in this list passes through untouched, and a
+   * template that already declares its own dependent child is left alone —
+   * `subCategories` is only ever consulted for a parent with no native
+   * child, which lib/dailyReportCategoryFields.ts enforces on write.
+   */
+  const withSubCategories = (fields: DailyReportFieldDef[]): DailyReportFieldDef[] => {
+    if (!overrides.subCategories) return fields;
+    const out: DailyReportFieldDef[] = [];
+    for (const field of fields) {
+      out.push(field);
+      const sub = overrides.subCategories[field.key];
+      if (!sub || !Object.keys(sub.catalogue ?? {}).length) continue;
+      out.push({
+        key: subCategoryKeyFor(field.key),
+        label: sub.label || 'Sub-category',
+        type: 'select',
+        dependsOn: field.key,
+        linkedOptions: sub.catalogue,
+        options: Object.keys(sub.catalogue),
+        width: field.width ?? 'md'
+      });
+    }
+    return out;
+  };
+
   return {
     ...base,
-    headerFields: base.headerFields.map(applyField),
-    rowFields: base.rowFields.map(applyField),
+    headerFields: withSubCategories(base.headerFields.map(applyField)),
+    rowFields: withSubCategories(base.rowFields.map(applyField)),
     ...(overrides.measures?.length ? { measures: overrides.measures } : {}),
     ...(overrides.channels?.length ? { channels: overrides.channels } : {}),
     ...(typeof overrides.minEntries === 'number' ? { minEntries: overrides.minEntries } : {})

@@ -13,3 +13,24 @@ export function computeEffectiveStatusClient(record: Pick<QuotationRecord, 'stat
   }
   return record.status;
 }
+
+/**
+ * Which quotation statuses may be shared with a partner.
+ *
+ * Lives here rather than in lib/partnerQuotationStore.ts because the rule is
+ * needed on BOTH sides: the server enforces it, and the Partner Requests
+ * queue greys out unshareable options in its dropdown. That store imports
+ * Sequelize, so a client component reaching into it for this one constant
+ * would pull the ORM into the browser bundle — the same reason
+ * computeEffectiveStatusClient above exists.
+ *
+ * A draft is excluded because it is still being written; sharing one would
+ * publish working numbers to an external company. 'rejected' IS shareable:
+ * the partner was already shown it, and withdrawing the document the moment
+ * our customer declines would erase their own history.
+ */
+export const SHAREABLE_QUOTATION_STATUSES = ['sent', 'approved', 'rejected'];
+
+export function isShareableQuotationStatus(status: string): boolean {
+  return SHAREABLE_QUOTATION_STATUSES.includes(status);
+}

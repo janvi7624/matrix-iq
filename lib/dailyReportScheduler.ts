@@ -64,8 +64,14 @@ const AUTO_SUBMIT_LOOKBACK_DAYS = 2;
 // function; this file loads state, calls it, and performs the effects.
 
 export interface SweepOptions {
-  /** 'cron' | 'manual' — a manual run from the admin page is distinguishable. */
-  trigger?: 'cron' | 'manual';
+  /**
+   * How this run was started, recorded on the run row so the three are
+   * distinguishable in the admin page's history:
+   *   'cron'   — the HTTP endpoint, called by an external scheduler
+   *   'manual' — somebody pressed Run Live Sweep
+   *   'auto'   — the in-process timer (lib/dailyReportAutoSweep.ts)
+   */
+  trigger?: 'cron' | 'manual' | 'auto';
   /**
    * Overrides the configured dry-run flag for ONE run. The admin page uses
    * this to rehearse on demand without changing the stored policy; it can

@@ -137,6 +137,9 @@ export async function POST(request: NextRequest) {
       isFolder: resolved.value.isFolder,
       source: resolved.value.source,
       mimeType: resolved.value.mimeType,
+      // Opt-in, never inferred: the library also holds internal sales decks
+      // and competitor comparisons, so a missing field means "internal".
+      partnerVisible: body.partnerVisible === true,
       actorId: viewer.userId
     });
     return NextResponse.json({ material }, { status: 201 });

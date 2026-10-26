@@ -25,7 +25,11 @@ export type DailyReportEmailKind =
   /** Sales/GEM-Sales: the employee never submitted, so the system filed it for them. */
   | 'auto_submitted'
   /** Sales/GEM-Sales: auto-fetched activity has been zero for 2 reporting days running. */
-  | 'zero_total_warning';
+  | 'zero_total_warning'
+  /** Somebody wants to change a report they already filed — to their manager. */
+  | 'edit_request'
+  /** The manager's answer, back to the employee. */
+  | 'edit_decision';
 
 export interface DailyReportEmailData {
   kind: DailyReportEmailKind;
@@ -65,7 +69,11 @@ const ACCENT = {
   leave_claim: '#2563eb',
   leave_decision: '#059669',
   auto_submitted: '#2563eb',
-  zero_total_warning: '#b91c1c'
+  zero_total_warning: '#b91c1c',
+  // A missing entry here is read as `undefined` at the accent lookup rather
+  // than failing to compile, so these two are easy to forget.
+  edit_request: '#2563eb',
+  edit_decision: '#059669'
 } as const;
 
 interface Composed {
@@ -159,6 +167,30 @@ function compose(data: DailyReportEmailData): Composed {
         emphasis: 'While this claim is pending, the date is excluded from new reminders and warnings.',
         actionLabel: 'Review Leave Claim'
       };
+
+    case 'edit_request':
+      return {
+        subject: subject(`Edit requested — ${data.employeeName ?? 'an employee'}, ${data.reportDate}`),
+        intro: `${data.employeeName ?? 'An employee'} is asking to change the daily report they filed for ${data.reportDate}.`,
+        facts: [`Reporting date: ${data.reportDate}`, `Reason given: ${data.reason || '—'}`],
+        emphasis: 'A filed report cannot be changed until you allow it. Approving permits exactly one save.',
+        actionLabel: 'Review the request'
+      };
+
+    case 'edit_decision': {
+      const allowed = data.decision === 'APPROVED';
+      return {
+        subject: subject(`Edit ${allowed ? 'allowed' : 'refused'} — ${data.reportDate}`),
+        intro: allowed
+          ? `You can now change your daily report for ${data.reportDate}.`
+          : `Your request to change the daily report for ${data.reportDate} was refused.`,
+        facts: [`Reporting date: ${data.reportDate}`, `Decision: ${allowed ? 'Allowed' : 'Refused'}`, `Reason given: ${data.decisionReason || '—'}`],
+        emphasis: allowed
+          ? 'The permission is good for one save, and the original submission time will not change.'
+          : 'The report stands as filed.',
+        actionLabel: 'Open Daily Report'
+      };
+    }
 
     case 'leave_decision': {
       const approved = data.decision === 'APPROVED';

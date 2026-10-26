@@ -59,7 +59,14 @@ export const OFFICE_EXPENSE_ITEMS = [
   'Flowers',
   'Maintenance',
   'Rent',
-  'Training'
+  'Training',
+  // Expo and event spend — stall, printing, travel, hospitality and the rest
+  // of it. Deliberately no ITEM_SUB_OPTIONS entry: what an event costs varies
+  // every time, so a fixed sub-list would either be wrong or be mostly
+  // 'Other', and an entry already carries `description` and `remarks` for the
+  // detail. Appended rather than slotted in alphabetically — the list is
+  // grouped by kind, not sorted, and this sits next to Training.
+  'EXPO / Event'
 ] as const;
 
 // Items whose detail is typed rather than picked from a fixed list — the

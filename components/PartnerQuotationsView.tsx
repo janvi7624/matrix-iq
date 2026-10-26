@@ -5,6 +5,7 @@ import { Download, Loader2 } from 'lucide-react';
 import { generateQuotationPdf } from '@/lib/pdf';
 import type { LineItem as PdfLineItem, ProductGroup } from '@/lib/types';
 import { PartnerRecord } from '@/lib/types';
+import PartnerQuotationRequestsPanel from './PartnerQuotationRequestsPanel';
 import PartnerShell from './PartnerShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -177,6 +178,11 @@ export default function PartnerQuotationsView({ partner }: { partner: PartnerRec
       partnerName={partner.company_name}
       partnerCode={partner.partner_code}
     >
+      {/* Asks first, documents second: a partner arriving here usually wants
+          to chase or raise a request, and the shared list is what they
+          already have. */}
+      <PartnerQuotationRequestsPanel onQuoted={load} />
+
       <section className={styles.intro}>
         <h2 className={styles.introTitle}>Shared with you</h2>
         <p className={styles.introSub}>

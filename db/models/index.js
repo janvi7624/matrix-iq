@@ -19,6 +19,7 @@ const modelDefiners = [
   // two loops below), so the order here is for readability, not correctness.
   require('./partner.js'),
   require('./partnerQuotationShare.js'),
+  require('./partnerQuotationRequest.js'),
   require('./materialAccessLog.js'),
   require('./supportSlaPolicy.js'),
   require('./supportTicket.js'),
@@ -67,6 +68,7 @@ const modelDefiners = [
   require('./customModuleField.js'),
   require('./customModuleRecord.js'),
   require('./appConfig.js'),
+  require('./officeExpenseOptionSet.js'),
   require('./attachment.js'),
   require('./notification.js'),
   require('./projectHandoverRequest.js'),
@@ -93,6 +95,7 @@ const modelDefiners = [
   require('./dailyReportEntry.js'),
   require('./dailyReportRevision.js'),
   require('./dailyReportLeaveClaim.js'),
+  require('./dailyReportEditRequest.js'),
   require('./dailyReportWarning.js'),
   require('./dailyReportEscalation.js'),
   require('./dailyReportNotificationEvent.js'),

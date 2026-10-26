@@ -16,7 +16,6 @@ export type { LeadOrigin, ProjectDepartment, DepartmentAmounts };
 // stays the index of the app's record types.
 export type {
   DailyReportSubmissionStatus,
-  DailyReportReviewStatus,
   DailyReportLeaveClaimStatus,
   DailyReportWarningStatus,
   DailyReportRecord,
@@ -785,6 +784,12 @@ export interface MarketingRequestRecord {
   created_at: string;
   created_by: string;
   creator_name?: string;
+  // Partner origin. Empty on every internal request. Present means the
+  // request was raised through the Partner Portal, and the internal list
+  // badges and filters on it — see components/MarketingRequestsView.tsx.
+  partner_id?: string;
+  partner_company?: string;
+  partner_code?: string;
   updated_at: string;
   project_id: string;
   // Marketing member working on this ticket
@@ -1200,7 +1205,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request' | 'office_operation_expense' | 'daily_report' | 'daily_report_leave_claim' | 'daily_report_warning' | 'daily_report_config' | 'back_office_monthly_summary' | 'partner' | 'partner_user' | 'material' | 'support_ticket';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request' | 'office_operation_expense' | 'daily_report' | 'daily_report_leave_claim' | 'daily_report_edit_request' | 'daily_report_warning' | 'daily_report_config' | 'back_office_monthly_summary' | 'partner' | 'partner_user' | 'material' | 'support_ticket' | 'partner_quotation_request';
   entity_id: string;
   action: string;
   previous_status: string;

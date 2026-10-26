@@ -12,7 +12,7 @@ import {
   History,
   Info,
   ShieldAlert
-} from 'lucide-react';
+, KeyRound } from 'lucide-react';
 import { DailyReportPayloadInput, EMPTY_PAYLOAD } from '@/lib/dailyReportTemplates';
 import { DailyReportHistoryItem, MyDailyReportResponse } from '@/lib/dailyReportTypes';
 import AppShell from './AppShell';
@@ -170,6 +170,9 @@ export default function DailyReportView({
   // throw away what they have typed. See useAutoRefresh's own comment on why
   // it refetches data rather than reloading the page.
   const [dirty, setDirty] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editReason, setEditReason] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveReason, setLeaveReason] = useState('');
   const [leaveSaving, setLeaveSaving] = useState(false);
@@ -208,9 +211,16 @@ export default function DailyReportView({
     return () => window.clearInterval(timer);
   }, []);
 
-  useAutoRefresh(() => load(date), { enabled: !dirty && !loading && !leaveOpen });
+  useAutoRefresh(() => load(date), { enabled: !dirty && !loading && !leaveOpen && !editOpen });
 
   const submitted = data?.report?.submission_status === 'SUBMITTED' || data?.report?.submission_status === 'SUBMITTED_LATE';
+  // Submitting is terminal. A filed report reopens only while an approved,
+  // unspent permission from the department manager is live.
+  const editRequest = data?.edit_request ?? null;
+  const editPending = editRequest?.status === 'PENDING';
+  const editAllowed = editRequest?.status === 'APPROVED';
+  const locked = submitted && !editAllowed;
+
   const leavePending = data?.leave_claim?.status === 'PENDING';
   const leaveApproved = data?.leave_claim?.status === 'APPROVED';
   const leaveRejected = data?.leave_claim?.status === 'REJECTED';
@@ -275,7 +285,7 @@ export default function DailyReportView({
         title: 'Submit this report?',
         message: data.past_deadline
           ? `The deadline (${formatDateTime(data.deadline_at)}) has passed, so this will be recorded as submitted late. Your manager will be notified.`
-          : 'Your manager will be notified. You can still edit it afterwards — the original submission time is kept.',
+          : 'Your manager will be notified. Once filed it cannot be changed — you would have to ask your manager for permission to edit it.',
         confirmLabel: 'Submit Report'
       });
       if (!ok) return;
@@ -303,6 +313,29 @@ export default function DailyReportView({
       toast.error(error instanceof Error ? error.message : 'Could not save this report.');
     } finally {
       setSaving(null);
+    }
+  }
+
+  async function raiseEditRequest() {
+    if (!data?.report) return;
+    if (!editReason.trim()) return toast.error('Say what needs correcting — your manager decides on the reason.');
+    setEditSaving(true);
+    try {
+      const response = await fetch(`/api/daily-reports/${data.report.id}/edit-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: editReason.trim() })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || 'Could not send that request.');
+      toast.success('Sent to your department manager.');
+      setEditOpen(false);
+      setEditReason('');
+      await load(date);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not send that request.');
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -599,24 +632,44 @@ export default function DailyReportView({
               onChange={updatePayload}
               issues={issues}
               reportDate={data.report_date}
+              disabled={locked}
             />
           </div>
 
           {/* Sticky, because a ten-entry report put Submit a long scroll
               away from wherever you were typing. */}
           <div className={`${styles.stickyActions} ${dirty ? styles.stickyActionsDirty : ''}`}>
-            <Button variant="secondary" onClick={() => save('draft')} loading={saving === 'draft'} loadingLabel="Saving…" disabled={!!saving}>
-              Save Draft
-            </Button>
-            <Button variant="primary" onClick={() => save('submit')} loading={saving === 'submit'} loadingLabel="Submitting…" disabled={!!saving}>
-              {submitted ? 'Save Changes' : 'Submit Report'}
-            </Button>
+            {locked ? (
+              <Button
+                variant="secondary"
+                icon={<KeyRound size={15} />}
+                onClick={() => setEditOpen(true)}
+                disabled={editPending}
+              >
+                {editPending ? 'Permission requested' : 'Request permission to edit'}
+              </Button>
+            ) : (
+              <>
+                {!submitted && (
+                  <Button variant="secondary" onClick={() => save('draft')} loading={saving === 'draft'} loadingLabel="Saving…" disabled={!!saving}>
+                    Save Draft
+                  </Button>
+                )}
+                <Button variant="primary" onClick={() => save('submit')} loading={saving === 'submit'} loadingLabel="Submitting…" disabled={!!saving}>
+                  {submitted ? 'Save the permitted change' : 'Submit Report'}
+                </Button>
+              </>
+            )}
             <span className={styles.footerSpacer} />
             <span className={styles.savedHint}>
               {dirty
                 ? 'Unsaved changes.'
                 : submitted
-                  ? `Submitted ${formatDateTime(data.report?.submitted_at ?? '')}. Edits keep the original submission time.`
+                  ? editAllowed
+                    ? 'Permission granted — this one save is allowed, and the original submission time is kept.'
+                    : editPending
+                      ? 'Filed, and locked. Your manager has your request to edit it.'
+                      : `Filed ${formatDateTime(data.report?.submitted_at ?? '')}. A filed report cannot be changed.`
                   : data.report
                     ? 'Draft saved. Only you can see a draft — it does not count as filed.'
                     : 'A draft is private to you. Submitting notifies your manager.'}
@@ -683,6 +736,38 @@ export default function DailyReportView({
 
       {data.history.length === 0 && (
         <EmptyState icon={ClipboardList} title="No reporting history yet" message="Days you file will appear here." />
+      )}
+
+      {editOpen && data.report && (
+        <Modal
+          title={`Ask to edit — ${formatDate(data.report_date)}`}
+          ariaLabel="Ask for permission to edit this filed report"
+          onClose={() => setEditOpen(false)}
+          dismissible={!editSaving}
+          footer={
+            <>
+              <ModalCancelButton onClick={() => setEditOpen(false)} disabled={editSaving}>Cancel</ModalCancelButton>
+              <ModalOkButton onClick={raiseEditRequest} disabled={editSaving}>
+                {editSaving ? 'Sending…' : 'Send to my manager'}
+              </ModalOkButton>
+            </>
+          }
+        >
+          <p className={styles.sectionHint}>
+            This report has been filed, so it cannot be changed on its own. Your department manager will be notified and
+            can allow it. Permission is good for one save, and the original submission time is kept either way.
+          </p>
+          <div className={calcStyles.field}>
+            <label className={calcStyles.label} htmlFor="edit-reason">What needs correcting? *</label>
+            <Textarea
+              id="edit-reason"
+              rows={3}
+              value={editReason}
+              onChange={(e) => setEditReason(e.target.value)}
+              placeholder="e.g. The AV meetings figure should be 3, not 9 — I counted a cancelled call."
+            />
+          </div>
+        </Modal>
       )}
 
       {leaveOpen && (

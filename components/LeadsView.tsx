@@ -1380,6 +1380,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             ariaLabel="Log a qualification call"
             dismissible={!savingCall}
             onClose={() => setCallLead(null)}
+            // A real form, not a confirm: picking "Suitable" adds the project
+            // lead, opportunity type and department fields, and at the default
+            // 420px the four outcome options wrapped onto two rows on top of
+            // that. The wide card gives it one row of options and far less
+            // height, which is what made Save Call unreachable on a small
+            // laptop in the first place.
+            size="wide"
             footer={
               <>
                 <ModalCancelButton disabled={savingCall} onClick={() => setCallLead(null)}>Cancel</ModalCancelButton>

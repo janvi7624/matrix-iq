@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell from './AppShell';
 import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
+import ExpenseCategoryEditor from './ExpenseCategoryEditor';
 import { OfficeOperationExpenseRecord } from '@/lib/types';
 import { exportOfficeOperationExpensesXlsx } from '@/lib/officeOperationExpenseXlsx';
 import { OFFICE_LOCATIONS, PAID_BY_OPTIONS } from '@/lib/officeOperationExpenseOptions';
@@ -138,12 +139,17 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     }
   }, [toast]);
 
+  // Bumped after a category edit so the form picks the new lists up without
+  // a page reload — the dropdowns must match what the API will accept.
+  const [optionsKey, setOptionsKey] = useState(0);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
+
   useEffect(() => {
     fetch('/api/office-operation-expenses/options')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { if (data) setOptions(data); })
       .catch(() => { /* form falls back to disabled selects until this succeeds */ });
-  }, []);
+  }, [optionsKey]);
 
   useEffect(() => {
     // fetchRecords has no synchronous setState — every setState in it runs
@@ -314,6 +320,12 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
 
   return (
     <AppShell title="Office Operation Expenses" subtitle="HR/Admin office operating expense register">
+      {categoriesOpen && (
+        <ExpenseCategoryEditor
+          onClose={() => setCategoriesOpen(false)}
+          onSaved={() => setOptionsKey((k) => k + 1)}
+        />
+      )}
       <div className={styles.pageWrap}>
         <div className={styles.headerRow}>
           <h2 className={styles.pageTitle}>Office Operation Expenses</h2>
@@ -326,6 +338,9 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
             </select>
             <button type="button" className={historyStyles.button} onClick={handleExport} disabled={loading || !records.length}>
               Export .xlsx
+            </button>
+            <button type="button" className={historyStyles.button} onClick={() => setCategoriesOpen(true)}>
+              Categories
             </button>
             <button
               type="button"

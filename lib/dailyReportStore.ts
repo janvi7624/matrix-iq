@@ -5,7 +5,6 @@ import {
   DailyReportHistoryItem,
   DailyReportRecord,
   DailyReportRevisionRecord,
-  DailyReportReviewStatus,
   DailyReportSubmissionStatus
 } from './dailyReportTypes';
 import {
@@ -22,6 +21,7 @@ import {
 import { DeadlinePolicy, isIsoDate, isLateSubmission, istDate, scheduleFor } from './dailyReportTime';
 import { resolveTemplateForDepartment, resolveTemplateForStoredReport } from './dailyReportTemplateStore';
 import { getDeadlinePolicy } from './dailyReportConfigStore';
+import { consumeEditGrant } from './dailyReportEditRequestStore';
 import { computeSalesAutoMatrix, mergeAutoMatrix } from './salesDailyAutoFetch';
 import { computeGemProposalEntries, mergeAutoGemEntries } from './gemProposalAutoFetch';
 
@@ -78,7 +78,6 @@ function dateOnly(value: unknown): string {
 const REPORT_INCLUDES = [
   { model: db.User, as: 'employee', attributes: ['id', 'username', 'name'] },
   { model: db.Department, as: 'department', attributes: ['id', 'name'] },
-  { model: db.User, as: 'reviewer', attributes: ['id', 'username', 'name'] },
   { model: db.User, as: 'filedBy', attributes: ['id', 'username', 'name'] },
   { model: db.DailyReportEntry, as: 'entries', attributes: ['id', 'position', 'data'], required: false }
 ];
@@ -125,7 +124,6 @@ function toRecord(row: Model, template: TemplateDefinition): DailyReportRecord {
     report_date: reportDate,
     template_key: plain.template_key as DailyReportRecord['template_key'],
     submission_status: plain.submission_status as DailyReportSubmissionStatus,
-    review_status: plain.review_status as DailyReportReviewStatus,
     payload: (plain.payload as Record<string, unknown>) ?? {},
     header_derived: computeDerivedValues(template, reportDate, (plain.payload as Record<string, unknown>) ?? {}, 0, today),
     matrix: (plain.matrix as Record<string, Record<string, number>>) ?? {},
@@ -133,9 +131,6 @@ function toRecord(row: Model, template: TemplateDefinition): DailyReportRecord {
     submitted_at: isoOrEmpty(plain.submitted_at),
     is_late: Boolean(plain.is_late),
     deadline_at: isoOrEmpty(plain.deadline_at),
-    reviewed_by_name: personName(plain.reviewer),
-    reviewed_at: isoOrEmpty(plain.reviewed_at),
-    review_note: (plain.review_note as string) ?? '',
     filed_by_name: personName(plain.filedBy),
     created_at: isoOrEmpty(plain.createdAt),
     updated_at: isoOrEmpty(plain.updatedAt)
@@ -195,6 +190,16 @@ export interface SaveReportInput {
    * explain itself automatically instead of bypassing the rule.
    */
   auto?: boolean;
+  /**
+   * Set only by a caller that has already established the writer holds an
+   * approved, unspent permission to edit this filed report.
+   *
+   * Submitting is terminal: without this, ANY write over a SUBMITTED report
+   * is refused here — see the guard in the update branch. The grant itself is
+   * spent inside this function's transaction rather than by the caller, so a
+   * save that then fails validation does not burn somebody's one permission.
+   */
+  permittedEdit?: boolean;
 }
 
 export interface SaveReportResult {
@@ -403,7 +408,6 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
         report_date: input.reportDate,
         template_key: resolved.templateKey,
         submission_status: input.mode === 'submit' ? submittedStatus : 'DRAFT',
-        review_status: 'NOT_REVIEWED',
         payload: validation.normalized.header,
         matrix: validation.normalized.matrix,
         created_by: input.actorId,
@@ -476,13 +480,6 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
       attrs.submission_status = existing.get('submission_status');
     }
 
-    // Editing a report a manager had flagged clears the flag: the employee
-    // has responded, and leaving CHANGES_REQUESTED on screen would make the
-    // manager's queue permanently wrong.
-    if (wasSubmitted && existing.get('review_status') === 'CHANGES_REQUESTED') {
-      attrs.review_status = 'NOT_REVIEWED';
-    }
-
     // ANY write over an already-submitted report is a retroactive edit,
     // whichever mode it arrived as — classified here rather than in the
     // submit branch above, and deliberately alongside the 'edited' revision
@@ -491,6 +488,33 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
     // re-submit does, and that was the one path where the manager's
     // "Changed since" badge appeared while the audit log said nothing.
     wasEdited = !justSubmitted && wasSubmitted;
+
+    // Submitting is terminal.
+    //
+    // This is deliberately HERE rather than in the routes. Five different
+    // write paths reach this function — the employee's own save, the
+    // employee's submit, a manager's PATCH, /submit, and file-for-employee —
+    // and gating any one of them leaves the other four open. Everything that
+    // can rewrite a filed report passes through this line.
+    //
+    // The scheduler's auto-submit is exempt by construction: it returned
+    // above when wasSubmitted, so it never reaches here.
+    if (wasEdited) {
+      if (!input.permittedEdit) {
+        throw new DailyReportValidationError(
+          'This report has already been filed and can no longer be changed. Ask your department manager for permission to edit it.'
+        );
+      }
+      // Spend the permission inside this transaction. If anything below
+      // fails, the rollback hands the grant back unused — which is why this
+      // is not done in the route before calling.
+      const spent = await consumeEditGrant(id, t);
+      if (!spent) {
+        throw new DailyReportValidationError(
+          'That permission to edit has already been used or has expired. Ask your department manager again.'
+        );
+      }
+    }
 
     await existing.update(attrs as never, { transaction: t });
     await replaceEntries(id, stampedEntries, t);
@@ -537,37 +561,6 @@ export async function autoSubmitReport(employeeId: string, departmentId: string,
   return saveReport({ employeeId, departmentId, reportDate, mode: 'submit', actorId: null, onBehalf: false, auto: true });
 }
 
-export async function reviewReport(
-  id: string,
-  reviewStatus: Exclude<DailyReportReviewStatus, 'NOT_REVIEWED'>,
-  note: string,
-  reviewerId: string
-): Promise<DailyReportRecord> {
-  if (!isUuid(id)) throw new DailyReportNotFoundError('Report not found.');
-  const row = await db.DailyReport.findByPk(id);
-  if (!row) throw new DailyReportNotFoundError('Report not found.');
-  if (!SUBMITTED_STATUSES.includes(row.get('submission_status') as DailyReportSubmissionStatus)) {
-    // A draft is private to its owner — a manager cannot read it, so they
-    // certainly cannot review it.
-    throw new DailyReportValidationError('Only a submitted report can be reviewed.');
-  }
-  if (reviewStatus === 'CHANGES_REQUESTED' && !note.trim()) {
-    throw new DailyReportValidationError('Say what needs changing — a note is required when requesting changes.');
-  }
-
-  await db.sequelize.transaction(async (t) => {
-    await row.update(
-      { review_status: reviewStatus, reviewed_by: reviewerId, reviewed_at: new Date(), review_note: note.trim() } as never,
-      { transaction: t }
-    );
-    // Reviewing records a revision with no snapshot content — the report's
-    // own text did not change, only the manager's verdict on it.
-    await recordRevision(id, reviewerId, 'reviewed', row.get('submission_status') as string, { payload: {}, matrix: {}, entries: [] }, note.trim(), t);
-  });
-
-  return hydrate(id);
-}
-
 // --------------------------------------------------------------------------
 // Reading in bulk
 // --------------------------------------------------------------------------
@@ -590,13 +583,13 @@ export async function loadReportStatuses(
   employeeIds: string[],
   from: string,
   to: string
-): Promise<Map<string, { id: string; submission_status: DailyReportSubmissionStatus; review_status: DailyReportReviewStatus; submitted_at: string; is_late: boolean; filed_by_name: string; entry_count: number }>> {
-  const map = new Map<string, { id: string; submission_status: DailyReportSubmissionStatus; review_status: DailyReportReviewStatus; submitted_at: string; is_late: boolean; filed_by_name: string; entry_count: number }>();
+): Promise<Map<string, { id: string; submission_status: DailyReportSubmissionStatus; submitted_at: string; is_late: boolean; filed_by_name: string; entry_count: number }>> {
+  const map = new Map<string, { id: string; submission_status: DailyReportSubmissionStatus; submitted_at: string; is_late: boolean; filed_by_name: string; entry_count: number }>();
   if (!employeeIds.length) return map;
 
   const rows = await db.DailyReport.findAll({
     where: { employee_id: employeeIds, report_date: { [Op.between]: [from, to] } } as never,
-    attributes: ['id', 'employee_id', 'report_date', 'submission_status', 'review_status', 'submitted_at', 'is_late'],
+    attributes: ['id', 'employee_id', 'report_date', 'submission_status', 'submitted_at', 'is_late'],
     include: [
       { model: db.User, as: 'filedBy', attributes: ['id', 'username', 'name'] },
       { model: db.DailyReportEntry, as: 'entries', attributes: ['id'], required: false }
@@ -608,8 +601,7 @@ export async function loadReportStatuses(
     map.set(lookupKey(plain.employee_id as string, dateOnly(plain.report_date)), {
       id: plain.id as string,
       submission_status: plain.submission_status as DailyReportSubmissionStatus,
-      review_status: plain.review_status as DailyReportReviewStatus,
-      submitted_at: isoOrEmpty(plain.submitted_at),
+        submitted_at: isoOrEmpty(plain.submitted_at),
       is_late: Boolean(plain.is_late),
       filed_by_name: personName(plain.filedBy),
       entry_count: Array.isArray(plain.entries) ? plain.entries.length : 0
@@ -714,7 +706,6 @@ export async function buildHistory(
     return {
       report_date: reportDate,
       submission_status: found ? found.submission_status : 'MISSING',
-      review_status: found ? found.review_status : '',
       submitted_at: found?.submitted_at ?? '',
       is_late: found?.is_late ?? false,
       leave_status: leaveByDate.get(reportDate) ?? '',

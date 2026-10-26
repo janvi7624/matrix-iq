@@ -4,12 +4,9 @@ import { viewerCanAccessOfficeOperationExpenses } from '@/lib/officeOperationExp
 import {
   ITEM_FREE_TEXT_ITEMS,
   ITEM_FROM_DEPARTMENT_MASTER,
-  ITEM_SUB_OPTIONS,
-  OFFICE_EXPENSE_ITEMS,
-  OFFICE_EXPENSE_USECASES,
-  USECASE_FREE_TEXT,
-  USECASE_SUB_OPTIONS
+  USECASE_FREE_TEXT
 } from '@/lib/officeOperationExpenseOptions';
+import { getExpenseOptions } from '@/lib/officeExpenseOptionStore';
 import { listActiveDepartments } from '@/lib/departmentStore';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -23,15 +20,21 @@ export async function GET(request: NextRequest) {
   if (!(await viewerCanAccessOfficeOperationExpenses(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
-    const departments = await listActiveDepartments();
-    const itemSubOptions: Record<string, string[]> = { ...ITEM_SUB_OPTIONS };
-    itemSubOptions[ITEM_FROM_DEPARTMENT_MASTER] = departments.map((d) => d.name);
+    // Resolved, not the raw constants: the lists are editable now, and the
+    // form must render from exactly what the validator will accept.
+    const [departments, options] = await Promise.all([listActiveDepartments(), getExpenseOptions()]);
+    const itemSubOptions: Record<string, string[]> = { ...options.itemSubOptions };
+    // 'Department' stays live Department Master data whatever the stored
+    // catalogue says — it is the one sub-list nobody edits by hand.
+    if (options.items.includes(ITEM_FROM_DEPARTMENT_MASTER)) {
+      itemSubOptions[ITEM_FROM_DEPARTMENT_MASTER] = departments.map((d) => d.name);
+    }
 
     return NextResponse.json({
-      usecases: OFFICE_EXPENSE_USECASES,
-      usecaseSubOptions: USECASE_SUB_OPTIONS,
+      usecases: options.usecases,
+      usecaseSubOptions: options.usecaseSubOptions,
       usecaseFreeText: USECASE_FREE_TEXT,
-      items: OFFICE_EXPENSE_ITEMS,
+      items: options.items,
       itemSubOptions,
       itemFreeTextItems: ITEM_FREE_TEXT_ITEMS
     });

@@ -5,11 +5,15 @@ import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import QuotationCalculator, { CurrentUser } from './QuotationCalculator';
 import MyQuotationsView from './MyQuotationsView';
+import QuotationRequestsView from './QuotationRequestsView';
 
 const TABS = [
   { key: 'new' as const, label: 'New Quotation' },
-  { key: 'existing' as const, label: 'Existing Quotations' }
+  { key: 'existing' as const, label: 'Existing Quotations' },
+  { key: 'partner-requests' as const, label: 'Partner Requests' }
 ];
+
+type QuotationTab = (typeof TABS)[number]['key'];
 
 interface QuotationsViewProps {
   currentUser: CurrentUser;
@@ -40,16 +44,17 @@ export default function QuotationsView({ currentUser, canEditPricing, isPrivileg
   const searchParams = useSearchParams();
   // Revising always means the builder, whatever ?tab says — the link that
   // starts a revision carries no tab of its own.
-  const tab: 'new' | 'existing' = searchParams.get('reviseId')
+  const requestedTab = searchParams.get('tab');
+  const tab: QuotationTab = searchParams.get('reviseId')
     ? 'new'
-    : searchParams.get('tab') === 'existing'
-      ? 'existing'
+    : requestedTab === 'existing' || requestedTab === 'partner-requests'
+      ? requestedTab
       : 'new';
 
-  function selectTab(next: 'new' | 'existing') {
+  function selectTab(next: QuotationTab) {
     // replace, not push: flipping a tab shouldn't fill the back button with
     // history. scroll:false keeps the viewport where it was.
-    router.replace(next === 'existing' ? '/quotation?tab=existing' : '/quotation', { scroll: false });
+    router.replace(next === 'new' ? '/quotation' : `/quotation?tab=${next}`, { scroll: false });
   }
 
   return (
@@ -66,11 +71,11 @@ export default function QuotationsView({ currentUser, canEditPricing, isPrivileg
           </button>
         ))}
       </div>
-      {tab === 'new' ? (
+      {tab === 'new' && (
         <QuotationCalculator currentUser={currentUser} canEditPricing={canEditPricing} isPrivileged={isPrivileged} embedded />
-      ) : (
-        <MyQuotationsView embedded />
       )}
+      {tab === 'existing' && <MyQuotationsView embedded />}
+      {tab === 'partner-requests' && <QuotationRequestsView embedded />}
     </AppShell>
   );
 }

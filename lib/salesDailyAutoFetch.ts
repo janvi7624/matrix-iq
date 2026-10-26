@@ -8,8 +8,9 @@ import { computeLeadCallCounts, fetchLeadCallDetail, LEAD_CALL_MEASURES } from '
 // SALES_TEMPLATE.autoMeasures in lib/dailyReportTemplates.ts for which
 // measures this covers.
 //
-// Four come from Quotation/Lead records here: New Leads Generated, Quotations
-// Prepared, Quotations Sent, Purchase Orders Received.
+// Three come from Quotation/Lead records here: New Leads Generated,
+// Quotations Prepared and Purchase Orders Received. ('Quotations Sent' was a
+// fourth until it was merged into Quotations Prepared — see SALES_MEASURES.)
 //
 // Two more — Customer Calls and Follow-ups Completed — come from the call a
 // rep logs on a lead (Leads -> Log Call), delegated to
@@ -100,7 +101,7 @@ export async function computeSalesAutoMatrix(
         })
       : Promise.resolve([]),
     // "Prepared" / "Sent": quotations CREATED today — same-day activity.
-    wants('Quotations Prepared') || wants('Quotations Sent')
+    wants('Quotations Prepared')
       ? db.Quotation.findAll({
           where: { created_at: { [Op.gte]: dayStart, [Op.lt]: dayEnd } } as never,
           include: [{ model: db.Project, as: 'project', attributes: ['departments'] }] as never,
@@ -147,8 +148,9 @@ export async function computeSalesAutoMatrix(
     // 2-zero-day warning sums auto cells, not quotation counts).
     if (!channels2.length) continue;
     for (const channel of channels2) {
+      // Drafts included on purpose: 'Quotations Sent', which excluded them,
+      // was merged into this one measure. See SALES_MEASURES' note.
       if (wants('Quotations Prepared')) bump(matrix, 'Quotations Prepared', channel);
-      if (wants('Quotations Sent') && plain.status !== 'draft') bump(matrix, 'Quotations Sent', channel);
     }
   }
 
@@ -242,7 +244,7 @@ export async function fetchSalesAutoDetail(
       }));
   }
 
-  if (measure === 'Quotations Prepared' || measure === 'Quotations Sent') {
+  if (measure === 'Quotations Prepared') {
     const nameToId = await fetchNameToId();
     const quotations = await db.Quotation.findAll({
       where: { created_at: { [Op.gte]: dayStart, [Op.lt]: dayEnd } } as never,
@@ -254,7 +256,6 @@ export async function fetchSalesAutoDetail(
       .filter((q) => {
         const plain = q.get({ plain: true }) as Record<string, unknown>;
         if (resolveQuotationOwner(plain, nameToId) !== employeeId) return false;
-        if (measure === 'Quotations Sent' && plain.status === 'draft') return false;
         const departments = ((plain.project as { departments?: string[] } | null)?.departments ?? []) as string[];
         return departments.some((d) => d.toLowerCase() === channelLower);
       })

@@ -109,13 +109,51 @@ describe('scope', () => {
     expect(scope.departmentIds).toEqual(['dept-1', 'dept-2']);
   });
 
-  it('treats isPrivileged as the fallback tier for org-wide visibility', async () => {
-    // viewAllDepartments is the primary test, but the built-in admin tier
-    // must keep working without being granted a new capability.
+  // The manager role is isPrivileged (lib/permissions.ts:10), so an
+  // isPrivileged fallback here handed every department manager the whole
+  // company's daily reports. A manager gets the departments they manage and
+  // nothing else; only the two admin tiers see everything.
+  it('does NOT give a privileged manager the whole company', async () => {
     capability.mockResolvedValue(false);
-    vi.mocked(db.Department.findAll).mockResolvedValue([] as never);
-    const scope = await resolveDailyReportScope(viewer({ isPrivileged: true }));
-    expect(scope.seesOrgWide).toBe(true);
+    managed.mockResolvedValue([{ id: 'dept-1', name: 'Marketing' }]);
+    vi.mocked(db.Department.findAll).mockResolvedValue([
+      { get: (k: string) => ({ id: 'dept-1', name: 'Marketing' }[k]) },
+      { get: (k: string) => ({ id: 'dept-2', name: 'Sales' }[k]) }
+    ] as never);
+    const scope = await resolveDailyReportScope(viewer({ role: 'manager', isPrivileged: true }));
+    expect(scope.seesOrgWide).toBe(false);
+    expect(scope.departmentIds).toEqual(['dept-1']);
+  });
+
+  it('keeps the built-in admin tiers org-wide even with the capability cleared', async () => {
+    // The floor that stops an admin losing the whole module if somebody
+    // unticks viewAllDepartments in the role matrix.
+    capability.mockResolvedValue(false);
+    vi.mocked(db.Department.findAll).mockResolvedValue([
+      { get: (k: string) => ({ id: 'dept-1', name: 'Sales' }[k]) }
+    ] as never);
+    for (const adminRole of ['admin', 'superadmin']) {
+      const scope = await resolveDailyReportScope(viewer({ role: adminRole, isPrivileged: true }));
+      expect(scope.seesOrgWide).toBe(true);
+      expect(scope.departmentIds).toEqual(['dept-1']);
+    }
+  });
+
+  // HR's company-wide access is granted separately and deliberately, and is
+  // read-only — it must survive the manager change above.
+  it('still lets HR read every department without managing them', async () => {
+    capability.mockResolvedValue(false);
+    hrManager.mockResolvedValue(true);
+    managed.mockResolvedValue([{ id: 'dept-hr', name: 'HR & Admin' }]);
+    vi.mocked(db.Department.findAll).mockResolvedValue([
+      { get: (k: string) => ({ id: 'dept-hr', name: 'HR & Admin' }[k]) },
+      { get: (k: string) => ({ id: 'dept-2', name: 'Sales' }[k]) }
+    ] as never);
+    const scope = await resolveDailyReportScope(viewer({ role: 'hr' }));
+    expect(scope.seesOrgWide).toBe(false);
+    expect(scope.departmentIds).toEqual(['dept-hr', 'dept-2']);
+    // Reads everything, manages only its own.
+    expect(scope.manageDepartmentIds).toEqual(['dept-hr']);
   });
 });
 

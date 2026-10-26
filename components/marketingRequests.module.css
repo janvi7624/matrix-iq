@@ -219,3 +219,22 @@
 .selectAuto { width: auto; }
 .dueOnlyLabel { display: flex; align-items: center; gap: 6px; font-size: 13.5px; white-space: nowrap; }
 .refreshIconSpacing { margin-right: 4px; }
+
+/* Partner-origin marker on the requester column and the detail context card.
+   Inline-flex so it sits beside the requester name without disturbing the
+   row height; wraps to its own line when the column is narrow. */
+.partnerOriginBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}

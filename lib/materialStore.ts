@@ -26,6 +26,15 @@ export interface MaterialRecord {
   fileKind: MaterialFileKind;
   addedBy: string;
   updatedAt: string;
+  /**
+   * Whether this document is published to the Partner Portal.
+   *
+   * Only half the answer: a partner sees it only if every folder above it is
+   * ALSO published — the two-gate rule in lib/materialPublication.ts. The
+   * internal library surfaces this flag so the add/edit form can set it and
+   * the card can warn when it is on but the folder chain is closed.
+   */
+  partnerVisible: boolean;
 }
 
 const INCLUDE_PEOPLE = [{ model: db.User, as: 'creator', attributes: ['id', 'name', 'username'] }];
@@ -69,7 +78,8 @@ function toRecord(row: Model): MaterialRecord {
         ? 'link'
         : fileKindFromMime((plain.mime_type as string) || '', title),
     addedBy: creator?.name || creator?.username || '',
-    updatedAt: isoOrEmpty(plain.updatedAt)
+    updatedAt: isoOrEmpty(plain.updatedAt),
+    partnerVisible: plain.partner_visible === true
   };
 }
 
@@ -139,6 +149,7 @@ export interface MaterialInput {
   // a web link — in neither case did anything here read the bytes, so any
   // content-type would be invented.
   mimeType: string;
+  partnerVisible: boolean;
   actorId: string;
 }
 
@@ -156,6 +167,7 @@ export async function createMaterial(input: MaterialInput): Promise<MaterialReco
     is_folder: input.isFolder,
     source: input.source,
     mime_type: input.mimeType || null,
+    partner_visible: input.partnerVisible === true,
     created_by: input.actorId || null,
     updated_by: input.actorId || null
   } as never);
@@ -178,6 +190,7 @@ export async function updateMaterial(id: string, patch: MaterialPatch): Promise<
   if (patch.category !== undefined) attrs.category = patch.category;
   if (patch.title !== undefined) attrs.title = patch.title;
   if (patch.description !== undefined) attrs.description = patch.description;
+  if (patch.partnerVisible !== undefined) attrs.partner_visible = patch.partnerVisible === true;
   if (patch.webViewLink !== undefined) {
     attrs.web_view_link = patch.webViewLink;
     attrs.drive_file_id = patch.driveFileId || null;

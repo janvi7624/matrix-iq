@@ -69,7 +69,17 @@
     .overlay { animation: none; }
 }
 .confirmCard {
+    composes: mx-nice-scroll from global;
     width: min(420px, 100%);
+    /* Capped and scrollable, like .wideCard below.
+       Without this a default-size dialog that grows taller than a short
+       laptop screen pushed its own footer off the bottom with no way to
+       reach it — the Log Call dialog did exactly that once "Suitable" was
+       picked and the project fields appeared, leaving Save Call
+       unclickable. A confirm or prompt is far shorter than this cap, so
+       nothing else changes. */
+    max-height: min(85vh, 720px);
+    overflow-y: auto;
     background: var(--mx-surface);
     border-radius: var(--mx-radius-xl);
     padding: 26px 24px;
