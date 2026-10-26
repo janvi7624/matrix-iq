@@ -82,10 +82,12 @@ describe('department to template mapping', () => {
 });
 
 describe('the specified formats', () => {
-  it('gives Sales the eight measures and three verticals', () => {
+  it('gives Sales the seven measures and three verticals', () => {
     const sales = BUILT_IN_TEMPLATES.sales;
     expect(sales.layout).toBe('matrix');
-    expect(sales.measures).toHaveLength(8);
+    // Seven, not eight: Quotations Sent was merged into Quotations Prepared
+    // because the two were read as the same thing. See SALES_MEASURES.
+    expect(sales.measures).toHaveLength(7);
     expect(sales.measures).toEqual(SALES_MEASURES);
     expect(sales.channels).toEqual(SALES_CHANNELS);
   });
@@ -547,13 +549,13 @@ describe('the Back Office format', () => {
 describe('the sales grid', () => {
   const sales = BUILT_IN_TEMPLATES.sales;
 
-  it('treats a blank cell as zero rather than demanding 24 zeros', () => {
+  it('treats a blank cell as zero rather than demanding 21 zeros', () => {
     const result = validateReportPayload(sales, payload({ matrix: { 'Customer Calls': { AI: '4' } } }), true);
     expect(result.ok).toBe(true);
     expect(result.normalized.matrix['Customer Calls']).toEqual({ AI: 4, AV: 0, Robotics: 0 });
     // Every specified measure is present in the stored shape, not just the
     // ones that were filled in.
-    expect(Object.keys(result.normalized.matrix)).toHaveLength(8);
+    expect(Object.keys(result.normalized.matrix)).toHaveLength(7);
   });
 
   it('rejects negative and fractional counts', () => {
@@ -585,7 +587,7 @@ describe('the sales grid', () => {
     expect(totals.byMeasure['New Leads Generated']).toBe(6);
     expect(totals.byMeasure['Customer Calls']).toBe(9);
     // Measures with no data still report zero rather than being absent.
-    expect(totals.byMeasure['Quotations Sent']).toBe(0);
+    expect(totals.byMeasure['Quotations Prepared']).toBe(0);
     expect(totals.byChannel.AI).toBe(7);
     expect(totals.byChannel.AV).toBe(3);
     expect(totals.byChannel.Robotics).toBe(5);

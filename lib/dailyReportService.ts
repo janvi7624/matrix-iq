@@ -13,6 +13,7 @@ import { getDailyReportConfig, getDeadlinePolicy } from './dailyReportConfigStor
 import { resolveTemplateForDepartment } from './dailyReportTemplateStore';
 import { buildHistory, findReportForDate, listRevisions, loadReportStatuses, SUBMITTED_STATUSES } from './dailyReportStore';
 import { findLiveClaim, loadClaimStatusByDate, loadLeaveCoveredKeys } from './dailyReportLeaveClaimStore';
+import { findLiveEditRequest } from './dailyReportEditRequestStore';
 import { buildWarningSummary, loadWarningStatusByDate, loadWarningKeys } from './dailyReportWarningStore';
 import { EligibleEmployee, employeeOwesDate, listEligibleEmployees } from './dailyReportEligibility';
 import { resolveDailyReportScope } from './dailyReportAccess';
@@ -175,6 +176,8 @@ export async function buildMyDailyReport(employee: EmployeeIdentity, date?: stri
     gem_entries_preview: gemEntriesPreview,
     revisions,
     leave_claim: leaveClaim,
+    // Only a filed report can have one; a draft is still freely editable.
+    edit_request: report ? ((await findLiveEditRequest(report.id)) ?? null) : null,
     warnings,
     history
   };
@@ -301,7 +304,6 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
           : 'PENDING',
       submitted_at: isSubmitted ? (found as NonNullable<typeof found>).submitted_at : '',
       is_late: isSubmitted ? (found as NonNullable<typeof found>).is_late : false,
-      review_status: isSubmitted ? (found as NonNullable<typeof found>).review_status : '',
       leave_status: claimStatuses.get(key) ?? '',
       warning_status: warningKeys.has(key) ? 'ACTIVE' : '',
       filed_by_name: isSubmitted ? (found as NonNullable<typeof found>).filed_by_name : '',

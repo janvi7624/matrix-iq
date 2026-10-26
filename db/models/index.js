@@ -94,6 +94,7 @@ const modelDefiners = [
   require('./dailyReportEntry.js'),
   require('./dailyReportRevision.js'),
   require('./dailyReportLeaveClaim.js'),
+  require('./dailyReportEditRequest.js'),
   require('./dailyReportWarning.js'),
   require('./dailyReportEscalation.js'),
   require('./dailyReportNotificationEvent.js'),

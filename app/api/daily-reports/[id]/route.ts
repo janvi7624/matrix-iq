@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dailyReportErrorResponse, guardDailyReport, isGuardFailure, readPayload } from '@/lib/dailyReportApi';
 import { findReportById, listRevisions, saveReport, SUBMITTED_STATUSES } from '@/lib/dailyReportStore';
 import { resolveEmployeeAccess } from '@/lib/dailyReportAccess';
+import { findLiveEditRequest } from '@/lib/dailyReportEditRequestStore';
 import { resolveTemplateForStoredReport } from '@/lib/dailyReportTemplateStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
@@ -44,10 +45,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 // PATCH — edit an existing report. Used by the employee on their own report
 // and by an authorized manager on a team member's submitted report.
 //
-// Editing a SUBMITTED report deliberately stays possible after the deadline:
-// the brief says not to lock reports, only to mark them late. What an edit
-// can never do is move the original submission timestamp — saveReport is the
-// single place that invariant lives.
+// Submitting is terminal. A SUBMITTED report can only be edited when the
+// employee holds an APPROVED, unspent permission from their department
+// manager (daily_report_edit_requests) — which this route looks up and hands
+// to saveReport, where the grant is actually spent inside the transaction.
+// An edit still never moves the original submission timestamp; saveReport is
+// the single place that invariant lives.
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await guardDailyReport(request, 'daily-report');
   if (isGuardFailure(guard)) return guard.response;
@@ -71,6 +74,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const mode = (body as { mode?: unknown })?.mode === 'submit' ? 'submit' : isDraft ? 'draft' : 'submit';
 
+    // A filed report needs a live, approved, unspent grant. Looked up rather
+    // than assumed, and only ever CONSUMED inside saveReport's transaction —
+    // checking here and spending there is deliberate, so a save that fails
+    // validation does not burn the employee's one permission.
+    const grant = isDraft ? undefined : await findLiveEditRequest(id);
+    const permittedEdit = grant?.status === 'APPROVED';
+
     const { report, wasEdited } = await saveReport({
       employeeId: existing.employee_id,
       departmentId: existing.department_id,
@@ -78,7 +88,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       payload,
       mode,
       actorId: viewer.userId,
-      onBehalf: !access.isSelf
+      onBehalf: !access.isSelf,
+      permittedEdit
     });
 
     if (!access.isSelf) {

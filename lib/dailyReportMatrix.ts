@@ -52,7 +52,6 @@ function emptyCell(owed: boolean): TeamMatrixCell {
     is_late: false,
     leave_status: '',
     warning_status: '',
-    review_status: '',
     report_id: null,
     entry_count: 0,
     owed
@@ -123,7 +122,6 @@ export async function buildTeamMatrix(viewer: ViewerContext, filters: MatrixFilt
       if (submitted && found) {
         cell.status = found.submission_status;
         cell.is_late = found.is_late;
-        cell.review_status = found.review_status;
         cell.report_id = found.id;
         cell.entry_count = found.entry_count;
       }

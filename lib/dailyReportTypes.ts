@@ -14,15 +14,17 @@ import type { WarningBannerTone } from './dailyReportSweepPlan';
 export type { DailyReportTemplateKey, DailyReportLayout, DailyReportFieldDef, DerivedEntryValues, TemplateDefinition, TemplateOverrides };
 
 /**
- * Whether the EMPLOYEE has filed. Deliberately separate from review status:
+ * Whether the EMPLOYEE has filed.
+ *
+ * Submission is terminal: once a report is SUBMITTED or SUBMITTED_LATE its
+ * content is locked, and changing it needs a department manager's permission
+ * (see daily_report_edit_requests). Manager 'review' no longer exists —
  * conflating the two is how "submitted" quietly starts to mean "approved",
  * and the brief is explicit that manager approval is not a gate here.
  */
 export type DailyReportSubmissionStatus = 'DRAFT' | 'SUBMITTED' | 'SUBMITTED_LATE';
 
 /** Whether a MANAGER has looked at it. Informational, never a gate. */
-export type DailyReportReviewStatus = 'NOT_REVIEWED' | 'REVIEWED' | 'CHANGES_REQUESTED';
-
 export type DailyReportLeaveClaimStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export type DailyReportWarningStatus = 'ACTIVE' | 'WAIVED';
@@ -53,7 +55,6 @@ export interface DailyReportRecord {
   report_date: string;
   template_key: DailyReportTemplateKey;
   submission_status: DailyReportSubmissionStatus;
-  review_status: DailyReportReviewStatus;
   /** Header field values for this template. */
   payload: Record<string, unknown>;
   /** Computed header-level columns (currently just Task ID, for AV/Sales — the
@@ -68,9 +69,6 @@ export interface DailyReportRecord {
   is_late: boolean;
   /** ISO. The deadline this report was actually judged against. */
   deadline_at: string;
-  reviewed_by_name: string;
-  reviewed_at: string;
-  review_note: string;
   /** Empty unless a manager filed this on the employee's behalf. */
   filed_by_name: string;
   created_at: string;
@@ -84,6 +82,32 @@ export interface DailyReportRevisionRecord {
   action: string;
   submission_status: string;
   note: string;
+}
+
+/**
+ * Permission to edit a report that has already been filed.
+ *
+ * 'USED' and 'EXPIRED' are both spent states, kept apart so the history says
+ * whether an approval was actually redeemed or simply ran out.
+ */
+export type DailyReportEditRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'USED' | 'EXPIRED';
+
+export interface DailyReportEditRequestRecord {
+  id: string;
+  report_id: string;
+  employee_id: string;
+  employee_name: string;
+  department_name: string;
+  report_date: string;
+  reason: string;
+  status: DailyReportEditRequestStatus;
+  decided_by_name: string;
+  decided_at: string;
+  decision_reason: string;
+  /** ISO. When an approval stops being redeemable. '' unless APPROVED. */
+  grant_expires_at: string;
+  used_at: string;
+  created_at: string;
 }
 
 export interface DailyReportLeaveClaimRecord {
@@ -224,6 +248,13 @@ export interface MyDailyReportResponse {
   revisions: DailyReportRevisionRecord[];
   /** The live claim for this date, if any. */
   leave_claim: DailyReportLeaveClaimRecord | null;
+  /**
+   * The live request to edit THIS filed report, if there is one. Carried on
+   * the same response as the report so the page can say 'permission pending'
+   * or 'approved until …' without a second fetch — exactly as leave_claim
+   * above already does.
+   */
+  edit_request: DailyReportEditRequestRecord | null;
   warnings: DailyReportWarningSummary;
   /** Recent reporting dates with their status, for the history strip. */
   history: DailyReportHistoryItem[];
@@ -232,7 +263,6 @@ export interface MyDailyReportResponse {
 export interface DailyReportHistoryItem {
   report_date: string;
   submission_status: DailyReportSubmissionStatus | 'MISSING';
-  review_status: DailyReportReviewStatus | '';
   submitted_at: string;
   is_late: boolean;
   leave_status: DailyReportLeaveClaimStatus | '';
@@ -262,7 +292,6 @@ export interface TeamDailyReportRow {
   submission_status: DailyReportSubmissionStatus | 'MISSING' | 'PENDING';
   submitted_at: string;
   is_late: boolean;
-  review_status: DailyReportReviewStatus | '';
   leave_status: DailyReportLeaveClaimStatus | '';
   warning_status: DailyReportWarningStatus | '';
   filed_by_name: string;
@@ -346,7 +375,6 @@ export interface TeamMatrixCell {
   is_late: boolean;
   leave_status: DailyReportLeaveClaimStatus | '';
   warning_status: DailyReportWarningStatus | '';
-  review_status: DailyReportReviewStatus | '';
   report_id: string | null;
   entry_count: number;
   /** False when the employee did not owe a report that day (leave rota, exemption). */

@@ -151,7 +151,7 @@ interface SendInput {
   title: string;
   body: string;
   /** notificationResolver entity type — must have a RESOLVERS entry. */
-  entityType: 'daily_report' | 'daily_report_leave_claim' | 'daily_report_warning' | 'daily_report_reminder' | 'daily_report_escalation';
+  entityType: 'daily_report' | 'daily_report_leave_claim' | 'daily_report_warning' | 'daily_report_reminder' | 'daily_report_escalation' | 'daily_report_edit_request';
   entityId: string;
   /** In-app notification type string, for filtering later. */
   type: string;
@@ -338,6 +338,82 @@ export async function notifyLeaveDecision(notice: LeaveDecisionNotice): Promise<
     actionPath: `/daily-reports?date=${notice.reportDate}`,
     employeeName: notice.employee.name,
     extra: { decision: notice.decision, decisionReason: notice.decisionReason, rejectionOutcome: notice.rejectionOutcome },
+    dryRun: false
+  });
+}
+
+export interface EditRequestNotice {
+  requestId: string;
+  employeeName: string;
+  departmentName: string;
+  reportDate: string;
+  reason: string;
+  managers: NotifyTarget[];
+}
+
+/**
+ * Somebody wants to change a report they have already filed.
+ *
+ * Deliberately NOT claimed in the notification ledger. An employee may
+ * legitimately ask a second time after a refusal, and a ledger claim keyed on
+ * (employee, date, event) would silence every later request permanently.
+ */
+export async function notifyEditRequestRaised(notice: EditRequestNotice): Promise<void> {
+  if (!notice.managers.length) {
+    // Loud, for the same reason the leave claim is: a request nobody can see
+    // sits PENDING forever, and the employee cannot correct their report.
+    console.error(
+      `[daily-report] Edit request ${notice.requestId} for ${notice.reportDate} was raised but no manager is configured for ${notice.departmentName || 'that department'} in Department Master — nobody has been notified.`
+    );
+    return;
+  }
+  await deliver({
+    kind: 'edit_request',
+    recipients: notice.managers,
+    title: `Edit requested — ${notice.employeeName}, ${notice.reportDate}`,
+    body: `${notice.employeeName} is asking to change the daily report they filed for ${notice.reportDate}.`,
+    entityType: 'daily_report_edit_request',
+    entityId: notice.requestId,
+    type: 'daily_report_edit_request',
+    reportDate: notice.reportDate,
+    deadlineLabel: '',
+    actionPath: `/daily-reports?tab=team&date=${notice.reportDate}&editRequest=${notice.requestId}`,
+    employeeName: notice.employeeName,
+    departmentName: notice.departmentName,
+    extra: { reason: notice.reason },
+    dryRun: false
+  });
+}
+
+export interface EditDecisionNotice {
+  requestId: string;
+  employee: NotifyTarget;
+  employeeName: string;
+  departmentName: string;
+  reportDate: string;
+  decision: 'APPROVED' | 'REJECTED';
+  decisionReason: string;
+  grantExpiresAt: string;
+}
+
+export async function notifyEditRequestDecision(notice: EditDecisionNotice): Promise<void> {
+  await deliver({
+    kind: 'edit_decision',
+    recipients: [notice.employee],
+    title: `Edit ${notice.decision === 'APPROVED' ? 'allowed' : 'refused'} — ${notice.reportDate}`,
+    body:
+      notice.decision === 'APPROVED'
+        ? `You can now change your daily report for ${notice.reportDate}. The permission is good for one save.`
+        : `Your request to change the daily report for ${notice.reportDate} was refused.`,
+    entityType: 'daily_report_edit_request',
+    entityId: notice.requestId,
+    type: 'daily_report_edit_decision',
+    reportDate: notice.reportDate,
+    deadlineLabel: '',
+    actionPath: `/daily-reports?date=${notice.reportDate}`,
+    employeeName: notice.employeeName,
+    departmentName: notice.departmentName,
+    extra: { decision: notice.decision, decisionReason: notice.decisionReason },
     dryRun: false
   });
 }

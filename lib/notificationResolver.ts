@@ -17,7 +17,7 @@ interface EntityResolver {
   exists: (entityId: string) => Promise<boolean>;
 }
 
-const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation', 'SupportTicket', 'PartnerQuotationRequest'] as const;
+const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportEditRequest', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation', 'SupportTicket', 'PartnerQuotationRequest'] as const;
 
 async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: string): Promise<boolean> {
   if (!isUuid(entityId)) return false;
@@ -91,6 +91,13 @@ const RESOLVERS: Record<string, EntityResolver> = {
   daily_report_leave_claim: {
     href: (id) => `/hr/daily-reports?tab=leave&claim=${id}`,
     exists: (id) => existsIn('DailyReportLeaveClaim', id)
+  },
+  // Without an entry here the bell notification silently resolves to nothing
+  // and is filtered out as non-actionable — the exact bug recorded a few lines
+  // below. The manager's landing place is the team tab for that day.
+  daily_report_edit_request: {
+    href: (id) => `/daily-reports?tab=team&editRequest=${id}`,
+    exists: (id) => existsIn('DailyReportEditRequest', id)
   },
   daily_report_warning: { href: () => '/daily-reports', exists: (id) => existsIn('DailyReportWarning', id) },
   // The reminder notifications reference a daily_report_notification_events

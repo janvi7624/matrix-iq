@@ -1,20 +1,28 @@
 'use client';
 
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardCheck, Download, Eye, FilePlus2, History, Pencil } from 'lucide-react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ClipboardCheck, Download, Eye, FilePlus2, History, Pencil, Table2 } from 'lucide-react';
 import { DailyReportPayloadInput, EMPTY_PAYLOAD, TemplateDefinition } from '@/lib/dailyReportTemplates';
-import { DailyReportRecord, DailyReportRevisionRecord, TeamDailyReportRangeResponse, TeamDailyReportResponse, TeamDailyReportRow } from '@/lib/dailyReportTypes';
+import {
+  DailyReportEditRequestRecord,
+  DailyReportRecord,
+  DailyReportRevisionRecord,
+  TeamDailyReportRangeResponse,
+  TeamDailyReportResponse,
+  TeamDailyReportRow
+} from '@/lib/dailyReportTypes';
 import { Granularity, PeriodBounds, resolveRange, selectableYears } from '@/lib/hrReportPeriod';
 import { exportListToPdf } from '@/lib/exportPdf';
 import AppShell from './AppShell';
 import DailyReportForm from './DailyReportForm';
+import DailyReportReadView from './DailyReportReadView';
+import Textarea from './ui/Textarea';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './dailyReport.module.css';
 import Button from './ui/Button';
 import Input from './ui/Input';
 import Select from './ui/Select';
-import Textarea from './ui/Textarea';
 import FilterBar from './ui/FilterBar';
 import StatTile from './ui/StatTile';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
@@ -163,10 +171,11 @@ export default function TeamDailyReportsView({
   const [dialogTemplate, setDialogTemplate] = useState<TemplateDefinition | null>(null);
   const [dialogPayload, setDialogPayload] = useState<DailyReportPayloadInput>(EMPTY_PAYLOAD);
   const [dialogRevisions, setDialogRevisions] = useState<DailyReportRevisionRecord[]>([]);
+  const [editRequest, setEditRequest] = useState<DailyReportEditRequestRecord | null>(null);
+  const [decisionReason, setDecisionReason] = useState('');
   const [dialogIssues, setDialogIssues] = useState<Record<string, string>>({});
   const [dialogLoading, setDialogLoading] = useState(false);
   const [dialogSaving, setDialogSaving] = useState(false);
-  const [reviewNote, setReviewNote] = useState('');
 
   // The most recent change made AFTER this report was submitted, if there was
   // one. listRevisions orders newest first, so the first match is the latest.
@@ -234,7 +243,8 @@ export default function TeamDailyReportsView({
       setDialogLoading(true);
       setDialogIssues({});
       setDialogRevisions([]);
-      setReviewNote('');
+      setEditRequest(null);
+      setDecisionReason('');
       try {
         const response = await fetch(`/api/daily-reports/${row.report_id}`);
         const body = await response.json().catch(() => null);
@@ -247,6 +257,12 @@ export default function TeamDailyReportsView({
           matrix: body.report.matrix ?? {}
         });
         setDialogRevisions((body.revisions ?? []) as DailyReportRevisionRecord[]);
+        // Whether this filed report is currently unlocked, and by whom. A
+        // separate call so the report endpoint keeps its single job.
+        const live = await fetch(`/api/daily-reports/${row.report_id}/edit-request`)
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null);
+        setEditRequest((live?.edit_request ?? null) as DailyReportEditRequestRecord | null);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Could not open this report.');
         setDialog(null);
@@ -258,11 +274,52 @@ export default function TeamDailyReportsView({
   );
 
   // Deep link from a notification: open the report the bell pointed at.
+  //
+  // Latched, and that latch is load-bearing rather than tidiness. `data` is
+  // state and gets a new identity every time the list reloads, and opening
+  // the dialog is itself what changes `dialog` — which flips useAutoRefresh's
+  // `enabled` above and provokes another load. So the effect re-fired on its
+  // own output: open -> reload -> new data -> open -> ... until React gave up
+  // with "Maximum update depth exceeded", and the dialog never appeared at
+  // all. Every notification link to a daily report landed on a spinning page.
+  // Opening it once per deep link is the whole of the fix.
+  // A ref, not state: the latch exists to stop the effect re-entering, and
+  // nothing renders from it — setting state here would be the very cascading
+  // render this is trying to prevent (and react-hooks/set-state-in-effect
+  // says so).
+  const deepLinkHandled = useRef(false);
   useEffect(() => {
-    if (!initialReportId || !data) return;
+    if (deepLinkHandled.current || !initialReportId || !data) return;
     const row = data.rows.find((r) => r.report_id === initialReportId);
-    if (row) openReport(row, 'view');
+    if (!row) return;
+    deepLinkHandled.current = true;
+    openReport(row, 'view');
   }, [initialReportId, data, openReport]);
+
+  async function decideEdit(decision: 'APPROVED' | 'REJECTED') {
+    if (!editRequest) return;
+    if (!decisionReason.trim()) {
+      toast.error(decision === 'APPROVED' ? 'Say what you are allowing to be changed.' : 'Say why — the employee sees this.');
+      return;
+    }
+    setDialogSaving(true);
+    try {
+      const response = await fetch(`/api/daily-reports/edit-requests/${editRequest.id}/decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision, reason: decisionReason.trim() })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || 'Could not record that decision.');
+      setEditRequest((body.edit_request ?? null) as DailyReportEditRequestRecord | null);
+      setDecisionReason('');
+      toast.success(decision === 'APPROVED' ? 'Allowed — they can make one change.' : 'Refused. They have been told.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not record that decision.');
+    } finally {
+      setDialogSaving(false);
+    }
+  }
 
   async function openFileForThem(row: TeamDailyReportRow) {
     setDialog({ kind: 'file', row });
@@ -337,34 +394,6 @@ export default function TeamDailyReportsView({
     }
   }
 
-  async function review(nextStatus: 'REVIEWED' | 'CHANGES_REQUESTED') {
-    if (!dialogReport) return;
-    if (nextStatus === 'CHANGES_REQUESTED' && !reviewNote.trim()) {
-      return toast.error('Say what needs changing — a note is required when requesting changes.');
-    }
-    setDialogSaving(true);
-    try {
-      const response = await fetch(`/api/daily-reports/${dialogReport.id}/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus, note: reviewNote.trim() })
-      });
-      const body = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(body?.error || `Could not record this review (${response.status})`);
-      setDialog(null);
-      await load();
-      toast.success(nextStatus === 'REVIEWED' ? 'Marked as reviewed.' : 'Changes requested — the employee has been notified.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not record this review.');
-    } finally {
-      setDialogSaving(false);
-    }
-  }
-
-  // The "entire department, department-wise" PDF — a tabular register
-  // (one row per employee) in the SAME shape every other Export PDF in this
-  // app already uses (PO, Delivery Challan), not a full reproduction of
-  // every field of every report.
   function exportRangePdf() {
     if (!rangeData) return;
     const departmentLabel = departmentId ? rangeData.departments.find((d) => d.id === departmentId)?.name || 'Department' : 'All Departments';
@@ -570,7 +599,7 @@ export default function TeamDailyReportsView({
                     <th>Submission</th>
                     <th>Submitted at</th>
                     <th>Leave</th>
-                    <th>Review</th>
+                    <th>Entries</th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -591,15 +620,11 @@ export default function TeamDailyReportsView({
                       <td><SubmissionBadge row={row} /></td>
                       <td>{row.submitted_at ? formatDateTime(row.submitted_at) : '—'}</td>
                       <td>{row.leave_status ? <span className={`${styles.badge} ${styles.badgeLeave}`}>{row.leave_status.toLowerCase()}</span> : '—'}</td>
-                      <td>
-                        {row.review_status === 'REVIEWED'
-                          ? 'Reviewed'
-                          : row.review_status === 'CHANGES_REQUESTED'
-                            ? 'Changes requested'
-                            : row.report_id
-                              ? 'Not reviewed'
-                              : '—'}
-                      </td>
+                      {/* Entry count was already computed and shipped on every
+                          row and rendered nowhere. It tells a manager scanning
+                          twenty people how much is actually in a report, which
+                          the old Review column — never once used — did not. */}
+                      <td>{row.report_id ? row.entry_count : '—'}</td>
                       <td>
                         <div className={historyStyles.rowActionsInline}>
                           {row.report_id ? (
@@ -771,23 +796,84 @@ export default function TeamDailyReportsView({
                       <span className={styles.metaValue}>{dialogReport.filed_by_name}</span>
                     </div>
                   )}
-                  {dialogReport.reviewed_by_name && (
-                    <div className={styles.metaItem}>
-                      <span className={styles.metaLabel}>Reviewed by</span>
-                      <span className={styles.metaValue}>{dialogReport.reviewed_by_name}</span>
-                    </div>
-                  )}
                 </div>
 
-                <DailyReportForm
-                  template={dialogTemplate}
-                  value={dialogPayload}
-                  onChange={setDialogPayload}
-                  issues={dialogIssues}
-                  disabled={dialog.kind === 'view'}
-                  reportDate={dialogReport.report_date}
-                  employeeId={dialog.row.employee_id}
-                />
+                {dialog.kind === 'view' && editRequest && (
+                  <div className={styles.sectionBlock}>
+                    <div className={styles.sectionHead}>
+                      <h3 className={styles.sectionTitle}>
+                        {editRequest.status === 'PENDING' ? 'Asking to edit this report' : 'Permission to edit'}
+                      </h3>
+                    </div>
+                    <p className={styles.sectionHint}>
+                      {editRequest.status === 'PENDING'
+                        ? `${editRequest.employee_name} says: "${editRequest.reason}"`
+                        : editRequest.status === 'APPROVED'
+                          ? `Allowed by ${editRequest.decided_by_name || 'a manager'} — one save, until ${formatDateTime(editRequest.grant_expires_at)}.`
+                          : `${editRequest.status.toLowerCase()} — ${editRequest.decision_reason || 'no reason recorded'}.`}
+                    </p>
+                    {editRequest.status === 'PENDING' && (
+                      <>
+                        <div className={calcStyles.field}>
+                          <label className={calcStyles.label} htmlFor="decision-reason">
+                            Your reason <span className={calcStyles.small}>(required either way — the employee sees it)</span>
+                          </label>
+                          <Textarea id="decision-reason" rows={2} value={decisionReason} onChange={(e) => setDecisionReason(e.target.value)} />
+                        </div>
+                        <div className={styles.footerActions}>
+                          <Button variant="success" onClick={() => decideEdit('APPROVED')} disabled={dialogSaving}>
+                            Allow one edit
+                          </Button>
+                          <Button variant="secondary" onClick={() => decideEdit('REJECTED')} disabled={dialogSaving}>
+                            Refuse
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Reading and editing are different jobs, so they get
+                    different components. A disabled form used to serve both,
+                    which on the Sales template meant reading twenty-one
+                    greyed-out number inputs to find the three that mattered.
+                    The form is still underneath, collapsed, because the grid
+                    is where every cell and the auto drill-down live. */}
+                {dialog.kind === 'view' ? (
+                  <>
+                    {/* istToday(), not `date` — `date` is whichever day the
+                        manager is looking at, and the fallback derivation
+                        wants the actual today. */}
+                    <DailyReportReadView report={dialogReport} template={dialogTemplate} today={istToday()} />
+                    <details className={styles.detailsBlock}>
+                      <summary className={styles.detailsSummary}>
+                        <Table2 size={15} />
+                        {dialogTemplate.layout === 'matrix' ? 'Full grid, every cell' : 'Full form view'}
+                      </summary>
+                      <div className={styles.detailsBody}>
+                        <DailyReportForm
+                          template={dialogTemplate}
+                          value={dialogPayload}
+                          onChange={setDialogPayload}
+                          issues={dialogIssues}
+                          disabled
+                          reportDate={dialogReport.report_date}
+                          employeeId={dialog.row.employee_id}
+                        />
+                      </div>
+                    </details>
+                  </>
+                ) : (
+                  <DailyReportForm
+                    template={dialogTemplate}
+                    value={dialogPayload}
+                    onChange={setDialogPayload}
+                    issues={dialogIssues}
+                    disabled={false}
+                    reportDate={dialogReport.report_date}
+                    employeeId={dialog.row.employee_id}
+                  />
+                )}
 
                 {/* Collapsed: useful when something looks wrong, noise otherwise.
                     Mirrors the same panel on the employee's own page. */}
@@ -820,24 +906,6 @@ export default function TeamDailyReportsView({
                   </details>
                 )}
 
-                {dialog.kind === 'view' && (
-                  <>
-                    <div className={styles.sectionHead}>
-                      <h3 className={styles.sectionTitle}>Review</h3>
-                    </div>
-                    <p className={styles.sectionHint}>
-                      Review is informational and never blocks a submission — the report is already filed. Requesting changes notifies the employee.
-                    </p>
-                    <div className={calcStyles.field}>
-                      <label className={calcStyles.label} htmlFor="review-note">Note{' '}<span className={calcStyles.small}>(required to request changes)</span></label>
-                      <Textarea id="review-note" rows={2} value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} />
-                    </div>
-                    <div className={styles.footerActions}>
-                      <Button variant="success" onClick={() => review('REVIEWED')} disabled={dialogSaving}>Mark Reviewed</Button>
-                      <Button variant="secondary" onClick={() => review('CHANGES_REQUESTED')} disabled={dialogSaving}>Request Changes</Button>
-                    </div>
-                  </>
-                )}
               </>
             )
           )}
