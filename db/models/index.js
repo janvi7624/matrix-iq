@@ -19,6 +19,7 @@ const modelDefiners = [
   // two loops below), so the order here is for readability, not correctness.
   require('./partner.js'),
   require('./partnerQuotationShare.js'),
+  require('./partnerQuotationRequest.js'),
   require('./materialAccessLog.js'),
   require('./supportSlaPolicy.js'),
   require('./supportTicket.js'),

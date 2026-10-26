@@ -6,6 +6,8 @@ import { PartnerRecord } from '@/lib/types';
 import { PARTNER_STAGE_LABEL, PARTNER_STAGE_STEPS, PartnerProjectStage } from '@/lib/partnerProjectStages';
 import { PROJECT_DEPARTMENT_LABEL } from '@/lib/projectDepartmentOptions';
 import { OPPORTUNITY_TYPE_LABEL, OpportunityType } from '@/lib/projectLeadOptions';
+import { awaitingSide, buildPartnerReviewThread } from '@/lib/partnerReviewThread';
+import PartnerReviewThread from './PartnerReviewThread';
 import PartnerShell from './PartnerShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -95,6 +97,37 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * One editable field in the revision form.
+ *
+ * Mirrors the read-only Field above it so the editor reads as the same form
+ * the partner originally filled in, rather than as a different screen.
+ */
+function EditField({
+  label,
+  value,
+  onChange,
+  type = 'text'
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <div className={calcStyles.field}>
+      <label className={calcStyles.label}>{label}</label>
+      <input
+        type={type}
+        className={calcStyles.formControl}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        {...(type === 'number' ? { min: '0' } : {})}
+      />
+    </div>
+  );
+}
+
 export default function PartnerProjectDetailView({ projectId, partner }: { projectId: string; partner: PartnerRecord }) {
   const [project, setProject] = useState<PartnerProjectDetail | null>(null);
   const [quotations, setQuotations] = useState<SharedQuotation[]>([]);
@@ -104,6 +137,10 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  // Null until the partner opens the editor. Seeded from the project then,
+  // not on load, so a background refresh can never overwrite what they are
+  // part-way through typing.
+  const [edits, setEdits] = useState<Record<string, string> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -133,6 +170,58 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
       .then((rows: PartnerDemo[]) => setDemos(rows.filter((d) => d.project_id === projectId)))
       .catch(() => setDemos([]));
   }, [load, projectId]);
+
+  function openEditor() {
+    if (!project) return;
+    setError('');
+    setEdits({
+      project_name: project.project_name ?? '',
+      client_name: project.client_name ?? '',
+      company: project.company ?? '',
+      contact_person: project.contact_person ?? '',
+      phone: project.phone ?? '',
+      alt_contact_phone: project.alt_contact_phone ?? '',
+      email: project.email ?? '',
+      address: project.address ?? '',
+      city: project.city ?? '',
+      state: project.state ?? '',
+      expected_closing_date: project.expected_closing_date ?? '',
+      partner_expected_timeline: project.expected_timeline ?? '',
+      partner_submitted_value: project.submitted_value === '' ? '' : String(project.submitted_value)
+      // remarks is deliberately absent: the editor has no field for it, and
+      // seeding it here would post an empty string that wipes the
+      // description the partner wrote at submission. Absent means untouched.
+    });
+  }
+
+  async function sendRevision(event: FormEvent) {
+    event.preventDefault();
+    if (!edits) return;
+    setError('');
+    setSending(true);
+    try {
+      // Only the edited fields go up. Everything the editor does not cover —
+      // departments, priority, attachments — is left untouched server-side
+      // rather than posted back as empty.
+      const response = await fetch(`/api/partner/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...edits, message: reply })
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(body?.error || 'Could not save your changes.');
+        return;
+      }
+      setEdits(null);
+      setReply('');
+      await load();
+    } catch {
+      setError('Could not reach the server.');
+    } finally {
+      setSending(false);
+    }
+  }
 
   async function sendReply(event: FormEvent) {
     event.preventDefault();
@@ -169,6 +258,9 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
 
   const currentStep = PARTNER_STAGE_STEPS.indexOf(project.stage);
   const activity = [...project.timeline, ...project.notes].sort((a, b) => (a.at < b.at ? 1 : -1));
+  // The same thread the sales reviewer reads, built by the same function —
+  // so neither side can describe the exchange differently from the other.
+  const reviewThread = buildPartnerReviewThread({ timeline: project.timeline, notes: project.notes });
   const sharedTotal = quotations.reduce((sum, q) => sum + (Number(q.total) || 0), 0);
 
   return (
@@ -224,11 +316,15 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
         <div className={`${styles.stageRow} ${styles.stageRowCurrent}`}>{project.stage_label}</div>
       )}
 
-      {project.review_remarks && (
-        <p className={calcStyles.small}>
-          <strong>From our sales team:</strong> {project.review_remarks}
-        </p>
-      )}
+      {/* The whole exchange, not just the latest remark. review_remarks is
+          overwritten on every round, so on its own it loses the first
+          question the moment a second one is asked. */}
+      <PartnerReviewThread
+        entries={reviewThread}
+        partnerLabel={partner.company_name}
+        waitingOn={awaitingSide(project.submission_status)}
+        viewerSide="partner"
+      />
 
       {/* Stat cards — the partner-facing counterpart of CLIENT DETAILS /
           SALES TEAM / QUOTATION AMOUNT / EXPECTED CLOSURE. ASSIGNED
@@ -280,11 +376,67 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
       </div>
 
       {project.action_required && (
-        <form className={calcStyles.sectionPanel} onSubmit={sendReply}>
+        <form className={calcStyles.sectionPanel} onSubmit={edits ? sendRevision : sendReply}>
           <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>We need a little more information</h2>
-          <p className={calcStyles.small}>Reply below and this goes straight back into our review queue.</p>
-          <textarea className={calcStyles.formControl} rows={4} value={reply} onChange={(e) => setReply(e.target.value)} required />
-          <button type="submit" className={calcStyles.btn} disabled={sending}>{sending ? 'Sending...' : 'Send reply'}</button>
+          {error && <div className={historyStyles.loginError}>{error}</div>}
+
+          {edits ? (
+            <>
+              <p className={calcStyles.small}>
+                Correct whatever needs correcting. We record exactly which fields changed, so our team can see what you
+                updated.
+              </p>
+              <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+                <EditField label="Project Name" value={edits.project_name} onChange={(v) => setEdits({ ...edits, project_name: v })} />
+                <EditField label="Client Representative Name" value={edits.client_name} onChange={(v) => setEdits({ ...edits, client_name: v })} />
+                <EditField label="Company" value={edits.company} onChange={(v) => setEdits({ ...edits, company: v })} />
+                <EditField label="Contact Person" value={edits.contact_person} onChange={(v) => setEdits({ ...edits, contact_person: v })} />
+                <EditField label="Phone" value={edits.phone} onChange={(v) => setEdits({ ...edits, phone: v })} />
+                <EditField label="Alternate Contact Phone" value={edits.alt_contact_phone} onChange={(v) => setEdits({ ...edits, alt_contact_phone: v })} />
+                <EditField label="Email" type="email" value={edits.email} onChange={(v) => setEdits({ ...edits, email: v })} />
+                <EditField label="Address" value={edits.address} onChange={(v) => setEdits({ ...edits, address: v })} />
+                <EditField label="City" value={edits.city} onChange={(v) => setEdits({ ...edits, city: v })} />
+                <EditField label="State" value={edits.state} onChange={(v) => setEdits({ ...edits, state: v })} />
+                <EditField
+                  label="Expected Closing Date"
+                  type="date"
+                  value={edits.expected_closing_date ? edits.expected_closing_date.slice(0, 10) : ''}
+                  onChange={(v) => setEdits({ ...edits, expected_closing_date: v })}
+                />
+                <EditField label="Expected Timeline" value={edits.partner_expected_timeline} onChange={(v) => setEdits({ ...edits, partner_expected_timeline: v })} />
+                <EditField
+                  label="Approx. Project Price (₹)"
+                  type="number"
+                  value={edits.partner_submitted_value}
+                  onChange={(v) => setEdits({ ...edits, partner_submitted_value: v })}
+                />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Message to our sales team (optional)</label>
+                <textarea className={calcStyles.formControl} rows={3} value={reply} onChange={(e) => setReply(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button type="submit" className={calcStyles.btn} disabled={sending}>
+                  {sending ? 'Sending...' : 'Save changes & send back'}
+                </button>
+                <button type="button" className={historyStyles.button} disabled={sending} onClick={() => { setEdits(null); setError(''); }}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className={calcStyles.small}>
+                Reply below, or update the project details if something needs correcting. Either way it goes straight
+                back into our review queue.
+              </p>
+              <textarea className={calcStyles.formControl} rows={4} value={reply} onChange={(e) => setReply(e.target.value)} required />
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+                <button type="submit" className={calcStyles.btn} disabled={sending}>{sending ? 'Sending...' : 'Send reply'}</button>
+                <button type="button" className={historyStyles.button} onClick={openEditor}>Edit project details</button>
+              </div>
+            </>
+          )}
         </form>
       )}
 
@@ -341,8 +493,9 @@ export default function PartnerProjectDetailView({ projectId, partner }: { proje
             <Field label="Approx. Project Price (₹)" value={money(project.submitted_value)} />
           </div>
           <p className={calcStyles.small}>
-            These are the details you submitted. To change anything, speak to your contact — our team keeps the
-            project record from here.
+            {project.action_required
+              ? 'These are the details you submitted. Our sales team has asked for changes, so you can edit them above.'
+              : 'These are the details you submitted. To change anything, speak to your contact — our team keeps the project record from here.'}
           </p>
         </div>
       )}

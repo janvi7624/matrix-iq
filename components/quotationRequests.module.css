@@ -1,0 +1,96 @@
+/* The "which quotation answers this?" picker.
+   A list of radio cards rather than a <select>, because choosing between
+   revisions of one quotation needs the amount and the date, and a dropdown
+   option can only carry one line. */
+
+.pickList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 8px;
+}
+
+.pickRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--mx-surface, #fff);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.pickRow:hover {
+  border-color: #94a3b8;
+}
+
+.pickRow input {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.pickRowSelected {
+  border-color: #1a4a8a;
+  background: #f5f8fd;
+}
+
+/* Still visible, still readable — hiding an unsendable quotation looks
+   identical to it not existing, which is the confusing case. */
+.pickRowBlocked {
+  cursor: not-allowed;
+  opacity: 0.75;
+  background: var(--mx-surface-muted, #f8fafc);
+}
+
+.pickRowBlocked:hover {
+  border-color: var(--mx-border, #e2e8f0);
+}
+
+.pickBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pickTop {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The amount is what people recognise a quotation by, so it is pushed to the
+   far end and set in tabular figures to line up down the list. */
+.pickAmount {
+  margin-left: auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pickTag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: #1a4a8a;
+  background: #eef4fb;
+  border: 1px solid #cfe0f3;
+  white-space: nowrap;
+}
+
+.pickMeta {
+  font-size: 12px;
+  color: var(--mx-text-muted, #64748b);
+  overflow-wrap: anywhere;
+}
+
+.pickBlockedNote {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9a3412;
+}

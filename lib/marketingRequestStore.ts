@@ -64,13 +64,17 @@ const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'user
 const assigneeInclude = { model: db.User, as: 'assignee', attributes: ['id', 'username', 'name'] };
 const technicalMemberInclude = { model: db.User, as: 'technicalMember', attributes: ['id', 'username', 'name'] };
 const commentsInclude = { model: db.MarketingRequestComment, as: 'comments' };
-const ALL_INCLUDES = [creatorInclude, assigneeInclude, technicalMemberInclude, commentsInclude];
+// Required:false — an internal request has no partner row, and a required
+// join would silently drop every internal request from every list.
+const partnerInclude = { model: db.Partner, as: 'partner', attributes: ['id', 'partner_code', 'company_name'], required: false };
+const ALL_INCLUDES = [creatorInclude, assigneeInclude, technicalMemberInclude, commentsInclude, partnerInclude];
 
 function toRecord(row: Model): MarketingRequestRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
   const creatorObj = plain.creator as { id?: string; username?: string; name?: string } | null;
   const assigneeObj = plain.assignee as { id?: string; username?: string; name?: string } | null;
   const technicalObj = plain.technicalMember as { id?: string; username?: string; name?: string } | null;
+  const partnerObj = plain.partner as { id?: string; partner_code?: string; company_name?: string } | null;
 
   const record: Record<string, unknown> = {
     id: plain.id,
@@ -84,6 +88,9 @@ function toRecord(row: Model): MarketingRequestRecord {
     technical_member_username: technicalObj?.username || (plain.technical_assigned_to as string) || '',
     technical_member_name: technicalObj?.name || technicalObj?.username || (plain.technical_assigned_to as string) || '',
     updated_at: isoOrEmpty(plain.updatedAt),
+    partner_id: (plain.partner_id as string) || partnerObj?.id || '',
+    partner_company: partnerObj?.company_name || '',
+    partner_code: partnerObj?.partner_code || '',
     comments: (Array.isArray(plain.comments) ? (plain.comments as Record<string, unknown>[]) : [])
       .map(rowToComment)
       .sort((a, b) => (a.at < b.at ? -1 : 1))
@@ -149,6 +156,9 @@ async function create(record: MarketingRequestRecord): Promise<MarketingRequestR
       {
         ...attrs,
         created_by: creator ? creator.get('id') : null,
+        // Set once, at creation. Kept out of FIELDS on purpose — FIELDS also
+        // drives update(), and a request's origin must never be patchable.
+        partner_id: record.partner_id || null,
         assigned_to_id: assignee ? assignee.get('id') : (record.assigned_to_id || null),
         technical_assigned_to_id: technicalMember ? technicalMember.get('id') : (record.technical_member_id || null),
         technical_assigned_to: technicalMember ? technicalMember.get('name') || technicalMember.get('username') : record.technical_member_name || ''
@@ -220,4 +230,31 @@ async function remove(id: string, viewerUsername: string, viewerIsPrivileged: bo
   return true;
 }
 
-export const marketingRequestStore = { list, create, update, remove, readAll, assign };
+/**
+ * Every marketing request raised by ONE partner.
+ *
+ * partner_id is mandatory here, not optional — this is the Layer 3 scoping
+ * the whole portal rests on. Callers pass a partnerId resolved from
+ * getPartnerViewer(), never from a request body.
+ */
+async function listForPartner(partnerId: string): Promise<MarketingRequestRecord[]> {
+  if (!isUuid(partnerId)) return [];
+  const rows = await db.MarketingRequest.findAll({
+    where: { partner_id: partnerId } as never,
+    include: ALL_INCLUDES,
+    order: [['created_at', 'DESC']]
+  });
+  return rows.map(toRecord);
+}
+
+/** One request, but only if it belongs to this partner. Returns null otherwise. */
+async function findForPartner(id: string, partnerId: string): Promise<MarketingRequestRecord | null> {
+  if (!isUuid(id) || !isUuid(partnerId)) return null;
+  const row = await db.MarketingRequest.findOne({
+    where: { id, partner_id: partnerId } as never,
+    include: ALL_INCLUDES
+  });
+  return row ? toRecord(row) : null;
+}
+
+export const marketingRequestStore = { list, create, update, remove, readAll, assign, listForPartner, findForPartner };

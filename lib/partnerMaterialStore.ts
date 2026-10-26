@@ -1,5 +1,5 @@
 import { db, isUuid } from './db';
-import { MaterialCategory, isMaterialCategory } from './materialCategories';
+import { MaterialCategory, MaterialFileKind, fileKindFromMime, isMaterialCategory } from './materialCategories';
 import { PublishableFolder, PublishableMaterial, materialVisibleToPartner, partnerVisibleFolders } from './materialPublication';
 
 // The partner-facing slice of the Materials library, plus the publication
@@ -21,7 +21,14 @@ export interface PartnerMaterial {
   description: string;
   webViewLink: string;
   isFolder: boolean;
+  // Derived exactly as lib/materialStore.ts derives it for the internal
+  // library, so the partner list can group and label documents the same way.
+  fileKind: MaterialFileKind;
   updatedAt: string;
+  // Present so this satisfies GroupableMaterial and can be fed straight into
+  // lib/materialGrouping.ts. Always '' — who uploaded a brochure is internal
+  // staff identity and deliberately never leaves the building.
+  addedBy: string;
 }
 
 export interface PartnerFolder {
@@ -83,7 +90,9 @@ export async function listPartnerMaterials(partnerId: string): Promise<{ materia
       description: (plain.description as string) ?? '',
       webViewLink: (plain.web_view_link as string) ?? '',
       isFolder: Boolean(plain.is_folder),
-      updatedAt: isoOrEmpty(plain.updatedAt)
+      fileKind: plain.is_folder ? 'folder' : fileKindFromMime('', (plain.title as string) ?? ''),
+      updatedAt: isoOrEmpty(plain.updatedAt),
+      addedBy: ''
     };
     return { publishable, view };
   });

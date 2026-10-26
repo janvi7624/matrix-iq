@@ -3,6 +3,11 @@ module.exports = (sequelize, DataTypes) => {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
     created_by: { type: DataTypes.UUID },
     project_id: { type: DataTypes.UUID },
+    // Set only when the request was raised through the Partner Portal. NULL
+    // for every internal request, which is what makes "from a partner" a
+    // reliable flag rather than something inferred from the creator's
+    // account (which can be moved or deleted).
+    partner_id: { type: DataTypes.UUID },
     // Who is actively working the ticket in marketing
     assigned_to_id: { type: DataTypes.UUID },
     // Who is selected as the technical reviewer
@@ -58,6 +63,7 @@ module.exports = (sequelize, DataTypes) => {
     MarketingRequest.belongsTo(models.User, { foreignKey: 'assigned_to_id', as: 'assignee' });
     MarketingRequest.belongsTo(models.User, { foreignKey: 'technical_assigned_to_id', as: 'technicalMember' });
     MarketingRequest.belongsTo(models.Project, { foreignKey: 'project_id', as: 'project' });
+    MarketingRequest.belongsTo(models.Partner, { foreignKey: 'partner_id', as: 'partner' });
     MarketingRequest.hasMany(models.MarketingRequestComment, { foreignKey: 'marketing_request_id', as: 'comments' });
   };
 

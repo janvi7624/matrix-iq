@@ -3,6 +3,7 @@ import {
   PublishableFolder,
   PublishableMaterial,
   audienceAllows,
+  breadcrumbChainPublished,
   folderChainPublished,
   materialVisibleToPartner,
   partnerVisibleFolders
@@ -125,5 +126,43 @@ describe('partnerVisibleFolders', () => {
   it('never lists a folder whose chain is closed', () => {
     const visible = [material({ id: 'm2', folderId: 'leaks' })];
     expect(partnerVisibleFolders(FOLDERS, visible).map((f) => f.id)).toEqual([]);
+  });
+});
+
+describe('breadcrumbChainPublished', () => {
+  // The internal library derives its "would a partner see this?" indicator
+  // from the breadcrumb. These assert it gives the SAME answer as the
+  // authoritative rule — a screen that disagrees with the server is worse
+  // than no indicator at all.
+  const folders = [
+    { id: 'root', parentId: null, partnerVisible: true },
+    { id: 'mid', parentId: 'root', partnerVisible: true },
+    { id: 'closed', parentId: 'root', partnerVisible: false },
+    { id: 'deep', parentId: 'closed', partnerVisible: true }
+  ];
+
+  it('treats the top level as open — there is no folder to close', () => {
+    expect(breadcrumbChainPublished([])).toBe(true);
+    expect(folderChainPublished(folders, null)).toBe(true);
+  });
+
+  it('agrees with folderChainPublished on a fully published chain', () => {
+    const crumbs = [{ partnerVisible: true }, { partnerVisible: true }];
+    expect(breadcrumbChainPublished(crumbs)).toBe(true);
+    expect(folderChainPublished(folders, 'mid')).toBe(true);
+  });
+
+  it('agrees when the chain is closed at its own level', () => {
+    const crumbs = [{ partnerVisible: true }, { partnerVisible: false }];
+    expect(breadcrumbChainPublished(crumbs)).toBe(false);
+    expect(folderChainPublished(folders, 'closed')).toBe(false);
+  });
+
+  it('agrees when an open folder sits inside a closed ancestor', () => {
+    // The case the whole rule exists for: 'deep' is published, but its
+    // parent is not, so neither answer may be true.
+    const crumbs = [{ partnerVisible: true }, { partnerVisible: false }, { partnerVisible: true }];
+    expect(breadcrumbChainPublished(crumbs)).toBe(false);
+    expect(folderChainPublished(folders, 'deep')).toBe(false);
   });
 });

@@ -22,6 +22,8 @@ import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import { SkeletonRows } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
+import TeamDailyReportsSheet from './TeamDailyReportsSheet';
+import sheetStyles from './teamSheet.module.css';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 
 type Period = 'day' | 'month' | 'quarter' | 'year' | 'custom';
@@ -102,6 +104,11 @@ export default function TeamDailyReportsView({
   onDateChange?: (date: string) => void;
 }) {
   const toast = useToast();
+
+  // 'day' is the original dashboard — one date, for chasing a deadline.
+  // 'sheet' is the range grid, for the question that dashboard could not
+  // answer: what has this person been doing?
+  const [mode, setMode] = useState<'day' | 'sheet'>('day');
 
   const [date, setDate] = useState(initialDate ?? istToday());
   const [departmentId, setDepartmentId] = useState('');
@@ -376,8 +383,45 @@ export default function TeamDailyReportsView({
     return wrap(<ErrorState message={loadFailed} onRetry={load} />);
   }
 
+  const modeSwitch = (
+    <div className={sheetStyles.presetGroup} style={{ marginBottom: 12 }} role="group" aria-label="View">
+      <button
+        type="button"
+        className={`${sheetStyles.preset} ${mode === 'day' ? sheetStyles.presetActive : ''}`}
+        onClick={() => setMode('day')}
+      >
+        Day view
+      </button>
+      <button
+        type="button"
+        className={`${sheetStyles.preset} ${mode === 'sheet' ? sheetStyles.presetActive : ''}`}
+        onClick={() => setMode('sheet')}
+      >
+        Sheet view
+      </button>
+    </div>
+  );
+
+  if (mode === 'sheet') {
+    return wrap(
+      <>
+        {modeSwitch}
+        {/* Opening a square jumps the day view to that person's date — the
+            two views share one dialog rather than duplicating the reader. */}
+        <TeamDailyReportsSheet
+          onOpenDay={(_employeeId, day) => {
+            setDate(day);
+            onDateChange?.(day);
+            setMode('day');
+          }}
+        />
+      </>
+    );
+  }
+
   return wrap(
     <>
+      {modeSwitch}
       <FilterBar>
         <Select auto value={period} onChange={(e) => setPeriod(e.target.value as Period)} aria-label="Period">
           {PERIOD_OPTIONS.map((opt) => (

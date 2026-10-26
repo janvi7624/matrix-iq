@@ -114,9 +114,9 @@ describe('portal constants', () => {
     expect(isPartnerPath(PARTNER_HOME)).toBe(true);
   });
 
-  it('names two partner roles and six portal modules', () => {
+  it('names two partner roles and seven portal modules', () => {
     expect([...PARTNER_ROLE_KEYS]).toEqual(['partner-admin', 'partner-user']);
-    expect(PARTNER_PORTAL_MODULE_KEYS).toHaveLength(6);
+    expect(PARTNER_PORTAL_MODULE_KEYS).toHaveLength(7);
     // Every portal module key must be partner-prefixed: the gate in
     // moduleConfigStore is keyed on membership of this list, and a key that
     // collided with an internal module would hand partners that module.

@@ -89,8 +89,28 @@ export const PARTNER_PORTAL_MODULE_KEYS = [
   'partner-quotations',
   'partner-demos',
   'partner-support',
-  'partner-materials'
+  'partner-materials',
+  'partner-marketing-requests'
 ] as const;
 
 /** Nav section the partner-facing tiles live under. */
 export const PARTNER_SECTION = 'Partner Portal';
+
+/**
+ * The portal's nav sections, mirroring the internal sidebar.
+ *
+ * One flat "Partner Portal" list of seven entries made a partner scan the
+ * whole thing to find a quotation. Grouping them the way staff already see
+ * the app — Sales, Marketing, Support — means the two audiences describe the
+ * product the same way, and the section icons in lib/icons.tsx already exist
+ * for these exact labels.
+ *
+ * Reusing the INTERNAL names is safe and deliberate: section membership is
+ * only ever a display grouping, and no partner module is visible to staff
+ * (nor any internal module to a partner) — that is decided by
+ * PARTNER_RESTRICTED_KEYS in lib/moduleConfigStore.ts, keyed on module key,
+ * never on section.
+ */
+export const PARTNER_SALES_SECTION = 'Sales';
+export const PARTNER_MARKETING_SECTION = 'Marketing';
+export const PARTNER_SUPPORT_SECTION = 'Support';

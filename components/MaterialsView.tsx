@@ -2,33 +2,28 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Award,
-  Building2,
   ChevronDown,
   ChevronRight,
   Folder,
   FolderPlus,
+  Handshake,
   Home,
   ExternalLink,
-  FileArchive,
-  FileSpreadsheet,
   FileText,
   FolderOpen,
-  Image as ImageIcon,
   Layers,
-  type LucideIcon,
   Pencil,
   Plus,
-  Presentation,
   Search,
   Trash2,
-  Video,
   X
 } from 'lucide-react';
 import AppShell from './AppShell';
 import EmptyState from './ui/EmptyState';
 import ErrorState from './ui/ErrorState';
 import { Skeleton } from './ui/Skeleton';
+import { CATEGORY_ICON, KIND_ICON, formatWhen } from './materialIcons';
+import { breadcrumbChainPublished } from '@/lib/materialPublication';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
@@ -65,6 +60,7 @@ interface MaterialDocument {
   fileKind: MaterialFileKind;
   addedBy: string;
   updatedAt: string;
+  partnerVisible: boolean;
 }
 
 interface ProductGroup {
@@ -90,12 +86,14 @@ interface Subfolder {
   description: string;
   subfolderCount: number;
   materialCount: number;
+  partnerVisible: boolean;
 }
 
 interface Crumb {
   id: string;
   name: string;
   parentId: string | null;
+  partnerVisible: boolean;
 }
 
 interface MaterialsPayload {
@@ -112,41 +110,6 @@ interface MaterialsPayload {
   knownProducts: string[];
 }
 
-const KIND_ICON: Record<MaterialFileKind, LucideIcon> = {
-  pdf: FileText,
-  doc: FileText,
-  sheet: FileSpreadsheet,
-  slide: Presentation,
-  image: ImageIcon,
-  video: Video,
-  archive: FileArchive,
-  folder: FolderOpen,
-  file: FileText,
-  // Says "this one leaves MatrixIQ" at a glance, which a document icon would
-  // not — a web page titled "X200 spec.pdf" would otherwise wear a PDF mark.
-  link: ExternalLink
-};
-
-// A category reads faster with a mark beside it than as text alone — and the
-// same icon then identifies it in the tab, the heading and the add form.
-const CATEGORY_ICON: Record<MaterialCategory, LucideIcon> = {
-  datasheet: FileText,
-  case_study: Award,
-  company_profile: Building2,
-  brochure: FileArchive,
-  presentation: Presentation,
-  certificate: Award,
-  video: Video,
-  other: Layers
-};
-
-function formatWhen(iso: string): string {
-  if (!iso) return '';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 const EMPTY_FORM = {
   product: '',
   category: 'datasheet' as MaterialCategory,
@@ -157,7 +120,12 @@ const EMPTY_FORM = {
   uploadedFileUrl: '',
   uploadedFileName: '',
   customLink: '',
-  mimeType: ''
+  mimeType: '',
+  // Starts false by deliberate choice: the library holds internal sales
+  // decks and competitor comparisons alongside partner collateral, and an
+  // accidental share to an external company cannot be un-seen. Opting in is
+  // one click; opting out after the fact is not.
+  partnerVisible: false
 };
 type FormValues = typeof EMPTY_FORM;
 
@@ -288,7 +256,7 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
     }
   }
 
-  async function handleSaveFolder(mode: 'new' | 'edit', folder: Subfolder | null, values: { name: string; description: string }) {
+  async function handleSaveFolder(mode: 'new' | 'edit', folder: Subfolder | null, values: { name: string; description: string; partnerVisible: boolean }) {
     const isNew = mode === 'new';
     try {
       const response = await fetch(isNew ? '/api/material-folders' : `/api/material-folders/${folder!.id}`, {
@@ -341,6 +309,10 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
   const groups = data?.categories ?? [];
   const subfolders = data?.subfolders ?? [];
   const breadcrumb = data?.breadcrumb ?? [];
+  // The second gate of the publication rule, evaluated over the chain we
+  // already have. Imported rather than reimplemented so this screen can
+  // never claim "shared" for something the server hides.
+  const folderChainShared = breadcrumbChainPublished(breadcrumb);
   const searching = debouncedSearch.trim().length > 0;
   const flatMode = Boolean(data?.flatMode);
   const isEmptyLibrary = !loading && !loadFailed && (data?.totalProducts ?? 0) === 0 && !subfolders.length;
@@ -549,7 +521,15 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
                       <span className={styles.cardTitle}>{folder.name}</span>
                     </button>
                     {folder.description && <p className={styles.cardDesc}>{folder.description}</p>}
-                    <div className={styles.cardMeta}>{counts.length ? counts.join(' · ') : 'Empty'}</div>
+                    <div className={styles.cardMeta}>
+                      {counts.length ? counts.join(' · ') : 'Empty'}
+                      {folder.partnerVisible && (
+                        <span className={folderChainShared ? styles.sharedPill : styles.sharedPillBlocked}>
+                          <Handshake size={11} />
+                          {folderChainShared ? 'Shared with partners' : 'Shared, but blocked above'}
+                        </span>
+                      )}
+                    </div>
                   </article>
                 );
               })}
@@ -604,6 +584,19 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
                       <div className={styles.cardMeta}>
                         {multiple && <span className={styles.docPill}>{product.documents.length} documents</span>}
                         {product.updatedAt && <span>Updated {formatWhen(product.updatedAt)}</span>}
+                        {product.documents.some((d) => d.partnerVisible) && (
+                          // Blocked-above is worth its own wording: the tick
+                          // IS on, so "not shared" would read as a mistake by
+                          // whoever ticked it. The folder is what's missing.
+                          <span className={folderChainShared ? styles.sharedPill : styles.sharedPillBlocked}>
+                            <Handshake size={11} />
+                            {folderChainShared
+                              ? multiple && !product.documents.every((d) => d.partnerVisible)
+                                ? 'Some shared with partners'
+                                : 'Shared with partners'
+                              : 'Shared, but folder is internal'}
+                          </span>
+                        )}
                       </div>
 
                       <div className={styles.cardActions}>
@@ -662,6 +655,7 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
         <FolderDialog
           folder={folderDialog.mode === 'edit' ? folderDialog.folder : null}
           parentName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : 'Library'}
+          parentShared={folderChainShared}
           onClose={() => setFolderDialog(null)}
           onSave={(values) => handleSaveFolder(folderDialog.mode, folderDialog.mode === 'edit' ? folderDialog.folder : null, values)}
         />
@@ -672,6 +666,7 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
           material={editing}
           defaultCategory={category === 'all' ? 'datasheet' : category}
           knownProducts={data?.knownProducts ?? []}
+          folderShared={folderChainShared}
           onClose={() => setEditing(null)}
           onSave={(values) => handleSave(editing, values)}
         />
@@ -686,12 +681,15 @@ function MaterialDialog({
   material,
   defaultCategory,
   knownProducts,
+  folderShared,
   onClose,
   onSave
 }: {
   material: MaterialDocument | 'new';
   defaultCategory: MaterialCategory;
   knownProducts: string[];
+  /** Is every folder from here to the root published to partners? */
+  folderShared: boolean;
   onClose: () => void;
   onSave: (values: FormValues) => void;
 }) {
@@ -710,7 +708,8 @@ function MaterialDialog({
           uploadedFileUrl: existing.source === 'upload' ? existing.webViewLink : '',
           uploadedFileName: '',
           customLink: existing.source === 'link' ? existing.webViewLink : '',
-          mimeType: ''
+          mimeType: '',
+          partnerVisible: existing.partnerVisible
         }
       : { ...EMPTY_FORM, category: defaultCategory }
   );
@@ -963,6 +962,32 @@ function MaterialDialog({
         />
       </div>
 
+      <div className={calcStyles.field}>
+        <label className={styles.shareToggle}>
+          <input
+            type="checkbox"
+            checked={values.partnerVisible}
+            onChange={(e) => set('partnerVisible', e.target.checked)}
+          />
+          <span>
+            <strong>Share with partners</strong>
+            <span className={calcStyles.small}>
+              Publishes this document to the Partner Portal’s Marketing Materials library.
+            </span>
+          </span>
+        </label>
+        {values.partnerVisible && !folderShared && (
+          // The two-gate rule (lib/materialPublication.ts) means ticking this
+          // alone is not enough inside a folder that is still internal. Saying
+          // so here is the difference between "it works" and "nothing happened
+          // and I don't know why".
+          <div className={styles.fieldWarn}>
+            This folder is not shared with partners yet, so the document still won’t appear for them. Share the folder
+            too — and every folder above it.
+          </div>
+        )}
+      </div>
+
       <div className={styles.formNote}>
         {values.mode === 'drive' ? (
           <>
@@ -991,16 +1016,20 @@ function MaterialDialog({
 function FolderDialog({
   folder,
   parentName,
+  parentShared,
   onClose,
   onSave
 }: {
   folder: Subfolder | null;
   parentName: string;
+  /** Is every folder from the PARENT up to the root published to partners? */
+  parentShared: boolean;
   onClose: () => void;
-  onSave: (values: { name: string; description: string }) => void;
+  onSave: (values: { name: string; description: string; partnerVisible: boolean }) => void;
 }) {
   const [name, setName] = useState(folder?.name ?? '');
   const [description, setDescription] = useState(folder?.description ?? '');
+  const [partnerVisible, setPartnerVisible] = useState(folder?.partnerVisible ?? false);
   const [error, setError] = useState('');
 
   function handleSubmit() {
@@ -1009,7 +1038,7 @@ function FolderDialog({
       return;
     }
     setError('');
-    onSave({ name: name.trim(), description: description.trim() });
+    onSave({ name: name.trim(), description: description.trim(), partnerVisible });
   }
 
   return (
@@ -1049,6 +1078,27 @@ function FolderDialog({
           onChange={(e) => setDescription(e.target.value)}
           placeholder="What belongs in here?"
         />
+      </div>
+
+      <div className={calcStyles.field}>
+        <label className={styles.shareToggle}>
+          <input type="checkbox" checked={partnerVisible} onChange={(e) => setPartnerVisible(e.target.checked)} />
+          <span>
+            <strong>Share this folder with partners</strong>
+            <span className={calcStyles.small}>
+              Partners can browse into it. Each document inside still needs its own “Share with partners” tick.
+            </span>
+          </span>
+        </label>
+        {partnerVisible && !parentShared && (
+          // A published folder nested inside a closed one stays hidden — the
+          // boundary Marketing thinks they drew would not exist. Saying so
+          // here beats the folder silently never appearing.
+          <div className={styles.fieldWarn}>
+            A folder above this one is still internal, so partners won’t reach this folder either. Share the folders
+            above it too.
+          </div>
+        )}
       </div>
     </Modal>
   );

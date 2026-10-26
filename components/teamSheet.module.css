@@ -1,0 +1,443 @@
+/* Team Daily Reports — the sheet view.
+   People down, working days across, one click to open a person's tasks. */
+
+.presetGroup {
+  display: inline-flex;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.preset {
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: none;
+  background: var(--mx-surface, #fff);
+  color: var(--mx-text-muted, #475569);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.preset + .preset {
+  border-left: 1px solid var(--mx-border, #e2e8f0);
+}
+
+.presetActive {
+  background: #1a4a8a;
+  color: #fff;
+}
+
+/* --- KPI strip --- */
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--mx-surface, #fff);
+}
+
+.kpiLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--mx-text-muted, #64748b);
+}
+
+.kpiValue {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiOf {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mx-text-muted, #94a3b8);
+}
+
+.kpiWarn { color: #b45309; }
+.kpiBad { color: #b91c1c; }
+
+/* --- legend --- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 4px 0 8px;
+  font-size: 12px;
+  color: var(--mx-text-muted, #64748b);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.swatch {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* --- the grid --- */
+
+.gridWrap {
+  overflow-x: auto;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--mx-surface, #fff);
+}
+
+.grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+  font-size: 13px;
+}
+
+.grid th,
+.grid td {
+  border-bottom: 1px solid var(--mx-border-subtle, #f1f5f9);
+  padding: 0;
+}
+
+/* The name column never scrolls away from its row. */
+.stickyHead,
+.stickyCell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--mx-surface, #fff);
+  text-align: left;
+  min-width: 210px;
+  border-right: 1px solid var(--mx-border, #e2e8f0);
+}
+
+.stickyHead {
+  z-index: 3;
+  padding: 8px 12px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--mx-text-muted, #64748b);
+  background: var(--mx-surface-muted, #f8fafc);
+}
+
+.dayHead,
+.totalHead {
+  padding: 6px 0;
+  background: var(--mx-surface-muted, #f8fafc);
+  font-size: 11px;
+  color: var(--mx-text-muted, #64748b);
+  font-weight: 600;
+  min-width: 34px;
+}
+
+.totalHead {
+  min-width: 48px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.dayWeek,
+.dayNum {
+  display: block;
+  line-height: 1.25;
+}
+
+.dayNum {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mx-text, #0f172a);
+  font-variant-numeric: tabular-nums;
+}
+
+.nameBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.nameBtn:hover { background: var(--mx-surface-muted, #f8fafc); }
+
+.chevron {
+  color: var(--mx-text-muted, #94a3b8);
+  font-size: 11px;
+}
+
+.name {
+  display: block;
+  font-weight: 600;
+}
+
+.dept {
+  display: block;
+  font-size: 11.5px;
+  color: var(--mx-text-muted, #64748b);
+}
+
+.rowOpen .stickyCell { background: #f5f8fd; }
+
+.dayCell {
+  text-align: center;
+  padding: 3px 2px;
+}
+
+/* A square, not a tick: the number says how MUCH was done, which is the
+   question a tick cannot answer. */
+.square {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.square[role='button'] { cursor: pointer; }
+.square[role='button']:hover { outline: 2px solid #1a4a8a; }
+
+.cellOk { background: #dcfce7; color: #166534; }
+.cellLate { background: #fef3c7; color: #92400e; }
+.cellMissing { background: #fee2e2; color: #991b1b; }
+.cellLeave { background: #e0e7ff; color: #3730a3; }
+.cellLeavePending { background: #eef2ff; color: #4338ca; }
+/* Deliberately the palest: "nothing was due" must not read as a problem. */
+.cellOff { background: #f1f5f9; }
+
+.totalCell {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 12.5px;
+  padding: 4px 6px;
+}
+
+.totalBad { color: #b91c1c; }
+
+/* --- the expanded spreadsheet --- */
+
+/* --- the workbook tab strip --- */
+
+.tabStrip {
+  display: flex;
+  gap: 2px;
+  margin: 12px 0 0;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  border-bottom: 2px solid var(--mx-border, #e2e8f0);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-bottom: none;
+  border-radius: 7px 7px 0 0;
+  background: var(--mx-surface-muted, #f1f5f9);
+  color: var(--mx-text-muted, #475569);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab:hover { background: #e9eef5; }
+
+.tabActive {
+  background: var(--mx-surface, #fff);
+  color: #1a4a8a;
+  border-color: #1a4a8a;
+  box-shadow: 0 2px 0 0 #fff;
+}
+
+.tabCount {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A person with a gap is marked on the tab itself — otherwise the manager
+   has to open each one to find out who is behind. */
+.tabFlag::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #b91c1c;
+}
+
+/* --- the Daily Task Sheet --- */
+
+.sheet {
+  margin-top: 14px;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sheetBanner {
+  padding: 11px 14px;
+  background: #1e3a5f;
+  color: #fff;
+}
+
+.sheetTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.sheetSub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: #c7d6e8;
+}
+
+.sheetStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 8px 14px;
+  background: var(--mx-surface-muted, #f8fafc);
+  border-bottom: 1px solid var(--mx-border, #e2e8f0);
+  font-size: 12.5px;
+  color: var(--mx-text-muted, #475569);
+}
+
+.sheetStats strong { font-variant-numeric: tabular-nums; }
+.statWarn { color: #b45309; }
+.statBad { color: #b91c1c; }
+
+/* --- status / priority chips --- */
+
+.tag {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tagDone { background: #dcfce7; color: #166534; }
+.tagProgress { background: #fef3c7; color: #92400e; }
+.tagPending { background: #f1f5f9; color: #475569; }
+.tagHold { background: #fee2e2; color: #991b1b; }
+.tagNeutral { background: #f1f5f9; color: #475569; }
+
+.tagCritical { background: #fee2e2; color: #991b1b; }
+.tagHigh { background: #ffedd5; color: #9a3412; }
+.tagMedium { background: #e0e7ff; color: #3730a3; }
+.tagLow { background: #f1f5f9; color: #475569; }
+
+.dim { color: var(--mx-text-muted, #cbd5e1); }
+
+/* A heavier rule where the day changes, so the eye can group rows that
+   belong to the same date even though the date is repeated on each. */
+.dayBreakRow > * { border-top: 1px solid var(--mx-border, #dbe3ec); }
+.dayBreak { font-weight: 700; }
+
+.sheetWrap {
+  overflow-x: auto;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.sheetTable {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+  font-size: 12.5px;
+}
+
+.sheetTable th,
+.sheetTable td {
+  border-bottom: 1px solid var(--mx-border-subtle, #f1f5f9);
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+
+.sheetTable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--mx-surface-muted, #f8fafc);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--mx-text-muted, #64748b);
+  white-space: nowrap;
+}
+
+/* Date is sticky horizontally so a wide template keeps its anchor. */
+.sheetDateHead,
+.sheetDateCell {
+  position: sticky;
+  left: 0;
+  background: var(--mx-surface, #fff);
+  border-right: 1px solid var(--mx-border, #e2e8f0);
+  white-space: nowrap;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheetDateHead { z-index: 3; background: var(--mx-surface-muted, #f8fafc); }
+
+.lateTag {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #b45309;
+  text-transform: uppercase;
+}
+
+.sheetEmptyRow td { background: #fcfcfd; }
+
+.sheetEmptyCell {
+  color: var(--mx-text-muted, #94a3b8);
+  font-style: italic;
+}
+
+@media (max-width: 720px) {
+  .stickyHead,
+  .stickyCell { min-width: 150px; }
+}

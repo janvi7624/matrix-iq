@@ -3,7 +3,14 @@ import { ModuleConfigRecord, UserRole } from './types';
 import { db, isUuid } from './db';
 import { cached, invalidateCache } from './memoCache';
 import { TMS_ROLE_KEYS, TMS_DEPARTMENTS } from './tmsConstants';
-import { PARTNER_PORTAL_MODULE_KEYS, PARTNER_ROLE_KEYS, PARTNER_SECTION } from './partnerRoles';
+import {
+  PARTNER_MARKETING_SECTION,
+  PARTNER_PORTAL_MODULE_KEYS,
+  PARTNER_ROLE_KEYS,
+  PARTNER_SALES_SECTION,
+  PARTNER_SECTION,
+  PARTNER_SUPPORT_SECTION
+} from './partnerRoles';
 import { canAccessHrExpenseModule, isHrExpenseModule } from './hrExpenseAccess';
 
 // listModuleConfigs() (and its seed/reconcile pass) used to run in full on
@@ -125,6 +132,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // quotations too, and need the nav entry to find them again. See
   // MY_QUOTATIONS_TMS_ACCESS_KEY below.
   { key: 'my-quotations', label: 'Existing Quotations', desc: "Every quotation you've created, with status, versions, and follow-ups.", icon: 'clipboard-list', href: '/my-quotations', section: 'Sales', order: 3, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
+  { key: 'quotation-requests', label: 'Partner Quotation Requests', desc: 'Partners asking us to price something — prepare a quotation or decline with a reason.', icon: 'file-text', href: '/quotation-requests', section: 'Sales', order: 5, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'site-visits', label: 'Site Visit Report', desc: 'Register a visit and keep logging project updates over time.', icon: 'map-pin', href: '/site-visits', section: 'Sales', order: 4, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'leads', label: 'Lead Capture / Inquiry', desc: 'Scan a business card at an event, or bulk-import from CSV or multiple photos, and qualify each lead on the spot.', icon: 'contact', href: '/leads', section: 'Sales', order: 6, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   { key: 'demo-schedule', label: 'Demo Schedule', desc: 'Request and approve product demos.', icon: 'monitor', href: '/demo-schedule', section: 'Sales', order: 7, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
@@ -208,6 +216,9 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // Sales because creating and owning a partner relationship is sales work;
   // Technical Support gets its own section since it serves after-sales, not
   // the pipeline.
+  // order: 10, not 9 — 9 was this tile's original seed value, freed up for
+  // the new 'billing' tile above. See the reconcile loop's matching guard
+  // for why an already-seeded row still ends up at 10 too.
   { key: 'partners', label: 'Partner Management', desc: 'Channel partners, distributors and dealers — accounts, access, assigned relationship manager, and everything they have submitted.', icon: 'share-2', href: '/admin/partners', section: 'Sales', order: 10, enabled: true, isCustom: false, visibleToRoles: PARTNER_INTERNAL_ROLES },
   { key: 'partner-analytics', label: 'Partner Analytics', desc: 'Compare partner performance — submissions, conversion, demos and won business.', icon: 'bar-chart', href: '/admin/partners/analytics', section: 'Reports', order: 5, enabled: true, isCustom: false, visibleToRoles: PARTNER_INTERNAL_ROLES },
   { key: 'support-tickets', label: 'Technical Support', desc: 'After-sales support tickets — triage, assignment, SLA tracking, and resolution.', icon: 'inbox', href: '/support', section: 'Support', order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_INTERNAL_ROLES, 'technical-manager', 'team-lead', 'engineer', 'technician'] },
@@ -219,11 +230,12 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // so the portal is usable as soon as a partner account exists; Module
   // Manager can switch any tile off.
   { key: 'partner-dashboard', label: 'Dashboard', desc: 'Your submissions, demos, quotations and support at a glance.', icon: 'layout-dashboard', href: '/partner', section: PARTNER_SECTION, order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
-  { key: 'partner-projects', label: 'My Leads / Projects', desc: 'Submit a new opportunity and track every one you have sent us.', icon: 'folder-kanban', href: '/partner/projects', section: PARTNER_SECTION, order: 2, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
-  { key: 'partner-quotations', label: 'Quotations', desc: 'Quotations shared with you, with their versions and validity.', icon: 'file-text', href: '/partner/quotations', section: PARTNER_SECTION, order: 3, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
-  { key: 'partner-demos', label: 'Demo Requests', desc: 'Request a product demonstration for your customer and follow it to completion.', icon: 'monitor', href: '/partner/demos', section: PARTNER_SECTION, order: 4, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
-  { key: 'partner-support', label: 'Technical Support', desc: 'Raise and track after-sales support tickets.', icon: 'inbox', href: '/partner/support', section: PARTNER_SECTION, order: 5, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
-  { key: 'partner-materials', label: 'Marketing Materials', desc: 'Brochures, datasheets, case studies and presentations published for partners.', icon: 'library', href: '/partner/materials', section: PARTNER_SECTION, order: 6, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-projects', label: 'My Leads / Projects', desc: 'Submit a new opportunity and track every one you have sent us.', icon: 'folder-kanban', href: '/partner/projects', section: PARTNER_SALES_SECTION, order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-quotations', label: 'Quotations', desc: 'Quotations shared with you, with their versions and validity.', icon: 'file-text', href: '/partner/quotations', section: PARTNER_SALES_SECTION, order: 2, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-demos', label: 'Demo Requests', desc: 'Request a product demonstration for your customer and follow it to completion.', icon: 'monitor', href: '/partner/demos', section: PARTNER_SALES_SECTION, order: 3, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-support', label: 'Technical Support', desc: 'Raise and track after-sales support tickets.', icon: 'inbox', href: '/partner/support', section: PARTNER_SUPPORT_SECTION, order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-materials', label: 'Marketing Materials', desc: 'Brochures, datasheets, case studies and presentations published for partners.', icon: 'library', href: '/partner/materials', section: PARTNER_MARKETING_SECTION, order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  { key: 'partner-marketing-requests', label: 'Marketing Requests', desc: 'Ask our marketing team for collateral and track it to delivery.', icon: 'megaphone', href: '/partner/marketing-requests', section: PARTNER_MARKETING_SECTION, order: 2, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
 
   { key: 'user-management', label: 'User Management', desc: 'Create and manage login accounts, roles, and access.', icon: 'user', href: '/admin/users', section: 'Administration', order: 1, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'role-management', label: 'Role Management', desc: 'What each role can see and do across the platform.', icon: 'shield', href: '/admin/roles', section: 'Administration', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
@@ -466,6 +478,24 @@ const NEW_SECTION_FOR_HR = 'HR';
 // Team Tasks. Same don't-clobber-an-admin-edit guard as every reconciliation
 // here: a row an admin has already re-sectioned through Module Manager keeps
 // their placement, because it no longer holds the old default.
+// The Partner Portal's six non-dashboard tiles moved out of one flat
+// "Partner Portal" list into Sales / Marketing / Support, so the portal is
+// grouped the way staff already see the app.
+//
+// Same don't-clobber-an-admin-edit guard as every reconciliation here: a row
+// only moves if it still holds the seeded 'Partner Portal' section, and its
+// order only resets if it still holds the order it had in that old flat
+// list. A tile an admin has already re-sectioned or reordered through Module
+// Manager keeps their placement.
+const PARTNER_RESECTION: Record<string, { from: string; section: string; oldOrder: number; order: number }> = {
+  'partner-projects': { from: PARTNER_SECTION, section: PARTNER_SALES_SECTION, oldOrder: 2, order: 1 },
+  'partner-quotations': { from: PARTNER_SECTION, section: PARTNER_SALES_SECTION, oldOrder: 3, order: 2 },
+  'partner-demos': { from: PARTNER_SECTION, section: PARTNER_SALES_SECTION, oldOrder: 4, order: 3 },
+  'partner-support': { from: PARTNER_SECTION, section: PARTNER_SUPPORT_SECTION, oldOrder: 5, order: 1 },
+  'partner-materials': { from: PARTNER_SECTION, section: PARTNER_MARKETING_SECTION, oldOrder: 6, order: 1 },
+  'partner-marketing-requests': { from: PARTNER_SECTION, section: PARTNER_MARKETING_SECTION, oldOrder: 7, order: 2 }
+};
+
 const OLD_TASK_PLANNER_SECTION = 'Administration';
 const NEW_TASK_PLANNER_SECTION = 'Workspace';
 // After My Tasks (0) and Team Tasks (1).
@@ -599,9 +629,22 @@ async function ensureSeededAndReconciled(): Promise<void> {
     // it — only moves a row still sitting at its old default order 2 (an
     // admin who already reordered the TMS section keeps their own order).
     if (key === 'tms-projects' && plain.order === 2) attrs.order = 1;
+    // 'partners' moved from order 9 to 10 to make room for the new 'billing'
+    // tile that now sits at 9. Guarded on the exact old value, like every
+    // reconciliation here: an admin who already reordered this tile keeps it.
+    if (key === 'partners' && plain.order === 9) attrs.order = 10;
     if (RESECTIONED_KEYS.has(key) && plain.section === OLD_SECTION) attrs.section = NEW_SECTION;
     if (RESECTIONED_KEYS_V2.has(key) && plain.section === OLD_SECTION_V2) attrs.section = NEW_SECTION_V2;
     if (key === SUPPORT_RESECTION_KEY && plain.section === OLD_SUPPORT_SECTION) attrs.section = NEW_SUPPORT_SECTION;
+    // Partner Portal -> Sales / Marketing / Support. Section and order are
+    // guarded independently, matching the Technical Support move below: a
+    // row already moved by an earlier pass must still get its order reset,
+    // and vice versa.
+    const partnerMove = PARTNER_RESECTION[key];
+    if (partnerMove) {
+      if (plain.section === partnerMove.from) attrs.section = partnerMove.section;
+      if (plain.order === partnerMove.oldOrder) attrs.order = partnerMove.order;
+    }
     // Order is reset on its own condition rather than inside the move above:
     // the two reconciliations are independent, and a row whose section has
     // already been moved by an earlier pass would otherwise keep the order 2
