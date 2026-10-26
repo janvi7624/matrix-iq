@@ -151,7 +151,19 @@ export async function GET(request: NextRequest) {
     // this viewer can see (their own projects, per resolveOwnerWhere), so an
     // auto-created project (created_by = the assignee) is already in this
     // set with no extra query needed.
-    const pendingProjectConfirmations = projectsLight.filter((p) => p.lead_confirmation_status === 'pending_confirmation').length;
+    // Split in two, because the two facts are different and both matter.
+    //
+    // MINE is what the viewer can actually act on — only a project's creator
+    // is shown the confirm banner (components/ProjectDetailView.tsx). The
+    // attention item saying "awaiting YOUR confirmation" must count this.
+    //
+    // TEAM is everything else pending in their scope. It used to be folded
+    // into the same number, which told a manager 19 were waiting on them
+    // when none were. Dropping it entirely was worse — they lost sight of a
+    // real backlog — so it is reported separately and labelled honestly.
+    const pendingConfirmationAll = projectsLight.filter((p) => p.lead_confirmation_status === 'pending_confirmation');
+    const pendingProjectConfirmations = pendingConfirmationAll.filter((p) => p.created_by === viewer.username).length;
+    const pendingProjectConfirmationsTeam = pendingConfirmationAll.length - pendingProjectConfirmations;
 
     // The rep's call queue: leads handed to this viewer that still have no
     // call logged against them after the SLA (lib/followUp.ts). Deliberately
@@ -259,6 +271,7 @@ export async function GET(request: NextRequest) {
       followUpCount,
       reminderCount,
       pendingProjectConfirmations,
+      pendingProjectConfirmationsTeam,
       unattendedLeads,
       metaLeadsToday,
       marketingStats,

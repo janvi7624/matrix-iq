@@ -31,6 +31,7 @@ import ErrorState from './ui/ErrorState';
 import { SkeletonRows } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import TeamDailyReportsSheet from './TeamDailyReportsSheet';
+import TaskCategoryEditor from './TaskCategoryEditor';
 import sheetStyles from './teamSheet.module.css';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
 
@@ -122,6 +123,7 @@ export default function TeamDailyReportsView({
   // 'sheet' is the range grid, for the question that dashboard could not
   // answer: what has this person been doing?
   const [mode, setMode] = useState<'day' | 'sheet'>('day');
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   const [date, setDate] = useState(initialDate ?? istToday());
   const [departmentId, setDepartmentId] = useState('');
@@ -418,7 +420,8 @@ export default function TeamDailyReportsView({
   }
 
   const modeSwitch = (
-    <div className={sheetStyles.presetGroup} style={{ marginBottom: 12 }} role="group" aria-label="View">
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+    <div className={sheetStyles.presetGroup} role="group" aria-label="View">
       <button
         type="button"
         className={`${sheetStyles.preset} ${mode === 'day' ? sheetStyles.presetActive : ''}`}
@@ -434,12 +437,22 @@ export default function TeamDailyReportsView({
         Sheet view
       </button>
     </div>
+    {/* Sits beside the view switch because it shapes what the reports in
+        both views can say. Opens read-only for a department the viewer can
+        see but does not manage. */}
+    <button type="button" className={historyStyles.button} onClick={() => setCategoriesOpen(true)}>
+      Task categories
+    </button>
+    </div>
   );
+
+  const categoryDialog = categoriesOpen ? <TaskCategoryEditor onClose={() => setCategoriesOpen(false)} /> : null;
 
   if (mode === 'sheet') {
     return wrap(
       <>
         {modeSwitch}
+        {categoryDialog}
         {/* Opening a square jumps the day view to that person's date — the
             two views share one dialog rather than duplicating the reader. */}
         <TeamDailyReportsSheet
@@ -456,6 +469,7 @@ export default function TeamDailyReportsView({
   return wrap(
     <>
       {modeSwitch}
+      {categoryDialog}
       <FilterBar>
         <Select auto value={period} onChange={(e) => setPeriod(e.target.value as Period)} aria-label="Period">
           {PERIOD_OPTIONS.map((opt) => (
@@ -844,7 +858,12 @@ export default function TeamDailyReportsView({
                     {/* istToday(), not `date` — `date` is whichever day the
                         manager is looking at, and the fallback derivation
                         wants the actual today. */}
-                    <DailyReportReadView report={dialogReport} template={dialogTemplate} today={istToday()} />
+                    <DailyReportReadView
+                      report={dialogReport}
+                      template={dialogTemplate}
+                      today={istToday()}
+                      employeeId={dialog.row.employee_id}
+                    />
                     <details className={styles.detailsBlock}>
                       <summary className={styles.detailsSummary}>
                         <Table2 size={15} />

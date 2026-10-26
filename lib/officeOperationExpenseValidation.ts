@@ -1,14 +1,11 @@
 import { OfficeOperationExpenseInput } from './officeOperationExpenseStore';
 import {
   ITEM_FROM_DEPARTMENT_MASTER,
-  ITEM_SUB_OPTIONS,
   USECASE_FREE_TEXT,
-  USECASE_SUB_OPTIONS,
-  isValidItem,
   isValidOfficeLocation,
-  isValidUsecase,
   itemIsFreeText
 } from './officeOperationExpenseOptions';
+import { getExpenseOptions } from './officeExpenseOptionStore';
 import { listActiveDepartments } from './departmentStore';
 
 export type ParseResult = { data: OfficeOperationExpenseInput } | { error: string };
@@ -58,10 +55,14 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
   if (!date) return { error: 'Date is required' };
   if (!officeLocation) return { error: 'Office Location is required' };
   if (!isValidOfficeLocation(officeLocation)) return { error: `"${officeLocation}" is not a valid office location` };
+  // Checked against the RESOLVED vocabulary, not the hardcoded constants —
+  // the lists are editable (lib/officeExpenseOptionStore.ts), so validating
+  // against the code would reject a category someone just added.
+  const options = await getExpenseOptions();
   if (!usecase) return { error: 'Category is required' };
-  if (!isValidUsecase(usecase)) return { error: `"${usecase}" is not a valid category` };
+  if (!options.usecases.includes(usecase)) return { error: `"${usecase}" is not a valid category` };
   if (!itemName) return { error: 'Expense Head is required' };
-  if (!isValidItem(itemName)) return { error: `"${itemName}" is not a valid item` };
+  if (!options.items.includes(itemName)) return { error: `"${itemName}" is not a valid item` };
   // Not checked against PAID_BY_OPTIONS: picking 'Other' in the form means
   // the client already resolved this to a typed name, which by definition
   // isn't one of the fixed options — only "something was provided" matters
@@ -72,7 +73,7 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
   // A usecase with a fixed sub-list must carry one of its values; 'Other' must
   // carry the free-typed label (that's the only thing telling one 'Other' row
   // from another); a usecase with neither stores nothing.
-  const usecaseSubs = USECASE_SUB_OPTIONS[usecase];
+  const usecaseSubs = options.usecaseSubOptions[usecase];
   const usecaseHasDetail = !!usecaseSubs || usecase === USECASE_FREE_TEXT;
   if (usecaseSubs) {
     if (!usecaseDetail) return { error: `Select which ${usecase.toLowerCase()} this is` };
@@ -81,7 +82,7 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
     return { error: 'Describe the category' };
   }
 
-  const subNameError = await validateItemSubNames(itemName, itemSubNames);
+  const subNameError = await validateItemSubNames(itemName, itemSubNames, options.itemSubOptions);
   if (subNameError) return { error: subNameError };
 
   return {
@@ -109,7 +110,8 @@ export async function parseExpenseBody(body: Record<string, unknown>): Promise<P
 //
 // Several values may be chosen, so every one of them is checked — a single bad
 // entry in an otherwise valid list is still rejected.
-async function validateItemSubNames(itemName: string, itemSubNames: string[]): Promise<string | null> {
+async function validateItemSubNames(itemName: string, itemSubNames: string[],
+  itemSubOptions: Record<string, string[]>): Promise<string | null> {
   if (itemName === ITEM_FROM_DEPARTMENT_MASTER) {
     if (!itemSubNames.length) return 'Select at least one department';
     const departments = await listActiveDepartments();
@@ -125,7 +127,7 @@ async function validateItemSubNames(itemName: string, itemSubNames: string[]): P
     return null;
   }
 
-  const subs = ITEM_SUB_OPTIONS[itemName];
+  const subs = itemSubOptions[itemName];
   if (!subs?.length) return null;
   if (!itemSubNames.length) return `Select at least one Item Name for ${itemName}`;
   const invalid = itemSubNames.filter((n) => !subs.includes(n));

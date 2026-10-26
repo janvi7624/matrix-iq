@@ -7,6 +7,7 @@ import {
   computeDerivedValues,
   computeMatrixTotals
 } from '@/lib/dailyReportTemplates';
+import { useSalesAutoDetail } from './useSalesAutoDetail';
 import styles from './dailyReport.module.css';
 
 // Reading somebody else's report, as opposed to filling one in.
@@ -71,12 +72,17 @@ function FieldBlock({ field, text }: { field: DailyReportFieldDef; text: string 
 export default function DailyReportReadView({
   report,
   template,
-  today
+  today,
+  employeeId
 }: {
   report: DailyReportRecord;
   template: TemplateDefinition;
   today: string;
+  employeeId?: string;
 }) {
+  // Same records-behind-the-number popup as the full grid's auto cells —
+  // see useSalesAutoDetail's own comment for why this view needs it too.
+  const { openAutoDetail, modal: autoDetailModal } = useSalesAutoDetail(report.report_date, employeeId);
   const headerFields = readableFields(template.headerFields, report.payload, report.header_derived);
 
   // ---------------------------------------------------------------- matrix
@@ -116,23 +122,46 @@ export default function DailyReportReadView({
           // (leads -> calls -> quotations -> orders), and reading them in
           // order is how you see where somebody's day actually went.
           <dl className={styles.readMeasureList}>
-            {active.map((measure) => (
-              <div key={measure} className={styles.readMeasureRow}>
-                <dt className={styles.readMeasureName}>{measure}</dt>
-                <dd className={styles.readMeasureValue}>
-                  <span className={styles.readMeasureTotal}>{totals.byMeasure[measure]}</span>
-                  {/* Only the verticals that contributed. "AI 2 · AV 3" says
-                      the same as a row of 2, 3, 0 without the reader having
-                      to map columns to headings. */}
-                  <span className={styles.readMeasureBreakdown}>
-                    {channels
-                      .filter((c) => (Number(report.matrix?.[measure]?.[c]) || 0) > 0)
-                      .map((c) => `${c} ${Number(report.matrix?.[measure]?.[c]) || 0}`)
-                      .join(' · ')}
-                  </span>
-                </dd>
-              </div>
-            ))}
+            {active.map((measure) => {
+              const isAuto = template.autoMeasures?.includes(measure);
+              const contributing = channels.filter((c) => (Number(report.matrix?.[measure]?.[c]) || 0) > 0);
+              return (
+                <div key={measure} className={styles.readMeasureRow}>
+                  <dt className={styles.readMeasureName}>{measure}</dt>
+                  <dd className={styles.readMeasureValue}>
+                    <span className={styles.readMeasureTotal}>{totals.byMeasure[measure]}</span>
+                    {/* Only the verticals that contributed. "AI 2 · AV 3" says
+                        the same as a row of 2, 3, 0 without the reader having
+                        to map columns to headings. An auto measure's figures
+                        are clickable here too — same records popup as the
+                        full grid's own auto cells below, reached without
+                        opening the grid first. */}
+                    <span className={styles.readMeasureBreakdown}>
+                      {contributing.map((c, index) => {
+                        const count = Number(report.matrix?.[measure]?.[c]) || 0;
+                        return (
+                          <span key={c}>
+                            {index > 0 && ' · '}
+                            {isAuto ? (
+                              <button
+                                type="button"
+                                className={styles.readMeasureAutoBtn}
+                                onClick={() => openAutoDetail(measure, c)}
+                                title="Filled in automatically — click to see the records behind this number."
+                              >
+                                {c} {count}
+                              </button>
+                            ) : (
+                              `${c} ${count}`
+                            )}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  </dd>
+                </div>
+              );
+            })}
           </dl>
         ) : (
           <p className={styles.readEmptyNote}>
@@ -156,6 +185,8 @@ export default function DailyReportReadView({
             ))}
           </dl>
         )}
+
+        {autoDetailModal}
       </div>
     );
   }
