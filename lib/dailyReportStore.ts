@@ -191,15 +191,20 @@ export interface SaveReportInput {
    */
   auto?: boolean;
   /**
-   * Set only by a caller that has already established the writer holds an
-   * approved, unspent permission to edit this filed report.
+   * Why this writer may change an already-filed report. Absent means they may
+   * not: submitting is terminal, and ANY write over a SUBMITTED report is
+   * refused by the guard in the update branch.
    *
-   * Submitting is terminal: without this, ANY write over a SUBMITTED report
-   * is refused here — see the guard in the update branch. The grant itself is
-   * spent inside this function's transaction rather than by the caller, so a
-   * save that then fails validation does not burn somebody's one permission.
+   *   'approver' — a department manager of this employee, or an admin. They
+   *                are the authority the lock defers to, so there is nothing
+   *                to spend; making them request permission from themselves
+   *                would be circular.
+   *   'grant'    — the employee, holding an approved request. The grant is
+   *                spent inside THIS function's transaction rather than by
+   *                the caller, so a save that then fails validation does not
+   *                burn their one permission.
    */
-  permittedEdit?: boolean;
+  editAuthority?: 'approver' | 'grant';
 }
 
 export interface SaveReportResult {
@@ -500,19 +505,20 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
     // The scheduler's auto-submit is exempt by construction: it returned
     // above when wasSubmitted, so it never reaches here.
     if (wasEdited) {
-      if (!input.permittedEdit) {
+      if (!input.editAuthority) {
         throw new DailyReportValidationError(
           'This report has already been filed and can no longer be changed. Ask your department manager for permission to edit it.'
         );
       }
-      // Spend the permission inside this transaction. If anything below
-      // fails, the rollback hands the grant back unused — which is why this
-      // is not done in the route before calling.
-      const spent = await consumeEditGrant(id, t);
-      if (!spent) {
-        throw new DailyReportValidationError(
-          'That permission to edit has already been used or has expired. Ask your department manager again.'
-        );
+      // Only an employee's grant is spent. An approver has none to spend —
+      // consuming here would refuse the very people the lock defers to.
+      if (input.editAuthority === 'grant') {
+        const spent = await consumeEditGrant(id, t);
+        if (!spent) {
+          throw new DailyReportValidationError(
+            'That permission to edit has already been used or has expired. Ask your department manager again.'
+          );
+        }
       }
     }
 

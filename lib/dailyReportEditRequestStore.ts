@@ -79,8 +79,8 @@ function toRecord(row: Model): DailyReportEditRequestRecord {
 //
 // So a MISSING TABLE specifically is read as "nobody has asked to edit
 // anything" — which is true, and which fails in the safe direction: no grant
-// means no permittedEdit, means a filed report stays locked, which is the
-// behaviour that was asked for anyway. Every other database error still
+// means no edit authority from a grant, means a filed report stays locked,
+// which is the behaviour that was asked for anyway. Every other error still
 // throws. Narrow on purpose: Postgres 42P01 is undefined_table and nothing
 // else.
 // ---------------------------------------------------------------------------

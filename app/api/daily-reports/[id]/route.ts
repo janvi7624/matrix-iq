@@ -79,7 +79,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // checking here and spending there is deliberate, so a save that fails
     // validation does not burn the employee's one permission.
     const grant = isDraft ? undefined : await findLiveEditRequest(id);
-    const permittedEdit = grant?.status === 'APPROVED';
+
+    // The approver does not have to ask themselves for permission.
+    //
+    // The rule is that an EMPLOYEE cannot change a report they have filed —
+    // they ask their department manager. That manager (and an admin, who
+    // outranks them) IS the authority the lock defers to, so requiring them
+    // to raise a request addressed to themselves would be circular, and it
+    // left them with an Edit button that only ever failed on save after they
+    // had retyped the content.
+    //
+    // canEdit && !isSelf is exactly "a department manager of this employee,
+    // or an admin" — it reads manageDepartmentIds, so HR's company-wide
+    // READ access does not qualify. Every such edit is still recorded as a
+    // revision and in the audit log below.
+    const isApprover = access.canEdit && !access.isSelf;
+    const editAuthority = isDraft
+      ? undefined
+      : isApprover
+        ? ('approver' as const)
+        : grant?.status === 'APPROVED'
+          ? ('grant' as const)
+          : undefined;
 
     const { report, wasEdited } = await saveReport({
       employeeId: existing.employee_id,
@@ -89,7 +110,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       mode,
       actorId: viewer.userId,
       onBehalf: !access.isSelf,
-      permittedEdit
+      editAuthority
     });
 
     if (!access.isSelf) {
