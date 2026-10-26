@@ -1,0 +1,113 @@
+/* Task category editor — a manager editing their department's task
+   dropdowns. One block per dropdown, one row per category. */
+
+.group {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--mx-surface, #fff);
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.groupHead > button { margin-left: auto; }
+
+/* The sub-level's own name is editable, so it reads as the column header it
+   becomes on the form rather than as a fixed word. */
+.subNameInput {
+  padding: 4px 9px;
+  border: 1px dashed var(--mx-border, #cbd5e1);
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  max-width: 200px;
+}
+
+.builtIn {
+  font-size: 12px;
+  color: var(--mx-text-muted, #64748b);
+  font-style: italic;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.catInput,
+.subInput {
+  padding: 6px 10px;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 6px;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.catInput {
+  flex: 0 0 200px;
+  font-weight: 600;
+}
+
+/* The sub-category list takes the remaining width — it is usually the
+   longest value on the row by some margin. */
+.subInput { flex: 1 1 auto; }
+
+.catInput:disabled,
+.subInput:disabled {
+  background: var(--mx-surface-muted, #f8fafc);
+  color: var(--mx-text-muted, #64748b);
+}
+
+.removeBtn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 6px;
+  background: var(--mx-surface, #fff);
+  color: var(--mx-text-muted, #64748b);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.removeBtn:hover {
+  border-color: #b91c1c;
+  color: #b91c1c;
+}
+
+.readOnlyNote {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+@media (max-width: 640px) {
+  .row { flex-wrap: wrap; }
+  .catInput { flex: 1 1 100%; }
+}

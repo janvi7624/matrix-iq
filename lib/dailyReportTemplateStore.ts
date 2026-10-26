@@ -264,6 +264,32 @@ function sanitizeOverrides(raw: unknown): TemplateOverrides {
     if (Object.keys(out).length) clean.linkedOptions = out;
   }
 
+  // Manager-added sub-category levels. Same shape discipline as
+  // linkedOptions above: a category with no values is dropped rather than
+  // stored, since it would render a dropdown that can never be satisfied.
+  const subCategories = input.subCategories;
+  if (subCategories && typeof subCategories === 'object') {
+    const out: Record<string, { label: string; catalogue: Record<string, string[]> }> = {};
+    for (const [parentKey, raw] of Object.entries(subCategories as Record<string, unknown>)) {
+      if (!raw || typeof raw !== 'object') continue;
+      const entry = raw as { label?: unknown; catalogue?: unknown };
+      const catalogue = entry.catalogue;
+      if (!catalogue || typeof catalogue !== 'object') continue;
+      const byCategory: Record<string, string[]> = {};
+      for (const [category, list] of Object.entries(catalogue as Record<string, unknown>)) {
+        if (!Array.isArray(list)) continue;
+        const values = list.map((v) => String(v).trim()).filter(Boolean);
+        if (values.length) byCategory[String(category).trim()] = Array.from(new Set(values));
+      }
+      if (!Object.keys(byCategory).length) continue;
+      out[String(parentKey).trim()] = {
+        label: String(entry.label ?? '').trim().slice(0, 60) || 'Sub-category',
+        catalogue: byCategory
+      };
+    }
+    if (Object.keys(out).length) clean.subCategories = out;
+  }
+
   if (input.minEntries !== undefined) {
     const n = Number(input.minEntries);
     if (!Number.isInteger(n) || n < 0 || n > 20) throw new InvalidTemplateAssignmentError('Minimum entries must be between 0 and 20.');

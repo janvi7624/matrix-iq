@@ -173,6 +173,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [pendingTechnicalApprovals, setPendingTechnicalApprovals] = useState<{ project_id: string; project_label: string; requested_name: string }[]>([]);
   const [travelPendingCount, setTravelPendingCount] = useState<number>(0);
   const [pendingProjectConfirmations, setPendingProjectConfirmations] = useState<number>(0);
+  const [pendingProjectConfirmationsTeam, setPendingProjectConfirmationsTeam] = useState<number>(0);
   const [salesLeadership, setSalesLeadership] = useState(false);
   const [salesTeamSummary, setSalesTeamSummary] = useState<SalesTeamSummaryRow[] | null>(null);
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -242,6 +243,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setPendingTechnicalApprovals(data.pendingTechnicalApprovals ?? []);
         setTravelPendingCount(data.travelPendingCount ?? 0);
         setPendingProjectConfirmations(data.pendingProjectConfirmations ?? 0);
+        setPendingProjectConfirmationsTeam(data.pendingProjectConfirmationsTeam ?? 0);
         setSalesLeadership(!!data.salesLeadership);
         setSalesTeamSummary(data.salesTeamSummary ?? null);
       })
@@ -459,6 +461,19 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         tone: 'urgent'
       });
     }
+    // The team's backlog, kept separate from the viewer's own. Urgent is
+    // reserved for what this person can act on; somebody else's unconfirmed
+    // project is worth seeing, not worth alarming them about.
+    if (pendingProjectConfirmationsTeam) {
+      items.push({
+        key: 'team-project-confirm',
+        group: 'pending',
+        label: `Project${pendingProjectConfirmationsTeam === 1 ? '' : 's'} awaiting confirmation by the team`,
+        count: pendingProjectConfirmationsTeam,
+        href: '/projects?filter=team_pending_confirmation',
+        tone: 'info'
+      });
+    }
     return items.sort((a, b) => (a.tone === b.tone ? 0 : a.tone === 'urgent' ? -1 : 1));
   }, [
     isPrivileged,
@@ -477,7 +492,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     pendingHandovers,
     pendingTechnicalApprovals,
     travelPendingCount,
-    pendingProjectConfirmations
+    pendingProjectConfirmations,
+    pendingProjectConfirmationsTeam
   ]);
 
   const pendingAttentionItems = useMemo(

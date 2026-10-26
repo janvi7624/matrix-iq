@@ -68,6 +68,7 @@ const modelDefiners = [
   require('./customModuleField.js'),
   require('./customModuleRecord.js'),
   require('./appConfig.js'),
+  require('./officeExpenseOptionSet.js'),
   require('./attachment.js'),
   require('./notification.js'),
   require('./projectHandoverRequest.js'),

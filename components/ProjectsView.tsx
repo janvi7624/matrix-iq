@@ -266,6 +266,22 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     const params = new URLSearchParams(window.location.search);
     return params.get('filter') === 'pending_confirmation' ? 'pending_confirmation' : '';
   });
+  // ?filter=pending_confirmation is only ever produced by the Dashboard's
+  // "Projects awaiting YOUR confirmation" item, so it means MINE — not every
+  // pending project in view. Without this a manager landed on 19 projects
+  // and could act on none of them, because only the creator is shown the
+  // confirm banner (components/ProjectDetailView.tsx).
+  const [fAwaitingMine, setFAwaitingMine] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('filter') === 'pending_confirmation';
+  });
+  // The counterpart link: everything pending that is somebody ELSE's to
+  // confirm. Shown to whoever sees more than their own projects, so a
+  // manager keeps sight of the backlog without being told it is theirs.
+  const [fAwaitingTeam, setFAwaitingTeam] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('filter') === 'team_pending_confirmation';
+  });
   // Nine of the fourteen filters sit behind the Filters toggle. It starts open
   // when a deep link arrived with one of those already applied (Dashboard's
   // department cards and its "awaiting your confirmation" item both do), so
@@ -273,7 +289,8 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [showFilters, setShowFilters] = useState(() => {
     if (typeof window === 'undefined') return false;
     const params = new URLSearchParams(window.location.search);
-    return isProjectDepartment(params.get('department') ?? '') || params.get('filter') === 'pending_confirmation';
+    const filter = params.get('filter');
+    return isProjectDepartment(params.get('department') ?? '') || filter === 'pending_confirmation' || filter === 'team_pending_confirmation';
   });
 
   async function load() {
@@ -329,7 +346,23 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     if (fDepartment) out.push({ key: 'department', label: 'Department', value: PROJECT_DEPARTMENT_LABEL[fDepartment], clear: () => setFDepartment('') });
     if (fSource) out.push({ key: 'source', label: 'Source', value: fSource, clear: () => setFSource('') });
     if (fPriority) out.push({ key: 'priority', label: 'Priority', value: PRIORITY_LABEL[fPriority], clear: () => setFPriority('') });
-    if (fConfirmation) out.push({ key: 'confirmation', label: 'Confirmation', value: CONFIRMATION_LABEL[fConfirmation] ?? fConfirmation, clear: () => setFConfirmation('') });
+    if (fAwaitingTeam) {
+      out.push({
+        key: 'awaiting-team',
+        label: 'Confirmation',
+        value: 'Awaiting the team’s confirmation',
+        clear: () => { setFAwaitingTeam(false); setFConfirmation(''); }
+      });
+    } else if (fAwaitingMine) {
+      out.push({
+        key: 'awaiting-mine',
+        label: 'Confirmation',
+        value: 'Awaiting my confirmation',
+        clear: () => { setFAwaitingMine(false); setFConfirmation(''); }
+      });
+    } else if (fConfirmation) {
+      out.push({ key: 'confirmation', label: 'Confirmation', value: CONFIRMATION_LABEL[fConfirmation] ?? fConfirmation, clear: () => setFConfirmation('') });
+    }
     if (fFrom || fTo) out.push({ key: 'created', label: 'Created', value: `${fFrom || 'any'} → ${fTo || 'any'}`, clear: () => { setFFrom(''); setFTo(''); } });
     if (fClosingPreset !== 'all') {
       out.push({
@@ -340,7 +373,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       });
     }
     return out;
-  }, [fSearch, fStage, fStatus, fSalesPerson, fLead, selectedLead, fType, fDepartment, fSource, fPriority, fConfirmation, fFrom, fTo, fClosingPreset, fClosingFrom, fClosingTo]);
+  }, [fSearch, fStage, fStatus, fSalesPerson, fLead, selectedLead, fType, fDepartment, fSource, fPriority, fConfirmation, fAwaitingMine, fAwaitingTeam, fFrom, fTo, fClosingPreset, fClosingFrom, fClosingTo]);
 
   const advancedActiveCount = activeFilters.filter((f) => !QUICK_FILTER_KEYS.has(f.key)).length;
 
@@ -390,14 +423,18 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       if (fPriority && p.priority !== fPriority) return false;
       if (fFrom && p.created_at.slice(0, 10) < fFrom) return false;
       if (fTo && p.created_at.slice(0, 10) > fTo) return false;
-      if (fConfirmation && p.lead_confirmation_status !== fConfirmation) return false;
+      // The deep-linked view is "mine to confirm", which is the creator
+      // check the detail page gates its confirm banner on.
+      if (fAwaitingMine && !(p.lead_confirmation_status === 'pending_confirmation' && p.created_by === currentUser.username)) return false;
+      if (fAwaitingTeam && !(p.lead_confirmation_status === 'pending_confirmation' && p.created_by !== currentUser.username)) return false;
+      if (!fAwaitingMine && !fAwaitingTeam && fConfirmation && p.lead_confirmation_status !== fConfirmation) return false;
       if ((closingRange.from || closingRange.to) && !p.expected_closing_date) return false;
       if (closingRange.from && p.expected_closing_date < closingRange.from) return false;
       if (closingRange.to && p.expected_closing_date > closingRange.to) return false;
       if (q && ![p.id, p.client_name, p.company, p.contact_person].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [projects, fLead, selectedLead, fType, fDepartment, fSalesPerson, fSource, fStage, fPriority, fFrom, fTo, fSearch, fConfirmation, closingRange]);
+  }, [projects, fLead, selectedLead, fType, fDepartment, fSalesPerson, fSource, fStage, fPriority, fFrom, fTo, fSearch, fConfirmation, fAwaitingMine, fAwaitingTeam, currentUser.username, closingRange]);
 
   // Any date range in play means closed deals belong in the answer: someone
   // searching a range is asking what happened then, and omitting everything
@@ -1171,7 +1208,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                 </Select>
               </FilterField>
               <FilterField label="Confirmation" active={!!fConfirmation} htmlFor="pfConfirmation">
-                <Select id="pfConfirmation" value={fConfirmation} onChange={(e) => setFConfirmation(e.target.value)}>
+                <Select id="pfConfirmation" value={fConfirmation} onChange={(e) => { setFAwaitingMine(false); setFAwaitingTeam(false); setFConfirmation(e.target.value); }}>
                   <option value="">All confirmations</option>
                   <option value="pending_confirmation">Pending Confirmation</option>
                   <option value="confirmed">Confirmed</option>
@@ -1210,6 +1247,43 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             onClearAll={clearAllFilters}
           />
         </FilterPanel>
+        {/* Says what this view is, and — when empty — why. Arriving from the
+            Dashboard with nothing to confirm previously showed a blank table
+            with no explanation. */}
+        {!loading && !loadFailed && fAwaitingTeam && (
+          <div className={historyStyles.status}>
+            {filtered.length > 0 ? (
+              <>
+                Showing {filtered.length} project{filtered.length === 1 ? '' : 's'} waiting on someone else to confirm.
+                Only the person who owns each one can confirm it.
+              </>
+            ) : (
+              <>
+                Nothing is waiting on the team.{' '}
+                <button type="button" className={historyStyles.linkBtn} onClick={() => { setFAwaitingTeam(false); setFConfirmation(''); }}>
+                  Show all projects
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        {!loading && !loadFailed && fAwaitingMine && (
+          <div className={historyStyles.status}>
+            {filtered.length > 0 ? (
+              <>
+                Showing the {filtered.length} project{filtered.length === 1 ? '' : 's'} waiting for <strong>your</strong>{' '}
+                confirmation. Open one to confirm it.
+              </>
+            ) : (
+              <>
+                Nothing is waiting for your confirmation.{' '}
+                <button type="button" className={historyStyles.linkBtn} onClick={() => { setFAwaitingMine(false); setFConfirmation(''); }}>
+                  Show all projects
+                </button>
+              </>
+            )}
+          </div>
+        )}
         {!loading && !loadFailed && selectedLead && (
           <div className={historyStyles.status}>Showing projects led by {selectedLead.name} and projects {selectedLead.name} owns.</div>
         )}
