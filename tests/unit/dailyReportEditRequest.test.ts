@@ -24,6 +24,7 @@ vi.mock('../../lib/db', () => ({
   isUuid: (v: unknown) => typeof v === 'string' && v.length > 0
 }));
 
+import { db as dbMock } from '../../lib/db';
 import {
   consumeEditGrant,
   createEditRequest,
@@ -165,5 +166,44 @@ describe('reading the live request', () => {
     const where = (m.findOne.mock.calls[0][0] as { where: Record<string, unknown> }).where;
     const statuses = (where.status as Record<symbol, string[]>)[Op.in as unknown as symbol];
     expect(statuses).toEqual(['PENDING', 'APPROVED']);
+  });
+});
+
+// Code and migration do not land at the same instant. Until the table exists
+// the module must degrade rather than take the Daily Report page down with
+// it — and it must degrade in the SAFE direction.
+describe('before the migration has run', () => {
+  it('reads as "nobody has asked", so the page still loads', async () => {
+    const saved = (dbMock as Record<string, unknown>).DailyReportEditRequest;
+    delete (dbMock as Record<string, unknown>).DailyReportEditRequest;
+    try {
+      expect(await findLiveEditRequest('rep-1')).toBeUndefined();
+    } finally {
+      (dbMock as Record<string, unknown>).DailyReportEditRequest = saved;
+    }
+  });
+
+  it('refuses to hand out a grant, so a filed report stays locked', async () => {
+    const saved = (dbMock as Record<string, unknown>).DailyReportEditRequest;
+    delete (dbMock as Record<string, unknown>).DailyReportEditRequest;
+    try {
+      // No grant means no permittedEdit, means saveReport refuses the edit —
+      // which is the behaviour that was asked for anyway.
+      expect(await consumeEditGrant('rep-1')).toBe(false);
+    } finally {
+      (dbMock as Record<string, unknown>).DailyReportEditRequest = saved;
+    }
+  });
+
+  it('tells the employee something readable instead of leaking SQL', async () => {
+    const saved = (dbMock as Record<string, unknown>).DailyReportEditRequest;
+    delete (dbMock as Record<string, unknown>).DailyReportEditRequest;
+    try {
+      await expect(
+        createEditRequest({ reportId: 'rep-1', employeeId: 'emp-1', departmentId: null, reportDate: '2026-10-24', reason: 'Fix the AV figure' })
+      ).rejects.toThrow(/migration still needs to run/i);
+    } finally {
+      (dbMock as Record<string, unknown>).DailyReportEditRequest = saved;
+    }
   });
 });
