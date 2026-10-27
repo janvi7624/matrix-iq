@@ -137,7 +137,25 @@ const SEED_ROLES: { key: string; label: string; description: string; isSystem: b
   // Renamed from "User" to "Sales" — same role (key stays 'user', every
   // permission/visibility check keyed off that string is unaffected), just
   // a clearer label so it's obvious who this role is for when assigning it.
-  { key: 'user', label: 'Sales', description: 'Creates quotations, site visits, and demo requests; own-scoped visibility only.', isSystem: true, isPrivileged: false, status: 'active', order: 6, permissions: blankPermissions() },
+  // quotation.manage = "may set Markup %, discounts and custom-product
+  // prices" — read by canEditQuotationPricing in lib/permissions.ts, and the
+  // only consumer of that bit on this module key.
+  //
+  // Pricing used to be gated on isPrivileged, which no Sales account has and
+  // which on the 'manager' role also carries manageUsers and manageRoles — so
+  // the only way to let a sales person discount a quotation was to hand them
+  // the ability to create accounts and edit roles. Nobody in Sales could
+  // apply a discount at all; the control read "Only a manager can add or
+  // change discounts." Granting it here gives Sales pricing and NOT the admin
+  // panel, user management or role management (isPrivileged stays false).
+  //
+  // Seeded rather than reconciled into an existing row on purpose. A
+  // reconciliation guarded on "no explicit value recorded yet" cannot tell
+  // "never set" from "an admin cleared it", and the Role Management matrix
+  // renders no checkbox for a cleared 'manage' to be restored from — so a
+  // reconciliation would silently re-grant pricing on the next cache miss and
+  // make it unrevokable from any screen. An admin's decision has to stick.
+  { key: 'user', label: 'Sales', description: 'Creates quotations, site visits, and demo requests; own-scoped visibility only.', isSystem: true, isPrivileged: false, status: 'active', order: 6, permissions: blankPermissions({ modules: { quotation: { manage: true } } }) },
   // New — was previously just lumped in under the generic "Sales"/"User"
   // role with no distinct identity, making it hard to tell who's actually
   // on the Marketing team from Role/User Management alone.

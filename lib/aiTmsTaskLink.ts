@@ -1,6 +1,9 @@
 import { db, isUuid } from './db';
-import { TmsTaskStatus, TmsPriority } from './types';
-import { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority, buildEntryPatchFromTmsTask } from './aiTmsStatusMapping';
+import { TmsTaskStatus, TmsPriority, UserRole } from './types';
+import { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority, reverseAiPriority, buildEntryPatchFromTmsTask } from './aiTmsStatusMapping';
+import { tmsTaskStore } from './tmsTaskStore';
+import { tmsProjectStore } from './tmsProjectStore';
+import { logAudit } from './auditLogStore';
 
 export { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority };
 
@@ -140,4 +143,103 @@ export async function refreshTmsLinkedEntries(entries: Record<string, unknown>[]
 
   const byId = await fetchLiveTasksByIds(linkedIds);
   return applyLiveTasksToEntries(entries, employeeId, byId);
+}
+
+/**
+ * Turns every row carrying a PENDING project choice (tms_project_id, no
+ * tms_task_id yet — components/DailyReportForm.tsx's project dropdown) into
+ * a real TMS task, created exactly once through the same tmsTaskStore.create
+ * the explicit "Create a TMS task from this" button already uses — never a
+ * second, parallel insert path. Only called on SUBMIT (see saveReport),
+ * deliberately: a draft is documented elsewhere in this app as private and
+ * not yet real, and creating a company-visible TMS task from one would
+ * break that promise. tms_project_id is a transient CHOICE, not a link —
+ * once the task exists this function replaces it with tms_task_id, so a
+ * row only ever carries the pending field for the single save where it
+ * actually gets resolved.
+ *
+ * A project selection that no longer holds (removed from the team,
+ * deleted, or forged) is quietly dropped rather than creating a task under
+ * a project this employee isn't actually on — same "authorization lives
+ * here too, not just in the picker" rule applyLiveTasksToEntries follows.
+ */
+export async function createPendingTmsTasksFromEntries(
+  entries: Record<string, unknown>[],
+  employeeId: string,
+  actorId: string
+): Promise<Record<string, unknown>[]> {
+  const hasPending = entries.some((e) => !String(e.tms_task_id ?? '').trim() && String(e.tms_project_id ?? '').trim());
+  if (!hasPending) return entries;
+
+  const actorRow = await db.User.findByPk(actorId, {
+    include: [{ model: db.Role, as: 'role', attributes: ['key'] }],
+    attributes: ['id', 'username']
+  });
+  const actorUsername = (actorRow?.get('username') as string) || '';
+  const actorRole = (((actorRow?.get('role') as { key?: string } | null)?.key as UserRole) || 'engineer') as UserRole;
+
+  return Promise.all(
+    entries.map(async (entry) => {
+      const alreadyLinked = String(entry.tms_task_id ?? '').trim();
+      const pendingProjectId = String(entry.tms_project_id ?? '').trim();
+      if (alreadyLinked || !pendingProjectId) return entry;
+
+      const project = await tmsProjectStore.findById(pendingProjectId);
+      const isMember = !!project && (project.project_manager_id === employeeId || project.team_member_ids.includes(employeeId));
+      if (!project || !isMember) {
+        const { tms_project_id: _drop, ...rest } = entry;
+        return rest;
+      }
+
+      const now = new Date().toISOString();
+      const created = await tmsTaskStore.create({
+        id: `${Date.now()}`,
+        created_at: now,
+        created_by: actorUsername,
+        project_id: pendingProjectId,
+        project_name: project.name,
+        name: String(entry.task_description ?? '').slice(0, 200) || 'AI Daily Report task',
+        assignee_id: employeeId,
+        assignee_name: '',
+        department_id: project.department_id,
+        department_name: '',
+        description: String(entry.task_description ?? ''),
+        priority: reverseAiPriority(String(entry.priority ?? '')) as TmsPriority,
+        status: 'to_do',
+        progress_percent: 0,
+        start_date: '',
+        due_date: String(entry.due_date ?? ''),
+        completion_date: '',
+        remarks: 'Created from an AI Daily Report entry.',
+        attachments: [],
+        updated_at: now
+      });
+
+      await logAudit({
+        by: actorUsername,
+        role: actorRole,
+        entityType: 'tms_task',
+        entityId: created.id,
+        action: `Task created from ${actorId === employeeId ? 'their own' : "the employee's"} AI Daily Report entry`,
+        previousStatus: '',
+        newStatus: created.status,
+        remarks: created.name
+      });
+
+      const { tms_project_id: _drop, ...rest } = entry;
+      return {
+        ...rest,
+        tms_task_id: created.id,
+        ...buildEntryPatchFromTmsTask({
+          name: created.name,
+          description: created.description,
+          dueDate: created.due_date,
+          priority: created.priority,
+          status: created.status,
+          projectName: created.project_name,
+          progressPercent: created.progress_percent
+        })
+      };
+    })
+  );
 }

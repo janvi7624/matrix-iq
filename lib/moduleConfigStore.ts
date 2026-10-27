@@ -407,7 +407,13 @@ const NEW_VISIBILITY: UserRole[] = ['superadmin'];
 // SALES_ROLES_WITH_TMS above) — same don't-clobber-an-admin-edit guard: only
 // overwrites a row still holding the exact old (pre-TMS-access) default.
 const TMS_SALES_ACCESS_KEYS = new Set(['projects', 'quotation', 'site-visits', 'leads', 'demo-schedule', 'marketing-requests']);
-const OLD_VISIBILITY_SALES: UserRole[] = ALL_ROLES;
+// Literal snapshot, NOT `= ALL_ROLES` — same rule every other OLD_* array in
+// this file is written to and says so ("so this 'old' snapshot can't silently
+// drift if ALL_ROLES changes again later"). This one was still aliased, so
+// adding 'sales-manager' to ALL_ROLES would have stopped it matching the
+// stored pre-TMS default and silently disabled the reconciliation below on
+// any deployment that had not run it yet.
+const OLD_VISIBILITY_SALES: UserRole[] = ['superadmin', 'admin', 'manager', 'engineer', 'backoffice', 'user', 'marketing', 'accounts', 'hr'];
 const NEW_VISIBILITY_SALES: UserRole[] = SALES_ROLES_WITH_TMS;
 
 // TMS tightened from "any privileged role" (including the generic 'manager'

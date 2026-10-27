@@ -283,7 +283,7 @@ export default function AiAnalyticsEstimator({ active, onResultChange, canEditPr
                   onFocus={selectAllOnFocus}
                   onChange={(e) => setAmcPercent(parseFloat(e.target.value) || 0)}
                 />
-                {!canEditPricing && <span className={styles.lockedHint}>Only a manager can change the AMC percentage.</span>}
+                {!canEditPricing && <span className={styles.lockedHint}>You do not have permission to change the AMC percentage.</span>}
               </div>
             </div>
           )}

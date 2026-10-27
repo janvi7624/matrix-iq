@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2, Link2, PlusCircle } from 'lucide-react';
 import {
   DailyReportFieldDef,
@@ -23,6 +23,7 @@ import { useSalesAutoDetail } from './useSalesAutoDetail';
 import TmsTaskPicker, { TmsLinkableTask } from './TmsTaskPicker';
 import TmsLinkedTaskPanel from './TmsLinkedTaskPanel';
 import TmsTaskConvertModal, { ConvertedTmsTask } from './TmsTaskConvertModal';
+import TmsNewTaskProjectSelect, { TmsProjectOption } from './TmsNewTaskProjectSelect';
 import { buildEntryPatchFromTmsTask, reverseAiPriority } from '@/lib/aiTmsStatusMapping';
 
 // The renderer half of the form engine. One component for all eight
@@ -301,6 +302,33 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
   // the same way a 'rows' template's first entry would be.
   const headerDerived = useMemo(() => computeDerivedValues(template, reportDate, value.header ?? {}, 0, today), [template, reportDate, value.header, today]);
 
+  // Fetched once for the whole report, not once per standalone row — see
+  // TmsNewTaskProjectSelect's own comment on why this lives up here.
+  const [tmsProjects, setTmsProjects] = useState<TmsProjectOption[] | null>(null);
+  const [tmsProjectsError, setTmsProjectsError] = useState('');
+  useEffect(() => {
+    if (!template.supportsTmsTaskLink) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams();
+        if (employeeId) params.set('employeeId', employeeId);
+        const response = await fetch(`/api/daily-reports/tms-projects?${params.toString()}`);
+        if (!response.ok) {
+          if (!cancelled) setTmsProjectsError('Could not load your TMS projects.');
+          return;
+        }
+        const body: { projects: TmsProjectOption[] } = await response.json();
+        if (!cancelled) setTmsProjects(body.projects);
+      } catch {
+        if (!cancelled) setTmsProjectsError('Could not reach the server.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [template.supportsTmsTaskLink, employeeId]);
+
   function setHeader(key: string, next: string) {
     onChange({ ...value, header: { ...value.header, [key]: next } });
   }
@@ -566,7 +594,7 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
               // save, so nothing on it is worth hand-editing or reordering:
               // locked, the rows-layout counterpart to the Sales grid's
               // "Auto" cells.
-              const isAutoRow = template.rowFields.some((f) => f.hidden && asString(entry[f.key]) !== '');
+              const isAutoRow = template.rowFields.some((f) => f.hidden && f.locksRowWhenSet !== false && asString(entry[f.key]) !== '');
               return (
                 <div className={styles.entryCard} key={index}>
                   <div className={styles.entryHead}>
@@ -645,6 +673,14 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                         onFieldChange={(key, next) => setEntry(index, key, next)}
                       />
                     ))}
+                    {!disabled && template.supportsTmsTaskLink && !isAutoRow && (
+                      <TmsNewTaskProjectSelect
+                        projects={tmsProjects}
+                        error={tmsProjectsError}
+                        value={asString(entry.tms_project_id)}
+                        onChange={(projectId) => setEntry(index, 'tms_project_id', projectId)}
+                      />
+                    )}
                     {isAutoRow && asString(entry.tms_task_id) && (
                       <a
                         className={styles.tmsLinkOut}

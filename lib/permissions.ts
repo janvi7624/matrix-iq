@@ -68,6 +68,34 @@ export async function isModuleActionAllowed(viewer: { role: string; isPrivileged
   return viewer.isPrivileged;
 }
 
+/**
+ * May this viewer change the numbers that set profit margin — Markup %,
+ * discounts, custom-product prices, the AMC percentage?
+ *
+ * This used to be raw `isPrivileged`, which bundled the question with
+ * admin-panel access, manageUsers and manageRoles (see the 'manager' role's
+ * permissions). The only way to let a Sales manager apply a discount was to
+ * also hand them the ability to create accounts and edit roles, so in
+ * practice three people whose designation says Manager — National Business
+ * Development Manager, Manager - Inside Sales, Robotics Sales Manager — could
+ * not discount a quotation at all.
+ *
+ * Routed through the module matrix instead, so Role Management can grant
+ * pricing on its own. isModuleActionAllowed's documented fallback when a role
+ * has NO explicit quotation.manage override is viewer.isPrivileged, which is
+ * exactly the old behaviour — so every role that existed before this change
+ * keeps precisely the rights it had, and nothing moves until someone sets the
+ * switch deliberately.
+ *
+ * Used by the page that renders the locked inputs AND by the write routes
+ * that accept the numbers, because before this the lock was cosmetic: the
+ * create and revise endpoints spread the request body straight into the
+ * store, so anyone who could save a quotation at all could set a discount.
+ */
+export async function canEditQuotationPricing(viewer: { role: string; isPrivileged: boolean }): Promise<boolean> {
+  return isModuleActionAllowed(viewer, 'quotation', 'manage');
+}
+
 // Who is authorized to review/approve/assign Marketing Requests — resolved
 // from the real org structure (Department = "Marketing", Role = Manager,
 // via Department.managerIds) rather than a single hardcoded user id or a

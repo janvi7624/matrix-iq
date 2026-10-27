@@ -104,10 +104,16 @@ const TECHNICAL_ON_BEHALF_HINT = "Defaults to the project's sales person — pic
 
 interface QuotationCalculatorProps {
   currentUser: CurrentUser;
-  // Markup %, discounts, and custom-product pricing are locked for everyone
-  // except Manager/Admin/Super Admin (Role Management's isPrivileged flag) —
-  // a regular sales rep can configure and add products but can't change the
-  // numbers that set profit margin.
+  // Whether this viewer may change the numbers that set profit margin.
+  // Resolved by canEditQuotationPricing (lib/permissions.ts) from the role's
+  // quotation.manage bit, which Sales now holds — so this is no longer the
+  // same thing as isPrivileged below, and a plain sales rep CAN discount.
+  //
+  // What it actually gates, verified: the discount list (DiscountsList),
+  // custom-product prices (CustomProductsList) and the AI estimator's AMC %
+  // and custom-bundle pricing. NOT Markup % — the comment here used to claim
+  // that too, but CostInputsSection takes no canEdit prop and its Markup %
+  // input has never been disabled for anyone.
   canEditPricing: boolean;
   // Role Management's isPrivileged flag (same value proxy.ts checks for the
   // /quotation-history admin-only route) — kept separate from canEditPricing

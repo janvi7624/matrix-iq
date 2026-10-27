@@ -522,6 +522,26 @@
   color: var(--mx-ink-muted);
 }
 
+/* TmsNewTaskProjectSelect — the "turn this plain note into a TMS task"
+   dropdown on a standalone row. */
+.tmsNewTaskPicker {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 320px;
+  margin-top: 4px;
+}
+.tmsNewTaskLabel {
+  font-size: 12.5px;
+  font-weight: var(--mx-weight-semibold);
+  color: var(--mx-ink-muted);
+}
+.tmsNewTaskHint {
+  font-size: 12px;
+  color: var(--mx-ink-muted);
+}
+
 /* TmsLinkedTaskPanel — the write half of the link: actions that post
    straight to TMS's own API routes. */
 .tmsLinkedPanel {

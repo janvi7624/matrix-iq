@@ -24,7 +24,7 @@ import { getDeadlinePolicy } from './dailyReportConfigStore';
 import { consumeEditGrant } from './dailyReportEditRequestStore';
 import { computeSalesAutoMatrix, mergeAutoMatrix } from './salesDailyAutoFetch';
 import { computeGemProposalEntries, mergeAutoGemEntries } from './gemProposalAutoFetch';
-import { refreshTmsLinkedEntries } from './aiTmsTaskLink';
+import { refreshTmsLinkedEntries, createPendingTmsTasksFromEntries } from './aiTmsTaskLink';
 
 // Reports, their entries, and their revision history.
 //
@@ -411,6 +411,16 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
     // comment on why this runs after it, not before.
     if (resolved.template.layout === 'rows' && resolved.template.supportsTmsTaskLink) {
       stampedEntries = await refreshTmsLinkedEntries(stampedEntries, input.employeeId);
+      // Pending project selections (components/DailyReportForm.tsx's "Create
+      // TMS Task In Project" dropdown) only resolve into a real TMS task on
+      // a genuine human SUBMIT, never a draft save (a draft is documented
+      // elsewhere in this app as private and not yet real) and never the
+      // system's own unattended auto-submit (input.actorId is null there —
+      // minting a new tracked, attributed TMS task with no human behind it
+      // to credit is left for the employee to do themselves later).
+      if (input.mode === 'submit' && input.actorId) {
+        stampedEntries = await createPendingTmsTasksFromEntries(stampedEntries, input.employeeId, input.actorId);
+      }
     }
     const snapshot = { payload: validation.normalized.header, matrix: validation.normalized.matrix, entries: stampedEntries };
 

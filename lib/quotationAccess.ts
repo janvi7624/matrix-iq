@@ -38,3 +38,4 @@ export async function canManageQuotation(viewerUsername: string, q: QuotationRec
   const project = await findProjectById(q.project_id);
   return !!project && (await canAccessOwnedRecord(viewerUsername, project.created_by));
 }
+

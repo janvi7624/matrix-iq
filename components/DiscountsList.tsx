@@ -9,8 +9,9 @@ interface DiscountsListProps {
   onAdd: () => void;
   onChangeItem: (id: number, patch: Partial<Discount>) => void;
   onRemove: (id: number) => void;
-  // Discounts change the final price — locked to Manager/Admin/Super Admin,
-  // same as Markup % and Custom Product price.
+  // Discounts change the final price, so they are permission-gated — see
+  // canEditQuotationPricing in lib/permissions.ts for who holds it. NOT the
+  // same set as Markup %, which is not gated in the UI at all.
   canEdit: boolean;
 }
 
@@ -65,7 +66,7 @@ export default function DiscountsList({ discounts, onAdd, onChangeItem, onRemove
             + Add Discount
           </button>
         ) : (
-          <span className={styles.lockedHint}>Only a manager can add or change discounts.</span>
+          <span className={styles.lockedHint}>You do not have permission to add or change discounts.</span>
         )}
       </div>
     </div>

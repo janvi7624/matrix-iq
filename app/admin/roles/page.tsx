@@ -19,7 +19,15 @@ const PERMISSION_ACTIONS: { key: ModulePermissionAction; label: string }[] = [
   { key: 'print', label: 'Print' },
   { key: 'approve', label: 'Approve' },
   { key: 'reject', label: 'Reject' },
-  { key: 'assign', label: 'Assign' }
+  { key: 'assign', label: 'Assign' },
+  // The 10th and last ModulePermissionAction (lib/types.ts). It was the only
+  // one this matrix never rendered, which made the screen lie by omission:
+  // 'manage' is what grants quotation pricing (canEditQuotationPricing) and
+  // the TMS tab-access bits, so a role could hold a permission with no column
+  // to show it and no way to clear it. Worse, "Select entire row" and
+  // "Clear All Permissions" rebuild a module's set from THIS list alone, so
+  // they silently deleted any 'manage' bit they met.
+  { key: 'manage', label: 'Manage' }
 ];
 
 const GLOBAL_CAPABILITIES: { key: keyof Pick<RolePermissions, 'manageSettings' | 'manageUsers' | 'manageRoles' | 'manageDepartments' | 'viewAllDepartments'>; label: string; hint?: string }[] = [

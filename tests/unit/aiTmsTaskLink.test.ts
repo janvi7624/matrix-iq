@@ -179,3 +179,30 @@ describe('AI_TEMPLATE tms_* fields use showWhen.notEmpty correctly', () => {
     expect(byKey.due_date.editableWhenAuto).toBeUndefined();
   });
 });
+
+describe('AI_TEMPLATE tms_project_id does not trip isAutoRow', () => {
+  const AI = BUILT_IN_TEMPLATES.ai;
+  const byKey = Object.fromEntries(AI.rowFields.map((f) => [f.key, f]));
+
+  it('is hidden like every other TMS bookkeeping field', () => {
+    expect(byKey.tms_project_id.hidden).toBe(true);
+  });
+
+  it('opts out of locksRowWhenSet, unlike tms_task_id', () => {
+    // DailyReportForm.tsx's isAutoRow is `rowFields.some(f => f.hidden &&
+    // f.locksRowWhenSet !== false && entry[f.key] !== '')` — a row with
+    // ONLY tms_project_id set (a pending choice, no task created yet) must
+    // stay editable, while one with tms_task_id set (an actual link) must
+    // lock. This is the one assertion that keeps those two hidden fields
+    // from being treated the same way by accident.
+    expect(byKey.tms_project_id.locksRowWhenSet).toBe(false);
+    expect(byKey.tms_task_id.locksRowWhenSet).toBeUndefined(); // undefined = locks, the default
+
+    const wouldLock = (entry: Record<string, unknown>) =>
+      AI.rowFields.some((f) => f.hidden && f.locksRowWhenSet !== false && String(entry[f.key] ?? '') !== '');
+
+    expect(wouldLock({ tms_project_id: 'proj-1' })).toBe(false);
+    expect(wouldLock({ tms_task_id: 'task-1' })).toBe(true);
+    expect(wouldLock({ tms_project_id: 'proj-1', tms_task_id: 'task-1' })).toBe(true);
+  });
+});

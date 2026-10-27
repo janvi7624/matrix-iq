@@ -158,6 +158,16 @@ export interface DailyReportFieldDef {
    */
   hidden?: boolean;
   /**
+   * A hidden field non-empty normally means "this row is system-owned,
+   * lock it" (DailyReportForm.tsx's isAutoRow — true for GEM's
+   * proposal_quotation_id and AI's tms_task_id). Set false for a hidden
+   * field that records an in-progress CHOICE rather than a completed link —
+   * AI's tms_project_id is set the moment an employee picks a project, well
+   * before the task it will become actually exists, and the row must stay
+   * fully editable until it does.
+   */
+  locksRowWhenSet?: boolean;
+  /**
    * Stays editable even on an auto/locked row (DailyReportForm.tsx's
    * isAutoRow — any hidden field non-empty). Every existing field defaults
    * to locked, matching GEM's all-locked auto rows exactly as before this
@@ -997,6 +1007,14 @@ const AI_TEMPLATE: TemplateDefinition = {
     // lib/aiTmsTaskLink.ts, which re-derives every tms_*-prefixed field
     // below from the live TmsTask on every save.
     { key: 'tms_task_id', label: 'Linked TMS Task', type: 'text', hidden: true },
+    // A standalone row's OWN choice to become a tracked TMS task — set by
+    // the bespoke project dropdown DailyReportForm.tsx renders next to this
+    // row (not the generic select engine: the options are this employee's
+    // real TMS projects, fetched at render time, not a fixed list a
+    // template can declare). On the next save, lib/aiTmsTaskLink.ts creates
+    // the real task under this project and replaces this field with
+    // tms_task_id — a row never carries both at once.
+    { key: 'tms_project_id', label: 'Create TMS Task In Project', type: 'text', hidden: true, locksRowWhenSet: false },
     { key: 'task_description', label: 'Task Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
     // Appears only for "Other", and is required only then — see showWhen on
     // DailyReportFieldDef. Without it, choosing Other would record a task

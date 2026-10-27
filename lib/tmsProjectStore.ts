@@ -196,6 +196,29 @@ export function canAccessTmsProjectRow(
   return !!ownId && (project.project_manager_id === ownId || project.team_member_ids.includes(ownId) || project.created_by === viewer.username);
 }
 
+// For an arbitrary target person (not the calling viewer) — same reasoning
+// as lib/tmsTaskStore.ts's listForAssignee: the Daily Report "create a TMS
+// task in one of my projects" picker needs the REPORT'S employee's own
+// projects, which is usually but not always the acting viewer (a manager
+// filing on someone's behalf is the exception). Same three-way membership
+// test listForViewer's own-tier branch already uses (project manager,
+// creator, or team member), just parameterized by id instead of viewer.
+async function listForMember(employeeId: string): Promise<TmsProjectRecord[]> {
+  if (!isUuid(employeeId)) return [];
+  // created_by is a raw UUID FK on tms_projects (unlike tms_tasks', which is
+  // resolved to a username) — confirmed by creatorInclude's own join
+  // condition above (ON TmsProject.created_by = creator.id). No separate
+  // username lookup needed; employeeId compares directly.
+  const rows = await db.TmsProject.findAll({
+    where: {
+      [Op.or]: [{ project_manager_id: employeeId }, { created_by: employeeId }, { team_member_ids: { [Op.contains]: [employeeId] } }]
+    } as never,
+    include: ALL_INCLUDES,
+    order: [['name', 'ASC']]
+  });
+  return hideUnwonSalesProjects(await toRecords(rows));
+}
+
 async function findById(id: string): Promise<TmsProjectRecord | undefined> {
   if (!isUuid(id)) return undefined;
   const row = await db.TmsProject.findByPk(id, { include: ALL_INCLUDES });
@@ -291,7 +314,7 @@ export async function computeTaskDerivedProgress(tmsProjectId: string): Promise<
   return Math.round((completed / tasks.length) * 100);
 }
 
-export const tmsProjectStore = { list, readAll, findById, create, update, remove };
+export const tmsProjectStore = { list, readAll, findById, listForMember, create, update, remove };
 
 // TMS-PRJ-<seq> — same "read everything, find the max sequence, +1" approach
 // as lib/deliveryChallanStore.ts's nextDcNumber().
