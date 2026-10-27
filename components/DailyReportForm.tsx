@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Trash2, Link2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Trash2, Link2, PlusCircle } from 'lucide-react';
 import {
   DailyReportFieldDef,
   DailyReportPayloadInput,
@@ -21,8 +21,9 @@ import Button from './ui/Button';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useSalesAutoDetail } from './useSalesAutoDetail';
 import TmsTaskPicker, { TmsLinkableTask } from './TmsTaskPicker';
-import { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority } from '@/lib/aiTmsStatusMapping';
-import { TMS_TASK_STATUS_LABEL } from '@/lib/tmsLabels';
+import TmsLinkedTaskPanel from './TmsLinkedTaskPanel';
+import TmsTaskConvertModal, { ConvertedTmsTask } from './TmsTaskConvertModal';
+import { buildEntryPatchFromTmsTask, reverseAiPriority } from '@/lib/aiTmsStatusMapping';
 
 // The renderer half of the form engine. One component for all eight
 // department formats, driven by the TemplateDefinition the server sends —
@@ -361,6 +362,17 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
     onChange({ ...value, entries: entries.filter((_, i) => i !== index) });
   }
 
+  // TmsLinkedTaskPanel's write actions (POSTs straight to TMS's own API
+  // routes) return the task's new state; this merges every tms_*-prefixed
+  // field from that response onto the one row, immediately — not waiting
+  // for the next report save's refresh — so the row shows what was just
+  // saved. No clearHiddenFields pass: nothing patched here governs another
+  // field's showWhen/dependsOn.
+  function patchEntry(index: number, patch: Record<string, unknown>) {
+    const updated = entries.map((entry2, i) => (i === index ? { ...entry2, ...patch } : entry2));
+    onChange({ ...value, entries: updated });
+  }
+
   // null = closed. 'new' = picking for a fresh row (the "Link TMS Task"
   // footer button). A number = picking for that existing standalone row's
   // own "Link to TMS task…" action.
@@ -380,13 +392,15 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
     return {
       ...entry,
       tms_task_id: task.id,
-      task_description: task.description || task.name,
-      due_date: task.dueDate,
-      priority: mapTmsPriorityToAiPriority(task.priority),
-      status: mapTmsStatusToAiStatus(task.status),
-      tms_status_label: TMS_TASK_STATUS_LABEL[task.status as keyof typeof TMS_TASK_STATUS_LABEL] ?? task.status,
-      tms_project_name: task.projectName,
-      tms_progress_percent: `${task.progressPercent}%`
+      ...buildEntryPatchFromTmsTask({
+        name: task.name,
+        description: task.description,
+        dueDate: task.dueDate,
+        priority: task.priority,
+        status: task.status,
+        projectName: task.projectName,
+        progressPercent: task.progressPercent
+      })
     };
   }
 
@@ -412,6 +426,26 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
     const matrix = { ...(value.matrix ?? {}) };
     matrix[measure] = { ...(matrix[measure] ?? {}), [channel]: next };
     onChange({ ...value, matrix });
+  }
+
+  // Workflow B: a standalone row (no tms_task_id) converted into a real TMS
+  // task via components/TmsTaskConvertModal.tsx — null when closed, a row
+  // index while that row's conversion dialog is open.
+  const [convertTarget, setConvertTarget] = useState<number | null>(null);
+
+  function handleTaskConverted(index: number, task: ConvertedTmsTask) {
+    patchEntry(index, {
+      tms_task_id: task.id,
+      ...buildEntryPatchFromTmsTask({
+        name: task.name,
+        description: task.description,
+        dueDate: task.due_date,
+        priority: task.priority,
+        status: task.status,
+        projectName: task.project_name,
+        progressPercent: task.progress_percent
+      })
+    });
   }
 
   return (
@@ -548,15 +582,26 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                     {!disabled && !isAutoRow && (
                       <div className={styles.entryTools}>
                         {template.supportsTmsTaskLink && (
-                          <button
-                            type="button"
-                            className={styles.iconBtn}
-                            onClick={() => setTmsPickerTarget(index)}
-                            aria-label={`Link ${template.entryNoun ?? 'entry'} ${index + 1} to a TMS task`}
-                            title="Link to a TMS task"
-                          >
-                            <Link2 size={15} />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              className={styles.iconBtn}
+                              onClick={() => setTmsPickerTarget(index)}
+                              aria-label={`Link ${template.entryNoun ?? 'entry'} ${index + 1} to a TMS task`}
+                              title="Link to a TMS task"
+                            >
+                              <Link2 size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.iconBtn}
+                              onClick={() => setConvertTarget(index)}
+                              aria-label={`Create a TMS task from ${template.entryNoun ?? 'entry'} ${index + 1}`}
+                              title="Create a TMS task from this"
+                            >
+                              <PlusCircle size={15} />
+                            </button>
+                          </>
                         )}
                         <button
                           type="button"
@@ -610,6 +655,17 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                         View in TMS ↗
                       </a>
                     )}
+                    {!disabled && isAutoRow && asString(entry.tms_task_id) && (
+                      <TmsLinkedTaskPanel
+                        taskId={asString(entry.tms_task_id)}
+                        taskName={asString(entry.task_description)}
+                        description={asString(entry.task_description)}
+                        priority={reverseAiPriority(asString(entry.priority))}
+                        currentDeadline={asString(entry.due_date)}
+                        tmsStatusLabel={asString(entry.tms_status_label)}
+                        onPatch={(patch) => patchEntry(index, patch)}
+                      />
+                    )}
                   </div>
                 </div>
               );
@@ -644,7 +700,22 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
             </div>
           )}
           {tmsPickerTarget !== null && (
-            <TmsTaskPicker employeeId={employeeId} onClose={() => setTmsPickerTarget(null)} onSelect={handleTmsTaskSelected} />
+            <TmsTaskPicker
+              employeeId={employeeId}
+              alreadyLinkedTaskIds={entries.map((e) => asString(e.tms_task_id)).filter(Boolean)}
+              onClose={() => setTmsPickerTarget(null)}
+              onSelect={handleTmsTaskSelected}
+            />
+          )}
+          {convertTarget !== null && entries[convertTarget] && (
+            <TmsTaskConvertModal
+              employeeId={employeeId}
+              initialDescription={asString(entries[convertTarget].task_description)}
+              initialPriority={reverseAiPriority(asString(entries[convertTarget].priority)) || 'medium'}
+              initialDueDate={asString(entries[convertTarget].due_date)}
+              onClose={() => setConvertTarget(null)}
+              onConverted={(task) => handleTaskConverted(convertTarget, task)}
+            />
           )}
         </>
       )}

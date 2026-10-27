@@ -1,7 +1,6 @@
 import { db, isUuid } from './db';
 import { TmsTaskStatus, TmsPriority } from './types';
-import { TMS_TASK_STATUS_LABEL } from './tmsLabels';
-import { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority } from './aiTmsStatusMapping';
+import { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority, buildEntryPatchFromTmsTask } from './aiTmsStatusMapping';
 
 export { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority };
 
@@ -104,7 +103,6 @@ export function applyLiveTasksToEntries(
       return rest;
     }
 
-    const aiStatus = mapTmsStatusToAiStatus(task.status);
     // completed_on for a linked row comes straight from TMS's own
     // completion_date, not carryCompletions' content-hash guess (which
     // exists only because a STANDALONE row has no external authority) —
@@ -114,18 +112,16 @@ export function applyLiveTasksToEntries(
     const { completed_on: _priorStamp, ...entryWithoutStamp } = entry;
     return {
       ...entryWithoutStamp,
-      // A TMS task's description is optional (many are filed with just a
-      // name) — falling back to the name keeps this REQUIRED field from
-      // ever going blank on a linked row, same fallback the picker's own
-      // optimistic client-side fill uses (DailyReportForm.tsx).
-      task_description: task.description || task.name || entry.task_description,
-      due_date: task.due_date || entry.due_date,
-      priority: mapTmsPriorityToAiPriority(task.priority),
-      status: aiStatus,
-      tms_status_label: TMS_TASK_STATUS_LABEL[task.status] ?? task.status,
-      tms_project_name: task.project_name,
-      tms_progress_percent: `${task.progress_percent}%`,
-      ...(aiStatus === 'Completed' && task.completion_date ? { completed_on: task.completion_date } : {})
+      ...buildEntryPatchFromTmsTask({
+        name: task.name,
+        description: task.description,
+        dueDate: task.due_date,
+        priority: task.priority,
+        status: task.status,
+        projectName: task.project_name,
+        progressPercent: task.progress_percent,
+        completionDate: task.completion_date
+      })
     };
   });
 }

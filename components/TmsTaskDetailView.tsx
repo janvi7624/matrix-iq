@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Paperclip } from 'lucide-react';
 import { AuditLogEntry, TmsPriority, TmsTaskRecord, TmsTaskStatus, TmsTaskUpdateRecord, UserRole } from '@/lib/types';
 import { EngineerTaskAction, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_TASK_ACTION_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE } from '@/lib/tmsLabels';
+import { ENGINEER_ACTIONS_BY_STATUS } from '@/lib/aiTmsStatusMapping';
 import { TMS_MANAGER_TIER_ROLES } from '@/lib/tmsConstants';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
@@ -35,18 +36,11 @@ interface LinkedDailyReportEntry {
 }
 
 // Client-side mirror of lib/tmsTaskStore.ts's VALID_TRANSITIONS — for
-// button visibility only. The real enforcement is server-side in
-// app/api/tms/tasks/[id]/update/route.ts; a stale/wrong entry here would at
-// worst show a button that the server then rejects.
-const ENGINEER_ACTIONS: Record<TmsTaskStatus, EngineerTaskAction[]> = {
-  to_do: ['start'],
-  in_progress: ['progress', 'blocked', 'ready_for_review'],
-  blocked: ['reopen'],
-  ready_for_review: [],
-  on_hold: [],
-  completed: [],
-  cancelled: []
-};
+// button visibility only, shared with components/TmsLinkedTaskPanel.tsx's
+// identical need (see lib/aiTmsStatusMapping.ts). The real enforcement is
+// server-side in app/api/tms/tasks/[id]/update/route.ts; a stale/wrong
+// entry here would at worst show a button that the server then rejects.
+const ENGINEER_ACTIONS = ENGINEER_ACTIONS_BY_STATUS;
 
 interface TmsTaskDetailViewProps {
   taskId: string;

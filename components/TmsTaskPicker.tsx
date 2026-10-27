@@ -26,10 +26,16 @@ export interface TmsLinkableTask {
 // offered.
 export default function TmsTaskPicker({
   employeeId,
+  alreadyLinkedTaskIds,
   onClose,
   onSelect
 }: {
   employeeId?: string;
+  /** Task ids already linked to a row elsewhere in THIS report — offered
+   *  but disabled, so the same task can't end up linked to two rows on the
+   *  same day (see DailyReportForm.tsx's own comment on why that's worth
+   *  preventing even though it isn't a duplicate TMS task). */
+  alreadyLinkedTaskIds: string[];
   onClose: () => void;
   onSelect: (task: TmsLinkableTask) => void;
 }) {
@@ -101,19 +107,34 @@ export default function TmsTaskPicker({
 
       {filtered.length > 0 && (
         <div className={styles.tmsPickerList}>
-          {filtered.map((task) => (
-            <button key={task.id} type="button" className={styles.tmsPickerRow} onClick={() => onSelect(task)}>
-              <div className={styles.tmsPickerRowMain}>
-                <span className={styles.tmsPickerRowName}>{task.name}</span>
-                <span className={styles.tmsPickerRowProject}>{task.projectName}</span>
-              </div>
-              <div className={styles.tmsPickerRowMeta}>
-                <span>{TMS_TASK_STATUS_LABEL[task.status as keyof typeof TMS_TASK_STATUS_LABEL] ?? task.status}</span>
-                <span>{TMS_PRIORITY_LABEL[task.priority as keyof typeof TMS_PRIORITY_LABEL] ?? task.priority}</span>
-                <span>Due {formatTmsDueDate(task.dueDate)}</span>
-              </div>
-            </button>
-          ))}
+          {filtered.map((task) => {
+            const alreadyLinked = alreadyLinkedTaskIds.includes(task.id);
+            return (
+              <button
+                key={task.id}
+                type="button"
+                className={styles.tmsPickerRow}
+                disabled={alreadyLinked}
+                onClick={() => onSelect(task)}
+              >
+                <div className={styles.tmsPickerRowMain}>
+                  <span className={styles.tmsPickerRowName}>{task.name}</span>
+                  <span className={styles.tmsPickerRowProject}>{task.projectName}</span>
+                </div>
+                <div className={styles.tmsPickerRowMeta}>
+                  {alreadyLinked ? (
+                    <span>Already in today&rsquo;s report</span>
+                  ) : (
+                    <>
+                      <span>{TMS_TASK_STATUS_LABEL[task.status as keyof typeof TMS_TASK_STATUS_LABEL] ?? task.status}</span>
+                      <span>{TMS_PRIORITY_LABEL[task.priority as keyof typeof TMS_PRIORITY_LABEL] ?? task.priority}</span>
+                      <span>Due {formatTmsDueDate(task.dueDate)}</span>
+                    </>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
     </Modal>
