@@ -199,8 +199,13 @@ export default function TaskCategoryEditor({ onClose }: { onClose: () => void })
           </header>
 
           <div className={styles.rows}>
-            {Object.entries(group.catalogue).map(([category, subs]) => (
-              <div key={category} className={styles.row}>
+            {Object.entries(group.catalogue).map(([category, subs], rowIndex) => (
+              // Keyed by POSITION, not by the category name. The name is the
+              // value being edited, so keying on it made React unmount and
+              // remount the input on every keystroke — the field lost focus
+              // after a single character. renameKey preserves order, so the
+              // index is stable across a rename.
+              <div key={rowIndex} className={styles.row}>
                 <input
                   className={styles.catInput}
                   value={category}

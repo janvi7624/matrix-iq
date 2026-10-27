@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import { apiErrorResponse } from '@/lib/apiError';
 import { assertAdmin, APPROVER_USERNAME, notifyAccountsOfAdminExpense, notifyApproverOfPendingExpense } from '@/lib/adminExpenseAccess';
+import { UNALLOCATED_LABEL, isUnallocatedSelection } from '@/lib/adminExpenseUnallocated';
 
 interface ResolvedExpenseFields {
   description: string;
@@ -106,8 +107,14 @@ export async function GET(request: NextRequest) {
       }
       const g = grouped.get(key)!;
       const creator = rec.creator as Record<string, unknown> | undefined;
-      const empId = rec.created_by as string;
-      if (creator && !g.employees.find((e: any) => e.id === empId)) {
+      const empId = rec.created_by as string | null;
+      if (!empId) {
+        // No owner by design — named here so the list never shows a blank
+        // where a payee should be.
+        if (!g.employees.find((e: { id: string }) => e.id === 'unallocated')) {
+          g.employees.push({ id: 'unallocated', name: UNALLOCATED_LABEL });
+        }
+      } else if (creator && !g.employees.find((e: { id: string }) => e.id === empId)) {
         g.employees.push({ id: empId, name: (creator.name as string) || (creator.username as string) || empId });
       }
     }
@@ -127,6 +134,11 @@ export async function POST(request: NextRequest) {
 
   const { type, employeeIds, totalAmount, attachmentUrls } = body;
 
+  // 'Other / Unallocated' is a selection, not an absence — the cost is
+  // recorded on its own row with no employee rather than pinned to whoever
+  // happened to be picked. Exclusive by design: it is never split.
+  const unallocated = isUnallocatedSelection(employeeIds);
+
   if (!type || !Array.isArray(employeeIds) || !employeeIds.length || !totalAmount) {
     return NextResponse.json({ error: 'Type, date, employees, and total amount are required' }, { status: 400 });
   }
@@ -138,22 +150,22 @@ export async function POST(request: NextRequest) {
   if ('error' in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
   const { description, from, to, resolvedDate, checkOut } = resolved;
 
-  const splitCount = employeeIds.length;
-  const perPerson = Math.round((amt / splitCount) * 100) / 100;
+  const splitCount = unallocated ? 1 : employeeIds.length;
+  const perPerson = unallocated ? amt : Math.round((amt / splitCount) * 100) / 100;
   const batchId = `admin-${Date.now()}`;
   const urls: string[] = Array.isArray(attachmentUrls) ? attachmentUrls.filter((v: unknown) => typeof v === 'string') : [];
   const isApprover = admin.username === APPROVER_USERNAME;
 
   try {
     const created = [];
-    for (const empId of employeeIds) {
-      // Find which user this is to get their ID for created_by
+    // One row with no owner, or one row per employee.
+    for (const empId of unallocated ? [null] : employeeIds) {
       const row = await db.Reimbursement.create({
         created_by: empId,
         date: resolvedDate,
         check_out_date: checkOut,
         description,
-        employee_ids: [empId],
+        employee_ids: empId ? [empId] : [],
         from_location: from,
         to_location: to,
         kilometers: null,
@@ -203,6 +215,7 @@ export async function PUT(request: NextRequest) {
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
   const { batchId, type, employeeIds, totalAmount } = body;
+  const unallocatedEdit = isUnallocatedSelection(employeeIds);
   if (!batchId) return NextResponse.json({ error: 'batchId is required' }, { status: 400 });
 
   if (!type || !Array.isArray(employeeIds) || !employeeIds.length || !totalAmount) {
@@ -216,8 +229,8 @@ export async function PUT(request: NextRequest) {
   if ('error' in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
   const { description, from, to, resolvedDate, checkOut } = resolved;
 
-  const splitCount = employeeIds.length;
-  const perPerson = Math.round((amt / splitCount) * 100) / 100;
+  const splitCount = unallocatedEdit ? 1 : employeeIds.length;
+  const perPerson = unallocatedEdit ? amt : Math.round((amt / splitCount) * 100) / 100;
   const isApprover = admin.username === APPROVER_USERNAME;
 
   try {
@@ -236,13 +249,13 @@ export async function PUT(request: NextRequest) {
     await db.Reimbursement.destroy({ where: { admin_note: batchId, is_admin_entry: true } as never });
 
     // Create new entries
-    for (const empId of employeeIds) {
+    for (const empId of unallocatedEdit ? [null] : employeeIds) {
       await db.Reimbursement.create({
         created_by: empId,
         date: resolvedDate,
         check_out_date: checkOut,
         description,
-        employee_ids: [empId],
+        employee_ids: empId ? [empId] : [],
         from_location: from,
         to_location: to,
         kilometers: null,

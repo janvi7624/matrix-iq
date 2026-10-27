@@ -71,7 +71,9 @@ function ListBlock({
 
       <div className={styles.rows}>
         {values.map((value, index) => (
-          <div key={`${value}-${index}`} className={styles.row}>
+          // Keyed by POSITION only — including the value would remount the
+          // input on every keystroke and drop focus after one character.
+          <div key={index} className={styles.row}>
             <input
               className={styles.catInput}
               value={value}
