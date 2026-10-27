@@ -1,4 +1,5 @@
 import { Op } from 'sequelize';
+import { payeeName } from './adminExpenseUnallocated';
 import { db } from './db';
 
 // HR Expense Report — one aggregation over the three places company money
@@ -186,7 +187,14 @@ function creatorOf(plain: Record<string, unknown>): { employeeId: string; employ
   const deptRef = creator?.departmentRef as { name?: string } | null | undefined;
   return {
     employeeId: (plain.created_by as string) || '',
-    employeeName: (creator?.name as string) || (creator?.username as string) || 'Unknown',
+    // An admin entry with no creator is unallocated BY DESIGN and says so;
+    // any other missing creator is a real data problem and still reads
+    // 'Unknown', so the two are never confused in a report.
+    employeeName: payeeName(
+      (creator?.name as string) || (creator?.username as string) || '',
+      plain.is_admin_entry === true,
+      plain.created_by as string | null
+    ),
     employeeCode: (creator?.employeeId as string) || '',
     department: deptRef?.name || (creator?.department as string) || ''
   };

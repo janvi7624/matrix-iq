@@ -1,4 +1,5 @@
 import { db, isUuid } from './db';
+import { payeeName } from './adminExpenseUnallocated';
 import { reimbursementSheetStore } from './reimbursementSheetStore';
 import { tmsBomRequestStore } from './tmsBomRequestStore';
 import { travelScheduleStore } from './travelScheduleStore';
@@ -182,7 +183,11 @@ export function groupAdminExpenseRows(rows: Record<string, unknown>[], paidByNam
     const employeeNames: string[] = [];
     for (const row of groupRows) {
       const creator = row.creator as Record<string, unknown> | undefined;
-      const name = (creator?.name as string) || (creator?.username as string) || '';
+      const name = payeeName(
+        (creator?.name as string) || (creator?.username as string) || '',
+        true,
+        row.created_by as string | null
+      );
       if (name && !employeeNames.includes(name)) employeeNames.push(name);
     }
     // The sheet is as urgent as its oldest waiting entry — same rule as
@@ -230,7 +235,11 @@ export function groupAdminExpenseRows(rows: Record<string, unknown>[], paidByNam
           date: String(row.date || ''),
           expenseType: (row.description as string) || '',
           amount: Number(row.amount) || 0,
-          employeeName: (creator?.name as string) || (creator?.username as string) || ''
+          employeeName: payeeName(
+            (creator?.name as string) || (creator?.username as string) || '',
+            true,
+            row.created_by as string | null
+          )
         };
       })
     });

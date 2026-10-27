@@ -1,7 +1,10 @@
 module.exports = (sequelize, DataTypes) => {
   const Reimbursement = sequelize.define('Reimbursement', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
-    created_by: { type: DataTypes.UUID, allowNull: false },
+    // Nullable ONLY for an admin entry with no attributable employee — see
+    // the 20261026090000 migration. Every ordinary reimbursement still sets
+    // it; the rule lives in the store rather than the column.
+    created_by: { type: DataTypes.UUID, allowNull: true },
     date: { type: DataTypes.DATEONLY, allowNull: false },
     // Only set for an admin-entry Hotel booking (is_admin_entry &&
     // description === 'Hotel') — `date` above is that booking's check-in.

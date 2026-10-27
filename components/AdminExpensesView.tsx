@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { UNALLOCATED_EMPLOYEE_ID } from '@/lib/adminExpenseUnallocated';
 import AppShell from './AppShell';
 import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
@@ -150,8 +151,22 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
     setFlightTripType('one_way');
   }
 
+  // 'Other / Unallocated' is exclusive — a cost that belongs to nobody
+  // cannot also be split between people, so picking it clears the employee
+  // selection and picking an employee clears it.
+  const isUnallocated = selectedEmployees.length === 1 && selectedEmployees[0] === UNALLOCATED_EMPLOYEE_ID;
+
   function toggleEmployee(id: string) {
-    setSelectedEmployees((prev) => prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]);
+    setSelectedEmployees((prev) => {
+      const without = prev.filter((e) => e !== UNALLOCATED_EMPLOYEE_ID);
+      return without.includes(id) ? without.filter((e) => e !== id) : [...without, id];
+    });
+  }
+
+  function toggleUnallocated() {
+    setSelectedEmployees((prev) =>
+      prev.length === 1 && prev[0] === UNALLOCATED_EMPLOYEE_ID ? [] : [UNALLOCATED_EMPLOYEE_ID]
+    );
   }
 
   function selectAll() {
@@ -245,7 +260,7 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
       }
     }
     if (!totalAmount || amt <= 0) { toast.error('Enter valid amount'); return; }
-    if (!selectedEmployees.length) { toast.error('Select at least one employee'); return; }
+    if (!selectedEmployees.length) { toast.error('Select at least one employee, or tick Other / Unallocated'); return; }
 
     setSaving(true);
     try {
@@ -423,7 +438,20 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
 
             <div className={styles.employeesField}>
               <label className={styles.fieldLabelSpaced}>
-                Select Employees * ({selectedEmployees.length} selected)
+                Select Employees * ({isUnallocated ? 'Other / Unallocated' : `${selectedEmployees.length} selected`})
+              </label>
+
+              {/* For a cost nobody is the beneficiary of — a courier fee, a
+                  stall rental. Without it such an expense had to be pinned to
+                  whoever happened to be picked. */}
+              <label className={styles.unallocatedRow}>
+                <input type="checkbox" checked={isUnallocated} onChange={toggleUnallocated} />
+                <span>
+                  <strong>Other / Unallocated</strong>
+                  <span className={calcStyles.small}>
+                    No specific employee — the full amount is recorded on its own, not split.
+                  </span>
+                </span>
               </label>
               <div className={styles.employeeSearchRow}>
                 <input

@@ -104,3 +104,24 @@ tr:hover .employeeExpanded { display: flex; }
     white-space: nowrap;
     flex-shrink: 0;
 }
+
+/* The "Other / Unallocated" choice. Set apart from the employee checkbox
+   list because it is not one of them — it is the alternative to picking
+   any. */
+.unallocatedRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 9px 12px;
+  border: 1px dashed var(--mx-border, #cbd5e1);
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.unallocatedRow:hover { border-color: #94a3b8; }
+
+.unallocatedRow input { margin-top: 3px; flex: 0 0 auto; }
+
+.unallocatedRow > span { display: flex; flex-direction: column; gap: 1px; }
