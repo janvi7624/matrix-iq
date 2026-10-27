@@ -393,6 +393,51 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
   let wasEdited = false;
 
   const reportId = await db.sequelize.transaction(async (t) => {
+    // The edit-authority gate is checked FIRST, before anything below
+    // creates or mutates anything — in particular before
+    // createPendingTmsTasksFromEntries, which mints a real TmsTask via its
+    // own, separate transaction rather than joining this one. A save that's
+    // about to be rejected here must never have already created one: that
+    // would orphan a TMS task that no entry ever ends up pointing to.
+    //
+    // This is deliberately HERE rather than in the routes. Five different
+    // write paths reach this function — the employee's own save, the
+    // employee's submit, a manager's PATCH, /submit, and file-for-employee —
+    // and gating any one of them leaves the other four open.
+    const wasSubmitted = existing
+      ? SUBMITTED_STATUSES.includes(existing.get('submission_status') as DailyReportSubmissionStatus)
+      : false;
+
+    // The system's own auto-submit racing a real human submission: the
+    // employee (or their manager) got there first, between the scheduler's
+    // planning read and this write. A true no-op — touching the row here
+    // would null out updated_by (actorId is null for auto-submit) and log a
+    // spurious 'edited' revision for content nobody actually edited.
+    if (existing && input.auto && wasSubmitted) {
+      return existing.get('id') as string;
+    }
+
+    // ANY write over an already-submitted report is a retroactive edit,
+    // whichever mode it arrived as.
+    if (existing && wasSubmitted) {
+      wasEdited = true;
+      if (!input.editAuthority) {
+        throw new DailyReportValidationError(
+          'This report has already been filed and can no longer be changed. Ask your department manager for permission to edit it.'
+        );
+      }
+      // Only an employee's grant is spent. An approver has none to spend —
+      // consuming here would refuse the very people the lock defers to.
+      if (input.editAuthority === 'grant') {
+        const spent = await consumeEditGrant(existing.get('id') as string, t);
+        if (!spent) {
+          throw new DailyReportValidationError(
+            'That permission to edit has already been used or has expired. Ask your department manager again.'
+          );
+        }
+      }
+    }
+
     // Completion stamps are resolved HERE, ahead of the snapshot, for two
     // reasons: the revision row then records exactly the rows that get
     // written (completed_on is the one entry value the client never sends,
@@ -467,18 +512,6 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
     }
 
     const id = existing.get('id') as string;
-    const wasSubmitted = SUBMITTED_STATUSES.includes(existing.get('submission_status') as DailyReportSubmissionStatus);
-
-    // The system's own auto-submit racing a real human submission: the
-    // employee (or their manager) got there first, between the scheduler's
-    // planning read and this write. A true no-op — touching the row here
-    // would null out updated_by (actorId is null for auto-submit) and log a
-    // spurious 'edited' revision for content nobody actually edited.
-    // processAutoSubmit's caller distinguishes this from a fresh auto-submit
-    // via justSubmitted, which recomputing matrix/overlay doesn't change.
-    if (input.auto && wasSubmitted) {
-      return id;
-    }
 
     const attrs: Record<string, unknown> = {
       payload: validation.normalized.header,
@@ -503,42 +536,13 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
       attrs.submission_status = existing.get('submission_status');
     }
 
-    // ANY write over an already-submitted report is a retroactive edit,
-    // whichever mode it arrived as — classified here rather than in the
-    // submit branch above, and deliberately alongside the 'edited' revision
-    // label below so the two can never disagree. A mode:'draft' POST over a
-    // submitted report replaces the filed content just as thoroughly as a
-    // re-submit does, and that was the one path where the manager's
-    // "Changed since" badge appeared while the audit log said nothing.
-    wasEdited = !justSubmitted && wasSubmitted;
-
-    // Submitting is terminal.
-    //
-    // This is deliberately HERE rather than in the routes. Five different
-    // write paths reach this function — the employee's own save, the
-    // employee's submit, a manager's PATCH, /submit, and file-for-employee —
-    // and gating any one of them leaves the other four open. Everything that
-    // can rewrite a filed report passes through this line.
-    //
-    // The scheduler's auto-submit is exempt by construction: it returned
-    // above when wasSubmitted, so it never reaches here.
-    if (wasEdited) {
-      if (!input.editAuthority) {
-        throw new DailyReportValidationError(
-          'This report has already been filed and can no longer be changed. Ask your department manager for permission to edit it.'
-        );
-      }
-      // Only an employee's grant is spent. An approver has none to spend —
-      // consuming here would refuse the very people the lock defers to.
-      if (input.editAuthority === 'grant') {
-        const spent = await consumeEditGrant(id, t);
-        if (!spent) {
-          throw new DailyReportValidationError(
-            'That permission to edit has already been used or has expired. Ask your department manager again.'
-          );
-        }
-      }
-    }
+    // wasEdited and the edit-authority gate are both resolved at the top of
+    // this transaction, before createPendingTmsTasksFromEntries runs — see
+    // the comment there. A mode:'draft' POST over a submitted report
+    // replaces the filed content just as thoroughly as a re-submit does, and
+    // that was the one path where the manager's "Changed since" badge
+    // appeared while the audit log said nothing, which is why wasEdited
+    // covers both modes rather than only 'submit'.
 
     await existing.update(attrs as never, { transaction: t });
     await replaceEntries(id, stampedEntries, t);
