@@ -1,14 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Trash2, Link2 } from 'lucide-react';
 import {
   DailyReportFieldDef,
   DailyReportPayloadInput,
   TemplateDefinition,
   DerivedEntryValues,
   computeDerivedValues,
-  computeMatrixTotals
+  computeMatrixTotals,
+  isFieldVisible
 } from '@/lib/dailyReportTemplates';
 import { istDate } from '@/lib/dailyReportTime';
 import calcStyles from './calculator.module.css';
@@ -19,6 +20,9 @@ import Textarea from './ui/Textarea';
 import Button from './ui/Button';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useSalesAutoDetail } from './useSalesAutoDetail';
+import TmsTaskPicker, { TmsLinkableTask } from './TmsTaskPicker';
+import { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority } from '@/lib/aiTmsStatusMapping';
+import { TMS_TASK_STATUS_LABEL } from '@/lib/tmsLabels';
 
 // The renderer half of the form engine. One component for all eight
 // department formats, driven by the TemplateDefinition the server sends —
@@ -96,10 +100,11 @@ interface FieldProps {
 
 function FieldControl({ field, row, path, issues, disabled, onFieldChange, derived }: FieldProps) {
   // Conditional field: not rendered unless the field it depends on holds a
-  // listed value. validateField applies the identical rule, so a hidden
-  // field is never required — if these two ever disagree the report becomes
+  // listed value (or, for notEmpty, any value at all). validateField applies
+  // the identical rule via the same isFieldVisible, so a hidden field is
+  // never required — if these two ever disagree the report becomes
   // unsubmittable, complaining about a box that is not on screen.
-  if (field.showWhen && !field.showWhen.equals.includes(asString(row[field.showWhen.field]))) return null;
+  if (!isFieldVisible(field, row)) return null;
   // System bookkeeping (e.g. the quotation id an auto-generated GEM row is
   // linked to) — persisted, but nothing to show a person.
   if (field.hidden) return null;
@@ -318,7 +323,7 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
         const current = patched[field.key];
         if (current === undefined || current === '') continue;
         const dependsOnUnset = field.dependsOn && !asString(patched[field.dependsOn]);
-        const hiddenByShowWhen = field.showWhen && !field.showWhen.equals.includes(asString(patched[field.showWhen.field]));
+        const hiddenByShowWhen = !isFieldVisible(field, patched);
         if (dependsOnUnset || hiddenByShowWhen) {
           patched[field.key] = '';
           changed = true;
@@ -354,6 +359,45 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
 
   function removeEntry(index: number) {
     onChange({ ...value, entries: entries.filter((_, i) => i !== index) });
+  }
+
+  // null = closed. 'new' = picking for a fresh row (the "Link TMS Task"
+  // footer button). A number = picking for that existing standalone row's
+  // own "Link to TMS task…" action.
+  const [tmsPickerTarget, setTmsPickerTarget] = useState<'new' | number | null>(null);
+
+  // Populated straight from the picker's own already-fetched task, so the
+  // row shows real context immediately rather than looking blank until the
+  // next save round-trips lib/aiTmsTaskLink.ts's refresh — that refresh
+  // still runs on save and is the lasting source of truth; this is only a
+  // head start on the very first render. priority/status must be set here
+  // too, not just the tms_*-prefixed display fields: both are required on
+  // submit, and validateReportPayload runs before the server-side refresh
+  // ever gets a chance to fill them in — an immediate submit right after
+  // linking would otherwise fail validation on fields the employee never
+  // had a box to type into.
+  function applyTmsTaskToEntry(entry: Record<string, unknown>, task: TmsLinkableTask): Record<string, unknown> {
+    return {
+      ...entry,
+      tms_task_id: task.id,
+      task_description: task.description || task.name,
+      due_date: task.dueDate,
+      priority: mapTmsPriorityToAiPriority(task.priority),
+      status: mapTmsStatusToAiStatus(task.status),
+      tms_status_label: TMS_TASK_STATUS_LABEL[task.status as keyof typeof TMS_TASK_STATUS_LABEL] ?? task.status,
+      tms_project_name: task.projectName,
+      tms_progress_percent: `${task.progressPercent}%`
+    };
+  }
+
+  function handleTmsTaskSelected(task: TmsLinkableTask) {
+    if (tmsPickerTarget === 'new') {
+      onChange({ ...value, entries: [...entries, applyTmsTaskToEntry({}, task)] });
+    } else if (typeof tmsPickerTarget === 'number') {
+      const index = tmsPickerTarget;
+      onChange({ ...value, entries: entries.map((e, i) => (i === index ? applyTmsTaskToEntry(e, task) : e)) });
+    }
+    setTmsPickerTarget(null);
   }
 
   function moveEntry(index: number, direction: -1 | 1) {
@@ -496,13 +540,24 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                       {template.entryNoun ?? 'Entry'} {index + 1}
                       {derived.task_code && <span className={styles.entryCode}>{derived.task_code}</span>}
                       {isAutoRow && (
-                        <span className={styles.autoMeasureBadge} title="Filled in automatically from your quotation activity — not editable.">
+                        <span className={styles.autoMeasureBadge} title={template.autoRowHint ?? 'Filled in automatically — not editable.'}>
                           Auto
                         </span>
                       )}
                     </span>
                     {!disabled && !isAutoRow && (
                       <div className={styles.entryTools}>
+                        {template.supportsTmsTaskLink && (
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            onClick={() => setTmsPickerTarget(index)}
+                            aria-label={`Link ${template.entryNoun ?? 'entry'} ${index + 1} to a TMS task`}
+                            title="Link to a TMS task"
+                          >
+                            <Link2 size={15} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           className={styles.iconBtn}
@@ -540,11 +595,21 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                         row={entry}
                         path={`entries.${index}`}
                         issues={issues}
-                        disabled={disabled || isAutoRow}
+                        disabled={disabled || (isAutoRow && !field.editableWhenAuto)}
                         derived={derived}
                         onFieldChange={(key, next) => setEntry(index, key, next)}
                       />
                     ))}
+                    {isAutoRow && asString(entry.tms_task_id) && (
+                      <a
+                        className={styles.tmsLinkOut}
+                        href={`/tms/tasks/${asString(entry.tms_task_id)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View in TMS ↗
+                      </a>
+                    )}
                   </div>
                 </div>
               );
@@ -561,12 +626,25 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
               >
                 Add {template.entryNoun ?? 'Entry'}
               </Button>
+              {template.supportsTmsTaskLink && (
+                <Button
+                  variant="secondary"
+                  icon={<Link2 size={15} />}
+                  onClick={() => setTmsPickerTarget('new')}
+                  disabled={!!template.maxEntries && entries.length >= template.maxEntries}
+                >
+                  Link TMS Task
+                </Button>
+              )}
               {entries.length === 0 && (
                 <span className={styles.savedHint}>
                   Add at least {template.minEntries ?? 1} {(template.entryNoun ?? 'entry').toLowerCase()} before submitting.
                 </span>
               )}
             </div>
+          )}
+          {tmsPickerTarget !== null && (
+            <TmsTaskPicker employeeId={employeeId} onClose={() => setTmsPickerTarget(null)} onSelect={handleTmsTaskSelected} />
           )}
         </>
       )}

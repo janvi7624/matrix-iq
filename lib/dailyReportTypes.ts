@@ -262,7 +262,9 @@ export interface MyDailyReportResponse {
 
 export interface DailyReportHistoryItem {
   report_date: string;
-  submission_status: DailyReportSubmissionStatus | 'MISSING';
+  /** 'PENDING' is today, not filed, before MISSING_VISIBLE_AFTER — see the
+   *  same field on TeamDailyReportRow. */
+  submission_status: DailyReportSubmissionStatus | 'MISSING' | 'PENDING';
   submitted_at: string;
   is_late: boolean;
   leave_status: DailyReportLeaveClaimStatus | '';

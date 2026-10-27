@@ -41,13 +41,15 @@ export interface DailyReportScope {
    * Departments this viewer may ACT on — edit a report, or file one on an
    * employee's behalf.
    *
-   * Split from departmentIds because the two stopped being the same thing
-   * when HR was given company-wide visibility: HR reads every department's
-   * reports but manages only its own, and resolveEmployeeAccess would
-   * otherwise have handed them edit-and-file rights over the whole company
-   * as a side effect of widening the view.
+   * Identical to departmentIds for everyone today, now that HR's old
+   * company-wide read has been removed and nobody reads more than they
+   * manage.
    *
-   * For everyone else the two lists are identical.
+   * Kept as a separate field rather than collapsed into one, because the
+   * distinction is the thing that stops a future "let X see more" change from
+   * silently also granting X edit-and-file rights over what it can now see —
+   * which is exactly what happened when HR was widened. Widen departmentIds;
+   * leave this one alone.
    */
   manageDepartmentIds: string[];
   departments: { id: string; name: string }[];
@@ -94,25 +96,17 @@ export async function resolveDailyReportScope(viewer: ViewerContext): Promise<Da
     return { seesOrgWide: true, departmentIds: ids, manageDepartmentIds: ids, departments, canFileForOthers: true, isHr: hr };
   }
 
-  // HR reads every department's reports.
+  // HR gets no special reach here. It used to read every department's
+  // reports; that was removed deliberately — the rule is that a manager sees
+  // the departments they manage and only an admin sees all of them, and HR is
+  // a department manager like any other.
   //
-  // Deliberately NOT seesOrgWide: that flag is the "may do anything to
-  // anyone" tier, and resolveEmployeeAccess grants edit and file-on-behalf
-  // from it. HR's grant is visibility only — they still manage just their own
-  // department, so manageDepartmentIds and canFileForOthers stay exactly as
-  // they were.
-  if (hr) {
-    const departments = await listActiveDepartments();
-    return {
-      seesOrgWide: false,
-      departmentIds: departments.map((d) => d.id),
-      manageDepartmentIds: managed.map((d) => d.id),
-      departments,
-      canFileForOthers: managed.length > 0,
-      isHr: true
-    };
-  }
-
+  // HR's actual compliance job is unaffected, because it never ran through
+  // this function: the warnings queue, leave claims and waiving are gated by
+  // canAccessHrReview further down, which is granted separately and stays
+  // company-wide. So an HR manager still sees who has missed reports
+  // everywhere and can still act on it — they just cannot open the CONTENTS
+  // of another department's report, which is the manager's business.
   return {
     seesOrgWide: false,
     departmentIds: managed.map((d) => d.id),

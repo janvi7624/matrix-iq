@@ -136,6 +136,10 @@ function dayState(item: DailyReportHistoryItem): { dot: string; label: string } 
       return { dot: styles.dotLate, label: 'Late' };
     case 'DRAFT':
       return { dot: styles.dotDraft, label: 'Draft' };
+    case 'PENDING':
+      // Today, still open. Not filed, but not late either — the deadline for a
+      // day's report is 11:30 the NEXT morning, so "due today" would overstate it.
+      return { dot: styles.dotPending, label: 'Not due yet' };
     default:
       return { dot: styles.dotMissing, label: item.warning_status === 'ACTIVE' ? 'Warned' : 'Missing' };
   }
@@ -240,6 +244,8 @@ export default function DailyReportView({
       onTime: history.filter((h) => h.submission_status === 'SUBMITTED').length,
       late: history.filter((h) => h.submission_status === 'SUBMITTED_LATE').length,
       missing: history.filter((h) => h.submission_status === 'MISSING' && h.leave_status !== 'APPROVED').length,
+      // Today, not filed, not yet due. Counted apart so "Missing" stays true.
+      pending: history.filter((h) => h.submission_status === 'PENDING' && h.leave_status !== 'APPROVED').length,
       leave: history.filter((h) => h.leave_status === 'APPROVED').length,
       total: history.length
     };
@@ -603,6 +609,12 @@ export default function DailyReportView({
                 <span className={styles.miniStatValue}>{tally.missing}</span>
                 <span className={styles.miniStatLabel}>Missing</span>
               </div>
+              {tally.pending > 0 && (
+                <div className={styles.miniStat}>
+                  <span className={styles.miniStatValue}>{tally.pending}</span>
+                  <span className={styles.miniStatLabel}>Not due yet</span>
+                </div>
+              )}
               <div className={`${styles.miniStat} ${styles.miniStatInfo}`}>
                 <span className={styles.miniStatValue}>{tally.leave}</span>
                 <span className={styles.miniStatLabel}>On leave</span>
@@ -622,7 +634,7 @@ export default function DailyReportView({
           </div>
           <p className={styles.sectionHint}>
             {data.template.description} The last {tally.total} working days are shown above — {tally.onTime} on time, {tally.late} late,{' '}
-            {tally.missing} missing.
+            {tally.missing} missing{tally.pending > 0 ? `, ${tally.pending} not due yet` : ''}.
           </p>
 
           <div className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`}>

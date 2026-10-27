@@ -106,15 +106,21 @@ export interface DailyReportFieldDef {
   linkedOptions?: Record<string, string[]>;
   /**
    * Conditional field: rendered, and required, ONLY when another field in
-   * the same row/header holds one of these values. Distinct from
+   * the same row/header satisfies this. Two modes, mutually exclusive:
+   * `equals` (the original) shows it when the named field's value is one of
+   * a finite list (AI's project_other, shown only for project==='Other');
+   * `notEmpty` shows it whenever the named field holds ANY value — for a
+   * field gated on something open-ended like a linked record's id, where
+   * there's no fixed list to match against. Distinct from
    * dependsOn/linkedOptions above, which narrows a dropdown's options —
    * this hides the field outright.
    *
    * Honoured in both validateField (so the server never demands a field it
-   * is not showing) and the form renderer. Those two must agree: a field
-   * required but hidden would make the report impossible to submit.
+   * is not showing) and the form renderer, via the shared isFieldVisible
+   * below. Those two must agree: a field required but hidden would make the
+   * report impossible to submit.
    */
-  showWhen?: { field: string; equals: string[] };
+  showWhen?: { field: string; equals?: string[]; notEmpty?: boolean };
   /**
    * UI-only (read by components/DailyReportForm.tsx, not validateField):
    * when this field's value changes and that would blank an already-filled
@@ -151,9 +157,32 @@ export interface DailyReportFieldDef {
    * IS rendered, just as read-only derived text.
    */
   hidden?: boolean;
+  /**
+   * Stays editable even on an auto/locked row (DailyReportForm.tsx's
+   * isAutoRow — any hidden field non-empty). Every existing field defaults
+   * to locked, matching GEM's all-locked auto rows exactly as before this
+   * existed; set true only for a field whose value the SYSTEM never
+   * supplies even on a linked row — AI's own daily notes on a TMS-linked
+   * task, for one, which stays the employee's to write regardless of what
+   * else on that row came from TMS.
+   */
+  editableWhenAuto?: boolean;
   /** Relative column width hint for the row/grid renderer. */
   width?: 'sm' | 'md' | 'lg' | 'xl';
   help?: string;
+}
+
+/**
+ * Whether a conditional field should render at all, given its row/header's
+ * current values. The one evaluation of `showWhen`, shared by the form
+ * renderer and validateField so the two can never disagree about what's on
+ * screen — see showWhen's own doc comment for why that matters.
+ */
+export function isFieldVisible(field: DailyReportFieldDef, row: Record<string, unknown>): boolean {
+  if (!field.showWhen) return true;
+  const raw = row[field.showWhen.field];
+  if (field.showWhen.notEmpty) return String(raw ?? '').trim() !== '';
+  return field.showWhen.equals?.includes(String(raw ?? '')) ?? false;
 }
 
 export interface TemplateDefinition {
@@ -203,6 +232,24 @@ export interface TemplateDefinition {
    * rows template besides GEM Sales today.
    */
   autoEntryActivity?: string;
+  /**
+   * layout 'rows' only — this template's entries may be linked to a TMS
+   * Task via a hidden tms_task_id field (added to its rowFields) rather
+   * than typed by hand. Unlike autoEntryActivity, linking is a deliberate
+   * per-entry choice the employee makes (components/TmsTaskPicker.tsx),
+   * not a daily auto-pull of everything they touched — a TMS task spans
+   * many days, so each day they still decide whether to report against it
+   * again. See lib/aiTmsTaskLink.ts for the refresh that keeps a linked
+   * row's TMS-sourced fields current on every save.
+   */
+  supportsTmsTaskLink?: boolean;
+  /**
+   * The auto-row badge's title text (DailyReportForm.tsx). Defaults to a
+   * generic phrase when absent — set this when the generic wording
+   * wouldn't name the real source correctly (GEM's rows come from a
+   * quotation; AI's TMS-linked rows come from a TMS task).
+   */
+  autoRowHint?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -425,6 +472,7 @@ const GEM_SALES_TEMPLATE: TemplateDefinition = {
   // precedent for the same reason (the system already has this data; typing
   // it again is both busywork and a second, driftable copy of the truth).
   autoEntryActivity: GEM_ACTIVITY.PROPOSAL_CREATION,
+  autoRowHint: 'Filled in automatically from your quotation activity — not editable.',
   rowFields: [
     TASK_ID_FIELD,
     {
@@ -472,11 +520,20 @@ const GEM_SALES_TEMPLATE: TemplateDefinition = {
       required: true,
       maxLength: 255,
       width: 'md',
+      // PROPOSAL_CREATION is deliberately NOT in this list, even though it is
+      // otherwise the same kind of activity.
+      //
+      // It is autoEntryActivity: its rows are generated from the day's
+      // quotation activity and are LOCKED in the form. A quotation has no
+      // site, so the auto-fetch has no location to write — which left a
+      // required field, on a row nobody can type into, that nothing fills.
+      // The report simply could not be submitted. Asking where a proposal was
+      // written is meaningless anyway; the other seven activities are all
+      // things that happen somewhere.
       showWhen: {
         field: 'gem_team_activity',
         equals: [
           GEM_ACTIVITY.TENDER_EXPLORE,
-          GEM_ACTIVITY.PROPOSAL_CREATION,
           GEM_ACTIVITY.VENDOR_FOLLOWUP,
           GEM_ACTIVITY.BID_SUBMISSION,
           GEM_ACTIVITY.EMPANELMENT,
@@ -930,14 +987,24 @@ const AI_TEMPLATE: TemplateDefinition = {
   layout: 'rows',
   entryNoun: 'Task',
   minEntries: 1,
+  supportsTmsTaskLink: true,
+  autoRowHint: 'Linked to a TMS task — synced automatically, not editable. Add your notes below.',
   headerFields: [],
   rowFields: [
     TASK_ID_FIELD,
+    // The link to a real TMS task, set only by components/TmsTaskPicker.tsx
+    // (never typed) — see its own doc comment on TemplateDefinition and
+    // lib/aiTmsTaskLink.ts, which re-derives every tms_*-prefixed field
+    // below from the live TmsTask on every save.
+    { key: 'tms_task_id', label: 'Linked TMS Task', type: 'text', hidden: true },
     { key: 'task_description', label: 'Task Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
-    { key: 'project', label: 'Project / Category', type: 'select', required: true, options: AI_PROJECT_CATEGORY_OPTIONS, width: 'md' },
     // Appears only for "Other", and is required only then — see showWhen on
     // DailyReportFieldDef. Without it, choosing Other would record a task
-    // whose category says nothing.
+    // whose category says nothing. Stays editable even on a linked row: a
+    // reporting classification (client/internal/other) is independent of
+    // which real TMS project the task happens to belong to — see
+    // tms_project_name below, which carries that separately.
+    { key: 'project', label: 'Project / Category', type: 'select', required: true, options: AI_PROJECT_CATEGORY_OPTIONS, width: 'md', editableWhenAuto: true },
     {
       key: 'project_other',
       label: 'Which project / category?',
@@ -945,13 +1012,22 @@ const AI_TEMPLATE: TemplateDefinition = {
       required: true,
       maxLength: 255,
       width: 'md',
-      showWhen: { field: 'project', equals: ['Other'] }
+      showWhen: { field: 'project', equals: ['Other'] },
+      editableWhenAuto: true
     },
     { key: 'priority', label: 'Priority', type: 'select', required: true, options: PRIORITY_OPTIONS, width: 'sm' },
+    // The 3-way bucket every other report in this module uses, kept
+    // accurate for a linked row by lib/aiTmsTaskLink.ts's mapping — but
+    // TMS has 7 states to this field's 3, so tms_status_label right next to
+    // it is what actually says "Blocked" or "Ready for Review" rather than
+    // forcing a lossy guess to stand in for the real word.
     { key: 'status', label: 'Status', type: 'select', required: true, options: AI_STATUS_OPTIONS, width: 'sm' },
+    { key: 'tms_status_label', label: 'TMS Status', type: 'text', width: 'sm', showWhen: { field: 'tms_task_id', notEmpty: true } },
+    { key: 'tms_project_name', label: 'TMS Project', type: 'text', width: 'md', showWhen: { field: 'tms_task_id', notEmpty: true } },
+    { key: 'tms_progress_percent', label: 'TMS Progress', type: 'text', width: 'sm', showWhen: { field: 'tms_task_id', notEmpty: true } },
     { key: 'due_date', label: 'Due Date', type: 'date', required: true, width: 'sm' },
     { key: 'days_left', label: 'Days Left', type: 'computed', computed: 'days_left', width: 'sm', help: 'From today to the due date, so it keeps counting down after the report is filed. A completed task shows the date it was completed instead.' },
-    { key: 'notes', label: 'Notes', type: 'textarea', maxLength: 1000, width: 'lg' }
+    { key: 'notes', label: 'Notes', type: 'textarea', maxLength: 1000, width: 'lg', editableWhenAuto: true }
   ]
 };
 
@@ -1259,10 +1335,7 @@ function validateField(field: DailyReportFieldDef, raw: Record<string, unknown>,
   // the server-side half of showWhen, and it has to match the renderer: if
   // the form hides a field the server still requires, the report simply
   // cannot be submitted and the message points at a box nobody can see.
-  if (field.showWhen) {
-    const governing = asTrimmedString(raw[field.showWhen.field]);
-    if (!field.showWhen.equals.includes(governing)) return;
-  }
+  if (!isFieldVisible(field, raw)) return;
 
   const path = `${pathPrefix}.${field.key}`;
   const value = asTrimmedString(raw[field.key]);
@@ -1423,10 +1496,7 @@ export function validateReportPayload(template: TemplateDefinition, input: Daily
         // only clears one level of (see setEntry's own clearing logic),
         // or simply an old cached payload. The server never trusts the
         // client to have cleared what it can check for itself.
-        if (field.showWhen) {
-          const governing = asTrimmedString(row[field.showWhen.field]);
-          if (!field.showWhen.equals.includes(governing)) return;
-        }
+        if (!isFieldVisible(field, row)) return;
         if (field.dependsOn && !asTrimmedString(row[field.dependsOn])) return;
         const value = asTrimmedString(row[field.key]);
         if (value) clean[field.key] = field.type === 'number' ? Number(value) : value;

@@ -18,12 +18,13 @@ import {
   isEntryOverdue,
   validateReportPayload
 } from './dailyReportTemplates';
-import { DeadlinePolicy, isIsoDate, isLateSubmission, istDate, scheduleFor } from './dailyReportTime';
+import { DeadlinePolicy, isIsoDate, isLateSubmission, istDate, missingIsVisibleYet, scheduleFor } from './dailyReportTime';
 import { resolveTemplateForDepartment, resolveTemplateForStoredReport } from './dailyReportTemplateStore';
 import { getDeadlinePolicy } from './dailyReportConfigStore';
 import { consumeEditGrant } from './dailyReportEditRequestStore';
 import { computeSalesAutoMatrix, mergeAutoMatrix } from './salesDailyAutoFetch';
 import { computeGemProposalEntries, mergeAutoGemEntries } from './gemProposalAutoFetch';
+import { refreshTmsLinkedEntries } from './aiTmsTaskLink';
 
 // Reports, their entries, and their revision history.
 //
@@ -398,12 +399,19 @@ export async function saveReport(input: SaveReportInput): Promise<SaveReportResu
     // so a snapshot taken from the validator output would be the only
     // place it was missing), and carryCompletions needs the outgoing
     // generation, which replaceEntries is about to destroy.
-    const stampedEntries = carryCompletions(
+    let stampedEntries = carryCompletions(
       validation.normalized.entries,
       existing ? await loadEntryData(existing.get('id') as string, t) : [],
       input.reportDate,
       istDate(new Date())
     );
+    // A linked AI row's TMS-sourced fields (description, due date, status,
+    // progress...) have the final say over whatever carryCompletions just
+    // guessed from content-matching — see lib/aiTmsTaskLink.ts's own
+    // comment on why this runs after it, not before.
+    if (resolved.template.layout === 'rows' && resolved.template.supportsTmsTaskLink) {
+      stampedEntries = await refreshTmsLinkedEntries(stampedEntries, input.employeeId);
+    }
     const snapshot = { payload: validation.normalized.header, matrix: validation.normalized.matrix, entries: stampedEntries };
 
     if (!existing) {
@@ -706,12 +714,21 @@ export async function buildHistory(
 ): Promise<DailyReportHistoryItem[]> {
   if (!reportDates.length) return [];
   const sorted = [...reportDates].sort();
+  const now = new Date();
   const statuses = await loadReportStatuses([employeeId], sorted[0], sorted[sorted.length - 1]);
   return [...sorted].reverse().map((reportDate) => {
     const found = statuses.get(lookupKey(employeeId, reportDate));
     return {
       report_date: reportDate,
-      submission_status: found ? found.submission_status : 'MISSING',
+      // Same rule the team dashboard uses: today is not 'missing' until the
+      // day has stopped being open. Applying it in only one of the two
+      // places meant an employee's own page called them missing at 9am while
+      // their manager's page did not.
+      submission_status: found
+        ? found.submission_status
+        : missingIsVisibleYet(reportDate, now)
+          ? 'MISSING'
+          : 'PENDING',
       submitted_at: found?.submitted_at ?? '',
       is_late: found?.is_late ?? false,
       leave_status: leaveByDate.get(reportDate) ?? '',

@@ -139,9 +139,8 @@ describe('scope', () => {
     }
   });
 
-  // HR's company-wide access is granted separately and deliberately, and is
-  // read-only — it must survive the manager change above.
-  it('still lets HR read every department without managing them', async () => {
+  // HR gets no wider reach than the department it manages.
+  it('gives HR its own department and nothing more', async () => {
     capability.mockResolvedValue(false);
     hrManager.mockResolvedValue(true);
     managed.mockResolvedValue([{ id: 'dept-hr', name: 'HR & Admin' }]);
@@ -151,8 +150,7 @@ describe('scope', () => {
     ] as never);
     const scope = await resolveDailyReportScope(viewer({ role: 'hr' }));
     expect(scope.seesOrgWide).toBe(false);
-    expect(scope.departmentIds).toEqual(['dept-hr', 'dept-2']);
-    // Reads everything, manages only its own.
+    expect(scope.departmentIds).toEqual(['dept-hr']);
     expect(scope.manageDepartmentIds).toEqual(['dept-hr']);
   });
 });
@@ -269,11 +267,15 @@ describe('per-employee access', () => {
 });
 
 
-describe('HR reads every department, and manages only its own', () => {
-  // HR's grant is VISIBILITY. The split exists because resolveEmployeeAccess
-  // derives edit and file-on-behalf rights from the scope too — widening one
-  // list without the other would have handed HR the power to rewrite any
-  // employee's report in the company as a side effect of letting them read it.
+describe('HR is scoped to its own department, like any other manager', () => {
+  // HR used to read every department's reports. That was removed: a manager
+  // sees what they manage, and only an admin sees all of them.
+  //
+  // HR's compliance job is untouched, because it never came through this
+  // function — the warnings queue, leave claims and waiving are gated by
+  // canAccessHrReview, which is granted separately and stays company-wide.
+  // So HR still sees WHO has missed reports everywhere; it just cannot open
+  // the CONTENTS of another department's report.
 
   const DEPTS = [
     { id: 'd-hr', name: 'HR & Admin' },
@@ -290,11 +292,11 @@ describe('HR reads every department, and manages only its own', () => {
     );
   }
 
-  it('reads every active department', async () => {
+  it('reads only the department it manages', async () => {
     asHr();
     const scope = await resolveDailyReportScope(viewer({ role: 'hr' }));
-    expect(scope.departmentIds).toEqual(['d-hr', 'd-ai', 'd-av']);
-    expect(scope.departments).toHaveLength(3);
+    expect(scope.departmentIds).toEqual(['d-hr']);
+    expect(scope.departments).toHaveLength(1);
   });
 
   it('manages only the department it actually manages', async () => {
@@ -317,11 +319,11 @@ describe('HR reads every department, and manages only its own', () => {
     await expect(canAccessTeamDashboard(viewer({ role: 'hr' }))).resolves.toBe(true);
   });
 
-  it('may VIEW an employee outside its department but not change anything', async () => {
+  it('cannot reach an employee outside its department at all', async () => {
     asHr();
     vi.mocked(db.User.findByPk).mockResolvedValue({ get: (k: string) => (k === 'departmentId' ? 'd-ai' : OTHER) } as never);
     const access = await resolveEmployeeAccess(viewer({ role: 'hr' }), OTHER);
-    expect(access.canView).toBe(true);
+    expect(access.canView).toBe(false);
     expect(access.canEdit).toBe(false);
     expect(access.canFileForThem).toBe(false);
   });

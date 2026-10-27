@@ -458,6 +458,75 @@
   flex-direction: column;
   gap: 2px;
 }
+/* TmsTaskPicker — the "Select Existing TMS Task" search + list. */
+.tmsPickerSearch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--mx-ink-muted);
+}
+.tmsPickerSearch > :global(input) {
+  flex: 1;
+}
+.tmsPickerList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.tmsPickerRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface);
+  cursor: pointer;
+  font: inherit;
+}
+.tmsPickerRow:hover,
+.tmsPickerRow:focus-visible {
+  border-color: var(--mx-info);
+  background: var(--mx-surface-sunken);
+}
+.tmsPickerRowMain {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tmsPickerRowName {
+  font-weight: var(--mx-weight-semibold);
+  font-size: 13.5px;
+}
+.tmsPickerRowProject {
+  font-size: 12.5px;
+  color: var(--mx-ink-muted);
+}
+.tmsPickerRowMeta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--mx-ink-muted);
+}
+
+/* A linked AI task's way back to the real record — small, inline, under the
+   locked fields rather than competing with them for width. */
+.tmsLinkOut {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--mx-info);
+  text-decoration: none;
+}
+.tmsLinkOut:hover {
+  text-decoration: underline;
+}
+
 .autoDetailRow {
   display: flex;
   justify-content: space-between;
@@ -594,6 +663,13 @@
 }
 .dotDraft {
   background: var(--mx-slate-300);
+}
+/* Today, not filed, not yet due. Deliberately quiet — the point of the
+   cut-off is that this state is not a problem, so it must not wear
+   .dotMissing's red. */
+.dotPending {
+  background: var(--mx-slate-300);
+  box-shadow: inset 0 0 0 2px var(--mx-surface), 0 0 0 2px var(--mx-slate-300);
 }
 .dotLeave {
   background: var(--mx-info);

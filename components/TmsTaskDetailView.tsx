@@ -25,6 +25,15 @@ interface TaskDetailResponse {
   extensions?: TmsTaskDeadlineExtensionRecord[];
 }
 
+interface LinkedDailyReportEntry {
+  reportId: string;
+  reportDate: string;
+  employeeName: string;
+  notes: string;
+  status: string;
+  progressPercent: string;
+}
+
 // Client-side mirror of lib/tmsTaskStore.ts's VALID_TRANSITIONS — for
 // button visibility only. The real enforcement is server-side in
 // app/api/tms/tasks/[id]/update/route.ts; a stale/wrong entry here would at
@@ -71,6 +80,7 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
   const [postingComment, setPostingComment] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [taskUpdates, setTaskUpdates] = useState<TmsTaskUpdateRecord[]>([]);
+  const [linkedReports, setLinkedReports] = useState<LinkedDailyReportEntry[]>([]);
   const [actingAction, setActingAction] = useState<EngineerTaskAction | null>(null);
   const [actionRemark, setActionRemark] = useState('');
   const [actionProgress, setActionProgress] = useState('');
@@ -143,9 +153,21 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
     }
   }
 
+  async function loadLinkedReports() {
+    try {
+      const response = await fetch(`/api/tms/tasks/${taskId}/daily-reports`);
+      if (!response.ok) return;
+      const body: { entries: LinkedDailyReportEntry[] } = await response.json();
+      setLinkedReports(body.entries);
+    } catch {
+      // non-critical — the page still works without this panel
+    }
+  }
+
   useEffect(() => {
     load();
     loadUpdates();
+    loadLinkedReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
@@ -487,6 +509,25 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
           </div>
         )}
       </div>
+
+      {linkedReports.length > 0 && (
+        <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
+          <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Linked Daily Reports</div>
+          <div className={styles.activityList}>
+            {linkedReports.map((entry) => (
+              <div key={`${entry.reportId}-${entry.reportDate}`} className={styles.activityItem}>
+                <div className={styles.activityAction}>
+                  {entry.employeeName} — {entry.status || 'reported'}{entry.progressPercent ? ` (${entry.progressPercent})` : ''}
+                  {entry.notes ? `: ${entry.notes}` : ''}
+                </div>
+                <div className={styles.activityMeta}>
+                  <Link href={`/daily-reports?tab=team&date=${entry.reportDate}&report=${entry.reportId}`}>{formatDate(entry.reportDate)}</Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
         <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Attachments</div>
