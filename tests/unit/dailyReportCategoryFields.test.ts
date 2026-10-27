@@ -31,12 +31,12 @@ describe('describeCategoryGroups', () => {
 
   it('describes a plain select as a group with no child', () => {
     const groups = describeCategoryGroups(AI);
-    const project = groups.find((g) => g.parentKey === 'project');
-    expect(project).toBeTruthy();
-    expect(project!.childKey).toBeNull();
-    expect(Object.keys(project!.catalogue)).toEqual(['Client', 'Internal', 'Other']);
+    const priority = groups.find((g) => g.parentKey === 'priority');
+    expect(priority).toBeTruthy();
+    expect(priority!.childKey).toBeNull();
+    expect(Object.keys(priority!.catalogue)).toEqual(['Low', 'Medium', 'High', 'Critical']);
     // No child means no sub-categories, not missing ones.
-    expect(Object.values(project!.catalogue).every((v) => v.length === 0)).toBe(true);
+    expect(Object.values(priority!.catalogue).every((v) => v.length === 0)).toBe(true);
   });
 
   it('never offers a dependent field as a category of its own', () => {
@@ -46,9 +46,12 @@ describe('describeCategoryGroups', () => {
     expect(groups.some((g) => g.parentKey === 'activity')).toBe(false);
   });
 
-  it('never offers a computed or free-text field', () => {
+  it('never offers a computed, free-text, or bespoke-rendered field', () => {
+    // project is bespoke-rendered now (hidden, backed by live TMS projects
+    // plus the fixed 'Other' escape hatch) rather than a manager-editable
+    // catalogue, so it must not surface here either.
     const groups = describeCategoryGroups(AI);
-    for (const key of ['task_code', 'task_description', 'due_date', 'days_left', 'notes', 'project_other']) {
+    for (const key of ['task_code', 'task_description', 'due_date', 'days_left', 'notes', 'project', 'project_other']) {
       expect(groups.some((g) => g.parentKey === key), key).toBe(false);
     }
   });
@@ -144,10 +147,10 @@ describe('overridesFromGroups', () => {
 
   it('handles a plain select with no child field', () => {
     const groups = describeCategoryGroups(AI);
-    const project = groups.find((g) => g.parentKey === 'project')!;
-    project.catalogue['Partner'] = [];
-    const overrides = overridesFromGroups(AI, [project]);
-    expect(overrides.options!.project).toEqual(['Client', 'Internal', 'Other', 'Partner']);
+    const priority = groups.find((g) => g.parentKey === 'priority')!;
+    priority.catalogue['Blocker'] = [];
+    const overrides = overridesFromGroups(AI, [priority]);
+    expect(overrides.options!.priority).toEqual(['Low', 'Medium', 'High', 'Critical', 'Blocker']);
     // No child key, so nothing may be written to linkedOptions.
     expect(overrides.linkedOptions).toBeUndefined();
   });
@@ -155,7 +158,7 @@ describe('overridesFromGroups', () => {
 
 describe('a sub-category level a manager adds', () => {
   it('marks a flat select as having no sub-level yet, and HR as having a native one', () => {
-    const ai = describeCategoryGroups(AI).find((g) => g.parentKey === 'project')!;
+    const ai = describeCategoryGroups(AI).find((g) => g.parentKey === 'priority')!;
     expect(ai.subLevelEnabled).toBe(false);
     expect(ai.childIsCustom).toBe(true);
 
@@ -165,44 +168,44 @@ describe('a sub-category level a manager adds', () => {
   });
 
   it('turns into a real dependent dropdown on the form', () => {
-    const group = describeCategoryGroups(AI).find((g) => g.parentKey === 'project')!;
+    const group = describeCategoryGroups(AI).find((g) => g.parentKey === 'priority')!;
     group.subLevelEnabled = true;
-    group.childLabel = 'Module';
-    group.catalogue.Internal = ['MatrixIQ', 'Website'];
-    group.catalogue.Client = ['Deployment'];
+    group.childLabel = 'Reason';
+    group.catalogue.Low = ['Routine'];
+    group.catalogue.High = ['Client escalation'];
 
     const overrides = overridesFromGroups(AI, [group]);
-    expect(overrides.subCategories!.project.label).toBe('Module');
+    expect(overrides.subCategories!.priority.label).toBe('Reason');
 
     const resolved = resolveTemplate('ai', overrides);
-    const sub = resolved.rowFields.find((f) => f.key === 'project_sub')!;
+    const sub = resolved.rowFields.find((f) => f.key === 'priority_sub')!;
     expect(sub).toBeTruthy();
     expect(sub.type).toBe('select');
-    expect(sub.dependsOn).toBe('project');
-    expect(sub.linkedOptions!.Internal).toEqual(['MatrixIQ', 'Website']);
+    expect(sub.dependsOn).toBe('priority');
+    expect(sub.linkedOptions!.High).toEqual(['Client escalation']);
     // It must sit directly after its parent, or it reads as unrelated.
     const keys = resolved.rowFields.map((f) => f.key);
-    expect(keys.indexOf('project_sub')).toBe(keys.indexOf('project') + 1);
+    expect(keys.indexOf('priority_sub')).toBe(keys.indexOf('priority') + 1);
   });
 
   it('does not appear at all until the manager adds one', () => {
     const resolved = resolveTemplate('ai', overridesFromGroups(AI, describeCategoryGroups(AI)));
-    expect(resolved.rowFields.some((f) => f.key === 'project_sub')).toBe(false);
+    expect(resolved.rowFields.some((f) => f.key === 'priority_sub')).toBe(false);
   });
 
   it('can be switched off again, removing the field', () => {
-    const group = describeCategoryGroups(AI).find((g) => g.parentKey === 'project')!;
+    const group = describeCategoryGroups(AI).find((g) => g.parentKey === 'priority')!;
     group.subLevelEnabled = true;
-    group.childLabel = 'Module';
-    group.catalogue.Internal = ['MatrixIQ'];
+    group.childLabel = 'Reason';
+    group.catalogue.Low = ['Routine'];
     const on = overridesFromGroups(AI, [group]);
-    expect(resolveTemplate('ai', on).rowFields.some((f) => f.key === 'project_sub')).toBe(true);
+    expect(resolveTemplate('ai', on).rowFields.some((f) => f.key === 'priority_sub')).toBe(true);
 
-    const back = describeCategoryGroups(AI, on).find((g) => g.parentKey === 'project')!;
+    const back = describeCategoryGroups(AI, on).find((g) => g.parentKey === 'priority')!;
     back.subLevelEnabled = false;
     const off = overridesFromGroups(AI, [back], on);
     expect(off.subCategories).toBeUndefined();
-    expect(resolveTemplate('ai', off).rowFields.some((f) => f.key === 'project_sub')).toBe(false);
+    expect(resolveTemplate('ai', off).rowFields.some((f) => f.key === 'priority_sub')).toBe(false);
   });
 
   it('refuses to remove a sub-level the template itself declares', () => {
@@ -213,30 +216,30 @@ describe('a sub-category level a manager adds', () => {
 
   it('keeps the stored field key stable when only the label is renamed', () => {
     // Renaming must not orphan values already filed under the old key.
-    const group = describeCategoryGroups(AI).find((g) => g.parentKey === 'project')!;
+    const group = describeCategoryGroups(AI).find((g) => g.parentKey === 'priority')!;
     group.subLevelEnabled = true;
-    group.childLabel = 'Module';
-    group.catalogue.Internal = ['MatrixIQ'];
+    group.childLabel = 'Reason';
+    group.catalogue.Low = ['Routine'];
     const first = overridesFromGroups(AI, [group]);
 
-    const renamed = describeCategoryGroups(AI, first).find((g) => g.parentKey === 'project')!;
+    const renamed = describeCategoryGroups(AI, first).find((g) => g.parentKey === 'priority')!;
     renamed.childLabel = 'Work stream';
     const second = overridesFromGroups(AI, [renamed], first);
 
-    expect(second.subCategories!.project.label).toBe('Work stream');
-    expect(resolveTemplate('ai', second).rowFields.some((f) => f.key === 'project_sub')).toBe(true);
+    expect(second.subCategories!.priority.label).toBe('Work stream');
+    expect(resolveTemplate('ai', second).rowFields.some((f) => f.key === 'priority_sub')).toBe(true);
   });
 
   it('round-trips a manager edit back into the editor unchanged', () => {
-    const group = describeCategoryGroups(AI).find((g) => g.parentKey === 'project')!;
+    const group = describeCategoryGroups(AI).find((g) => g.parentKey === 'priority')!;
     group.subLevelEnabled = true;
-    group.childLabel = 'Module';
-    group.catalogue.Internal = ['MatrixIQ', 'Website'];
+    group.childLabel = 'Reason';
+    group.catalogue.Low = ['Routine', 'Backlog'];
     const overrides = overridesFromGroups(AI, [group]);
 
-    const reloaded = describeCategoryGroups(AI, overrides).find((g) => g.parentKey === 'project')!;
+    const reloaded = describeCategoryGroups(AI, overrides).find((g) => g.parentKey === 'priority')!;
     expect(reloaded.subLevelEnabled).toBe(true);
-    expect(reloaded.childLabel).toBe('Module');
-    expect(reloaded.catalogue.Internal).toEqual(['MatrixIQ', 'Website']);
+    expect(reloaded.childLabel).toBe('Reason');
+    expect(reloaded.catalogue.Low).toEqual(['Routine', 'Backlog']);
   });
 });

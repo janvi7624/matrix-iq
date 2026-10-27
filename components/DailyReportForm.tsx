@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Trash2, Link2, PlusCircle } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowUp, Plus, Trash2, Link2 } from 'lucide-react';
 import {
   DailyReportFieldDef,
   DailyReportPayloadInput,
@@ -22,7 +22,6 @@ import { useConfirm } from './ui/ConfirmDialog';
 import { useSalesAutoDetail } from './useSalesAutoDetail';
 import TmsTaskPicker, { TmsLinkableTask } from './TmsTaskPicker';
 import TmsLinkedTaskPanel from './TmsLinkedTaskPanel';
-import TmsTaskConvertModal, { ConvertedTmsTask } from './TmsTaskConvertModal';
 import TmsNewTaskProjectSelect, { TmsProjectOption } from './TmsNewTaskProjectSelect';
 import { buildEntryPatchFromTmsTask, reverseAiPriority } from '@/lib/aiTmsStatusMapping';
 
@@ -397,7 +396,11 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
   // saved. No clearHiddenFields pass: nothing patched here governs another
   // field's showWhen/dependsOn.
   function patchEntry(index: number, patch: Record<string, unknown>) {
-    const updated = entries.map((entry2, i) => (i === index ? { ...entry2, ...patch } : entry2));
+    // clearHiddenFields matters here too, not just in setEntry: switching
+    // `project` away from 'Other' must blank project_other, the same as it
+    // would through a normal single-field edit — patchEntry just applies
+    // several fields in one go rather than skipping that rule.
+    const updated = entries.map((entry2, i) => (i === index ? clearHiddenFields({ ...entry2, ...patch }) : entry2));
     onChange({ ...value, entries: updated });
   }
 
@@ -454,26 +457,6 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
     const matrix = { ...(value.matrix ?? {}) };
     matrix[measure] = { ...(matrix[measure] ?? {}), [channel]: next };
     onChange({ ...value, matrix });
-  }
-
-  // Workflow B: a standalone row (no tms_task_id) converted into a real TMS
-  // task via components/TmsTaskConvertModal.tsx — null when closed, a row
-  // index while that row's conversion dialog is open.
-  const [convertTarget, setConvertTarget] = useState<number | null>(null);
-
-  function handleTaskConverted(index: number, task: ConvertedTmsTask) {
-    patchEntry(index, {
-      tms_task_id: task.id,
-      ...buildEntryPatchFromTmsTask({
-        name: task.name,
-        description: task.description,
-        dueDate: task.due_date,
-        priority: task.priority,
-        status: task.status,
-        projectName: task.project_name,
-        progressPercent: task.progress_percent
-      })
-    });
   }
 
   return (
@@ -610,26 +593,15 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                     {!disabled && !isAutoRow && (
                       <div className={styles.entryTools}>
                         {template.supportsTmsTaskLink && (
-                          <>
-                            <button
-                              type="button"
-                              className={styles.iconBtn}
-                              onClick={() => setTmsPickerTarget(index)}
-                              aria-label={`Link ${template.entryNoun ?? 'entry'} ${index + 1} to a TMS task`}
-                              title="Link to a TMS task"
-                            >
-                              <Link2 size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              className={styles.iconBtn}
-                              onClick={() => setConvertTarget(index)}
-                              aria-label={`Create a TMS task from ${template.entryNoun ?? 'entry'} ${index + 1}`}
-                              title="Create a TMS task from this"
-                            >
-                              <PlusCircle size={15} />
-                            </button>
-                          </>
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            onClick={() => setTmsPickerTarget(index)}
+                            aria-label={`Link ${template.entryNoun ?? 'entry'} ${index + 1} to an existing TMS task`}
+                            title="Link to an existing TMS task"
+                          >
+                            <Link2 size={15} />
+                          </button>
                         )}
                         <button
                           type="button"
@@ -662,25 +634,33 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                   </div>
                   <div className={styles.entryGrid}>
                     {template.rowFields.map((field) => (
-                      <FieldControl
-                        key={field.key}
-                        field={field}
-                        row={entry}
-                        path={`entries.${index}`}
-                        issues={issues}
-                        disabled={disabled || (isAutoRow && !field.editableWhenAuto)}
-                        derived={derived}
-                        onFieldChange={(key, next) => setEntry(index, key, next)}
-                      />
+                      <Fragment key={field.key}>
+                        <FieldControl
+                          field={field}
+                          row={entry}
+                          path={`entries.${index}`}
+                          issues={issues}
+                          disabled={disabled || (isAutoRow && !field.editableWhenAuto)}
+                          derived={derived}
+                          onFieldChange={(key, next) => setEntry(index, key, next)}
+                        />
+                        {/* Sits right where "Project / Category" used to
+                            render as a plain field — same visual slot, now a
+                            bespoke, per-employee-data-backed control instead
+                            of a static options list (see its own comment on
+                            why: lib/dailyReportTemplates.ts's `project`). */}
+                        {field.key === 'task_description' && template.supportsTmsTaskLink && (
+                          <TmsNewTaskProjectSelect
+                            projects={tmsProjects}
+                            error={tmsProjectsError}
+                            projectId={asString(entry.tms_project_id)}
+                            projectName={asString(entry.project)}
+                            locked={disabled || isAutoRow}
+                            onChange={({ projectId, projectName }) => patchEntry(index, { tms_project_id: projectId, project: projectName })}
+                          />
+                        )}
+                      </Fragment>
                     ))}
-                    {!disabled && template.supportsTmsTaskLink && !isAutoRow && (
-                      <TmsNewTaskProjectSelect
-                        projects={tmsProjects}
-                        error={tmsProjectsError}
-                        value={asString(entry.tms_project_id)}
-                        onChange={(projectId) => setEntry(index, 'tms_project_id', projectId)}
-                      />
-                    )}
                     {isAutoRow && asString(entry.tms_task_id) && (
                       <a
                         className={styles.tmsLinkOut}
@@ -741,16 +721,6 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
               alreadyLinkedTaskIds={entries.map((e) => asString(e.tms_task_id)).filter(Boolean)}
               onClose={() => setTmsPickerTarget(null)}
               onSelect={handleTmsTaskSelected}
-            />
-          )}
-          {convertTarget !== null && entries[convertTarget] && (
-            <TmsTaskConvertModal
-              employeeId={employeeId}
-              initialDescription={asString(entries[convertTarget].task_description)}
-              initialPriority={reverseAiPriority(asString(entries[convertTarget].priority)) || 'medium'}
-              initialDueDate={asString(entries[convertTarget].due_date)}
-              onClose={() => setConvertTarget(null)}
-              onConverted={(task) => handleTaskConverted(convertTarget, task)}
             />
           )}
         </>

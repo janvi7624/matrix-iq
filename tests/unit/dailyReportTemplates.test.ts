@@ -425,7 +425,17 @@ describe('R&D priority and status', () => {
 // that matters is that it is required ONLY then — a field required while
 // hidden would make the whole report unsubmittable, complaining about a box
 // that is not on screen.
-describe('the AI project category', () => {
+// Management's call (see lib/dailyReportTemplates.ts's own comment on
+// `project`): every AI task must name a real TMS project or be explicitly
+// marked 'Other' — there is no more static Client/Internal/Other list.
+// `project` is bespoke-rendered (components/TmsNewTaskProjectSelect.tsx,
+// backed by the employee's real TMS projects) rather than a template-fixed
+// select, so there is no longer a fixed `options` list for validateField to
+// check a value against — any non-empty string is syntactically valid here;
+// the actual "is this really one of my real TMS projects" check happens
+// server-side, against live data, in lib/aiTmsTaskLink.ts's
+// createPendingTmsTasksFromEntries, not in this generic template validator.
+describe('the AI project field', () => {
   const ai = BUILT_IN_TEMPLATES.ai;
   const base = {
     task_description: 'Trained the detector.',
@@ -434,19 +444,26 @@ describe('the AI project category', () => {
     due_date: '2026-10-25'
   };
 
-  it('is a dropdown of Client, Internal and Other', () => {
+  it('is required but bespoke-rendered, not a template-fixed dropdown', () => {
     const field = ai.rowFields.find((f) => f.key === 'project');
-    expect(field?.type).toBe('select');
-    expect(field?.options).toEqual(['Client', 'Internal', 'Other']);
+    expect(field?.type).toBe('text');
+    expect(field?.hidden).toBe(true);
+    expect(field?.required).toBe(true);
+    expect(field?.options).toBeUndefined();
   });
 
-  it('rejects a category that is not on the list', () => {
-    const issues = validateReportPayload(ai, payload({ entries: [{ ...base, project: 'VisitIQ' }] }), true).issues.map((i) => i.path);
+  it('does not lock the row just by being set — a pending choice is not a link yet', () => {
+    const field = ai.rowFields.find((f) => f.key === 'project');
+    expect(field?.locksRowWhenSet).toBe(false);
+  });
+
+  it('is required on submit — a task cannot be filed with no project chosen at all', () => {
+    const issues = validateReportPayload(ai, payload({ entries: [{ ...base, project: '' }] }), true).issues.map((i) => i.path);
     expect(issues).toContain('entries.0.project');
   });
 
-  it.each(['Client', 'Internal'])('needs no explanation for %s', (project) => {
-    expect(validateReportPayload(ai, payload({ entries: [{ ...base, project }] }), true).ok).toBe(true);
+  it('needs no explanation for a real project name', () => {
+    expect(validateReportPayload(ai, payload({ entries: [{ ...base, project: 'Bhatinda' }] }), true).ok).toBe(true);
   });
 
   it('demands an explanation for Other', () => {
@@ -459,10 +476,10 @@ describe('the AI project category', () => {
     expect(validateReportPayload(ai, payload({ entries: [row] }), true).ok).toBe(true);
   });
 
-  // A stale value left over from switching Other -> Client must not be
-  // validated either, or a since-hidden box could block submission.
-  it('ignores a leftover explanation when the category is not Other', () => {
-    const row = { ...base, project: 'Client', project_other: 'x'.repeat(500) };
+  // A stale value left over from switching Other -> a real project must not
+  // be validated either, or a since-hidden box could block submission.
+  it('ignores a leftover explanation when the project is not Other', () => {
+    const row = { ...base, project: 'Bhatinda', project_other: 'x'.repeat(500) };
     expect(validateReportPayload(ai, payload({ entries: [row] }), true).ok).toBe(true);
   });
 });

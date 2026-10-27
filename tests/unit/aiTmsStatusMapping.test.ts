@@ -31,7 +31,9 @@ describe('buildEntryPatchFromTmsTask', () => {
     expect(patch.priority).toBe('High');
     expect(patch.status).toBe('In Progress');
     expect(patch.tms_status_label).toBe('In Progress');
-    expect(patch.tms_project_name).toBe('Bhatinda');
+    // project IS the TMS project name for a linked row now — no separate
+    // tms_project_name field (see buildEntryPatchFromTmsTask's own comment).
+    expect(patch.project).toBe('Bhatinda');
     expect(patch.tms_progress_percent).toBe('50%');
   });
 

@@ -522,24 +522,16 @@
   color: var(--mx-ink-muted);
 }
 
-/* TmsNewTaskProjectSelect — the "turn this plain note into a TMS task"
-   dropdown on a standalone row. */
+/* TmsNewTaskProjectSelect — the required "Project / Category" dropdown,
+   sized and positioned like any other 'md' field (it replaces one); uses
+   calcStyles.field/label/small for the rest, for exact visual parity. */
 .tmsNewTaskPicker {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-width: 320px;
-  margin-top: 4px;
+  grid-column: span 4;
 }
-.tmsNewTaskLabel {
-  font-size: 12.5px;
-  font-weight: var(--mx-weight-semibold);
-  color: var(--mx-ink-muted);
-}
-.tmsNewTaskHint {
-  font-size: 12px;
-  color: var(--mx-ink-muted);
+@media (max-width: 900px) {
+  .tmsNewTaskPicker {
+    grid-column: span 12;
+  }
 }
 
 /* TmsLinkedTaskPanel — the write half of the link: actions that post

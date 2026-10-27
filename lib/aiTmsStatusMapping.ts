@@ -76,11 +76,17 @@ export function buildEntryPatchFromTmsTask(fields: TmsTaskDisplayFields): Record
     // name) — falling back to the name keeps this REQUIRED AI field from
     // ever going blank on a linked row.
     task_description: fields.description || fields.name,
+    // "Project / Category" IS the real TMS project name for a linked row —
+    // the field no longer has a separate "Client/Internal/Other" meaning of
+    // its own (see AI_TEMPLATE's own comment on `project`). Kept as the one
+    // field rather than a parallel tms_project_name, so anywhere that
+    // already reads entry.project (DailyReportReadView's generic field
+    // rendering, for one) shows the right thing with no separate case.
+    project: fields.projectName,
     due_date: fields.dueDate,
     priority: mapTmsPriorityToAiPriority(fields.priority),
     status: aiStatus,
     tms_status_label: TMS_TASK_STATUS_LABEL[fields.status as TmsTaskStatus] ?? fields.status,
-    tms_project_name: fields.projectName,
     tms_progress_percent: `${fields.progressPercent}%`,
     ...(aiStatus === 'Completed' && fields.completionDate ? { completed_on: fields.completionDate } : {})
   };

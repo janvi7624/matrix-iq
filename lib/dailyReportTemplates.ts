@@ -292,12 +292,6 @@ export const MARKETING_STATUS_OPTIONS = ['In Progress', 'Completed'];
 export const ROBOTICS_STATUS_OPTIONS = ['In Progress', 'Completed', 'On Hold'];
 export const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical'];
 
-// AI sheet: what kind of work a task belongs to. "Other" is the only
-// option that opens a free-text box (project_other below), so the common
-// cases stay a clean two-click choice instead of free text everyone spells
-// differently.
-export const AI_PROJECT_CATEGORY_OPTIONS = ['Client', 'Internal', 'Other'];
-
 // HR & Admin's linked Category → Activity pairs. Seeded here and editable
 // per department from Daily Report Configuration, so HR can add an activity
 // without a deployment.
@@ -1008,21 +1002,34 @@ const AI_TEMPLATE: TemplateDefinition = {
     // below from the live TmsTask on every save.
     { key: 'tms_task_id', label: 'Linked TMS Task', type: 'text', hidden: true },
     // A standalone row's OWN choice to become a tracked TMS task — set by
-    // the bespoke project dropdown DailyReportForm.tsx renders next to this
-    // row (not the generic select engine: the options are this employee's
-    // real TMS projects, fetched at render time, not a fixed list a
-    // template can declare). On the next save, lib/aiTmsTaskLink.ts creates
-    // the real task under this project and replaces this field with
-    // tms_task_id — a row never carries both at once.
+    // the SAME bespoke dropdown that now renders in place of the `project`
+    // field below (components/TmsNewTaskProjectSelect.tsx; not the generic
+    // select engine, since the real options are this employee's own TMS
+    // projects, fetched at render time, not a fixed list a template can
+    // declare). On the next SUBMIT, lib/aiTmsTaskLink.ts's
+    // createPendingTmsTasksFromEntries creates the real task under this
+    // project and replaces this field with tms_task_id — a row never
+    // carries both at once. Left empty when the employee's choice was
+    // "Other" (project === 'Other'): nothing gets created, by design.
     { key: 'tms_project_id', label: 'Create TMS Task In Project', type: 'text', hidden: true, locksRowWhenSet: false },
     { key: 'task_description', label: 'Task Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
-    // Appears only for "Other", and is required only then — see showWhen on
-    // DailyReportFieldDef. Without it, choosing Other would record a task
-    // whose category says nothing. Stays editable even on a linked row: a
-    // reporting classification (client/internal/other) is independent of
-    // which real TMS project the task happens to belong to — see
-    // tms_project_name below, which carries that separately.
-    { key: 'project', label: 'Project / Category', type: 'select', required: true, options: AI_PROJECT_CATEGORY_OPTIONS, width: 'md', editableWhenAuto: true },
+    // Every task is required to pick one of this employee's real TMS
+    // projects, or the literal value 'Other' — management's own decision
+    // (no more free-floating Client/Internal work that never touches TMS;
+    // 'Other' is the one deliberate escape hatch for work that genuinely
+    // isn't trackable project work, same as it always was for "Other").
+    // Bespoke-rendered (hidden: true, see tms_project_id's comment above)
+    // because the real options are per-employee, fetched data — but
+    // `required` and `hidden` are independent concerns in this engine
+    // (validateField never skips a hidden field, only a RENDERED one), so
+    // this is still correctly enforced as required on submit with no new
+    // validation code. locksRowWhenSet: false for the same reason
+    // tms_project_id needs it: picking a value here must not freeze the
+    // row before the task it names even exists yet. For a LINKED row (any
+    // way it got linked), lib/aiTmsStatusMapping.ts's
+    // buildEntryPatchFromTmsTask keeps this in sync with the real TMS
+    // project name — it is THE project field, not a parallel one.
+    { key: 'project', label: 'Project / Category', type: 'text', required: true, hidden: true, locksRowWhenSet: false },
     {
       key: 'project_other',
       label: 'Which project / category?',
@@ -1041,7 +1048,6 @@ const AI_TEMPLATE: TemplateDefinition = {
     // forcing a lossy guess to stand in for the real word.
     { key: 'status', label: 'Status', type: 'select', required: true, options: AI_STATUS_OPTIONS, width: 'sm' },
     { key: 'tms_status_label', label: 'TMS Status', type: 'text', width: 'sm', showWhen: { field: 'tms_task_id', notEmpty: true } },
-    { key: 'tms_project_name', label: 'TMS Project', type: 'text', width: 'md', showWhen: { field: 'tms_task_id', notEmpty: true } },
     { key: 'tms_progress_percent', label: 'TMS Progress', type: 'text', width: 'sm', showWhen: { field: 'tms_task_id', notEmpty: true } },
     { key: 'due_date', label: 'Due Date', type: 'date', required: true, width: 'sm' },
     { key: 'days_left', label: 'Days Left', type: 'computed', computed: 'days_left', width: 'sm', help: 'From today to the due date, so it keeps counting down after the report is filed. A completed task shows the date it was completed instead.' },

@@ -65,9 +65,9 @@ describe('applyLiveTasksToEntries', () => {
     expect(result).toEqual(entries);
   });
 
-  it('overwrites the TMS-sourced fields on a correctly-linked entry, leaving notes and project alone', () => {
+  it('overwrites the TMS-sourced fields on a correctly-linked entry, including project, leaving notes alone', () => {
     const entries = [
-      { tms_task_id: 'task-1', task_description: 'stale text', project: 'Client', notes: "today I set up the rig" }
+      { tms_task_id: 'task-1', task_description: 'stale text', project: 'stale project name', notes: "today I set up the rig" }
     ];
     const result = applyLiveTasksToEntries(entries, 'emp-1', new Map([['task-1', TASK]]));
     expect(result[0].task_description).toBe('Set up the on-site demo rig.');
@@ -75,10 +75,11 @@ describe('applyLiveTasksToEntries', () => {
     expect(result[0].priority).toBe('High');
     expect(result[0].status).toBe('In Progress');
     expect(result[0].tms_status_label).toBe('In Progress');
-    expect(result[0].tms_project_name).toBe('Bhatinda');
+    // project IS the TMS project name for a linked row — overwritten too,
+    // not left at whatever stale value (or pre-link 'Other') it last held.
+    expect(result[0].project).toBe('Bhatinda');
     expect(result[0].tms_progress_percent).toBe('50%');
-    // Untouched: the employee's own fields.
-    expect(result[0].project).toBe('Client');
+    // Untouched: the one genuinely employee-owned field left on a linked row.
     expect(result[0].notes).toBe('today I set up the rig');
   });
 
@@ -106,11 +107,22 @@ describe('applyLiveTasksToEntries', () => {
   it('unlinks a row whose task is no longer assigned to this employee, rather than exposing it', () => {
     const reassigned: LiveTmsTask = { ...TASK, assignee_id: 'someone-else' };
     const entries = [
-      { tms_task_id: 'task-1', task_description: 'last known text', tms_status_label: 'In Progress', notes: 'my notes stay' }
+      {
+        tms_task_id: 'task-1',
+        task_description: 'last known text',
+        tms_status_label: 'In Progress',
+        project: 'Bhatinda',
+        notes: 'my notes stay'
+      }
     ];
     const result = applyLiveTasksToEntries(entries, 'emp-1', new Map([['task-1', reassigned]]));
     expect(result[0]).not.toHaveProperty('tms_task_id');
     expect(result[0]).not.toHaveProperty('tms_status_label');
+    // project is stripped too — it WAS the real TMS project name, no longer
+    // true once unlinked, and required-ness forces a fresh, deliberate
+    // re-choice (project or Other) on the next save rather than leaving a
+    // stale project name sitting there unexplained.
+    expect(result[0]).not.toHaveProperty('project');
     // The last-known content is frozen in place, not wiped.
     expect(result[0].task_description).toBe('last known text');
     expect(result[0].notes).toBe('my notes stay');
@@ -171,37 +183,45 @@ describe('AI_TEMPLATE tms_* fields use showWhen.notEmpty correctly', () => {
     expect(isFieldVisible(statusLabelField, { tms_task_id: 'any-uuid-at-all' })).toBe(true);
   });
 
-  it('project and notes stay editableWhenAuto, unlike every TMS-sourced field', () => {
+  it('notes stays editableWhenAuto, unlike every TMS-sourced field', () => {
+    // project is no longer in this set — it's bespoke-rendered (hidden)
+    // now, not a generically-rendered field editableWhenAuto has any say
+    // over; see the "does not trip isAutoRow" describe block below for its
+    // own, different lock-exemption mechanism (locksRowWhenSet).
     const byKey = Object.fromEntries(AI.rowFields.map((f) => [f.key, f]));
-    expect(byKey.project.editableWhenAuto).toBe(true);
     expect(byKey.notes.editableWhenAuto).toBe(true);
     expect(byKey.task_description.editableWhenAuto).toBeUndefined();
     expect(byKey.due_date.editableWhenAuto).toBeUndefined();
   });
 });
 
-describe('AI_TEMPLATE tms_project_id does not trip isAutoRow', () => {
+describe('AI_TEMPLATE tms_project_id and project do not trip isAutoRow', () => {
   const AI = BUILT_IN_TEMPLATES.ai;
   const byKey = Object.fromEntries(AI.rowFields.map((f) => [f.key, f]));
 
-  it('is hidden like every other TMS bookkeeping field', () => {
+  it('both are hidden like every other TMS bookkeeping field', () => {
     expect(byKey.tms_project_id.hidden).toBe(true);
+    expect(byKey.project.hidden).toBe(true);
   });
 
-  it('opts out of locksRowWhenSet, unlike tms_task_id', () => {
+  it('both opt out of locksRowWhenSet, unlike tms_task_id', () => {
     // DailyReportForm.tsx's isAutoRow is `rowFields.some(f => f.hidden &&
     // f.locksRowWhenSet !== false && entry[f.key] !== '')` — a row with
-    // ONLY tms_project_id set (a pending choice, no task created yet) must
-    // stay editable, while one with tms_task_id set (an actual link) must
-    // lock. This is the one assertion that keeps those two hidden fields
-    // from being treated the same way by accident.
+    // ONLY tms_project_id/project set (a pending choice, or a standalone
+    // "Other" row — no task created yet either way) must stay editable,
+    // while one with tms_task_id set (an actual link) must lock. This is
+    // the one assertion that keeps these hidden fields from being treated
+    // the same way as tms_task_id by accident.
     expect(byKey.tms_project_id.locksRowWhenSet).toBe(false);
+    expect(byKey.project.locksRowWhenSet).toBe(false);
     expect(byKey.tms_task_id.locksRowWhenSet).toBeUndefined(); // undefined = locks, the default
 
     const wouldLock = (entry: Record<string, unknown>) =>
       AI.rowFields.some((f) => f.hidden && f.locksRowWhenSet !== false && String(entry[f.key] ?? '') !== '');
 
     expect(wouldLock({ tms_project_id: 'proj-1' })).toBe(false);
+    expect(wouldLock({ project: 'Other' })).toBe(false);
+    expect(wouldLock({ project: 'Bhatinda', tms_project_id: 'proj-1' })).toBe(false);
     expect(wouldLock({ tms_task_id: 'task-1' })).toBe(true);
     expect(wouldLock({ tms_project_id: 'proj-1', tms_task_id: 'task-1' })).toBe(true);
   });

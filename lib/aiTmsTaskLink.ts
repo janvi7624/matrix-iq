@@ -102,7 +102,12 @@ export function applyLiveTasksToEntries(
 
     const task = byId.get(linkId);
     if (!task || task.assignee_id !== employeeId) {
-      const { tms_task_id: _id, tms_status_label: _label, tms_project_name: _project, tms_progress_percent: _progress, ...rest } = entry;
+      // project is stripped too, not just the tms_*-prefixed fields: once
+      // merged, it WAS the TMS project name, which is no longer true once
+      // unlinked — a required field left holding a stale project name
+      // would be worse than forcing a fresh, deliberate re-choice on the
+      // next save (components/TmsNewTaskProjectSelect.tsx).
+      const { tms_task_id: _id, tms_status_label: _label, tms_progress_percent: _progress, project: _proj, ...rest } = entry;
       return rest;
     }
 
