@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppShell from './AppShell';
 import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
@@ -83,6 +83,13 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
   const [month, setMonth] = useState(now.getMonth() + 1);
 
   const [loading, setLoading] = useState(true);
+  // True once a fetch has completed at least once. Only the very first load
+  // shows the blank "Loading…" placeholder; a month/year change afterward
+  // keeps the current table on screen (dimmed) instead of collapsing it to
+  // that ~100px placeholder and then springing back out to full height —
+  // that collapse-then-reexpand on every filter change is what reads as the
+  // whole page "vibrating" when someone clicks through several months.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -121,10 +128,23 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
   // triggers the cascading-render pattern react-hooks/set-state-in-effect
   // rejects. `loading` starts true for the first load and is turned back on by
   // the filter handlers (a user event, where setState is fine) instead.
+  //
+  // requestIdRef guards against out-of-order responses: clicking through a
+  // couple of months before the first request has returned fires several
+  // fetches in flight at once, and nothing otherwise stops a slower, now-
+  // superseded response from landing last and overwriting the screen with
+  // the wrong month's rows right after the right ones briefly appeared —
+  // which is exactly what reads as the table flickering/"vibrating". Only
+  // the response whose requestId still matches the latest one issued is
+  // allowed to touch state; every earlier one is a silent no-op.
+  const requestIdRef = useRef(0);
+
   const fetchRecords = useCallback(async (y: number, m: number) => {
+    const requestId = ++requestIdRef.current;
     try {
       const res = await fetch(`/api/office-operation-expenses?year=${y}&month=${m}`);
       const data = await res.json().catch(() => null);
+      if (requestId !== requestIdRef.current) return;
       if (!res.ok) {
         toast.error(data?.error || `Failed to load expenses (${res.status})`);
         return;
@@ -133,9 +153,13 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
       setTotal(data.total || 0);
       setTotalInWords(data.totalInWords || '');
     } catch {
+      if (requestId !== requestIdRef.current) return;
       toast.error('Network error while loading expenses');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setHasLoadedOnce(true);
+      }
     }
   }, [toast]);
 
@@ -555,9 +579,10 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
           </Modal>
         )}
 
-        {!loading && records.length > 0 && (
+        {records.length > 0 && (
           <div
             className={styles.totalBanner}
+            style={loading ? { opacity: 0.55 } : undefined}
           >
             <div className={styles.totalBannerText}>
               <strong>{MONTH_NAMES[month]} {year} total:</strong>{' '}
@@ -568,14 +593,14 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
           </div>
         )}
 
-        {loading ? (
+        {loading && !hasLoadedOnce ? (
           <div className={styles.loadingState}>Loading…</div>
         ) : records.length === 0 ? (
           <div className={styles.emptyState}>
-            No expenses recorded for {MONTH_NAMES[month]} {year}. Click &quot;+ Add Expense&quot; to add the first entry.
+            {loading ? 'Loading…' : <>No expenses recorded for {MONTH_NAMES[month]} {year}. Click &quot;+ Add Expense&quot; to add the first entry.</>}
           </div>
         ) : (
-          <div className={historyStyles.tableWrap}>
+          <div className={historyStyles.tableWrap} style={loading ? { opacity: 0.55, pointerEvents: 'none' } : undefined} aria-busy={loading || undefined}>
             <table className={historyStyles.table}>
               <thead>
                 <tr>
