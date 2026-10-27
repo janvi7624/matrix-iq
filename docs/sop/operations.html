@@ -1,0 +1,1181 @@
+<meta charset="utf-8">
+<title>MatrixIQ — Operations Module SOP</title>
+<link rel="stylesheet" href="assets/sop.css">
+
+<!-- ======================= COVER ======================= -->
+<section class="cover">
+  <div class="hidden-string"><span class="str-doctitle">MatrixIQ — Operations Module SOP</span><span class="str-module">Operations &amp; Support</span><span class="str-class">Internal Use</span></div>
+  <div class="cover-band">
+    <span class="cover-logo-chip"><img class="cover-logo" src="assets/nanta-logo.png" alt="NANTA"></span>
+    <div class="cover-eyebrow">MatrixIQ &middot; Department Operating Manual</div>
+    <p class="cover-title">Operations Module</p>
+    <p class="cover-subtitle">Back Office delivery challans, equipment in and out, and the after-sales technical support desk.</p>
+  </div>
+  <div class="cover-rule"></div>
+  <div class="cover-lower">
+    <div class="cover-doctype">Standard Operating Procedure</div>
+    <table class="cover-meta">
+      <tr><th>Department / Module</th><td>Operations &amp; Support &mdash; Back Office Operations (<code>backoffice</code>), Technical Support (<code>support-tickets</code>)</td></tr>
+      <tr><th>Document type</th><td>Standard Operating Procedure</td></tr>
+      <tr><th>Version</th><td>1.0</td></tr>
+      <tr><th>Preparation date</th><td>27 October 2026</td></tr>
+      <tr><th>Document owner</th><td>To be confirmed</td></tr>
+      <tr><th>Approved by</th><td>To be confirmed</td></tr>
+      <tr><th>Review frequency</th><td>To be confirmed</td></tr>
+      <tr><th>Classification</th><td>Internal Use</td></tr>
+      <tr><th>Platform</th><td>MatrixIQ 1.0.0 &mdash; NANTA TECH LIMITED</td></tr>
+    </table>
+    <div class="cover-footnote">
+      Prepared from the <em>MatrixIQ Feature Reference</em> (13 pages) and verified against the MatrixIQ application itself on 27 October 2026.
+      Technical Project Management (TMS) is a <strong>connected module, not part of Operations</strong>; it is described here only where it hands work to or from Operations.
+    </div>
+  </div>
+</section>
+
+<!-- ======================= CONTENTS ======================= -->
+<section class="toc">
+  <h1 class="no-break">Contents</h1>
+  <ul class="toc-list">
+    <li><span class="toc-num">1</span><a href="#s1">Cover Page</a></li>
+    <li><span class="toc-num">2</span><a href="#s2">Document Control</a></li>
+    <li><span class="toc-num">3</span><a href="#s3">Introduction</a></li>
+    <li><span class="toc-num">4</span><a href="#s4">Access and Permissions</a></li>
+    <li><span class="toc-num">5</span><a href="#s5">Module and Submodule Directory</a></li>
+    <li><span class="toc-num">6</span><a href="#s6">Detailed Step-by-Step Procedures</a></li>
+    <li class="toc-sub"><span class="toc-num">6.1</span><a href="#s6-1">Generating a Delivery Challan from a demo request</a></li>
+    <li class="toc-sub"><span class="toc-num">6.2</span><a href="#s6-2">Creating a manual Delivery Challan</a></li>
+    <li class="toc-sub"><span class="toc-num">6.3</span><a href="#s6-3">Dispatching the material</a></li>
+    <li class="toc-sub"><span class="toc-num">6.4</span><a href="#s6-4">Verifying and receiving the return</a></li>
+    <li class="toc-sub"><span class="toc-num">6.5</span><a href="#s6-5">Closing the challan</a></li>
+    <li class="toc-sub"><span class="toc-num">6.6</span><a href="#s6-6">The monthly summary</a></li>
+    <li class="toc-sub"><span class="toc-num">6.7</span><a href="#s6-7">Raising and triaging a support ticket</a></li>
+    <li class="toc-sub"><span class="toc-num">6.8</span><a href="#s6-8">Working, resolving and closing a ticket</a></li>
+    <li><span class="toc-num">7</span><a href="#s7">Workflow and Approval Process</a></li>
+    <li><span class="toc-num">8</span><a href="#s8">Field and Status Reference</a></li>
+    <li><span class="toc-num">9</span><a href="#s9">Reports, Downloads and Exports</a></li>
+    <li><span class="toc-num">10</span><a href="#s10">Notifications and Follow-Ups</a></li>
+    <li><span class="toc-num">11</span><a href="#s11">Common Problems and Troubleshooting</a></li>
+    <li><span class="toc-num">12</span><a href="#s12">Best Practices and Compliance</a></li>
+    <li><span class="toc-num">13</span><a href="#s13">Quick Reference</a></li>
+    <li><span class="toc-num">14</span><a href="#s14">Glossary and Appendix</a></li>
+  </ul>
+</section>
+
+<!-- ======================= 1 ======================= -->
+<h1 id="s1"><span class="sec-no">01</span>Cover Page</h1>
+<p class="lede">The cover of this document carries its identity. It is reproduced here so that a printed or extracted section can still be traced back to the correct version.</p>
+<table class="t">
+  <caption class="tcap">Document identity</caption>
+  <thead><tr><th style="width:34%">Attribute</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Title</td><td>MatrixIQ &mdash; Operations Module SOP</td></tr>
+    <tr><td>Platform</td><td>MatrixIQ, the internal business platform of NANTA TECH LIMITED</td></tr>
+    <tr><td>Module coverage</td><td>Back Office Operations and Technical Support, plus the Demo Schedule, TMS and project-handover workflows that connect to them</td></tr>
+    <tr><td>Document type</td><td>Standard Operating Procedure</td></tr>
+    <tr><td>Version</td><td>1.0 &mdash; first issue</td></tr>
+    <tr><td>Preparation date</td><td>27 October 2026</td></tr>
+    <tr><td>Document owner</td><td>To be confirmed</td></tr>
+    <tr><td>Classification</td><td>Internal Use</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 2 ======================= -->
+<h1 id="s2"><span class="sec-no">02</span>Document Control</h1>
+
+<h2>2.1 Purpose of this document</h2>
+<p>This SOP explains how the Back Office prepares, dispatches, receives back and closes Delivery Challans for demonstration equipment, and how the technical support desk triages, assigns, works and resolves after-sales tickets against service targets.</p>
+<p>Both modules sit at the physical and post-sale ends of the business: one controls equipment leaving and returning to the premises, the other controls the company's response once a customer has a problem. Both are entered through work that starts elsewhere, so this document also sets out the handoffs in and out.</p>
+
+<h2>2.2 Version history</h2>
+<table class="t">
+  <thead><tr><th style="width:12%">Version</th><th style="width:18%">Date</th><th style="width:26%">Author</th><th>Summary of change</th></tr></thead>
+  <tbody><tr><td>1.0</td><td>27 October 2026</td><td>To be confirmed</td><td>First issue. Prepared from the MatrixIQ Feature Reference and verified against the live application.</td></tr></tbody>
+</table>
+
+<h2>2.3 Ownership and approval</h2>
+<table class="t">
+  <thead><tr><th style="width:32%">Role</th><th style="width:34%">Name</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td>Document owner</td><td>To be confirmed</td><td>Keeps this document accurate as the Operations modules change.</td></tr>
+    <tr><td>Approver</td><td>To be confirmed</td><td>Signs off each version before it is issued.</td></tr>
+    <tr><td>Reviewers</td><td>To be confirmed</td><td>Back Office, Technical team and Sales representatives.</td></tr>
+    <tr><td>Review frequency</td><td>To be confirmed</td><td>Re-review is also required after any change to the service-level targets or to the Back Office department's managers.</td></tr>
+  </tbody>
+</table>
+
+<h2>2.4 Intended audience</h2>
+<ul class="b">
+  <li><strong>Primary &mdash;</strong> Back Office staff, who own the physical movement of demonstration equipment.</li>
+  <li><strong>Primary &mdash;</strong> The technical support desk: Technical Managers who triage and assign, and Engineers, Technicians and Team Leads who work tickets.</li>
+  <li><strong>Secondary &mdash;</strong> Sales representatives whose demo requests become challans, and who raise support tickets for their customers.</li>
+  <li><strong>Reference &mdash;</strong> Accounts and Administration colleagues who touch the connected workflows.</li>
+</ul>
+
+<h2>2.5 Scope and limitations</h2>
+<p><strong>In scope.</strong> The Delivery Challan lifecycle, the material return verification, the monthly summary, and the support ticket lifecycle including service-level targets.</p>
+<p><strong>Context, not scope.</strong> The Demo Schedule approval chain, TMS bill-of-materials and procurement, and project handover from Sales to the Technical team &mdash; covered only as far as needed to understand what reaches Operations.</p>
+<div class="warn">
+  <span class="lbl">TMS is a connected module, not part of Operations</span>
+  <p>Technical Project Management &mdash; projects, tasks, bill of materials, procurement &mdash; has its own roles, its own per-tab permission matrix and its own departmental gate. It is <strong>not</strong> administered from Operations and is not covered by this SOP beyond its handoffs. Back Office staff have no TMS access by virtue of their role.</p>
+</div>
+<ul class="b">
+  <li>Details the application could not confirm are marked <span class="tbv">To be verified in the live MatrixIQ application</span>.</li>
+</ul>
+
+<!-- ======================= 3 ======================= -->
+<h1 id="s3"><span class="sec-no">03</span>Introduction</h1>
+
+<h2>3.1 What the Operations modules do</h2>
+<p class="lede">Back Office answers "where is our equipment, and did it come back in one piece". Technical Support answers "a customer has a problem &mdash; who owns it, and are we meeting our targets".</p>
+<p><strong>Back Office Operations</strong> issues a Delivery Challan whenever equipment leaves the premises for a customer demonstration. The challan records what went out, with serial numbers; it is dispatched; and when the equipment returns it is checked against a verification checklist covering condition, accessories, missing items and serial numbers. Only then is the challan closed, with the cost of the demonstration recorded. A monthly summary rolls the whole thing up by sales person.</p>
+<p><strong>Technical Support</strong> takes after-sales tickets raised against a project or a quotation, triages them to a priority, stamps service-level targets, assigns an engineer, and carries the conversation with the reporter through to resolution and closure. A thirteen-status lifecycle makes it explicit at every point who is holding the ticket.</p>
+
+<h2>3.2 Why they exist</h2>
+<ul class="b">
+  <li><strong>Equipment that leaves must come back.</strong> A challan with serial numbers and an expected return date turns an informal loan into a tracked movement.</li>
+  <li><strong>Damage must be recorded when it is found.</strong> The return checklist captures condition, missing accessories and serial mismatches at the moment of receipt, not from memory weeks later.</li>
+  <li><strong>Demonstration cost should be visible.</strong> Closing a challan asks what the demonstration cost, and the monthly summary reports it by sales person.</li>
+  <li><strong>A support promise should be measurable.</strong> Response and resolution targets are set by priority, and breach is judged live rather than from a flag someone forgot to update.</li>
+  <li><strong>Nobody should mark their own homework.</strong> An engineer cannot close a ticket &mdash; closure follows the customer's confirmation or a manager's decision.</li>
+</ul>
+
+<h2>3.3 What users can and cannot do</h2>
+<table class="t">
+  <thead><tr><th style="width:50%">Back Office can</th><th>Back Office cannot</th></tr></thead>
+  <tbody>
+    <tr><td>Generate a Delivery Challan from an approved demo request.</td><td>Approve a demo request. Technical and manager approval happen before it reaches them.</td></tr>
+    <tr><td>Create a manual challan with no demo request behind it.</td><td>Re-open a closed challan. Closing is final.</td></tr>
+    <tr><td>Record serial numbers, dispatch, verify the return and close.</td><td>Edit the approval chain or the demo outcome report.</td></tr>
+    <tr><td>Produce the challan PDF and the monthly summary.</td><td>Reach Technical Project Management.</td></tr>
+  </tbody>
+</table>
+<table class="t">
+  <thead><tr><th style="width:50%">The support desk can</th><th>The support desk cannot</th></tr></thead>
+  <tbody>
+    <tr><td>Triage a ticket, set its priority and stamp its targets.</td><td>Change what the targets are &mdash; those are policy per priority.</td></tr>
+    <tr><td>Assign to an engineer and reassign later.</td><td>Let an engineer close a ticket. Only a manager or the reporter can close.</td></tr>
+    <tr><td>Converse with the reporter in the ticket thread.</td><td>Declare a ticket resolved as the reporter &mdash; that is an engineering statement.</td></tr>
+    <tr><td>Resolve, reopen, escalate and cancel within the permitted transitions.</td><td>Cancel a ticket already being worked. That gets resolved or closed instead, so the trail shows what happened.</td></tr>
+  </tbody>
+</table>
+
+<h2>3.4 How Operations connects to the rest of MatrixIQ</h2>
+<div class="map">
+  <div class="mrow">
+    <div class="mcell"><span class="k">From Sales</span><span class="code">demo-schedule &rarr; backoffice</span><span class="d">An on-site demo request that has cleared technical and manager approval arrives for a challan. Virtual demos never arrive.</span></div>
+    <div class="mcell"><span class="k">Back to Sales</span><span class="code">backoffice &rarr; demo-schedule</span><span class="d">Dispatch, return and closure move the demo request's own status alongside the challan.</span></div>
+    <div class="mcell"><span class="k">From Sales</span><span class="code">projects / quotation &rarr; support-tickets</span><span class="d">A support ticket attaches to the project and the quotation it came from.</span></div>
+  </div>
+  <div class="mrow">
+    <div class="mcell"><span class="k">From the Partner Portal</span><span class="code">partner-support &rarr; support-tickets</span><span class="d">Partner tickets enter the same desk. Partners see a collapsed status, not the internal queue states.</span></div>
+    <div class="mcell"><span class="k">Connected &mdash; TMS</span><span class="code">tms-bom-requests &rarr; tms-procurement</span><span class="d">Materials for delivery work are requested, approved, paid and procured in TMS, not in Operations.</span></div>
+    <div class="mcell"><span class="k">To the Audit Log</span><span class="code">audit-log</span><span class="d">Every demo and challan status change is recorded with user, time and IP.</span></div>
+  </div>
+</div>
+
+<!-- ======================= 4 ======================= -->
+<h1 id="s4"><span class="sec-no">04</span>Access and Permissions</h1>
+
+<h2>4.1 Back Office Operations</h2>
+<p>Two things must both be true to act on a Delivery Challan: the module must be visible to your role, and you must be an authorised Back Office actor.</p>
+<table class="t">
+  <thead><tr><th style="width:34%">Route to act</th><th style="width:20%">Role key</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>By role &mdash; Back Office</td><td><code>backoffice</code></td><td>The normal route. The team that prepares, dispatches and closes challans.</td></tr>
+    <tr><td>By role &mdash; Admin</td><td><code>admin</code></td><td>Operational oversight.</td></tr>
+    <tr><td>By role &mdash; Super Admin</td><td><code>superadmin</code></td><td>Full oversight.</td></tr>
+    <tr><td>By configuration &mdash; Back Office department manager</td><td>any role</td><td>Whoever is listed as a manager of the department named <strong>Back Office</strong> in Department Master qualifies regardless of role. A deliberate, configured grant.</td></tr>
+  </tbody>
+</table>
+<div class="verify">
+  <span class="lbl">An important subtlety about the Manager role</span>
+  <p>The Back Office module tile is visible to the generic <code>manager</code> role. <strong>Acting on a challan is narrower:</strong> a manager qualifies only if they are listed as a manager of the <em>Back Office</em> department. A Sales or Technical manager can therefore see the module but will find the actions refused. If that causes confusion, ask Administration to untick the <code>manager</code> column for this module in Module Manager.</p>
+</div>
+
+<h2>4.2 Technical Support &mdash; who is what kind of actor</h2>
+<p>The support workflow does not key its permissions on role names directly. It maps every viewer onto one of three <strong>actor kinds</strong>, and the transition rules are written against those.</p>
+<table class="t">
+  <thead><tr><th style="width:22%">Actor kind</th><th style="width:30%">Roles mapped to it</th><th>What they may do</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Manager</strong></td><td>Super Admin, Admin, Technical Manager</td><td>See every ticket. Triage, assign, escalate, resolve, cancel, close and reopen.</td></tr>
+    <tr><td><strong>Engineer</strong></td><td>Engineer, Technician, Team Lead</td><td>See their own assignments plus the unassigned pool. Acknowledge, work, escalate and resolve. <strong>Cannot close anything.</strong></td></tr>
+    <tr><td><strong>Partner</strong></td><td>Any account linked to a partner company</td><td>See only their own company's tickets. Reply, confirm a resolution by closing, or reopen it.</td></tr>
+    <tr><td><strong>No actor kind</strong></td><td>Sales, Marketing, Accounts, HR, Back Office, and the generic <code>manager</code> role</td><td><strong>May raise a ticket and follow their own, but hold no queue role.</strong> The screen is effectively read-only for them.</td></tr>
+  </tbody>
+</table>
+<div class="warn">
+  <span class="lbl">The generic Manager role is deliberately excluded from the queue</span>
+  <p>It is held by every department's managers &mdash; Sales, HR, Accounts and the rest &mdash; and the support queue belongs to the technical team. A department manager who needs queue authority should hold the <strong>Technical Manager</strong> role, not the generic one.</p>
+</div>
+
+<h2>4.3 Which tickets each person can see</h2>
+<table class="t">
+  <thead><tr><th style="width:26%">Viewer</th><th>Sees</th></tr></thead>
+  <tbody>
+    <tr><td>Manager actor</td><td>Every ticket.</td></tr>
+    <tr><td>Engineer actor</td><td>Tickets assigned to them, tickets they raised, and <strong>the unassigned pool</strong> &mdash; so incoming work can be picked up.</td></tr>
+    <tr><td>Everyone else internal</td><td>Only tickets they raised themselves.</td></tr>
+    <tr><td>Partner account</td><td>Only their own partner company's tickets. Scoped by the partner link, never by role.</td></tr>
+  </tbody>
+</table>
+
+<h2>4.4 Separating the verbs</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">Action</th><th style="width:30%">Back Office Operations</th><th>Technical Support</th></tr></thead>
+  <tbody>
+    <tr><td><strong>View</strong></td><td>Back Office actors; the tile is also visible to Manager.</td><td>Per &sect;4.3.</td></tr>
+    <tr><td><strong>Create</strong></td><td>Back Office actors &mdash; generate from a demo, or create a manual challan.</td><td>Any internal user, and any channel partner.</td></tr>
+    <tr><td><strong>Edit</strong></td><td>Back Office actors &mdash; serial numbers, prices, client details, expected return date.</td><td>Manager and Engineer actors, within the permitted transitions.</td></tr>
+    <tr><td><strong>Approve</strong></td><td>Not applicable. Approval happens upstream in Demo Schedule.</td><td>Not an approval workflow; closure plays the equivalent role and is Manager or reporter only.</td></tr>
+    <tr><td><strong>Delete</strong></td><td>Available to Back Office actors, in a clearly marked danger area.</td><td>Not offered. A ticket is cancelled, not deleted.</td></tr>
+    <tr><td><strong>Configure</strong></td><td>Module visibility only, from Administration.</td><td>Service-level policy per priority. <span class="tbv">Where this is edited: to be verified.</span></td></tr>
+  </tbody>
+</table>
+
+<h2>4.5 Partner separation</h2>
+<p>Partner accounts cannot reach either Operations screen. They use the Partner Portal's own support screen, which is scoped to their partner company and shows a deliberately collapsed set of statuses. Internal accounts, equally, cannot enter the Partner Portal. See the Partner Portal SOP.</p>
+
+<!-- ======================= 5 ======================= -->
+<h1 id="s5"><span class="sec-no">05</span>Module and Submodule Directory</h1>
+
+<h2>5.1 Back Office Operations</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">Attribute</th><th>Detail</th></tr></thead>
+  <tbody>
+    <tr><td>Module key</td><td><code>backoffice</code></td></tr>
+    <tr><td>Where it lives</td><td>Sidebar section <strong>Operations</strong> &rarr; <strong>Back Office Operations</strong>; address <code>/backoffice</code></td></tr>
+    <tr><td>Purpose</td><td>Delivery Challans &mdash; prepare, dispatch, verify the return, close. Drives demonstration equipment in and out, and produces the monthly summary.</td></tr>
+    <tr><td>Intended users</td><td>Back Office staff, the Back Office department manager, Admin, Super Admin.</td></tr>
+    <tr><td>Main functions</td><td>Generate a challan from a demo request &middot; create a manual challan &middot; record serial numbers &middot; dispatch &middot; verify and receive the return &middot; close with the demonstration cost &middot; download and print the challan &middot; monthly summary.</td></tr>
+    <tr><td>Required inputs</td><td>Client name; the items going out with quantities; an expected return date. Serial numbers and prices as known.</td></tr>
+    <tr><td>Outputs</td><td>A Delivery Challan PDF; a verified return record; the monthly summary; audit entries.</td></tr>
+    <tr><td>Related modules</td><td>Demo Schedule, Project Dashboard, Application Settings (the challan number prefix), Audit Log.</td></tr>
+    <tr><td>Limitations</td><td>Closure is final. Virtual demos never produce a challan. The HSN code and serial number are not validated or mandatory.</td></tr>
+  </tbody>
+</table>
+<h3>The two views</h3>
+<table class="t">
+  <thead><tr><th style="width:26%">View</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td><strong>All Delivery Challans</strong></td><td>The working list, with <strong>Create Manual DC</strong> and <strong>Refresh</strong>. Approved demo requests awaiting a challan offer <strong>Generate DC</strong>.</td></tr>
+    <tr><td><strong>Summary</strong></td><td>The monthly summary run &mdash; totals, a breakdown by sales person, and a month-by-month trend.</td></tr>
+  </tbody>
+</table>
+
+<h2>5.2 Technical Support</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">Attribute</th><th>Detail</th></tr></thead>
+  <tbody>
+    <tr><td>Module key</td><td><code>support-tickets</code></td></tr>
+    <tr><td>Where it lives</td><td>Sidebar section <strong>Support</strong> &rarr; <strong>Technical Support</strong>; address <code>/support</code></td></tr>
+    <tr><td>Purpose</td><td>After-sales support tickets &mdash; triage, assignment, service-level tracking and resolution.</td></tr>
+    <tr><td>Intended users</td><td>Technical Managers, Engineers, Technicians and Team Leads on the desk; anyone internal as a reporter; channel partners through the portal.</td></tr>
+    <tr><td>Main functions</td><td>Raise a ticket against a project or quotation &middot; triage and set priority &middot; assign to an engineer &middot; comment thread with the reporter &middot; live response and resolution targets &middot; resolve and close &middot; status history.</td></tr>
+    <tr><td>Required inputs</td><td>A title and a description of the issue. Optionally product, model or serial number, customer, installation site, contact person, date the issue occurred, and a linked project.</td></tr>
+    <tr><td>Outputs</td><td>A resolution summary with root cause and corrective action; a full status history; live service-level assessment.</td></tr>
+    <tr><td>Related modules</td><td>Project Dashboard, Quotations, Partner Portal, Audit Log.</td></tr>
+    <tr><td>Limitations</td><td>An engineer cannot close a ticket. A ticket already being worked cannot be cancelled. Service-level breach is computed, never stored.</td></tr>
+  </tbody>
+</table>
+<h3>The three queue tiles</h3>
+<table class="t">
+  <thead><tr><th style="width:26%">Tile</th><th>What it counts</th></tr></thead>
+  <tbody>
+    <tr><td><strong>In this queue</strong></td><td>Tickets visible to you under the rules in &sect;4.3.</td></tr>
+    <tr><td><strong>SLA breached</strong></td><td>Tickets that have missed a response or resolution target. Recomputed every time the screen loads.</td></tr>
+    <tr><td><strong>Unassigned</strong></td><td>Tickets nobody has picked up. The pool engineers may claim from.</td></tr>
+  </tbody>
+</table>
+
+<h2>5.3 Connected modules described only as handoffs</h2>
+<table class="t">
+  <thead><tr><th style="width:26%">Module</th><th style="width:20%">Owner</th><th>Relationship to Operations</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Demo Schedule</strong> (<code>demo-schedule</code>)</td><td>Sales, Technical, Managers</td><td>The source of most challans. Its approval chain finishes <em>before</em> Back Office is involved. See &sect;7.1.</td></tr>
+    <tr><td><strong>BOM Request</strong> (<code>tms-bom-requests</code>)</td><td>Technical Project Management</td><td>Materials for delivery work. Approved through technical, administration and finance stages, then paid by Accounts and received by the technical team. <strong>Back Office has no part in it.</strong></td></tr>
+    <tr><td><strong>Procurement</strong> (<code>tms-procurement</code>)</td><td>Technical Project Management</td><td>Purchase and delivery tracking from approved BOM requests.</td></tr>
+    <tr><td><strong>Project Dashboard</strong> (<code>projects</code>)</td><td>Sales</td><td>Holds the handover of a won project to the technical side, and is the record support tickets attach to.</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 6 ======================= -->
+<h1 id="s6"><span class="sec-no">06</span>Detailed Step-by-Step Procedures</h1>
+
+<h2 id="s6-1">6.1 Generating a Delivery Challan from a demo request</h2>
+<h4>Preconditions</h4>
+<ul class="tight b">
+  <li>You are an authorised Back Office actor (&sect;4.1).</li>
+  <li>The demo request is an <strong>on-site</strong> demo and has cleared both technical approval and manager approval &mdash; its status is <strong>Pending Back Office</strong>.</li>
+  <li>The equipment is physically available.</li>
+</ul>
+<h4>Procedure</h4>
+<ol class="steps">
+  <li>Open <strong>Operations &rarr; Back Office Operations</strong>, on the <strong>All Delivery Challans</strong> view.</li>
+  <li>Find the demo request awaiting a challan and select <strong>Generate DC</strong>.</li>
+  <li>The <strong>Generate Delivery Challan</strong> panel opens, pre-filled with the products the demo request listed. If the request listed none, the panel says so &mdash; <em>"No products were listed as required on this request"</em> &mdash; and you should go back to the requester rather than guessing.</li>
+  <li>Set the <strong>Expected return date</strong>. This is what makes an overdue return visible later.</li>
+  <li>Select <strong>Create Delivery Challan</strong>.</li>
+</ol>
+<h4>What happens next</h4>
+<ul class="b">
+  <li>A challan is created with the next number in the configured series &mdash; the prefix comes from <strong>Administration &rarr; Application Settings &rarr; Number Series</strong>.</li>
+  <li>The challan's status is <span class="pill p-wait">Prepared</span>.</li>
+  <li>The demo request moves to <strong>DC Generated</strong>, so Sales can see the handover happened.</li>
+  <li>An audit entry is written.</li>
+</ul>
+<div class="shot"><span class="shot-lbl">Screenshot placeholder</span><span class="shot-txt">[Insert screenshot: Back Office Operations &mdash; the Generate Delivery Challan panel with the pre-filled product list and expected return date]</span></div>
+
+<h2 id="s6-2">6.2 Creating a manual Delivery Challan</h2>
+<p>Use this where equipment must go out without a demo request behind it &mdash; an exhibition, a site survey, a replacement part.</p>
+<ol class="steps">
+  <li>Select <strong>Create Manual DC</strong>.</li>
+  <li>Optionally <strong>Link to a project</strong>. Doing so prefills the client details. Where no project exists, type a free-text project label instead &mdash; for example <em>a project not yet in the system</em>.</li>
+  <li>Enter <strong>Client name *</strong>, and the <strong>Client phone</strong> and <strong>Client address</strong> where known.</li>
+  <li>Enter <strong>Requested By</strong> &mdash; who asked for the equipment. Pick a name, or choose <em>Other (type a name)&hellip;</em> and type it.</li>
+  <li>Set the <strong>Expected return date</strong>.</li>
+  <li>Add the <strong>Items</strong>. Each line takes:
+    <table class="t">
+      <thead><tr><th style="width:24%">Column</th><th class="ctr" style="width:16%">Required</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Product</strong></td><td class="ctr">Required</td><td>What is going out.</td></tr>
+        <tr><td><strong>HSN Code</strong></td><td class="ctr">Optional</td><td>Labelled optional on screen; nothing validates it.</td></tr>
+        <tr><td><strong>Serial Number</strong></td><td class="ctr">Optional at this point</td><td>Record it before dispatch &mdash; see the warning below.</td></tr>
+        <tr><td><strong>Quantity</strong></td><td class="ctr">Required</td><td>&mdash;</td></tr>
+        <tr><td><strong>Price</strong></td><td class="ctr">Optional</td><td>Set by Back Office only. It appears on the generated PDF.</td></tr>
+      </tbody>
+    </table>
+  </li>
+  <li>Select <strong>Create Delivery Challan</strong>, or <strong>Cancel</strong>.</li>
+</ol>
+<div class="warn">
+  <span class="lbl">Serial numbers are not enforced &mdash; but record them anyway</span>
+  <p>Nothing in MatrixIQ requires a serial number. The return verification nevertheless asks whether the serial number was verified, and a <em>wrong serial number</em> is one of the standard return remarks. Without a serial recorded at dispatch, neither question can be answered honestly. <strong>Treat recording serials before dispatch as mandatory in practice.</strong></p>
+</div>
+
+<h2 id="s6-3">6.3 Dispatching the material</h2>
+<h4>Preconditions</h4>
+<ul class="tight b">
+  <li>The challan is at <span class="pill p-wait">Prepared</span>.</li>
+  <li>The physical goods match the item lines.</li>
+  <li>Serial numbers have been captured.</li>
+</ul>
+<h4>Procedure</h4>
+<ol class="steps">
+  <li>Open the challan.</li>
+  <li>Check each item line against the physical goods, correcting quantity or product if needed.</li>
+  <li>Enter the serial numbers and select <strong>Save Serial Numbers</strong>.</li>
+  <li>Produce the paperwork &mdash; <strong>Download PDF</strong> or <strong>Print DC</strong> &mdash; and send it with the goods.</li>
+  <li>Select <strong>Dispatch Material</strong>.</li>
+</ol>
+<h4>What happens next</h4>
+<ul class="b">
+  <li>The challan moves to <span class="pill p-go">Dispatched</span>.</li>
+  <li>The linked demo request moves to <strong>Material Dispatched</strong>.</li>
+  <li>An audit entry is written.</li>
+</ul>
+
+<h2 id="s6-4">6.4 Verifying and receiving the return</h2>
+<div class="verify">
+  <span class="lbl">Important &mdash; "Verified" is an action, not a status</span>
+  <p>The <em>MatrixIQ Feature Reference</em> describes the challan chain as <em>prepared &rarr; dispatched &rarr; returned &rarr; verified &rarr; closed</em>. The application has <strong>four</strong> challan statuses: <strong>Prepared, Dispatched, Returned, Closed</strong>. There is <strong>no separate "Verified" status</strong>.</p>
+  <p>Verification is the <em>action</em> that moves a challan from Dispatched to Returned: the button is <strong>Verify &amp; Receive Material</strong>, and completing the checklist is what records the return. So "returned" in MatrixIQ already means "returned and verified".</p>
+</div>
+<h4>Preconditions</h4>
+<ul class="tight b">
+  <li>The challan is at <span class="pill p-go">Dispatched</span>.</li>
+  <li>The equipment is physically back, in front of you.</li>
+</ul>
+<h4>Procedure</h4>
+<ol class="steps">
+  <li>Open the challan. The <strong>Material return &mdash; verification checklist</strong> appears.</li>
+  <li>Record the <strong>Condition</strong>: <strong>Good</strong>, <strong>Minor damage</strong> or <strong>Major damage</strong>.</li>
+  <li>Set the <strong>Flags</strong> &mdash; whether anything is <strong>missing</strong> and whether anything is <strong>damaged</strong>.</li>
+  <li>Tick the <strong>Accessories returned</strong>: <strong>power cable</strong>, <strong>remote</strong>, <strong>adapter</strong>, <strong>stand</strong>, <strong>packing</strong>. Leave unticked whatever did not come back.</li>
+  <li>Confirm whether the <strong>serial number</strong> was verified against what went out.</li>
+  <li>Choose any standard <strong>remark tags</strong> that apply:
+    <table class="t">
+      <thead><tr><th style="width:40%">Tag</th><th>Use when</th></tr></thead>
+      <tbody>
+        <tr><td>Good condition</td><td>Everything came back as it went out.</td></tr>
+        <tr><td>Minor scratch</td><td>Cosmetic damage only.</td></tr>
+        <tr><td>Major damage</td><td>Functional or significant damage.</td></tr>
+        <tr><td>Adapter missing</td><td rowspan="2">An accessory did not come back.</td></tr>
+        <tr><td>Power cable missing</td></tr>
+        <tr><td>Wrong serial number</td><td>A different unit came back from the one sent.</td></tr>
+        <tr><td>Packing damaged</td><td>The packaging is no longer reusable.</td></tr>
+        <tr><td>Custom</td><td>Anything else &mdash; describe it in Remarks.</td></tr>
+      </tbody>
+    </table>
+  </li>
+  <li>Add <strong>Remarks</strong> &mdash; the field invites <em>"Additional detail&hellip;"</em>. Write what a colleague would need to know in three months.</li>
+  <li>Select <strong>Verify &amp; Receive Material</strong>.</li>
+</ol>
+<h4>What happens next</h4>
+<ul class="b">
+  <li>The challan moves to <span class="pill p-go">Returned</span>, and the verification record is displayed thereafter as <strong>Return verification</strong> with Condition, Missing, Damaged, Serial verified and Remarks.</li>
+  <li>The linked demo request moves to <strong>Material Returned</strong>.</li>
+  <li>An audit entry is written.</li>
+</ul>
+<div class="warn">
+  <span class="lbl">Record what you actually found</span>
+  <p>This checklist is the company's only contemporaneous record of the condition the equipment came back in. If something is missing or damaged, say so here &mdash; even when it is awkward, and even when it will be resolved informally. A challan closed as "good condition" with a damaged unit in the store is worse than useless.</p>
+</div>
+<div class="shot"><span class="shot-lbl">Screenshot placeholder</span><span class="shot-txt">[Insert screenshot: the Material return verification checklist, showing Condition, Flags, Accessories returned and the remark tags]</span></div>
+
+<h2 id="s6-5">6.5 Closing the challan</h2>
+<h4>Preconditions</h4>
+<ul class="tight b">
+  <li>The challan is at <span class="pill p-go">Returned</span>.</li>
+  <li>Any damage or shortfall has been dealt with, or at least recorded and escalated.</li>
+  <li>You know whether the demonstration cost anything.</li>
+</ul>
+<h4>Procedure</h4>
+<ol class="steps">
+  <li>Open the challan and select <strong>Close DC</strong>.</li>
+  <li>MatrixIQ asks: <em>"Did anything cost money during this demo?"</em> If so, enter the <strong>Amount (₹)</strong>.</li>
+  <li>Read the warning on the dialog &mdash; <em>"Closing finalises this Delivery Challan and cannot be undone"</em> &mdash; then confirm, or <strong>Cancel</strong>.</li>
+</ol>
+<div class="note">
+  <span class="lbl">Leaving the cost blank is a real answer</span>
+  <p>An empty demonstration cost means <em>nothing was recorded</em>, which is deliberately different from a recorded zero. Entering 0 says someone was asked and answered zero. Both appear in the monthly summary, where the figure shows as a dash when no cost was recorded on any challan in the period.</p>
+</div>
+<h4>What happens next</h4>
+<ul class="b">
+  <li>The challan moves to <span class="pill p-done">Closed</span> and is shown thereafter as a <strong>Closed &mdash; final record</strong>, with the client, address, phone, requested-by, expected return, condition and demonstration cost summarised.</li>
+  <li>The linked demo request moves to <strong>DC Closed</strong>, completing the demo pipeline.</li>
+  <li>An audit entry is written.</li>
+</ul>
+<div class="warn">
+  <span class="lbl">Closing cannot be undone</span>
+  <p>There is no re-open. Complete the return verification properly and settle any dispute <em>before</em> closing. If a challan is closed in error, record the facts and escalate; the correction is not made from this screen. <span class="tbv">Escalation route: to be confirmed.</span></p>
+</div>
+
+<h2 id="s6-6">6.6 The monthly summary</h2>
+<ol class="steps">
+  <li>Switch to the <strong>Summary</strong> view.</li>
+  <li>Read the three tiles:
+    <table class="t">
+      <thead><tr><th style="width:30%">Tile</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Total Demos (DCs)</strong></td><td>How many challans the period covers.</td></tr>
+        <tr><td><strong>Total Expense</strong></td><td>The demonstration costs recorded at closure. Shows a dash when none were recorded.</td></tr>
+        <tr><td><strong>Sales People</strong></td><td>How many distinct sales people the challans are attributed to.</td></tr>
+      </tbody>
+    </table>
+  </li>
+  <li>Read <strong>By Sales Person</strong> for the breakdown. Challans with no attributable sales person are grouped as unattributed.</li>
+  <li>Read <strong>Monthly Summary</strong> for the month-by-month trend.</li>
+  <li>If the list says <em>"No Delivery Challans in this period"</em>, there are none &mdash; the run did not fail.</li>
+</ol>
+
+<h2 id="s6-7">6.7 Raising and triaging a support ticket</h2>
+
+<h3>6.7.1 Raising a ticket</h3>
+<ol class="steps">
+  <li>Open <strong>Support &rarr; Technical Support</strong> and start a new ticket.</li>
+  <li>Enter a <strong>Title *</strong> and a <strong>Description of the issue *</strong>.</li>
+  <li>Record what is known about the installation: <strong>Product</strong>, <strong>Model / serial number</strong>, <strong>Customer</strong>, <strong>Installation site</strong>, <strong>Contact person</strong>, <strong>Date the issue occurred</strong>, and the <strong>Issue type</strong>.</li>
+  <li>Link the <strong>Related project</strong> where one exists &mdash; this is how a ticket is traced back to the deal and the quotation it came from.</li>
+  <li>State the <strong>business impact</strong>, which sets the initial priority:
+    <table class="t">
+      <thead><tr><th style="width:30%">Impact</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td>Low &mdash; minor inconvenience</td><td><strong>Low</strong></td></tr>
+        <tr><td>Medium &mdash; partially impaired</td><td><strong>Medium</strong> (the default)</td></tr>
+        <tr><td>High &mdash; major function unusable</td><td><strong>High</strong></td></tr>
+        <tr><td>Critical &mdash; system down</td><td><strong>Critical</strong></td></tr>
+      </tbody>
+    </table>
+  </li>
+  <li>Submit. The ticket enters the queue as <span class="pill p-wait">New</span>.</li>
+</ol>
+
+<h3>6.7.2 Triage</h3>
+<h4>Preconditions</h4>
+<ul class="tight b"><li>You are a Manager actor, or an Engineer actor moving a ticket into triage.</li></ul>
+<ol class="steps">
+  <li>Open the queue. Use the three tiles to decide where to start &mdash; <strong>SLA breached</strong> first, then <strong>Unassigned</strong>.</li>
+  <li>Open the ticket and read the issue, the customer, the product and the installation details.</li>
+  <li>Confirm or correct the <strong>Priority</strong>. This is the single most consequential triage decision, because it sets the targets.</li>
+  <li>Set the department where appropriate.</li>
+  <li><strong>Assign to</strong> an engineer. An unassigned ticket shows as <em>Unassigned</em> and sits in the pool.</li>
+  <li>Select <strong>Apply</strong>.</li>
+</ol>
+<div class="note">
+  <span class="lbl">Targets are stamped at triage</span>
+  <p>The response and resolution due timestamps are <strong>recorded when the ticket is triaged</strong>, from the policy in force at that moment &mdash; because they are a commitment made at a point in time. Re-deriving them later from a policy that had since been edited would retroactively change what was promised.</p>
+  <p>Changing a ticket's priority at triage <strong>does</strong> re-stamp the targets, so a ticket upgraded to Critical is judged against the Critical policy rather than the one it arrived under.</p>
+</div>
+
+<h3>6.7.3 The service-level targets</h3>
+<table class="t">
+  <caption class="tcap">Response and resolution targets by priority, as configured</caption>
+  <thead><tr><th style="width:22%">Priority</th><th class="ctr" style="width:24%">First response</th><th class="ctr" style="width:24%">Resolution</th><th>Pauses while awaiting the reporter?</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Critical</strong></td><td class="ctr">30 minutes</td><td class="ctr">4 hours</td><td class="ctr"><span class="yes">Yes</span></td></tr>
+    <tr><td><strong>High</strong></td><td class="ctr">2 hours</td><td class="ctr">8 hours</td><td class="ctr"><span class="yes">Yes</span></td></tr>
+    <tr><td><strong>Medium</strong></td><td class="ctr">4 hours</td><td class="ctr">24 hours</td><td class="ctr"><span class="yes">Yes</span></td></tr>
+    <tr><td><strong>Low</strong></td><td class="ctr">8 hours</td><td class="ctr">72 hours</td><td class="ctr"><span class="yes">Yes</span></td></tr>
+  </tbody>
+</table>
+<p class="small">All four policies are configured to run against the clock continuously rather than only during business hours.</p>
+<div class="warn">
+  <span class="lbl">Breach is computed, never stored</span>
+  <p>MatrixIQ does not keep a "breached" flag. It works the answer out every time a ticket is read, from the stamped due timestamps, the status history and the time spent waiting on the reporter. That means the figure is never stale &mdash; but it also means <strong>the SLA state can change without anyone touching the ticket</strong>, simply because the clock passed a threshold.</p>
+  <p>The practical consequence: check the <strong>SLA breached</strong> tile at the start of every shift. A ticket nobody has touched can have breached overnight.</p>
+</div>
+<div class="note">
+  <span class="lbl">Awaiting the reporter stops the resolution clock</span>
+  <p>Time a ticket spends in <strong>Awaiting your information</strong> is deducted, and the resolution deadline shifts out by that amount. This is why moving a genuinely blocked ticket into that status &mdash; rather than leaving it in progress &mdash; matters: it records the truth and stops the company being judged against time it was not in control of. Note that it requires a reason.</p>
+</div>
+
+<h2 id="s6-8">6.8 Working, resolving and closing a ticket</h2>
+
+<h3>6.8.1 Picking up and acknowledging</h3>
+<ol class="steps">
+  <li>An engineer finds the ticket in their assignments, or in the unassigned pool.</li>
+  <li>Open it. Read the issue, the customer and installation details, and the conversation so far.</li>
+  <li>Move it to <strong>Acknowledged</strong> or straight to <strong>In progress</strong> &mdash; use the <strong>Move to</strong> control and select <strong>Apply</strong>.</li>
+  <li>Post the first reply in the <strong>Conversation</strong> thread. This is what satisfies the first-response target.</li>
+</ol>
+
+<h3>6.8.2 Working the ticket</h3>
+<table class="t">
+  <thead><tr><th style="width:30%">Situation</th><th style="width:26%">Move it to</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td>You are actively working on it</td><td><strong>In progress</strong></td><td>&mdash;</td></tr>
+    <tr><td>You need something from the reporter</td><td><strong>Awaiting your information</strong></td><td><strong>A reason is required.</strong> Stops the resolution clock.</td></tr>
+    <tr><td>You need something from a colleague or supplier</td><td><strong>Awaiting internal team</strong></td><td>Does <em>not</em> stop the clock &mdash; it is our delay.</td></tr>
+    <tr><td>It needs more authority or expertise</td><td><strong>Escalated</strong></td><td><strong>A reason is required.</strong></td></tr>
+    <tr><td>The reporter has answered</td><td><strong>In progress</strong></td><td>The reporter can make this move themselves by replying.</td></tr>
+  </tbody>
+</table>
+<p>Use the <strong>Conversation</strong> thread throughout and <strong>Post</strong> each update. The <strong>Status history</strong> below it records every move with when, from and to.</p>
+
+<h3>6.8.3 Resolving</h3>
+<ol class="steps">
+  <li>When the problem is fixed, move the ticket to <strong>Resolved</strong>.</li>
+  <li>Complete the resolution record. These fields are what make a ticket useful to the next engineer:
+    <ul class="b tight">
+      <li><strong>Resolution summary</strong> &mdash; what was done.</li>
+      <li><strong>Root cause</strong> &mdash; why it happened.</li>
+      <li><strong>Corrective action</strong> &mdash; what prevents a recurrence.</li>
+    </ul>
+  </li>
+  <li>Enter the <strong>Reason *</strong> &mdash; resolving requires one.</li>
+  <li>Select <strong>Apply</strong>.</li>
+</ol>
+<div class="warn">
+  <span class="lbl">Only an engineer or a manager may declare a ticket resolved</span>
+  <p>Declaring a technical fix is an engineering statement. A reporter &mdash; including a channel partner &mdash; <strong>cannot</strong> move a ticket to Resolved. They can only confirm or dispute one.</p>
+</div>
+
+<h3>6.8.4 Closing</h3>
+<table class="t">
+  <thead><tr><th style="width:30%">Who closes</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td><strong>The reporter</strong> (including a partner)</td><td>They confirm the fix by closing the resolved ticket. This is the normal path.</td></tr>
+    <tr><td><strong>A Manager actor</strong></td><td>Where the customer is unresponsive, or nobody will confirm. A deliberate decision, not a default.</td></tr>
+    <tr><td><strong>An Engineer actor</strong></td><td><strong>Never.</strong> Otherwise the team marks its own homework and the reopen rate stops meaning anything.</td></tr>
+  </tbody>
+</table>
+<p>If the fix did not work, the reporter moves the ticket to <strong>Reopened</strong> instead &mdash; a reason is required &mdash; and it returns to the desk. A manager may also reopen a ticket that has already been closed.</p>
+
+<h3>6.8.5 Cancelling</h3>
+<p>Cancelling is a <strong>Manager actor</strong> action, available only from the early statuses &mdash; New, Open, Under triage, Assigned, Acknowledged, In progress and the two waiting states. A ticket genuinely being worked is <em>resolved</em> or <em>closed</em>, never cancelled, so the trail shows what actually happened. A reason is required. A manager can later move a cancelled ticket back to Open.</p>
+
+<!-- ======================= 7 ======================= -->
+<h1 id="s7"><span class="sec-no">07</span>Workflow and Approval Process</h1>
+
+<h2>7.1 Demo Schedule &rarr; Back Office &mdash; the on-site chain</h2>
+<div class="flow">
+<div class="chain"><div class="row">
+  <div class="cell"><span class="box start"><span class="st">1</span><span class="nm">Sales Request Submitted</span><span class="who">Sales</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box gate"><span class="st">2</span><span class="nm">Technical Approval</span><span class="who">Technical</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box gate"><span class="st">3</span><span class="nm">Manager Approval</span><span class="who">Dept. manager</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">4</span><span class="nm">DC Generated</span><span class="who">BACK OFFICE</span></span></div>
+</div></div>
+<div class="chain"><div class="row">
+  <div class="cell"><span class="box"><span class="st">5</span><span class="nm">Material Dispatched</span><span class="who">BACK OFFICE</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">6</span><span class="nm">Demo Completed</span><span class="who">Sales / Technical</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">7</span><span class="nm">Material Returned</span><span class="who">BACK OFFICE</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box end"><span class="st">8</span><span class="nm">DC Closed</span><span class="who">BACK OFFICE</span></span></div>
+</div></div>
+</div>
+<p>Back Office owns stages 4, 5, 7 and 8. Stages 1 to 3 are complete before the request appears in the Back Office list, and stage 6 is recorded by whoever gave the demonstration.</p>
+
+<h2>7.2 The virtual demo chain &mdash; Back Office is not involved</h2>
+<div class="flow">
+<div class="chain"><div class="row">
+  <div class="cell"><span class="box start"><span class="st">1</span><span class="nm">Sales Request Submitted</span><span class="who">Sales</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box gate"><span class="st">2</span><span class="nm">Technical Approval</span><span class="who">Technical</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box gate"><span class="st">3</span><span class="nm">Manager Approval</span><span class="who">Dept. manager</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box end"><span class="st">4</span><span class="nm">Demo Completed</span><span class="who">Sales / Technical</span></span></div>
+</div></div>
+</div>
+<div class="verify">
+  <span class="lbl">A significant point the reference summary omits</span>
+  <p>A demo request carries a <strong>mode</strong>: <strong>on-site</strong> or <strong>virtual</strong>. A <em>virtual</em> demo is given over a screen share &mdash; nothing leaves the office, so no challan, dispatch or return applies. On manager approval it lands at <strong>Ready &mdash; Virtual Demo</strong> and waits for its date, and the pipeline ends when the demonstration is done.</p>
+  <p><strong>Virtual demos never reach the Back Office list and must not be challaned.</strong> If one appears to, check the mode on the request.</p>
+</div>
+
+<h2>7.3 The approval steps before Back Office</h2>
+<div class="ladder">
+  <div class="rung"><div class="hd"><span class="pill">STEP 1</span>Sales raises the request</div><div class="meta"><b>Carries:</b> project, client, products, date, priority, demo objective, and the mode &mdash; on-site or virtual. <b>Action:</b> Submit for Approval.</div>
+    <div class="branch"><b>Note:</b> Technical Project Management roles can <b>see</b> the demo queue but are blocked from creating a request.</div>
+    <div class="branch"><b>Partner requests</b> arrive as a draft owned by the assigned salesperson and are badged <em>Partner request</em>. They enter this chain only once that salesperson assigns a technical person and submits.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">STEP 2</span>Technical approval</div><div class="meta"><b>Records:</b> <b>Availability</b> (Available / Not available), <b>Expected arrival time</b>, <b>Remarks</b> &middot; <b>Decision:</b> Approve, Reject, or Reschedule with a new date.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">STEP 3</span>Manager review</div><div class="meta"><b>May also:</b> assign a different engineer, and modify the schedule &middot; <b>Decision:</b> Approve, Reject, or Save Changes.</div>
+    <div class="branch"><b>On-site</b> &rarr; <em>Pending Back Office</em>. <b>Virtual</b> &rarr; <em>Ready &mdash; Virtual Demo</em>.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung fin"><div class="hd"><span class="pill">STEP 4</span>Back Office takes over</div><div class="meta"><b>Action:</b> Generate DC. From here the chain is &sect;7.1.</div></div>
+</div>
+<p>After the demonstration, whoever gave it records the <strong>Demo outcome &amp; report</strong>: <strong>Outcome *</strong> (successful, needs follow-up, pending decision, or cancelled), a <strong>customer rating</strong> out of five, a <strong>next follow-up date</strong>, <strong>key queries</strong>, <strong>technical challenges</strong>, <strong>unanswered queries</strong>, a <strong>suggested next action</strong>, and attachments. This is a separate record from the pipeline status.</p>
+
+<h2>7.4 The Delivery Challan lifecycle</h2>
+<div class="flow">
+<div class="chain"><div class="row">
+  <div class="cell"><span class="box start"><span class="st">1</span><span class="nm">Prepared</span><span class="who">Record serials</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">2</span><span class="nm">Dispatched</span><span class="who">Dispatch Material</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box gate"><span class="st">3</span><span class="nm">Returned</span><span class="who">Verify &amp; Receive</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box end"><span class="st">4</span><span class="nm">Closed</span><span class="who">Close DC &mdash; final</span></span></div>
+</div></div>
+</div>
+<table class="t">
+  <caption class="tcap">Automatic versus manual &mdash; Back Office</caption>
+  <thead><tr><th style="width:48%">Event</th><th class="ctr" style="width:18%">Automatic?</th><th>Who acts</th></tr></thead>
+  <tbody>
+    <tr><td>The challan number is assigned from the configured series</td><td class="ctr"><span class="yes">Automatic</span></td><td>&mdash;</td></tr>
+    <tr><td>The demo request's status following the challan</td><td class="ctr"><span class="yes">Automatic</span></td><td>&mdash;</td></tr>
+    <tr><td>Audit entries</td><td class="ctr"><span class="yes">Automatic</span></td><td>&mdash;</td></tr>
+    <tr><td>Recording serials; dispatching; verifying the return; closing</td><td class="ctr"><span class="no">Manual</span></td><td>Back Office</td></tr>
+    <tr><td>Producing the challan PDF</td><td class="ctr"><span class="no">Manual</span></td><td>Back Office</td></tr>
+    <tr><td>Running the monthly summary</td><td class="ctr"><span class="no">Manual</span></td><td>Back Office</td></tr>
+  </tbody>
+</table>
+
+<h2>7.5 The support ticket lifecycle</h2>
+<div class="ladder">
+  <div class="rung"><div class="hd"><span class="pill">ARRIVES</span>New</div><div class="meta"><b>By:</b> any internal user, or a channel partner &middot; <b>Next:</b> a manager moves it to Open, Under triage or straight to Assigned; an engineer may move it to Under triage.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">TRIAGE</span>Under triage &rarr; Assigned</div><div class="meta"><b>By:</b> a manager, or an engineer assigning &middot; <b>Sets:</b> priority, department, assignee &middot; <b>Stamps:</b> the response and resolution targets.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">WORK</span>Acknowledged &rarr; In progress</div><div class="meta"><b>By:</b> the assignee, or a manager &middot; <b>First reply</b> in the conversation satisfies the response target.</div>
+    <div class="branch"><b>Awaiting your information</b> &mdash; reason required; <b>pauses the resolution clock</b>; the reporter may return it to In progress by replying.</div>
+    <div class="branch"><b>Awaiting internal team</b> &mdash; does not pause the clock.</div>
+    <div class="branch"><b>Escalated</b> &mdash; reason required.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">FIX</span>Resolved</div><div class="meta"><b>By:</b> an engineer or a manager &mdash; never the reporter &middot; <b>Reason required</b> &middot; <b>Records:</b> resolution summary, root cause, corrective action.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung fin"><div class="hd"><span class="pill">END</span>Closed</div><div class="meta"><b>By:</b> the reporter confirming, or a manager deciding &mdash; <b>never an engineer</b>.</div>
+    <div class="branch"><b>Reopened</b> &mdash; by the reporter if not actually fixed, by an engineer, or by a manager on an already-closed ticket. Reason required.</div>
+    <div class="branch"><b>Cancelled</b> &mdash; manager only, and only from the early statuses. Reason required. A manager can return it to Open.</div></div>
+</div>
+
+<h2>7.6 Who may make which move</h2>
+<table class="t">
+  <caption class="tcap">Permitted transitions by actor kind</caption>
+  <thead><tr><th style="width:24%">From status</th><th style="width:30%">Manager may move to</th><th style="width:26%">Engineer may move to</th><th>Reporter / partner may move to</th></tr></thead>
+  <tbody>
+    <tr><td>New</td><td>Open, Under triage, Assigned, Cancelled</td><td>Under triage</td><td class="na">&mdash;</td></tr>
+    <tr><td>Open</td><td>Under triage, Assigned, Cancelled</td><td>Under triage</td><td class="na">&mdash;</td></tr>
+    <tr><td>Under triage</td><td>Assigned, Escalated, Cancelled</td><td>Assigned</td><td class="na">&mdash;</td></tr>
+    <tr><td>Assigned</td><td>Acknowledged, In progress, Assigned, Escalated, Cancelled</td><td>Acknowledged, In progress</td><td class="na">&mdash;</td></tr>
+    <tr><td>Acknowledged</td><td>In progress, Assigned, Escalated, Cancelled</td><td>In progress, Awaiting your information, Awaiting internal team, Escalated</td><td class="na">&mdash;</td></tr>
+    <tr><td>In progress</td><td>Awaiting your information, Awaiting internal team, Escalated, Resolved, Assigned, Cancelled</td><td>Awaiting your information, Awaiting internal team, Escalated, Resolved</td><td class="na">&mdash;</td></tr>
+    <tr><td>Awaiting your information</td><td>In progress, Escalated, Resolved, Cancelled</td><td>In progress, Resolved</td><td><strong>In progress</strong> &mdash; by replying</td></tr>
+    <tr><td>Awaiting internal team</td><td>In progress, Escalated, Resolved, Cancelled</td><td>In progress, Resolved</td><td class="na">&mdash;</td></tr>
+    <tr><td>Escalated</td><td>In progress, Assigned, Resolved, Cancelled</td><td>In progress</td><td class="na">&mdash;</td></tr>
+    <tr><td>Resolved</td><td>Closed, Reopened, In progress</td><td>Reopened</td><td><strong>Closed</strong> or <strong>Reopened</strong></td></tr>
+    <tr><td>Reopened</td><td>Assigned, In progress, Escalated, Cancelled</td><td>In progress, Acknowledged</td><td class="na">&mdash;</td></tr>
+    <tr><td>Closed</td><td>Reopened</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+    <tr><td>Cancelled</td><td>Open</td><td class="na">&mdash;</td><td class="na">&mdash;</td></tr>
+  </tbody>
+</table>
+<p class="small">A move to <strong>Cancelled</strong>, <strong>Escalated</strong>, <strong>Resolved</strong>, <strong>Reopened</strong> or <strong>Awaiting your information</strong> always requires a reason &mdash; these are statements somebody will have to justify later.</p>
+
+<h2>7.7 Connected chains, for context</h2>
+<h3>7.7.1 BOM Request and Procurement &mdash; owned by Technical Project Management</h3>
+<div class="flow">
+<div class="chain"><div class="row">
+  <div class="cell"><span class="box start"><span class="st">1</span><span class="nm">Submitted</span><span class="who">Technical team</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">2</span><span class="nm">Approved</span><span class="who">Technical review</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">3</span><span class="nm">Admin Approved</span><span class="who">Administration mgr</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">4</span><span class="nm">Finance Approved</span><span class="who">BOM Finance Approver</span></span></div>
+</div></div>
+<div class="chain"><div class="row">
+  <div class="cell"><span class="box gate"><span class="st">5</span><span class="nm">Payment Done</span><span class="who">Accounts</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">6</span><span class="nm">Sent for Procurement</span><span class="who">Technical team</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box end"><span class="st">7</span><span class="nm">Received</span><span class="who">Technical team</span></span></div>
+</div></div>
+</div>
+<p>Procurement then tracks each line through a <strong>purchase status</strong> &mdash; requested, quotation required, quotation received, approval pending, approved, purchase order created, ordered, or cancelled &mdash; and a <strong>delivery status</strong>: pending, partially received, received, or cancelled. <strong>Back Office has no role in either.</strong> The finance approval stage belongs to a single named approver configured in Application Settings.</p>
+
+<h3>7.7.2 Project handover from Sales to the Technical team</h3>
+<div class="flow">
+<div class="chain"><div class="row">
+  <div class="cell"><span class="box start"><span class="st">1</span><span class="nm">Pending</span><span class="who">Raised by the current owner</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box gate"><span class="st">2</span><span class="nm">Approved</span><span class="who">Receiving owner</span></span></div>
+</div></div>
+<div class="ladder">
+  <div class="rung exc"><div class="hd"><span class="pill">ALTERNATIVES</span>Rejected or Cancelled</div><div class="meta"><b>Rejected</b> by the receiving owner, with response remarks &middot; <b>Cancelled</b> by whoever raised it.</div></div>
+</div>
+</div>
+<p>A handover carries the project from one owner to another, with remarks both ways. A won project handed to the technical side becomes the basis of a technical project &mdash; without re-keying the customer &mdash; and remains the record that any later support ticket attaches to.</p>
+
+<h3>7.7.3 Ownership boundaries</h3>
+<table class="t">
+  <thead><tr><th style="width:24%">Team</th><th>Owns</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Sales</strong></td><td>The lead, the project, the quotation, the demo request and its outcome report, the handover.</td></tr>
+    <tr><td><strong>Technical team</strong></td><td>Technical approval of a demo, technical projects and tasks, bill of materials, procurement receipt, and the support desk.</td></tr>
+    <tr><td><strong>Back Office</strong></td><td>Delivery challans and the physical movement of demonstration equipment. Nothing else.</td></tr>
+    <tr><td><strong>Accounts</strong></td><td>Payment of approved bills of material, travel bookings and every other payable item.</td></tr>
+    <tr><td><strong>Administration</strong></td><td>The administration approval stage of a BOM request; all configuration.</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 8 ======================= -->
+<h1 id="s8"><span class="sec-no">08</span>Field and Status Reference</h1>
+
+<h2>8.1 Delivery Challan statuses</h2>
+<table class="t">
+  <thead><tr><th style="width:22%">Status</th><th style="width:26%">Set by</th><th>Meaning and next step</th></tr></thead>
+  <tbody>
+    <tr><td><span class="pill p-wait">Prepared</span></td><td>Back Office, on creation</td><td>The challan exists; nothing has left. Record serials, then dispatch.</td></tr>
+    <tr><td><span class="pill p-go">Dispatched</span></td><td>Back Office</td><td>Equipment is out. Awaiting return.</td></tr>
+    <tr><td><span class="pill p-go">Returned</span></td><td>Back Office, via <em>Verify &amp; Receive Material</em></td><td>Equipment is back <strong>and has been verified</strong>. Awaiting closure.</td></tr>
+    <tr><td><span class="pill p-done">Closed</span></td><td>Back Office</td><td><strong>Terminal and irreversible.</strong> The demonstration cost is recorded here.</td></tr>
+  </tbody>
+</table>
+
+<h2>8.2 Delivery Challan fields</h2>
+<table class="t">
+  <thead><tr><th style="width:26%">Field</th><th class="ctr" style="width:16%">Required</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>DC number</td><td class="ctr">Automatic</td><td>Prefix from Application Settings &rarr; Number Series.</td></tr>
+    <tr><td>Linked project</td><td class="ctr">Optional</td><td>Prefills client details. Where absent, a free-text project label may be used instead.</td></tr>
+    <tr><td>Client name</td><td class="ctr">Required</td><td>&mdash;</td></tr>
+    <tr><td>Client phone, Client address</td><td class="ctr">Optional</td><td>Appear on the PDF.</td></tr>
+    <tr><td>Requested By</td><td class="ctr"><span class="tbv">To be verified</span></td><td>Pick a name or type one.</td></tr>
+    <tr><td>Issued Date</td><td class="ctr">Automatic</td><td>&mdash;</td></tr>
+    <tr><td>Expected return date</td><td class="ctr"><span class="tbv">To be verified</span></td><td>Set it &mdash; it is what makes an overdue return visible.</td></tr>
+    <tr><td>Items &mdash; Product, Quantity</td><td class="ctr">Required</td><td>&mdash;</td></tr>
+    <tr><td>Items &mdash; HSN Code</td><td class="ctr">Optional</td><td>Labelled optional; not validated.</td></tr>
+    <tr><td>Items &mdash; Serial Number</td><td class="ctr">Optional</td><td>Not enforced. <strong>Record it in practice</strong> &mdash; see &sect;6.2.</td></tr>
+    <tr><td>Items &mdash; Price</td><td class="ctr">Optional</td><td>Set by Back Office only; appears on the PDF.</td></tr>
+    <tr><td>Demo Cost</td><td class="ctr">Optional, at closure</td><td>Blank means nothing recorded &mdash; deliberately distinct from a recorded zero.</td></tr>
+  </tbody>
+</table>
+
+<h2>8.3 The return verification record</h2>
+<table class="t">
+  <thead><tr><th style="width:26%">Element</th><th>Values</th></tr></thead>
+  <tbody>
+    <tr><td>Returned</td><td>Yes / no</td></tr>
+    <tr><td>Condition</td><td>Good &middot; Minor damage &middot; Major damage</td></tr>
+    <tr><td>Flags</td><td>Missing &middot; Damaged</td></tr>
+    <tr><td>Accessories returned</td><td>Power cable &middot; Remote &middot; Adapter &middot; Stand &middot; Packing</td></tr>
+    <tr><td>Serial number verified</td><td>Yes / no</td></tr>
+    <tr><td>Remark tags</td><td>Good condition &middot; Minor scratch &middot; Major damage &middot; Adapter missing &middot; Power cable missing &middot; Wrong serial number &middot; Packing damaged &middot; Custom</td></tr>
+    <tr><td>Remarks</td><td>Free text</td></tr>
+  </tbody>
+</table>
+
+<h2>8.4 Demo request statuses</h2>
+<table class="t">
+  <thead><tr><th style="width:30%">Status</th><th style="width:16%" class="ctr">Mode</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><span class="pill p-idle">Draft</span></td><td class="ctr">Both</td><td>Not yet submitted. Partner requests begin here, owned by the assigned salesperson.</td></tr>
+    <tr><td><span class="pill p-wait">Pending Technical Approval</span></td><td class="ctr">Both</td><td>Awaiting the technical availability decision.</td></tr>
+    <tr><td><span class="pill p-wait">Pending Manager Approval</span></td><td class="ctr">Both</td><td>Awaiting manager review.</td></tr>
+    <tr><td><span class="pill p-go">Pending Back Office</span></td><td class="ctr">On-site</td><td><strong>This is what reaches Back Office.</strong></td></tr>
+    <tr><td><span class="pill p-go">Ready &mdash; Virtual Demo</span></td><td class="ctr">Virtual</td><td>Approved and waiting for its date. <strong>Never reaches Back Office.</strong></td></tr>
+    <tr><td><span class="pill p-go">DC Generated</span></td><td class="ctr">On-site</td><td>A challan exists.</td></tr>
+    <tr><td><span class="pill p-go">Material Dispatched</span></td><td class="ctr">On-site</td><td>Equipment is out.</td></tr>
+    <tr><td><span class="pill p-go">Demo Completed</span></td><td class="ctr">Both</td><td>The demonstration has happened. Terminal for a virtual demo.</td></tr>
+    <tr><td><span class="pill p-go">Material Returned</span></td><td class="ctr">On-site</td><td>Equipment is back and verified.</td></tr>
+    <tr><td><span class="pill p-done">DC Closed</span></td><td class="ctr">On-site</td><td>Terminal.</td></tr>
+    <tr><td><span class="pill p-stop">Cancelled</span></td><td class="ctr">Both</td><td>Can occur from any status. No stage position is shown for a cancelled request.</td></tr>
+  </tbody>
+</table>
+<p class="small">Demo priority is <strong>low</strong>, <strong>medium</strong> or <strong>high</strong>. The demo <strong>outcome</strong> &mdash; recorded separately from the pipeline status &mdash; is successful, needs follow-up, pending decision, or cancelled.</p>
+
+<h2>8.5 Support ticket statuses</h2>
+<table class="t">
+  <thead><tr><th style="width:26%">Status on screen</th><th style="width:28%">Who holds the ticket</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><span class="pill p-wait">New</span></td><td>Nobody yet</td><td rowspan="3">All three read as <em>Open</em> to a channel partner &mdash; "we have it, nobody has started yet".</td></tr>
+    <tr><td><span class="pill p-wait">Open</span></td><td>Nobody yet</td></tr>
+    <tr><td><span class="pill p-wait">Under triage</span></td><td>The desk</td></tr>
+    <tr><td><span class="pill p-go">Assigned</span></td><td>The assignee</td><td>Also reads as <em>Open</em> to a partner.</td></tr>
+    <tr><td><span class="pill p-go">Acknowledged</span></td><td>The assignee</td><td>Reads as <em>In progress</em> to a partner.</td></tr>
+    <tr><td><span class="pill p-go">In progress</span></td><td>The assignee</td><td>&mdash;</td></tr>
+    <tr><td><span class="pill p-wait">Awaiting your information</span></td><td><strong>The reporter</strong></td><td>Reason required. <strong>Pauses the resolution clock.</strong> The reporter may return it to In progress by replying.</td></tr>
+    <tr><td><span class="pill p-wait">Awaiting internal team</span></td><td>Us</td><td>Reads as <em>In progress</em> to a partner. Does not pause the clock.</td></tr>
+    <tr><td><span class="pill p-stop">Escalated</span></td><td>A manager</td><td>Reason required.</td></tr>
+    <tr><td><span class="pill p-done">Resolved</span></td><td>Awaiting confirmation</td><td>Reason required. Engineer or manager only.</td></tr>
+    <tr><td><span class="pill p-stop">Reopened</span></td><td>The desk</td><td>Reason required.</td></tr>
+    <tr><td><span class="pill p-done">Closed</span></td><td>&mdash;</td><td>Terminal. Reporter or manager only. A manager may reopen it.</td></tr>
+    <tr><td><span class="pill p-idle">Cancelled</span></td><td>&mdash;</td><td>Terminal. Manager only, from the early statuses. A manager may return it to Open.</td></tr>
+  </tbody>
+</table>
+
+<h2>8.6 Support ticket fields</h2>
+<table class="t">
+  <thead><tr><th style="width:26%">Field</th><th class="ctr" style="width:16%">Required</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Title</td><td class="ctr">Required</td><td>&mdash;</td></tr>
+    <tr><td>Describe the issue</td><td class="ctr">Required</td><td>&mdash;</td></tr>
+    <tr><td>Issue type</td><td class="ctr">Optional</td><td>&mdash;</td></tr>
+    <tr><td>Business impact / Priority</td><td class="ctr">Defaults to Medium</td><td>Sets the targets at triage. Low, Medium, High, Critical.</td></tr>
+    <tr><td>Related project</td><td class="ctr">Optional</td><td>Links the ticket to the deal and quotation it came from.</td></tr>
+    <tr><td>Product; Model / serial number</td><td class="ctr">Optional</td><td>&mdash;</td></tr>
+    <tr><td>Date the issue occurred</td><td class="ctr">Optional</td><td>&mdash;</td></tr>
+    <tr><td>Customer; Installation site; Contact person</td><td class="ctr">Optional</td><td>&mdash;</td></tr>
+    <tr><td>Assignee; Department</td><td class="ctr">Set at triage</td><td>&mdash;</td></tr>
+    <tr><td>Resolution summary; Root cause; Corrective action</td><td class="ctr">At resolution</td><td>What makes the ticket useful later.</td></tr>
+    <tr><td>Reason</td><td class="ctr">Required on five transitions</td><td>Cancelled, Escalated, Resolved, Reopened, Awaiting your information.</td></tr>
+  </tbody>
+</table>
+
+<h2>8.7 Service-level states</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">State</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Not started</strong></td><td>No target has been stamped &mdash; the ticket has not been triaged.</td></tr>
+    <tr><td><strong>On track</strong></td><td>Within the target with time to spare.</td></tr>
+    <tr><td><strong>Due soon</strong></td><td>Within the last hour before the deadline.</td></tr>
+    <tr><td><strong>Breached</strong></td><td>The target has been missed.</td></tr>
+    <tr><td><strong>Met</strong></td><td>The target was achieved.</td></tr>
+  </tbody>
+</table>
+<p class="small">Response and resolution are assessed separately. The effective resolution deadline is the stamped one shifted out by however long the ticket spent awaiting the reporter.</p>
+
+<!-- ======================= 9 ======================= -->
+<h1 id="s9"><span class="sec-no">09</span>Reports, Downloads and Exports</h1>
+<table class="t">
+  <thead><tr><th style="width:26%">Output</th><th style="width:16%">Format</th><th style="width:22%">Who</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td>Delivery Challan</td><td>PDF</td><td>Back Office actors</td><td>The challan with company header, client details, item lines with serials and prices. <strong>Download PDF</strong> or <strong>Print DC</strong>.</td></tr>
+    <tr><td>Monthly summary</td><td>On screen</td><td>Back Office actors</td><td>Total demos, total expense, sales people; a by-sales-person table; a month-by-month trend.</td></tr>
+    <tr><td>Support ticket detail</td><td>On screen</td><td>Per &sect;4.3</td><td>Issue, customer, product, resolution, conversation and full status history.</td></tr>
+    <tr><td>Status history</td><td>On screen</td><td>Per &sect;4.3</td><td>Every status move with when, from and to.</td></tr>
+    <tr><td>Audit trail</td><td>PDF of a page</td><td><strong>Super Admin / Admin only</strong></td><td>Demo and challan status changes with user, time and IP, from Administration &rarr; Audit Log.</td></tr>
+  </tbody>
+</table>
+<div class="verify">
+  <span class="lbl">No spreadsheet export from either module</span>
+  <p>Neither Back Office Operations nor Technical Support offers a CSV or Excel export. Figures must be read from the summary view and the queue tiles. <span class="tbv">Whether an export exists by another route: to be verified in the live MatrixIQ application.</span></p>
+</div>
+
+<h2>9.1 Search and filtering</h2>
+<ul class="b">
+  <li><strong>Back Office</strong> &mdash; the challan list can be opened directly on a specific challan or demo request by link, which is how drill-downs from performance dashboards arrive. A link to a specific challan always opens the Delivery Challans view, never the Summary.</li>
+  <li><strong>Technical Support</strong> &mdash; search matches ticket, partner, customer and product. Tickets are badged <em>Internal</em> or by partner, and <em>Unassigned</em> where nobody has picked them up.</li>
+</ul>
+
+<h2>9.2 How to interpret the monthly summary</h2>
+<ul class="b">
+  <li><strong>Total Expense</strong> counts only costs actually recorded at closure. A dash means no challan in the period recorded one &mdash; not that demonstrations were free.</li>
+  <li>Challans that cannot be attributed to a sales person are grouped as unattributed. A large unattributed figure usually means manual challans were created without a linked project.</li>
+  <li>The summary counts challans, not demonstrations. A virtual demo never appears, because it never produces a challan.</li>
+</ul>
+
+<!-- ======================= 10 ======================= -->
+<h1 id="s10"><span class="sec-no">10</span>Notifications and Follow-Ups</h1>
+
+<h2>10.1 What MatrixIQ sends</h2>
+<table class="t">
+  <thead><tr><th style="width:30%">Event</th><th style="width:26%">Who is notified</th><th>What they must do</th></tr></thead>
+  <tbody>
+    <tr><td>A demo request needs technical approval</td><td>The nominated technical person</td><td>Record availability and decide.</td></tr>
+    <tr><td>A demo request needs manager approval</td><td>The approving manager</td><td>Approve, reject, or modify the schedule.</td></tr>
+    <tr><td>A demo request reaches Pending Back Office</td><td>Back Office</td><td>Generate the Delivery Challan.</td></tr>
+    <tr><td>A challan is generated</td><td>The requester</td><td>Expect dispatch.</td></tr>
+    <tr><td>Material is pending return</td><td>Back Office</td><td>Chase the return against the expected return date.</td></tr>
+    <tr><td>A support ticket is raised</td><td>The support desk</td><td>Triage and assign.</td></tr>
+    <tr><td>A ticket is assigned</td><td>The assignee</td><td>Acknowledge and post a first reply.</td></tr>
+    <tr><td>A comment is posted</td><td>Participants on the ticket</td><td>Read and reply.</td></tr>
+    <tr><td>A ticket is resolved</td><td>The reporter</td><td><strong>Confirm by closing, or reopen.</strong></td></tr>
+    <tr><td>A monthly summary run completes</td><td>Configured recipients</td><td>Review the figures.</td></tr>
+  </tbody>
+</table>
+
+<h2>10.2 Service targets and what they oblige</h2>
+<table class="t">
+  <thead><tr><th style="width:34%">Target</th><th style="width:20%" class="ctr">Value</th><th>Obligation</th></tr></thead>
+  <tbody>
+    <tr><td>First response &mdash; Critical</td><td class="ctr">30 minutes</td><td rowspan="4">Post a substantive first reply in the conversation thread within the target. An acknowledgement that says nothing is not a response.</td></tr>
+    <tr><td>First response &mdash; High</td><td class="ctr">2 hours</td></tr>
+    <tr><td>First response &mdash; Medium</td><td class="ctr">4 hours</td></tr>
+    <tr><td>First response &mdash; Low</td><td class="ctr">8 hours</td></tr>
+    <tr><td>Resolution &mdash; Critical / High / Medium / Low</td><td class="ctr">4 / 8 / 24 / 72 hours</td><td>Resolve within the target, less any time spent awaiting the reporter.</td></tr>
+    <tr><td>Expected return date on a challan</td><td class="ctr">Set per challan</td><td>Not enforced by MatrixIQ. Chase the return; it is the only control.</td></tr>
+  </tbody>
+</table>
+
+<h2>10.3 How e-mail behaves</h2>
+<div class="warn">
+  <span class="lbl">E-mail can fail silently</span>
+  <p>Mail is sent through Amazon SES using server settings. If those are not provisioned, MatrixIQ skips the send and continues without an error. <strong>The queue and the tiles are the reliable work lists</strong> &mdash; particularly the <strong>SLA breached</strong> tile, which no notification can substitute for.</p>
+</div>
+
+<!-- ======================= 11 ======================= -->
+<h1 id="s11"><span class="sec-no">11</span>Common Problems and Troubleshooting</h1>
+<table class="t">
+  <thead><tr><th style="width:21%">Problem</th><th style="width:23%">Likely cause</th><th style="width:30%">Recommended action</th><th>Responsible</th></tr></thead>
+  <tbody>
+    <tr><td>A manager can see Back Office but every action is refused.</td><td>They are not listed as a manager of the <em>Back Office</em> department.</td><td>Add them in Department Master if they should act, or ask Administration to untick the Manager column for this module so the tile is not advertised misleadingly.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>An approved demo request never appears for a challan.</td><td>It is a <strong>virtual</strong> demo, which never reaches Back Office.</td><td>Check the mode on the request. Virtual demos end at Demo Completed.</td><td>Back Office with Sales</td></tr>
+    <tr><td><em>"No products were listed as required on this request."</em></td><td>The demo request listed no products.</td><td>Go back to the requester for the list. Do not guess, and do not create a manual challan to work around it.</td><td>Sales</td></tr>
+    <tr><td>Equipment is out but the challan says Prepared.</td><td>Dispatch was never recorded.</td><td>Record it now and note the real date in the remarks. Do not leave it unrecorded.</td><td>Back Office</td></tr>
+    <tr><td>Equipment came back but nobody can say what condition it was in.</td><td>The return was verified without completing the checklist honestly, or not verified at all.</td><td>Complete the checklist at the moment of receipt, every time. Where it has already been closed, record the facts separately and escalate.</td><td>Back Office</td></tr>
+    <tr><td>A serial number cannot be verified on return.</td><td>No serial was recorded at dispatch.</td><td>Record serials before every dispatch. Tag the return <em>wrong serial number</em> only when you can actually show a mismatch.</td><td>Back Office</td></tr>
+    <tr><td>A challan was closed by mistake.</td><td>Closure is irreversible.</td><td>Record the facts, inform the Document Owner and escalate. The Audit Log preserves what was done and by whom.</td><td><span class="tbv">To be confirmed</span></td></tr>
+    <tr><td>The monthly Total Expense shows a dash.</td><td>No challan in the period recorded a demonstration cost.</td><td>Record a cost at closure &mdash; including an explicit zero where nothing was spent.</td><td>Back Office</td></tr>
+    <tr><td>Many challans are unattributed in the summary.</td><td>Manual challans created without a linked project.</td><td>Link a project when one exists; it is what attributes the challan.</td><td>Back Office</td></tr>
+    <tr><td>A ticket shows as breached although nobody has touched it.</td><td>Breach is computed from the clock, not from a stored flag.</td><td>Expected behaviour. Check the <strong>SLA breached</strong> tile at the start of every shift.</td><td>Support desk</td></tr>
+    <tr><td>A ticket is "breaching" while we wait on the customer.</td><td>It is still in a working status, so the clock is running.</td><td>Move it to <strong>Awaiting your information</strong>, with a reason. That pauses the resolution clock.</td><td>Assignee</td></tr>
+    <tr><td>An engineer cannot close a resolved ticket.</td><td>Deliberate. Closure follows the reporter's confirmation or a manager's decision.</td><td>Ask the reporter to confirm. Where they are unresponsive, ask a manager to close it.</td><td>Manager actor</td></tr>
+    <tr><td>A ticket cannot be cancelled.</td><td>It has moved past the early statuses.</td><td>Resolve or close it instead, so the trail shows what actually happened.</td><td>Manager actor</td></tr>
+    <tr><td>A status change will not save.</td><td>Five transitions require a reason &mdash; cancelled, escalated, resolved, reopened, awaiting your information.</td><td>Enter a reason and apply again.</td><td>Whoever is acting</td></tr>
+    <tr><td>A department manager cannot work the support queue.</td><td>The generic Manager role has no actor kind on the desk.</td><td>Give them the <strong>Technical Manager</strong> role if they need queue authority.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>An engineer cannot see a colleague's ticket.</td><td>Engineers see their own assignments plus the unassigned pool.</td><td>Ask a manager to reassign it, or work from the unassigned pool.</td><td>Manager actor</td></tr>
+    <tr><td>A technical colleague cannot raise a demo request.</td><td>Technical Project Management roles can see the demo queue but are blocked from creating requests.</td><td>Ask the sales owner to raise it.</td><td>Sales</td></tr>
+    <tr><td>A partner says their ticket status looks wrong.</td><td>Partners see a deliberately collapsed set of statuses.</td><td>Explain the current position in the conversation thread. Internal queue states are not shown to them by design.</td><td>Support desk</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 12 ======================= -->
+<h1 id="s12"><span class="sec-no">12</span>Best Practices and Compliance</h1>
+
+<h2>12.1 Mandatory MatrixIQ rules</h2>
+<table class="t">
+  <thead><tr><th style="width:54%">Rule</th><th>Enforcement</th></tr></thead>
+  <tbody>
+    <tr><td>Only an authorised Back Office actor may act on a Delivery Challan.</td><td>Actions are refused for anyone else, including most managers.</td></tr>
+    <tr><td>A challan moves prepared &rarr; dispatched &rarr; returned &rarr; closed, in that order.</td><td>Each action is offered only at the correct status.</td></tr>
+    <tr><td>Closing a challan is final.</td><td>No re-open exists. The dialog warns before confirming.</td></tr>
+    <tr><td>Virtual demos produce no challan.</td><td>They never enter the Back Office pipeline.</td></tr>
+    <tr><td>Technical Project Management roles cannot create a demo request.</td><td>Refused, although the queue is visible to them.</td></tr>
+    <tr><td>An engineer cannot close a support ticket.</td><td>The transition is not available to that actor kind.</td></tr>
+    <tr><td>A reporter cannot declare a ticket resolved.</td><td>Not available to the partner actor kind.</td></tr>
+    <tr><td>A ticket being worked cannot be cancelled.</td><td>Cancellation is manager-only and only from the early statuses.</td></tr>
+    <tr><td>Cancel, escalate, resolve, reopen and await-information all require a reason.</td><td>The action will not apply without one.</td></tr>
+    <tr><td>Service targets are stamped at triage, from the policy in force then.</td><td>Automatic. Re-stamped if the priority changes.</td></tr>
+    <tr><td>Service-level breach is computed live, never stored.</td><td>Automatic on every read.</td></tr>
+    <tr><td>Partners see their own company's tickets only, with collapsed statuses.</td><td>Scoped by the partner link, never by role.</td></tr>
+    <tr><td>Every demo and challan status change is written to the Audit Log.</td><td>Automatic, with user, time and IP.</td></tr>
+  </tbody>
+</table>
+
+<h2>12.2 Recommended practice</h2>
+<h4>Back Office &mdash; accurate records</h4>
+<ul class="b">
+  <li><strong>Record serial numbers before every dispatch.</strong> MatrixIQ does not insist; the return verification depends on it entirely.</li>
+  <li>Set a realistic expected return date on every challan. It is the only mechanism that surfaces an overdue return.</li>
+  <li>Link a project on a manual challan wherever one exists &mdash; it is what attributes the challan in the summary.</li>
+  <li>Record the demonstration cost at closure, entering an explicit zero rather than leaving it blank.</li>
+</ul>
+<h4>Back Office &mdash; the physical handover</h4>
+<ul class="b">
+  <li>Check the goods against the item lines before dispatching, not after.</li>
+  <li>Send the printed challan with the goods. It is what the receiving site signs against.</li>
+  <li>Complete the return checklist <strong>in front of the equipment</strong>, not from memory later.</li>
+  <li>Escalate damage or shortfall before closing. Closing is final.</li>
+</ul>
+<h4>Support &mdash; timeliness</h4>
+<ul class="b">
+  <li>Start every shift on the <strong>SLA breached</strong> tile, then <strong>Unassigned</strong>.</li>
+  <li>Post a substantive first reply within the response target. A holding message that says nothing is not a response.</li>
+  <li>Move a genuinely blocked ticket to <strong>Awaiting your information</strong> rather than leaving it in progress &mdash; it is both more honest and stops the clock.</li>
+  <li>Triage to the right priority. The priority is the promise.</li>
+</ul>
+<h4>Support &mdash; useful records</h4>
+<ul class="b">
+  <li>Always complete the resolution summary, root cause and corrective action. The next engineer with the same fault depends on it.</li>
+  <li>Keep the conversation in the ticket thread, not in e-mail or chat.</li>
+  <li>Write reasons that will still make sense in six months.</li>
+  <li>Link the related project so the ticket can be traced to the deal and the quotation.</li>
+</ul>
+<h4>Confidentiality and access control</h4>
+<ul class="b">
+  <li>Challans carry client names, addresses and equipment values. Do not circulate them outside the people who need them.</li>
+  <li>Tickets carry customer site details and contact names. Treat them as customer confidential.</li>
+  <li>Never share an account. Every action is attributed to the signed-in user and the originating address.</li>
+  <li>Remember that a partner reads the conversation thread on their own tickets. Keep internal speculation out of it.</li>
+</ul>
+<h4>Avoiding duplicates</h4>
+<ul class="b">
+  <li>Check whether a challan already exists for a demo request before creating a manual one.</li>
+  <li>Search the support queue before raising a ticket &mdash; the same fault may already be open.</li>
+  <li>Reopen an existing ticket rather than raising a second one for a recurrence; the reopen rate is a real measure.</li>
+</ul>
+<h4>Keeping an auditable history</h4>
+<ul class="b">
+  <li>Record events when they happen. A backdated entry with a note is better than a silent gap, but worse than a timely one.</li>
+  <li>Use the status vocabulary honestly &mdash; a ticket parked in progress while nobody works it misreports the company's performance.</li>
+  <li>Never work around a refusal. If MatrixIQ will not let you do something, the rule in &sect;12.1 is the reason.</li>
+</ul>
+
+<!-- ======================= 13 ======================= -->
+<h1 id="s13"><span class="sec-no">13</span>Quick Reference</h1>
+
+<h2>13.1 Frequently performed tasks</h2>
+<div class="qr">
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Equipment is going out for a demo</span><span class="qd">Back Office &rarr; find the approved request &rarr; <strong>Generate DC</strong> &rarr; set the expected return date &rarr; create.</span></div>
+    <div class="qcell"><span class="qt">Equipment is going out with no demo request</span><span class="qd"><strong>Create Manual DC</strong> &rarr; link a project if there is one &rarr; client details &rarr; item lines &rarr; expected return date.</span></div>
+  </div>
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Send the goods</span><span class="qd">Record serials &rarr; <strong>Save Serial Numbers</strong> &rarr; <strong>Download PDF</strong> or <strong>Print DC</strong> &rarr; <strong>Dispatch Material</strong>.</span></div>
+    <div class="qcell"><span class="qt">Receive the goods back</span><span class="qd">Complete the checklist &mdash; condition, flags, accessories, serial verified, tags, remarks &rarr; <strong>Verify &amp; Receive Material</strong>.</span></div>
+  </div>
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Finish with a challan</span><span class="qd"><strong>Close DC</strong> &rarr; answer the demonstration-cost question &rarr; confirm. <strong>This cannot be undone.</strong></span></div>
+    <div class="qcell"><span class="qt">See the month's demo activity</span><span class="qd">Back Office &rarr; <strong>Summary</strong> &rarr; read the tiles, the by-sales-person table and the trend.</span></div>
+  </div>
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Take a new ticket on</span><span class="qd">Open it &rarr; confirm <strong>Priority</strong> &rarr; <strong>Assign to</strong> an engineer &rarr; <strong>Apply</strong>. The targets are stamped now.</span></div>
+    <div class="qcell"><span class="qt">Stop the clock honestly</span><span class="qd"><strong>Move to</strong> &rarr; <em>Awaiting your information</em> &rarr; reason &rarr; <strong>Apply</strong>.</span></div>
+  </div>
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Close out a fix</span><span class="qd">Move to <em>Resolved</em> &rarr; resolution summary, root cause, corrective action, reason &rarr; <strong>Apply</strong>. The reporter then closes it.</span></div>
+    <div class="qcell"><span class="qt">Find out what is late</span><span class="qd">Read the <strong>SLA breached</strong> tile. It is recomputed on every load.</span></div>
+  </div>
+</div>
+
+<h2>13.2 Key status transitions</h2>
+<table class="t">
+  <thead><tr><th style="width:26%">Chain</th><th>Transitions</th></tr></thead>
+  <tbody>
+    <tr><td>Delivery Challan</td><td>Prepared &rarr; Dispatched &rarr; Returned &rarr; Closed <span class="small">(four statuses; "verified" is the action, not a status)</span></td></tr>
+    <tr><td>Demo &mdash; on-site</td><td>Pending Technical Approval &rarr; Pending Manager Approval &rarr; Pending Back Office &rarr; DC Generated &rarr; Material Dispatched &rarr; Demo Completed &rarr; Material Returned &rarr; DC Closed</td></tr>
+    <tr><td>Demo &mdash; virtual</td><td>Pending Technical Approval &rarr; Pending Manager Approval &rarr; Ready &mdash; Virtual Demo &rarr; Demo Completed</td></tr>
+    <tr><td>Support ticket</td><td>New &rarr; Under triage &rarr; Assigned &rarr; Acknowledged &rarr; In progress &rarr; Resolved &rarr; Closed<br><span class="small">With Awaiting your information, Awaiting internal team, Escalated, Reopened and Cancelled as branches.</span></td></tr>
+    <tr><td>BOM Request <span class="small">(TMS)</span></td><td>Submitted &rarr; Approved &rarr; Admin Approved &rarr; Finance Approved &rarr; Payment Done &rarr; Sent for Procurement &rarr; Received</td></tr>
+    <tr><td>Project handover</td><td>Pending &rarr; Approved, or Rejected, or Cancelled</td></tr>
+  </tbody>
+</table>
+
+<h2>13.3 Who does what</h2>
+<table class="t">
+  <thead><tr><th style="width:36%">Stage</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td>Raise a demo request</td><td>Sales</td></tr>
+    <tr><td>Technical approval of a demo</td><td>The nominated technical person</td></tr>
+    <tr><td>Manager approval of a demo</td><td>The approving department manager</td></tr>
+    <tr><td>Generate, dispatch, verify, close a challan</td><td>Back Office actor</td></tr>
+    <tr><td>Record the demo outcome report</td><td>Whoever gave the demonstration</td></tr>
+    <tr><td>Raise a support ticket</td><td>Anyone internal, or a channel partner</td></tr>
+    <tr><td>Triage, prioritise, assign, cancel, close</td><td>Manager actor &mdash; Super Admin, Admin, Technical Manager</td></tr>
+    <tr><td>Work and resolve a ticket</td><td>Engineer actor &mdash; Engineer, Technician, Team Lead</td></tr>
+    <tr><td>Confirm a fix</td><td>The reporter, including a channel partner</td></tr>
+    <tr><td>BOM, procurement, technical projects</td><td>Technical Project Management &mdash; a connected module</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 14 ======================= -->
+<h1 id="s14"><span class="sec-no">14</span>Glossary and Appendix</h1>
+
+<h2>14.1 Glossary</h2>
+<dl class="defs">
+  <dt>Actor kind</dt><dd>How the support workflow classifies a viewer: Manager, Engineer or Partner. Several roles map onto one kind, and some roles map onto none.</dd>
+  <dt>Back Office actor</dt><dd>Someone authorised to act on a Delivery Challan: the Back Office role, Admin, Super Admin, or the Back Office department's configured manager.</dd>
+  <dt>Breach</dt><dd>A missed response or resolution target. Computed live from the stamped deadlines and the status history, never stored.</dd>
+  <dt>Delivery Challan (DC)</dt><dd>The document recording equipment leaving the premises and coming back. Four statuses: Prepared, Dispatched, Returned, Closed.</dd>
+  <dt>Demo mode</dt><dd>On-site or virtual. A virtual demo involves no equipment movement and never produces a challan.</dd>
+  <dt>Demo outcome</dt><dd>What the demonstration achieved &mdash; successful, needs follow-up, pending decision or cancelled. Recorded separately from the pipeline status.</dd>
+  <dt>Escalation</dt><dd>A support status indicating the ticket needs more authority or expertise. Requires a reason.</dd>
+  <dt>Manual challan</dt><dd>A challan created directly by Back Office with no demo request behind it.</dd>
+  <dt>Pause (SLA)</dt><dd>Time a ticket spends awaiting the reporter, deducted from the resolution clock.</dd>
+  <dt>Return verification</dt><dd>The checklist completed when equipment comes back: condition, flags, accessories, serial verification, remark tags and remarks. Completing it is what moves a challan to Returned.</dd>
+  <dt>Service-level target</dt><dd>The response and resolution time promised for a priority. Stamped onto the ticket at triage.</dd>
+  <dt>Triage</dt><dd>The act of confirming priority, setting department and assigning. It is also when the service targets are stamped.</dd>
+  <dt>TMS</dt><dd>Technical Project Management &mdash; technical projects, tasks, bill of materials and procurement. A <strong>connected module</strong>, not part of Operations.</dd>
+  <dt>Unassigned pool</dt><dd>Tickets nobody has picked up. Visible to engineers so incoming work can be claimed.</dd>
+</dl>
+
+<h2>14.2 Appendix A &mdash; Dispatch checklist</h2>
+<table class="t">
+  <thead><tr><th style="width:8%" class="ctr">&#9744;</th><th>Check</th></tr></thead>
+  <tbody>
+    <tr><td class="ctr">&#9744;</td><td>The challan exists and is at <strong>Prepared</strong>.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Every item line matches the physical goods, by product and quantity.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Serial numbers are recorded and saved.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Accessories going out are noted &mdash; cables, remote, adapter, stand, packing.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>The expected return date is set and realistic.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Client name, phone and address are complete.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>The challan has been printed or downloaded and goes with the goods.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td><strong>Dispatch Material</strong> has been recorded in MatrixIQ.</td></tr>
+  </tbody>
+</table>
+
+<h2>14.3 Appendix B &mdash; Return receipt checklist</h2>
+<table class="t">
+  <thead><tr><th style="width:8%" class="ctr">&#9744;</th><th>Check</th></tr></thead>
+  <tbody>
+    <tr><td class="ctr">&#9744;</td><td>The equipment is physically present and being inspected now.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Serial numbers match what went out.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Condition recorded honestly &mdash; Good, Minor damage or Major damage.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Missing and damaged flags set where applicable.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Each accessory ticked only if it actually came back.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Relevant remark tags chosen.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Remarks written for anything a colleague would need to know later.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Any damage or shortfall escalated <strong>before</strong> the challan is closed.</td></tr>
+  </tbody>
+</table>
+
+<h2>14.4 Appendix C &mdash; Cross-module handoffs</h2>
+<table class="t">
+  <thead><tr><th style="width:22%">From</th><th style="width:22%">To</th><th style="width:24%">Handoff condition</th><th>What travels</th></tr></thead>
+  <tbody>
+    <tr><td>Sales &mdash; Demo Schedule</td><td>Technical</td><td>Request submitted</td><td>Project, client, products, date, priority, mode, objective.</td></tr>
+    <tr><td>Technical</td><td>Approving manager</td><td>Technical approval</td><td>Availability, expected arrival time, remarks.</td></tr>
+    <tr><td>Approving manager</td><td><strong>Back Office</strong></td><td>Manager approval of an <strong>on-site</strong> demo</td><td>The approved request and its product list.</td></tr>
+    <tr><td>Approving manager</td><td>Nobody &mdash; stays with Sales</td><td>Manager approval of a <strong>virtual</strong> demo</td><td>Ready for its date. No challan.</td></tr>
+    <tr><td>Back Office</td><td>Sales / Demo Schedule</td><td>Each challan action</td><td>DC Generated, Material Dispatched, Material Returned, DC Closed.</td></tr>
+    <tr><td>Sales &mdash; won project</td><td>Technical Project Management</td><td>Handover approved</td><td>The customer and project, without re-keying.</td></tr>
+    <tr><td>Project / Quotation</td><td>Technical Support</td><td>A ticket is raised against them</td><td>The originating deal and document.</td></tr>
+    <tr><td>Partner Portal</td><td>Technical Support</td><td>Partner raises a ticket</td><td>Product, serial, location, priority and the issue.</td></tr>
+    <tr><td>TMS BOM Request</td><td>Accounts</td><td>Finance approval</td><td>A payable item requiring payment proof.</td></tr>
+    <tr><td>Accounts</td><td>TMS Procurement</td><td>Payment recorded</td><td>Proof of payment; the technical team then receives the materials.</td></tr>
+  </tbody>
+</table>
+
+<h2>14.5 Appendix D &mdash; Items this document could not verify</h2>
+<table class="t">
+  <thead><tr><th style="width:42%">Item</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Whether the expected return date and Requested By are mandatory on a challan</td><td><span class="tbv">To be verified in the live MatrixIQ application</span></td></tr>
+    <tr><td>Where the service-level policy per priority is edited in the application</td><td><span class="tbv">To be verified in the live MatrixIQ application</span></td></tr>
+    <tr><td>Whether any spreadsheet export of challans or tickets exists</td><td><span class="tbv">To be verified in the live MatrixIQ application</span></td></tr>
+    <tr><td>Escalation route for a challan closed in error</td><td><span class="tbv">To be confirmed</span></td></tr>
+    <tr><td>Who receives the monthly summary notification</td><td><span class="tbv">To be confirmed</span></td></tr>
+    <tr><td>Whether the platform's e-mail service is provisioned in this deployment</td><td><span class="tbv">To be verified in the live MatrixIQ application</span></td></tr>
+    <tr><td>Document owner, approver and review frequency</td><td><span class="tbv">To be confirmed</span></td></tr>
+  </tbody>
+</table>
+
+<div class="endmark">End of document &mdash; MatrixIQ Operations Module SOP, version 1.0</div>

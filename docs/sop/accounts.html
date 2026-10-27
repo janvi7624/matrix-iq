@@ -1,0 +1,1082 @@
+<meta charset="utf-8">
+<title>MatrixIQ — Accounts Module SOP</title>
+<link rel="stylesheet" href="assets/sop.css">
+
+<!-- ======================= COVER ======================= -->
+<section class="cover">
+  <div class="hidden-string"><span class="str-doctitle">MatrixIQ — Accounts Module SOP</span><span class="str-module">Accounts</span><span class="str-class">Internal Use</span></div>
+  <div class="cover-band">
+    <span class="cover-logo-chip"><img class="cover-logo" src="assets/nanta-logo.png" alt="NANTA"></span>
+    <div class="cover-eyebrow">MatrixIQ &middot; Department Operating Manual</div>
+    <p class="cover-title">Accounts Module</p>
+    <p class="cover-subtitle">The payment queue, payment history, the reimbursement report, and the audit trail.</p>
+  </div>
+  <div class="cover-rule"></div>
+  <div class="cover-lower">
+    <div class="cover-doctype">Standard Operating Procedure</div>
+    <table class="cover-meta">
+      <tr><th>Department / Module</th><td>Accounts &mdash; Payments (<code>accounts-payments</code>), Audit Log (<code>audit-log</code>)</td></tr>
+      <tr><th>Document type</th><td>Standard Operating Procedure</td></tr>
+      <tr><th>Version</th><td>1.0</td></tr>
+      <tr><th>Preparation date</th><td>27 October 2026</td></tr>
+      <tr><th>Document owner</th><td>To be confirmed</td></tr>
+      <tr><th>Approved by</th><td>To be confirmed</td></tr>
+      <tr><th>Review frequency</th><td>To be confirmed</td></tr>
+      <tr><th>Classification</th><td>Internal Use</td></tr>
+      <tr><th>Platform</th><td>MatrixIQ 1.0.0 &mdash; NANTA TECH LIMITED</td></tr>
+    </table>
+    <div class="cover-footnote">
+      Prepared from the <em>MatrixIQ Feature Reference</em> (13 pages) and verified against the MatrixIQ application itself on 27 October 2026.
+      Where the application could not confirm an operational detail, this document says so rather than assuming.
+      This document describes the platform as configured on the date above; configuration changes made in Administration can alter what any role sees or may do.
+    </div>
+  </div>
+</section>
+
+<!-- ======================= CONTENTS ======================= -->
+<section class="toc">
+  <h1 class="no-break">Contents</h1>
+  <ul class="toc-list">
+    <li><span class="toc-num">1</span><a href="#s1">Cover Page</a></li>
+    <li><span class="toc-num">2</span><a href="#s2">Document Control</a></li>
+    <li><span class="toc-num">3</span><a href="#s3">Introduction</a></li>
+    <li><span class="toc-num">4</span><a href="#s4">Access and Permissions</a></li>
+    <li><span class="toc-num">5</span><a href="#s5">Module and Submodule Directory</a></li>
+    <li><span class="toc-num">6</span><a href="#s6">Detailed Step-by-Step Procedures</a></li>
+    <li class="toc-sub"><span class="toc-num">6.1</span><a href="#s6-1">Opening and reading the Payment Queue</a></li>
+    <li class="toc-sub"><span class="toc-num">6.2</span><a href="#s6-2">Reviewing one payment before acting</a></li>
+    <li class="toc-sub"><span class="toc-num">6.3</span><a href="#s6-3">Marking a payment as paid</a></li>
+    <li class="toc-sub"><span class="toc-num">6.4</span><a href="#s6-4">Putting a payment on hold</a></li>
+    <li class="toc-sub"><span class="toc-num">6.5</span><a href="#s6-5">Resuming a held payment</a></li>
+    <li class="toc-sub"><span class="toc-num">6.6</span><a href="#s6-6">Payment History and the CSV export</a></li>
+    <li class="toc-sub"><span class="toc-num">6.7</span><a href="#s6-7">The Reimbursement Report</a></li>
+    <li class="toc-sub"><span class="toc-num">6.8</span><a href="#s6-8">Reading the Audit Log</a></li>
+    <li><span class="toc-num">7</span><a href="#s7">Workflow and Approval Process</a></li>
+    <li><span class="toc-num">8</span><a href="#s8">Field and Status Reference</a></li>
+    <li><span class="toc-num">9</span><a href="#s9">Reports, Downloads and Exports</a></li>
+    <li><span class="toc-num">10</span><a href="#s10">Notifications and Follow-Ups</a></li>
+    <li><span class="toc-num">11</span><a href="#s11">Common Problems and Troubleshooting</a></li>
+    <li><span class="toc-num">12</span><a href="#s12">Best Practices and Compliance</a></li>
+    <li><span class="toc-num">13</span><a href="#s13">Quick Reference</a></li>
+    <li><span class="toc-num">14</span><a href="#s14">Glossary and Appendix</a></li>
+  </ul>
+</section>
+
+<!-- ======================= 1 ======================= -->
+<h1 id="s1"><span class="sec-no">01</span>Cover Page</h1>
+<p class="lede">The cover of this document carries its identity. It is reproduced here so that a printed or extracted section can still be traced back to the correct version.</p>
+
+<table class="t">
+  <caption class="tcap">Document identity</caption>
+  <thead><tr><th style="width:34%">Attribute</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Title</td><td>MatrixIQ &mdash; Accounts Module SOP</td></tr>
+    <tr><td>Platform</td><td>MatrixIQ, the internal business platform of NANTA TECH LIMITED</td></tr>
+    <tr><td>Module coverage</td><td>Payments (<code>accounts-payments</code>) and Audit Log (<code>audit-log</code>), plus the Accounts stage of every workflow that ends in a payment</td></tr>
+    <tr><td>Document type</td><td>Standard Operating Procedure</td></tr>
+    <tr><td>Version</td><td>1.0 &mdash; first issue</td></tr>
+    <tr><td>Preparation date</td><td>27 October 2026</td></tr>
+    <tr><td>Document owner</td><td>To be confirmed</td></tr>
+    <tr><td>Classification</td><td>Internal Use &mdash; not for circulation outside NANTA TECH LIMITED</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 2 ======================= -->
+<h1 id="s2"><span class="sec-no">02</span>Document Control</h1>
+
+<h2>2.1 Purpose of this document</h2>
+<p>This SOP explains how the Accounts team uses MatrixIQ to see, check, hold and settle every payment the company owes &mdash; and how to read the audit trail behind those actions. It is written so that an Accounts user can work the queue end to end without asking for technical help, and so that colleagues in HR, Administration and the Technical team understand exactly where their responsibility ends and the Accounts team's begins.</p>
+
+<h2>2.2 Version history</h2>
+<table class="t">
+  <thead><tr><th style="width:12%">Version</th><th style="width:18%">Date</th><th style="width:26%">Author</th><th>Summary of change</th></tr></thead>
+  <tbody>
+    <tr><td>1.0</td><td>27 October 2026</td><td>To be confirmed</td><td>First issue. Prepared from the MatrixIQ Feature Reference and verified against the live application.</td></tr>
+  </tbody>
+</table>
+
+<h2>2.3 Ownership and approval</h2>
+<table class="t">
+  <thead><tr><th style="width:32%">Role</th><th style="width:34%">Name</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td>Document owner</td><td>To be confirmed</td><td>Keeps this document accurate as the Accounts module changes.</td></tr>
+    <tr><td>Approver</td><td>To be confirmed</td><td>Signs off each version before it is issued.</td></tr>
+    <tr><td>Reviewers</td><td>To be confirmed</td><td>Accounts, HR and Administration representatives.</td></tr>
+    <tr><td>Review frequency</td><td>To be confirmed</td><td>Re-review is also required whenever Administration changes roles, module visibility or Application Settings in a way that affects Accounts.</td></tr>
+  </tbody>
+</table>
+
+<h2>2.4 Intended audience</h2>
+<ul class="b">
+  <li><strong>Primary &mdash;</strong> Accounts department staff who work the payment queue daily.</li>
+  <li><strong>Primary &mdash;</strong> The Accounts department manager, who carries the same rights by configuration rather than by role.</li>
+  <li><strong>Secondary &mdash;</strong> Super Admin and Admin accounts, who hold the same access plus the audit trail.</li>
+  <li><strong>Reference &mdash;</strong> HR, Administration and Technical colleagues who need to know what reaches Accounts and when.</li>
+</ul>
+
+<h2>2.5 Scope</h2>
+<p><strong>In scope.</strong> Everything an Accounts user does inside MatrixIQ: reading the queue, opening a payment, checking its origin, placing and lifting holds, recording payment, exporting, reading the month-by-employee reimbursement summary, and &mdash; for Super Admin and Admin only &mdash; reading the Audit Log.</p>
+<p><strong>Also in scope, as context.</strong> The upstream approval chains that put work into the Accounts queue, described only as far as is needed to understand what Accounts receives and what it must refuse.</p>
+
+<h2>2.6 Limitations</h2>
+<ul class="b">
+  <li>This document does not describe bank operations, statutory filing, tax computation or any accounting system outside MatrixIQ. MatrixIQ records <em>that</em> a payment was made; it is not a ledger.</li>
+  <li>It does not describe how to <em>create</em> the records that become payments. Those belong to the HR, Administration, Operations and Technical Project Management SOPs.</li>
+  <li>Role names, module visibility and some approval routings are configuration, not code. A change made in Administration can alter what is described here without any notice to this document.</li>
+  <li>Details the application could not confirm are marked <span class="tbv">To be verified in the live MatrixIQ application</span> and must not be treated as fact.</li>
+</ul>
+
+<!-- ======================= 3 ======================= -->
+<h1 id="s3"><span class="sec-no">03</span>Introduction</h1>
+
+<h2>3.1 What the Accounts module does</h2>
+<p class="lede">Five different parts of MatrixIQ can end in the company paying money. The Accounts module gathers all five into one queue, so that the Accounts team has a single place to look instead of five.</p>
+
+<p>Before the Accounts module existed, an approved reimbursement sheet sat in the Reimbursement screen, an approved travel request sat in Travel Schedule, a finance-approved bill of materials sat in the Technical Project Management screens, and office and admin spend sat in their own registers. Each had its own idea of "ready to pay". The Payments module reads all five and presents them as one list of payable items with one shared vocabulary: who is owed, how much, what for, who approved it, when it is due, and whether it has been paid.</p>
+
+<div class="note">
+  <span class="lbl">The important design point</span>
+  <p>The Payment Queue is <strong>assembled when you open it</strong>, from the five source records. It is not a separate copy of them. When you mark something paid here, MatrixIQ writes that fact back onto the original record &mdash; the reimbursement sheet, the BOM request, the travel request or the expense row. There is no second set of books to reconcile, and nothing can drift out of step.</p>
+</div>
+
+<h2>3.2 Why it exists</h2>
+<ul class="b">
+  <li><strong>One queue, not five.</strong> Nothing approved anywhere in MatrixIQ can be forgotten simply because nobody thought to open that screen.</li>
+  <li><strong>A visible due date.</strong> Every payable item carries a target date, so "what am I late on" is the first question the screen answers.</li>
+  <li><strong>A legitimate way to pause.</strong> When a bank detail is missing or an amount looks wrong, the item can be put on hold with a written reason instead of being silently skipped.</li>
+  <li><strong>An auditable record.</strong> Every status-changing action &mdash; including every hold, resume and payment &mdash; is appended to the Audit Log with the user, the time and the originating IP address.</li>
+</ul>
+
+<h2>3.3 Business processes it supports</h2>
+<table class="t">
+  <thead><tr><th style="width:26%">Process</th><th style="width:30%">Owned upstream by</th><th>What Accounts does</th></tr></thead>
+  <tbody>
+    <tr><td>Employee expense reimbursement</td><td>Employee &rarr; Department Manager &rarr; HR</td><td>Settles the HR-approved monthly sheet and records the payment reference.</td></tr>
+    <tr><td>Company-paid admin expense (hotel, tickets, visa and similar)</td><td>HR / Administration, with a named approver</td><td>Settles the approved entries for a calendar month as one sheet.</td></tr>
+    <tr><td>Office operating expense</td><td>HR / Administration register</td><td>Settles the unpaid entries for a calendar month as one sheet.</td></tr>
+    <tr><td>Bill of materials procurement</td><td>Technical team &rarr; Technical &rarr; Administration &rarr; Finance approver</td><td>Records the payment and uploads the mandatory payment proof.</td></tr>
+    <tr><td>Business travel</td><td>Employee &rarr; Manager &rarr; HR &rarr; Administration</td><td>Books the tickets, records the booking details and attaches the ticket documents.</td></tr>
+  </tbody>
+</table>
+
+<h2>3.4 Who should use it</h2>
+<p>The Payment Queue is for the Accounts team and for the organisation's administrators. It is deliberately <em>not</em> available to every manager in the company. Holding a manager role elsewhere &mdash; in Sales, in Operations, in the Technical team &mdash; does not grant sight of the company's payment queue.</p>
+
+<h2>3.5 What users can and cannot do</h2>
+<table class="t">
+  <thead><tr><th style="width:50%">An Accounts user can</th><th>An Accounts user cannot</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>See every pending, held and completed payment across all five sources.</td>
+      <td>Approve the underlying request. Approval belongs to the manager, HR, Administration or Finance stage upstream.</td>
+    </tr>
+    <tr>
+      <td>Open a payment and read the line items behind it.</td>
+      <td>Edit the amount, the payee or any line item of the source record.</td>
+    </tr>
+    <tr>
+      <td>Mark a payment as paid, recording the method, date and reference.</td>
+      <td>Pay an item that has not reached the correct upstream status. MatrixIQ refuses the action and says why.</td>
+    </tr>
+    <tr>
+      <td>Put a payment on hold with a written reason, and resume it later.</td>
+      <td>Put an already-paid item on hold, or hold the same item twice.</td>
+    </tr>
+    <tr>
+      <td>Export the filtered queue or history to CSV.</td>
+      <td>Reverse a completed payment from this screen.</td>
+    </tr>
+    <tr>
+      <td>Read the month-by-employee reimbursement summary.</td>
+      <td>Read the Audit Log. That is restricted to Super Admin and Admin accounts.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>3.6 How Accounts connects to the rest of MatrixIQ</h2>
+<div class="map">
+  <div class="mrow">
+    <div class="mcell"><span class="k">Reimbursement</span><span class="code">reimbursement &rarr; accounts-payments</span><span class="d">HR approves a monthly sheet; it appears in the queue as a <em>Reimbursement</em> item. Paying it moves the sheet to Payment Completed.</span></div>
+    <div class="mcell"><span class="k">Travel Schedule</span><span class="code">travel-schedule &rarr; accounts-payments</span><span class="d">After Administration approves, Accounts completes the ticket booking. That action is both the payment and the handover back to HR for final verification.</span></div>
+    <div class="mcell"><span class="k">BOM Request</span><span class="code">tms-bom-requests &rarr; accounts-payments</span><span class="d">A finance-approved bill of materials appears in the queue. Payment proof is mandatory before it can be settled.</span></div>
+  </div>
+  <div class="mrow">
+    <div class="mcell"><span class="k">Admin Expenses</span><span class="code">admin-expenses &rarr; accounts-payments</span><span class="d">Approved entries for one calendar month are grouped into a single payable sheet.</span></div>
+    <div class="mcell"><span class="k">Office Operation Expenses</span><span class="code">office-operation-expenses &rarr; accounts-payments</span><span class="d">Unpaid entries for one calendar month are grouped into a single payable sheet.</span></div>
+    <div class="mcell"><span class="k">Audit Log</span><span class="code">every module &rarr; audit-log</span><span class="d">Every status change written anywhere, including every payment, hold and resume, is appended here. Readable by Super Admin and Admin only.</span></div>
+  </div>
+</div>
+
+<!-- ======================= 4 ======================= -->
+<h1 id="s4"><span class="sec-no">04</span>Access and Permissions</h1>
+
+<h2>4.1 Who can open the Payment Queue</h2>
+<p>Access to <strong>Payments</strong> is granted in two independent ways. A user qualifies if <em>either</em> applies.</p>
+<table class="t">
+  <thead><tr><th style="width:34%">Route to access</th><th style="width:22%">Role key</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>By role &mdash; Accounts</td><td><code>accounts</code></td><td>The Accounts department's own staff. This is the normal route.</td></tr>
+    <tr><td>By role &mdash; Super Admin</td><td><code>superadmin</code></td><td>Full platform oversight.</td></tr>
+    <tr><td>By role &mdash; Admin</td><td><code>admin</code></td><td>Full operational oversight.</td></tr>
+    <tr><td>By configuration &mdash; Accounts department manager</td><td>any role</td><td>Whoever is listed as a manager of the department named <strong>Accounts</strong> in Department Master qualifies regardless of their role. This is a deliberate, configured grant.</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <span class="lbl">Holding a manager role is not enough</span>
+  <p>The generic <code>manager</code> role does <strong>not</strong> open the Payment Queue. A Sales manager, an Operations manager or a Technical manager cannot see the company's payments simply because they manage a team. The only manager who qualifies is the one actually listed as a manager of the <strong>Accounts</strong> department. To remove that access, remove the person from that department's managers in Department Master.</p>
+</div>
+
+<div class="note">
+  <span class="lbl">Hiding the tile is not the control</span>
+  <p>The same check guards the screen and the data behind it. Typing the address <code>/accounts/payments</code> directly does not work for an unauthorised account &mdash; MatrixIQ returns them to the dashboard. If Administration disables the Payments module in Module Manager, the screen and its interfaces close together for everyone.</p>
+</div>
+
+<h2>4.2 Who can read the Audit Log</h2>
+<p>The Audit Log is narrower than the rest of the Administration area. It is restricted to <strong>Super Admin and Admin accounts only</strong>.</p>
+<table class="t">
+  <thead><tr><th style="width:30%">Role</th><th style="width:22%" class="ctr">Can open Audit Log</th><th>What happens otherwise</th></tr></thead>
+  <tbody>
+    <tr><td>Super Admin</td><td class="ctr"><span class="yes">Yes</span></td><td>&mdash;</td></tr>
+    <tr><td>Admin</td><td class="ctr"><span class="yes">Yes</span></td><td>&mdash;</td></tr>
+    <tr><td>Manager</td><td class="ctr"><span class="no">No</span></td><td>An "Audit Log is restricted" screen is shown, explaining that only Super Admin and Admin accounts can read the audit trail.</td></tr>
+    <tr><td>Accounts</td><td class="ctr"><span class="no">No</span></td><td>As above. An Accounts user cannot read the audit trail, including entries recording their own actions.</td></tr>
+    <tr><td>All other roles</td><td class="ctr"><span class="no">No</span></td><td>As above.</td></tr>
+  </tbody>
+</table>
+<div class="verify">
+  <span class="lbl">Reference discrepancy &mdash; read carefully</span>
+  <p>The <em>MatrixIQ Feature Reference</em> lists the Audit Log under the Accounts section. That is a grouping in the reference document, not an access grant: <strong>the Accounts role cannot open the Audit Log.</strong> An Accounts user who needs an audit extract must ask a Super Admin or Admin for it.</p>
+</div>
+
+<h2>4.3 What each action requires</h2>
+<p>The four verbs below are deliberately separated. Being able to see a payment does not imply being able to pay it; being able to pay it does not imply being able to approve what created it.</p>
+<table class="t">
+  <thead><tr><th style="width:24%">Action</th><th style="width:28%">Who may perform it</th><th>Additional condition</th></tr></thead>
+  <tbody>
+    <tr class="grp"><td colspan="3">Viewing</td></tr>
+    <tr><td>Open the Payment Queue</td><td>Accounts, Super Admin, Admin, Accounts department manager</td><td>The Payments module must be enabled in Module Manager.</td></tr>
+    <tr><td>Open one payment's detail and its line items</td><td>As above</td><td>None.</td></tr>
+    <tr><td>Open the original request (reimbursement sheet, BOM request, &hellip;)</td><td>As above</td><td>The user must also have access to that module. The link is present for everyone; the destination enforces its own rules.</td></tr>
+    <tr class="grp"><td colspan="3">Acting</td></tr>
+    <tr><td>Mark as paid</td><td>As above</td><td>The source record must be in the exact status that makes it payable &mdash; see &sect;8.3. A BOM request additionally requires payment proof.</td></tr>
+    <tr><td>Put on hold</td><td>As above</td><td>A written reason is required. The item must not already be paid or already held.</td></tr>
+    <tr><td>Resume payment</td><td>As above</td><td>An active hold must exist.</td></tr>
+    <tr class="grp"><td colspan="3">Outside the Accounts module</td></tr>
+    <tr><td>Approve a reimbursement sheet</td><td>Department Manager, then HR</td><td>Accounts has no approval rights here.</td></tr>
+    <tr><td>Approve a travel request</td><td>Manager, then HR, then Administration</td><td>Accounts has no approval rights here.</td></tr>
+    <tr><td>Finance-approve a BOM request</td><td>The single BOM Finance Approver named in Application Settings, or an Admin / Super Admin</td><td>Set in Administration &rarr; Application Settings &rarr; TMS Settings.</td></tr>
+    <tr><td>Change configuration</td><td>Super Admin / Admin</td><td>See the Administration Module SOP.</td></tr>
+  </tbody>
+</table>
+
+<h2>4.4 Which records are visible</h2>
+<p>Within the Payment Queue there is <strong>no further scoping</strong>. An authorised Accounts user sees every payable item from every department, because that is what a company-wide payment queue is. Department and employee filters exist to <em>narrow the view</em>, never to restrict it.</p>
+
+<h2>4.5 Partner separation</h2>
+<p>External channel partners have no path to this module at all. Partner accounts are confined to the Partner Portal and are refused everywhere else, including every Accounts screen and interface. Likewise no internal account, however senior, can enter the Partner Portal. There is no "view as partner" mode.</p>
+
+<!-- ======================= 5 ======================= -->
+<h1 id="s5"><span class="sec-no">05</span>Module and Submodule Directory</h1>
+
+<h2>5.1 Payments</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">Attribute</th><th>Detail</th></tr></thead>
+  <tbody>
+    <tr><td>Module key</td><td><code>accounts-payments</code></td></tr>
+    <tr><td>Where it lives</td><td>Sidebar section <strong>Accounts</strong> &rarr; <strong>Payments</strong>; address <code>/accounts/payments</code></td></tr>
+    <tr><td>Purpose</td><td>Every pending, on-hold and completed payment across every module, in one queue.</td></tr>
+    <tr><td>Intended users</td><td>Accounts staff, the Accounts department manager, Super Admin, Admin.</td></tr>
+    <tr><td>Main functions</td><td>Payment Queue &middot; Payment History &middot; Reimbursement Report &middot; mark as paid &middot; put on hold &middot; resume &middot; filter &middot; CSV export.</td></tr>
+    <tr><td>Required inputs</td><td>To pay: payment date, and &mdash; depending on source &mdash; method, reference and proof documents. To hold: a written reason.</td></tr>
+    <tr><td>Outputs</td><td>A CSV export of the filtered queue or history; a payment reference written back onto the source record; audit entries; notifications to the original requester.</td></tr>
+    <tr><td>Related modules</td><td>Reimbursement, Admin Expenses, Office Operation Expenses, BOM Request, Travel Schedule, Audit Log.</td></tr>
+    <tr><td>Limitations</td><td>Cannot approve, edit or reverse. Cannot create a payment that no module raised. Due dates are targets computed on the spot, not commitments stored per record.</td></tr>
+  </tbody>
+</table>
+
+<h3>The three tabs</h3>
+<table class="t">
+  <thead><tr><th style="width:26%">Tab</th><th style="width:30%">Shows</th><th>Use it for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Payment Queue</strong><br><span class="small">carries a count of pending items</span></td><td>Items with status <span class="pill p-wait">Payment Required</span> or <span class="pill p-stop">On Hold</span></td><td>The daily working list. Filters here measure dates against when the item was <em>raised</em>.</td></tr>
+    <tr><td><strong>Payment History</strong></td><td>Items with status <span class="pill p-done">Paid</span></td><td>Looking back at what was settled. Filters here measure dates against when the money <em>left</em>.</td></tr>
+    <tr><td><strong>Reimbursement Report</strong></td><td>A month-by-employee summary of reimbursement spend</td><td>Answering "what did we reimburse, to whom, in which month" without opening individual sheets.</td></tr>
+  </tbody>
+</table>
+
+<h3>The four summary tiles</h3>
+<table class="t">
+  <thead><tr><th style="width:24%">Tile</th><th>What the figure means</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Pending</strong></td><td>Total value of everything not yet paid, including items on hold.</td></tr>
+    <tr><td><strong>Due Today</strong></td><td>Value of unpaid items whose target date is within roughly a day either side of now.</td></tr>
+    <tr><td><strong>Overdue</strong></td><td>Value of unpaid items more than a day past their target date.</td></tr>
+    <tr><td><strong>Paid This Month</strong></td><td>Value of items paid since the first of the current calendar month.</td></tr>
+  </tbody>
+</table>
+
+<h2>5.2 Audit Log</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">Attribute</th><th>Detail</th></tr></thead>
+  <tbody>
+    <tr><td>Module key</td><td><code>audit-log</code></td></tr>
+    <tr><td>Where it lives</td><td>Sidebar section <strong>Administration</strong> &rarr; <strong>Audit Log</strong>; address <code>/admin/audit-log</code></td></tr>
+    <tr><td>Purpose</td><td>A platform-wide, append-only record of every status-changing action.</td></tr>
+    <tr><td>Intended users</td><td><strong>Super Admin and Admin only.</strong></td></tr>
+    <tr><td>Main functions</td><td>Search, filter by entity / user / role / date range, page through results, export the visible page as PDF.</td></tr>
+    <tr><td>Required inputs</td><td>None. It is read-only.</td></tr>
+    <tr><td>Outputs</td><td>An on-screen trail and a PDF of the page currently displayed.</td></tr>
+    <tr><td>Related modules</td><td>Every module that changes a record's state writes here, Accounts included.</td></tr>
+    <tr><td>Limitations</td><td>Entries cannot be edited or deleted. The entity filter offers a fixed list which is narrower than the full set of record types that can appear in the trail &mdash; see &sect;6.8.</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 6 ======================= -->
+<h1 id="s6"><span class="sec-no">06</span>Detailed Step-by-Step Procedures</h1>
+<p class="lede">Every procedure below states what must be true before you start, what to do, what happens afterwards, and what to do when it does not work.</p>
+
+<h2 id="s6-1">6.1 Opening and reading the Payment Queue</h2>
+<h4>Preconditions</h4>
+<ul class="tight b">
+  <li>You are signed in to MatrixIQ with an Accounts, Super Admin or Admin account, or you are listed as a manager of the Accounts department.</li>
+  <li>The Payments module is enabled in Module Manager.</li>
+</ul>
+<h4>Procedure</h4>
+<ol class="steps">
+  <li>Open the sidebar and expand the <strong>Accounts</strong> section.</li>
+  <li>Select <strong>Payments</strong>. The screen opens on the <strong>Payment Queue</strong> tab.</li>
+  <li>Read the four tiles across the top &mdash; <strong>Pending</strong>, <strong>Due Today</strong>, <strong>Overdue</strong>, <strong>Paid This Month</strong>. These are totals for the whole company and are not affected by the filters below them.</li>
+  <li>Read the list. It is sorted so that the most urgent work is first: overdue items, then items due today or imminently, then items due within about three days, then everything else. Within each group the oldest item comes first.</li>
+  <li>Narrow the list if you need to, using the toolbar:
+    <ul class="b tight">
+      <li><strong>Search</strong> &mdash; matches the payee, the description, the requester, the source label and the payment reference.</li>
+      <li><strong>All Sources</strong> &mdash; restrict to one of the five sources.</li>
+      <li><strong>All Statuses</strong> &mdash; <em>Payment Required</em>, <em>On Hold</em>, or all.</li>
+      <li><strong>Period</strong> &mdash; <em>Any time</em>, <em>Month</em>, <em>Quarter</em>, <em>Half-Year</em> or <em>Full Year</em>, together with a <strong>Financial Year</strong> and the specific period.</li>
+      <li><strong>Department</strong> and <strong>Employee</strong> &mdash; both lists are built from the payments themselves, so a choice that could only ever return nothing is never offered. The <em>Employee</em> filter matches both the payee and the requester.</li>
+      <li><strong>Amount (₹)</strong> &mdash; a minimum, a maximum, or both. An empty box means "no bound", not zero.</li>
+      <li><strong>Overdue only</strong> &mdash; the "what am I late on" view.</li>
+    </ul>
+  </li>
+  <li>Use <strong>Clear filters</strong> to return to the full queue. The toolbar shows how many filters are currently active.</li>
+</ol>
+<div class="note">
+  <span class="lbl">Which date a filter measures</span>
+  <p>On the <strong>Payment Queue</strong> tab, period and date filters are measured against the date the item was <em>raised</em> &mdash; the queue is about work arriving. On the <strong>Payment History</strong> tab they are measured against the date it was <em>paid</em> &mdash; history is about money leaving. The same filter therefore answers a different, and correct, question on each tab.</p>
+</div>
+<div class="shot"><span class="shot-lbl">Screenshot placeholder</span><span class="shot-txt">[Insert screenshot: Accounts &rarr; Payments, Payment Queue tab with the four summary tiles and the filter toolbar]</span></div>
+
+<h2 id="s6-2">6.2 Reviewing one payment before acting</h2>
+<p>Never pay from the list row alone. Open the item first.</p>
+<ol class="steps">
+  <li>Select the row. The detail panel opens.</li>
+  <li>Check the header facts: <strong>Amount</strong>, <strong>Payee</strong>, <strong>Description</strong>, <strong>Requested By</strong>, <strong>Approved By</strong>, and the <strong>Source</strong>.</li>
+  <li>Select <strong>Open Original Request</strong> to open the record this payment came from, in its own module. Use this whenever the description alone is not enough:
+    <ul class="b tight">
+      <li>Reimbursement &rarr; the Reimbursement screen</li>
+      <li>Admin Expense &rarr; the Admin Expenses screen</li>
+      <li>Office Operation Expense &rarr; the Office Operation Expenses register</li>
+      <li>BOM Request &rarr; the Technical Project Management BOM Requests screen</li>
+      <li>Travel Booking &rarr; the Travel Schedule screen</li>
+    </ul>
+  </li>
+  <li>For an Admin Expense or an Office Operation Expense, the panel lists the individual entries that make up the month's sheet. Read them before paying &mdash; this is the only place the composition of a monthly sheet is visible.</li>
+  <li>Confirm that the amount you are about to pay is the amount you have just read. See the warning below.</li>
+</ol>
+<div class="warn">
+  <span class="lbl">A monthly sheet can grow while you are looking at it</span>
+  <p>An <strong>Admin Expense</strong> or <strong>Office Operation Expense</strong> sheet is "every unpaid entry for that month". If a colleague logs another entry for the same month while your screen is open, the sheet's real total changes. MatrixIQ guards against this: it records the total you were shown and refuses the payment if the figure has moved. If that happens, refresh and read the entries again before paying.</p>
+</div>
+
+<h2 id="s6-3">6.3 Marking a payment as paid</h2>
+<h4>Preconditions</h4>
+<ul class="tight b">
+  <li>The item's status is <span class="pill p-wait">Payment Required</span>. An item that is on hold must be resumed first.</li>
+  <li>The underlying record is in the status that makes it payable &mdash; see the table in &sect;8.3.</li>
+  <li>The money has actually moved, or you are recording it at the moment it moves.</li>
+</ul>
+<h4>Procedure</h4>
+<ol class="steps">
+  <li>Open the payment (&sect;6.2) and select <strong>Pay</strong> from the list row, or <strong>Make Payment</strong> from the detail panel.</li>
+  <li>The <strong>Confirm Payment</strong> dialog opens, restating the <strong>Payee</strong>, the <strong>Amount</strong> and the <strong>Method</strong>. Read them.</li>
+  <li>Enter the <strong>Payment date</strong>. This field is required. The on-screen guidance is explicit: <em>"The day the money actually moved &mdash; not necessarily today."</em> Back-date it when you are recording a payment made earlier.</li>
+  <li>Enter the payment <strong>Reference</strong> where the source asks for one &mdash; a transaction ID, UTR or cheque number.</li>
+  <li>Attach proof where required. <strong>For a BOM Request this is mandatory</strong>: MatrixIQ refuses the payment with <em>"Payment proof is required for a BOM request payment"</em> if nothing is attached.</li>
+  <li>Add <strong>Remarks</strong> if anything needs explaining.</li>
+  <li>Answer the confirmation &mdash; <em>"Are you sure this payment has been completed?"</em> &mdash; by selecting <strong>Confirm Payment</strong>. <strong>Back</strong> returns without recording anything.</li>
+</ol>
+<h4>What happens next</h4>
+<ul class="b">
+  <li>The item moves from the Payment Queue to Payment History with status <span class="pill p-done">Paid</span> and the payment date you entered.</li>
+  <li>The source record is updated in its own module &mdash; a reimbursement sheet becomes <strong>Payment Completed</strong>, a travel request moves to <strong>Ticket Booked</strong> and is handed to HR for final verification, and so on.</li>
+  <li>An audit entry is appended recording who paid, when, the previous and new status, and the originating IP address.</li>
+  <li>The <strong>Paid This Month</strong> tile increases.</li>
+</ul>
+<h4>If it will not complete</h4>
+<table class="t">
+  <thead><tr><th style="width:46%">Message</th><th>What it means and what to do</th></tr></thead>
+  <tbody>
+    <tr><td><em>"This sheet is not awaiting payment"</em></td><td>The reimbursement sheet is not at HR Approved. Ask HR to complete their review.</td></tr>
+    <tr><td><em>"This request is not awaiting payment"</em></td><td>The BOM request has not been finance-approved. It is not yours to settle yet.</td></tr>
+    <tr><td><em>"This request is not ready for booking/payment"</em></td><td>The travel request has not been approved by Administration.</td></tr>
+    <tr><td><em>"Payment proof is required for a BOM request payment"</em></td><td>Attach the proof document and try again.</td></tr>
+    <tr><td><em>"Payment could not be completed &mdash; it may already be paid"</em></td><td>Someone else settled it first. Refresh and check Payment History before paying again.</td></tr>
+  </tbody>
+</table>
+<div class="shot"><span class="shot-lbl">Screenshot placeholder</span><span class="shot-txt">[Insert screenshot: the Confirm Payment dialog showing Payee, Amount, Method and the required Payment date field]</span></div>
+
+<h2 id="s6-4">6.4 Putting a payment on hold</h2>
+<p>Use a hold when something is genuinely wrong or missing. A hold is visible to everyone who can see the queue, and it tells the requester why &mdash; which is what makes it better than quietly skipping the row.</p>
+<ol class="steps">
+  <li>Open the payment and select <strong>Put On Hold</strong>.</li>
+  <li>Enter a <strong>Reason for Hold</strong>. This is required. Write what is actually missing &mdash; the field's own examples are <em>missing bank details</em>, <em>invoice missing</em> and <em>amount mismatch</em>.</li>
+  <li>Select <strong>Put On Hold</strong> to confirm, or <strong>Cancel</strong> to abandon.</li>
+</ol>
+<h4>What happens next</h4>
+<ul class="b">
+  <li>The item's status becomes <span class="pill p-stop">On Hold</span>. It <strong>stays in the Payment Queue</strong> and continues to count towards the <strong>Pending</strong> total &mdash; a hold suspends payment, not the obligation.</li>
+  <li>The person who raised the underlying record is notified. An Office Operation Expense monthly sheet may have several contributors, and each is notified. An <strong>Admin Expense</strong> sheet has no single requester, so no requester notification is sent for that source.</li>
+  <li>An audit entry is appended.</li>
+</ul>
+<div class="note">
+  <span class="lbl">A hold does not change the source record</span>
+  <p>Holding a payment lays a marker over the item in the Accounts queue. The reimbursement sheet, BOM request or travel request keeps its own status untouched, so the upstream module still reads correctly. This also means a hold can only be lifted here, in Accounts.</p>
+</div>
+<h4>If it will not complete</h4>
+<ul class="b tight">
+  <li><em>"This payment is already paid"</em> &mdash; a settled payment cannot be held. If the payment was wrong, raise it with the Document Owner and the originating department; the correction is not made from this screen.</li>
+  <li><em>"This payment is already on hold"</em> &mdash; someone has just held it. Refresh to see the existing hold and its reason.</li>
+</ul>
+
+<h2 id="s6-5">6.5 Resuming a held payment</h2>
+<ol class="steps">
+  <li>Find the item &mdash; set the status filter to <strong>On Hold</strong> to list every held payment at once.</li>
+  <li>Open it and read the hold reason. Confirm that the problem is genuinely resolved.</li>
+  <li>Select <strong>Resume Payment</strong>.</li>
+  <li>The status returns to <span class="pill p-wait">Payment Required</span>. Pay it in the normal way (&sect;6.3) once you are ready.</li>
+</ol>
+<p>If MatrixIQ reports <em>"No active hold found for this payment"</em>, the hold has already been lifted by a colleague. Refresh the screen.</p>
+
+<h2 id="s6-6">6.6 Payment History and the CSV export</h2>
+<ol class="steps">
+  <li>Select the <strong>Payment History</strong> tab. It lists settled payments, with a <strong>Paid Date</strong> column in place of <strong>Due Date</strong>.</li>
+  <li>Apply filters exactly as on the queue. Remember that here they measure the <em>paid</em> date.</li>
+  <li>Select the export control to download the current view as a CSV file.</li>
+</ol>
+<div class="tip">
+  <span class="lbl">The export always matches the screen</span>
+  <p>The queue, the history and the CSV export all run through the same filtering logic, so an export can never disagree with the list that produced it. If the CSV looks wrong, the filters on screen are the thing to check.</p>
+</div>
+
+<h2 id="s6-7">6.7 The Reimbursement Report</h2>
+<p>This tab answers a question the queue cannot: how much reimbursement spend belongs to each month, and how much of it has actually been paid.</p>
+<ol class="steps">
+  <li>Select the <strong>Reimbursement Report</strong> tab.</li>
+  <li>Read the table. It has one row per month and shows <strong>Month</strong>, <strong>Total Expense</strong> and <strong>Paid</strong>, broken down by employee.</li>
+  <li>Select <strong>Export CSV</strong> to download it.</li>
+</ol>
+<h4>How to read the figures</h4>
+<ul class="b">
+  <li><strong>Total Expense</strong> is every reimbursement claim dated in that month, whatever stage it has reached.</li>
+  <li><strong>Paid</strong> counts only months whose sheet has reached <strong>Payment Completed</strong>. A month that is approved but not yet settled therefore shows a total with nothing against Paid &mdash; that is the gap the Accounts queue exists to close.</li>
+  <li>Admin Expense entries are <strong>excluded</strong>. They share the same underlying table but carry their own approval and payment state and appear in the queue in their own right. Including them here would double-count them.</li>
+  <li>If the screen says <em>"No reimbursements recorded yet"</em>, no claims exist for the period, not that the report failed.</li>
+</ul>
+
+<h2 id="s6-8">6.8 Reading the Audit Log</h2>
+<div class="warn">
+  <span class="lbl">Super Admin and Admin only</span>
+  <p>This procedure cannot be performed by an Accounts account. An Accounts user who needs an audit extract must ask a Super Admin or Admin.</p>
+</div>
+<ol class="steps">
+  <li>Open the sidebar section <strong>Administration</strong> and select <strong>Audit Log</strong>.</li>
+  <li>Narrow the trail with the filters:
+    <ul class="b tight">
+      <li><strong>Search</strong> &mdash; free text across the user, action, remark, previous and new status, and IP address.</li>
+      <li><strong>Entity</strong> &mdash; a fixed list of record types, including <em>Reimbursement Sheets</em>, <em>Travel Schedule</em>, <em>TMS BOM Requests</em>, <em>Delivery Challans</em>, <em>Demo requests</em>, <em>Leads</em>, <em>Quotations</em>, <em>Projects</em>, <em>Marketing Requests</em>, <em>Departments</em>, <em>User Imports</em>, <em>TMS Projects</em>, <em>TMS Tasks</em>, <em>Tasks</em>, <em>Attendance</em>, <em>Leave Requests</em>, <em>Employee Exits</em> and <em>Custom Modules</em>.</li>
+      <li><strong>User</strong> and <strong>Role</strong> &mdash; both built from the trail itself, so an option that would return nothing is never offered.</li>
+      <li><strong>From</strong> and <strong>To</strong> &mdash; inclusive of both days.</li>
+    </ul>
+  </li>
+  <li>Read the eight columns: <strong>Date/Time</strong>, <strong>User</strong>, <strong>Role</strong>, <strong>Entity</strong>, <strong>Action</strong>, <strong>Previous &rarr; New</strong>, <strong>Remarks</strong> and <strong>IP</strong>.</li>
+  <li>Page through the results. Entries are shown newest first, fifty to a page.</li>
+  <li>Select <strong>Export page as PDF</strong> to keep a copy of the page currently displayed, or <strong>Refresh</strong> to reload.</li>
+</ol>
+<div class="verify">
+  <span class="lbl">Two limits worth knowing</span>
+  <p><strong>The Entity dropdown is narrower than the trail.</strong> MatrixIQ records audit entries against more record types than the dropdown lists &mdash; office operation expenses, daily reports, leave claims, materials, support tickets, partners and others. Those entries exist and are returned by an unfiltered search, but cannot be isolated from the dropdown. Use the free-text <strong>Search</strong> box to reach them.</p>
+  <p><strong>The export covers the page on screen, not the whole result set.</strong> Whether a full-result export exists is <span class="tbv">To be verified in the live MatrixIQ application</span>.</p>
+</div>
+
+<!-- ======================= 7 ======================= -->
+<h1 id="s7"><span class="sec-no">07</span>Workflow and Approval Process</h1>
+<p class="lede">Accounts is the last stage of several chains and does not start any of them. The diagrams below show where Accounts joins, and what it may refuse.</p>
+
+<h2>7.1 The Accounts action itself</h2>
+<div class="flow">
+<div class="chain"><div class="row">
+  <div class="cell"><span class="box start"><span class="st">ARRIVES</span><span class="nm">Payment Required</span><span class="who">Automatic &mdash; on upstream approval</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box gate"><span class="st">CHECK</span><span class="nm">Accounts reviews</span><span class="who">Accounts user</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box end"><span class="st">SETTLED</span><span class="nm">Paid</span><span class="who">Accounts user</span></span></div>
+</div></div>
+<div class="ladder">
+  <div class="rung exc"><div class="hd"><span class="pill">EXCEPTION</span>Something is missing or wrong</div>
+    <div class="meta"><b>Action:</b> Put On Hold, with a written reason &middot; <b>By:</b> Accounts user &middot; <b>Result:</b> status becomes On Hold; the item stays in the queue and in the Pending total; the requester is notified.</div>
+    <div class="branch"><b>To return it to the queue:</b> Resume Payment, once the problem is resolved. Only Accounts can lift a hold.</div>
+  </div>
+</div>
+</div>
+<table class="t">
+  <caption class="tcap">Automatic versus manual</caption>
+  <thead><tr><th style="width:44%">Event</th><th style="width:20%" class="ctr">Automatic?</th><th>Who acts</th></tr></thead>
+  <tbody>
+    <tr><td>An approved item appears in the Payment Queue</td><td class="ctr"><span class="yes">Automatic</span></td><td>Nobody &mdash; it is assembled when the screen is opened.</td></tr>
+    <tr><td>The due date is calculated</td><td class="ctr"><span class="yes">Automatic</span></td><td>Nobody. See &sect;8.4.</td></tr>
+    <tr><td>Overdue and Due Today badges and ordering</td><td class="ctr"><span class="yes">Automatic</span></td><td>Nobody &mdash; recomputed each time the screen is read.</td></tr>
+    <tr><td>Marking as paid</td><td class="ctr"><span class="no">Manual</span></td><td>Accounts user</td></tr>
+    <tr><td>Putting on hold / resuming</td><td class="ctr"><span class="no">Manual</span></td><td>Accounts user</td></tr>
+    <tr><td>The source record's own status updating after payment</td><td class="ctr"><span class="yes">Automatic</span></td><td>Nobody &mdash; it follows the payment.</td></tr>
+    <tr><td>Audit entry written</td><td class="ctr"><span class="yes">Automatic</span></td><td>Nobody.</td></tr>
+    <tr><td>Notification to the requester on hold or resume</td><td class="ctr"><span class="yes">Automatic</span></td><td>Nobody.</td></tr>
+  </tbody>
+</table>
+
+<h2>7.2 Reimbursement &mdash; the full chain</h2>
+<div class="ladder">
+  <div class="rung"><div class="hd"><span class="pill">STAGE 1</span>Draft</div><div class="meta"><b>Owner:</b> the employee &middot; <b>To advance:</b> add the month's bills, then Submit to Manager for Approval.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">STAGE 2</span>Awaiting Manager Approval</div><div class="meta"><b>Owner:</b> the employee's department manager &middot; <b>To advance:</b> approve.</div>
+    <div class="branch"><b>Changes Requested (Manager):</b> returns to the employee to correct, then re-submit.</div>
+    <div class="branch"><b>Exception:</b> a sheet created by a department manager themselves skips this stage and is shown as <em>Sent to HR</em>, with no manager name recorded.</div>
+  </div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">STAGE 3</span>Manager Approved &mdash; awaiting HR</div><div class="meta"><b>Owner:</b> HR &middot; <b>To advance:</b> HR approves.</div>
+    <div class="branch"><b>Changes Requested (HR):</b> returns to the employee to correct, then re-submit.</div>
+  </div>
+  <div class="down">&#8595;</div>
+  <div class="rung fin"><div class="hd"><span class="pill">STAGE 4</span>HR Approved &mdash; in the Accounts queue</div><div class="meta"><b>Owner:</b> <b>Accounts</b> &middot; <b>Action:</b> record the payment with its reference &middot; <b>Result:</b> Payment Completed.</div></div>
+</div>
+<div class="note">
+  <span class="lbl">Why reimbursements usually show as overdue</span>
+  <p>A reimbursement sheet's target date is the <strong>20th of the month the expenses belong to</strong> &mdash; not three days after HR approved it. Because a month's sheet is normally approved during the following month, most sheets are already past that date when they reach Accounts. <strong>This is the intended behaviour of a fixed pay date, not a fault.</strong> Judge urgency by the figures, not by the red badge alone.</p>
+</div>
+
+<h2>7.3 Travel Schedule &mdash; where Accounts sits</h2>
+<div class="flow">
+<div class="chain"><div class="row">
+  <div class="cell"><span class="box start"><span class="st">1</span><span class="nm">Submitted</span><span class="who">Employee</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">2</span><span class="nm">Manager Approved</span><span class="who">Dept. manager</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">3</span><span class="nm">HR Reviewed</span><span class="who">HR</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">4</span><span class="nm">Admin Approved</span><span class="who">Administration</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box gate"><span class="st">5</span><span class="nm">Ticket Booked</span><span class="who">ACCOUNTS</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box end"><span class="st">6</span><span class="nm">Completed</span><span class="who">HR final check</span></span></div>
+</div></div>
+</div>
+<p>Accounts owns <strong>stage 5 only</strong>. The action is <strong>Complete Booking</strong>: enter the booking and ticket details, attach the ticket documents, and record the actual cost. MatrixIQ refuses the action unless the request is at <strong>Admin Approved</strong>, and refuses anyone who is not an authorised Accounts actor with <em>"Only the Accounts team can complete ticket booking"</em>. Completing the booking notifies HR, who perform the final verification &mdash; and HR may send the request back to the employee, to the department manager or to HR itself for re-verification.</p>
+
+<h2>7.4 BOM Request &mdash; where Accounts sits</h2>
+<div class="flow">
+<div class="chain"><div class="row">
+  <div class="cell"><span class="box start"><span class="st">1</span><span class="nm">Submitted</span><span class="who">Technical team</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">2</span><span class="nm">Approved</span><span class="who">Technical review</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">3</span><span class="nm">Admin Approved</span><span class="who">Administration mgr</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box"><span class="st">4</span><span class="nm">Finance Approved</span><span class="who">BOM Finance Approver</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box gate"><span class="st">5</span><span class="nm">Payment Done</span><span class="who">ACCOUNTS</span></span></div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell"><span class="box end"><span class="st">6</span><span class="nm">Received</span><span class="who">Technical team</span></span></div>
+</div></div>
+</div>
+<p>Accounts owns <strong>stage 5 only</strong>, and only once the request is at <strong>Finance Approved</strong>. The finance approval step is held by a <strong>single named person</strong> configured in Administration &rarr; Application Settings &rarr; TMS Settings as the <strong>BOM Finance Approver</strong>; Super Admin and Admin accounts can always act in that capacity. <strong>Payment proof is mandatory</strong> at the Accounts stage.</p>
+
+<h2>7.5 Office and Admin expenses &mdash; how they reach Accounts</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">Source</th><th style="width:30%">Becomes payable when</th><th>Unit of payment</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Office Operation Expense</strong></td><td>An entry exists and is unpaid. There is no separate approval step on the entry itself.</td><td>One sheet per calendar month, covering every unpaid entry dated in it. Only the plain month is actionable; a month already settled in a previous payment appears in history as its own row.</td></tr>
+    <tr><td><strong>Admin Expense</strong></td><td>The entry has been <strong>approved</strong>. An entry a designated approver has not signed off is never swept into a payment, even if its date falls in the month.</td><td>One sheet per calendar month, covering every approved, unpaid entry dated in it &mdash; several separate batches settle together.</td></tr>
+  </tbody>
+</table>
+<div class="note">
+  <span class="lbl">Not every expense entry is an approval</span>
+  <p>An Office Operation Expense becomes payable simply by existing. The control over that spend is the restricted access to the register itself (see the HR Module SOP), not an approval chain. Accounts should treat an unexpected or unusually large office expense as a question for the person who entered it, not as a pre-authorised instruction.</p>
+</div>
+
+<h2>7.6 Billing is not the payment queue</h2>
+<p>MatrixIQ also has a <strong>Billing</strong> module (<code>billing</code>, at <code>/billing</code>), which an Accounts account can open. It is a different thing and carries no payment actions.</p>
+<table class="t">
+  <thead><tr><th style="width:30%"></th><th style="width:35%">Billing</th><th>Accounts &rarr; Payments</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Question it answers</strong></td><td>What have we <em>won</em>, and what is it worth?</td><td>What do we <em>owe</em>, and has it been paid?</td></tr>
+    <tr><td><strong>Direction of money</strong></td><td>Incoming &mdash; revenue</td><td>Outgoing &mdash; spend</td></tr>
+    <tr><td><strong>Contents</strong></td><td>One row per deal: won projects with their approved quotation folded in, plus approved quotations with no project of their own.</td><td>One row per payable item from five sources.</td></tr>
+    <tr><td><strong>Value shown</strong></td><td>Chosen by a stated rule &mdash; the purchase order amount where one exists, otherwise the approved quotation total, otherwise the sales estimate &mdash; with the basis reported alongside. Deals nobody has priced are surfaced as <em>Not valued</em>.</td><td>The amount actually payable.</td></tr>
+    <tr><td><strong>Actions available</strong></td><td>None. It is a read-only view.</td><td>Pay, hold, resume, export.</td></tr>
+  </tbody>
+</table>
+<div class="warn">
+  <span class="lbl">Do not read Billing as an instruction to pay</span>
+  <p>Nothing in Billing is payable and nothing in it ever reaches the Payment Queue. Treat it as a commercial report. Its figures are deliberately not added together across the three bases, because a deal's estimate, quoted total and purchase order amount routinely differ.</p>
+</div>
+
+<!-- ======================= 8 ======================= -->
+<h1 id="s8"><span class="sec-no">08</span>Field and Status Reference</h1>
+
+<h2>8.1 Payment queue columns</h2>
+<table class="t">
+  <thead><tr><th style="width:20%">Column</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Source</strong></td><td>Which module raised the payment: Reimbursement, Admin Expense, Office Operation Expense, BOM Request or Travel Booking.</td></tr>
+    <tr><td><strong>Payee</strong></td><td>Who is being paid.</td></tr>
+    <tr><td><strong>Description</strong></td><td>What the payment is for, written by the source module.</td></tr>
+    <tr><td><strong>Amount</strong></td><td>The payable figure in rupees.</td></tr>
+    <tr><td><strong>Requested By</strong></td><td>Who raised the underlying record. For a reimbursement this is the employee; for a BOM request, the requester.</td></tr>
+    <tr><td><strong>Due Date</strong> / <strong>Paid Date</strong></td><td>On the queue, the computed target date. On history, the date the payment was recorded.</td></tr>
+    <tr><td><strong>Status</strong></td><td>Payment Required, On Hold or Paid.</td></tr>
+    <tr><td><strong>Action</strong></td><td><em>Pay</em> on an unpaid item; <em>View</em> otherwise.</td></tr>
+  </tbody>
+</table>
+
+<h2>8.2 Payment statuses</h2>
+<table class="t">
+  <thead><tr><th style="width:22%">Status</th><th style="width:22%">Who can set it</th><th>What it means for the next step</th></tr></thead>
+  <tbody>
+    <tr><td><span class="pill p-wait">Payment Required</span></td><td>Set automatically when upstream approval completes</td><td>Accounts may pay it, or hold it.</td></tr>
+    <tr><td><span class="pill p-stop">On Hold</span></td><td>Accounts user, with a required reason</td><td>Payment is blocked until resumed. The item stays in the queue and in the Pending total. Only Accounts can lift it.</td></tr>
+    <tr><td><span class="pill p-done">Paid</span></td><td>Accounts user</td><td>Terminal in this module. The item moves to Payment History and cannot be held or reversed from this screen.</td></tr>
+  </tbody>
+</table>
+
+<h2>8.3 What each source must be at before Accounts can pay</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">Source</th><th style="width:24%">Required upstream status</th><th>Mandatory input at the Accounts stage</th></tr></thead>
+  <tbody>
+    <tr><td>Reimbursement</td><td><strong>HR Approved</strong></td><td>Payment date. Payment reference and remarks are offered.</td></tr>
+    <tr><td>BOM Request</td><td><strong>Finance Approved</strong></td><td>Payment date <strong>and payment proof</strong>. The payment is refused without proof.</td></tr>
+    <tr><td>Travel Booking</td><td><strong>Admin Approved</strong></td><td>Payment date. Booking / ticket details are required in the Travel Schedule screen; ticket documents are offered.</td></tr>
+    <tr><td>Admin Expense</td><td>Entries must be <strong>approved</strong>; the month's sheet unpaid</td><td>Payment date. The total is re-checked against what you were shown.</td></tr>
+    <tr><td>Office Operation Expense</td><td>Entries unpaid for that month</td><td>Payment date. The total is re-checked against what you were shown.</td></tr>
+  </tbody>
+</table>
+<div class="verify">
+  <span class="lbl">Not verified</span>
+  <p>Whether the <strong>Method</strong> and <strong>Reference</strong> fields are individually mandatory, and the exact list of methods offered, is <span class="tbv">To be verified in the live MatrixIQ application</span>. <strong>Payment date</strong> is confirmed required; <strong>payment proof on a BOM request</strong> is confirmed required.</p>
+</div>
+
+<h2>8.4 How the due date is worked out</h2>
+<div class="warn">
+  <span class="lbl">The due date is a target, not a promise recorded on the record</span>
+  <p>None of the five sources carries a real due-date field. MatrixIQ computes one so that urgency can be shown and the queue can be ordered. It is labelled as a target in the interface and must not be quoted to anyone as a contractual date.</p>
+</div>
+<table class="t">
+  <thead><tr><th style="width:30%">Source</th><th style="width:34%">Target date</th><th>Consequence</th></tr></thead>
+  <tbody>
+    <tr><td>Reimbursement</td><td>The <strong>20th of the expense month</strong> &mdash; the sheet's own month and year, regardless of when HR approved it.</td><td>Most sheets are already past this date on arrival. Expected behaviour.</td></tr>
+    <tr><td>Admin Expense, Office Operation Expense, BOM Request, Travel Booking</td><td>Approval date plus <strong>three days</strong>.</td><td>A stated service target that can be retuned centrally.</td></tr>
+  </tbody>
+</table>
+<table class="t">
+  <caption class="tcap">How the queue is ordered</caption>
+  <thead><tr><th style="width:16%" class="ctr">Priority</th><th style="width:34%">Group</th><th>Definition</th></tr></thead>
+  <tbody>
+    <tr><td class="ctr">1</td><td>Overdue</td><td>More than one day past the target date.</td></tr>
+    <tr><td class="ctr">2</td><td>Due today / imminent</td><td>Target date within about one day either side of now.</td></tr>
+    <tr><td class="ctr">3</td><td>Due soon</td><td>Target date within about three days.</td></tr>
+    <tr><td class="ctr">4</td><td>Older / future / no target</td><td>Everything else.</td></tr>
+  </tbody>
+</table>
+<p class="small">Within each group, the oldest item appears first.</p>
+
+<h2>8.5 Audit Log fields</h2>
+<table class="t">
+  <thead><tr><th style="width:22%">Field</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Date/Time</strong></td><td>When the action was recorded, in Indian local format.</td></tr>
+    <tr><td><strong>User</strong></td><td>The username of the person who acted.</td></tr>
+    <tr><td><strong>Role</strong></td><td>The role that account held at the time.</td></tr>
+    <tr><td><strong>Entity</strong></td><td>The kind of record affected and its identifier.</td></tr>
+    <tr><td><strong>Action</strong></td><td>A short description of what was done.</td></tr>
+    <tr><td><strong>Previous &rarr; New</strong></td><td>The status before and after.</td></tr>
+    <tr><td><strong>Remarks</strong></td><td>Any reason or note supplied with the action &mdash; for example a hold reason.</td></tr>
+    <tr><td><strong>IP</strong></td><td>The network address the action came from.</td></tr>
+  </tbody>
+</table>
+<div class="note">
+  <span class="lbl">Append-only, and deliberately forgiving</span>
+  <p>Audit entries are never edited or deleted. Audit writing is also designed never to block the action it is recording: if a line cannot be written, the business action still succeeds. A very long value is shortened with an ellipsis rather than discarded, because a truncated line is a better record than no line. Treat the Audit Log as a strong but not absolutely complete record.</p>
+</div>
+
+<!-- ======================= 9 ======================= -->
+<h1 id="s9"><span class="sec-no">09</span>Reports, Downloads and Exports</h1>
+
+<table class="t">
+  <thead><tr><th style="width:24%">Output</th><th style="width:14%">Format</th><th style="width:22%">Who can produce it</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td>Payment Queue export</td><td>CSV</td><td>Anyone who can open Payments</td><td>The queue exactly as filtered on screen.</td></tr>
+    <tr><td>Payment History export</td><td>CSV</td><td>Anyone who can open Payments</td><td>Settled payments exactly as filtered on screen.</td></tr>
+    <tr><td>Reimbursement Report</td><td>CSV</td><td>Anyone who can open Payments</td><td>Month by employee, with the month total and how much has reached Payment Completed.</td></tr>
+    <tr><td>Audit Log page</td><td>PDF</td><td><strong>Super Admin / Admin only</strong></td><td>The page of entries currently displayed.</td></tr>
+    <tr><td>Expense voucher</td><td>Excel</td><td>Produced in the Reimbursement module, not here</td><td>The monthly reimbursement voucher. See the HR Module SOP.</td></tr>
+    <tr><td>Office expense register</td><td>Excel</td><td>Produced in the Office Operation Expenses module, not here</td><td>One month's register. See the HR Module SOP.</td></tr>
+  </tbody>
+</table>
+
+<h2>9.1 Search and filtering options</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">Filter</th><th style="width:20%">Available on</th><th>Behaviour</th></tr></thead>
+  <tbody>
+    <tr><td>Search</td><td>Queue, History</td><td>Matches payee, description, requester, source label and payment reference.</td></tr>
+    <tr><td>Source</td><td>Queue, History</td><td>One of the five sources, or all.</td></tr>
+    <tr><td>Status</td><td>Queue, History</td><td>Payment Required, On Hold, or all.</td></tr>
+    <tr><td>Period</td><td>Queue, History</td><td>Month, Quarter, Half-Year or Full Year within a chosen financial year. Measured against the raised date on the queue and the paid date on history.</td></tr>
+    <tr><td>Department</td><td>Queue, History</td><td>Options are built from the payments present, so an empty choice is never offered.</td></tr>
+    <tr><td>Employee</td><td>Queue, History</td><td>Matches the payee <em>and</em> the requester &mdash; "anything to do with this person".</td></tr>
+    <tr><td>Amount minimum / maximum</td><td>Queue, History</td><td>A blank box is no bound, not zero.</td></tr>
+    <tr><td>Overdue only</td><td>Queue</td><td>Unpaid items past their target date.</td></tr>
+  </tbody>
+</table>
+
+<h2>9.2 How to interpret an export</h2>
+<ul class="b">
+  <li>A CSV reflects the filters that were active when you produced it. Always note the filters alongside the file.</li>
+  <li>Amounts are the payable figures at the moment of export. A monthly expense sheet can change afterwards if new entries are logged for that month.</li>
+  <li>A reimbursement row showing a target date in the past is normal &mdash; see &sect;8.4.</li>
+  <li>An export is not an accounting record. It is a working extract.</li>
+</ul>
+
+<!-- ======================= 10 ======================= -->
+<h1 id="s10"><span class="sec-no">10</span>Notifications and Follow-Ups</h1>
+
+<h2>10.1 What MatrixIQ sends</h2>
+<table class="t">
+  <thead><tr><th style="width:30%">Event</th><th style="width:28%">Who is notified</th><th>Channel and action required</th></tr></thead>
+  <tbody>
+    <tr><td>A reimbursement sheet is approved by HR</td><td>The Accounts department</td><td>In-app notification. <strong>Action:</strong> the sheet is now in your queue; settle it.</td></tr>
+    <tr><td>An Admin Expense is created, updated or approved</td><td>Users in the Accounts department</td><td>In-app notification, plus e-mail. <strong>Action:</strong> company-paid spend has been recorded; it will appear in that month's sheet.</td></tr>
+    <tr><td>A payment is put on hold or resumed</td><td>Whoever raised the underlying record</td><td>In-app notification. <strong>Action for them:</strong> read the hold reason and supply what is missing.</td></tr>
+    <tr><td>Accounts completes a travel booking</td><td>HR department managers</td><td>In-app notification &mdash; <em>"Travel booking complete &mdash; needs final verification"</em>. <strong>Action for HR:</strong> verify and confirm.</td></tr>
+    <tr><td>Reimbursement lifecycle events</td><td>The employee and the relevant approver</td><td>In-app notification and e-mail at each stage.</td></tr>
+  </tbody>
+</table>
+
+<h2>10.2 How notifications work</h2>
+<ul class="b">
+  <li>In-app notifications appear in the bell in the MatrixIQ header. They are shared by every module and are append-only.</li>
+  <li>E-mail is sent through Amazon SES and is <strong>configuration-dependent</strong>. If the platform's e-mail settings have not been provisioned, MatrixIQ records the intent and skips the send without failing the business action.</li>
+</ul>
+<div class="warn">
+  <span class="lbl">Do not rely on e-mail alone</span>
+  <p>Because an unconfigured mail service fails quietly, the queue itself is the authoritative work list. Open the Payment Queue daily. Never conclude that nothing is outstanding because no e-mail arrived.</p>
+</div>
+
+<h2>10.3 Deadlines and service targets</h2>
+<table class="t">
+  <thead><tr><th style="width:34%">Target</th><th style="width:16%" class="ctr">Value</th><th>Enforced?</th></tr></thead>
+  <tbody>
+    <tr><td>Payment target for most sources</td><td class="ctr">Approval + 3 days</td><td>No &mdash; display and ordering only.</td></tr>
+    <tr><td>Reimbursement pay date</td><td class="ctr">20th of the expense month</td><td>No &mdash; display and ordering only.</td></tr>
+    <tr><td>Reimbursement submission deadline (day of month)</td><td class="ctr">Configured</td><td>Yes, upstream &mdash; it governs when an employee may submit. Set in Application Settings and extendable per month. See the HR Module SOP.</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 11 ======================= -->
+<h1 id="s11"><span class="sec-no">11</span>Common Problems and Troubleshooting</h1>
+
+<table class="t">
+  <thead><tr><th style="width:21%">Problem</th><th style="width:23%">Likely cause</th><th style="width:30%">Recommended action</th><th>Responsible</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>The Payments tile is not in the sidebar.</td>
+      <td>Your account does not qualify, or the module has been disabled in Module Manager.</td>
+      <td>Confirm your role is Accounts, Admin or Super Admin, or that you are listed as a manager of the <em>Accounts</em> department. If it should be there, ask a Super Admin to check Module Manager.</td>
+      <td>Super Admin / Admin</td>
+    </tr>
+    <tr>
+      <td>Typing the address sends you back to the dashboard.</td>
+      <td>The same access rule guards the screen and the data.</td>
+      <td>Do not retry. Request access through the Administration team.</td>
+      <td>Super Admin / Admin</td>
+    </tr>
+    <tr>
+      <td>An approved item is not in the queue.</td>
+      <td>It has not reached the status that makes it payable &mdash; HR Approved, Finance Approved or Admin Approved as applicable. An Admin Expense entry may be unapproved.</td>
+      <td>Open the originating module and check the record's own status. Chase the stage that is holding it.</td>
+      <td>The upstream approver</td>
+    </tr>
+    <tr>
+      <td>Nearly every reimbursement shows as overdue.</td>
+      <td>Expected. The target is the 20th of the expense month, and sheets are normally approved in the month after.</td>
+      <td>No action. Prioritise by value and by age rather than by the overdue badge.</td>
+      <td>Accounts</td>
+    </tr>
+    <tr>
+      <td><em>"Payment proof is required for a BOM request payment"</em></td>
+      <td>No proof document was attached.</td>
+      <td>Attach the transfer confirmation or receipt, then confirm again.</td>
+      <td>Accounts</td>
+    </tr>
+    <tr>
+      <td>Paying a monthly expense sheet is refused on the amount.</td>
+      <td>A new entry was logged for that month after your screen loaded, so the real total no longer matches what you were shown.</td>
+      <td>Refresh, re-read the entries, and pay the corrected total.</td>
+      <td>Accounts</td>
+    </tr>
+    <tr>
+      <td><em>"This payment is already on hold"</em></td>
+      <td>A colleague placed a hold moments earlier.</td>
+      <td>Refresh and read the existing hold reason before acting.</td>
+      <td>Accounts</td>
+    </tr>
+    <tr>
+      <td><em>"Payment could not be completed &mdash; it may already be paid"</em></td>
+      <td>Another user settled it first.</td>
+      <td>Check Payment History before attempting again. <strong>Do not pay twice.</strong></td>
+      <td>Accounts</td>
+    </tr>
+    <tr>
+      <td>A payment was recorded against the wrong item or amount.</td>
+      <td>Data-entry error. It cannot be reversed from this screen.</td>
+      <td>Record the facts, inform the Document Owner and the originating department, and agree a correction path outside MatrixIQ. The Audit Log preserves exactly what was done and by whom.</td>
+      <td>Escalation route: <span class="tbv">To be confirmed</span></td>
+    </tr>
+    <tr>
+      <td>The Audit Log will not open.</td>
+      <td>Your role is not Super Admin or Admin. The "Audit Log is restricted" screen explains this.</td>
+      <td>Ask a Super Admin for the extract you need.</td>
+      <td>Super Admin</td>
+    </tr>
+    <tr>
+      <td>An entity type is missing from the Audit Log dropdown.</td>
+      <td>The dropdown lists a fixed subset; the trail itself records more.</td>
+      <td>Use the free-text Search box instead of the dropdown.</td>
+      <td>Super Admin / Admin</td>
+    </tr>
+    <tr>
+      <td>An approver says they approved, but Accounts sees nothing.</td>
+      <td>The approval may have been recorded at a different stage from the one that makes an item payable.</td>
+      <td>Compare the record's own status against &sect;8.3 before escalating.</td>
+      <td>Accounts with the upstream approver</td>
+    </tr>
+    <tr>
+      <td>Expected e-mails never arrive.</td>
+      <td>The platform's e-mail service may not be configured; sends are then skipped silently.</td>
+      <td>Rely on the in-app bell and the queue. Raise the configuration question with the Administration team.</td>
+      <td>Super Admin / Admin</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ======================= 12 ======================= -->
+<h1 id="s12"><span class="sec-no">12</span>Best Practices and Compliance</h1>
+
+<h2>12.1 Mandatory MatrixIQ rules</h2>
+<p>These are enforced by the platform. They are not matters of judgement.</p>
+<table class="t">
+  <thead><tr><th style="width:52%">Rule</th><th>Enforcement</th></tr></thead>
+  <tbody>
+    <tr><td>A payment cannot be recorded unless the source record is in the correct upstream status.</td><td>The action is refused with a message naming the reason.</td></tr>
+    <tr><td>A BOM request payment requires proof.</td><td>Refused without an attachment.</td></tr>
+    <tr><td>A hold requires a written reason.</td><td>The dialog will not submit without one.</td></tr>
+    <tr><td>The same item cannot be held twice at once.</td><td>Prevented at the data layer, not just in the screen.</td></tr>
+    <tr><td>A paid item cannot be put on hold.</td><td>Refused.</td></tr>
+    <tr><td>A monthly expense sheet cannot be paid for a total you were not shown.</td><td>Refused; re-read and retry.</td></tr>
+    <tr><td>Only Accounts actors may complete a travel ticket booking.</td><td>Refused for anyone else.</td></tr>
+    <tr><td>Every status change is written to the Audit Log with user, time and IP.</td><td>Automatic.</td></tr>
+    <tr><td>Only Super Admin and Admin may read the Audit Log.</td><td>Enforced on the screen and on the data behind it.</td></tr>
+  </tbody>
+</table>
+
+<h2>12.2 Recommended practice</h2>
+<p>These are recommendations from this SOP, not platform rules.</p>
+<h4>Accurate data entry</h4>
+<ul class="b">
+  <li>Enter the <strong>real</strong> payment date. Defaulting to today quietly corrupts every period report.</li>
+  <li>Record a reference that can be traced in the bank statement &mdash; the UTR, transaction ID or cheque number &mdash; not a free-text note.</li>
+  <li>Keep remarks factual. They are read by people outside Accounts and are preserved in the audit trail.</li>
+</ul>
+<h4>Supporting documents</h4>
+<ul class="b">
+  <li>Attach proof even where MatrixIQ does not insist on it. Only the BOM request stage requires it; attaching it everywhere makes a later query answerable without leaving the platform.</li>
+  <li>Before paying, open the original request at least once. The queue row is a summary, not evidence.</li>
+</ul>
+<h4>Timeliness</h4>
+<ul class="b">
+  <li>Work the queue in its default order. It is already sorted by urgency.</li>
+  <li>Clear the <strong>Overdue only</strong> view before anything else each day.</li>
+  <li>Review held payments at a fixed point each week. A hold with a resolved reason that nobody resumed is an invisible delay.</li>
+</ul>
+<h4>Confidentiality and access control</h4>
+<ul class="b">
+  <li>The queue carries company-wide salary-adjacent and personal expense information. Do not export it to shared drives or send it outside the Accounts team without the Document Owner's agreement.</li>
+  <li>Never share an account. Every action is attributed to the signed-in user and the originating IP address; a shared login destroys that attribution.</li>
+  <li>Partner-facing systems must never receive an Accounts export. Partners have no visibility of internal spend.</li>
+</ul>
+<h4>Avoiding duplicates</h4>
+<ul class="b">
+  <li>Check <strong>Payment History</strong> before re-attempting any payment that reported an error.</li>
+  <li>If two people work the queue, agree a split &mdash; by source or by department &mdash; rather than both working from the top.</li>
+</ul>
+<h4>Keeping the history auditable</h4>
+<ul class="b">
+  <li>Use holds instead of skipping rows. A skipped row leaves no trace; a hold leaves a reason.</li>
+  <li>Never correct a mistake by paying a second time. Record the facts and escalate.</li>
+</ul>
+
+<!-- ======================= 13 ======================= -->
+<h1 id="s13"><span class="sec-no">13</span>Quick Reference</h1>
+
+<h2>13.1 Frequently performed tasks</h2>
+<div class="qr">
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Settle an approved payment</span><span class="qd">Accounts &rarr; Payments &rarr; Payment Queue &rarr; open the row &rarr; <strong>Pay</strong> &rarr; enter the real payment date and reference &rarr; <strong>Confirm Payment</strong>.</span></div>
+    <div class="qcell"><span class="qt">Pause a payment</span><span class="qd">Open the row &rarr; <strong>Put On Hold</strong> &rarr; write the reason &rarr; confirm. The item stays in the queue.</span></div>
+  </div>
+  <div class="qrow">
+    <div class="qcell"><span class="qt">List everything on hold</span><span class="qd">Set the status filter to <strong>On Hold</strong>.</span></div>
+    <div class="qcell"><span class="qt">See what is late</span><span class="qd">Tick <strong>Overdue only</strong>, or read the <strong>Overdue</strong> tile.</span></div>
+  </div>
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Check what a payment is for</span><span class="qd">Open the row &rarr; <strong>Open Original Request</strong>.</span></div>
+    <div class="qcell"><span class="qt">Produce a period extract</span><span class="qd">Set the period and any other filters &rarr; export to CSV. The file always matches the screen.</span></div>
+  </div>
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Answer "what did we reimburse in August?"</span><span class="qd">Payments &rarr; <strong>Reimbursement Report</strong> tab &rarr; read the month row &rarr; <strong>Export CSV</strong>.</span></div>
+    <div class="qcell"><span class="qt">Trace who changed a record</span><span class="qd">Ask a Super Admin or Admin to filter the Audit Log by entity, user and date range.</span></div>
+  </div>
+</div>
+
+<h2>13.2 Key status transitions at a glance</h2>
+<table class="t">
+  <thead><tr><th style="width:26%">Chain</th><th>Transitions &mdash; the Accounts stage in bold</th></tr></thead>
+  <tbody>
+    <tr><td>Reimbursement</td><td>Draft &rarr; Awaiting Manager Approval &rarr; Manager Approved &rarr; HR Approved &rarr; <strong>Payment Completed</strong><br><span class="small">Either approver may instead return it as <em>Changes Requested</em>.</span></td></tr>
+    <tr><td>Travel Schedule</td><td>Submitted &rarr; Manager Approved &rarr; HR Reviewed &rarr; Admin Approved &rarr; <strong>Ticket Booked</strong> &rarr; Completed<br><span class="small">Any stage may instead return it as <em>Changes Requested</em>.</span></td></tr>
+    <tr><td>BOM Request</td><td>Submitted &rarr; Approved &rarr; Admin Approved &rarr; Finance Approved &rarr; <strong>Payment Done</strong> &rarr; Received</td></tr>
+    <tr><td>Payment item</td><td>Payment Required &rlarr; On Hold; Payment Required &rarr; <strong>Paid</strong> (terminal)</td></tr>
+  </tbody>
+</table>
+
+<h2>13.3 Who is responsible</h2>
+<table class="t">
+  <thead><tr><th style="width:32%">Responsibility</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td>Working the payment queue</td><td>Accounts staff</td></tr>
+    <tr><td>Deciding a hold</td><td>Accounts staff</td></tr>
+    <tr><td>Approving a reimbursement</td><td>Department Manager, then HR</td></tr>
+    <tr><td>Approving travel</td><td>Department Manager, then HR, then Administration</td></tr>
+    <tr><td>Finance-approving a BOM request</td><td>The named BOM Finance Approver, or Admin / Super Admin</td></tr>
+    <tr><td>HR final verification of travel</td><td>HR</td></tr>
+    <tr><td>Reading the audit trail</td><td>Super Admin / Admin</td></tr>
+    <tr><td>Changing module access, roles or settings</td><td>Super Admin / Admin</td></tr>
+  </tbody>
+</table>
+
+<h2>13.4 First five things to check when something looks wrong</h2>
+<ol class="steps">
+  <li>Is the item in the <strong>Payment Queue</strong> at all? If not, the upstream stage has not finished.</li>
+  <li>What does the <strong>original request</strong> say its own status is?</li>
+  <li>Is the item <strong>On Hold</strong>, and what reason was written?</li>
+  <li>Does <strong>Payment History</strong> already contain it?</li>
+  <li>Are filters narrowing the list without your noticing? Use <strong>Clear filters</strong>.</li>
+</ol>
+
+<!-- ======================= 14 ======================= -->
+<h1 id="s14"><span class="sec-no">14</span>Glossary and Appendix</h1>
+
+<h2>14.1 Glossary</h2>
+<dl class="defs">
+  <dt>Accounts department manager</dt><dd>Whoever is listed as a manager of the department named <em>Accounts</em> in Department Master. This configuration grants payment-queue access regardless of the person's role.</dd>
+  <dt>Admin Expense</dt><dd>A company-paid cost such as a hotel, ticket or visa fee, recorded centrally and often split across several employees.</dd>
+  <dt>Append-only</dt><dd>A record that can be added to but never edited or deleted. The Audit Log and the notification ledger are append-only.</dd>
+  <dt>Audit Log</dt><dd>The platform-wide trail of status-changing actions. Readable by Super Admin and Admin only.</dd>
+  <dt>Billing</dt><dd>A separate, read-only view of won business and its value. It is about revenue, not spend, and carries no payment actions.</dd>
+  <dt>BOM Request</dt><dd>A bill of materials request raised by the Technical team, approved through Technical, Administration and Finance stages before it becomes payable.</dd>
+  <dt>Delivery Challan</dt><dd>The Back Office document that records equipment leaving and returning. It is not a payment document.</dd>
+  <dt>Due date</dt><dd>In this module, a <em>target</em> date computed when the screen is read. It is never a stored commitment.</dd>
+  <dt>Hold</dt><dd>A marker placed over a payment that blocks settlement without changing the source record's own status. Requires a written reason.</dd>
+  <dt>Module Manager</dt><dd>The Administration screen that enables, disables, renames and reorders modules and controls which roles see them. Disabling a module closes its data interfaces as well as hiding the tile.</dd>
+  <dt>Office Operation Expense</dt><dd>Routine office running costs recorded in the HR / Administration register.</dd>
+  <dt>Paranoid / soft delete</dt><dd>Most MatrixIQ tables hide a deleted record from lists and reports while keeping it recoverable. The office expense register is an exception &mdash; a deletion there is permanent.</dd>
+  <dt>Payee</dt><dd>The person or party being paid.</dd>
+  <dt>Payment Queue</dt><dd>The assembled list of everything unpaid across all five sources.</dd>
+  <dt>Payment source</dt><dd>Which module raised a payment. One of five: Reimbursement, Admin Expense, Office Operation Expense, BOM Request, Travel Booking.</dd>
+  <dt>Privileged</dt><dd>A flag on a role that grants broad, organisation-wide reach. Super Admin, Admin and Manager carry it. It is deliberately <em>not</em> enough on its own to open the Payment Queue.</dd>
+  <dt>Reimbursement sheet</dt><dd>One employee's claims for one calendar month, approved and paid as a single unit.</dd>
+  <dt>Requester</dt><dd>Who raised the record that became a payment. Not always the payee.</dd>
+  <dt>Sheet (monthly)</dt><dd>For Admin and Office expenses, all qualifying entries for one calendar month grouped into a single payable item.</dd>
+</dl>
+
+<h2>14.2 Appendix A &mdash; Role and responsibility matrix</h2>
+<table class="t">
+  <thead><tr>
+    <th style="width:28%">Action</th>
+    <th class="ctr">Accounts</th><th class="ctr">Accounts dept. manager</th><th class="ctr">Admin</th><th class="ctr">Super Admin</th><th class="ctr">Other manager</th><th class="ctr">HR</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>Open the Payment Queue</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Mark as paid</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Put on hold / resume</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Export queue / history</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Complete a travel ticket booking</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Approve a reimbursement sheet</td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="na">&mdash;</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="na">Own team</span></td><td class="ctr"><span class="yes">Yes</span></td></tr>
+    <tr><td>Read the Audit Log</td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Change module visibility or settings</td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="na">Partial</span></td><td class="ctr"><span class="no">No</span></td></tr>
+  </tbody>
+</table>
+<p class="small">"Other manager" means an account holding the generic <code>manager</code> role whose managed department is not Accounts.</p>
+
+<h2>14.3 Appendix B &mdash; Pre-payment checklist</h2>
+<table class="t">
+  <thead><tr><th style="width:8%" class="ctr">&#9744;</th><th>Check</th></tr></thead>
+  <tbody>
+    <tr><td class="ctr">&#9744;</td><td>The item's status is <strong>Payment Required</strong>, not On Hold.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>The original request has been opened and its own status confirmed against &sect;8.3.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>The payee and the amount match the source record.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>For a monthly expense sheet, the line items have been read and the total re-checked.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>For a BOM request, payment proof is ready to attach.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>The bank transfer has been made, or is being made now.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>The real payment date &mdash; not necessarily today &mdash; is to hand.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>A traceable reference is to hand.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Payment History has been checked for a duplicate.</td></tr>
+  </tbody>
+</table>
+
+<h2>14.4 Appendix C &mdash; Cross-module handoff summary</h2>
+<table class="t">
+  <thead><tr><th style="width:22%">From</th><th style="width:22%">To</th><th style="width:24%">Handoff condition</th><th>What travels</th></tr></thead>
+  <tbody>
+    <tr><td>Reimbursement (HR)</td><td>Accounts &rarr; Payments</td><td>Sheet reaches HR Approved</td><td>Employee, month, total, bills.</td></tr>
+    <tr><td>Travel Schedule (Administration)</td><td>Accounts &rarr; Payments</td><td>Request reaches Admin Approved</td><td>Route, dates, estimated cost, hotel and advance requests.</td></tr>
+    <tr><td>BOM Request (Finance approver)</td><td>Accounts &rarr; Payments</td><td>Request reaches Finance Approved</td><td>Requester, project, materials, amount.</td></tr>
+    <tr><td>Admin Expenses (HR/Admin)</td><td>Accounts &rarr; Payments</td><td>Entries approved and unpaid</td><td>One sheet per calendar month.</td></tr>
+    <tr><td>Office Operation Expenses (HR/Admin)</td><td>Accounts &rarr; Payments</td><td>Entries unpaid</td><td>One sheet per calendar month.</td></tr>
+    <tr><td>Accounts &rarr; Payments</td><td>Travel Schedule (HR)</td><td>Booking completed</td><td>Booking details, ticket documents, actual cost &mdash; HR then performs final verification.</td></tr>
+    <tr><td>Accounts &rarr; Payments</td><td>BOM Request (Technical)</td><td>Payment recorded</td><td>Payment proof &mdash; the technical team then marks materials received.</td></tr>
+    <tr><td>Every module</td><td>Audit Log</td><td>Any status change</td><td>User, role, entity, action, previous and new status, remarks, IP.</td></tr>
+  </tbody>
+</table>
+
+<h2>14.5 Appendix D &mdash; Items this document could not verify</h2>
+<table class="t">
+  <thead><tr><th style="width:38%">Item</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Whether Method and Reference are individually mandatory on the payment dialog, and the list of methods offered</td><td><span class="tbv">To be verified in the live MatrixIQ application</span></td></tr>
+    <tr><td>Whether the Audit Log can export more than the page currently displayed</td><td><span class="tbv">To be verified in the live MatrixIQ application</span></td></tr>
+    <tr><td>The escalation route for correcting a payment recorded in error</td><td><span class="tbv">To be confirmed</span></td></tr>
+    <tr><td>Document owner, approver and review frequency</td><td><span class="tbv">To be confirmed</span></td></tr>
+    <tr><td>Whether the platform's e-mail service is provisioned in this deployment</td><td><span class="tbv">To be verified in the live MatrixIQ application</span></td></tr>
+  </tbody>
+</table>
+
+<div class="endmark">End of document &mdash; MatrixIQ Accounts Module SOP, version 1.0</div>

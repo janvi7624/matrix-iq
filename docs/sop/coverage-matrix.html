@@ -1,0 +1,275 @@
+<meta charset="utf-8">
+<title>MatrixIQ SOP Set — Coverage Matrix and Delivery Notes</title>
+<link rel="stylesheet" href="assets/sop.css">
+
+<section class="cover">
+  <div class="hidden-string"><span class="str-doctitle">MatrixIQ SOP Set — Coverage Matrix</span><span class="str-module">Delivery Notes</span><span class="str-class">Internal Use</span></div>
+  <div class="cover-band">
+    <span class="cover-logo-chip"><img class="cover-logo" src="assets/nanta-logo.png" alt="NANTA"></span>
+    <div class="cover-eyebrow">MatrixIQ &middot; SOP Programme</div>
+    <p class="cover-title">Coverage Matrix &amp; Delivery Notes</p>
+    <p class="cover-subtitle">What the six SOPs cover, what could not be verified, and where the Feature Reference and the application disagree.</p>
+  </div>
+  <div class="cover-rule"></div>
+  <div class="cover-lower">
+    <div class="cover-doctype">Companion document &mdash; not one of the six SOPs</div>
+    <table class="cover-meta">
+      <tr><th>Accompanies</th><td>The six MatrixIQ department SOPs, version 1.0</td></tr>
+      <tr><th>Purpose</th><td>Coverage matrix, unverified-detail register, discrepancy log, scope summaries</td></tr>
+      <tr><th>Version</th><td>1.0</td></tr>
+      <tr><th>Preparation date</th><td>27 October 2026</td></tr>
+      <tr><th>Sources</th><td><em>MatrixIQ Feature Reference</em> (13 pages) and the MatrixIQ application, verified 27 October 2026</td></tr>
+      <tr><th>Classification</th><td>Internal Use</td></tr>
+    </table>
+    <div class="cover-footnote">
+      This document is the audit trail for the SOP set. It records exactly what was covered, what was deliberately left flagged rather than assumed, and every point at which the Feature Reference and the live application were found to differ.
+    </div>
+  </div>
+</section>
+
+<section class="toc">
+  <h1 class="no-break">Contents</h1>
+  <ul class="toc-list">
+    <li><span class="toc-num">1</span><a href="#a">The six documents at a glance</a></li>
+    <li><span class="toc-num">2</span><a href="#b">Scope summary of each document</a></li>
+    <li><span class="toc-num">3</span><a href="#c">Coverage matrix — in-scope submodules</a></li>
+    <li><span class="toc-num">4</span><a href="#d">Coverage matrix — cross-module workflows</a></li>
+    <li><span class="toc-num">5</span><a href="#e">Reference submodules outside the six SOPs</a></li>
+    <li><span class="toc-num">6</span><a href="#f">Discrepancies between the Feature Reference and the application</a></li>
+    <li><span class="toc-num">7</span><a href="#g">Register of details that could not be verified</a></li>
+    <li><span class="toc-num">8</span><a href="#h">Quality assurance performed</a></li>
+  </ul>
+</section>
+
+<h1 id="a"><span class="sec-no">01</span>The six documents at a glance</h1>
+<table class="t">
+  <thead><tr><th style="width:30%">Document</th><th class="ctr" style="width:12%">Pages</th><th class="ctr" style="width:16%">Classification</th><th>Primary audience</th></tr></thead>
+  <tbody>
+    <tr><td><strong>MatrixIQ &mdash; Accounts Module SOP</strong></td><td class="ctr">36</td><td class="ctr">Internal Use</td><td>Accounts staff and the Accounts department manager</td></tr>
+    <tr><td><strong>MatrixIQ &mdash; Administration Module SOP</strong></td><td class="ctr">46</td><td class="ctr">Internal Use &mdash; restricted</td><td>Super Admin and Admin account holders</td></tr>
+    <tr><td><strong>MatrixIQ &mdash; HR Module SOP</strong></td><td class="ctr">42</td><td class="ctr">Internal &mdash; Confidential</td><td>HR and Administration staff; every employee for the submission procedures</td></tr>
+    <tr><td><strong>MatrixIQ &mdash; Marketing Module SOP</strong></td><td class="ctr">36</td><td class="ctr">Internal Use</td><td>Marketing team, requesters from any department, technical reviewers</td></tr>
+    <tr><td><strong>MatrixIQ &mdash; Operations Module SOP</strong></td><td class="ctr">40</td><td class="ctr">Internal Use</td><td>Back Office staff and the technical support desk</td></tr>
+    <tr><td><strong>MatrixIQ &mdash; Partner Portal SOP</strong></td><td class="ctr">38</td><td class="ctr"><strong>For channel partners</strong></td><td>Channel partners, distributors, dealers and their portal users</td></tr>
+  </tbody>
+</table>
+<p class="small">Total 238 pages. Every document carries a cover page, a clickable table of contents, running headers and footers, and the same fourteen-section structure.</p>
+
+<h1 id="b"><span class="sec-no">02</span>Scope summary of each document</h1>
+
+<h2>2.1 Accounts Module SOP</h2>
+<p><strong>Covers.</strong> The Payments module end to end &mdash; the Payment Queue, Payment History and Reimbursement Report tabs; reviewing a payment and opening its original request; marking as paid with the per-source preconditions; placing and lifting holds; filtering and CSV export; how the target date is computed and how the queue is ordered. Plus the Audit Log, including its restriction to Super Admin and Admin.</p>
+<p><strong>Also covers, as context.</strong> The Accounts stage of five upstream chains &mdash; reimbursement, travel, bill of materials, admin expenses and office operation expenses &mdash; and a comparison of Billing against the payment queue.</p>
+<p><strong>Excludes.</strong> Bank operations, statutory filing, tax computation, and the creation of the records that become payments.</p>
+
+<h2>2.2 Administration Module SOP</h2>
+<p><strong>Covers.</strong> All eleven configuration submodules: User Management including bulk import and employee exit, Role Management, Department Master, Module Manager, Custom Module Builder, Products, Product Catalog, Application Settings, Meta Lead Integration, Daily Report Configuration and the Audit Log. For each: what it controls elsewhere in the platform, how to change it safely, and what cannot be undone.</p>
+<p><strong>Distinctive content.</strong> The four inputs that decide visibility; the modules that deliberately refuse the privileged flag; a change-risk summary; and a recommended change-control process, since MatrixIQ has no approval workflow for configuration and the Audit Log does not record configuration edits.</p>
+<p><strong>Excludes.</strong> Deployment, database administration, environment variables, and the TMS Tab Access matrix.</p>
+
+<h2>2.3 HR Module SOP</h2>
+<p><strong>Covers.</strong> All seven HR submodules: Employees, Office Operation Expenses, Reimbursement, Admin Expenses, HR Expense Report, Travel Schedule and Daily Report Review. The reimbursement and travel chains are documented end to end, from both the employee's and the approver's side.</p>
+<p><strong>Distinctive content.</strong> The two different access patterns &mdash; the HR role gate and the named-individual gate &mdash; and the deliberate split between reading and acting on daily reports.</p>
+<p><strong>Excludes.</strong> Payroll, statutory compliance, recruitment, appraisal mechanics, and payment settlement.</p>
+
+<h2>2.4 Marketing Module SOP</h2>
+<p><strong>Covers.</strong> Marketing Requests from the four-step wizard through approval, timeline commitment, assignment, acceptance, production, technical review and delivery, with cancellation and decline treated separately. Plus the Materials library: three document sources, categories, the folder tree, and the two-gate partner publication rule.</p>
+<p><strong>Distinctive content.</strong> The full fourteen-status vocabulary with the mapping onto the five statuses a partner sees; and an ordering constraint &mdash; approve, then set the timeline, then assign &mdash; that is easy to get wrong.</p>
+<p><strong>Excludes.</strong> Brand guidelines, creative standards and agency management.</p>
+
+<h2>2.5 Operations Module SOP</h2>
+<p><strong>Covers.</strong> The Delivery Challan lifecycle including the return verification checklist and the monthly summary; and the support ticket lifecycle including the thirteen statuses, the three actor kinds, the complete transition matrix and the service-level targets by priority.</p>
+<p><strong>Also covers, as context.</strong> The Demo Schedule approval chain in both on-site and virtual modes, BOM and procurement handoffs, project handover, and the ownership boundaries between teams.</p>
+<p><strong>Excludes.</strong> Technical Project Management itself, which is identified throughout as a connected module rather than part of Operations.</p>
+
+<h2>2.6 Partner Portal SOP</h2>
+<p><strong>Covers.</strong> All seven partner areas in partner-friendly language: Dashboard, My Leads / Projects, Quotations, Demo Requests, Marketing Materials, Marketing Requests and Technical Support. Written for an external reader, with what happens on our side explained so partners know what to expect.</p>
+<p><strong>Distinctive content.</strong> Mandatory access and security guidance expressed as partner obligations; published support service targets; and clear statements of the four things partners cannot do, each with its reason.</p>
+<p><strong>Deliberately excludes.</strong> Internal security implementation, database structure, interface details, credentials and administrative configuration. Internal status vocabulary is never exposed &mdash; only the collapsed partner-facing positions.</p>
+
+<h1 id="c"><span class="sec-no">03</span>Coverage matrix &mdash; in-scope submodules</h1>
+<p class="lede">Thirty-one submodules fall within the six requested SOPs. An item is marked <strong>Full</strong> only where its purpose, available actions, workflow and permissions are all documented, or the missing information is explicitly flagged in the document.</p>
+
+<table class="t">
+  <thead><tr><th style="width:22%">Submodule</th><th style="width:17%">Key</th><th style="width:17%">SOP</th><th style="width:26%">Sections</th><th class="ctr">Coverage</th></tr></thead>
+  <tbody>
+    <tr class="grp"><td colspan="5">Accounts &mdash; 2 submodules</td></tr>
+    <tr><td>Payments</td><td><code>accounts-payments</code></td><td>Accounts</td><td>5.1, 6.1&ndash;6.7, 7.1, 8.1&ndash;8.4, 9</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Audit Log</td><td><code>audit-log</code></td><td>Accounts; Administration</td><td>Acc 4.2, 5.2, 6.8, 8.5; Adm 6.11, 8.5</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr class="grp"><td colspan="5">Administration &mdash; 11 submodules</td></tr>
+    <tr><td>User Management</td><td><code>user-management</code></td><td>Administration</td><td>5, 6.1.1&ndash;6.1.5, 8.1</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Role Management</td><td><code>role-management</code></td><td>Administration</td><td>5, 6.2, 8.3, 14.2</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Department Master</td><td><code>department-master</code></td><td>Administration</td><td>5, 6.3, 8.4, 14.4</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Module Manager</td><td><code>module-manager</code></td><td>Administration</td><td>5, 6.4, 8.2</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Custom Module Builder</td><td><code>custom-modules</code></td><td>Administration</td><td>5, 6.5, 8.2</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Products</td><td><code>product-master</code></td><td>Administration</td><td>5, 6.6, 9, 13.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Product Catalog</td><td><code>product-catalog-overrides</code></td><td>Administration</td><td>5, 6.7</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Application Settings</td><td><code>app-settings</code></td><td>Administration</td><td>5, 6.8, 14.4</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Meta Lead Integration</td><td><code>meta-lead-integration</code></td><td>Administration</td><td>5, 6.9, 10.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Daily Report Configuration</td><td><code>daily-report-config</code></td><td>Administration</td><td>5, 6.10, 10.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Audit Log</td><td><code>audit-log</code></td><td>Administration</td><td>6.11, 8.5</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr class="grp"><td colspan="5">HR &mdash; 7 submodules</td></tr>
+    <tr><td>Employees</td><td><code>hr-employees</code></td><td>HR</td><td>5, 5.1, 6.1</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Office Operation Expenses</td><td><code>office-operation-expenses</code></td><td>HR</td><td>4.2, 5, 6.4, 7.3, 8.5</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Reimbursement</td><td><code>reimbursement</code></td><td>HR</td><td>5, 6.2, 6.3, 7.1, 8.1, 8.2, 14.2</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Admin Expenses</td><td><code>admin-expenses</code></td><td>HR</td><td>4.2, 5, 6.5, 7.3, 8.6</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>HR Expense Report</td><td><code>hr-reports</code></td><td>HR</td><td>4.2, 5, 6.6, 9</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Travel Schedule</td><td><code>travel-schedule</code></td><td>HR</td><td>5, 6.7, 7.2, 8.3, 14.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Daily Report Review</td><td><code>hr-daily-reports</code></td><td>HR</td><td>4.3, 4.4, 5, 6.8, 7.4, 8.4</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr class="grp"><td colspan="5">Marketing &mdash; 2 submodules</td></tr>
+    <tr><td>Marketing Requests</td><td><code>marketing-requests</code></td><td>Marketing</td><td>5.1, 6.1&ndash;6.5, 7, 8.1&ndash;8.5</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Materials</td><td><code>materials</code></td><td>Marketing</td><td>5.2, 6.6, 6.7, 8.6, 14.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr class="grp"><td colspan="5">Operations &amp; Support &mdash; 2 submodules</td></tr>
+    <tr><td>Back Office Operations</td><td><code>backoffice</code></td><td>Operations</td><td>4.1, 5.1, 6.1&ndash;6.6, 7.4, 8.1&ndash;8.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Technical Support</td><td><code>support-tickets</code></td><td>Operations</td><td>4.2&ndash;4.4, 5.2, 6.7, 6.8, 7.5, 7.6, 8.5&ndash;8.7</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr class="grp"><td colspan="5">Partner Portal &mdash; 7 submodules</td></tr>
+    <tr><td>Dashboard</td><td><code>partner-dashboard</code></td><td>Partner Portal</td><td>5, 6.2</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>My Leads / Projects</td><td><code>partner-projects</code></td><td>Partner Portal</td><td>5, 6.3, 6.4, 7.1, 8.1, 8.2, 14.2</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Quotations</td><td><code>partner-quotations</code></td><td>Partner Portal</td><td>3.3, 5, 6.5, 9, 9.2</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Demo Requests</td><td><code>partner-demos</code></td><td>Partner Portal</td><td>5, 6.6, 7.2, 8.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Marketing Materials</td><td><code>partner-materials</code></td><td>Partner Portal</td><td>5, 6.7, 9</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Marketing Requests</td><td><code>partner-marketing-requests</code></td><td>Partner Portal</td><td>5, 6.8, 7.3, 8.5</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Technical Support</td><td><code>partner-support</code></td><td>Partner Portal</td><td>5, 6.9, 7.4, 8.4, 10.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+  </tbody>
+</table>
+<p class="small">The Audit Log is a single module documented from two angles &mdash; its restriction in the Accounts SOP (because the Feature Reference lists it under Accounts) and its operation in the Administration SOP. Counted once, the thirty-one in-scope submodules are all covered.</p>
+
+<h1 id="d"><span class="sec-no">04</span>Coverage matrix &mdash; cross-module workflows</h1>
+<table class="t">
+  <thead><tr><th style="width:28%">Workflow</th><th style="width:20%">Source &rarr; destination</th><th style="width:28%">Documented in</th><th class="ctr">Coverage</th></tr></thead>
+  <tbody>
+    <tr><td>Reimbursement: submit &rarr; manager &rarr; HR &rarr; Accounts &rarr; paid</td><td>Reimbursement &rarr; Accounts</td><td>HR &sect;6.2, 6.3, 7.1; Accounts &sect;7.2</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Travel: submit &rarr; manager &rarr; HR &rarr; Admin &rarr; booking &rarr; HR verification</td><td>Travel Schedule &rarr; Accounts &rarr; HR</td><td>HR &sect;6.7, 7.2; Accounts &sect;7.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>BOM: technical &rarr; admin &rarr; finance &rarr; payment &rarr; received</td><td>TMS &rarr; Accounts &rarr; TMS</td><td>Accounts &sect;7.4; Operations &sect;7.7.1; Administration &sect;6.8</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Office and admin expense &rarr; monthly sheet &rarr; payment</td><td>HR registers &rarr; Accounts</td><td>HR &sect;6.4.4, 6.5.2, 7.3; Accounts &sect;7.5</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Partner opportunity &rarr; internal sales review &rarr; pipeline</td><td>Partner Portal &rarr; Sales</td><td>Partner &sect;6.3, 6.4, 7.1, 14.4</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Marketing request &rarr; approval &rarr; timeline &rarr; assignment &rarr; technical review &rarr; delivery</td><td>Any dept / partner &rarr; Marketing &rarr; Technical</td><td>Marketing &sect;6.1&ndash;6.5, 7; Partner &sect;6.8, 7.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Demo: request &rarr; technical &rarr; manager &rarr; Back Office &rarr; dispatch &rarr; return &rarr; closure</td><td>Sales &rarr; Technical &rarr; Back Office</td><td>Operations &sect;7.1&ndash;7.4, 8.4; Partner &sect;6.6, 7.2</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Support: raise &rarr; triage &rarr; assign &rarr; resolve &rarr; close</td><td>Internal / partner &rarr; support desk</td><td>Operations &sect;6.7, 6.8, 7.5, 7.6; Partner &sect;6.9, 7.4</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Project handover from Sales to Technical</td><td>Sales &rarr; TMS</td><td>Operations &sect;7.7.2, 7.7.3</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Materials publication to partners (two-gate rule)</td><td>Marketing &rarr; Partner Portal</td><td>Marketing &sect;6.7, 14.3; Partner &sect;6.7</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Administrative configuration &rarr; role, module and department access</td><td>Administration &rarr; everywhere</td><td>Administration &sect;3.4, 6.2&ndash;6.4, 14.4</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Employee exit &rarr; work reassignment</td><td>Administration &rarr; Sales / TMS</td><td>Administration &sect;6.1.5; HR &sect;5.1</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Daily reporting: configuration &rarr; filing &rarr; warnings &rarr; HR review</td><td>Administration &rarr; Workspace &rarr; HR</td><td>Administration &sect;6.10; HR &sect;6.8, 7.4</td><td class="ctr"><span class="yes">Full</span></td></tr>
+    <tr><td>Status changes &rarr; audit trail</td><td>Every module &rarr; Audit Log</td><td>Accounts &sect;6.8, 8.5; Administration &sect;6.11, 8.5</td><td class="ctr"><span class="yes">Full</span></td></tr>
+  </tbody>
+</table>
+
+<h1 id="e"><span class="sec-no">05</span>Reference submodules outside the six SOPs</h1>
+<p class="lede">The Feature Reference describes 52 modules. Twenty-four of them belong to departments for which no SOP was requested. They are listed here for completeness, with a note of where each is nonetheless touched as cross-module context.</p>
+<table class="t">
+  <thead><tr><th style="width:22%">Reference section</th><th style="width:30%">Submodules</th><th>Treatment in this SOP set</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Sales</strong> (8)</td><td>Lead Capture / Inquiry, Project Dashboard, Site Visit Report, Demo Schedule, Quotations, Partner Quotation Requests, Billing, Partner Management</td><td>Demo Schedule is documented as a workflow in Operations &sect;7.1&ndash;7.3. Billing is contrasted with the payment queue in Accounts &sect;7.6. Quotations and Project Dashboard appear from the partner side. Partner Management is referenced in Administration &sect;5.1. <strong>The remainder would need a Sales SOP.</strong></td></tr>
+    <tr><td><strong>Technical Project Management</strong> (7)</td><td>Technical Projects, TMS Dashboard, Tasks, BOM Request, Procurement, Users &amp; Tab Access, Tab Access</td><td>BOM Request and Procurement are documented as handoffs in Operations &sect;7.7.1 and Accounts &sect;7.4. TMS is explicitly identified as a connected module, not part of Operations. <strong>The remainder would need a TMS SOP.</strong></td></tr>
+    <tr><td><strong>Workspace</strong> (4)</td><td>My Tasks, Team Tasks, Task Planner, Daily Report</td><td>Daily Report is documented from the configuration side in Administration &sect;6.10 and the review side in HR &sect;6.8 and &sect;7.4. <strong>Employee-facing task modules would need a Workspace SOP.</strong></td></tr>
+    <tr><td><strong>Reports</strong> (5)</td><td>Analytics, Target Details, Performance Review, Team Daily Reports, Partner Analytics</td><td>Team Daily Reports is referenced where it bounds HR's rights (HR &sect;6.8.3, &sect;4.4). Performance Review and Partner Analytics are located in Administration &sect;5.1. <strong>The remainder would need a Reports SOP.</strong></td></tr>
+  </tbody>
+</table>
+<div class="note">
+  <span class="lbl">Recommendation</span>
+  <p>Three further SOPs would complete the platform: <strong>Sales</strong>, <strong>Technical Project Management</strong> and a combined <strong>Workspace &amp; Reports</strong> guide. The six delivered documents already contain the cross-module material those would need to reference, so they can be written without revisiting this set.</p>
+</div>
+
+<h1 id="f"><span class="sec-no">06</span>Discrepancies between the Feature Reference and the application</h1>
+<p class="lede">Each item below was found by checking the Feature Reference against the application. In every case the application has been treated as the source of truth, and the discrepancy is called out inside the relevant SOP so a reader of either document is not misled.</p>
+
+<table class="t">
+  <thead><tr><th style="width:20%">Topic</th><th style="width:26%">Feature Reference says</th><th style="width:30%">The application does</th><th>Flagged in</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Audit Log access</strong></td><td>Lists it under the Accounts section</td><td>Restricted to <strong>Super Admin and Admin only</strong>. The Accounts role cannot open it.</td><td>Accounts &sect;4.2</td></tr>
+    <tr><td><strong>Delivery Challan statuses</strong></td><td>prepared &rarr; dispatched &rarr; returned &rarr; <strong>verified</strong> &rarr; closed</td><td>Four statuses. "Verify &amp; Receive Material" is the <em>action</em> that produces <em>Returned</em>; there is no Verified status.</td><td>Operations &sect;6.4</td></tr>
+    <tr><td><strong>Role count</strong></td><td>15 roles, including a privileged "Technical Team" role</td><td><strong>14 roles.</strong> The <code>technical</code> role was retired and merged into Engineer, which is <strong>not</strong> privileged.</td><td>Administration &sect;6.2.1</td></tr>
+    <tr><td><strong>Attendance view</strong></td><td>Listed under Employees</td><td><strong>Retired.</strong> The module registration is removed and the page redirects to the dashboard.</td><td>HR &sect;5.1</td></tr>
+    <tr><td><strong>Birthdays and anniversaries</strong></td><td>Described as part of the HR dashboard</td><td>On the <strong>main MatrixIQ dashboard</strong>, visible to everyone &mdash; not an HR module page.</td><td>HR &sect;5.1</td></tr>
+    <tr><td><strong>Employee exit</strong></td><td>Listed under HR Employees</td><td>A separate module in the <strong>Administration</strong> section, open to anyone who manages a department.</td><td>HR &sect;5.1; Administration &sect;6.1.5</td></tr>
+    <tr><td><strong>Office expense bill attachment</strong></td><td>"Attach the bill"</td><td><strong>No attachment field exists</strong> on the form or the record.</td><td>HR &sect;6.4.1</td></tr>
+    <tr><td><strong>Office expense picklists</strong></td><td>"Category and Expense Head dropdowns, both with sub-levels"</td><td>Correct, with a nuance: edits sit on top of a built-in default list, and an emptied list is remembered as a decision.</td><td>HR &sect;6.4.2</td></tr>
+    <tr><td><strong>"Tracking missing bills"</strong></td><td>Implies a general tracker of claims without bills</td><td>A <strong>recovery panel</strong> for bills whose files were lost from an earlier file store.</td><td>HR &sect;6.2.4</td></tr>
+    <tr><td><strong>HR module access</strong></td><td>Implies the HR role reaches the people and spend modules</td><td>Office Operation Expenses, Admin Expenses and HR Expense Report are granted to <strong>named individuals</strong>; the HR role alone grants none of them.</td><td>HR &sect;4.2; Administration &sect;4.4</td></tr>
+    <tr><td><strong>Marketing request statuses</strong></td><td>submitted &rarr; assigned &rarr; accepted &rarr; in progress &rarr; technical review &rarr; delivered</td><td><strong>Fourteen statuses</strong> with different names, plus separate approval and timeline steps the summary omits.</td><td>Marketing &sect;2.5, &sect;8.1</td></tr>
+    <tr><td><strong>Partner marketing stages</strong></td><td>received &rarr; in progress &rarr; in review &rarr; completed</td><td>The first partner-facing label is <strong>Submitted</strong>, not "Received". A fifth stage, <em>Not proceeding</em>, also exists.</td><td>Marketing &sect;8.2; Partner &sect;6.8</td></tr>
+    <tr><td><strong>Materials document sources</strong></td><td>"Add a document by Drive link"</td><td><strong>Three</strong> sources: Drive link, uploaded file, and web link.</td><td>Marketing &sect;6.6.1</td></tr>
+    <tr><td><strong>Partner publication</strong></td><td>"a per-document Share with partners toggle"</td><td>A <strong>two-gate rule</strong> &mdash; the document <em>and</em> every folder above it must be shared. Per-partner narrowing exists but has no control on the screen.</td><td>Marketing &sect;6.7</td></tr>
+    <tr><td><strong>Demo chain</strong></td><td>One chain ending in equipment return</td><td><strong>Two chains.</strong> A <em>virtual</em> demo involves no equipment and never reaches Back Office.</td><td>Operations &sect;7.2</td></tr>
+    <tr><td><strong>Document numbering</strong></td><td>"Document numbering series" in Application Settings</td><td>Only the <strong>Delivery Challan prefix</strong> is configurable. Quotation numbering is fixed.</td><td>Administration &sect;6.8.2</td></tr>
+    <tr><td><strong>Meta integration</strong></td><td>"Connect Facebook and Instagram Lead Ads"</td><td>Credentials are <strong>server settings</strong> and cannot be entered in the application; the screen reports presence only. Assignment rules and campaign routing are richer than described.</td><td>Administration &sect;6.9</td></tr>
+    <tr><td><strong>Product Catalog label</strong></td><td>"Product Catalog Overrides"</td><td>The module is labelled <strong>Product Catalog</strong> in the interface.</td><td>Administration &sect;5</td></tr>
+    <tr><td><strong>Partner account states</strong></td><td>"Activate, suspend or close an account"</td><td>Four states: pending, active, suspended, <strong>inactive</strong>. Only <em>active</em> permits portal use.</td><td>Partner &sect;4.3</td></tr>
+    <tr><td><strong>Partner submission outcome</strong></td><td>"accepted / declined" reads as terminal</td><td>Only <strong>accepted</strong> is terminal. A declined submission <strong>can</strong> be accepted later.</td><td>Partner &sect;6.4.4, &sect;7.1</td></tr>
+    <tr><td><strong>Reimbursement final status</strong></td><td>"paid"</td><td>The status is <strong>Payment Completed</strong>, and there are two <em>Changes Requested</em> states the summary omits.</td><td>HR &sect;8.1; Accounts &sect;7.2</td></tr>
+    <tr><td><strong>Back Office module visibility</strong></td><td>Visible to the Manager role</td><td>Visible to Manager, but <strong>acting</strong> requires being a manager of the <em>Back Office</em> department.</td><td>Operations &sect;4.1</td></tr>
+  </tbody>
+</table>
+
+<h1 id="g"><span class="sec-no">07</span>Register of details that could not be verified</h1>
+<p class="lede">Every item below is marked in its SOP as <span class="tbv">To be verified in the live MatrixIQ application</span> or <span class="tbv">To be confirmed</span> rather than being assumed. They are consolidated here so they can be resolved in one pass.</p>
+
+<table class="t">
+  <thead><tr><th style="width:18%">SOP</th><th style="width:48%">Detail</th><th>Who can resolve it</th></tr></thead>
+  <tbody>
+    <tr class="grp"><td colspan="3">Organisational &mdash; applies to all six documents</td></tr>
+    <tr><td>All</td><td>Document owner, approver and review frequency</td><td>Management</td></tr>
+    <tr><td>All</td><td>Whether the platform's e-mail service is provisioned in this deployment &mdash; an unconfigured service skips sends silently</td><td>Platform technical owner</td></tr>
+    <tr class="grp"><td colspan="3">Accounts</td></tr>
+    <tr><td>Accounts</td><td>Whether Method and Reference are individually mandatory on the payment dialog, and the list of methods offered</td><td>Accounts, from the live screen</td></tr>
+    <tr><td>Accounts</td><td>Whether the Audit Log can export more than the page currently displayed</td><td>Super Admin</td></tr>
+    <tr><td>Accounts</td><td>Escalation route for correcting a payment recorded in error</td><td>Accounts and management</td></tr>
+    <tr class="grp"><td colspan="3">Administration</td></tr>
+    <tr><td>Administration</td><td>Which user-account fields are refused if left blank, beyond name, username, password and role</td><td>Administrator, from the live screen</td></tr>
+    <tr><td>Administration</td><td>Whether the bulk-import temporary password list can be regenerated after leaving the screen</td><td>Administrator</td></tr>
+    <tr><td>Administration</td><td>How to add or remove a named individual from the three restricted spend modules</td><td>Platform technical owner</td></tr>
+    <tr><td>Administration</td><td>Who holds authority to approve changes to tax, terms and pricing</td><td>Management</td></tr>
+    <tr><td>Administration</td><td>Monitoring cadence for the daily report scheduler and the Meta webhook</td><td>Administration</td></tr>
+    <tr><td>Administration</td><td>Review cadence for accounts and role assignments</td><td>Management</td></tr>
+    <tr class="grp"><td colspan="3">HR</td></tr>
+    <tr><td>HR</td><td>Whether attendance is tracked anywhere following the retirement of the attendance module</td><td>HR</td></tr>
+    <tr><td>HR</td><td>Whether a waived missed-report warning can be reinstated from the Warnings screen</td><td>HR manager, from the live screen</td></tr>
+    <tr><td>HR</td><td>Whether Mode of Payment is mandatory on a reimbursement entry</td><td>Any employee, from the live form</td></tr>
+    <tr><td>HR</td><td>Where office expense bills are retained, given there is no attachment field</td><td>HR and Accounts</td></tr>
+    <tr class="grp"><td colspan="3">Marketing</td></tr>
+    <tr><td>Marketing</td><td>Whether a published document can be narrowed to specific partner companies from any screen</td><td>Platform technical owner</td></tr>
+    <tr><td>Marketing</td><td>Whether Priority is mandatory on the request wizard</td><td>Any user, from the live form</td></tr>
+    <tr><td>Marketing</td><td>Whether the individual Document name field is mandatory in Materials</td><td>Marketing, from the live form</td></tr>
+    <tr><td>Marketing</td><td>Whether any spreadsheet export of marketing requests exists</td><td>Marketing</td></tr>
+    <tr><td>Marketing</td><td>Review cadence for the published partner library</td><td>Marketing management</td></tr>
+    <tr class="grp"><td colspan="3">Operations</td></tr>
+    <tr><td>Operations</td><td>Whether expected return date and Requested By are mandatory on a challan</td><td>Back Office, from the live form</td></tr>
+    <tr><td>Operations</td><td>Where the service-level policy per priority is edited in the application</td><td>Platform technical owner</td></tr>
+    <tr><td>Operations</td><td>Whether any spreadsheet export of challans or tickets exists</td><td>Back Office / support desk</td></tr>
+    <tr><td>Operations</td><td>Escalation route for a challan closed in error</td><td>Management</td></tr>
+    <tr><td>Operations</td><td>Who receives the monthly summary notification</td><td>Back Office</td></tr>
+    <tr class="grp"><td colspan="3">Partner Portal</td></tr>
+    <tr><td>Partner Portal</td><td>Exactly which fields the opportunity and demonstration forms refuse to submit without</td><td>Partner-facing team, from the live forms</td></tr>
+    <tr><td>Partner Portal</td><td>Whether a demonstration request can be edited after submission</td><td>Partner-facing team</td></tr>
+    <tr><td>Partner Portal</td><td>Where portal user management appears in the menu for a Partner Admin</td><td>Partner-facing team</td></tr>
+    <tr><td>Partner Portal</td><td>Published turnaround targets for opportunity review and demonstration scheduling</td><td>Sales management</td></tr>
+  </tbody>
+</table>
+<div class="tip">
+  <span class="lbl">Most of these are quick to close</span>
+  <p>Roughly two-thirds are single observations from a live screen &mdash; is this field refused when blank, does this control exist. A short session with each department in front of the application would close them and allow a version 1.1 with the flags removed.</p>
+</div>
+
+<h1 id="h"><span class="sec-no">08</span>Quality assurance performed</h1>
+<table class="t">
+  <thead><tr><th style="width:36%">Check</th><th style="width:18%" class="ctr">Result</th><th>Method</th></tr></thead>
+  <tbody>
+    <tr><td>Every in-scope submodule covered</td><td class="ctr"><span class="yes">31 of 31</span></td><td>Matrix in &sect;3, built from the module registry rather than from the reference alone.</td></tr>
+    <tr><td>Every workflow checked against the application</td><td class="ctr"><span class="yes">Done</span></td><td>Statuses, transitions and authorisation rules read from the application and reproduced; 22 divergences from the reference recorded in &sect;6.</td></tr>
+    <tr><td>Role permissions not overstated</td><td class="ctr"><span class="yes">Done</span></td><td>Each module's actual access rule documented, including the cases where the privileged flag is deliberately refused.</td></tr>
+    <tr><td>Status names and order verified</td><td class="ctr"><span class="yes">Done</span></td><td>Status vocabularies taken from the application's own labels, not paraphrased.</td></tr>
+    <tr><td>Internal and partner responsibilities separated</td><td class="ctr"><span class="yes">Done</span></td><td>Partner SOP uses only partner-facing vocabulary; internal SOPs document both views and the mapping between them.</td></tr>
+    <tr><td>Every procedure actionable</td><td class="ctr"><span class="yes">Done</span></td><td>Each has preconditions, numbered steps, what happens next, and failure handling with the actual messages.</td></tr>
+    <tr><td>Cross-module handoffs verified</td><td class="ctr"><span class="yes">14 of 14</span></td><td>Matrix in &sect;4, each with source, destination, handoff condition and what travels.</td></tr>
+    <tr><td>Table of contents links resolve</td><td class="ctr"><span class="yes">272 of 272</span></td><td>Every link resolved through the PDF name tree; all point forward; none broken.</td></tr>
+    <tr><td>Printed page numbers match destinations</td><td class="ctr"><span class="yes">136 of 136</span></td><td>Printed number compared against the page each link actually lands on, in all six documents.</td></tr>
+    <tr><td>No clipped or overflowing content</td><td class="ctr"><span class="yes">232 of 232 pages</span></td><td>Every content page (all pages except the six covers) rendered to an image; zero ink found in the outer bleed band of any page.</td></tr>
+    <tr><td>No blank or near-empty pages</td><td class="ctr"><span class="yes">None found</span></td><td>Text extracted per page with header and footer boilerplate removed.</td></tr>
+    <tr><td>Page size and layout</td><td class="ctr"><span class="yes">A4 throughout</span></td><td>210 &times; 297&nbsp;mm confirmed on every page; headers, footers and page numbers present on every content page.</td></tr>
+    <tr><td>Consistent terminology across documents</td><td class="ctr"><span class="yes">Done</span></td><td>Shared vocabulary for roles, statuses and modules; each document carries its own glossary.</td></tr>
+    <tr><td>Documents reopened and inspected</td><td class="ctr"><span class="yes">Done</span></td><td>All six rendered and read back, with representative pages inspected visually.</td></tr>
+  </tbody>
+</table>
+
+<div class="endmark">End of document &mdash; Coverage Matrix and Delivery Notes, version 1.0</div>

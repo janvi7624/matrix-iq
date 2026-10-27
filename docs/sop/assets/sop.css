@@ -1,0 +1,668 @@
+/* ===========================================================================
+   MatrixIQ — Standard Operating Procedure stylesheet
+   Shared by all six SOP documents. Rendered with WeasyPrint (CSS Paged Media).
+   A4, running headers/footers, clickable TOC with resolved page numbers.
+   =========================================================================== */
+
+/* ---------- Page geometry ---------- */
+
+@page {
+  size: A4;
+  margin: 22mm 18mm 20mm 18mm;
+
+  @top-left {
+    content: string(doctitle);
+    white-space: nowrap;
+    border-bottom: 0.4pt solid #e5e7eb;
+    width: 50%;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 7.5pt;
+    color: #6b7280;
+    letter-spacing: 0.03em;
+    padding-bottom: 2mm;
+  }
+  @top-right {
+    content: string(modulename);
+    white-space: nowrap;
+    text-align: right;
+    border-bottom: 0.4pt solid #e5e7eb;
+    width: 50%;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 7.5pt;
+    color: #6b7280;
+    letter-spacing: 0.03em;
+    padding-bottom: 2mm;
+  }
+  @bottom-left {
+    content: "Classification: " string(classification);
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 7pt;
+    color: #9ca3af;
+  }
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 7.5pt;
+    color: #6b7280;
+  }
+}
+
+
+@page cover {
+  margin: 0;
+  @top-left { content: none; border: none; }
+  @top-right { content: none; border: none; }
+  @bottom-left { content: none; }
+  @bottom-right { content: none; }
+}
+
+/* ---------- Base typography ---------- */
+
+html {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 9.6pt;
+  line-height: 1.5;
+  color: #1f2937;
+  -weasy-hyphens: none;
+}
+
+body { margin: 0; padding: 0; }
+
+p { margin: 0 0 2.6mm 0; text-align: left; }
+
+strong { color: #111827; font-weight: 600; }
+
+code, .mono {
+  font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 8.4pt;
+  background: #f3f4f6;
+  border: 0.4pt solid #e5e7eb;
+  border-radius: 2pt;
+  padding: 0.3mm 1mm;
+  color: #374151;
+  white-space: nowrap;
+}
+
+a { color: #1f2937; text-decoration: none; }
+
+/* ---------- Cover page ---------- */
+
+.cover {
+  page: cover;
+  page-break-after: always;
+  height: 297mm;
+  width: 210mm;
+  position: relative;
+  background: #111827;
+  color: #ffffff;
+  box-sizing: border-box;
+}
+
+.cover-band {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 112mm;
+  background: #111827;
+  box-sizing: border-box;
+  padding: 24mm 20mm 0 20mm;
+}
+
+.cover-rule {
+  position: absolute;
+  top: 112mm; left: 0; right: 0;
+  height: 2.2mm;
+  background: #dc2626;
+}
+
+.cover-logo-chip {
+  display: inline-block;
+  background: #ffffff;
+  padding: 3.4mm 5mm;
+  border-radius: 2.4pt;
+}
+.cover-logo { height: 11mm; width: auto; }
+
+.cover-eyebrow {
+  margin-top: 16mm;
+  font-size: 8.5pt;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.cover-title {
+  font-size: 30pt;
+  line-height: 1.12;
+  font-weight: 700;
+  margin: 5mm 0 0 0;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.cover-subtitle {
+  font-size: 12pt;
+  font-weight: 400;
+  color: #d1d5db;
+  margin: 4mm 0 0 0;
+}
+
+.cover-lower {
+  position: absolute;
+  top: 122mm; left: 0; right: 0; bottom: 0;
+  background: #ffffff;
+  color: #1f2937;
+  box-sizing: border-box;
+  padding: 14mm 20mm 18mm 20mm;
+}
+
+.cover-doctype {
+  font-size: 10pt;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #dc2626;
+  font-weight: 600;
+  margin-bottom: 10mm;
+}
+
+table.cover-meta {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.4pt;
+}
+table.cover-meta th {
+  text-align: left;
+  width: 46mm;
+  padding: 2.4mm 0;
+  font-weight: 600;
+  color: #6b7280;
+  border-bottom: 0.4pt solid #f3f4f6;
+  vertical-align: top;
+}
+table.cover-meta td {
+  padding: 2.4mm 0;
+  color: #111827;
+  border-bottom: 0.4pt solid #f3f4f6;
+  vertical-align: top;
+}
+
+.cover-footnote {
+  position: absolute;
+  left: 20mm; right: 20mm; bottom: 12mm;
+  font-size: 7.6pt;
+  color: #9ca3af;
+  line-height: 1.45;
+  border-top: 0.4pt solid #e5e7eb;
+  padding-top: 3mm;
+}
+
+/* Strings lifted into the running header/footer. */
+.str-doctitle  { string-set: doctitle content(); }
+.str-module    { string-set: modulename content(); }
+.str-class     { string-set: classification content(); }
+.hidden-string {
+  font-size: 0;
+  line-height: 0;
+  height: 0;
+  color: transparent;
+  overflow: hidden;
+}
+
+/* ---------- Headings ---------- */
+
+h1 {
+  font-size: 17pt;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 1.5mm 0;
+  padding: 0 0 2.5mm 0;
+  border-bottom: 1.6pt solid #dc2626;
+  page-break-before: always;
+  page-break-after: avoid;
+  letter-spacing: -0.01em;
+}
+h1.no-break { page-break-before: auto; }
+
+h1 .sec-no {
+  display: inline-block;
+  font-size: 10pt;
+  font-weight: 700;
+  color: #dc2626;
+  letter-spacing: 0.1em;
+  margin-right: 3mm;
+  vertical-align: 1pt;
+}
+
+h2 {
+  font-size: 12pt;
+  font-weight: 700;
+  color: #111827;
+  margin: 7mm 0 2.5mm 0;
+  padding-left: 2.5mm;
+  border-left: 2.4pt solid #111827;
+  page-break-after: avoid;
+}
+
+h3 {
+  font-size: 10.2pt;
+  font-weight: 700;
+  color: #374151;
+  margin: 5mm 0 1.8mm 0;
+  page-break-after: avoid;
+}
+
+h4 {
+  font-size: 9.6pt;
+  font-weight: 700;
+  color: #4b5563;
+  margin: 4mm 0 1.4mm 0;
+  page-break-after: avoid;
+}
+
+.lede {
+  font-size: 10.4pt;
+  color: #4b5563;
+  line-height: 1.55;
+  margin: 0 0 5mm 0;
+}
+
+/* ---------- Table of contents ---------- */
+
+.toc { page-break-after: always; }
+
+.toc h1 { page-break-before: auto; }
+
+ul.toc-list { list-style: none; margin: 4mm 0 0 0; padding: 0; }
+
+ul.toc-list li {
+  margin: 0;
+  padding: 2.1mm 0;
+  border-bottom: 0.4pt dotted #d1d5db;
+  font-size: 9.6pt;
+}
+
+ul.toc-list li a {
+  display: block;
+  margin-left: 11mm;
+  color: #1f2937;
+}
+
+ul.toc-list li a::after {
+  content: target-counter(attr(href), page);
+  float: right;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+ul.toc-list li .toc-num {
+  float: left;
+  width: 11mm;
+  color: #dc2626;
+  font-weight: 700;
+}
+
+ul.toc-list li.toc-sub {
+  padding-left: 11mm;
+  font-size: 9pt;
+  border-bottom: none;
+  padding-top: 1.1mm;
+  padding-bottom: 1.1mm;
+}
+ul.toc-list li.toc-sub a { color: #4b5563; margin-left: 13mm; }
+ul.toc-list li.toc-sub .toc-num { width: 13mm; color: #9ca3af; font-weight: 600; }
+
+/* ---------- Tables ---------- */
+
+table.t {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2.5mm 0 4mm 0;
+  font-size: 8.6pt;
+  table-layout: fixed;
+  page-break-inside: auto;
+}
+
+table.t thead { display: table-header-group; }
+table.t tr { page-break-inside: avoid; }
+
+table.t th {
+  background: #111827;
+  color: #ffffff;
+  font-weight: 600;
+  text-align: left;
+  padding: 2mm 2.2mm;
+  border: 0.4pt solid #111827;
+  font-size: 8.2pt;
+  letter-spacing: 0.01em;
+}
+
+table.t td {
+  padding: 1.9mm 2.2mm;
+  border: 0.4pt solid #e5e7eb;
+  vertical-align: top;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+table.t tbody tr:nth-child(even) td { background: #f9fafb; }
+
+table.t td.num { text-align: right; }
+table.t td.ctr, table.t th.ctr { text-align: center; }
+
+table.t .yes { color: #15803d; font-weight: 700; }
+table.t .no  { color: #b91c1c; font-weight: 700; }
+table.t .na  { color: #9ca3af; }
+
+/* Sub-header row inside a table, used to group related rows. */
+table.t tr.grp td {
+  background: #e5e7eb !important;
+  font-weight: 700;
+  color: #111827;
+  font-size: 8.3pt;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+caption.tcap {
+  caption-side: top;
+  text-align: left;
+  font-size: 8.4pt;
+  font-weight: 700;
+  color: #6b7280;
+  padding: 0 0 1.4mm 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- Lists ---------- */
+
+ol.steps { margin: 2mm 0 4mm 0; padding-left: 7mm; }
+ol.steps > li { margin-bottom: 2.2mm; padding-left: 1mm; }
+ol.steps > li::marker { font-weight: 700; color: #dc2626; }
+
+ul.b { margin: 1.6mm 0 3.5mm 0; padding-left: 5.5mm; }
+ul.b > li { margin-bottom: 1.4mm; }
+ul.b > li::marker { color: #9ca3af; }
+
+ul.tight { margin: 1mm 0 2mm 0; }
+ul.tight > li { margin-bottom: 0.6mm; }
+
+dl.defs { margin: 2mm 0 4mm 0; }
+dl.defs dt { font-weight: 700; color: #111827; margin-top: 2.6mm; }
+dl.defs dd { margin: 0.6mm 0 0 0; padding-left: 0; color: #374151; }
+
+/* ---------- Callouts ---------- */
+
+.note, .warn, .verify, .tip {
+  margin: 3mm 0 4mm 0;
+  padding: 2.8mm 3.4mm;
+  border-left: 2.6pt solid;
+  font-size: 8.9pt;
+  line-height: 1.48;
+  page-break-inside: avoid;
+}
+.note   { background: #f3f4f6; border-color: #6b7280; }
+.warn   { background: #fef2f2; border-color: #dc2626; }
+.verify { background: #fffbeb; border-color: #d97706; }
+.tip    { background: #f0fdf4; border-color: #15803d; }
+
+.note .lbl, .warn .lbl, .verify .lbl, .tip .lbl {
+  display: block;
+  font-size: 7.6pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 1.2mm;
+}
+.note .lbl   { color: #4b5563; }
+.warn .lbl   { color: #b91c1c; }
+.verify .lbl { color: #b45309; }
+.tip .lbl    { color: #15803d; }
+
+.note p:last-child, .warn p:last-child, .verify p:last-child, .tip p:last-child { margin-bottom: 0; }
+
+/* An inline "not verified" marker used inside prose and table cells. */
+.tbv {
+  font-style: italic;
+  color: #b45309;
+  font-weight: 600;
+}
+
+/* ---------- Screenshot placeholders ---------- */
+
+.shot {
+  margin: 3mm 0 4mm 0;
+  border: 0.8pt dashed #9ca3af;
+  background: #f9fafb;
+  padding: 7mm 4mm;
+  text-align: center;
+  font-size: 8.6pt;
+  color: #6b7280;
+  page-break-inside: avoid;
+}
+.shot .shot-lbl {
+  display: block;
+  font-size: 7.2pt;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin-bottom: 1.6mm;
+  font-weight: 700;
+}
+.shot .shot-txt { font-weight: 600; color: #4b5563; }
+
+/* ---------- Flow diagrams (pure CSS — print-safe) ---------- */
+
+.flow {
+  margin: 3.5mm 0 4.5mm 0;
+  page-break-inside: avoid;
+}
+
+/* Horizontal chain of stages. */
+.chain {
+  display: table;
+  width: 100%;
+  border-collapse: separate;
+  margin: 0 0 2mm 0;
+}
+.chain .row { display: table-row; }
+.chain .cell {
+  display: table-cell;
+  vertical-align: middle;
+  text-align: center;
+}
+.chain .box {
+  display: block;
+  border: 0.8pt solid #111827;
+  border-radius: 2.4pt;
+  background: #ffffff;
+  padding: 2mm 1.6mm;
+  font-size: 7.8pt;
+  line-height: 1.3;
+  color: #111827;
+}
+.chain .box .st {
+  display: block;
+  font-size: 6.4pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #9ca3af;
+  margin-bottom: 0.7mm;
+}
+.chain .box .nm { display: block; font-weight: 700; }
+.chain .box .who {
+  display: block;
+  font-size: 6.8pt;
+  color: #6b7280;
+  margin-top: 0.7mm;
+}
+.chain .arrow {
+  display: table-cell;
+  vertical-align: middle;
+  width: 6mm;
+  text-align: center;
+  color: #dc2626;
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+.chain .box.start { background: #111827; color: #ffffff; border-color: #111827; }
+.chain .box.start .st, .chain .box.start .who { color: #d1d5db; }
+.chain .box.end   { background: #15803d; color: #ffffff; border-color: #15803d; }
+.chain .box.end .st, .chain .box.end .who { color: #dcfce7; }
+.chain .box.gate  { background: #fffbeb; border-color: #d97706; }
+.chain .box.gate .st { color: #b45309; }
+.chain .box.bad   { background: #fef2f2; border-color: #dc2626; }
+.chain .box.bad .st { color: #b91c1c; }
+
+/* Vertical stage ladder — used where a chain has branches. */
+.ladder { margin: 3mm 0 4.5mm 0; }
+
+.ladder .rung {
+  border: 0.8pt solid #d1d5db;
+  border-left: 2.6pt solid #111827;
+  border-radius: 2pt;
+  background: #ffffff;
+  padding: 2.2mm 3mm;
+  margin: 0;
+  page-break-inside: avoid;
+}
+.ladder .rung .hd {
+  font-size: 9pt;
+  font-weight: 700;
+  color: #111827;
+}
+.ladder .rung .hd .pill {
+  display: inline-block;
+  background: #111827;
+  color: #ffffff;
+  font-size: 6.6pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.5mm 1.6mm;
+  border-radius: 1.6pt;
+  margin-right: 2mm;
+  vertical-align: 1pt;
+}
+.ladder .rung .meta {
+  font-size: 8.1pt;
+  color: #6b7280;
+  margin-top: 0.8mm;
+}
+.ladder .rung .meta b { color: #374151; }
+.ladder .down {
+  text-align: center;
+  color: #dc2626;
+  font-size: 10pt;
+  font-weight: 700;
+  line-height: 1;
+  padding: 1.1mm 0;
+}
+.ladder .rung.exc {
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+.ladder .rung.fin {
+  border-left-color: #15803d;
+  background: #f0fdf4;
+}
+.ladder .branch {
+  margin: 1.2mm 0 1.2mm 8mm;
+  border-left: 0.8pt dashed #dc2626;
+  padding: 0 0 0 3mm;
+  font-size: 8.2pt;
+  color: #4b5563;
+}
+.ladder .branch b { color: #b91c1c; }
+
+/* Submodule / handoff map — a boxed grid. */
+.map {
+  display: table;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 1.6mm 1.6mm;
+  margin: 2mm 0 3mm 0;
+}
+.map .mrow { display: table-row; }
+.map .mcell {
+  display: table-cell;
+  width: 33%;
+  border: 0.8pt solid #d1d5db;
+  border-top: 2.2pt solid #111827;
+  border-radius: 2pt;
+  background: #f9fafb;
+  padding: 2.4mm 2.6mm;
+  vertical-align: top;
+}
+.map .mcell .k {
+  display: block;
+  font-size: 8.8pt;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.9mm;
+}
+.map .mcell .code {
+  display: block;
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 7pt;
+  color: #dc2626;
+  margin-bottom: 1.2mm;
+}
+.map .mcell .d { display: block; font-size: 7.8pt; color: #4b5563; line-height: 1.4; }
+
+/* ---------- Status pills ---------- */
+
+.pill {
+  display: inline-block;
+  font-size: 7.4pt;
+  font-weight: 700;
+  padding: 0.4mm 1.5mm;
+  border-radius: 1.6pt;
+  border: 0.4pt solid;
+  white-space: nowrap;
+}
+.p-wait { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+.p-go   { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+.p-done { background: #f0fdf4; border-color: #86efac; color: #15803d; }
+.p-stop { background: #fef2f2; border-color: #fca5a5; color: #b91c1c; }
+.p-idle { background: #f3f4f6; border-color: #d1d5db; color: #4b5563; }
+
+/* ---------- Quick reference cards ---------- */
+
+.qr { display: table; width: 100%; border-spacing: 1.6mm 1.6mm; margin: 2mm 0; }
+.qr .qrow { display: table-row; }
+.qr .qcell {
+  display: table-cell;
+  width: 50%;
+  border: 0.8pt solid #e5e7eb;
+  border-left: 2.4pt solid #dc2626;
+  background: #ffffff;
+  padding: 2.4mm 2.8mm;
+  vertical-align: top;
+}
+.qr .qcell .qt {
+  display: block;
+  font-size: 8.8pt;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 1mm;
+}
+.qr .qcell .qd { font-size: 7.9pt; color: #4b5563; line-height: 1.42; }
+
+/* ---------- Utility ---------- */
+
+.keep { page-break-inside: avoid; }
+.newpage { page-break-before: always; }
+.small { font-size: 8.2pt; color: #6b7280; }
+.center { text-align: center; }
+hr.sep { border: none; border-top: 0.4pt solid #e5e7eb; margin: 5mm 0; }
+
+.endmark {
+  margin-top: 8mm;
+  padding-top: 3mm;
+  border-top: 1.6pt solid #111827;
+  font-size: 8pt;
+  color: #6b7280;
+  text-align: center;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

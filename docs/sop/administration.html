@@ -1,0 +1,1337 @@
+<meta charset="utf-8">
+<title>MatrixIQ — Administration Module SOP</title>
+<link rel="stylesheet" href="assets/sop.css">
+
+<!-- ======================= COVER ======================= -->
+<section class="cover">
+  <div class="hidden-string"><span class="str-doctitle">MatrixIQ — Administration Module SOP</span><span class="str-module">Administration</span><span class="str-class">Internal Use</span></div>
+  <div class="cover-band">
+    <span class="cover-logo-chip"><img class="cover-logo" src="assets/nanta-logo.png" alt="NANTA"></span>
+    <div class="cover-eyebrow">MatrixIQ &middot; Department Operating Manual</div>
+    <p class="cover-title">Administration Module</p>
+    <p class="cover-subtitle">Users, roles, departments, modules, products, settings, integrations and the audit trail &mdash; the configuration that decides how everything else behaves.</p>
+  </div>
+  <div class="cover-rule"></div>
+  <div class="cover-lower">
+    <div class="cover-doctype">Standard Operating Procedure</div>
+    <table class="cover-meta">
+      <tr><th>Department / Module</th><td>Administration &mdash; eleven configuration submodules</td></tr>
+      <tr><th>Document type</th><td>Standard Operating Procedure</td></tr>
+      <tr><th>Version</th><td>1.0</td></tr>
+      <tr><th>Preparation date</th><td>27 October 2026</td></tr>
+      <tr><th>Document owner</th><td>To be confirmed</td></tr>
+      <tr><th>Approved by</th><td>To be confirmed</td></tr>
+      <tr><th>Review frequency</th><td>To be confirmed</td></tr>
+      <tr><th>Classification</th><td>Internal Use &mdash; Restricted to authorised administrators</td></tr>
+      <tr><th>Platform</th><td>MatrixIQ 1.0.0 &mdash; NANTA TECH LIMITED</td></tr>
+    </table>
+    <div class="cover-footnote">
+      Prepared from the <em>MatrixIQ Feature Reference</em> (13 pages) and verified against the MatrixIQ application itself on 27 October 2026.
+      <strong>Changes made using the screens in this document affect every user of the platform.</strong>
+      Do not change production configuration without authorisation and internal approval.
+    </div>
+  </div>
+</section>
+
+<!-- ======================= CONTENTS ======================= -->
+<section class="toc">
+  <h1 class="no-break">Contents</h1>
+  <ul class="toc-list">
+    <li><span class="toc-num">1</span><a href="#s1">Cover Page</a></li>
+    <li><span class="toc-num">2</span><a href="#s2">Document Control</a></li>
+    <li><span class="toc-num">3</span><a href="#s3">Introduction</a></li>
+    <li><span class="toc-num">4</span><a href="#s4">Access and Permissions</a></li>
+    <li><span class="toc-num">5</span><a href="#s5">Module and Submodule Directory</a></li>
+    <li><span class="toc-num">6</span><a href="#s6">Detailed Step-by-Step Procedures</a></li>
+    <li class="toc-sub"><span class="toc-num">6.1</span><a href="#s6-1">User Management</a></li>
+    <li class="toc-sub"><span class="toc-num">6.2</span><a href="#s6-2">Role Management</a></li>
+    <li class="toc-sub"><span class="toc-num">6.3</span><a href="#s6-3">Department Master</a></li>
+    <li class="toc-sub"><span class="toc-num">6.4</span><a href="#s6-4">Module Manager</a></li>
+    <li class="toc-sub"><span class="toc-num">6.5</span><a href="#s6-5">Custom Module Builder</a></li>
+    <li class="toc-sub"><span class="toc-num">6.6</span><a href="#s6-6">Products</a></li>
+    <li class="toc-sub"><span class="toc-num">6.7</span><a href="#s6-7">Product Catalog</a></li>
+    <li class="toc-sub"><span class="toc-num">6.8</span><a href="#s6-8">Application Settings</a></li>
+    <li class="toc-sub"><span class="toc-num">6.9</span><a href="#s6-9">Meta Lead Integration</a></li>
+    <li class="toc-sub"><span class="toc-num">6.10</span><a href="#s6-10">Daily Report Configuration</a></li>
+    <li class="toc-sub"><span class="toc-num">6.11</span><a href="#s6-11">Audit Log</a></li>
+    <li><span class="toc-num">7</span><a href="#s7">Workflow and Approval Process</a></li>
+    <li><span class="toc-num">8</span><a href="#s8">Field and Status Reference</a></li>
+    <li><span class="toc-num">9</span><a href="#s9">Reports, Downloads and Exports</a></li>
+    <li><span class="toc-num">10</span><a href="#s10">Notifications and Follow-Ups</a></li>
+    <li><span class="toc-num">11</span><a href="#s11">Common Problems and Troubleshooting</a></li>
+    <li><span class="toc-num">12</span><a href="#s12">Best Practices and Compliance</a></li>
+    <li><span class="toc-num">13</span><a href="#s13">Quick Reference</a></li>
+    <li><span class="toc-num">14</span><a href="#s14">Glossary and Appendix</a></li>
+  </ul>
+</section>
+
+<!-- ======================= 1 ======================= -->
+<h1 id="s1"><span class="sec-no">01</span>Cover Page</h1>
+<p class="lede">The cover of this document carries its identity. It is reproduced here so that a printed or extracted section can still be traced back to the correct version.</p>
+<table class="t">
+  <caption class="tcap">Document identity</caption>
+  <thead><tr><th style="width:34%">Attribute</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Title</td><td>MatrixIQ &mdash; Administration Module SOP</td></tr>
+    <tr><td>Platform</td><td>MatrixIQ, the internal business platform of NANTA TECH LIMITED</td></tr>
+    <tr><td>Module coverage</td><td>User Management, Role Management, Department Master, Module Manager, Custom Module Builder, Products, Product Catalog, Application Settings, Meta Lead Integration, Daily Report Configuration, Audit Log</td></tr>
+    <tr><td>Document type</td><td>Standard Operating Procedure</td></tr>
+    <tr><td>Version</td><td>1.0 &mdash; first issue</td></tr>
+    <tr><td>Preparation date</td><td>27 October 2026</td></tr>
+    <tr><td>Document owner</td><td>To be confirmed</td></tr>
+    <tr><td>Classification</td><td>Internal Use &mdash; restricted to authorised administrators</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 2 ======================= -->
+<h1 id="s2"><span class="sec-no">02</span>Document Control</h1>
+
+<h2>2.1 Purpose of this document</h2>
+<p>This SOP explains how MatrixIQ is configured: who has an account, what each role may do, how departments and their managers are defined, which modules exist and who sees them, what the product catalogue contains, what appears on a quotation, how external lead sources connect, and how the daily reporting regime is set.</p>
+<p>These screens do not process business transactions. They decide the rules every other screen obeys. A single change here can widen or remove access for dozens of people, alter the price on a customer-facing document, or silence a reminder the whole company depends on. This document is therefore written as much to prevent unsafe changes as to enable necessary ones.</p>
+
+<h2>2.2 Version history</h2>
+<table class="t">
+  <thead><tr><th style="width:12%">Version</th><th style="width:18%">Date</th><th style="width:26%">Author</th><th>Summary of change</th></tr></thead>
+  <tbody><tr><td>1.0</td><td>27 October 2026</td><td>To be confirmed</td><td>First issue. Prepared from the MatrixIQ Feature Reference and verified against the live application.</td></tr></tbody>
+</table>
+
+<h2>2.3 Ownership and approval</h2>
+<table class="t">
+  <thead><tr><th style="width:32%">Role</th><th style="width:34%">Name</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td>Document owner</td><td>To be confirmed</td><td>Keeps this document accurate as the Administration screens change.</td></tr>
+    <tr><td>Approver</td><td>To be confirmed</td><td>Signs off each version before it is issued.</td></tr>
+    <tr><td>Change authority</td><td>To be confirmed</td><td>Approves production configuration changes before they are made.</td></tr>
+    <tr><td>Review frequency</td><td>To be confirmed</td><td>Re-review is required after any change to roles, module visibility, tax settings, product pricing or document numbering.</td></tr>
+  </tbody>
+</table>
+
+<h2>2.4 Intended audience</h2>
+<ul class="b">
+  <li><strong>Primary &mdash;</strong> Super Admin account holders, who hold every right including deletion.</li>
+  <li><strong>Primary &mdash;</strong> Admin account holders, who hold every operational right and most configuration rights.</li>
+  <li><strong>Secondary &mdash;</strong> Manager account holders, who reach some Administration screens but not all.</li>
+  <li><strong>Reference &mdash;</strong> Department heads who need to understand why their team sees what it sees.</li>
+</ul>
+
+<h2>2.5 Scope and limitations</h2>
+<p><strong>In scope.</strong> The eleven Administration submodules listed on the cover, the effect each has on the rest of MatrixIQ, and the safe way to change each one.</p>
+<p><strong>Out of scope.</strong> Server deployment, database administration, environment variables, backups, and the Technical Project Management module's own separate <em>Tab Access</em> permission matrix, which is administered by the Technical Manager rather than from this section.</p>
+<ul class="b">
+  <li>This document describes configuration as it stood on 27 October 2026. Because these very screens change configuration, the document can be made inaccurate by its own readers.</li>
+  <li>Details the application could not confirm are marked <span class="tbv">To be verified in the live MatrixIQ application</span>.</li>
+</ul>
+
+<div class="warn">
+  <span class="lbl">Standing warning &mdash; applies to this entire document</span>
+  <p>Changes to <strong>role permissions</strong>, <strong>module availability</strong>, <strong>department managers</strong>, <strong>tax settings</strong>, <strong>product pricing</strong> and <strong>document numbering</strong> take effect for every affected user, in most cases within about half a minute and without any announcement. Several have no undo.</p>
+  <p><strong>Do not change production configuration without appropriate authorisation and internal approval.</strong> Record what you changed, when, and on whose instruction &mdash; the Audit Log does not capture every configuration edit (see &sect;8.5).</p>
+</div>
+
+<!-- ======================= 3 ======================= -->
+<h1 id="s3"><span class="sec-no">03</span>Introduction</h1>
+
+<h2>3.1 What the Administration module does</h2>
+<p class="lede">Administration is where MatrixIQ is told how to behave. Everything here changes the platform without a software release.</p>
+<p>A new employee gets an account and a role. A role is given a set of permissions. A department is created and given managers &mdash; and because approval routing across the whole platform is resolved from departments and their managers, that one act decides who approves travel, who signs off reimbursements and whose daily reports are visible to whom. Modules are switched on or off and shown to particular roles. Products and prices feed every quotation. Company details, tax and terms feed every quotation PDF. The daily reporting regime &mdash; working days, cut-off time, reminders and warnings &mdash; is set here too.</p>
+
+<h2>3.2 Why it exists</h2>
+<ul class="b">
+  <li><strong>The organisation changes faster than software.</strong> People join, teams are renamed, a department gains a manager. None of that should need a developer.</li>
+  <li><strong>One definition, used everywhere.</strong> Department managers defined once drive approvals, visibility and routing across every module, so the rules cannot drift apart.</li>
+  <li><strong>Visibility and capability stay aligned.</strong> Disabling a module hides the tile <em>and</em> closes the data behind it, so a hidden screen is genuinely unreachable.</li>
+  <li><strong>New business needs without new code.</strong> The Custom Module Builder creates a working module &mdash; fields, records, approval and export &mdash; from a form.</li>
+</ul>
+
+<h2>3.3 What administrators can and cannot do</h2>
+<table class="t">
+  <thead><tr><th style="width:50%">An administrator can</th><th>An administrator cannot</th></tr></thead>
+  <tbody>
+    <tr><td>Create and edit login accounts, and assign roles and departments.</td><td>Create or promote an account to Super Admin unless they are themselves Super Admin.</td></tr>
+    <tr><td>Define what each role may see and do, and clone an existing role.</td><td>Delete a built-in role. Built-in roles are marked and protected.</td></tr>
+    <tr><td>Create departments, rename them, appoint managers and reorder the list.</td><td>Remove a department's effect retroactively &mdash; approvals already routed stay as they were.</td></tr>
+    <tr><td>Enable, disable, rename and reorder modules, and control which roles see each one.</td><td>Create a brand-new built-in route. Only custom modules can be added from the interface.</td></tr>
+    <tr><td>Build custom modules with their own fields and an optional approval step.</td><td>Give a custom module a bespoke workflow. One generic engine renders them all.</td></tr>
+    <tr><td>Manage quotation products and override the AV, Robotics, AI Analytics and VisitIQ catalogues.</td><td>Change how a quotation number is composed &mdash; that format is fixed.</td></tr>
+    <tr><td>Set company details, bank details, tax, currency, terms and the Delivery Challan prefix.</td><td>Enter Meta Lead Ads credentials. Those are server settings, not application settings.</td></tr>
+    <tr><td>Configure the daily reporting regime and run the sweep manually.</td><td>Delete anything at all, unless they are Super Admin.</td></tr>
+  </tbody>
+</table>
+
+<h2>3.4 The four things that decide who sees what</h2>
+<p>MatrixIQ resolves visibility from four inputs working together. Understanding this is the single most useful thing in this document.</p>
+<div class="map">
+  <div class="mrow">
+    <div class="mcell"><span class="k">1. The role</span><span class="code">Role Management</span><span class="d">The role key on the account &mdash; Sales, HR, Accounts, Marketing, Back Office, a Technical role, or an admin tier.</span></div>
+    <div class="mcell"><span class="k">2. The privileged flag</span><span class="code">Role Management</span><span class="d">A flag on the role granting broad, organisation-wide reach. Super Admin, Admin and Manager carry it.</span></div>
+    <div class="mcell"><span class="k">3. The department</span><span class="code">Department Master</span><span class="d">Which department the user belongs to, and which departments they <em>manage</em>. Managers drive approval routing everywhere.</span></div>
+  </div>
+  <div class="mrow">
+    <div class="mcell"><span class="k">4. Module visibility</span><span class="code">Module Manager</span><span class="d">Whether a module is enabled at all, and which roles may see it. Disabling closes the data as well as the tile.</span></div>
+    <div class="mcell"><span class="k">Plus: named grants</span><span class="code">configured per module</span><span class="d">A few sensitive modules are granted to <em>named individuals</em> rather than to a role &mdash; see &sect;4.4.</span></div>
+    <div class="mcell"><span class="k">Plus: the partner boundary</span><span class="code">partner account</span><span class="d">An account linked to a partner company is confined to the Partner Portal and refused everywhere else, in both directions.</span></div>
+  </div>
+</div>
+<div class="warn">
+  <span class="lbl">Privileged is not a master key</span>
+  <p>The <strong>privileged</strong> flag is true for every <code>manager</code> account, which covers every department's managers &mdash; Sales, Accounts, Technical and the rest. Several areas therefore deliberately refuse it and name their roles explicitly instead: the <strong>Technical Project Management</strong> modules, the <strong>HR</strong> modules, the <strong>Accounts payment queue</strong>, the <strong>Audit Log</strong>, the <strong>Daily Report Configuration</strong> page, and the whole <strong>Partner Portal</strong>. Granting someone the Manager role does <em>not</em> give them these.</p>
+</div>
+
+<!-- ======================= 4 ======================= -->
+<h1 id="s4"><span class="sec-no">04</span>Access and Permissions</h1>
+
+<h2>4.1 Who can reach the Administration area</h2>
+<p>The whole <code>/admin</code> area requires a <strong>privileged</strong> role. That covers Super Admin, Admin and Manager. Individual screens then narrow further.</p>
+<table class="t">
+  <caption class="tcap">Administration screens by role</caption>
+  <thead><tr>
+    <th style="width:34%">Screen</th><th class="ctr">Super Admin</th><th class="ctr">Admin</th><th class="ctr">Manager</th><th class="ctr">All other roles</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>User Management</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Role Management</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Department Master</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Module Manager</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Custom Module Builder</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Products</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Product Catalog</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Application Settings</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Meta Lead Integration</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Daily Report Configuration</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Audit Log</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+  </tbody>
+</table>
+<p class="small">An administrator-created role can be granted the Daily Report Configuration page by setting an explicit <strong>manage</strong> permission on that module in Role Management. The ordinary privileged fallback is deliberately refused there.</p>
+
+<h2>4.2 Deletion is Super Admin only</h2>
+<div class="warn">
+  <span class="lbl">The single clearest line in MatrixIQ</span>
+  <p>Any delete action anywhere under the Administration interfaces is refused for every role except <strong>Super Admin</strong>, with the message <em>"Forbidden &mdash; superadmin only"</em>. An Admin can create and edit everything they can see; they cannot delete. Plan removals accordingly.</p>
+</div>
+
+<h2>4.3 Super Admin accounts are invisible to other roles</h2>
+<p>Super Admin accounts do not appear to anyone except another Super Admin. They are absent from the Employee Directory, from profile views, and from every assignment, handover and manager picker. This is deliberate: the organisation's ultimate account holders should not be enumerable from an ordinary administrator session, not merely protected from editing.</p>
+
+<h2>4.4 Modules granted to named individuals, not roles</h2>
+<p>Three modules are granted <strong>per person</strong> on top of the Super Admin and Admin tier. The <code>hr</code> role on its own grants none of them. This cannot be changed from Role Management or Module Manager.</p>
+<table class="t">
+  <thead><tr><th style="width:36%">Module</th><th style="width:28%">Granted to</th><th>How to change it</th></tr></thead>
+  <tbody>
+    <tr><td>Office Operation Expenses</td><td>Super Admin, Admin, and one named user</td><td rowspan="3">The grant list is part of the application's configuration rather than an Administration screen. Requests to add or remove a person must go to the platform's technical owner. <span class="tbv">Escalation route: to be confirmed.</span></td></tr>
+    <tr><td>Admin Expenses</td><td>Super Admin, Admin, and two named users</td></tr>
+    <tr><td>HR Expense Report</td><td>Super Admin, Admin, and one named user</td></tr>
+  </tbody>
+</table>
+<p class="small">The generic <code>manager</code> role is deliberately excluded from all three, even though its privileged flag is true.</p>
+
+<h2>4.5 Viewing, creating, editing, approving and configuring</h2>
+<table class="t">
+  <thead><tr><th style="width:22%">Capability</th><th style="width:26%">What it means here</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>View</strong></td><td>Open a screen and read it.</td><td>Reading the role matrix without changing it.</td></tr>
+    <tr><td><strong>Create</strong></td><td>Add a new record.</td><td>Adding an employee account or a department.</td></tr>
+    <tr><td><strong>Edit</strong></td><td>Change an existing record.</td><td>Renaming a module or repricing a product.</td></tr>
+    <tr><td><strong>Approve</strong></td><td>Decide on something someone else submitted.</td><td>Approving a record in a custom module that requires approval.</td></tr>
+    <tr><td><strong>Manage / configure</strong></td><td>Change the rules other people work under.</td><td>Granting a role a permission; disabling a module.</td></tr>
+    <tr><td><strong>Delete</strong></td><td>Remove a record permanently or into soft deletion.</td><td><strong>Super Admin only.</strong></td></tr>
+  </tbody>
+</table>
+<p>Role Management expresses ten actions per module: <strong>view, create, edit, delete, export, print, approve, reject, assign, manage</strong>, plus five global capabilities: <strong>manage settings, manage users, manage roles, manage departments, view all departments</strong>.</p>
+
+<!-- ======================= 5 ======================= -->
+<h1 id="s5"><span class="sec-no">05</span>Module and Submodule Directory</h1>
+
+<table class="t">
+  <caption class="tcap">The eleven Administration submodules</caption>
+  <thead><tr><th style="width:21%">Submodule</th><th style="width:18%">Key &amp; address</th><th>Purpose and principal limitation</th></tr></thead>
+  <tbody>
+    <tr><td><strong>User Management</strong></td><td><code>user-management</code><br><code>/admin/users</code></td><td>Create and manage login accounts, roles and access. Bulk import is from Excel. <em>Limitation:</em> only a Super Admin can delete an account or create another Super Admin.</td></tr>
+    <tr><td><strong>Role Management</strong></td><td><code>role-management</code><br><code>/admin/roles</code></td><td>Define what each role may see and do; clone a role; set the privileged flag. <em>Limitation:</em> built-in roles cannot be deleted, and the privileged flag is refused by several sensitive modules.</td></tr>
+    <tr><td><strong>Department Master</strong></td><td><code>department-master</code><br><code>/admin/departments</code></td><td>Departments, their managers and their order. <em>Limitation:</em> this is the source of approval routing platform-wide, so an edit here has effects far outside this screen.</td></tr>
+    <tr><td><strong>Module Manager</strong></td><td><code>module-manager</code><br><code>/admin/modules</code></td><td>Enable, disable, rename, reorder and role-scope every module. <em>Limitation:</em> disabling blocks everyone, administrators included.</td></tr>
+    <tr><td><strong>Custom Module Builder</strong></td><td><code>custom-modules</code><br><code>/admin/custom-modules</code></td><td>Create new business modules without writing code. <em>Limitation:</em> one generic engine renders every custom module; bespoke workflows are not available.</td></tr>
+    <tr><td><strong>Products</strong></td><td><code>product-master</code><br><code>/admin/products</code></td><td>The quotation product master: add, edit, duplicate, bulk-reprice, import and export. <em>Limitation:</em> a price change applies to new quotations; existing quotations keep their recorded figures.</td></tr>
+    <tr><td><strong>Product Catalog</strong></td><td><code>product-catalog-overrides</code><br><code>/admin/product-catalog</code></td><td>Rename or reprice any AV, Robotics, AI Video Analytics or VisitIQ item used in quotations. <em>Limitation:</em> one catalogue does not permit renaming &mdash; see &sect;6.7.</td></tr>
+    <tr><td><strong>Application Settings</strong></td><td><code>app-settings</code><br><code>/admin/settings</code></td><td>Company details, bank details, currency and tax, quotation terms, the Delivery Challan prefix, the Marketing Owner, the BOM Finance Approver and the reimbursement submission deadline. <em>Limitation:</em> quotation numbering is not configurable.</td></tr>
+    <tr><td><strong>Meta Lead Integration</strong></td><td><code>meta-lead-integration</code><br><code>/admin/meta-integration</code></td><td>Status, connection test, lead assignment rules and on-demand sync for Facebook and Instagram Lead Ads. <em>Limitation:</em> credentials are server settings and cannot be entered here.</td></tr>
+    <tr><td><strong>Daily Report Configuration</strong></td><td><code>daily-report-config</code><br><code>/admin/daily-report-config</code></td><td>Report format per department, working days, deadline and reminder times, warning thresholds, exemptions and the reminder scheduler. <em>Limitation:</em> arms a job that reaches the whole company.</td></tr>
+    <tr><td><strong>Audit Log</strong></td><td><code>audit-log</code><br><code>/admin/audit-log</code></td><td>Platform-wide, append-only record of status-changing actions. <em>Limitation:</em> it records business status changes, not every configuration edit.</td></tr>
+  </tbody>
+</table>
+
+<h2>5.1 Related screens that sit elsewhere</h2>
+<table class="t">
+  <thead><tr><th style="width:26%">Screen</th><th style="width:20%">Where it appears</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Employee Exit</strong></td><td>Administration section, at <code>/employee-exit</code></td><td>Reassigns a departing employee's open projects, tasks, leads and quotations, then marks the account inactive. Open to anyone who manages at least one department or sees organisation-wide &mdash; not strictly to the admin tier. See &sect;6.1.5.</td></tr>
+    <tr><td><strong>Partner Management</strong></td><td>Sales section, at <code>/admin/partners</code></td><td>Partner companies and their portal accounts. Super Admin, Admin and Manager. Covered in the Partner Portal SOP.</td></tr>
+    <tr><td><strong>Performance Review</strong> and <strong>Partner Analytics</strong></td><td>Reports section</td><td>Reporting screens living under <code>/admin</code> addresses but belonging to Reports.</td></tr>
+    <tr><td><strong>TMS Users &amp; Tab Access</strong></td><td>TMS section</td><td>The Technical Project Management permission matrix. Administered by the Technical Manager, not from Administration.</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 6 ======================= -->
+<h1 id="s6"><span class="sec-no">06</span>Detailed Step-by-Step Procedures</h1>
+<p class="lede">Each procedure states what must be true before you start, what to do, what happens afterwards, and how to recover. Read the risk note at the head of each subsection before acting.</p>
+
+<h2 id="s6-1">6.1 User Management</h2>
+<div class="verify"><span class="lbl">Risk level &mdash; high</span><p>Creating or changing an account grants or removes a person's access to company data. Deactivating an account can strand records that person owns.</p></div>
+
+<h3>6.1.1 Creating a single employee account</h3>
+<h4>Preconditions</h4>
+<ul class="tight b">
+  <li>You hold Super Admin, Admin or Manager.</li>
+  <li>The department already exists in Department Master, and the role already exists in Role Management.</li>
+  <li>You have the person's correct e-mail address &mdash; the welcome message goes there.</li>
+</ul>
+<h4>Procedure</h4>
+<ol class="steps">
+  <li>Open <strong>Administration &rarr; User Management</strong>.</li>
+  <li>Select <strong>New employee account</strong>. The form opens.</li>
+  <li>Complete the fields:
+    <ul class="b tight">
+      <li><strong>Full name</strong> &mdash; as it should appear throughout MatrixIQ.</li>
+      <li><strong>Employee ID (optional)</strong>.</li>
+      <li><strong>Username</strong> &mdash; the login name. It must be unique and is the identity every permission and audit entry is keyed to.</li>
+      <li><strong>Password</strong> &mdash; minimum six characters. The user is required to change it on first sign-in.</li>
+      <li><strong>Email</strong>, <strong>Phone</strong>.</li>
+      <li><strong>Department</strong> &mdash; chosen from Department Master.</li>
+      <li><strong>Designation</strong> &mdash; free text, for example <em>Sales Executive</em>.</li>
+      <li><strong>Role</strong> &mdash; chosen from Role Management.</li>
+    </ul>
+  </li>
+  <li>Select <strong>Add employee</strong>, or <strong>Cancel</strong> to abandon.</li>
+</ol>
+<h4>What happens next</h4>
+<ul class="b">
+  <li>The account is created and appears in the directory as <strong>Active</strong>.</li>
+  <li>A welcome e-mail is sent to the address supplied, provided the platform's e-mail service is configured. If it is not, the send is skipped silently &mdash; see &sect;10.2.</li>
+  <li>The user is held at the password-change screen until they set their own password.</li>
+</ul>
+<div class="warn">
+  <span class="lbl">Pick the username carefully</span>
+  <p>Several grants in MatrixIQ are keyed to the <strong>username</strong>, not the display name &mdash; the named-individual module grants in &sect;4.4 among them. Changing a display name is harmless; a username is the account's identity and should be treated as permanent.</p>
+</div>
+<div class="shot"><span class="shot-lbl">Screenshot placeholder</span><span class="shot-txt">[Insert screenshot: Administration &rarr; User Management, the New employee account form]</span></div>
+
+<h3>6.1.2 Bulk importing users</h3>
+<p>Bulk import is a two-phase operation: <strong>preview first, commit second</strong>. Nothing is created until you commit.</p>
+<ol class="steps">
+  <li>From User Management, select <strong>Import from Excel</strong>.</li>
+  <li>Upload the employee workbook. MatrixIQ expects the columns of the standard employee detail sheet &mdash; employee ID, name, e-mail and the rest &mdash; and tolerates minor variations in how the headings are spelled.</li>
+  <li>Read the <strong>preview</strong> table before doing anything else. Each row is classified:
+    <table class="t">
+      <thead><tr><th style="width:24%">Row status</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><strong>created</strong></td><td>Will be created as a new account on commit.</td></tr>
+        <tr><td><strong>existing</strong></td><td>An account already matches. It will not be duplicated.</td></tr>
+        <tr><td><strong>needsReview</strong></td><td>Something is ambiguous or incomplete. Decide before committing.</td></tr>
+        <tr><td><strong>error</strong></td><td>The row cannot be processed as it stands.</td></tr>
+        <tr><td><strong>skipped</strong></td><td>Deliberately not processed.</td></tr>
+      </tbody>
+    </table>
+    The preview columns are <strong>Row</strong>, <strong>Name</strong>, <strong>Employee ID</strong>, <strong>Department</strong>, <strong>Username</strong>, <strong>Status</strong> and <strong>Notes</strong>.
+  </li>
+  <li>Correct the spreadsheet and re-upload if rows need fixing. <strong>Start Over</strong> discards the preview.</li>
+  <li>Commit the import. MatrixIQ creates the accounts and shows a result table: <strong>Employee</strong>, <strong>Employee ID</strong>, <strong>Username</strong>, <strong>Temporary Password</strong>, <strong>Role</strong>, <strong>Status</strong>.</li>
+  <li><strong>Capture the temporary passwords before leaving the screen.</strong> Distribute them to each person through a secure channel.</li>
+</ol>
+<div class="warn">
+  <span class="lbl">The temporary password list is shown once</span>
+  <p>Whether the result table can be regenerated after you navigate away is <span class="tbv">To be verified in the live MatrixIQ application</span>. Treat it as one-time. If a password is lost, use <strong>Reset password</strong> on the individual account instead of re-running the import.</p>
+</div>
+
+<h3>6.1.3 Editing, resetting and deactivating an account</h3>
+<ol class="steps">
+  <li>Find the person in the directory. Each row carries an actions menu.</li>
+  <li><strong>Edit</strong> &mdash; change name, phone, e-mail, employee ID, designation or role.</li>
+  <li><strong>Reset password</strong> &mdash; issues a new password; the user must change it at next sign-in.</li>
+  <li><strong>Resend welcome email</strong> &mdash; use when the original never arrived. MatrixIQ asks for confirmation first.</li>
+  <li><strong>Deactivate</strong> &mdash; MatrixIQ asks <em>"Deactivate this employee?"</em> before proceeding. <strong>Activate</strong> reverses it.</li>
+  <li>Select several rows to activate or deactivate them together.</li>
+</ol>
+<div class="warn">
+  <span class="lbl">Deactivate is not the same as handling a leaver</span>
+  <p>Deactivating stops the person signing in. It does <strong>not</strong> reassign the projects, tasks, leads and quotations they own, and it does <strong>not</strong> remove them from any department's manager list &mdash; although MatrixIQ does stop treating a deactivated account as an active manager when it resolves routing. For a genuine departure, use <strong>Employee Exit</strong> (&sect;6.1.5) <em>before</em> deactivating.</p>
+</div>
+
+<h3>6.1.4 Viewing a user's activity history</h3>
+<ol class="steps">
+  <li>Open the actions menu on the person's row and select <strong>View activity</strong>. Select <strong>Hide activity</strong> to collapse it again.</li>
+  <li>Read the history to answer questions such as when the account last signed in and what it has been doing. For a full status-change trail, use the Audit Log (&sect;6.11) instead.</li>
+</ol>
+
+<h3>6.1.5 Handling a departing employee (Employee Exit)</h3>
+<p>Employee Exit is at <code>/employee-exit</code>, in the Administration section. It is open to anyone who manages at least one department or who sees organisation-wide &mdash; a department manager can exit their own team's people.</p>
+<ol class="steps">
+  <li>Open <strong>Employee Exit</strong> and choose the departing employee.</li>
+  <li>MatrixIQ produces a <strong>summary of currently open work</strong> owned by that person. Only open work is listed; closed and historical records deliberately keep their original owner:
+    <table class="t">
+      <thead><tr><th style="width:26%">Record type</th><th>What counts as "still open"</th></tr></thead>
+      <tbody>
+        <tr><td>Projects</td><td>Not yet won and not yet lost.</td></tr>
+        <tr><td>Tasks</td><td>Not completed and not cancelled.</td></tr>
+        <tr><td>Leads</td><td>Not yet converted into a project.</td></tr>
+        <tr><td>Quotations</td><td>Still at draft or sent &mdash; not approved or rejected.</td></tr>
+      </tbody>
+    </table>
+  </li>
+  <li>Choose a new owner for each item, or use <strong>Reassign everything to&hellip;</strong> followed by <strong>Apply to all</strong>. The departing employee can never be chosen as their own replacement, and only active employees are offered.</li>
+  <li>Commit. Every reassignment is written in one operation, so a half-finished exit cannot exist.</li>
+  <li>MatrixIQ writes one audit line per record and notifies each new owner, then marks the employee inactive.</li>
+  <li>Select <strong>Do another</strong> to process a second leaver, or <strong>Close</strong>.</li>
+</ol>
+<div class="note">
+  <span class="lbl">Finish the exit checklist outside MatrixIQ too</span>
+  <p>Employee Exit is a work-reassignment tool. Remove the person from any department's manager list in Department Master, and from any named-individual grant (&sect;4.4), as separate steps.</p>
+</div>
+
+<h2 id="s6-2">6.2 Role Management</h2>
+<div class="verify"><span class="lbl">Risk level &mdash; very high</span><p>A permission granted here applies instantly to every account holding that role. There is no staged rollout and no per-user exception.</p></div>
+
+<h3>6.2.1 Reading the role list</h3>
+<p>The list shows <strong>Role</strong>, <strong>Description</strong>, <strong>Privileged</strong> and <strong>Status</strong>. Roles marked <strong>Built-in</strong> ship with MatrixIQ and cannot be deleted. Each row offers <strong>Edit</strong>, <strong>Clone</strong> and &mdash; for Super Admin, on non-built-in roles &mdash; <strong>Delete</strong>.</p>
+<table class="t">
+  <caption class="tcap">Built-in roles as configured</caption>
+  <thead><tr><th style="width:21%">Role</th><th style="width:16%">Key</th><th class="ctr" style="width:13%">Privileged</th><th>Typical reach</th></tr></thead>
+  <tbody>
+    <tr class="grp"><td colspan="4">Administrative tier</td></tr>
+    <tr><td>Super Admin</td><td><code>superadmin</code></td><td class="ctr"><span class="yes">Yes</span></td><td>Everything, including configuration. The only role that can delete.</td></tr>
+    <tr><td>Admin</td><td><code>admin</code></td><td class="ctr"><span class="yes">Yes</span></td><td>Everything operational plus most configuration. Cannot delete.</td></tr>
+    <tr><td>Manager</td><td><code>manager</code></td><td class="ctr"><span class="yes">Yes</span></td><td>Administration-panel access and pricing rights; data visibility scoped to the departments they manage, or their own records if none.</td></tr>
+    <tr class="grp"><td colspan="4">Operational roles</td></tr>
+    <tr><td>Sales</td><td><code>user</code></td><td class="ctr"><span class="no">No</span></td><td>Quotations, site visits and demo requests; own records only.</td></tr>
+    <tr><td>Marketing</td><td><code>marketing</code></td><td class="ctr"><span class="no">No</span></td><td>Marketing requests and the materials library, plus the Sales-side screens; own records only.</td></tr>
+    <tr><td>Accounts</td><td><code>accounts</code></td><td class="ctr"><span class="no">No</span></td><td>The payments queue; otherwise own-scoped like Sales.</td></tr>
+    <tr><td>HR</td><td><code>hr</code></td><td class="ctr"><span class="no">No</span></td><td>People modules; reads every department's daily reports but manages only its own.</td></tr>
+    <tr><td>Back Office</td><td><code>backoffice</code></td><td class="ctr"><span class="no">No</span></td><td>Delivery Challans and the demo pipeline.</td></tr>
+    <tr class="grp"><td colspan="4">Technical Project Management roles</td></tr>
+    <tr><td>Technical Manager</td><td><code>technical-manager</code></td><td class="ctr"><span class="no">No</span></td><td>Full TMS rights for Robotics, AI, AV and R&amp;D.</td></tr>
+    <tr><td>Team Lead</td><td><code>team-lead</code></td><td class="ctr"><span class="no">No</span></td><td>Full task management and BOM creation; read-only on projects and procurement.</td></tr>
+    <tr><td>Engineer</td><td><code>engineer</code></td><td class="ctr"><span class="no">No</span></td><td>Own TMS tasks and BOM creation, plus demo technical approval, Sales project assignment and marketing technical review.</td></tr>
+    <tr><td>Technician</td><td><code>technician</code></td><td class="ctr"><span class="no">No</span></td><td>As Engineer, without Procurement.</td></tr>
+    <tr class="grp"><td colspan="4">External roles</td></tr>
+    <tr><td>Partner Admin</td><td><code>partner-admin</code></td><td class="ctr"><span class="no">No</span></td><td>Partner Portal only. Also manages their own company's portal users.</td></tr>
+    <tr><td>Partner User</td><td><code>partner-user</code></td><td class="ctr"><span class="no">No</span></td><td>Partner Portal only.</td></tr>
+  </tbody>
+</table>
+<div class="verify">
+  <span class="lbl">Reference discrepancy</span>
+  <p>The <em>MatrixIQ Feature Reference</em> lists fifteen roles including a privileged <strong>Technical Team</strong> role with the key <code>technical</code>. That role has been <strong>retired and merged into Engineer</strong>. Fourteen roles are configured, as listed above. Engineer carries the technical responsibilities the reference attributes to <code>technical</code>, but is <strong>not</strong> privileged. Do not plan access around the retired role.</p>
+</div>
+
+<h3>6.2.2 Creating or cloning a role</h3>
+<ol class="steps">
+  <li>To start from nothing, enter a <strong>Role name</strong> and an optional <strong>Description</strong>, then select <strong>Add role</strong>. A new role starts with no permissions and is not privileged.</li>
+  <li>To start from an existing role, select <strong>Clone</strong> on its row. Cloning copies the description, the privileged flag and the whole permission matrix. <strong>This is the recommended way to create a role</strong> &mdash; start from the closest existing one and remove what is not needed.</li>
+  <li>Open the new role and set its permissions (&sect;6.2.3).</li>
+  <li>Assign the role to a test account before assigning it widely, and sign in as that account to confirm what it can actually reach.</li>
+</ol>
+
+<h3>6.2.3 Setting permissions</h3>
+<ol class="steps">
+  <li>Select <strong>Edit</strong> on the role.</li>
+  <li>Set the five <strong>Global capabilities</strong> where appropriate:
+    <table class="t">
+      <thead><tr><th style="width:30%">Capability</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Manage settings</strong></td><td>Change Application Settings.</td></tr>
+        <tr><td><strong>Manage users</strong></td><td>Create and edit accounts.</td></tr>
+        <tr><td><strong>Manage roles</strong></td><td>Change this very matrix.</td></tr>
+        <tr><td><strong>Manage departments</strong></td><td>Change Department Master.</td></tr>
+        <tr><td><strong>View all departments</strong></td><td>Organisation-wide data visibility. The widest grant in MatrixIQ.</td></tr>
+      </tbody>
+    </table>
+  </li>
+  <li>Work through the per-module matrix. Each module offers ten actions: <strong>view, create, edit, delete, export, print, approve, reject, assign, manage</strong>. <strong>Expand All</strong> and <strong>Collapse All</strong> help navigate; <strong>Select All Permissions</strong> and <strong>Clear All Permissions</strong> act on everything at once.</li>
+  <li>Set the <strong>Privileged</strong> flag only when the role genuinely needs organisation-wide reach. Read the warning below first.</li>
+  <li>Select <strong>Save</strong>.</li>
+</ol>
+<div class="note">
+  <span class="lbl">How an unset permission behaves</span>
+  <p>A permission left unset is not simply "no". For the newer data-driven modules, an explicit tick or cross always wins; where nothing is configured, MatrixIQ falls back to the role's <strong>privileged</strong> flag. That is why a brand-new non-privileged role starts with nothing, and why ticking the privileged flag can grant far more than the matrix appears to show.</p>
+</div>
+<div class="warn">
+  <span class="lbl">Use Select All Permissions with great care</span>
+  <p>It ticks every action on every module at once, including <strong>delete</strong>. Combined with the privileged flag it produces a role close to Super Admin. Use it as a starting point for narrowing, never as a final state.</p>
+</div>
+
+<h3>6.2.4 Deleting or disabling a role</h3>
+<ol class="steps">
+  <li>Reassign every account holding the role first. Check User Management before you act.</li>
+  <li>Set the role's <strong>Status</strong> to inactive rather than deleting it where possible. An inactive role grants nothing &mdash; every permission check requires the role to be active.</li>
+  <li>If deletion is genuinely required, a <strong>Super Admin</strong> must perform it, and the role must not be built-in.</li>
+</ol>
+
+<h2 id="s6-3">6.3 Department Master</h2>
+<div class="verify"><span class="lbl">Risk level &mdash; very high, and widely under-appreciated</span><p>Department managers are the routing table for approvals across the whole platform. Changing them re-routes live work.</p></div>
+
+<h3>6.3.1 What departments actually control</h3>
+<table class="t">
+  <thead><tr><th style="width:34%">Area</th><th>What is resolved from Department Master</th></tr></thead>
+  <tbody>
+    <tr><td>Reimbursement</td><td>Which manager approves an employee's monthly sheet; the HR department's managers make the HR decision.</td></tr>
+    <tr><td>Travel Schedule</td><td>The manager stage (the employee's own department), the HR stages (the HR department's managers), and the Administration stage (the Administration department's managers).</td></tr>
+    <tr><td>Accounts payment queue</td><td>Managers of the <em>Accounts</em> department gain access regardless of role.</td></tr>
+    <tr><td>Back Office</td><td>Managers of the <em>Back Office</em> department can act on Delivery Challans regardless of role.</td></tr>
+    <tr><td>BOM Request</td><td>Managers of <em>Administration</em> hold the administration stage; managers of <em>Accounts</em> hold the payment stage.</td></tr>
+    <tr><td>Marketing Requests</td><td>Managers of <em>Marketing</em> approve, assign and set delivery timelines. Everyone in the Marketing department can curate the materials library.</td></tr>
+    <tr><td>Leads</td><td>Managers of <em>Sales</em> or <em>GEM - Sales</em> may route captured leads to representatives.</td></tr>
+    <tr><td>Daily reports</td><td>A manager sees and may act on the departments they manage. Team Tasks and Team Daily Reports are gated on being a manager of some department, whatever the role.</td></tr>
+    <tr><td>Technical Project Management</td><td>Only the four technical departments see TMS modules at all.</td></tr>
+  </tbody>
+</table>
+<div class="warn">
+  <span class="lbl">Department names matter</span>
+  <p>Several routing rules look for a department <em>by name</em>. The Administration stage of a BOM request looks for <strong>Administration</strong>; the Accounts grants look for <strong>Accounts</strong>; the Back Office grant looks for <strong>Back Office</strong>. HR is matched more tolerantly, on any department whose name begins with "HR" &mdash; which is why "HR &amp; Admin" still works.</p>
+  <p><strong>Renaming a department can silently break an approval route.</strong> Where no manager is found, most stages fall back to allowing any privileged user, so work does not get permanently stuck &mdash; but it reaches the wrong people. Treat a rename as a change requiring approval and a check of every stage listed above.</p>
+</div>
+
+<h3>6.3.2 Creating, renaming and ordering departments</h3>
+<ol class="steps">
+  <li>Open <strong>Administration &rarr; Department Master</strong>. The table shows <strong>Order</strong>, <strong>Name</strong>, <strong>Description</strong>, <strong>Manager</strong> and <strong>Status</strong>.</li>
+  <li>To add one: enter a <strong>Department name</strong> and an optional <strong>Description</strong>, then select <strong>Add department</strong>. New departments are created active and placed at the end of the order.</li>
+  <li>To rename or re-describe: select <strong>Edit</strong>, change the values, then <strong>Save</strong>. Check the routing table in &sect;6.3.1 before renaming.</li>
+  <li>To reorder: use the reorder control. The order governs how departments are presented in pickers and lists; it carries no permission meaning.</li>
+  <li>Use the search box to find a department in a long list.</li>
+  <li>Deletion is <strong>Super Admin only</strong>. Prefer setting the status to inactive &mdash; only active departments are offered in pickers and used in routing.</li>
+</ol>
+
+<h3>6.3.3 Appointing department managers</h3>
+<ol class="steps">
+  <li>Select <strong>Edit</strong> on the department.</li>
+  <li>Choose one or more managers. A department may have several. If the list shows <em>"No users available"</em>, no eligible active accounts exist yet.</li>
+  <li>Select <strong>Save</strong>. The change takes effect across the platform within about half a minute.</li>
+  <li>Tell the people concerned. Being appointed a manager silently adds approval duties and widens what they see.</li>
+</ol>
+<div class="note">
+  <span class="lbl">A manager's role does not have to be "Manager"</span>
+  <p>Any account can be a department's manager &mdash; a Technical Manager, a Sales user, anyone. Management is a configured relationship, not a role. This is why screens such as Team Tasks and Team Daily Reports are gated on <em>"manages some department"</em> rather than on a role list.</p>
+  <p>Equally, holding the <code>manager</code> role without being listed here gives organisation-wide <em>privileged</em> reach in some places but no approval authority in the chains above.</p>
+</div>
+<div class="warn">
+  <span class="lbl">Deactivated managers are not removed automatically</span>
+  <p>Deactivating an account does not take it off any department's manager list. MatrixIQ stops treating inactive accounts as managers when it resolves routing, so approvals do not go to a departed person &mdash; but the stale entry remains on screen and the department may be left with no effective manager. Remove departed managers explicitly.</p>
+</div>
+<div class="shot"><span class="shot-lbl">Screenshot placeholder</span><span class="shot-txt">[Insert screenshot: Department Master with the manager picker open on a department row]</span></div>
+
+<h2 id="s6-4">6.4 Module Manager</h2>
+<div class="verify"><span class="lbl">Risk level &mdash; very high</span><p>Disabling a module removes it for <em>everyone</em>, administrators included, and closes the data behind it at the same moment.</p></div>
+
+<h3>6.4.1 Reading the screen</h3>
+<p>Modules are grouped by sidebar <strong>section</strong> &mdash; Sales, TMS, Workspace, HR, Marketing, Operations, Support, Accounts, Reports, Administration and the Partner Portal sections. Each row carries:</p>
+<table class="t">
+  <thead><tr><th style="width:20%">Column</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Order</strong></td><td>Up and down controls that move the module within its own section.</td></tr>
+    <tr><td><strong>Icon</strong></td><td>A dropdown of available icons. A module still carrying an older custom icon shows it with the note <em>(legacy)</em>.</td></tr>
+    <tr><td><strong>Label</strong></td><td>The name shown in the sidebar and on the dashboard. Editable. Modules created from the Custom Module Builder also show a <strong>Custom</strong> badge.</td></tr>
+    <tr><td><strong>Href</strong></td><td>The address the tile opens. <strong>Read-only</strong> &mdash; it cannot be changed.</td></tr>
+    <tr><td><strong>Enabled</strong></td><td>A tick box. Unticking it closes the module completely.</td></tr>
+    <tr><td><strong>One column per role</strong></td><td>A tick box per role, controlling who sees the tile.</td></tr>
+  </tbody>
+</table>
+
+<h3>6.4.2 Making a change</h3>
+<ol class="steps">
+  <li>Open <strong>Administration &rarr; Module Manager</strong>.</li>
+  <li>Make your edits. Changed rows are highlighted, and sections whose order has changed are flagged.</li>
+  <li>Select <strong>Save</strong>. Reordering within a section is saved per section.</li>
+  <li>Confirm the result by signing in as an account holding an affected role, or by asking a colleague who holds one.</li>
+</ol>
+
+<h3>6.4.3 What disabling actually does</h3>
+<div class="warn">
+  <span class="lbl">Disabling closes the data, not just the tile</span>
+  <p>A disabled module blocks <strong>everyone</strong>, including Super Admin, and its data interfaces close with it. A user who knows the address cannot reach the screen, and no other screen can read that module's data. This is deliberate: the navigation and the data behind it can never disagree.</p>
+  <p>Before disabling anything, confirm that no live workflow depends on it. Disabling <em>Reimbursement</em>, for example, stops employees submitting, stops managers approving, <em>and</em> removes the ability to read existing sheets.</p>
+</div>
+
+<h3>6.4.4 What role visibility cannot do</h3>
+<p>Ticking a role column makes the tile visible to that role. It does not override the stricter, built-in rules on certain modules. Those rules are applied first and cannot be loosened from this screen:</p>
+<table class="t">
+  <thead><tr><th style="width:34%">Module group</th><th>Rule that Module Manager cannot override</th></tr></thead>
+  <tbody>
+    <tr><td>Technical Project Management</td><td>Technical roles plus Super Admin and Admin, and only the four technical departments. The generic Manager role is excluded.</td></tr>
+    <tr><td>HR modules &mdash; Employees, Office Operation Expenses, HR Expense Report, Daily Report Review</td><td>HR plus Super Admin and Admin. The generic Manager role is excluded.</td></tr>
+    <tr><td>Accounts &rarr; Payments</td><td>Accounts plus Super Admin and Admin, with the Accounts department's manager granted separately.</td></tr>
+    <tr><td>Office Operation Expenses, Admin Expenses, HR Expense Report</td><td>Named individuals only, on top of Super Admin and Admin (&sect;4.4).</td></tr>
+    <tr><td>Partner Portal modules</td><td>Resolved from the account's partner link, never from role. Internal accounts are refused outward; partner accounts are refused inward.</td></tr>
+    <tr><td>Team Tasks, Team Daily Reports</td><td>Requires managing some department, or organisation-wide visibility.</td></tr>
+    <tr><td>Audit Log</td><td>Super Admin and Admin only.</td></tr>
+  </tbody>
+</table>
+<div class="note">
+  <span class="lbl">If a tile is ticked but the screen still refuses</span>
+  <p>That is one of the rules above, not a fault. Module Manager can <em>narrow</em> access below these rules; it cannot widen beyond them.</p>
+</div>
+
+<h2 id="s6-5">6.5 Custom Module Builder</h2>
+<div class="verify"><span class="lbl">Risk level &mdash; medium</span><p>A custom module creates a real, user-facing module. Its fields are difficult to change once records exist.</p></div>
+
+<h3>6.5.1 Creating a custom module</h3>
+<ol class="steps">
+  <li>Open <strong>Administration &rarr; Custom Module Builder</strong>.</li>
+  <li>Enter the <strong>Module name</strong>, for example <em>Visitor Register</em>.</li>
+  <li>Choose an <strong>Icon</strong> and a <strong>Sidebar section</strong> &mdash; which group the tile appears under.</li>
+  <li>Optionally choose an <strong>Approver role</strong>. Setting one makes every new record require approval; leaving it blank means records are active the moment they are saved.</li>
+  <li>Define the <strong>Fields</strong>. For each one, give a <strong>Field label</strong> and a <strong>Type</strong>, and mark it required if it must be filled. Use <strong>Remove</strong> to drop a field.
+    <table class="t">
+      <caption class="tcap">Available field types</caption>
+      <thead><tr><th style="width:26%">Group</th><th>Types</th></tr></thead>
+      <tbody>
+        <tr><td>Text</td><td>text, textarea, richtext, email, phone</td></tr>
+        <tr><td>Numeric and time</td><td>number, currency, date, time</td></tr>
+        <tr><td>Choice</td><td>dropdown, multiselect, checkbox, radio</td></tr>
+        <tr><td>Files</td><td>file, image</td></tr>
+        <tr><td>Links to MatrixIQ records</td><td>user, project, product</td></tr>
+      </tbody>
+    </table>
+  </li>
+  <li>For dropdown, multiselect and radio fields, enter the <strong>Options (one per line)</strong>.</li>
+  <li>Save. The module appears in <strong>Your modules</strong> with columns <strong>Icon</strong>, <strong>Name</strong>, <strong>Section</strong>, <strong>Fields</strong>, <strong>Approval</strong> and <strong>Enabled</strong>, and a tile appears in the sidebar.</li>
+</ol>
+<div class="note">
+  <span class="lbl">Who sees a new custom module</span>
+  <p>A newly created custom module is made visible to <strong>Super Admin, Admin and Manager</strong>. To show it to other roles, open <strong>Module Manager</strong> and tick the relevant role columns on its row.</p>
+</div>
+
+<h3>6.5.2 Capturing and approving records</h3>
+<ol class="steps">
+  <li>Select <strong>Open</strong> on the module, or use its sidebar tile.</li>
+  <li>Add a record by completing the fields you defined. Attachments are supported.</li>
+  <li>If the module has an approver role, the record is created as <strong>Pending approval</strong>. Otherwise it is created <strong>Active</strong>.</li>
+  <li>A user holding the approver role sees pending records and can <strong>Approve</strong> or <strong>Reject</strong> them.</li>
+  <li>Other actions on a record are <strong>Edit</strong> and &mdash; for Super Admin &mdash; <strong>Delete</strong>.</li>
+</ol>
+<div class="note">
+  <span class="lbl">Who sees which records</span>
+  <p>Within a custom module, a user sees the records they created. A user holding the configured approver role additionally sees records still pending their approval. Broader visibility depends on the role's own permissions.</p>
+</div>
+
+<h3>6.5.3 Exporting</h3>
+<p>From the module screen, <strong>Export CSV</strong> downloads the records currently listed, <strong>Print</strong> produces a printable view and <strong>Refresh</strong> reloads.</p>
+
+<h3>6.5.4 Changing a custom module later</h3>
+<div class="warn">
+  <span class="lbl">Field changes affect existing records</span>
+  <p>Removing a field from a module that already holds records, or changing a field's type, risks making stored values unreadable. Export the records to CSV <strong>before</strong> any structural change, and prefer adding a new field to altering an existing one.</p>
+</div>
+
+<h2 id="s6-6">6.6 Products</h2>
+<div class="verify"><span class="lbl">Risk level &mdash; high</span><p>Prices here feed every new quotation, and bulk repricing can change hundreds of items at once.</p></div>
+
+<h3>6.6.1 Adding and editing a product</h3>
+<ol class="steps">
+  <li>Open <strong>Administration &rarr; Products</strong>.</li>
+  <li>In <strong>Add product</strong>, complete: <strong>Product name</strong>, <strong>SKU / Product code</strong>, <strong>Category</strong>, <strong>Brand</strong>, <strong>Unit</strong>, <strong>Description</strong>, <strong>Default Qty</strong>, <strong>Base Price</strong>, <strong>Selling Price</strong>, <strong>Tax %</strong>, <strong>HSN/SAC (optional)</strong> and <strong>Discount %</strong>.</li>
+  <li>Select <strong>+ Add Product</strong>.</li>
+  <li>To change one, find it with the search box or the <strong>All categories</strong> and <strong>All statuses</strong> filters, then select <strong>Edit</strong>, amend, and <strong>Save</strong>. <strong>Duplicate</strong> copies a product as the basis for a new one. <strong>Delete</strong> is Super Admin only.</li>
+  <li>Set <strong>Status</strong> to <strong>Inactive</strong> to retire a product without deleting it. This is the preferred way to withdraw an item.</li>
+</ol>
+<p>The list shows <strong>Name</strong>, <strong>SKU</strong>, <strong>Category</strong>, <strong>Brand</strong>, <strong>Unit</strong>, <strong>Base Price</strong>, <strong>Selling Price</strong>, <strong>Tax %</strong> and <strong>Status</strong>.</p>
+
+<h3>6.6.2 Bulk repricing</h3>
+<ol class="steps">
+  <li>Filter the list to exactly the products you intend to change, then select them.</li>
+  <li>Choose the target field &mdash; <strong>Selling Price</strong> or <strong>Base Price</strong>.</li>
+  <li>Choose the method &mdash; <strong>Adjust by %</strong> or <strong>Set to fixed amount</strong>, and enter the value.</li>
+  <li>Check the selection count once more.</li>
+  <li>Select <strong>Apply Bulk Update</strong>, or <strong>Clear selection</strong> to abandon.</li>
+</ol>
+<div class="warn">
+  <span class="lbl">Bulk repricing has no undo</span>
+  <p>Export the catalogue to CSV or XLSX <strong>before</strong> every bulk update. That export is the only straightforward way back. Apply the change to a small selection first and confirm the result before running it across the catalogue.</p>
+</div>
+
+<h3>6.6.3 Import and export</h3>
+<ol class="steps">
+  <li>Use <strong>Export CSV</strong> or <strong>Export XLSX</strong> to download the catalogue. Do this before any import.</li>
+  <li>To import, choose a <code>.csv</code> or <code>.xlsx</code> file. The expected columns are: <strong>SKU, Product Name, Category, Brand, Description, Unit, Default Qty, Base Price, Selling Price, Tax %, HSN/SAC, Discount %, Status</strong>.</li>
+  <li>Rows are matched to existing products <strong>by SKU</strong>. A matching SKU updates that product; a new SKU creates one.</li>
+  <li>Read the import summary that follows.</li>
+</ol>
+<div class="warn">
+  <span class="lbl">Import updates in place and has no preview</span>
+  <p>Unlike the user import, the product import does not offer a preview-then-commit step. A mistyped SKU column can rewrite the wrong products immediately. Always export first.</p>
+</div>
+
+<h3>6.6.4 What a price change does and does not affect</h3>
+<table class="t">
+  <thead><tr><th style="width:44%">Affected</th><th>Not affected</th></tr></thead>
+  <tbody>
+    <tr><td>Quotations built after the change.</td><td>Quotations already saved &mdash; they keep the figures recorded at the time.</td></tr>
+    <tr><td>Any new line added to a quotation from the catalogue.</td><td>A revision's comparison against an earlier version, which reflects what each version actually held.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="s6-7">6.7 Product Catalog</h2>
+<p>This screen is separate from <strong>Products</strong>. Products is the general quotation product master. <strong>Product Catalog</strong> sits on top of MatrixIQ's built-in engineering catalogues for AV, Robotics, AI Video Analytics and VisitIQ, letting you rename an item or change its prices without a software release.</p>
+
+<h3>6.7.1 How overrides work</h3>
+<div class="note">
+  <span class="lbl">An override is a layer, not a replacement</span>
+  <p>Each built-in catalogue has a base list of products. An override you save is applied <em>on top</em> of that base record. Where you change nothing, the base value continues to apply &mdash; and continues to benefit from updates to the base catalogue. An override on a product that has no base entry is a <strong>brand-new product you created</strong>, and carries the complete record rather than a partial change.</p>
+</div>
+<table class="t">
+  <caption class="tcap">The catalogues available</caption>
+  <thead><tr><th style="width:36%">Catalogue</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>AV &mdash; Standee</td><td>Partner Price and End-User MRP, plus fabrication, installation and scaffolding per unit.</td></tr>
+    <tr><td>AV &mdash; LED</td><td rowspan="5">Price fields vary by catalogue; the screen shows the fields that apply.</td></tr>
+    <tr><td>AV &mdash; Active LED AIO Series</td></tr>
+    <tr><td>AV &mdash; Interactive Panel</td></tr>
+    <tr><td>AV &mdash; Conferencing</td></tr>
+    <tr><td>AV &mdash; Cables</td></tr>
+    <tr><td>AV &mdash; Conferencing Accessories</td><td>An accessory must be attached to an existing conferencing product &mdash; it cannot exist on its own.</td></tr>
+    <tr><td>Robotics</td><td>Distributor, Partner and Customer prices.</td></tr>
+    <tr><td>AI Video Analytics &mdash; Features</td><td><strong>Renaming is disabled for this catalogue.</strong> The product name is used as a live key elsewhere, so changing it would break those links. Prices are per-camera, per-year, in tiers.</td></tr>
+    <tr><td>AI Video Analytics &mdash; Bundles</td><td>The product name is also the product key.</td></tr>
+    <tr><td>VisitIQ &mdash; Plans</td><td rowspan="2">Visitor Management System plans and add-ons.</td></tr>
+    <tr><td>VisitIQ &mdash; Add-Ons</td></tr>
+  </tbody>
+</table>
+
+<h3>6.7.2 Renaming or repricing an item</h3>
+<ol class="steps">
+  <li>Open <strong>Administration &rarr; Product Catalog</strong> and choose the catalogue.</li>
+  <li>Find the item &mdash; the list shows <strong>Product Key</strong>, <strong>Name</strong> and <strong>Status</strong>, with a search box that matches key or name.</li>
+  <li>Edit the name or the price fields offered for that catalogue. A row carrying an override is marked as such.</li>
+  <li>Save. New quotations use the override from the next read.</li>
+</ol>
+
+<h3>6.7.3 Adding a new catalogue product</h3>
+<ol class="steps">
+  <li>Choose the catalogue and start a new product.</li>
+  <li>Supply the <strong>Product Key (SKU / model code)</strong> where the catalogue asks for one &mdash; for example <em>T10</em>. Some catalogues derive the key from the name instead, and conferencing accessories must reuse an existing camera's key via <strong>Attach to camera</strong>.</li>
+  <li>Complete the creation fields the catalogue defines &mdash; category, details, size, prices and so on.</li>
+  <li>Save. The new product becomes selectable in the relevant estimator.</li>
+</ol>
+<div class="warn">
+  <span class="lbl">Product keys are identity</span>
+  <p>A product key links an override to a base record and links accessories to their parent. Changing a key does not rename a product &mdash; it creates a different one and detaches the override from the original. Change names, not keys.</p>
+</div>
+
+<h2 id="s6-8">6.8 Application Settings</h2>
+<div class="verify"><span class="lbl">Risk level &mdash; high</span><p>These values appear on documents sent to customers and govern tax on every quotation.</p></div>
+<p>The screen is organised into nine panels.</p>
+
+<table class="t">
+  <thead><tr><th style="width:26%">Panel</th><th style="width:34%">Fields</th><th>What it feeds</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Company Information</strong></td><td>Display name, Legal name, GST number, PAN number, Address lines 1&ndash;3, Contact phone, Contact email, Website</td><td>The header of every quotation and proposal PDF, and the Delivery Challan.</td></tr>
+    <tr><td><strong>Bank Details</strong></td><td>Account name, Account number, Bank name, Branch, IFSC</td><td>Printed on documents that carry payment instructions.</td></tr>
+    <tr><td><strong>Currency &amp; Tax</strong></td><td>Currency code, Currency symbol, Tax label, Default tax %</td><td>Every quotation calculation and every money figure displayed.</td></tr>
+    <tr><td><strong>Quotation Terms &amp; Conditions</strong></td><td>A list of terms, one per line</td><td>Printed in full on every quotation PDF.</td></tr>
+    <tr><td><strong>Number Series</strong></td><td>Delivery Challan prefix</td><td>The prefix of every new Delivery Challan number.</td></tr>
+    <tr><td><strong>Marketing Settings</strong></td><td>Marketing Owner</td><td>A nominated owner for marketing work.</td></tr>
+    <tr><td><strong>TMS Settings</strong></td><td>BOM Finance Approver</td><td>The single person who holds the finance approval stage of a BOM request.</td></tr>
+    <tr><td><strong>Reimbursement Settings</strong></td><td>Submission deadline (day of month) &mdash; may be left blank for <em>No deadline</em></td><td>The default day by which employees must submit a monthly reimbursement sheet.</td></tr>
+    <tr><td><strong>Notification Templates</strong></td><td>Subject and Body per template</td><td>The wording of certain system notices. Placeholders such as the recipient's name and the client name are substituted.</td></tr>
+  </tbody>
+</table>
+
+<h3>6.8.1 Changing a setting</h3>
+<ol class="steps">
+  <li>Open <strong>Administration &rarr; Application Settings</strong>.</li>
+  <li>Change only the fields you intend to change. Note the current values first &mdash; there is no version history on this screen.</li>
+  <li>Save.</li>
+  <li><strong>Verify on a real document.</strong> Produce a quotation PDF and read the header, the tax line and the terms. This is the only reliable confirmation.</li>
+</ol>
+
+<h3>6.8.2 Document numbering &mdash; what is and is not configurable</h3>
+<table class="t">
+  <thead><tr><th style="width:30%">Document</th><th style="width:20%" class="ctr">Configurable?</th><th>Format</th></tr></thead>
+  <tbody>
+    <tr><td>Delivery Challan</td><td class="ctr"><span class="yes">Yes</span></td><td>The prefix is set in <strong>Number Series</strong>. The default is <code>NT-DC-</code>.</td></tr>
+    <tr><td>Quotation</td><td class="ctr"><span class="no">No</span></td><td>Fixed: the company code, then a product-domain code (AV, ROBO, AI, SI, VIQ, COMBO for a mixed quotation, GEN where none applies), then the date and a daily sequence &mdash; for example <code>NT-ROBO-21/07/2026/001</code>. The sequence is assigned on save, per domain per day.</td></tr>
+  </tbody>
+</table>
+<div class="verify">
+  <span class="lbl">Reference clarification</span>
+  <p>The <em>MatrixIQ Feature Reference</em> describes "document numbering series" under Application Settings. In the application, the only configurable series is the <strong>Delivery Challan prefix</strong>. Quotation numbering is fixed and cannot be changed from any Administration screen.</p>
+</div>
+
+<h3>6.8.3 The effect on quotation PDFs</h3>
+<p>A quotation PDF draws its header, GST and PAN, bank details, currency symbol, tax label and percentage, and the full terms and conditions from this screen. A change takes effect on documents generated after it; a PDF already issued to a customer is unaffected.</p>
+<div class="warn">
+  <span class="lbl">Tax and terms are customer-facing commitments</span>
+  <p>Changing <strong>Default tax %</strong> alters the figure on every quotation produced afterwards. Changing a term alters what the company commits to. Both require approval from whoever owns commercial terms before being edited here. <span class="tbv">Approval authority: to be confirmed.</span></p>
+</div>
+
+<h2 id="s6-9">6.9 Meta Lead Integration</h2>
+<p>This screen connects Facebook and Instagram Lead Ads to <strong>Lead Capture / Inquiry</strong>. Super Admin and Admin only.</p>
+
+<div class="warn">
+  <span class="lbl">Credentials are not entered here</span>
+  <p>The Meta application ID, application secret, verify token, page ID and page access token are held as <strong>server settings</strong>, never in the application and never shown on any screen. This page reports only whether each is <strong>Configured</strong> or <strong>Not configured</strong>. If a credential is missing, the integration is inert: incoming events are rejected, nothing is imported, and nothing else in MatrixIQ breaks. <strong>Provisioning credentials is a deployment task, not an administrator task.</strong></p>
+</div>
+
+<h3>6.9.1 Checking the connection</h3>
+<ol class="steps">
+  <li>Open <strong>Administration &rarr; Meta Lead Integration</strong>.</li>
+  <li>Read <strong>Connection Status</strong> and the credential rows, each marked <em>Configured</em> or <em>Not configured</em>.</li>
+  <li>Read <strong>Webhook Health</strong>: <strong>Webhook Status</strong>, <strong>Last Webhook Received</strong> and <strong>Last Connection Test</strong>.</li>
+  <li>Select <strong>Test Connection</strong>. Each check is reported individually.</li>
+</ol>
+
+<h3>6.9.2 Setting lead assignment rules</h3>
+<ol class="steps">
+  <li>Choose an <strong>Assignment mode</strong>:
+    <table class="t">
+      <thead><tr><th style="width:34%">Mode</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Fixed</strong></td><td>Every Meta lead goes to one nominated person.</td></tr>
+        <tr><td><strong>Round-robin</strong></td><td>Leads rotate between the selected Sales users.</td></tr>
+        <tr><td><strong>Campaign-based</strong></td><td>Leads are routed by Meta Campaign ID.</td></tr>
+      </tbody>
+    </table>
+  </li>
+  <li>Set the <strong>Default department</strong> for incoming leads.</li>
+  <li>For campaign-based routing, add rows under <strong>Campaign routing</strong>, each mapping a <strong>Meta Campaign ID</strong> to an owner. Use <strong>Remove</strong> to delete a mapping.</li>
+  <li>Select <strong>Save Assignment Rules</strong>.</li>
+</ol>
+
+<h3>6.9.3 Synchronising leads on demand</h3>
+<ol class="steps">
+  <li>Read <strong>Last Sync</strong> to see when this last ran.</li>
+  <li>Select <strong>Sync Now</strong>.</li>
+</ol>
+<div class="tip">
+  <span class="lbl">What Sync Now is for</span>
+  <p>It is a recovery and backfill tool. It re-processes Meta lead events that failed or were never picked up &mdash; after a temporary outage, for instance. <strong>It is safe to run at any time: already-imported leads are never duplicated.</strong> It is not the normal import path; leads arrive automatically as they are submitted.</p>
+</div>
+
+<h2 id="s6-10">6.10 Daily Report Configuration</h2>
+<div class="verify"><span class="lbl">Risk level &mdash; very high</span><p>This page arms a scheduled job that notifies the whole company and decides who receives a missed-report warning.</p></div>
+<p>Super Admin and Admin only. An administrator-created role can be granted it with an explicit <strong>manage</strong> permission on this module; the ordinary privileged fallback is deliberately refused.</p>
+
+<h3>6.10.1 Assigning a report format per department</h3>
+<ol class="steps">
+  <li>Open <strong>Administration &rarr; Daily Report Configuration</strong>. The first panel is <strong>Department report formats</strong>.</li>
+  <li>Read the table: <strong>Department</strong>, <strong>Report format</strong>, <strong>Status</strong>, <strong>Employees</strong>, <strong>Managers notified</strong>, <strong>Notes</strong>, <strong>Last changed</strong>.</li>
+  <li>A department showing <strong>Not configured</strong> has no format assigned, and its employees cannot file a report. A department showing <strong>None mapped</strong> has no managers to notify.</li>
+  <li>Assign one of the available formats:
+    <table class="t">
+      <thead><tr><th style="width:40%">Format</th><th>Intended for</th></tr></thead>
+      <tbody>
+        <tr><td>HR Daily Activity Report</td><td>HR and Administration</td></tr>
+        <tr><td>Sales Daily Activity</td><td>Sales</td></tr>
+        <tr><td>GEM Sales &mdash; Daily Activity Report</td><td>Government e-Marketplace sales</td></tr>
+        <tr><td>AV Daily Work Report</td><td>AV</td></tr>
+        <tr><td>R&amp;D Daily Task Sheet</td><td>Research and development</td></tr>
+        <tr><td>AI Daily Task Sheet</td><td>AI</td></tr>
+        <tr><td>Robotics Daily Report</td><td>Robotics</td></tr>
+        <tr><td>Marketing Daily Task Sheet</td><td>Marketing</td></tr>
+        <tr><td>Accounts Daily Activity</td><td>Accounts</td></tr>
+        <tr><td>Back Office Daily Task Sheet</td><td>Back Office</td></tr>
+      </tbody>
+    </table>
+  </li>
+</ol>
+<div class="note">
+  <span class="lbl">Managers edit their own categories</span>
+  <p>A department manager can edit their department's task categories and add a sub-category level from the Team Daily Reports screen, without a change here and without a software release. This page assigns the <em>format</em>; the manager tunes the <em>categories</em> within it.</p>
+</div>
+
+<h3>6.10.2 Working days and deadlines</h3>
+<ol class="steps">
+  <li>Set the <strong>Working days</strong> of the week.</li>
+  <li>Set <strong>Saturdays off each month</strong> &mdash; which numbered Saturdays are non-working.</li>
+  <li>Set the four times, all in Indian Standard Time:
+    <table class="t">
+      <thead><tr><th style="width:52%">Setting</th><th class="ctr" style="width:18%">Default</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Deadline (IST)</strong></td><td class="ctr">11:00</td><td>After this, a report counts as late.</td></tr>
+        <tr><td><strong>First reminder, on the reporting date</strong></td><td class="ctr">21:00</td><td>The evening nudge.</td></tr>
+        <tr><td><strong>Final reminder, on the deadline day</strong></td><td class="ctr">10:00</td><td>The last call before the cut-off.</td></tr>
+        <tr><td><strong>Sales/GEM-Sales auto-submit, next working day</strong></td><td class="ctr">10:30</td><td>When those two formats are submitted automatically.</td></tr>
+      </tbody>
+    </table>
+  </li>
+  <li>Decide whether to <strong>Treat the holiday list below as non-working days</strong>, and enter <strong>Public holidays &mdash; one date per line</strong> in <code>YYYY-MM-DD</code> form.</li>
+</ol>
+<p class="small">As configured, the working week is Monday to Saturday with the third Saturday off, the time zone is Asia/Kolkata, and the holiday list is not being observed by default.</p>
+
+<h3>6.10.3 Warnings and leave policy</h3>
+<ol class="steps">
+  <li>Set <strong>Active warnings in a month that inform HR</strong> &mdash; the threshold at which HR is told. The configured default is <strong>3</strong>.</li>
+  <li>Choose <strong>When HR rejects a leave claim</strong>:
+    <ul class="b tight">
+      <li><strong>Reinstate the reporting obligation</strong> &mdash; the day counts as missed again. This is the configured default.</li>
+      <li><strong>Waive the obligation for that date</strong> &mdash; the day is excused despite the rejection.</li>
+    </ul>
+  </li>
+  <li>Set the <strong>Reconcile window (days)</strong> &mdash; how far back the sweep looks. The configured default is <strong>7</strong>.</li>
+  <li>Under <strong>Excused from daily reports</strong>, search by name, username, department or role and add employees who are exempt.</li>
+</ol>
+
+<h3>6.10.4 The reminder scheduler</h3>
+<div class="warn">
+  <span class="lbl">Two switches, in this order</span>
+  <p><strong>Dry run</strong> computes and logs everything but sends nothing. <strong>Scheduler enabled</strong> arms the job. As configured, the scheduler is <strong>off</strong> and dry run is <strong>on</strong>. Always run in dry run first, read the delivery log, and only then turn dry run off.</p>
+</div>
+<ol class="steps">
+  <li>Set <strong>Dry run &mdash; compute and log, send nothing</strong> as required.</li>
+  <li>Set <strong>Scheduler enabled</strong>.</li>
+  <li>Select <strong>Save Policy</strong>.</li>
+  <li>Use the manual <strong>Run Sweep</strong> control to execute the sweep immediately rather than waiting for the schedule.</li>
+  <li>Read <strong>Scheduler runs</strong> &mdash; <strong>Started</strong>, <strong>Trigger</strong>, <strong>Mode</strong>, <strong>Status</strong>, <strong>Result</strong>, <strong>Error</strong> &mdash; to confirm what happened.</li>
+  <li>Read <strong>Notification delivery log</strong> &mdash; <strong>Processed</strong>, <strong>Employee</strong>, <strong>Reporting date</strong>, <strong>Event</strong>, <strong>Status</strong>, <strong>Due at</strong>, <strong>Error</strong> &mdash; to confirm who would be or was contacted.</li>
+</ol>
+<div class="tip">
+  <span class="lbl">The sweep is safe to re-run</span>
+  <p>Running the sweep twice does not send duplicate reminders or raise duplicate warnings. Idempotency is enforced in the data layer, so a manual run alongside the schedule is safe.</p>
+</div>
+<div class="shot"><span class="shot-lbl">Screenshot placeholder</span><span class="shot-txt">[Insert screenshot: Daily Report Configuration &mdash; the Reminder scheduler panel with the Dry run and Scheduler enabled switches]</span></div>
+
+<h2 id="s6-11">6.11 Audit Log</h2>
+<p>Super Admin and Admin only. Any other role sees an <strong>"Audit Log is restricted"</strong> screen explaining who may read the trail.</p>
+<ol class="steps">
+  <li>Open <strong>Administration &rarr; Audit Log</strong>.</li>
+  <li>Filter by <strong>Search</strong> (user, action, remark, status, IP), <strong>Entity</strong>, <strong>User</strong>, <strong>Role</strong>, <strong>From</strong> and <strong>To</strong>. The user and role lists are built from the trail itself.</li>
+  <li>Read the columns: <strong>Date/Time</strong>, <strong>User</strong>, <strong>Role</strong>, <strong>Entity</strong>, <strong>Action</strong>, <strong>Previous &rarr; New</strong>, <strong>Remarks</strong>, <strong>IP</strong>. Entries are newest first, fifty to a page.</li>
+  <li>Use <strong>Export page as PDF</strong> to keep a copy of the page on screen, or <strong>Refresh</strong> to reload.</li>
+</ol>
+<div class="verify">
+  <span class="lbl">Two limits</span>
+  <p><strong>The Entity dropdown is narrower than the trail.</strong> MatrixIQ records entries against more record types than the dropdown lists &mdash; office operation expenses, daily reports, leave claims, materials, support tickets, partners and others. Use the free-text search to reach them.</p>
+  <p><strong>The audit trail is about business status changes, not configuration.</strong> It records departments and user imports, but it is not a change log for Application Settings, Module Manager or Role Management &mdash; see &sect;8.5.</p>
+</div>
+
+<!-- ======================= 7 ======================= -->
+<h1 id="s7"><span class="sec-no">07</span>Workflow and Approval Process</h1>
+<p class="lede">Administration has no approval chain of its own. A change is made and it takes effect. The governance therefore has to be procedural, and this section defines it.</p>
+
+<h2>7.1 The recommended change process</h2>
+<div class="ladder">
+  <div class="rung"><div class="hd"><span class="pill">STEP 1</span>Request</div><div class="meta"><b>By:</b> the person who needs the change &middot; <b>Record:</b> what, why, and who is affected.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">STEP 2</span>Assess the blast radius</div><div class="meta"><b>By:</b> the administrator &middot; <b>Ask:</b> how many users, which workflows, is it reversible, does it reach a customer-facing document?</div>
+    <div class="branch"><b>If it touches</b> role permissions, module availability, department managers, tax, pricing or numbering &mdash; it requires written approval before proceeding.</div>
+  </div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">STEP 3</span>Authorise</div><div class="meta"><b>By:</b> the change authority &middot; <b>Record:</b> the approval, in writing, outside MatrixIQ. <span class="tbv">Change authority: to be confirmed.</span></div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">STEP 4</span>Capture the current state</div><div class="meta"><b>Action:</b> export the product catalogue, note the current settings values, screenshot the role matrix or module row. This is the only rollback that exists for several of these screens.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">STEP 5</span>Make the change</div><div class="meta"><b>Scope:</b> one change at a time, so that an unexpected effect can be attributed.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung"><div class="hd"><span class="pill">STEP 6</span>Verify</div><div class="meta"><b>Action:</b> confirm from an affected account, or produce a real document &mdash; not merely re-read the screen you just edited.</div></div>
+  <div class="down">&#8595;</div>
+  <div class="rung fin"><div class="hd"><span class="pill">STEP 7</span>Communicate and record</div><div class="meta"><b>Action:</b> tell the affected users, and log the change in the organisation's own change register.</div></div>
+</div>
+
+<h2>7.2 What is automatic and what requires a person</h2>
+<table class="t">
+  <thead><tr><th style="width:46%">Event</th><th style="width:18%" class="ctr">Automatic?</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>A saved configuration change reaching users</td><td class="ctr"><span class="yes">Automatic</span></td><td>Within roughly half a minute. No announcement is made.</td></tr>
+    <tr><td>Module tiles appearing or disappearing</td><td class="ctr"><span class="yes">Automatic</span></td><td>Follows Module Manager and the role matrix.</td></tr>
+    <tr><td>Approval routing following a manager change</td><td class="ctr"><span class="yes">Automatic</span></td><td>Resolved from Department Master each time it is needed.</td></tr>
+    <tr><td>Welcome e-mail on account creation</td><td class="ctr"><span class="yes">Automatic</span></td><td>Only if the platform's e-mail service is configured.</td></tr>
+    <tr><td>Daily report reminders and the missed-report sweep</td><td class="ctr"><span class="yes">Automatic</span></td><td>Only while the scheduler is enabled and dry run is off.</td></tr>
+    <tr><td>Meta leads arriving</td><td class="ctr"><span class="yes">Automatic</span></td><td>Only while the server credentials are provisioned.</td></tr>
+    <tr><td>Approving a change before it is made</td><td class="ctr"><span class="no">Manual</span></td><td>Procedural. MatrixIQ does not enforce it.</td></tr>
+    <tr><td>Rolling a change back</td><td class="ctr"><span class="no">Manual</span></td><td>Re-entering the previous values. There is no undo.</td></tr>
+    <tr><td>Running the daily report sweep on demand</td><td class="ctr"><span class="no">Manual</span></td><td>Safe to repeat.</td></tr>
+    <tr><td>Synchronising Meta leads on demand</td><td class="ctr"><span class="no">Manual</span></td><td>Safe to repeat; no duplicates.</td></tr>
+  </tbody>
+</table>
+
+<h2>7.3 Workflows configured from Administration</h2>
+<table class="t">
+  <thead><tr><th style="width:28%">Workflow</th><th style="width:32%">Configured by</th><th>Where it runs</th></tr></thead>
+  <tbody>
+    <tr><td>Reimbursement approval chain</td><td>Department Master (managers) + Application Settings (submission deadline)</td><td>HR Module SOP</td></tr>
+    <tr><td>Travel approval chain</td><td>Department Master &mdash; the employee's department, HR and Administration</td><td>HR Module SOP</td></tr>
+    <tr><td>BOM Request chain</td><td>Department Master (Administration, Accounts) + Application Settings (BOM Finance Approver)</td><td>Operations Module SOP</td></tr>
+    <tr><td>Marketing Request chain</td><td>Department Master &mdash; managers of Marketing</td><td>Marketing Module SOP</td></tr>
+    <tr><td>Demo approval chain</td><td>Department Master &mdash; the approving manager</td><td>Operations Module SOP</td></tr>
+    <tr><td>Daily reporting regime</td><td>Daily Report Configuration</td><td>HR Module SOP</td></tr>
+    <tr><td>Custom module approval</td><td>Custom Module Builder &mdash; the approver role</td><td>&sect;6.5</td></tr>
+    <tr><td>Lead routing from Meta</td><td>Meta Lead Integration &mdash; assignment rules</td><td>Lead Capture / Inquiry</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 8 ======================= -->
+<h1 id="s8"><span class="sec-no">08</span>Field and Status Reference</h1>
+
+<h2>8.1 User account fields</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">Field</th><th class="ctr" style="width:16%">Required</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>Full name</td><td class="ctr">Required</td><td>The display name used throughout MatrixIQ.</td></tr>
+    <tr><td>Employee ID</td><td class="ctr">Optional</td><td>Labelled optional on the form.</td></tr>
+    <tr><td>Username</td><td class="ctr">Required</td><td>The login name and the account's permanent identity. Must be unique.</td></tr>
+    <tr><td>Password</td><td class="ctr">Required</td><td>Minimum six characters. Must be changed at first sign-in.</td></tr>
+    <tr><td>Email</td><td class="ctr"><span class="tbv">To be verified</span></td><td>Where the welcome message and lifecycle notices are sent.</td></tr>
+    <tr><td>Phone</td><td class="ctr"><span class="tbv">To be verified</span></td><td>Contact detail.</td></tr>
+    <tr><td>Department</td><td class="ctr"><span class="tbv">To be verified</span></td><td>Drives visibility scoping and routing. Chosen from Department Master.</td></tr>
+    <tr><td>Designation</td><td class="ctr"><span class="tbv">To be verified</span></td><td>Free text, for example <em>Sales Executive</em>.</td></tr>
+    <tr><td>Role</td><td class="ctr">Required</td><td>Determines permissions. Chosen from Role Management.</td></tr>
+  </tbody>
+</table>
+<p class="small">Fields shown as not verified are present on the form; whether MatrixIQ refuses to save without them was not confirmed.</p>
+
+<h2>8.2 Statuses used in Administration</h2>
+<table class="t">
+  <thead><tr><th style="width:24%">Where</th><th style="width:24%">Status</th><th>Meaning and who can change it</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="2">User account</td><td><span class="pill p-done">Active</span></td><td>Can sign in. Set by Super Admin, Admin or Manager.</td></tr>
+    <tr><td><span class="pill p-idle">Inactive</span></td><td>Cannot sign in; not offered in pickers; not treated as an effective department manager.</td></tr>
+    <tr><td rowspan="2">Role</td><td><span class="pill p-done">Active</span></td><td>Permissions apply.</td></tr>
+    <tr><td><span class="pill p-idle">Inactive</span></td><td>Grants nothing &mdash; every permission check requires an active role.</td></tr>
+    <tr><td rowspan="2">Department</td><td><span class="pill p-done">Active</span></td><td>Offered in pickers and used for routing.</td></tr>
+    <tr><td><span class="pill p-idle">Inactive</span></td><td>Hidden from pickers and excluded from routing.</td></tr>
+    <tr><td rowspan="2">Module</td><td><span class="pill p-done">Enabled</span></td><td>Visible to the ticked roles, subject to the stricter rules in &sect;6.4.4.</td></tr>
+    <tr><td><span class="pill p-stop">Disabled</span></td><td>Closed for everyone, administrators included, together with its data.</td></tr>
+    <tr><td rowspan="2">Product</td><td><span class="pill p-done">Active</span></td><td>Selectable on a quotation.</td></tr>
+    <tr><td><span class="pill p-idle">Inactive</span></td><td>Retired without deletion.</td></tr>
+    <tr><td rowspan="4">Custom module record</td><td><span class="pill p-done">Active</span></td><td>Created in a module that requires no approval.</td></tr>
+    <tr><td><span class="pill p-wait">Pending approval</span></td><td>Created in a module that has an approver role; visible to that role.</td></tr>
+    <tr><td><span class="pill p-done">Approved</span></td><td>Set by the approver role.</td></tr>
+    <tr><td><span class="pill p-stop">Rejected</span></td><td>Set by the approver role.</td></tr>
+    <tr><td rowspan="2">User import row</td><td><span class="pill p-idle">created / existing / skipped</span></td><td>Outcome classification shown in the preview and result.</td></tr>
+    <tr><td><span class="pill p-wait">needsReview / error</span></td><td>Requires a decision or a correction before committing.</td></tr>
+  </tbody>
+</table>
+
+<h2>8.3 Role Management permission vocabulary</h2>
+<table class="t">
+  <thead><tr><th style="width:22%">Scope</th><th>Values</th></tr></thead>
+  <tbody>
+    <tr><td>Per-module actions</td><td>view &middot; create &middot; edit &middot; delete &middot; export &middot; print &middot; approve &middot; reject &middot; assign &middot; manage</td></tr>
+    <tr><td>Global capabilities</td><td>manage settings &middot; manage users &middot; manage roles &middot; manage departments &middot; view all departments</td></tr>
+    <tr><td>Role attributes</td><td>name &middot; description &middot; privileged flag &middot; status &middot; built-in marker</td></tr>
+  </tbody>
+</table>
+
+<h2>8.4 Departments as configured</h2>
+<table class="t">
+  <thead><tr><th style="width:30%">Group</th><th>Departments</th></tr></thead>
+  <tbody>
+    <tr><td>Seeded at first run</td><td>Sales, Technical, Back Office, Accounts, HR, Purchase, Inventory, Marketing, Management, Administration</td></tr>
+    <tr><td>Added for Technical Project Management</td><td>Robotics, AI, AV</td></tr>
+    <tr><td>Recognised as TMS departments</td><td>AI, AV, R&amp;D, Robotics</td></tr>
+  </tbody>
+</table>
+<p class="small">Departments can be renamed and added freely. These are the names MatrixIQ created, not a fixed list. Note that routing rules match certain names &mdash; see &sect;6.3.1.</p>
+
+<h2>8.5 What the Audit Log does and does not cover</h2>
+<table class="t">
+  <thead><tr><th style="width:44%">Recorded</th><th>Not reliably recorded</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Business status changes across the platform: demos, Delivery Challans, leads, quotations, projects, marketing requests, TMS projects, tasks, BOM requests and procurement, travel, reimbursement sheets, daily reports and their leave claims, warnings, employee exits, partners, materials, support tickets, departments, user imports and custom modules.</td>
+      <td>Edits to Application Settings; changes to Module Manager; changes to the Role Management matrix; changes to the product master or catalogue overrides; changes to the named-individual module grants.</td>
+    </tr>
+  </tbody>
+</table>
+<div class="warn">
+  <span class="lbl">Keep your own change register</span>
+  <p>Because the Audit Log is not a configuration change log, the organisation must keep its own record of Administration changes: what was changed, by whom, when, and on whose authority. Without it, a configuration change is effectively untraceable.</p>
+</div>
+
+<!-- ======================= 9 ======================= -->
+<h1 id="s9"><span class="sec-no">09</span>Reports, Downloads and Exports</h1>
+<table class="t">
+  <thead><tr><th style="width:26%">Output</th><th style="width:16%">Format</th><th style="width:22%">Produced from</th><th>Use</th></tr></thead>
+  <tbody>
+    <tr><td>Product catalogue export</td><td>CSV and XLSX</td><td>Products</td><td>Back up before a bulk change; share with the sales team. <strong>Take this before every bulk reprice or import.</strong></td></tr>
+    <tr><td>Custom module records</td><td>CSV</td><td>Each custom module</td><td>Extract the records captured in a module you built.</td></tr>
+    <tr><td>Custom module print view</td><td>Printable page</td><td>Each custom module</td><td>A paper copy of the list.</td></tr>
+    <tr><td>Audit Log page</td><td>PDF</td><td>Audit Log</td><td>Evidence of a specific sequence of actions. Covers the page on screen only.</td></tr>
+    <tr><td>Scheduler run history</td><td>On screen</td><td>Daily Report Configuration</td><td>Confirm what the sweep did, when, and whether it was a dry run.</td></tr>
+    <tr><td>Notification delivery log</td><td>On screen</td><td>Daily Report Configuration</td><td>Confirm who was contacted and whether delivery failed.</td></tr>
+    <tr><td>User import result</td><td>On screen</td><td>User Management &rarr; Import</td><td>Captures the temporary passwords. Record it before navigating away.</td></tr>
+  </tbody>
+</table>
+<div class="verify">
+  <span class="lbl">Not available</span>
+  <p>There is <strong>no export of the role permission matrix, the module configuration or Application Settings</strong>. To preserve the current state before a change, take a screenshot or transcribe the values. This is a real limitation and the reason &sect;7.1 step 4 exists.</p>
+</div>
+
+<!-- ======================= 10 ======================= -->
+<h1 id="s10"><span class="sec-no">10</span>Notifications and Follow-Ups</h1>
+
+<h2>10.1 What Administration actions send</h2>
+<table class="t">
+  <thead><tr><th style="width:32%">Action</th><th style="width:26%">Who is notified</th><th>Channel and follow-up</th></tr></thead>
+  <tbody>
+    <tr><td>Creating a user account</td><td>The new user</td><td>Welcome e-mail with sign-in details. <strong>Follow up:</strong> confirm receipt; use <em>Resend welcome email</em> if it did not arrive.</td></tr>
+    <tr><td>Changing a user's account details</td><td>The user</td><td>An account-changed e-mail.</td></tr>
+    <tr><td>Resetting a password</td><td>The user</td><td>A password-changed e-mail. <strong>Follow up:</strong> confirm they can sign in.</td></tr>
+    <tr><td>Reassigning work during an employee exit</td><td>Each new owner</td><td>In-app notification. <strong>Follow up:</strong> confirm they have picked the work up.</td></tr>
+    <tr><td>Running the daily report sweep</td><td>Employees and their managers</td><td>In-app and e-mail, <strong>only when dry run is off</strong>. Monthly summaries are also sent.</td></tr>
+    <tr><td>Changing roles, modules, departments, settings or prices</td><td><strong>Nobody</strong></td><td>MatrixIQ sends nothing. <strong>You must tell the affected users yourself.</strong></td></tr>
+  </tbody>
+</table>
+
+<h2>10.2 How e-mail behaves</h2>
+<div class="warn">
+  <span class="lbl">E-mail can fail silently</span>
+  <p>Mail is sent through Amazon SES using server settings. If those are not provisioned, MatrixIQ <strong>skips the send and continues</strong> &mdash; the account is still created, the sweep still runs, and no error is shown on screen. Never assume a user received their welcome message. Confirm the first sign-in, and raise the configuration question with the platform's technical owner if e-mail appears to be inactive.</p>
+</div>
+
+<h2>10.3 Scheduled activity to monitor</h2>
+<table class="t">
+  <thead><tr><th style="width:30%">Job</th><th style="width:22%">Controlled from</th><th>What to check, and how often</th></tr></thead>
+  <tbody>
+    <tr><td>Daily report reminders and missed-report sweep</td><td>Daily Report Configuration</td><td>Read <strong>Scheduler runs</strong> and the <strong>Notification delivery log</strong>. <span class="tbv">Monitoring cadence: to be confirmed.</span></td></tr>
+    <tr><td>Daily report monthly summary</td><td>Daily Report Configuration</td><td>Confirm it ran after each month end.</td></tr>
+    <tr><td>Meta lead ingestion</td><td>Meta Lead Integration</td><td>Read <strong>Last Webhook Received</strong>. A long gap suggests a broken connection; use <strong>Test Connection</strong>, then <strong>Sync Now</strong> to backfill.</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 11 ======================= -->
+<h1 id="s11"><span class="sec-no">11</span>Common Problems and Troubleshooting</h1>
+<table class="t">
+  <thead><tr><th style="width:21%">Problem</th><th style="width:23%">Likely cause</th><th style="width:30%">Recommended action</th><th>Responsible</th></tr></thead>
+  <tbody>
+    <tr><td>A user cannot see a module even though its role column is ticked.</td><td>One of the stricter built-in rules in &sect;6.4.4 applies, or the module is disabled.</td><td>Check &sect;6.4.4 first. Module Manager can narrow access but never widen beyond these rules.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>A user sees a tile but is sent back to the dashboard when they open it.</td><td>The tile's visibility and the screen's own rule disagree &mdash; typically a named-individual or department-based grant.</td><td>Check &sect;4.4 and the department gate. Correct the role tick so the tile is not advertised misleadingly.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>An approval is going to the wrong person, or to nobody.</td><td>Department managers are not set, or a department has been renamed so a routing rule no longer matches.</td><td>Open Department Master and confirm the managers of the employee's department, of HR, of Administration and of Accounts. See &sect;6.3.1.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>Approvals reach a departed employee's name.</td><td>They are still listed as a department manager.</td><td>Remove them in Department Master. Deactivating an account does not do this.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>A permission change appears to have had no effect.</td><td>Configuration is cached briefly, and session details such as the privileged flag are fixed at sign-in.</td><td>Wait about a minute. If it still has not taken effect, ask the user to sign out and sign in again.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>A new role grants more than expected.</td><td>The privileged flag was set, so unset permissions fall back to broad access.</td><td>Unset the privileged flag and grant the specific module actions instead. Verify from a test account.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>A role cannot be deleted.</td><td>It is built-in, or you are not Super Admin.</td><td>Set its status to inactive instead. Only a Super Admin can delete a non-built-in role.</td><td>Super Admin</td></tr>
+    <tr><td>Disabling a module broke an unrelated screen.</td><td>Disabling closes the module's data, which other screens may read.</td><td>Re-enable it immediately, confirm the dependency, and narrow by role instead of disabling.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>Quotation prices are wrong after an edit.</td><td>A product or catalogue override was changed.</td><td>Compare with the pre-change export. Correct the affected products. Quotations already saved keep their original figures.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>A bulk reprice went wrong.</td><td>The filter or selection was wider than intended.</td><td>Restore from the export taken beforehand. If none was taken, the previous prices are not recoverable from MatrixIQ.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>A product import rewrote the wrong rows.</td><td>SKU is the matching key; a shifted or mistyped SKU column updates the wrong products.</td><td>Re-import the pre-change export to restore. Always export first.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>A quotation PDF shows the wrong company details or tax.</td><td>Application Settings values.</td><td>Correct them, then produce a fresh PDF to verify. Reissue any incorrect document already sent.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>Meta leads have stopped arriving.</td><td>Server credentials missing or changed, or the webhook has stopped.</td><td>Check the credential rows and <strong>Last Webhook Received</strong>; run <strong>Test Connection</strong>; use <strong>Sync Now</strong> to backfill. Credentials must be fixed at deployment level.</td><td>Super Admin + technical owner</td></tr>
+    <tr><td>Daily report reminders are not being sent.</td><td>The scheduler is disabled, or dry run is still on.</td><td>Check both switches, then read the scheduler run history to confirm the mode.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>Employees in a department cannot file a daily report.</td><td>The department shows <strong>Not configured</strong>.</td><td>Assign a report format to that department.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>A welcome e-mail never arrived.</td><td>The e-mail service may not be configured; sends are then skipped silently.</td><td>Use <strong>Resend welcome email</strong>. If nothing arrives, raise the configuration question.</td><td>Super Admin + technical owner</td></tr>
+    <tr><td>The temporary password list from an import was lost.</td><td>It was shown once.</td><td>Use <strong>Reset password</strong> on each affected account. Do not re-run the import.</td><td>Super Admin / Admin</td></tr>
+    <tr><td>A Super Admin account is not visible in a picker.</td><td>Deliberate &mdash; Super Admin accounts are hidden from every other role.</td><td>No action. Use a different account for the assignment, or act as a Super Admin.</td><td>Super Admin</td></tr>
+    <tr><td>A delete action is refused.</td><td>Deletion is Super Admin only.</td><td>Ask a Super Admin, or deactivate instead.</td><td>Super Admin</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 12 ======================= -->
+<h1 id="s12"><span class="sec-no">12</span>Best Practices and Compliance</h1>
+
+<h2>12.1 Mandatory MatrixIQ rules</h2>
+<table class="t">
+  <thead><tr><th style="width:54%">Rule</th><th>Enforcement</th></tr></thead>
+  <tbody>
+    <tr><td>Only a Super Admin may delete anything under the Administration interfaces.</td><td>Refused with <em>"Forbidden &mdash; superadmin only"</em>.</td></tr>
+    <tr><td>Only a Super Admin may create or promote an account to Super Admin.</td><td>Refused for other roles.</td></tr>
+    <tr><td>Super Admin accounts are invisible to every other role.</td><td>Enforced across directories and pickers.</td></tr>
+    <tr><td>Built-in roles cannot be deleted.</td><td>Marked as built-in; deletion is unavailable.</td></tr>
+    <tr><td>An inactive role grants nothing.</td><td>Every permission check requires an active role.</td></tr>
+    <tr><td>A disabled module is closed for everyone, data included.</td><td>Enforced on both the screen and the data behind it.</td></tr>
+    <tr><td>Usernames are unique.</td><td>Enforced when the account is created.</td></tr>
+    <tr><td>A new user must change their password at first sign-in.</td><td>The account is held at the password-change screen.</td></tr>
+    <tr><td>Module Manager cannot widen access beyond the rules in &sect;6.4.4.</td><td>Those rules are evaluated first.</td></tr>
+    <tr><td>Meta credentials cannot be entered or read in the application.</td><td>They are server settings; the screen reports presence only.</td></tr>
+    <tr><td>Partner accounts cannot leave the Partner Portal, and internal accounts cannot enter it.</td><td>Enforced in both directions.</td></tr>
+  </tbody>
+</table>
+
+<h2>12.2 Recommended practice</h2>
+<h4>Before any change</h4>
+<ul class="b">
+  <li>Capture the current state. For the product catalogue that means an export; for roles, modules and settings it means a screenshot or a transcription.</li>
+  <li>Obtain and record written authorisation for anything touching permissions, module availability, tax, pricing or numbering.</li>
+  <li>Make one change at a time, so an unexpected effect can be attributed.</li>
+</ul>
+<h4>Accounts and roles</h4>
+<ul class="b">
+  <li>Grant the narrowest role that does the job. Prefer cloning an existing role and removing rights to building one up from nothing.</li>
+  <li>Avoid creating privileged roles. The flag is broad, and several areas refuse it anyway &mdash; so it usually grants the wrong things while failing to grant the intended one.</li>
+  <li>Verify every new role from a test account before assigning it widely.</li>
+  <li>Review accounts and roles periodically against the staff list. <span class="tbv">Review cadence: to be confirmed.</span></li>
+</ul>
+<h4>Departments</h4>
+<ul class="b">
+  <li>Treat appointing or removing a department manager as a change to the approval chain, because that is what it is. Tell the person.</li>
+  <li>Never rename a department casually. Check every routing rule in &sect;6.3.1 first.</li>
+  <li>Make sure every department that needs approvals has at least one <em>active</em> manager.</li>
+</ul>
+<h4>Products and pricing</h4>
+<ul class="b">
+  <li>Export before every bulk update and every import, without exception.</li>
+  <li>Test a bulk change on a small selection first.</li>
+  <li>Retire products by setting them inactive rather than deleting them &mdash; historical quotations remain readable.</li>
+</ul>
+<h4>Confidentiality and access control</h4>
+<ul class="b">
+  <li>Never share an administrator account. Every action is attributed to the signed-in username.</li>
+  <li>Distribute temporary passwords through a channel the recipient controls, never in a shared document.</li>
+  <li>Keep the number of Super Admin accounts to the minimum the organisation can operate with.</li>
+  <li>Treat the Audit Log as confidential: it records who did what, from which address.</li>
+</ul>
+<h4>Avoiding duplicates</h4>
+<ul class="b">
+  <li>Search before creating a department, a role, a product or an account.</li>
+  <li>Use the import preview to find accounts that already exist, rather than creating parallel ones.</li>
+  <li>Avoid two departments with similar names &mdash; routing rules match by name and will pick one.</li>
+</ul>
+<h4>Keeping an auditable history</h4>
+<ul class="b">
+  <li>Maintain a change register outside MatrixIQ. The Audit Log does not cover configuration.</li>
+  <li>Record the authorisation alongside the change.</li>
+  <li>Retain pre-change exports, dated, for as long as the organisation's retention policy requires.</li>
+</ul>
+
+<!-- ======================= 13 ======================= -->
+<h1 id="s13"><span class="sec-no">13</span>Quick Reference</h1>
+
+<h2>13.1 Frequently performed tasks</h2>
+<div class="qr">
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Add a new employee</span><span class="qd">User Management &rarr; <strong>New employee account</strong> &rarr; complete name, username, password, department and role &rarr; <strong>Add employee</strong>. Confirm the welcome e-mail arrived.</span></div>
+    <div class="qcell"><span class="qt">Handle a leaver</span><span class="qd"><strong>Employee Exit</strong> &rarr; reassign open work &rarr; commit. Then remove them from any department manager list, then deactivate.</span></div>
+  </div>
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Create a role</span><span class="qd">Role Management &rarr; <strong>Clone</strong> the closest role &rarr; remove what is not needed &rarr; verify from a test account.</span></div>
+    <div class="qcell"><span class="qt">Change who approves travel or reimbursement</span><span class="qd">Department Master &rarr; <strong>Edit</strong> the department &rarr; set managers &rarr; Save &rarr; tell them.</span></div>
+  </div>
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Hide a module from a role</span><span class="qd">Module Manager &rarr; untick that role's column on the module row &rarr; Save. <strong>Do not disable the module</strong> &mdash; that closes it for everyone.</span></div>
+    <div class="qcell"><span class="qt">Change the tax rate or terms</span><span class="qd">Application Settings &rarr; <strong>Currency &amp; Tax</strong> or <strong>Quotation Terms</strong> &rarr; Save &rarr; produce a test quotation PDF to verify.</span></div>
+  </div>
+  <div class="qrow">
+    <div class="qcell"><span class="qt">Reprice products</span><span class="qd"><strong>Export first.</strong> Filter &rarr; select &rarr; choose field and method &rarr; <strong>Apply Bulk Update</strong>.</span></div>
+    <div class="qcell"><span class="qt">Turn daily report reminders on</span><span class="qd">Daily Report Configuration &rarr; dry run ON, scheduler ON &rarr; Save &rarr; <strong>Run Sweep</strong> &rarr; read the delivery log &rarr; only then turn dry run off.</span></div>
+  </div>
+</div>
+
+<h2>13.2 Where to change what</h2>
+<table class="t">
+  <thead><tr><th style="width:46%">To change&hellip;</th><th>Go to</th></tr></thead>
+  <tbody>
+    <tr><td>Who can sign in</td><td>User Management</td></tr>
+    <tr><td>What a role may do</td><td>Role Management</td></tr>
+    <tr><td>Who approves what</td><td>Department Master &mdash; managers</td></tr>
+    <tr><td>Which tiles appear, and for whom</td><td>Module Manager</td></tr>
+    <tr><td>Add a module MatrixIQ does not have</td><td>Custom Module Builder</td></tr>
+    <tr><td>Quotation product prices</td><td>Products, or Product Catalog for the engineering catalogues</td></tr>
+    <tr><td>What a quotation PDF says</td><td>Application Settings</td></tr>
+    <tr><td>The Delivery Challan prefix</td><td>Application Settings &rarr; Number Series</td></tr>
+    <tr><td>Who finance-approves a BOM request</td><td>Application Settings &rarr; TMS Settings</td></tr>
+    <tr><td>The reimbursement submission deadline</td><td>Application Settings &rarr; Reimbursement Settings</td></tr>
+    <tr><td>Daily report formats, deadlines and reminders</td><td>Daily Report Configuration</td></tr>
+    <tr><td>Where Meta leads are routed</td><td>Meta Lead Integration</td></tr>
+    <tr><td>Reassign a leaver's open work</td><td>Employee Exit</td></tr>
+    <tr><td>Trace who changed a business record</td><td>Audit Log</td></tr>
+  </tbody>
+</table>
+
+<h2>13.3 Change-risk summary</h2>
+<table class="t">
+  <thead><tr><th style="width:30%">Change</th><th style="width:14%" class="ctr">Reversible?</th><th>Blast radius</th></tr></thead>
+  <tbody>
+    <tr><td>Granting a role permission</td><td class="ctr"><span class="yes">Yes</span></td><td>Every account holding that role, immediately.</td></tr>
+    <tr><td>Setting the privileged flag</td><td class="ctr"><span class="yes">Yes</span></td><td>Very wide. Unset permissions fall back to broad access.</td></tr>
+    <tr><td>Disabling a module</td><td class="ctr"><span class="yes">Yes</span></td><td>Everyone, administrators included, plus the module's data.</td></tr>
+    <tr><td>Changing department managers</td><td class="ctr"><span class="yes">Yes</span></td><td>Approval routing across several modules.</td></tr>
+    <tr><td>Renaming a department</td><td class="ctr"><span class="yes">Yes</span></td><td>May silently re-route approvals. Verify every rule in &sect;6.3.1.</td></tr>
+    <tr><td>Bulk repricing products</td><td class="ctr"><span class="no">No undo</span></td><td>Every new quotation. Restore only from a prior export.</td></tr>
+    <tr><td>Importing products</td><td class="ctr"><span class="no">No undo</span></td><td>Updates in place by SKU, with no preview.</td></tr>
+    <tr><td>Changing tax or terms</td><td class="ctr"><span class="yes">Yes</span></td><td>Every quotation PDF produced afterwards.</td></tr>
+    <tr><td>Deleting a record</td><td class="ctr"><span class="na">Varies</span></td><td>Most tables keep a recoverable copy; the office expense register does not.</td></tr>
+    <tr><td>Enabling the daily report scheduler</td><td class="ctr"><span class="yes">Yes</span></td><td>Reminders and warnings to the whole company.</td></tr>
+  </tbody>
+</table>
+
+<!-- ======================= 14 ======================= -->
+<h1 id="s14"><span class="sec-no">14</span>Glossary and Appendix</h1>
+
+<h2>14.1 Glossary</h2>
+<dl class="defs">
+  <dt>Append-only</dt><dd>A record that can be added to but never edited or deleted. The Audit Log and the notification ledger are append-only.</dd>
+  <dt>Built-in role</dt><dd>A role shipped with MatrixIQ. It can be edited but never deleted.</dd>
+  <dt>Capability (global)</dt><dd>One of five platform-wide grants on a role: manage settings, manage users, manage roles, manage departments, view all departments.</dd>
+  <dt>Custom module</dt><dd>A module created from the Custom Module Builder, rendered by one generic engine rather than by code written for it.</dd>
+  <dt>Department manager</dt><dd>A person listed as a manager of a department in Department Master. This relationship, not a role, drives approval routing across the platform.</dd>
+  <dt>Href</dt><dd>The address a module tile opens. Shown read-only in Module Manager.</dd>
+  <dt>Module key</dt><dd>The stable internal identifier of a module, such as <code>user-management</code>. Permissions and visibility are keyed to it, so renaming a module's label is safe.</dd>
+  <dt>Named-individual grant</dt><dd>Access granted to particular usernames rather than to a role. Used for the three HR and Administration spend modules.</dd>
+  <dt>Override (catalogue)</dt><dd>A saved change applied on top of a built-in catalogue product. Where nothing is overridden, the base value continues to apply.</dd>
+  <dt>Paranoid / soft delete</dt><dd>Most MatrixIQ tables hide a deleted record from lists and reports while keeping it recoverable.</dd>
+  <dt>Privileged</dt><dd>A flag on a role granting broad, organisation-wide reach. Super Admin, Admin and Manager carry it. Several sensitive modules deliberately refuse it.</dd>
+  <dt>Product key</dt><dd>The identifier linking a catalogue override to its base product, and an accessory to its parent. Not a display name.</dd>
+  <dt>Role key</dt><dd>The stable internal identifier of a role, such as <code>user</code> for the Sales role. Permission checks use the key, so a role can be relabelled safely.</dd>
+  <dt>Section</dt><dd>The sidebar group a module appears under. Reordering in Module Manager happens within a section.</dd>
+  <dt>Sweep (daily report)</dt><dd>The scheduled job that checks who has filed, sends reminders and raises missed-report warnings. Safe to run manually and safe to repeat.</dd>
+  <dt>Dry run</dt><dd>A mode in which the daily report sweep computes and logs everything but sends nothing.</dd>
+</dl>
+
+<h2>14.2 Appendix A &mdash; Administration responsibility matrix</h2>
+<table class="t">
+  <thead><tr><th style="width:34%">Responsibility</th><th class="ctr">Super Admin</th><th class="ctr">Admin</th><th class="ctr">Manager</th></tr></thead>
+  <tbody>
+    <tr><td>Create / edit user accounts</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td></tr>
+    <tr><td>Delete anything</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Create or promote a Super Admin</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>See Super Admin accounts</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Edit role permissions</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td></tr>
+    <tr><td>Edit departments and managers</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td></tr>
+    <tr><td>Enable / disable modules</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td></tr>
+    <tr><td>Edit products and catalogue overrides</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td></tr>
+    <tr><td>Edit Application Settings</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td></tr>
+    <tr><td>Meta Lead Integration</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Daily Report Configuration</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Read the Audit Log</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Office / Admin expense modules</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+    <tr><td>Accounts payment queue</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="na">Only the Accounts dept. manager</span></td></tr>
+    <tr><td>Technical Project Management</td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="yes">Yes</span></td><td class="ctr"><span class="no">No</span></td></tr>
+  </tbody>
+</table>
+
+<h2>14.3 Appendix B &mdash; Pre-change checklist</h2>
+<table class="t">
+  <thead><tr><th style="width:8%" class="ctr">&#9744;</th><th>Check</th></tr></thead>
+  <tbody>
+    <tr><td class="ctr">&#9744;</td><td>The request is written down: what, why, and who is affected.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>The blast radius has been assessed against &sect;13.3.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Written authorisation has been obtained where &sect;7.1 requires it.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>The current state is captured &mdash; an export for products, a screenshot or transcription otherwise.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>Only one change is being made in this sitting.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>A verification method is planned: a test account, or a real document.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>The affected users will be told &mdash; MatrixIQ will not tell them.</td></tr>
+    <tr><td class="ctr">&#9744;</td><td>The change will be entered in the organisation's change register.</td></tr>
+  </tbody>
+</table>
+
+<h2>14.4 Appendix C &mdash; Configuration-to-effect map</h2>
+<table class="t">
+  <thead><tr><th style="width:30%">Setting</th><th style="width:22%">Screen</th><th>Takes effect in</th></tr></thead>
+  <tbody>
+    <tr><td>Role permissions and privileged flag</td><td>Role Management</td><td>Every module, every screen.</td></tr>
+    <tr><td>Department managers</td><td>Department Master</td><td>Reimbursement, Travel, BOM, Marketing, Demo approvals, Accounts and Back Office grants, Team Tasks, Team Daily Reports.</td></tr>
+    <tr><td>Module enabled / role visibility</td><td>Module Manager</td><td>The sidebar, the dashboard, and the module's own data.</td></tr>
+    <tr><td>Default tax %, currency, tax label</td><td>Application Settings</td><td>Every quotation calculation and PDF.</td></tr>
+    <tr><td>Company and bank details</td><td>Application Settings</td><td>Quotation and proposal PDFs, Delivery Challan.</td></tr>
+    <tr><td>Quotation terms</td><td>Application Settings</td><td>Every quotation PDF.</td></tr>
+    <tr><td>Delivery Challan prefix</td><td>Application Settings</td><td>Every new Delivery Challan number.</td></tr>
+    <tr><td>BOM Finance Approver</td><td>Application Settings</td><td>The finance stage of every BOM request.</td></tr>
+    <tr><td>Reimbursement submission deadline</td><td>Application Settings</td><td>When employees may submit a monthly sheet.</td></tr>
+    <tr><td>Product prices</td><td>Products / Product Catalog</td><td>Quotations built after the change.</td></tr>
+    <tr><td>Daily report format, deadline, reminders, warnings, exemptions</td><td>Daily Report Configuration</td><td>Daily Report, Team Daily Reports, Daily Report Review.</td></tr>
+    <tr><td>Meta assignment rules</td><td>Meta Lead Integration</td><td>Lead Capture / Inquiry.</td></tr>
+  </tbody>
+</table>
+
+<h2>14.5 Appendix D &mdash; Items this document could not verify</h2>
+<table class="t">
+  <thead><tr><th style="width:42%">Item</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Which user-account fields MatrixIQ refuses to save without (beyond name, username, password and role)</td><td><span class="tbv">To be verified in the live MatrixIQ application</span></td></tr>
+    <tr><td>Whether the bulk-import temporary password list can be regenerated after leaving the screen</td><td><span class="tbv">To be verified in the live MatrixIQ application</span></td></tr>
+    <tr><td>How to add or remove a named individual from the three restricted spend modules</td><td><span class="tbv">Escalation route: to be confirmed</span></td></tr>
+    <tr><td>Who holds authority to approve changes to tax, terms and pricing</td><td><span class="tbv">To be confirmed</span></td></tr>
+    <tr><td>Monitoring cadence for the scheduler and the Meta webhook</td><td><span class="tbv">To be confirmed</span></td></tr>
+    <tr><td>Review cadence for accounts and role assignments</td><td><span class="tbv">To be confirmed</span></td></tr>
+    <tr><td>Whether the platform's e-mail service is provisioned in this deployment</td><td><span class="tbv">To be verified in the live MatrixIQ application</span></td></tr>
+    <tr><td>Document owner, approver, change authority and review frequency</td><td><span class="tbv">To be confirmed</span></td></tr>
+  </tbody>
+</table>
+
+<div class="endmark">End of document &mdash; MatrixIQ Administration Module SOP, version 1.0</div>
