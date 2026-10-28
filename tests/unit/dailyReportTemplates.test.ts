@@ -376,7 +376,7 @@ describe('validation rules', () => {
 
   it('requires R&D time spent to be a non-negative whole number', () => {
     const rnd = BUILT_IN_TEMPLATES.rnd;
-    const base = { task_description: 'Bench-tested the gripper.', impact: 'Unblocks the pilot.', priority: 'High', status: 'In Progress', time_spent_hours: '-3' };
+    const base = { task_description: 'Bench-tested the gripper.', impact: 'High', priority: 'High', status: 'In Progress', time_spent_hours: '-3' };
     expect(validateReportPayload(rnd, payload({ entries: [base] }), true).issues.some((i) => i.path === 'entries.0.time_spent_hours')).toBe(true);
     expect(validateReportPayload(rnd, payload({ entries: [{ ...base, time_spent_hours: '2.5' }] }), true).issues.some((i) => i.path === 'entries.0.time_spent_hours')).toBe(true);
     expect(validateReportPayload(rnd, payload({ entries: [{ ...base, time_spent_hours: '6' }] }), true).ok).toBe(true);
@@ -387,7 +387,7 @@ describe('R&D priority and status', () => {
   const rnd = BUILT_IN_TEMPLATES.rnd;
   const base = {
     task_description: 'Bench-tested the gripper.',
-    impact: 'Unblocks the pilot.',
+    impact: 'High',
     time_spent_hours: '6'
   };
 

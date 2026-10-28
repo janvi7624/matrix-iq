@@ -973,7 +973,7 @@ const RND_TEMPLATE: TemplateDefinition = {
   rowFields: [
     TASK_ID_FIELD,
     { key: 'task_description', label: 'Task Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
-    { key: 'impact', label: 'Impact on Company', type: 'textarea', required: true, maxLength: 2000, width: 'lg' },
+    { key: 'impact', label: 'Impact on Company', type: 'select', required: true, options: PRIORITY_OPTIONS, width: 'sm' },
     { key: 'time_spent_hours', label: 'Time Spent (hours)', type: 'number', required: true, width: 'sm' },
     { key: 'priority', label: 'Priority', type: 'select', required: true, options: PRIORITY_OPTIONS, width: 'sm' },
     { key: 'status', label: 'Status', type: 'select', required: true, options: RND_STATUS_OPTIONS, width: 'sm' },
