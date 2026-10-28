@@ -173,11 +173,14 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: next })
       });
-      if (!response.ok) throw new Error(String(response.status));
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({} as { error?: string }));
+        throw new Error(body.error || `Could not update the task status (${response.status}).`);
+      }
       await load();
       toast.success(`Task marked ${TMS_TASK_STATUS_LABEL[next]}.`);
-    } catch {
-      toast.error('Could not update the task status.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update the task status.');
     } finally {
       setSaving(false);
     }
@@ -455,7 +458,17 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
               </button>
             ))}
             {(ENGINEER_ACTIONS[task.status] || []).length === 0 && (
-              <span className={styles.mutedText13}>No action available while this task is &quot;{TMS_TASK_STATUS_LABEL[task.status]}&quot;.</span>
+              <span className={styles.mutedText13}>
+                {task.status === 'ready_for_review'
+                  ? 'Submitted for review — your manager marks it Completed once they approve it.'
+                  : task.status === 'on_hold'
+                    ? 'On hold — your manager will resume it when it’s ready to continue.'
+                    : task.status === 'completed'
+                      ? 'This task is complete.'
+                      : task.status === 'cancelled'
+                        ? 'This task was cancelled.'
+                        : `No action available while this task is "${TMS_TASK_STATUS_LABEL[task.status]}".`}
+              </span>
             )}
           </div>
           {actingAction && (

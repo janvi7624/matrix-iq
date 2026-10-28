@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, ClipboardList, Clock, ListChecks, Users } from 'lucide-react';
 import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsTaskRecord, TmsTaskStatus, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS, TMS_MANAGER_TIER_ROLES } from '@/lib/tmsConstants';
-import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, todayIso } from '@/lib/tmsLabels';
+import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE, todayIso } from '@/lib/tmsLabels';
+import { ENGINEER_ACTIONS_BY_STATUS } from '@/lib/aiTmsStatusMapping';
 import AppShell from './AppShell';
 import dashboardStyles from './dashboard.module.css';
 import tmsDashboardStyles from './tmsDashboard.module.css';
@@ -13,6 +14,7 @@ import tmsTaskStyles from './tmsTasks.module.css';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import PriorityBadge from './ui/PriorityBadge';
+import StatusBadge from './ui/StatusBadge';
 import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useToast } from './ui/ToastProvider';
 import { SkeletonRows } from './ui/Skeleton';
@@ -294,10 +296,13 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: next })
       });
-      if (!response.ok) throw new Error(String(response.status));
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({} as { error?: string }));
+        throw new Error(body.error || `Could not update task status (${response.status}).`);
+      }
       await load();
-    } catch {
-      toast.error('Could not update task status.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update task status.');
     }
   }
 
@@ -402,15 +407,35 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
     {
       key: 'status',
       header: 'Status',
-      render: (t) => (
-        <Select auto value={t.status} onChange={(e) => handleStatusChange(t, e.target.value as TmsTaskStatus)}>
-          {(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((s) => (
-            <option key={s} value={s}>{TMS_TASK_STATUS_LABEL[s]}</option>
-          ))}
-        </Select>
-      )
+      render: (t) =>
+        // A free-choice dropdown here only works for a manager tier — the
+        // server accepts any direct transition from them
+        // (canManageAllTmsTasks) but holds everyone else to the same narrow
+        // action vocabulary as the task detail page's "Update Task" panel,
+        // and most of the 7 options would 400 for an engineer with no
+        // explanation of why. A read-only badge plus the "Update" link
+        // below (which routes to the panel that actually works, including
+        // the required-remark/progress-% fields some actions need) replaces
+        // what looked like a working control but silently wasn't.
+        isManagerTier ? (
+          <Select auto value={t.status} onChange={(e) => handleStatusChange(t, e.target.value as TmsTaskStatus)}>
+            {(Object.keys(TMS_TASK_STATUS_LABEL) as TmsTaskStatus[]).map((s) => (
+              <option key={s} value={s}>{TMS_TASK_STATUS_LABEL[s]}</option>
+            ))}
+          </Select>
+        ) : (
+          <StatusBadge tone={TMS_TASK_STATUS_TONE[t.status]} label={TMS_TASK_STATUS_LABEL[t.status]} />
+        )
     },
-    { key: 'actions', header: '', render: (t) => <Link className={historyStyles.button} href={`/tms/tasks/${t.id}`}>View</Link> }
+    {
+      key: 'actions',
+      header: '',
+      render: (t) => (
+        <Link className={historyStyles.button} href={`/tms/tasks/${t.id}`}>
+          {!isManagerTier && (ENGINEER_ACTIONS_BY_STATUS[t.status] || []).length > 0 ? 'Update' : 'View'}
+        </Link>
+      )
+    }
   ];
 
   return (
