@@ -444,6 +444,31 @@ export function stageGateFailures(
   return failures;
 }
 
+/**
+ * The one requirement that holds on EVERY path to Won: no deal closes without
+ * a Project Brief.
+ *
+ * Deliberately narrower than the full STATUS_GATES.won checklist, and the
+ * difference is the point. The full checklist also demands a quotation ROW,
+ * and lib/salesStageGateSources.ts records why that cannot be asked of the
+ * way deals actually close: only 19 of 185 projects have a quotation record
+ * at all, because quotes routinely go out by email. Gating the PO route on
+ * the whole checklist would block the normal path — measured, it would have
+ * stopped 15 of 16 existing wins, most of them purely for want of a
+ * quotation row.
+ *
+ * The brief is not like that. It is a plain field on the project, it costs
+ * one sentence, and the technical team inheriting the project cannot do the
+ * work without it — which is why it is the thing being made mandatory
+ * everywhere, rather than the checklist around it.
+ *
+ * Reuses stageGateFailures rather than re-testing blankness, so "what counts
+ * as a written brief" can never drift between the two.
+ */
+export function wonBriefFailure(nextStage: ProjectStage, values: Record<string, unknown>): GateFailure | null {
+  return stageGateFailures(nextStage, 'won', values).find((f) => f.field === 'project_brief') ?? null;
+}
+
 function stageGateName(stage: ProjectStage, status: ProjectStatus): string {
   if (status === 'won') return 'Won';
   if (status === 'lost' || stage === 'closed_lost') return 'Lost';

@@ -910,11 +910,16 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   }
 
   async function handleInstallationStatus(id: string, statusValue: InstallationRecord['status']) {
-    await fetch(`/api/installation/${id}`, {
+    const response = await fetch(`/api/installation/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: statusValue })
     });
+    // Completing an installation also closes the deal as won — unless the Won
+    // checklist blocks it. Say why, rather than leaving someone to wonder
+    // why the project's status did not move.
+    const body = await response.json().catch(() => null);
+    if (body?.wonBlockedReason) toast.error(body.wonBlockedReason);
     await load();
   }
 
@@ -1341,7 +1346,16 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
             <div className={styles.briefPanelBody}>{project.project_brief}</div>
           ) : (
             <div className={styles.briefPanelEmpty}>
-              Not written yet — required before this project can close as Won.
+              {/* The wording depends on whether the Won gate is still ahead
+                  of this deal. Telling an ALREADY-won project that the brief
+                  is "required before this project can close as Won" cites a
+                  precondition that is behind it — which is how this read as
+                  nonsense on the 14 of 16 won projects that got there before
+                  the PO and installation routes applied the gate at all.
+                  Asking for the brief is still right; the reason changes. */}
+              {project.status === 'won'
+                ? 'Not written yet — the technical team taking this over needs it.'
+                : 'Not written yet — required before this project can close as Won.'}
               {canEdit && (
                 <>
                   {' '}

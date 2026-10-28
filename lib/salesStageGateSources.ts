@@ -31,6 +31,8 @@
 
 import { Op } from 'sequelize';
 import { db, isUuid } from './db';
+import { stageGateFailures, type GateFailure } from './salesStageRules';
+import type { ProjectStage } from './types';
 
 export interface LinkedQuotationSummary {
   id: string;
@@ -181,4 +183,76 @@ export async function recordWinningPurchaseOrder(
     po_date: dateOnly(plain.po_date),
     amount: decimal(plain.amount)
   };
+}
+
+export interface WonGateResult {
+  failures: GateFailure[];
+  /**
+   * The PO to write once the save succeeds, or null when the project already
+   * had one (so marking a deal won twice cannot produce two POs for one deal).
+   */
+  winningPo: PurchaseOrderInput | null;
+}
+
+/**
+ * THE one answer to "may this project close as Won".
+ *
+ * Every route that closes a deal as won must come through here. It used to
+ * live inline in PATCH /api/projects/[id], which meant the two OTHER routes
+ * that flip status to 'won' — POST /api/po and PATCH /api/installation/[id],
+ * both of which call projectStore.update({ status: 'won' }) directly — never
+ * applied the gate at all. The result, measured on 2026-10-28: 14 of 16 won
+ * projects had no Project Brief and 9 had no Project Name, because receiving
+ * a PO closes the deal for you and never shows the Won checklist that asks
+ * for them. STATUS_GATES.won existed the whole time; nothing was consulting
+ * it on the path people actually use.
+ *
+ * `values` is the project AS IT WOULD BE after the change — merge any patch
+ * over the existing row before calling, so a transition that supplies the
+ * missing field in the same request passes rather than demanding two round
+ * trips.
+ *
+ * `candidatePo` is for the caller that carries PO details ON the transition
+ * (the Close-as-Won dialog). Callers acting AFTER a PO row already exists —
+ * the PO route — pass null and are satisfied by the linked row below.
+ */
+export async function evaluateWonGate(
+  projectId: string,
+  nextStage: ProjectStage,
+  values: Record<string, unknown>,
+  candidatePo: PurchaseOrderInput | null = null
+): Promise<WonGateResult> {
+  const merged: Record<string, unknown> = { ...values };
+  let winningPo: PurchaseOrderInput | null = null;
+
+  // The PO lives in purchase_orders, never on the project — an existing
+  // linked PO satisfies the gate; otherwise the transition has to carry it.
+  const linked = await latestPurchaseOrderForProject(projectId);
+  if (linked) {
+    merged.po_number = linked.po_number;
+    merged.po_value = linked.amount;
+    merged.po_date = linked.po_date;
+  } else if (candidatePo) {
+    winningPo = candidatePo;
+    merged.po_number = candidatePo.po_number;
+    merged.po_value = candidatePo.po_value;
+    merged.po_date = candidatePo.po_date;
+  }
+
+  const failures = stageGateFailures(nextStage, 'won', merged);
+
+  // Existence, not blankness — stageGateFailures judges fields ON the project
+  // row, and a quotation is a separate row, so it cannot be one of
+  // STATUS_GATES' entries the way project_name/company/project_brief are. A
+  // project that reached Won without ever generating a quotation has nothing
+  // for Accounts/Billing to reconcile the PO against.
+  if (!(await latestQuotationForProject(projectId))) {
+    failures.push({
+      field: 'quotation',
+      label: 'Quotation',
+      message: 'At least one quotation must be created for this project before it can be closed as Won.'
+    });
+  }
+
+  return { failures, winningPo };
 }

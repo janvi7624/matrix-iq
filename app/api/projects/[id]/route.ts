@@ -16,11 +16,12 @@ import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { ProjectNote, ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus } from '@/lib/types';
 import { ASSIGNABLE_STAGES, FORWARD_STAGES } from '@/lib/projectStages';
-import { LOST_REASONS, LOST_REASON_LABEL, isLostReason, normalizeStage, stageGateFailures } from '@/lib/salesStageRules';
+import { LOST_REASONS, LOST_REASON_LABEL, isLostReason, normalizeStage, stageGateFailures, type GateFailure } from '@/lib/salesStageRules';
 import {
-  latestPurchaseOrderForProject,
+  evaluateWonGate,
   latestQuotationForProject,
-  recordWinningPurchaseOrder
+  recordWinningPurchaseOrder,
+  type PurchaseOrderInput
 } from '@/lib/salesStageGateSources';
 import { findUserById } from '@/lib/userStore';
 import { findSalesPersonCandidate, SalesOwnerError } from '@/lib/projectSalesOwner';
@@ -392,41 +393,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       }
 
-      // Won: the PO lives in purchase_orders, never on the project. An
-      // existing linked PO satisfies the gate; otherwise the transition has
-      // to carry the details, and they are written as a real PO row once
-      // the save succeeds.
-      let winningPo: { po_number: string; po_value: unknown; po_date: string } | null = null;
+      // Won's gate (the PO lookup, the blank-field checklist and the
+      // quotation-existence check) is NOT inline here any more: it is shared
+      // with every other route that can close a deal, in
+      // lib/salesStageGateSources.ts evaluateWonGate. Keeping it here is
+      // precisely why POST /api/po and PATCH /api/installation/[id] — which
+      // flip status to 'won' themselves — closed 14 of 16 won deals with no
+      // Project Brief. One definition, three callers.
+      let winningPo: PurchaseOrderInput | null = null;
+      let failures: GateFailure[];
       if (nextStatus === 'won') {
-        const linked = await latestPurchaseOrderForProject(id);
-        if (linked) {
-          merged.po_number = linked.po_number;
-          merged.po_value = linked.amount;
-          merged.po_date = linked.po_date;
-        } else {
-          winningPo = {
-            po_number: typeof body.poNumber === 'string' ? body.poNumber.trim() : '',
-            po_value: body.poValue,
-            po_date: typeof body.poDate === 'string' ? body.poDate : ''
-          };
-          merged.po_number = winningPo.po_number;
-          merged.po_value = winningPo.po_value;
-          merged.po_date = winningPo.po_date;
-        }
-      }
-
-      const failures = stageGateFailures(nextStage, nextStatus, merged);
-      // Existence, not blankness — stageGateFailures judges fields ON the
-      // project row, and a quotation is a separate row, so it cannot be one
-      // of STATUS_GATES' entries the way project_name/company/project_brief
-      // are. A project that reached Won without ever generating a quotation
-      // has nothing for Accounts/Billing to reconcile the PO against.
-      if (nextStatus === 'won' && !(await latestQuotationForProject(id))) {
-        failures.push({
-          field: 'quotation',
-          label: 'Quotation',
-          message: 'At least one quotation must be created for this project before it can be closed as Won.'
+        const won = await evaluateWonGate(id, nextStage, merged, {
+          po_number: typeof body.poNumber === 'string' ? body.poNumber.trim() : '',
+          po_value: body.poValue,
+          po_date: typeof body.poDate === 'string' ? body.poDate : ''
         });
+        failures = won.failures;
+        winningPo = won.winningPo;
+      } else {
+        failures = stageGateFailures(nextStage, nextStatus, merged);
       }
       if (failures.length) {
         return NextResponse.json(

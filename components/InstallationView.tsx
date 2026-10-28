@@ -167,6 +167,11 @@ export default function InstallationView({ currentUser }: InstallationViewProps)
         body: JSON.stringify(patch)
       });
       if (!response.ok) throw new Error(String(response.status));
+      // Marking an installation completed also closes the deal as won —
+      // unless the Won checklist blocks it (a missing Project Brief, most
+      // often). Surface that instead of silently not closing it.
+      const body = await response.json().catch(() => null);
+      if (body?.wonBlockedReason) toast.error(body.wonBlockedReason);
       await load();
     } catch {
       toast.error('Could not save this update.');
