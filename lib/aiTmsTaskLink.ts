@@ -1,6 +1,6 @@
 import { db, isUuid } from './db';
 import { TmsTaskStatus, TmsPriority, UserRole } from './types';
-import { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority, reverseAiPriority, buildEntryPatchFromTmsTask } from './aiTmsStatusMapping';
+import { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority, reverseAiPriority, reverseAiStatus, buildEntryPatchFromTmsTask } from './aiTmsStatusMapping';
 import { tmsTaskStore } from './tmsTaskStore';
 import { tmsProjectStore } from './tmsProjectStore';
 import { logAudit } from './auditLogStore';
@@ -197,6 +197,13 @@ export async function createPendingTmsTasksFromEntries(
       }
 
       const now = new Date().toISOString();
+      // The entry's OWN status choice (e.g. a same-day task logged as
+      // already "Completed") becomes the new task's initial status —
+      // otherwise a task created and immediately marked done in the same
+      // report would land in TMS as 'to_do', with no way to tell from the
+      // Daily Report that it was ever anything else.
+      const initialStatus = reverseAiStatus(String(entry.status ?? ''));
+      const isCompleted = initialStatus === 'completed';
       const created = await tmsTaskStore.create({
         id: `${Date.now()}`,
         created_at: now,
@@ -210,11 +217,11 @@ export async function createPendingTmsTasksFromEntries(
         department_name: '',
         description: String(entry.task_description ?? ''),
         priority: reverseAiPriority(String(entry.priority ?? '')) as TmsPriority,
-        status: 'to_do',
-        progress_percent: 0,
+        status: initialStatus,
+        progress_percent: isCompleted ? 100 : 0,
         start_date: '',
         due_date: String(entry.due_date ?? ''),
-        completion_date: '',
+        completion_date: isCompleted ? now.slice(0, 10) : '',
         remarks: 'Created from an AI Daily Report entry.',
         attachments: [],
         updated_at: now
@@ -242,7 +249,8 @@ export async function createPendingTmsTasksFromEntries(
           priority: created.priority,
           status: created.status,
           projectName: created.project_name,
-          progressPercent: created.progress_percent
+          progressPercent: created.progress_percent,
+          completionDate: created.completion_date
         })
       };
     })

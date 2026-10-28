@@ -1,5 +1,23 @@
-import { describe, it, expect } from 'vitest';
-import { mapTmsStatusToAiStatus, mapTmsPriorityToAiPriority, applyLiveTasksToEntries, LiveTmsTask } from '../../lib/aiTmsTaskLink';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../../lib/db', () => ({
+  db: { User: { findByPk: vi.fn() } },
+  isUuid: () => true
+}));
+vi.mock('../../lib/tmsProjectStore', () => ({ tmsProjectStore: { findById: vi.fn() } }));
+vi.mock('../../lib/tmsTaskStore', () => ({ tmsTaskStore: { create: vi.fn() } }));
+vi.mock('../../lib/auditLogStore', () => ({ logAudit: vi.fn() }));
+
+import { db } from '../../lib/db';
+import { tmsProjectStore } from '../../lib/tmsProjectStore';
+import { tmsTaskStore } from '../../lib/tmsTaskStore';
+import {
+  mapTmsStatusToAiStatus,
+  mapTmsPriorityToAiPriority,
+  applyLiveTasksToEntries,
+  createPendingTmsTasksFromEntries,
+  LiveTmsTask
+} from '../../lib/aiTmsTaskLink';
 import { isFieldVisible, BUILT_IN_TEMPLATES } from '../../lib/dailyReportTemplates';
 
 // The integration brief is explicit about which silent status-mapping
@@ -224,5 +242,74 @@ describe('AI_TEMPLATE tms_project_id and project do not trip isAutoRow', () => {
     expect(wouldLock({ project: 'Bhatinda', tms_project_id: 'proj-1' })).toBe(false);
     expect(wouldLock({ tms_task_id: 'task-1' })).toBe(true);
     expect(wouldLock({ tms_project_id: 'proj-1', tms_task_id: 'task-1' })).toBe(true);
+  });
+});
+
+// The actual bug report: a task created in the same report entry it's
+// marked "Completed" in must land in TMS as 'completed' on day one, not the
+// old hardcoded 'to_do' — the employee had no way to tell from the Daily
+// Report that the task they'd just finished showed as not-yet-started in TMS.
+describe('createPendingTmsTasksFromEntries', () => {
+  const findByPkMock = vi.mocked(db.User.findByPk);
+  const findProjectMock = vi.mocked(tmsProjectStore.findById);
+  const createTaskMock = vi.mocked(tmsTaskStore.create);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    findByPkMock.mockResolvedValue({ get: (key: string) => (key === 'username' ? 'priya' : { key: 'engineer' }) } as never);
+    findProjectMock.mockResolvedValue({
+      id: 'proj-1',
+      name: 'Bhatinda',
+      department_id: 'dept-1',
+      project_manager_id: '',
+      team_member_ids: ['emp-1'],
+      created_by: ''
+    } as never);
+    createTaskMock.mockImplementation(async (record) => ({ ...record, id: 'new-task-1' } as never));
+  });
+
+  function pendingEntry(over: Record<string, unknown> = {}) {
+    return { task_description: 'Fix the gripper calibration', tms_project_id: 'proj-1', priority: 'High', status: 'Pending', due_date: '2026-11-05', ...over };
+  }
+
+  it('creates the task as to_do when the entry status is Pending (unchanged default behavior)', async () => {
+    const result = await createPendingTmsTasksFromEntries([pendingEntry()], 'emp-1', 'emp-1');
+    expect(createTaskMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'to_do', progress_percent: 0, completion_date: '' }));
+    expect(result[0].status).toBe('Pending');
+  });
+
+  it('creates the task already completed when the entry was logged as Completed the same day', async () => {
+    const result = await createPendingTmsTasksFromEntries([pendingEntry({ status: 'Completed' })], 'emp-1', 'emp-1');
+
+    expect(createTaskMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'completed', progress_percent: 100 }));
+    const [[createdArgs]] = createTaskMock.mock.calls;
+    expect((createdArgs as { completion_date: string }).completion_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    // The resulting entry patch reflects it too — a linked row's status
+    // comes from buildEntryPatchFromTmsTask, not the entry's own pre-link value.
+    expect(result[0].status).toBe('Completed');
+    expect(result[0].tms_task_id).toBe('new-task-1');
+    expect(result[0].completed_on).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('creates the task as in_progress for an entry logged as In Progress', async () => {
+    await createPendingTmsTasksFromEntries([pendingEntry({ status: 'In Progress' })], 'emp-1', 'emp-1');
+    expect(createTaskMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'in_progress', progress_percent: 0, completion_date: '' }));
+  });
+
+  it('drops the pending project choice without creating a task when the employee is not actually on that project', async () => {
+    findProjectMock.mockResolvedValue({ id: 'proj-1', name: 'Bhatinda', department_id: 'dept-1', project_manager_id: '', team_member_ids: ['someone-else'], created_by: '' } as never);
+
+    const result = await createPendingTmsTasksFromEntries([pendingEntry({ status: 'Completed' })], 'emp-1', 'emp-1');
+
+    expect(createTaskMock).not.toHaveBeenCalled();
+    expect(result[0]).not.toHaveProperty('tms_project_id');
+  });
+
+  it('leaves an already-linked entry untouched', async () => {
+    const entry = { tms_task_id: 'task-1', task_description: 'already linked' };
+    const result = await createPendingTmsTasksFromEntries([entry], 'emp-1', 'emp-1');
+    expect(result).toEqual([entry]);
+    expect(createTaskMock).not.toHaveBeenCalled();
   });
 });

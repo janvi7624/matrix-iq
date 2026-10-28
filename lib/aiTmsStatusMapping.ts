@@ -34,6 +34,26 @@ export function mapTmsPriorityToAiPriority(priority: string): string {
   return TMS_PRIORITY_TO_AI_PRIORITY[priority as TmsPriority] ?? 'Medium';
 }
 
+const AI_STATUS_TO_TMS_STATUS: Record<string, TmsTaskStatus> = {
+  Pending: 'to_do',
+  'In Progress': 'in_progress',
+  Completed: 'completed'
+};
+
+// The reverse of mapTmsStatusToAiStatus — used ONLY when a brand-new TMS
+// task is being created FROM an AI Daily Report entry
+// (lib/aiTmsTaskLink.ts's createPendingTmsTasksFromEntries), so the entry's
+// own already-chosen status becomes that task's initial status instead of
+// always 'to_do' (the bug: logging a task as "Completed" the same day it's
+// first entered still created a fresh 'to_do' TMS task). This is not a
+// second place that changes an EXISTING task's status — once a row is
+// actually linked (tms_task_id set), sync stays one-directional (TMS -> AI),
+// per this file's own header comment; this only sets day-one state for a
+// task that doesn't exist yet.
+export function reverseAiStatus(aiStatus: string): TmsTaskStatus {
+  return AI_STATUS_TO_TMS_STATUS[aiStatus] ?? 'to_do';
+}
+
 const AI_PRIORITY_TO_TMS_PRIORITY: Record<string, TmsPriority> = {
   Low: 'low',
   Medium: 'medium',
