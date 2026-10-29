@@ -261,6 +261,23 @@ export function submissionRecipients(employeeId: string, managers: NotifyTarget[
 }
 
 /**
+ * The same rule for a notice that asks somebody to DECIDE something — an
+ * edit request, a leave claim, an escalation — with one exception: if
+ * dropping the subject would leave nobody, they stay.
+ *
+ * Self-notification is noise, but a pending decision that reached no inbox is
+ * worse than noise. A sole HR manager claiming their own leave would
+ * otherwise raise a claim nobody can see, and a PENDING claim suppresses that
+ * date's warning indefinitely (see notifyLeaveClaimRaised). Being told about
+ * your own request is a silly email; a request that can never be decided is a
+ * stuck record.
+ */
+export function approvalRecipients(subjectId: string, candidates: NotifyTarget[]): NotifyTarget[] {
+  const others = candidates.filter((c) => c.id !== subjectId);
+  return others.length ? others : candidates;
+}
+
+/**
  * Tells the department's manager(s) that a report was filed.
  *
  * Guarded by the 'SUBMITTED' ledger row, which is what satisfies "repeated
@@ -279,7 +296,7 @@ export async function notifyReportSubmitted(notice: SubmissionNotice): Promise<v
 
   const result = await deliver({
     kind: 'submitted',
-    recipients: notice.managers,
+    recipients,
     title: `Daily report submitted — ${notice.employeeName}`,
     body: `${notice.employeeName} submitted their ${notice.reportDate} daily report${notice.late ? ' after the deadline' : ''}.`,
     entityType: 'daily_report',
@@ -318,7 +335,9 @@ export async function notifyLeaveClaimRaised(notice: LeaveClaimNotice): Promise<
   }
   await deliver({
     kind: 'leave_claim',
-    recipients: notice.hrRecipients,
+    // An HR manager claiming their own leave is not told about it by mail —
+    // unless they are the only HR manager, in which case somebody has to be.
+    recipients: approvalRecipients(notice.employeeId, notice.hrRecipients),
     title: `Leave claim — ${notice.employeeName}, ${notice.reportDate}`,
     body: `${notice.employeeName} has claimed leave for ${notice.reportDate} and asked for the daily report to be exempted.`,
     entityType: 'daily_report_leave_claim',
@@ -369,6 +388,7 @@ export async function notifyLeaveDecision(notice: LeaveDecisionNotice): Promise<
 
 export interface EditRequestNotice {
   requestId: string;
+  employeeId: string;
   employeeName: string;
   departmentName: string;
   reportDate: string;
@@ -394,7 +414,10 @@ export async function notifyEditRequestRaised(notice: EditRequestNotice): Promis
   }
   await deliver({
     kind: 'edit_request',
-    recipients: notice.managers,
+    // A manager asking to change their own report hears about it from the
+    // screen they asked on, not by mail — unless they are the department's
+    // only manager, who is also its only approver.
+    recipients: approvalRecipients(notice.employeeId, notice.managers),
     title: `Edit requested — ${notice.employeeName}, ${notice.reportDate}`,
     body: `${notice.employeeName} is asking to change the daily report they filed for ${notice.reportDate}.`,
     entityType: 'daily_report_edit_request',

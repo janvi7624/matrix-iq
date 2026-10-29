@@ -23,7 +23,7 @@ import {
   subjectKey,
   sweepWindow
 } from './dailyReportSweepPlan';
-import { claimNotificationEvent, clearFailedClaim, deliver, loadSentEventKeys, NotifyTarget, recordEventOutcome } from './dailyReportNotify';
+import { approvalRecipients, claimNotificationEvent, clearFailedClaim, deliver, loadSentEventKeys, NotifyTarget, recordEventOutcome } from './dailyReportNotify';
 import { resolveHrRecipients } from './dailyReportAccess';
 import { addDays, formatIst, istDate, monthKey, previousWorkingDay, scheduleFor } from './dailyReportTime';
 import { BUILT_IN_TEMPLATES } from './dailyReportTemplates';
@@ -662,9 +662,15 @@ async function processEscalations(
       continue;
     }
 
+    // An HR manager is not escalated to about their own missed reports while
+    // there is another HR manager to escalate to. If they are the only one,
+    // they stay on it — an escalation that reaches nobody is recorded as a
+    // failure and the repeat offence goes unseen.
+    const escalateTo = approvalRecipients(escalation.employeeId, hrRecipients);
+
     const result = await deliver({
       kind: 'hr_escalation',
-      recipients: hrRecipients.map((m) => ({ username: m.username, name: m.name, email: m.email })),
+      recipients: escalateTo.map((m) => ({ username: m.username, name: m.name, email: m.email })),
       title: `Daily report escalation — ${employee.name}`,
       body: `${employee.name} has ${escalation.activeWarnings} active missed-report warnings in ${escalation.monthKey}.`,
       entityType: 'daily_report_escalation',
@@ -681,7 +687,7 @@ async function processEscalations(
 
     await markEscalationNotified(
       claimed.id,
-      hrRecipients.map((m) => m.username),
+      escalateTo.map((m) => m.username),
       result.inApp || result.email ? 'sent' : 'failed',
       result.emailFailures.length ? `Email not delivered to: ${result.emailFailures.join(', ')}` : undefined
     );

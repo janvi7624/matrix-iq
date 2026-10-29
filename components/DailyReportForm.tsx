@@ -22,7 +22,7 @@ import { useConfirm } from './ui/ConfirmDialog';
 import { useSalesAutoDetail } from './useSalesAutoDetail';
 import TmsTaskPicker, { TmsLinkableTask } from './TmsTaskPicker';
 import TmsLinkedTaskPanel from './TmsLinkedTaskPanel';
-import TmsNewTaskProjectSelect, { TmsProjectOption } from './TmsNewTaskProjectSelect';
+import TmsNewTaskProjectSelect, { TmsProjectOption, SalesProjectOption } from './TmsNewTaskProjectSelect';
 import { buildEntryPatchFromTmsTask, reverseAiPriority } from '@/lib/aiTmsStatusMapping';
 
 // The renderer half of the form engine. One component for all eight
@@ -304,6 +304,7 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
   // Fetched once for the whole report, not once per standalone row — see
   // TmsNewTaskProjectSelect's own comment on why this lives up here.
   const [tmsProjects, setTmsProjects] = useState<TmsProjectOption[] | null>(null);
+  const [salesProjects, setSalesProjects] = useState<SalesProjectOption[] | null>(null);
   const [tmsProjectsError, setTmsProjectsError] = useState('');
   useEffect(() => {
     if (!template.supportsTmsTaskLink) return;
@@ -317,8 +318,11 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
           if (!cancelled) setTmsProjectsError('Could not load your TMS projects.');
           return;
         }
-        const body: { projects: TmsProjectOption[] } = await response.json();
-        if (!cancelled) setTmsProjects(body.projects);
+        const body: { projects: TmsProjectOption[]; salesProjects: SalesProjectOption[] } = await response.json();
+        if (!cancelled) {
+          setTmsProjects(body.projects);
+          setSalesProjects(body.salesProjects);
+        }
       } catch {
         if (!cancelled) setTmsProjectsError('Could not reach the server.');
       }
@@ -652,11 +656,15 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                         {field.key === 'task_description' && template.supportsTmsTaskLink && (
                           <TmsNewTaskProjectSelect
                             projects={tmsProjects}
+                            salesProjects={salesProjects}
                             error={tmsProjectsError}
                             projectId={asString(entry.tms_project_id)}
+                            salesProjectId={asString(entry.sales_project_id)}
                             projectName={asString(entry.project)}
                             locked={disabled || isAutoRow}
-                            onChange={({ projectId, projectName }) => patchEntry(index, { tms_project_id: projectId, project: projectName })}
+                            onChange={({ projectId, salesProjectId, projectName }) =>
+                              patchEntry(index, { tms_project_id: projectId, sales_project_id: salesProjectId, project: projectName })
+                            }
                           />
                         )}
                       </Fragment>

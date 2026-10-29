@@ -3,6 +3,7 @@ import { guardDailyReport, dailyReportErrorResponse, isGuardFailure } from '@/li
 import { resolveEmployeeAccess } from '@/lib/dailyReportAccess';
 import { getTmsViewer, isTmsAdminTier, canManageAllTmsTasks, tmsTeamDepartmentIds } from '@/lib/tmsAccess';
 import { tmsProjectStore } from '@/lib/tmsProjectStore';
+import { listOngoingAssignedProjects } from '@/lib/projectStore';
 import { db } from '@/lib/db';
 
 // The AI Daily Report's "create a TMS task in one of my projects" dropdown —
@@ -36,9 +37,19 @@ export async function GET(request: NextRequest) {
       if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const projects = await tmsProjectStore.listForMember(employeeId);
+    // Two genuinely different things, never merged into one list: a TMS
+    // project becomes a real tracked task on submit, while an ongoing Sales
+    // Project the employee is formally the (or an additional) assigned
+    // technical person on is just a note against that deal — nothing is
+    // created in TMS for it. See TmsNewTaskProjectSelect.tsx for how the
+    // picker keeps the two visually and behaviourally distinct.
+    const [projects, salesProjects] = await Promise.all([
+      tmsProjectStore.listForMember(employeeId),
+      listOngoingAssignedProjects(employeeId)
+    ]);
     return NextResponse.json({
-      projects: projects.map((p) => ({ id: p.id, name: p.name, departmentName: p.department_name }))
+      projects: projects.map((p) => ({ id: p.id, name: p.name, departmentName: p.department_name })),
+      salesProjects
     });
   } catch (error) {
     return dailyReportErrorResponse(error);

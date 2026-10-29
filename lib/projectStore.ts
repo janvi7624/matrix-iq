@@ -4,6 +4,7 @@ import { clearOverrideOnStageChange, clampPercent, resolveClosingPercent } from 
 import { db, isUuid, sequelize } from './db';
 import { resolveVisibilityScope } from './departmentScope';
 import { isUserADepartmentManager, departmentsManagedBy } from './departmentStore';
+import { projectLabel } from './projectLabel';
 
 const FIELDS = [
   { name: 'client_name' },
@@ -669,6 +670,35 @@ export async function listAssignedTechnicalPeople(projectId: string): Promise<{ 
   return rows
     .map((r) => (r.get({ plain: true }) as { person?: { id: string; username: string; name: string } }).person)
     .filter((p): p is { id: string; username: string; name: string } => !!p);
+}
+
+// Active Sales Projects this person is a formally assigned technical person
+// on — PRIMARY (assigned_technical_person_id) or any additional co-assignee
+// (project_technical_assignments) — for the AI Daily Report's project picker
+// (app/api/daily-reports/tms-projects). They're already authorized on these
+// deals; this just surfaces ongoing Sales-side work the same dropdown that
+// already lists their TMS projects, so picking one logs a plain note against
+// it (no TMS task, no further linking — see lib/dailyReportTemplates.ts's
+// AI_TEMPLATE `sales_project_id` field).
+export async function listOngoingAssignedProjects(employeeId: string): Promise<{ id: string; name: string }[]> {
+  if (!isUuid(employeeId)) return [];
+  const teamAssignments = await db.ProjectTechnicalAssignment.findAll({ where: { user_id: employeeId } as never, attributes: ['project_id'] });
+  const teamProjectIds = teamAssignments.map((r) => r.get('project_id') as string);
+  const rows = await db.Project.findAll({
+    where: {
+      status: 'active',
+      [Op.or]: [
+        { assigned_technical_person_id: employeeId },
+        ...(teamProjectIds.length ? [{ id: { [Op.in]: teamProjectIds } }] : [])
+      ]
+    } as never,
+    attributes: ['id', 'project_name', 'client_name', 'company'],
+    order: [['created_at', 'DESC']]
+  });
+  return rows.map((r) => {
+    const p = r.get({ plain: true }) as { id: string; project_name?: string; client_name?: string; company?: string };
+    return { id: p.id, name: projectLabel(p) };
+  });
 }
 
 // Appends one timeline entry and, when `advanceStageTo` is given, moves the

@@ -1012,6 +1012,17 @@ const AI_TEMPLATE: TemplateDefinition = {
     // carries both at once. Left empty when the employee's choice was
     // "Other" (project === 'Other'): nothing gets created, by design.
     { key: 'tms_project_id', label: 'Create TMS Task In Project', type: 'text', hidden: true, locksRowWhenSet: false },
+    // A different kind of pick from tms_project_id above — an ongoing SALES
+    // Project the employee is a formally assigned technical person on
+    // (components/TmsNewTaskProjectSelect.tsx's same dropdown, second
+    // group). Nothing is created or synced in TMS for this: `project` is set
+    // directly to the Sales Project's name on pick (not left pending, since
+    // there is no later submit-time conversion step the way tms_project_id
+    // has), and this field is kept only as the reference so the picker can
+    // show it as selected again and a future report can filter/group by it.
+    // locksRowWhenSet: false for the same reason tms_project_id needs it —
+    // picking this must not freeze the row; it is a plain note, not a link.
+    { key: 'sales_project_id', label: 'Sales Project', type: 'text', hidden: true, locksRowWhenSet: false },
     { key: 'task_description', label: 'Task Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
     // Every task is required to pick one of this employee's real TMS
     // projects, or the literal value 'Other' — management's own decision

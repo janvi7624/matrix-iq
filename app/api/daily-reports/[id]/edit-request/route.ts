@@ -60,6 +60,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const managers = await resolveReportManagers(report.department_name, assignment?.extraManagerIds ?? []);
     await notifyEditRequestRaised({
       requestId: created.id,
+      employeeId: report.employee_id,
       employeeName: report.employee_name,
       departmentName: report.department_name,
       reportDate: report.report_date,
