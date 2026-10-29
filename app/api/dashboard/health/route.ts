@@ -3,9 +3,50 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { resolveVisibilityScope } from '@/lib/departmentScope';
 import { listActiveDepartments, departmentsManagedBy } from '@/lib/departmentStore';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
-import { computeDepartmentScore, ScoringDataCache, TeamMember } from '@/lib/departmentScoring';
+import { computeDepartmentScore, ScoringDataCache, TeamMember, ScoreResult } from '@/lib/departmentScoring';
 import { apiErrorResponse } from '@/lib/apiError';
 import { db } from '@/lib/db';
+
+// Short, TTL-only cache of each department's own ScoreResult — deliberately
+// NOT lib/memoCache.ts's cached(), which is reserved for reference data with
+// an explicit invalidate() on every write path (see its own header comment).
+// There is no single write path to hook for "every table department health
+// reads from" — tms_tasks, tms_projects, quotations, reimbursements and more
+// all feed it — so this is TTL-only on purpose. That is a safe tradeoff ONLY
+// because the UI already tolerates exactly this staleness: Dashboard.tsx's
+// useAutoRefresh polls this same endpoint every DEFAULT_REFRESH_MS (60s, see
+// lib/useAutoRefresh.ts), so a cache window shorter than that never makes
+// what a viewer sees any staler than the page's own refresh cadence already
+// allows — it only collapses however many admin/manager viewers poll within
+// that window into ONE real computation per department instead of one each.
+// Keyed by department NAME (not by viewer or scope), so an org-wide viewer
+// and a department manager who both cover e.g. "AI" share the same cache
+// entry rather than each paying for their own copy of the same computation.
+// That matters because the underlying computation is expensive
+// (computeDepartmentScore does several full-table scans per department) and
+// this app runs on a hard-capped connection budget: the DB role is capped at
+// 20 connections, Sequelize's own pool is 10 per Node process, and
+// lib/useAutoRefresh.ts's own comment already names this exact failure mode
+// — "multiply [the per-request cost] by 45 active users on a few seconds'
+// timer and the refresh is the outage." Every admin/manager polling
+// independently was doing exactly that multiplication; this caps it at one
+// computation per department per TTL window, no matter how many are watching.
+const HEALTH_CACHE_TTL_MS = 30_000;
+const healthCache = new Map<string, { result: { department: string } & ScoreResult; expiresAt: number }>();
+
+// requestCache is the SAME ScoringDataCache the caller shares across every
+// department in one request (see the comment on ScoringDataCache itself) —
+// still worth keeping even with the TTL cache above it, so a burst of
+// several departments all missing at once (e.g. right after this cache's
+// first-ever fill, or right after a TTL expiry) still shares one query per
+// underlying dataset instead of one per department.
+async function cachedDepartmentScore(d: { id: string; name: string }, requestCache: ScoringDataCache): Promise<{ department: string } & ScoreResult> {
+  const hit = healthCache.get(d.name);
+  if (hit && hit.expiresAt > Date.now()) return hit.result;
+  const result = { department: d.name, ...(await safeScore(d.name, await teamFor(d.id), requestCache)) };
+  healthCache.set(d.name, { result, expiresAt: Date.now() + HEALTH_CACHE_TTL_MS });
+  return result;
+}
 
 async function teamFor(departmentId: string): Promise<TeamMember[]> {
   const rows = await db.User.findAll({
@@ -59,24 +100,14 @@ export async function GET(request: NextRequest) {
       // of these concurrent Promise.all branches re-runs the same full-table
       // query. See lib/departmentScoring.ts's ScoringDataCache.
       const cache: ScoringDataCache = {};
-      const gauges = await Promise.all(
-        departments.map(async (d) => ({
-          department: d.name,
-          ...(await safeScore(d.name, await teamFor(d.id), cache))
-        }))
-      );
+      const gauges = await Promise.all(departments.map((d) => cachedDepartmentScore(d, cache)));
       return NextResponse.json({ scope: 'org', gauges });
     }
 
     const managed = await departmentsManagedBy(viewer.username);
     if (managed.length) {
       const cache: ScoringDataCache = {};
-      const gauges = await Promise.all(
-        managed.map(async (d) => ({
-          department: d.name,
-          ...(await safeScore(d.name, await teamFor(d.id), cache))
-        }))
-      );
+      const gauges = await Promise.all(managed.map((d) => cachedDepartmentScore(d, cache)));
       return NextResponse.json({ scope: 'department', gauges });
     }
 
