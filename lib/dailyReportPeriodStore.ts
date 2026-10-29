@@ -131,7 +131,12 @@ export async function getPeriodSummary(viewer: ViewerContext, filters: PeriodFil
     loadPeriodLeave(employeeIds, filters.from, filters.to)
   ]);
 
-  const byEmployee = summarisePeriodByEmployee(subjects, reports, leave);
+  // `now` is what keeps a day that has not reached its own deadline yet out
+  // of "missing" — see summarisePeriodByEmployee's own comment. Without it,
+  // picking "This Month" while the month is still in progress (the normal
+  // case, every month until its last day) reported every remaining working
+  // day as owed and unfiled before anyone could have filed them.
+  const byEmployee = summarisePeriodByEmployee(subjects, reports, leave, new Date());
   const employeeById = new Map(employees.map((e) => [e.id, e]));
 
   const q = (filters.search ?? '').trim().toLowerCase();

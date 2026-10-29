@@ -405,11 +405,22 @@ export async function computeDailyReportRangeSummary(
     loadLeaveCoveredKeys(employeeIds, from, to)
   ]);
 
+  // Same instant for every employee/date in this call — one computation
+  // shared across the whole range rather than a fresh `new Date()` per row,
+  // so two rows can never land on opposite sides of the cut-off by the time
+  // the loop reaches them.
+  const now = new Date();
   let rows: TeamDailyReportRangeRow[] = employees.map((employee) => {
     const owedDates = dates.filter((d) => employeeOwesDate(employee, d));
     let submitted = 0;
     let submittedLate = 0;
     let leaveCoveredCount = 0;
+    // A day with nothing filed and no leave claim is only counted against
+    // anyone once it has actually reached missingIsVisibleYet — otherwise
+    // "This Month" (or the all-departments admin brief) selected while the
+    // month is still in progress reported today, and every remaining working
+    // day of it, as missing before they could possibly have been filed.
+    let notYetDue = 0;
     for (const d of owedDates) {
       const key = `${employee.id}|${d}`;
       const found = statuses.get(key);
@@ -418,9 +429,11 @@ export async function computeDailyReportRangeSummary(
         if (found.is_late) submittedLate += 1;
       } else if (leaveCovered.has(key)) {
         leaveCoveredCount += 1;
+      } else if (!missingIsVisibleYet(d, now)) {
+        notYetDue += 1;
       }
     }
-    const expected = owedDates.length;
+    const expected = owedDates.length - notYetDue;
     const missing = Math.max(0, expected - submitted - leaveCoveredCount);
     return {
       employee_id: employee.id,

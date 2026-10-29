@@ -227,7 +227,7 @@ export const TRACKING_START_DATE = '2026-10-24';
  * evening_reminder_time/final_reminder_time and the warning at deadline_time
  * are all unchanged, and any earlier day is missing from the moment it closes.
  */
-export const MISSING_VISIBLE_AFTER = '18:30';
+export const MISSING_VISIBLE_AFTER = '19:00';
 
 /**
  * Whether an unfiled report for `reportDate` should be shown as missing yet.

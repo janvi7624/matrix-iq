@@ -425,7 +425,7 @@ describe('tracking start date', () => {
 // waits until the evening rather than appearing at midnight. Only the label
 // waits: the obligation, the reminders and the warning are all unchanged.
 describe('when an unfiled report starts reading as missing', () => {
-  // 2026-10-26 13:30 IST == 08:00Z; 18:30 IST == 13:00Z.
+  // 2026-10-26 13:30 IST == 08:00Z; 19:00 IST == 13:30Z.
   const at = (iso: string) => new Date(iso);
 
   it('says nothing is missing earlier in the day', () => {
@@ -433,9 +433,9 @@ describe('when an unfiled report starts reading as missing', () => {
     expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T08:00:00Z'))).toBe(false); // 13:30 IST
   });
 
-  it('turns over exactly at 18:30 IST, not a minute before', () => {
-    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T12:59:00Z'))).toBe(false); // 18:29 IST
-    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T13:00:00Z'))).toBe(true); // 18:30 IST
+  it('turns over exactly at 19:00 IST, not a minute before', () => {
+    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T13:29:00Z'))).toBe(false); // 18:59 IST
+    expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T13:30:00Z'))).toBe(true); // 19:00 IST
     expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T15:00:00Z'))).toBe(true); // 20:30 IST
   });
 

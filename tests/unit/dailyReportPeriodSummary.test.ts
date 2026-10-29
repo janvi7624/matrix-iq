@@ -133,6 +133,68 @@ describe('summarisePeriodByEmployee', () => {
   it('returns nothing when nobody owed anything', () => {
     expect(summarisePeriodByEmployee([], [])).toEqual([]);
   });
+
+  // The actual bug report: "This Month" selected while the month is still in
+  // progress reported every remaining working day as missing before anyone
+  // could have filed it — e.g. picking October on the 29th counted the 30th
+  // and 31st against everybody. `now` is what opts a caller into excluding a
+  // day that has not reached its own deadline yet (missingIsVisibleYet).
+  describe('a day that has not reached its deadline yet (the `now` parameter)', () => {
+    const PAST = ['2026-10-26', '2026-10-27'];
+    const FUTURE_IN_RANGE = ['2026-10-30', '2026-10-31'];
+    const ALL = [...PAST, ...FUTURE_IN_RANGE];
+    const subjectsFor = (employeeId: string) => ALL.map((d) => subject(employeeId, d));
+    // 2026-10-29, well past the default MISSING_VISIBLE_AFTER cutoff (18:30
+    // IST) — the two PAST days are genuinely missing-visible; the two
+    // FUTURE_IN_RANGE days (30th, 31st) have not happened yet relative to
+    // this `now` regardless of the clock, since missingIsVisibleYet treats
+    // any date after today as never-yet-visible.
+    const NOW = new Date('2026-10-29T20:00:00+05:30');
+
+    it('without `now` (every existing caller), future-in-range days still count as owed and missing — unchanged', () => {
+      const [row] = summarisePeriodByEmployee(subjectsFor('a'), []);
+      expect(row).toMatchObject({ owed: 4, expected: 4, missing: 4 });
+    });
+
+    it('with `now`, a day not yet due is excluded from owed/missing entirely', () => {
+      const [row] = summarisePeriodByEmployee(subjectsFor('a'), [], [], NOW);
+      // Only the 2 PAST days are owed — the 2 future-in-range days are not
+      // counted against anyone yet.
+      expect(row).toMatchObject({ owed: 2, expected: 2, missing: 2, filedPercent: 0 });
+    });
+
+    it('a day not yet due that was already filed still counts — filing early is never ignored', () => {
+      const reports: PeriodReport[] = [{ employeeId: 'a', reportDate: '2026-10-30', submissionStatus: 'SUBMITTED' }];
+      const [row] = summarisePeriodByEmployee(subjectsFor('a'), reports, [], NOW);
+      // The 2 past days (missing) + the 1 early-filed future day (on time) —
+      // the 31st, genuinely not filed and not yet due, still excluded.
+      expect(row).toMatchObject({ owed: 3, onTime: 1, missing: 2, filed: 1 });
+    });
+
+    it('an employee whose ONLY obligations are not yet due still appears, with nothing counted against them', () => {
+      const [row] = summarisePeriodByEmployee([subject('a', '2026-10-31')], [], [], NOW);
+      expect(row).toMatchObject({ owed: 0, expected: 0, missing: 0, filedPercent: null });
+    });
+
+    it('still excuses approved leave on a not-yet-due day the same as any other day', () => {
+      const leave: PeriodLeave[] = [{ employeeId: 'a', reportDate: '2026-10-30', status: 'APPROVED' }];
+      const [row] = summarisePeriodByEmployee(subjectsFor('a'), [], leave, NOW);
+      expect(row).toMatchObject({ owed: 3, onLeave: 1, expected: 2, missing: 2 });
+    });
+
+    // The literal "after deadline only" case: TODAY itself, before vs. after
+    // the 18:30 IST cutoff — not a future date at all, just too early in the
+    // same day.
+    it('does not count TODAY as missing before 18:30 IST, even with nothing filed yet', () => {
+      const [row] = summarisePeriodByEmployee([subject('a', '2026-10-29')], [], [], new Date('2026-10-29T09:00:00+05:30'));
+      expect(row).toMatchObject({ owed: 0, missing: 0, filedPercent: null });
+    });
+
+    it('counts TODAY as missing once 18:30 IST has passed, same as any other day', () => {
+      const [row] = summarisePeriodByEmployee([subject('a', '2026-10-29')], [], [], new Date('2026-10-29T19:00:00+05:30'));
+      expect(row).toMatchObject({ owed: 1, missing: 1, filedPercent: 0 });
+    });
+  });
 });
 
 describe('rollUp', () => {

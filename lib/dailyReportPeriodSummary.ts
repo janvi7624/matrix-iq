@@ -1,3 +1,5 @@
+import { missingIsVisibleYet } from './dailyReportTime';
+
 // Daily Report compliance over a PERIOD rather than a single day.
 //
 // The existing team view answers "who owed a report today and did they file
@@ -118,11 +120,27 @@ function finalise(t: PeriodTotals): PeriodTotals {
  * filed for a non-working day, or by somebody who was not eligible that day,
  * is real but it is not evidence of compliance with an obligation that did not
  * exist — and counting it could push a percentage above 100.
+ *
+ * `now`, if given, keeps a day that has not reached its own submission
+ * deadline yet (missingIsVisibleYet, lib/dailyReportTime.ts) out of the
+ * denominator UNLESS it already has a real report — so filing early still
+ * counts, but not having filed yet, with hours left before the deadline,
+ * does not count against anyone. Omitted (every one of this function's
+ * existing callers/tests), the day is counted exactly as before: this stays
+ * opt-in so a caller who deliberately queries a past, closed range (nothing
+ * in it could possibly be "not due yet") pays nothing for the check, and no
+ * existing test needs a Date threaded through it to keep passing.
+ *
+ * Without this, a RANGE that extends into today or later — "This Month"
+ * selected while the month is still in progress is the common case —
+ * reported every day from tomorrow's close of business onward as owed and
+ * therefore missing, before anyone could possibly have filed them.
  */
 export function summarisePeriodByEmployee(
   subjects: PeriodSubject[],
   reports: PeriodReport[],
-  leave: PeriodLeave[] = []
+  leave: PeriodLeave[] = [],
+  now?: Date
 ): EmployeePeriodSummary[] {
   const reportByKey = new Map<string, PeriodSubmissionStatus>();
   for (const r of reports) reportByKey.set(key(r.employeeId, r.reportDate), r.submissionStatus);
@@ -136,16 +154,25 @@ export function summarisePeriodByEmployee(
   for (const s of subjects) {
     const k = key(s.employeeId, s.reportDate);
     const t = byEmployee.get(s.employeeId) ?? emptyTotals();
-    t.owed += 1;
+    const isLeave = approvedLeave.has(k);
+    const status = reportByKey.get(k);
+    const filed = status === 'SUBMITTED' || status === 'SUBMITTED_LATE';
 
-    if (approvedLeave.has(k)) {
-      t.onLeave += 1;
-    } else {
-      const status = reportByKey.get(k);
-      if (status === 'SUBMITTED') t.onTime += 1;
-      else if (status === 'SUBMITTED_LATE') t.late += 1;
-      // DRAFT and absent both fall through to missing, which finalise derives.
+    // Nothing filed, not excused, and (when checked) not due yet — not owed
+    // YET either, rather than counted as missing. Still recorded via
+    // byEmployee.set below so this employee does not vanish from the report
+    // entirely when every one of their days happens to land here.
+    if (!filed && !isLeave && now && !missingIsVisibleYet(s.reportDate, now)) {
+      byEmployee.set(s.employeeId, t);
+      continue;
     }
+
+    t.owed += 1;
+    if (isLeave) t.onLeave += 1;
+    else if (status === 'SUBMITTED') t.onTime += 1;
+    else if (status === 'SUBMITTED_LATE') t.late += 1;
+    // DRAFT and absent (past its deadline) both fall through to missing,
+    // which finalise derives.
 
     byEmployee.set(s.employeeId, t);
   }

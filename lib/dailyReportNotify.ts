@@ -132,6 +132,8 @@ export async function loadSentEventKeys(employeeIds: string[], from: string, to:
 // --------------------------------------------------------------------------
 
 export interface NotifyTarget {
+  /** The user id, where the caller has it — used to recognise self-sends. */
+  id?: string;
   username: string;
   name: string;
   email: string;
@@ -240,6 +242,25 @@ export interface SubmissionNotice {
 }
 
 /**
+ * Who is actually told that a report was filed: the department's managers,
+ * minus the person whose report it is.
+ *
+ * A department head files a daily report like everybody else, and
+ * resolveReportManagers answers "who manages this department" — so for their
+ * OWN report they come back in their own recipient list and get told, by
+ * mail and by bell, that they submitted their report. They know; they just
+ * clicked the button. Nobody needs announcing to themselves, and a notice
+ * that tells you what you have just done teaches people to ignore the whole
+ * channel, which is the real cost.
+ *
+ * Matched on id, not username, because that is what Department Master and
+ * the template's extra recipients both carry.
+ */
+export function submissionRecipients(employeeId: string, managers: NotifyTarget[]): NotifyTarget[] {
+  return managers.filter((m) => m.id !== employeeId);
+}
+
+/**
  * Tells the department's manager(s) that a report was filed.
  *
  * Guarded by the 'SUBMITTED' ledger row, which is what satisfies "repeated
@@ -248,7 +269,11 @@ export interface SubmissionNotice {
  * all find the row already there and send nothing.
  */
 export async function notifyReportSubmitted(notice: SubmissionNotice): Promise<void> {
-  if (!notice.managers.length) return;
+  const recipients = submissionRecipients(notice.employeeId, notice.managers);
+  // Checked BEFORE the claim: a sole department head filing their own report
+  // leaves nobody to tell, and burning the ledger slot on a send that never
+  // happens would be indistinguishable from one that did.
+  if (!recipients.length) return;
   const claim = await claimNotificationEvent(notice.employeeId, notice.reportDate, 'SUBMITTED', notice.submittedAt, false);
   if (!claim) return;
 
