@@ -1,6 +1,6 @@
 import { getDailyReportConfig, getDeadlinePolicy } from './dailyReportConfigStore';
 import { EligibleEmployee, employeeOwesDate, expandSubjects, listEligibleEmployees } from './dailyReportEligibility';
-import { autoSubmitReport, loadReportedActivityByKey, loadSubmittedKeys } from './dailyReportStore';
+import { autoSubmitReport, loadGrandTotalsByKey, loadSubmittedKeys } from './dailyReportStore';
 import { loadLeaveCoveredKeys } from './dailyReportLeaveClaimStore';
 import {
   claimEscalation,
@@ -311,8 +311,8 @@ export async function runDailyReportSweep(options: SweepOptions = {}): Promise<S
       // started before the window could never be detected the day the
       // window first includes it.
       const extendedFrom = previousWorkingDay(from, policy);
-      const [activityByKey, alreadyWarned] = await Promise.all([
-        loadReportedActivityByKey(salesIds, extendedFrom, to),
+      const [grandTotalByKey, alreadyWarned] = await Promise.all([
+        loadGrandTotalsByKey(salesIds, extendedFrom, to),
         // Scoped to zero_total only: a date can already carry a 'scheduler'
         // (missed entirely) warning from before it was later auto-submitted
         // — that date's one (employee, date) slot is occupied by an
@@ -323,7 +323,7 @@ export async function runDailyReportSweep(options: SweepOptions = {}): Promise<S
       ]);
       const extendedDates = [extendedFrom, ...reportDates];
       const datesByEmployee = new Map(salesEmployees.map((e) => [e.id, extendedDates.filter((d) => employeeOwesDate(e, d))]));
-      const plannedZero = planZeroTotalWarnings(datesByEmployee, activityByKey, alreadyWarned);
+      const plannedZero = planZeroTotalWarnings(datesByEmployee, grandTotalByKey, alreadyWarned);
 
       for (const zero of plannedZero) {
         const employee = employeeById.get(zero.employeeId);
@@ -554,12 +554,12 @@ async function processZeroTotalWarning(planned: PlannedZeroTotalWarning, employe
     const result = await deliver({
       kind: 'zero_total_warning',
       recipients: [targetFor(employee)],
-      // Says what is actually being measured. The old wording — "your
-      // auto-tracked sales activity has been zero" — described a signal that
-      // ignored everything the person typed, so a rep who had entered a
-      // dozen meetings was told they had recorded nothing.
-      title: `No activity reported — ${planned.reportDate}`,
-      body: `Your daily report has shown no activity for two reporting days in a row, through ${planned.reportDate} — every figure zero and no notes. If that is not right, open the report and fill in your numbers or add a note. You have ${activeCount} active warning${activeCount === 1 ? '' : 's'} this month.`,
+      // Says what is actually being measured: the report's grand total. The
+      // old wording — "your auto-tracked sales activity has been zero" —
+      // described a signal that ignored everything the person typed, so a rep
+      // who had entered a dozen meetings was told they had recorded nothing.
+      title: `Daily report total is zero — ${planned.reportDate}`,
+      body: `Your daily report has come to a grand total of zero for two reporting days in a row, through ${planned.reportDate}. If that is not right, open the report and fill in your figures. You have ${activeCount} active warning${activeCount === 1 ? '' : 's'} this month.`,
       // Same reasoning as processWarning's own fallback: a null `warning`
       // means the row already existed, so the notification still resolves
       // somewhere sensible via the claimed ledger row instead.
@@ -749,13 +749,13 @@ export async function previewDailyReportSweep(now = new Date()): Promise<{
     if (autoSubmitDue) byKind.AUTO_SUBMIT = autoSubmitDue;
 
     const extendedFrom = previousWorkingDay(from, policy);
-    const [activityByKey, alreadyWarned] = await Promise.all([
-      loadReportedActivityByKey(salesIds, extendedFrom, to),
+    const [grandTotalByKey, alreadyWarned] = await Promise.all([
+      loadGrandTotalsByKey(salesIds, extendedFrom, to),
       loadWarningKeys(salesIds, extendedFrom, to, ['zero_total'])
     ]);
     const extendedDates = [extendedFrom, ...reportDates];
     const datesByEmployee = new Map(salesEmployees.map((e) => [e.id, extendedDates.filter((d) => employeeOwesDate(e, d))]));
-    zeroTotalWarningsDue = planZeroTotalWarnings(datesByEmployee, activityByKey, alreadyWarned).length;
+    zeroTotalWarningsDue = planZeroTotalWarnings(datesByEmployee, grandTotalByKey, alreadyWarned).length;
     if (zeroTotalWarningsDue) byKind.ZERO_TOTAL_WARNING = zeroTotalWarningsDue;
   }
 

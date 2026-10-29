@@ -14,7 +14,6 @@
 // Pure: no DB, no clock of its own (`now` is always passed in), no I/O.
 
 import { DeadlinePolicy, istInstant, monthKey, nextWorkingDay, scheduleFor, WorkingDayPolicy, workingDaysBetween } from './dailyReportTime';
-import { ReportedActivity } from './dailyReportTypes';
 
 /**
  * The three time-triggered events, in the order they fire for one reporting
@@ -190,14 +189,15 @@ export interface PlannedZeroTotalWarning {
 
 /**
  * The second (and every further) consecutive reporting day on which an
- * employee REPORTED nothing at all.
+ * employee's report came to a GRAND TOTAL of zero.
  *
- * "Nothing at all" means every cell of their submitted matrix was zero AND
- * they wrote no notes. It used to mean only that the auto-fetched measures
- * summed to zero, which warned people for work the app cannot observe — see
- * ReportedActivity in lib/dailyReportTypes.ts for what that cost. The streak
- * logic here was never the bug and is unchanged; what counts as a zero day
- * is.
+ * The grand total is every measure cell on the submitted matrix, auto and
+ * manual alike — so any figure anywhere on the report clears the day. It used
+ * to be the AUTO-fetched measures only, which warned people for work the app
+ * cannot observe: on the Sales template, Meetings Completed and Meetings
+ * Scheduled are typed by hand because nothing records a meeting, so a rep
+ * with a day of meetings totalled zero and got warned. The streak logic here
+ * was never the bug and is unchanged; what counts as a zero day is.
  *
  * `datesByEmployee` must list each employee's OWED reporting dates in
  * chronological order, starting one working day before the earliest date a
@@ -205,15 +205,15 @@ export interface PlannedZeroTotalWarning {
  * date has no predecessor to compare against and a streak that started
  * before the window can never be detected.
  *
- * `activityByKey` (subjectKey -> ReportedActivity) has an entry ONLY for a
- * date that was genuinely submitted. A missing entry breaks the streak
- * rather than counting as a zero day — an employee who simply never filed is
- * already the missed-report warning's problem, a different one from "filed,
- * and reported a genuinely empty day."
+ * `grandTotalByKey` has an entry ONLY for a date that was genuinely
+ * submitted. A missing entry breaks the streak rather than counting as a zero
+ * day — an employee who simply never filed is already the missed-report
+ * warning's problem, a different one from "filed, and reported a genuinely
+ * empty day."
  */
 export function planZeroTotalWarnings(
   datesByEmployee: Map<string, string[]>,
-  activityByKey: Map<string, ReportedActivity>,
+  grandTotalByKey: Map<string, number>,
   alreadyWarned: Set<string>
 ): PlannedZeroTotalWarning[] {
   const planned: PlannedZeroTotalWarning[] = [];
@@ -221,12 +221,12 @@ export function planZeroTotalWarnings(
   for (const [employeeId, dates] of datesByEmployee) {
     let streak = 0;
     for (const reportDate of dates) {
-      const activity = activityByKey.get(subjectKey(employeeId, reportDate));
-      if (activity === undefined) {
+      const grandTotal = grandTotalByKey.get(subjectKey(employeeId, reportDate));
+      if (grandTotal === undefined) {
         streak = 0;
         continue;
       }
-      if (activity.total > 0 || activity.hasNarrative) {
+      if (grandTotal > 0) {
         streak = 0;
         continue;
       }

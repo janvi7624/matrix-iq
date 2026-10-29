@@ -9,7 +9,7 @@ import { LEAD_REFERENCE_OPTIONS, LeadReference } from '@/lib/leadReferenceOption
 import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
 import { isLeadUnattended } from '@/lib/followUp';
 import { todayDateInputValue } from '@/lib/dateHelpers';
-import { AlertTriangle, Ban, CalendarClock, CheckCircle2, Flame, Contact, Phone, PhoneCall, Share2, UserPlus, UserCheck, Pencil } from 'lucide-react';
+import { AlertTriangle, Ban, CalendarClock, CheckCircle2, Flame, Contact, Phone, PhoneCall, Share2, UserPlus, UserCheck, Pencil, Eye } from 'lucide-react';
 import AppShell from './AppShell';
 import LeadCaptureWizard from './LeadCaptureWizard';
 import LeadBulkImportWizard from './LeadBulkImportWizard';
@@ -236,6 +236,11 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [page, setPage] = useState(1);
   const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number; unassigned: number; assignedToMe: number } | null>(null);
   const [metaInfoLead, setMetaInfoLead] = useState<LeadRecord | null>(null);
+  // The row's "View Full Details" action — everything the row itself no
+  // longer shows (Email, Designation, the plain Source/origin tag,
+  // Captured By) plus the actions that used to clutter every row
+  // regardless of state (View Project / To Project / Delete) now live here.
+  const [viewLead, setViewLead] = useState<LeadRecord | null>(null);
   const [editingLead, setEditingLead] = useState<LeadRecord | null>(null);
   const [editForm, setEditForm] = useState({
     name: '', company: '', designation: '', mobile: '', alt_mobile: '', email: '', city: '', company_address: '', reference: '' as LeadReference, budget: '', priority: '' as LeadPriority, notes: '',
@@ -879,9 +884,11 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   columns.push(
     { key: 'name', header: 'Name', render: (l) => l.name || '-' },
     { key: 'company', header: 'Company', render: (l) => l.company || '-' },
-    { key: 'designation', header: 'Designation', render: (l) => l.designation || '-' },
     { key: 'mobile', header: 'Mobile', cellClassName: leadStyles.num, render: (l) => l.mobile || '-' },
-    { key: 'email', header: 'Email', render: (l) => l.email || '-' },
+    // Email dropped from the list too (still visible in View Full Details)
+    // — one more column off the row so the table fits one screen width
+    // without a nested scroll box, same reasoning as the columns already
+    // dropped above.
     // Meta's lead-gen forms carry no domain-interest or hot/warm/cool concept
     // (every Meta lead is created with interests: [] and priority: '' — see
     // lib/metaLeadIngest.ts), so those two columns are dead weight once the
@@ -919,18 +926,11 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             }
           }
         ]),
-    // Two columns, because they answer different questions: where the lead
-    // came from (what sales reports on) and how it got in (the camera icon
-    // that tells a rep this row came off a scanned card).
-    {
-      key: 'leadSource',
-      header: 'Source',
-      render: (l) => (
-        l.lead_source
-          ? <span className={leadStyles.originTag}>{leadOriginLabel(l.lead_source)}</span>
-          : <span className={leadStyles.emptyCell}>{LEAD_ORIGIN_UNSET_LABEL}</span>
-      )
-    },
+    // Origin/campaign (lead_source) dropped from the list itself — it's
+    // still filterable via the Source dropdown above, and the badge below
+    // plus Edit cover it per-row; keeping both here was the Leads
+    // equivalent of Projects' old Status+Confirmation redundancy that made
+    // the table too wide to read at a normal screen size.
     { key: 'source', header: 'Captured via', render: (l) => <SourceBadge lead={l} onClick={() => setMetaInfoLead(l)} /> },
     {
       key: 'assignedTo',
@@ -979,34 +979,51 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
         )
     },
     { key: 'call', header: 'Call', render: (l) => <CallCell lead={l} todayKey={todayKey} /> },
-    { key: 'capturedBy', header: 'Captured By', render: (l) => l.created_by },
     { key: 'date', header: 'Date', render: (l) => formatDateTime(l.created_at) },
     {
       key: 'actions',
       header: '',
+      // Same compact pill style Projects' table already settled on
+      // (historyStyles.rowAction/.rowActionPrimary) — short labels with a
+      // full-sentence title tooltip instead of spelling everything out in
+      // the button itself, which is what made three actions too wide for
+      // the row in the first place.
+      cellClassName: historyStyles.rowActionsInline,
       render: (l) => (
-        <div className={leadStyles.rowActions}>
+        <>
           {/* The call is the way through now — nothing reaches the pipeline
               until somebody has rung the contact and said it's worth it, so
               it leads for a lead that's been handed over and not yet called. */}
           {canLogCall(l, currentUser.username, canAssign) && (
-            <ToolbarButton primary={leadNeedsCall(l)} onClick={() => openCallLead(l)} aria-label={`Log call for lead ${l.name || l.company || l.id}`}>
-              <Phone size={12} className={leadStyles.editIcon} /> Log Call
-            </ToolbarButton>
+            <button
+              type="button"
+              className={`${historyStyles.rowAction} ${leadNeedsCall(l) ? historyStyles.rowActionPrimary : ''}`}
+              onClick={() => openCallLead(l)}
+              title={`Log a call for ${l.name || l.company || 'this lead'}`}
+            >
+              <Phone size={12} /> Call
+            </button>
           )}
-          <ToolbarButton onClick={() => openEditLead(l)} aria-label={`Edit lead ${l.name || l.company || l.id}`}>
-            <Pencil size={12} className={leadStyles.editIcon} /> Edit
-          </ToolbarButton>
-          {l.project_id ? (
-            <Link href={`/projects/${l.project_id}`} className={leadStyles.mutedLink}>View Project</Link>
-          ) : l.call_outcome === 'suitable' ? (
-            // Only for a suitable call whose project didn't get made — the
-            // call itself creates it, and the endpoint 400s for every other
-            // outcome, so offering this anywhere else is a dead end.
-            <ToolbarButton onClick={() => handleConvertToProject(l.id)}>To Project</ToolbarButton>
-          ) : null}
-          {isPrivileged && <DeleteButton onClick={() => handleDelete(l)}>Delete</DeleteButton>}
-        </div>
+          {/* Everything else a row used to show inline (View Project / To
+              Project / Delete) now lives inside this panel instead, so the
+              row keeps exactly three actions regardless of a lead's state. */}
+          <button
+            type="button"
+            className={historyStyles.rowAction}
+            onClick={() => setViewLead(l)}
+            title={`View full details for ${l.name || l.company || 'this lead'}`}
+          >
+            <Eye size={12} /> Details
+          </button>
+          <button
+            type="button"
+            className={historyStyles.rowAction}
+            onClick={() => openEditLead(l)}
+            title={`Edit details for ${l.name || l.company || 'this lead'}`}
+          >
+            <Pencil size={12} /> Edit
+          </button>
+        </>
       )
     }
   );
@@ -1292,10 +1309,14 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             )}
 
             {loading ? (
-              <TableWrap><SkeletonRows rows={8} columns={9} /></TableWrap>
+              <TableWrap><SkeletonRows rows={8} columns={columns.length} /></TableWrap>
             ) : loadFailed ? (
               <ErrorState message="Could not load leads — check your connection and try again." onRetry={loadLeads} />
             ) : (
+              // No capped-height/internal-scroll wrapper here (unlike Projects'
+              // .tableViewport) — with Email/Designation/Source/Captured-By
+              // gone and a per-page row count that fits a normal screen, the
+              // page itself is meant to be the only thing that ever scrolls.
               <Table
                 columns={columns}
                 rows={pageRows}
@@ -1351,6 +1372,62 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 disabled={converting}
               />
             </Field>
+          </Modal>
+        )}
+
+        {viewLead && (
+          <Modal
+            title={viewLead.name || viewLead.company || 'Lead Details'}
+            ariaLabel="Lead Details"
+            size="wide"
+            onClose={() => setViewLead(null)}
+            footer={
+              <>
+                {viewLead.project_id ? (
+                  <Link href={`/projects/${viewLead.project_id}`} className={leadStyles.mutedLink}>View Project</Link>
+                ) : viewLead.call_outcome === 'suitable' ? (
+                  <ToolbarButton onClick={() => handleConvertToProject(viewLead.id)}>To Project</ToolbarButton>
+                ) : null}
+                {isPrivileged && <DeleteButton onClick={() => { setViewLead(null); handleDelete(viewLead); }}>Delete</DeleteButton>}
+                <ModalOkButton onClick={() => setViewLead(null)}>Close</ModalOkButton>
+              </>
+            }
+          >
+            <div className={leadStyles.metaGrid}>
+              <span className={leadStyles.metaLabel}>Company</span><span>{viewLead.company || '—'}</span>
+              <span className={leadStyles.metaLabel}>Designation</span><span>{viewLead.designation || '—'}</span>
+              <span className={leadStyles.metaLabel}>Mobile</span><span>{viewLead.mobile || '—'}</span>
+              <span className={leadStyles.metaLabel}>Alt. Mobile</span><span>{viewLead.alt_mobile || '—'}</span>
+              <span className={leadStyles.metaLabel}>Email</span><span>{viewLead.email || '—'}</span>
+              <span className={leadStyles.metaLabel}>City</span><span>{viewLead.city || '—'}</span>
+              <span className={leadStyles.metaLabel}>Company Address</span><span>{viewLead.company_address || '—'}</span>
+              <span className={leadStyles.metaLabel}>Reference</span><span>{viewLead.reference || '—'}</span>
+              <span className={leadStyles.metaLabel}>Interests</span>
+              <span>{viewLead.interests.length ? viewLead.interests.join(', ') : '—'}</span>
+              <span className={leadStyles.metaLabel}>Sub-interests</span>
+              <span>{viewLead.sub_interests.length ? viewLead.sub_interests.join(', ') : '—'}</span>
+              <span className={leadStyles.metaLabel}>Priority</span><span>{viewLead.priority ? viewLead.priority.toUpperCase() : '—'}</span>
+              <span className={leadStyles.metaLabel}>Budget</span><span>{viewLead.budget || '—'}</span>
+              <span className={leadStyles.metaLabel}>Lead Source</span>
+              <span>{viewLead.lead_source ? leadOriginLabel(viewLead.lead_source) : LEAD_ORIGIN_UNSET_LABEL}</span>
+              <span className={leadStyles.metaLabel}>Captured via</span><span><SourceBadge lead={viewLead} /></span>
+              <span className={leadStyles.metaLabel}>Captured By</span><span>{viewLead.created_by || '—'}</span>
+              <span className={leadStyles.metaLabel}>Captured On</span><span>{formatDateTime(viewLead.created_at)}</span>
+              <span className={leadStyles.metaLabel}>Assigned To</span>
+              <span>{viewLead.assigned_to_name || viewLead.assigned_to || '—'}{viewLead.assigned_by ? ` (by ${viewLead.assigned_by})` : ''}</span>
+              <span className={leadStyles.metaLabel}>Call Outcome</span>
+              <span>{viewLead.call_outcome ? CALL_OUTCOME_META[viewLead.call_outcome].label : '—'}</span>
+              <span className={leadStyles.metaLabel}>Call Remark</span><span>{viewLead.call_remark || '—'}</span>
+              <span className={leadStyles.metaLabel}>Callback Due</span><span>{viewLead.callback_at || '—'}</span>
+              <span className={leadStyles.metaLabel}>Notes</span><span>{viewLead.notes || '—'}</span>
+              {viewLead.source === 'meta_lead_ads' && (
+                <>
+                  <span className={leadStyles.metaLabel}>Meta Platform</span><span>{metaPlatformLabel(viewLead.meta_platform)}</span>
+                  <span className={leadStyles.metaLabel}>Meta Campaign</span><span>{viewLead.meta_campaign_name || '—'}</span>
+                  <span className={leadStyles.metaLabel}>Meta Form</span><span>{viewLead.meta_form_name || '—'}</span>
+                </>
+              )}
+            </div>
           </Modal>
         )}
 

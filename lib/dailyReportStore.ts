@@ -5,8 +5,7 @@ import {
   DailyReportHistoryItem,
   DailyReportRecord,
   DailyReportRevisionRecord,
-  DailyReportSubmissionStatus,
-  ReportedActivity
+  DailyReportSubmissionStatus
 } from './dailyReportTypes';
 import {
   BUILT_IN_TEMPLATES,
@@ -660,41 +659,42 @@ export async function loadSubmittedKeys(employeeIds: string[], from: string, to:
 }
 
 /**
- * subjectKey -> what a SUBMITTED report says the employee did that day, for
- * lib/dailyReportSweepPlan.ts's planZeroTotalWarnings.
+ * subjectKey -> a SUBMITTED report's GRAND TOTAL: every measure cell on the
+ * matrix summed, auto and manual alike. The input to
+ * lib/dailyReportSweepPlan.ts's planZeroTotalWarnings, which warns only when
+ * this is zero.
  *
- * This deliberately counts THE WHOLE MATRIX, auto and manual cells alike,
- * plus whether the day was written up in the notes. It used to count only
- * the auto-fetched measures — "whether the auto fetch found anything, not
- * whether the employee typed anything" — and that was the bug: on the Sales
- * template the auto measures are 5 of 7 cells, the exceptions being Meetings
- * Completed and Meetings Scheduled, which stay manual because nothing in the
- * app observes a meeting. A rep whose day was meetings filled in a complete
- * report and was still warned for "no sales activity", into the same ledger
- * that escalates to HR at 3 occurrences. Every one of the 13 warnings on
- * record when this was found was of that kind.
+ * The grand total is the whole point. This used to sum only the AUTO-fetched
+ * measures — "whether the auto fetch found anything, not whether the employee
+ * typed anything" — and that was the bug. On the Sales template the auto
+ * measures are 5 of 7 cells; the exceptions are Meetings Completed and
+ * Meetings Scheduled, which stay manual because nothing in the app observes a
+ * meeting. So a rep whose day was meetings filed a full matrix and was still
+ * warned for "no sales activity", into the ledger that escalates to HR. One
+ * of them had entered 15 meetings.
  *
  * Reads the already-stored `matrix` rather than recomputing from
  * Lead/Quotation — saveReport overlays fresh auto values on every save and
  * submit (see computeSalesAutoMatrix), so a submitted report's stored value
  * for an auto measure key already IS the auto-fetched one. Summing every key
  * present also picks up retired measures a historical report still carries
- * (e.g. 'Quotations Sent'), which is correct: it was reported activity.
+ * (e.g. 'Quotations Sent'), which is correct: it counted toward that day's
+ * total when it was reported.
+ *
+ * Deliberately NOT consulting the notes field. The rule is the grand total
+ * and nothing else, so a rep who files all zeros still owes an explanation
+ * to a human rather than having the warning suppressed by any text at all.
  *
  * Eligibility is still keyed on the template having autoMeasures, so exactly
- * the same population is considered as before — only the question asked
- * about them changed.
+ * the same population is considered as before — only the question asked about
+ * them changed.
  */
-export async function loadReportedActivityByKey(
-  employeeIds: string[],
-  from: string,
-  to: string
-): Promise<Map<string, ReportedActivity>> {
-  const map = new Map<string, ReportedActivity>();
+export async function loadGrandTotalsByKey(employeeIds: string[], from: string, to: string): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
   if (!employeeIds.length) return map;
   const rows = await db.DailyReport.findAll({
     where: { employee_id: employeeIds, report_date: { [Op.between]: [from, to] }, submission_status: SUBMITTED_STATUSES } as never,
-    attributes: ['employee_id', 'report_date', 'template_key', 'matrix', 'payload']
+    attributes: ['employee_id', 'report_date', 'template_key', 'matrix']
   });
   for (const row of rows) {
     const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -705,12 +705,7 @@ export async function loadReportedActivityByKey(
     for (const perChannel of Object.values(matrix)) {
       for (const value of Object.values(perChannel ?? {})) total += Number(value) || 0;
     }
-    const payload = (plain.payload as Record<string, unknown>) ?? {};
-    const narrative = typeof payload.notes === 'string' ? payload.notes.trim() : '';
-    map.set(lookupKey(plain.employee_id as string, dateOnly(plain.report_date)), {
-      total,
-      hasNarrative: narrative !== ''
-    });
+    map.set(lookupKey(plain.employee_id as string, dateOnly(plain.report_date)), total);
   }
   return map;
 }
