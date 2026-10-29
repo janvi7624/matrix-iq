@@ -81,6 +81,16 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
   const [totalInWords, setTotalInWords] = useState('');
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  // Custom range, off by default so the filter opens on the single month it
+  // always has and the To selects stay out of the way until asked for.
+  //
+  // In single-month mode the range's two ends are BOTH (year, month) — see
+  // rangeToYear/rangeToMonth below. That is deliberate: the query, the total
+  // label and the export then have one code path rather than a month path and
+  // a range path that can drift apart.
+  const [rangeMode, setRangeMode] = useState(false);
+  const [toYear, setToYear] = useState(now.getFullYear());
+  const [toMonth, setToMonth] = useState(now.getMonth() + 1);
 
   const [loading, setLoading] = useState(true);
   // True once a fetch has completed at least once. Only the very first load
@@ -139,10 +149,12 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
   // allowed to touch state; every earlier one is a silent no-op.
   const requestIdRef = useRef(0);
 
-  const fetchRecords = useCallback(async (y: number, m: number) => {
+  const fetchRecords = useCallback(async (fromY: number, fromM: number, toY: number, toM: number) => {
     const requestId = ++requestIdRef.current;
     try {
-      const res = await fetch(`/api/office-operation-expenses?year=${y}&month=${m}`);
+      const res = await fetch(
+        `/api/office-operation-expenses?fromYear=${fromY}&fromMonth=${fromM}&toYear=${toY}&toMonth=${toM}`
+      );
       const data = await res.json().catch(() => null);
       if (requestId !== requestIdRef.current) return;
       if (!res.ok) {
@@ -175,14 +187,29 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
       .catch(() => { /* form falls back to disabled selects until this succeeds */ });
   }, [optionsKey]);
 
+  // The far end of the period actually queried: the To selects in range mode,
+  // and the From month itself otherwise. Everything downstream — the fetch,
+  // the total label, the export, the after-save jump — reads these rather
+  // than branching on rangeMode.
+  const rangeToYear = rangeMode ? toYear : year;
+  const rangeToMonth = rangeMode ? toMonth : month;
+
+  // "October 2026", or "August 2026 – October 2026" once the period spans more
+  // than one month. Equal ends read as the single month, so switching the
+  // range on without widening it leaves the heading alone.
+  const periodLabel =
+    rangeToYear === year && rangeToMonth === month
+      ? `${MONTH_NAMES[month]} ${year}`
+      : `${MONTH_NAMES[month]} ${year} – ${MONTH_NAMES[rangeToMonth]} ${rangeToYear}`;
+
   useEffect(() => {
     // fetchRecords has no synchronous setState — every setState in it runs
     // after an `await` or in `finally` — but the rule can't see through the
     // async boundary and flags any reachable setState. Suppressed rather than
     // restructured because reloading on a filter change IS effect work.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchRecords(year, month);
-  }, [year, month, fetchRecords]);
+    fetchRecords(year, month, rangeToYear, rangeToMonth);
+  }, [year, month, rangeToYear, rangeToMonth, fetchRecords]);
 
   function resetForm() {
     setForm(emptyForm);
@@ -236,7 +263,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         return;
       }
       toast.success(data?.message || 'Expense deleted');
-      await fetchRecords(year, month);
+      await fetchRecords(year, month, rangeToYear, rangeToMonth);
     } catch {
       toast.error('Network error');
     } finally {
@@ -308,14 +335,24 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
       setShowForm(false);
 
       // Jump the filter to the saved entry's month so a row dated outside the
-      // month currently on screen doesn't silently vanish after saving.
+      // period currently on screen doesn't silently vanish after saving.
+      //
+      // With a range, anywhere INSIDE it is already on screen, so only a date
+      // beyond either end moves the filter — and moving it drops back to that
+      // one month rather than silently stretching the range to reach it,
+      // which would change what the person is looking at more than they
+      // asked for.
       const [savedYear, savedMonth] = form.date.split('-').map(Number);
-      if (savedYear !== year || savedMonth !== month) {
+      const monthIndex = (y: number, m: number) => y * 12 + m;
+      const saved = monthIndex(savedYear, savedMonth);
+      const onScreen = saved >= monthIndex(year, month) && saved <= monthIndex(rangeToYear, rangeToMonth);
+      if (!onScreen) {
         setLoading(true);
+        setRangeMode(false);
         setYear(savedYear);
         setMonth(savedMonth);
       } else {
-        await fetchRecords(year, month);
+        await fetchRecords(year, month, rangeToYear, rangeToMonth);
       }
     } catch {
       toast.error('Network error');
@@ -325,10 +362,13 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
   }
 
   async function handleExport() {
-    if (!records.length) { toast.error('Nothing to export for this month'); return; }
+    if (!records.length) { toast.error('Nothing to export for this period'); return; }
     try {
       await exportOfficeOperationExpensesXlsx({
         records, total, totalInWords, year, month,
+        // Equal to year/month on a single month, which the sheet treats as
+        // exactly the month export it has always produced.
+        toYear: rangeToYear, toMonth: rangeToMonth,
         preparedBy: currentUser.name
       });
     } catch (err) {
@@ -354,12 +394,44 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
         <div className={styles.headerRow}>
           <h2 className={styles.pageTitle}>Office Operation Expenses</h2>
           <div className={styles.filterRow}>
-            <select className={calcStyles.formControl} value={month} onChange={(e) => { setLoading(true); setMonth(Number(e.target.value)); }} aria-label="Month">
+            <select className={calcStyles.formControl} value={month} onChange={(e) => { setLoading(true); setMonth(Number(e.target.value)); }} aria-label={rangeMode ? 'From month' : 'Month'}>
               {MONTH_NAMES.slice(1).map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
             </select>
-            <select className={calcStyles.formControl} value={year} onChange={(e) => { setLoading(true); setYear(Number(e.target.value)); }} aria-label="Year">
+            <select className={calcStyles.formControl} value={year} onChange={(e) => { setLoading(true); setYear(Number(e.target.value)); }} aria-label={rangeMode ? 'From year' : 'Year'}>
               {yearChoices.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
+            {rangeMode && (
+              <>
+                <span className={styles.mutedText}>to</span>
+                <select className={calcStyles.formControl} value={toMonth} onChange={(e) => { setLoading(true); setToMonth(Number(e.target.value)); }} aria-label="To month">
+                  {MONTH_NAMES.slice(1).map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
+                </select>
+                <select className={calcStyles.formControl} value={toYear} onChange={(e) => { setLoading(true); setToYear(Number(e.target.value)); }} aria-label="To year">
+                  {yearChoices.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </>
+            )}
+            <button
+              type="button"
+              className={historyStyles.button}
+              onClick={() => {
+                setLoading(true);
+                if (rangeMode) {
+                  setRangeMode(false);
+                } else {
+                  // Seed the far end to the month already on screen, so
+                  // switching on shows the SAME rows rather than silently
+                  // widening the period the moment it is clicked. Widening is
+                  // then an explicit choice in the To selects.
+                  setToYear(year);
+                  setToMonth(month);
+                  setRangeMode(true);
+                }
+              }}
+              aria-pressed={rangeMode}
+            >
+              {rangeMode ? 'Single month' : 'Custom range'}
+            </button>
             <button type="button" className={historyStyles.button} onClick={handleExport} disabled={loading || !records.length}>
               Export .xlsx
             </button>
@@ -585,7 +657,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
             style={loading ? { opacity: 0.55 } : undefined}
           >
             <div className={styles.totalBannerText}>
-              <strong>{MONTH_NAMES[month]} {year} total:</strong>{' '}
+              <strong>{periodLabel} total:</strong>{' '}
               <strong className={styles.totalAmount}>{formatCurrency(total)}</strong>
               <span className={styles.mutedText}> across {records.length} {records.length === 1 ? 'entry' : 'entries'}</span>
             </div>

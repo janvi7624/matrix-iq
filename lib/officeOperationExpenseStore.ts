@@ -78,10 +78,33 @@ const EDITABLE_FIELDS = ['date', 'usecase', 'usecase_detail', 'item_name', 'item
 // no own-records-vs-everyone scoping to apply the way the org-wide modules
 // need: everyone who can reach it at all sees the whole register. Access is
 // decided before this store is ever called.
-async function list(year: number, month: number): Promise<OfficeOperationExpenseRecord[]> {
-  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-  const endMonth = month === 12 ? 1 : month + 1;
-  const endYear = month === 12 ? year + 1 : year;
+/** One month of the register, as the filter names it. */
+export interface ExpenseMonth {
+  /** Full year, e.g. 2026. */
+  year: number;
+  /** 1-12, NOT the 0-11 a JS Date uses. */
+  month: number;
+}
+
+/**
+ * Every expense dated inside the INCLUSIVE month range `from`..`to`.
+ *
+ * A single month is the range where from and to are equal, which is what the
+ * filter sends by default — so the ordinary case stays one month and the
+ * range is not a second code path to keep in step.
+ *
+ * Both bounds are whole months: the query runs from the 1st of `from` up to,
+ * but not including, the 1st of the month after `to`. Expressed that way
+ * rather than as "the last day of `to`" so February, leap years and
+ * 30-vs-31-day months need no special case.
+ *
+ * The caller is responsible for ordering the bounds; see the GET route, which
+ * swaps them if they arrive backwards.
+ */
+async function list(from: ExpenseMonth, to: ExpenseMonth): Promise<OfficeOperationExpenseRecord[]> {
+  const startDate = `${from.year}-${String(from.month).padStart(2, '0')}-01`;
+  const endMonth = to.month === 12 ? 1 : to.month + 1;
+  const endYear = to.month === 12 ? to.year + 1 : to.year;
   const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
 
   const rows = await db.OfficeOperationExpense.findAll({
@@ -91,8 +114,10 @@ async function list(year: number, month: number): Promise<OfficeOperationExpense
     // numbering below is stable and reproducible.
     order: [['date', 'ASC'], ['sr_no', 'ASC']]
   });
-  // 1, 2, 3 … down the month, with no gaps — renumbering itself whenever an
-  // entry is added or removed.
+  // 1, 2, 3 … down the whole range, with no gaps — renumbering itself
+  // whenever an entry is added or removed. Across a multi-month range the
+  // numbering runs continuously rather than restarting each month, so the
+  // exported sheet reads as one register.
   return rows.map((row, i) => toRecord(row, i + 1));
 }
 

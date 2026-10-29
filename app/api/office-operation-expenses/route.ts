@@ -52,22 +52,61 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url);
   const now = new Date();
-  const year = Number(url.searchParams.get('year')) || now.getFullYear();
-  const month = Number(url.searchParams.get('month')) || now.getMonth() + 1;
+
+  // `year`/`month` remain the single-month form this route has always taken;
+  // `fromYear`/`fromMonth`/`toYear`/`toMonth` add the custom range. Each end
+  // of the range falls back to the single-month pair, which itself falls back
+  // to the current month — so an old caller sending only year/month, or
+  // nothing at all, behaves exactly as before.
+  const year = clampYear(url.searchParams.get('year'), now.getFullYear());
+  const month = clampMonth(url.searchParams.get('month'), now.getMonth() + 1);
+
+  let from = {
+    year: clampYear(url.searchParams.get('fromYear'), year),
+    month: clampMonth(url.searchParams.get('fromMonth'), month)
+  };
+  let to = {
+    year: clampYear(url.searchParams.get('toYear'), year),
+    month: clampMonth(url.searchParams.get('toMonth'), month)
+  };
+
+  // Picked backwards in the UI — treat it as the range they meant rather than
+  // returning an empty register that looks like "no expenses".
+  if (from.year * 12 + from.month > to.year * 12 + to.month) [from, to] = [to, from];
 
   try {
-    const records = await officeOperationExpenseStore.list(year, month);
+    const records = await officeOperationExpenseStore.list(from, to);
     const total = records.reduce((sum, r) => sum + r.amount, 0);
     return NextResponse.json({
       records,
       total: Math.round(total * 100) / 100,
       totalInWords: numberToIndianWords(total),
-      year,
-      month
+      // The resolved range, echoed back so the client labels and exports what
+      // the server actually queried rather than what it thinks it asked for.
+      fromYear: from.year,
+      fromMonth: from.month,
+      toYear: to.year,
+      toMonth: to.month,
+      // Kept for any caller still reading the single-month shape; on a range
+      // these are its first month.
+      year: from.year,
+      month: from.month
     });
   } catch (error) {
     return apiErrorResponse(error);
   }
+}
+
+/** A sane 1-12 month, or the fallback. Rejects NaN, 0, 13 and negatives. */
+function clampMonth(raw: string | null, fallback: number): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 && n <= 12 ? n : fallback;
+}
+
+/** A sane 4-digit year, or the fallback. */
+function clampYear(raw: string | null, fallback: number): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 2000 && n <= 2100 ? n : fallback;
 }
 
 export async function POST(request: NextRequest) {

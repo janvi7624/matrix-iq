@@ -97,12 +97,60 @@ interface CellOpts {
   numFmt?: string;
 }
 
+/** The exported period, as the three labels below need it. */
+interface ExportPeriod {
+  year: number;
+  month: number;
+  toYear?: number;
+  toMonth?: number;
+}
+
+/**
+ * Whether this export spans more than the single month in year/month.
+ *
+ * A range whose two ends are the SAME month is not a range: picking
+ * October-to-October must produce the identical sheet to picking October, or
+ * the filter would quietly change the paperwork.
+ */
+function isRange(p: ExportPeriod): boolean {
+  return p.toYear !== undefined && p.toMonth !== undefined && (p.toYear !== p.year || p.toMonth !== p.month);
+}
+
+/** `OOE/2026/10`, or `OOE/2026/08-2026/10` across a range. */
+function voucherNo(p: ExportPeriod): string {
+  const head = `OOE/${p.year}/${String(p.month).padStart(2, '0')}`;
+  return isRange(p) ? `${head}-${p.toYear}/${String(p.toMonth).padStart(2, '0')}` : head;
+}
+
+/** `October - 2026`, or `August 2026 - October 2026`. */
+function periodLabel(p: ExportPeriod): string {
+  return isRange(p)
+    ? `${MONTH_NAMES[p.month]} ${p.year} - ${MONTH_NAMES[p.toMonth as number]} ${p.toYear}`
+    : `${MONTH_NAMES[p.month]} - ${p.year}`;
+}
+
+/** Filename stem: `October_2026`, or `August_2026_to_October_2026`. */
+function fileLabel(p: ExportPeriod): string {
+  return isRange(p)
+    ? `${MONTH_NAMES[p.month]}_${p.year}_to_${MONTH_NAMES[p.toMonth as number]}_${p.toYear}`
+    : `${MONTH_NAMES[p.month]}_${p.year}`;
+}
+
 export async function exportOfficeOperationExpensesXlsx(data: {
   records: OfficeOperationExpenseRecord[];
   total: number;
   totalInWords: string;
+  /** First month of the exported range. */
   year: number;
   month: number;
+  /**
+   * Last month of the range. Omitted, or equal to year/month, exports a
+   * single month and the sheet reads exactly as it always did — the voucher
+   * number, Expense Period and filename only take their range form when the
+   * export genuinely spans more than one month.
+   */
+  toYear?: number;
+  toMonth?: number;
   preparedBy?: string;
 }): Promise<void> {
   const ExcelJS = (await import('exceljs')).default;
@@ -179,7 +227,7 @@ export async function exportOfficeOperationExpensesXlsx(data: {
   // ── HEADER INFO ── spans derived so the block re-flows with the column count.
   const MID = Math.max(2, Math.floor(LAST_COL / 2));
   const headerRows: [string, string, string, string][] = [
-    ['Voucher No.', `OOE/${data.year}/${String(data.month).padStart(2, '0')}`, 'Expense Period', `${MONTH_NAMES[data.month]} - ${data.year}`],
+    ['Voucher No.', voucherNo(data), 'Expense Period', periodLabel(data)],
     ['Department', DEPARTMENT, 'Total Entries', String(data.records.length)],
     ['Prepared By', data.preparedBy || '', 'Approved By', APPROVED_BY]
   ];
@@ -338,7 +386,7 @@ export async function exportOfficeOperationExpensesXlsx(data: {
     }
   }
 
-  const fileName = `Office_Operation_Expense_${MONTH_NAMES[data.month]}_${data.year}.xlsx`;
+  const fileName = `Office_Operation_Expense_${fileLabel(data)}.xlsx`;
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
