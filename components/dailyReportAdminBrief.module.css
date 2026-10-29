@@ -48,3 +48,62 @@
 }
 
 .missingCell { color: var(--mx-danger); font-weight: var(--mx-weight-semibold); }
+
+/* Full-month totals, stated as four labelled figures rather than leaving the
+   reader to find them in the table's footer. */
+.summaryStrip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.stat {
+    flex: 1 1 110px;
+    min-width: 110px;
+    background: var(--mx-surface-2, rgba(127, 127, 127, 0.06));
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg, 10px);
+    padding: 8px 12px;
+}
+
+.statLabel {
+    display: block;
+    font-size: 10px;
+    font-weight: var(--mx-weight-semibold);
+    color: var(--mx-ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.statValue {
+    display: block;
+    margin-top: 2px;
+    font-size: 19px;
+    font-weight: var(--mx-weight-bold);
+    color: var(--mx-ink);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+}
+
+.statValueMissing { color: var(--mx-danger); }
+.statSub { display: block; font-size: 11px; color: var(--mx-ink-muted); margin-top: 1px; }
+
+/* Explains the counted window — which month, and up to which day — so a
+   part-month figure is never read as a closed month's. */
+.windowNote {
+    font-size: 11px;
+    color: var(--mx-ink-muted);
+    margin: -6px 0 12px;
+}
+
+/* Shown instead of the figures when the month predates daily-report
+   tracking, so an empty month cannot read as a perfectly compliant one. */
+.noData {
+    font-size: 13px;
+    color: var(--mx-ink-muted);
+    background: var(--mx-surface-2, rgba(127, 127, 127, 0.06));
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-lg, 10px);
+    padding: 10px 12px;
+}

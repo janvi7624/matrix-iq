@@ -670,14 +670,15 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
 
   function handleTechnicalPersonSelect(value: string) {
     if (!value) return;
-    if (value === '__remove__') {
-      void (async () => {
-        if (!(await confirm({ message: `Remove ${data?.project.assigned_technical_person_name || 'the technical person'} from this project?`, danger: true }))) return;
-        await patchProject({ assignedTechnicalPersonId: '' });
-      })();
-      return;
-    }
     setTechPick({ personId: value, note: '', neededBy: '' });
+  }
+
+  // A project can have several technical people at once, all equal — this
+  // removes just the one picked, not the whole team (see
+  // lib/projectTechnicalRequest.ts's removeTechnicalPerson).
+  async function handleRemoveTechnicalPerson(personId: string, personName: string) {
+    if (!(await confirm({ message: `Remove ${personName} from this project?`, danger: true }))) return;
+    await patchProject({ removeTechnicalPersonId: personId });
   }
 
   async function submitTechnicalPick() {
@@ -1041,7 +1042,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
       // below — unlike the others, there is nothing to type here, only a
       // picker to use, so a dialog row for it would just repeat this toast.
       if (!data.project.assigned_technical_person_id && !data.technicalRequests.length) {
-        toast.error('Assign a technical owner first — use "Request a technical person" in the Technical Person field below, then close as won.');
+        toast.error('Assign a technical owner first — use "Request a technical person" in the Assigned Technical People field below, then close as won.');
         return;
       }
       setWonDraft({
@@ -1151,15 +1152,15 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     .sort((a, b) => (a.at < b.at ? 1 : -1));
   const latestQuotation = [...quotations].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
   const latestDemo = [...demos].sort((a, b) => (a.scheduled_at < b.scheduled_at ? 1 : -1))[0];
-  // The formally assigned lead (project.assigned_technical_person_name — set
-  // once a technical-person request is approved or a direct assignment is
-  // made, see lib/projectTechnicalRequest.ts's applyTechnicalAssignment) has
-  // to be in this set explicitly: a freshly-approved project with no demo or
-  // site visit logged yet would otherwise have nothing here at all and the
-  // card would wrongly read "Unassigned" despite a real, approved assignment.
+  // Every formally assigned technical person (project.assigned_technical_people
+  // — set once a technical-person request is approved or a direct assignment
+  // is made, see lib/projectTechnicalRequest.ts's applyTechnicalAssignment)
+  // has to be in this set explicitly: a freshly-approved project with no demo
+  // or site visit logged yet would otherwise have nothing here at all and the
+  // card would wrongly read "Unassigned" despite real, approved assignments.
   const technicalTeam = [
     ...new Set(
-      [project.assigned_technical_person_name, ...demos.flatMap((d) => d.technical_members), ...demos.map((d) => d.assigned_technical_person), ...siteVisits.flatMap((v) => v.team_technical)].filter(
+      [...project.assigned_technical_people.map((p) => p.name), ...demos.flatMap((d) => d.technical_members), ...demos.map((d) => d.assigned_technical_person), ...siteVisits.flatMap((v) => v.team_technical)].filter(
         Boolean
       )
     )
@@ -1968,8 +1969,21 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 ) : <div className={calcStyles.small}>{formatDate(project.next_follow_up_date)}</div>}
               </div>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Assigned Technical Person</label>
-                <div className={calcStyles.small}>{project.assigned_technical_person_name || 'Unassigned'}</div>
+                {/* A project can have more than one technical person at once,
+                    all equal — see lib/projectTechnicalRequest.ts. Each is
+                    independently requested/approved and independently
+                    removable; nothing here is "the" lead any more. */}
+                <label className={calcStyles.label}>Assigned Technical People</label>
+                {project.assigned_technical_people.length === 0 && <div className={calcStyles.small}>Unassigned</div>}
+                {project.assigned_technical_people.map((person) => (
+                  <div key={person.id} className={styles.techAssignedRow}>
+                    <CheckCircle2 size={13} aria-hidden="true" />
+                    <span>{person.name}</span>
+                    {canEdit && (
+                      <button type="button" className={styles.techPendingLink} onClick={() => handleRemoveTechnicalPerson(person.id, person.name)}>Remove</button>
+                    )}
+                  </div>
+                ))}
                 {technicalRequests.map((req) => (
                   <div key={req.id} className={styles.techPending}>
                     <Hourglass size={13} aria-hidden="true" />
@@ -1988,13 +2002,12 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                     aria-label="Request a technical person"
                     onChange={(e) => handleTechnicalPersonSelect(e.target.value)}
                   >
-                    <option value="">{project.assigned_technical_person_id || technicalRequests.length ? 'Request someone else…' : 'Request a technical person…'}</option>
+                    <option value="">{project.assigned_technical_people.length || technicalRequests.length ? 'Request someone else…' : 'Request a technical person…'}</option>
                     {technicalRoster
-                      .filter((person) => person.id !== project.assigned_technical_person_id && !technicalRequests.some((r) => r.requested_user_id === person.id))
+                      .filter((person) => !project.assigned_technical_people.some((p) => p.id === person.id) && !technicalRequests.some((r) => r.requested_user_id === person.id))
                       .map((person) => (
                         <option key={person.id} value={person.id}>{person.name}{person.department ? ` — ${person.department}` : ''}</option>
                       ))}
-                    {project.assigned_technical_person_id && <option value="__remove__">Remove technical person</option>}
                   </select>
                 )}
               </div>

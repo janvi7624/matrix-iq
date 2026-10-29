@@ -62,7 +62,7 @@ import EmptyState from './ui/EmptyState';
 import CelebrationsSection from './CelebrationsSection';
 import MyTargetPanel from './MyTargetPanel';
 import DailyReportAdminBriefWidget from './DailyReportAdminBriefWidget';
-import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { useAutoRefresh, DEFAULT_REFRESH_MS } from '@/lib/useAutoRefresh';
 import styles from './dashboard.module.css';
 
 const DUE_AFTER_SECTION = 'Workspace';
@@ -305,9 +305,20 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
   // Both dashboard payloads refreshed together on focus / slow interval, so
   // the KPI row and the health grid never show different moments in time.
-  useAutoRefresh(async () => {
-    await Promise.all([loadDashboard(), loadHealth()]);
-  });
+  // Doubled from the shared DEFAULT_REFRESH_MS (60s) specifically for this
+  // page, not changed app-wide: loadHealth() is the expensive org-wide
+  // department-scoring query every admin/manager viewer triggers (see
+  // app/api/dashboard/health/route.ts's own cache comment for the full
+  // connection-budget reasoning), while NotificationBell/Leads/Projects/TMS
+  // elsewhere still poll at the normal 60s — those aren't part of this
+  // bottleneck and slowing them too would just trade one complaint
+  // (dashboard load) for another (stale notifications) for no benefit.
+  useAutoRefresh(
+    async () => {
+      await Promise.all([loadDashboard(), loadHealth()]);
+    },
+    { intervalMs: DEFAULT_REFRESH_MS * 2 }
+  );
 
   const [celebrations, setCelebrations] = useState<{ userId: string; name: string; type: 'birthday' | 'anniversary'; years?: number }[]>([]);
   const [celebrationsDismissed, setCelebrationsDismissed] = useState(false);

@@ -13,12 +13,13 @@ import { db } from '@/lib/db';
 // There is no single write path to hook for "every table department health
 // reads from" — tms_tasks, tms_projects, quotations, reimbursements and more
 // all feed it — so this is TTL-only on purpose. That is a safe tradeoff ONLY
-// because the UI already tolerates exactly this staleness: Dashboard.tsx's
-// useAutoRefresh polls this same endpoint every DEFAULT_REFRESH_MS (60s, see
-// lib/useAutoRefresh.ts), so a cache window shorter than that never makes
-// what a viewer sees any staler than the page's own refresh cadence already
-// allows — it only collapses however many admin/manager viewers poll within
-// that window into ONE real computation per department instead of one each.
+// because the UI already tolerates exactly this staleness: Dashboard.tsx
+// passes { intervalMs: DEFAULT_REFRESH_MS * 2 } to useAutoRefresh for this
+// page specifically (120s — double the shared 60s default), so a cache
+// window shorter than that never makes what a viewer sees any staler than
+// the page's own refresh cadence already allows — it only collapses however
+// many admin/manager viewers poll within that window into ONE real
+// computation per department instead of one each.
 // Keyed by department NAME (not by viewer or scope), so an org-wide viewer
 // and a department manager who both cover e.g. "AI" share the same cache
 // entry rather than each paying for their own copy of the same computation.
@@ -31,7 +32,7 @@ import { db } from '@/lib/db';
 // timer and the refresh is the outage." Every admin/manager polling
 // independently was doing exactly that multiplication; this caps it at one
 // computation per department per TTL window, no matter how many are watching.
-const HEALTH_CACHE_TTL_MS = 30_000;
+const HEALTH_CACHE_TTL_MS = 60_000;
 const healthCache = new Map<string, { result: { department: string } & ScoreResult; expiresAt: number }>();
 
 // requestCache is the SAME ScoringDataCache the caller shares across every

@@ -237,6 +237,7 @@ export async function POST(request: NextRequest) {
     // Never set on creation — see the technical-person request below.
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',
+    assigned_technical_people: [],
     tms_project_id: '',
     lead_confirmation_status: '',
     // Partner Portal overlay — always blank here: these two paths create

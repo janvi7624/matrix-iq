@@ -157,6 +157,10 @@ function toRecord(row: Model): ProjectRecord {
     created_by: (plain.creator as { username?: string } | null)?.username ?? '',
     updated_at: isoOrEmpty(plain.updatedAt),
     assigned_technical_person_name: (plain.assignedTechnicalPersonRef as { name?: string } | null)?.name ?? '',
+    // Real value populated only by findProjectById below (a second, cheap
+    // query on a single project) — every bulk list read (readAll/list/
+    // listLight) leaves this empty, same convention as notes/timeline above.
+    assigned_technical_people: [],
     project_lead_name: (plain.projectLeadRef as { name?: string } | null)?.name ?? '',
     // Resolved display fields for the partner badge on the internal Projects
     // list / detail view. Empty on every direct (non-partner) project.
@@ -215,11 +219,22 @@ async function readAllLight(): Promise<ProjectRecord[]> {
 async function resolveOwnerWhere(viewerUsername: string): Promise<Record<string, unknown>> {
   const scope = await resolveVisibilityScope(viewerUsername);
   if (!scope.scopedUserIds) return {};
+  // assigned_technical_person_id only ever covers the PRIMARY (first-assigned)
+  // technical person — a project's other, equally-real assignees live in
+  // project_technical_assignments instead (lib/projectTechnicalRequest.ts),
+  // so without this branch a second assigned person's own project vanished
+  // from their own Projects list/dashboard despite genuinely being on it.
+  const teamAssignments = await db.ProjectTechnicalAssignment.findAll({
+    where: { user_id: { [Op.in]: scope.scopedUserIds } } as never,
+    attributes: ['project_id']
+  });
+  const teamProjectIds = teamAssignments.map((r) => r.get('project_id') as string);
   return {
     [Op.or]: [
       { created_by: { [Op.in]: scope.scopedUserIds } },
       { assigned_technical_person_id: { [Op.in]: scope.scopedUserIds } },
-      { project_lead_id: { [Op.in]: scope.scopedUserIds } }
+      { project_lead_id: { [Op.in]: scope.scopedUserIds } },
+      ...(teamProjectIds.length ? [{ id: { [Op.in]: teamProjectIds } }] : [])
     ]
   };
 }
@@ -520,12 +535,19 @@ export async function listLastRemarks(projectIds: string[]): Promise<Record<stri
 // nobody can reach another department's project just by knowing its id.
 // Moved here (from app/api/projects/[id]/route.ts) so the new deadline-
 // extension routes can reuse it too instead of re-implementing it.
-export async function canAccessProject(viewerUsername: string, project: { created_by: string; assigned_technical_person_id: string; project_lead_id?: string }): Promise<boolean> {
+export async function canAccessProject(viewerUsername: string, project: { id: string; created_by: string; assigned_technical_person_id: string; project_lead_id?: string }): Promise<boolean> {
   const scope = await resolveVisibilityScope(viewerUsername);
   if (scope.seesOrgWide) return true;
   const ids = scope.scopedUserIds ?? [];
   if (project.assigned_technical_person_id && ids.includes(project.assigned_technical_person_id)) return true;
   if (project.project_lead_id && ids.includes(project.project_lead_id)) return true;
+  // Primary-only above would otherwise lock out a project's OTHER equally
+  // real technical assignees (project_technical_assignments) — a second
+  // person approved for a project must be able to open it too, not just
+  // whoever happened to be assigned first.
+  if (project.id && ids.length && (await db.ProjectTechnicalAssignment.findOne({ where: { project_id: project.id, user_id: { [Op.in]: ids } } as never }))) {
+    return true;
+  }
   if (project.created_by) {
     const creator = await db.User.findOne({ where: { username: project.created_by } as never, attributes: ['id'] });
     if (creator && ids.includes(creator.get('id') as string)) return true;
@@ -623,7 +645,30 @@ export async function reassignProjectOwner(id: string, newOwnerId: string, optio
 export async function findProjectById(id: string): Promise<ProjectRecord | undefined> {
   if (!isUuid(id)) return undefined;
   const row = await db.Project.findByPk(id, { include: allIncludes });
-  return row ? normalizeProject(toRecord(row)) : undefined;
+  if (!row) return undefined;
+  const record = normalizeProject(toRecord(row));
+  record.assigned_technical_people = await listAssignedTechnicalPeople(id);
+  return record;
+}
+
+// Every CURRENTLY assigned technical person on a project, all equal — the
+// real multi-person list behind assigned_technical_people (see its comment
+// on ProjectRecord in lib/types.ts). A separate, cheap query rather than an
+// eager include on every project read: only the detail page
+// (findProjectById) ever needs the full team, and adding this join to
+// listLight()/list() — read on every dashboard/KPI load — would reintroduce
+// exactly the kind of extra per-row cost the Dashboard Health cache was just
+// added to avoid.
+export async function listAssignedTechnicalPeople(projectId: string): Promise<{ id: string; username: string; name: string }[]> {
+  if (!isUuid(projectId)) return [];
+  const rows = await db.ProjectTechnicalAssignment.findAll({
+    where: { project_id: projectId } as never,
+    include: [{ model: db.User, as: 'person', attributes: ['id', 'username', 'name'] }],
+    order: [['created_at', 'ASC']]
+  });
+  return rows
+    .map((r) => (r.get({ plain: true }) as { person?: { id: string; username: string; name: string } }).person)
+    .filter((p): p is { id: string; username: string; name: string } => !!p);
 }
 
 // Appends one timeline entry and, when `advanceStageTo` is given, moves the

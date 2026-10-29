@@ -28,7 +28,7 @@ import { findSalesPersonCandidate, SalesOwnerError } from '@/lib/projectSalesOwn
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { getClientIp } from '@/lib/requestIp';
-import { canViewForPendingRequest, findPendingTechnicalRequests, getTechnicalRequestViews, requestTechnicalPerson, TechnicalRequestError } from '@/lib/projectTechnicalRequest';
+import { canViewForPendingRequest, findPendingTechnicalRequests, getTechnicalRequestViews, removeTechnicalPerson, requestTechnicalPerson, TechnicalRequestError } from '@/lib/projectTechnicalRequest';
 import { canAssignSalesPerson } from '@/lib/projectSalesOwner';
 import { resolveProjectLead } from '@/lib/projectLeadStore';
 import { OPPORTUNITY_TYPE_LABEL, parseOpportunityType } from '@/lib/projectLeadOptions';
@@ -306,14 +306,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.approx_price = isBlank ? '' : num;
     }
 
-    // Removing the technical person applies directly. Picking one never does
-    // here — it goes through the same approval request as the project page's
-    // picker (lib/projectTechnicalRequest.ts), after the rest of this patch
-    // is saved, so no client can bypass the engineer's / manager's approval.
+    // Removing a technical person applies directly — lib/projectTechnicalRequest.ts's
+    // removeTechnicalPerson promotes the next remaining assignee to primary
+    // (or clears to '' if none are left), rather than this route blanking the
+    // column itself, so the project_technical_assignments table never
+    // disagrees with it. Picking one never applies directly here — it goes
+    // through the same approval request as the project page's picker, after
+    // the rest of this patch is saved, so no client can bypass the
+    // engineer's / manager's approval.
     let requestedTechnicalPersonId = '';
+    let removeTechnicalPersonId = typeof body.removeTechnicalPersonId === 'string' ? body.removeTechnicalPersonId.trim() : '';
     if (typeof body.assignedTechnicalPersonId === 'string') {
       const nextId = body.assignedTechnicalPersonId.trim();
-      if (!nextId && existing.assigned_technical_person_id) patch.assigned_technical_person_id = '';
+      // Legacy path (the single-person picker's old "Remove technical
+      // person" option): blanking it removes whoever is currently primary.
+      if (!removeTechnicalPersonId && !nextId && existing.assigned_technical_person_id) removeTechnicalPersonId = existing.assigned_technical_person_id;
       else if (nextId && nextId !== existing.assigned_technical_person_id) requestedTechnicalPersonId = nextId;
     }
 
@@ -457,6 +464,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if (newOpportunityTypeLabel) {
       updated = await appendProjectTimeline(id, { by: viewer.username, stage: existing.stage, label: `Opportunity type set to ${newOpportunityTypeLabel}` });
+    }
+
+    if (removeTechnicalPersonId) {
+      try {
+        const afterRemoval = await removeTechnicalPerson(updated ?? existing, removeTechnicalPersonId, viewer, getClientIp(request));
+        if (afterRemoval) updated = afterRemoval;
+      } catch (error) {
+        if (error instanceof TechnicalRequestError) return NextResponse.json({ error: error.message }, { status: error.status });
+        throw error;
+      }
     }
 
     if (requestedTechnicalPersonId) {

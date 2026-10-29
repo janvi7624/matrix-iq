@@ -130,6 +130,7 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     department_amounts: {},
     assigned_technical_person_id: '',
     assigned_technical_person_name: '',
+    assigned_technical_people: [],
     tms_project_id: '',
     lead_confirmation_status: opts.autoCreated ? 'pending_confirmation' : '',
     // Partner Portal overlay — always blank here: these two paths create

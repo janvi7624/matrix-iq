@@ -1,6 +1,6 @@
 import type { Model } from 'sequelize';
 import { db, isUuid } from './db';
-import { appendProjectTimeline, findProjectById, projectStore } from './projectStore';
+import { appendProjectTimeline, findProjectById, listAssignedTechnicalPeople, projectStore } from './projectStore';
 import { findUserById } from './userStore';
 import { listDepartmentManagers } from './departmentStore';
 import { logAudit } from './auditLogStore';
@@ -144,26 +144,50 @@ function formatNeededBy(date: string): string {
   return Number.isNaN(d.getTime()) ? date : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// project_technical_assignments holds every CURRENTLY assigned technical
+// person, all equal — see the migration/model for why this exists alongside
+// the single assigned_technical_person_id column rather than instead of it.
+// findOne + create, not findOrCreate: this DB role has no pg_temp/TEMP
+// privilege, which is what findOrCreate relies on under the hood.
+async function addTechnicalAssignment(projectId: string, personId: string, assignedById: string): Promise<void> {
+  const existing = await db.ProjectTechnicalAssignment.findOne({ where: { project_id: projectId, user_id: personId } as never });
+  if (existing) return;
+  await db.ProjectTechnicalAssignment.create({ project_id: projectId, user_id: personId, assigned_by_id: assignedById || null } as never);
+}
+
+async function removeTechnicalAssignmentRow(projectId: string, personId: string): Promise<boolean> {
+  const count = await db.ProjectTechnicalAssignment.destroy({ where: { project_id: projectId, user_id: personId } as never });
+  return count > 0;
+}
+
 // The single place a technical person actually lands on a project — used for
 // a direct assignment by someone entitled to make it, and for an approved
 // request. Everything that used to fire on the spot (timeline, audit,
 // notification + email to the engineer, TMS project) now fires only here.
+//
+// A project can have more than one technical person at once (all equal —
+// see project_technical_assignments above); assigned_technical_person_id
+// stays whoever was assigned FIRST, kept only so the many existing readers
+// that show one name (dashboards, TMS handoff, lifecycle emails) keep
+// working — it is never overwritten by a later, additional assignment.
 export async function applyTechnicalAssignment(project: ProjectRecord, person: UserRecord, actor: Actor, ip: string, via?: string): Promise<ProjectRecord | null> {
-  const updated = await projectStore.update(project.id, { assigned_technical_person_id: person.id, updated_at: new Date().toISOString() });
-  const previousName = project.assigned_technical_person_name || 'Unassigned';
-  await appendProjectTimeline(project.id, {
-    by: actor.username,
-    stage: project.stage,
-    label: `Assigned technical person: ${previousName} → ${person.name}`,
-    remarks: via || ''
-  });
+  const isFirstAssignment = !project.assigned_technical_person_id;
+  if (isFirstAssignment) {
+    await projectStore.update(project.id, { assigned_technical_person_id: person.id, updated_at: new Date().toISOString() });
+  }
+  await addTechnicalAssignment(project.id, person.id, actor.userId);
+
+  const label = isFirstAssignment
+    ? `Assigned technical person: ${project.assigned_technical_person_name || 'Unassigned'} → ${person.name}`
+    : `Added ${person.name} as an additional technical person`;
+  await appendProjectTimeline(project.id, { by: actor.username, stage: project.stage, label, remarks: via || '' });
   await logAudit({
     by: actor.username,
     role: actor.role as UserRole,
     entityType: 'project',
     entityId: project.id,
-    action: 'Project reassigned',
-    previousStatus: previousName,
+    action: isFirstAssignment ? 'Project reassigned' : 'Technical person added',
+    previousStatus: isFirstAssignment ? (project.assigned_technical_person_name || 'Unassigned') : '',
     newStatus: person.name,
     remarks: [projectLabel(project), via].filter(Boolean).join(' — '),
     ip
@@ -172,7 +196,7 @@ export async function applyTechnicalAssignment(project: ProjectRecord, person: U
   if (person.id !== actor.userId) {
     await notifyUsers([person.username], {
       title: 'A project was assigned to you',
-      body: `${projectLabel(project)} — assigned as the technical lead${via ? ` (${via})` : ''}`,
+      body: `${projectLabel(project)} — ${isFirstAssignment ? 'assigned as the technical lead' : 'added as an additional technical person'}${via ? ` (${via})` : ''}`,
       type: 'project_assigned',
       entityType: 'project',
       entityId: project.id
@@ -188,21 +212,65 @@ export async function applyTechnicalAssignment(project: ProjectRecord, person: U
     });
   }
   try {
-    await syncTmsProjectForAssignment(updated ?? project, person, actor.username);
+    await syncTmsProjectForAssignment(project, person, actor.username);
   } catch {
     // Best-effort — the assignment above already succeeded either way.
   }
-  // assigned_technical_person_id is a single column — when a project was
-  // requested with several candidates, whoever is approved FIRST wins it,
-  // and every OTHER still-pending candidate's request auto-closes here so a
-  // later, unrelated approval can never silently overwrite this one (the
-  // approver acting on request #2 has no way to know #1 already landed).
-  const others = (await findPendingTechnicalRequests(project.id)).filter((r) => r.requested_user_id !== person.id);
-  for (const other of others) {
-    if (!(await closeRequest(other.id, 'withdrawn', actor, `${person.name} was assigned instead`))) continue;
-    await notifyRequestWithdrawn(other.requested_username, project, actor);
+  // No more auto-withdrawing every OTHER still-pending candidate here: that
+  // existed only because a single column can't hold two names, so whoever
+  // landed first had to win and everyone else had to be closed out before a
+  // later, unrelated approval could silently overwrite them. With several
+  // people able to be genuinely assigned at once, there is nothing left to
+  // overwrite — each other pending request is simply decided independently,
+  // by whoever is entitled to answer it, same as this one just was.
+  return (await findProjectById(project.id)) ?? null;
+}
+
+// Removes ONE specific person from a project's technical team — used by the
+// detail page's per-person "Remove" action. If they were the primary
+// (assigned_technical_person_id), the next-earliest remaining assignee (if
+// any) is promoted so every existing single-name reader still has someone
+// to show; if they were the last one, the primary clears to '' exactly like
+// today's "Remove technical person" did.
+export async function removeTechnicalPerson(project: ProjectRecord, personId: string, actor: Actor, ip: string): Promise<ProjectRecord | null> {
+  const removed = await findUserById(personId);
+  if (!(await removeTechnicalAssignmentRow(project.id, personId))) {
+    throw new TechnicalRequestError(`${removed?.name || 'That person'} is not assigned to this project.`, 400);
   }
-  return updated;
+
+  let nextPrimaryId = project.assigned_technical_person_id;
+  if (project.assigned_technical_person_id === personId) {
+    const remaining = await listAssignedTechnicalPeople(project.id);
+    nextPrimaryId = remaining[0]?.id || '';
+  }
+  await projectStore.update(project.id, { assigned_technical_person_id: nextPrimaryId, updated_at: new Date().toISOString() });
+
+  await appendProjectTimeline(project.id, {
+    by: actor.username,
+    stage: project.stage,
+    label: `Removed ${removed?.name || 'a technical person'} from the project`
+  });
+  await logAudit({
+    by: actor.username,
+    role: actor.role as UserRole,
+    entityType: 'project',
+    entityId: project.id,
+    action: 'Technical person removed',
+    previousStatus: removed?.name || '',
+    newStatus: '',
+    remarks: projectLabel(project),
+    ip
+  });
+  if (removed && removed.id !== actor.userId) {
+    await notifyUsers([removed.username], {
+      title: 'Removed from a project',
+      body: `${actor.name} removed you as a technical person on ${projectLabel(project)}.`,
+      type: 'project_technical_removed',
+      entityType: 'project',
+      entityId: project.id
+    });
+  }
+  return (await findProjectById(project.id)) ?? null;
 }
 
 export type TechnicalRequestResult =
@@ -226,8 +294,11 @@ export async function requestTechnicalPerson(
   const person = isUuid(personId) ? await findUserById(personId) : undefined;
   if (!person || person.status !== 'active') throw new TechnicalRequestError('That person is not an active user.', 400);
   const pending = await findPendingRequestForPerson(project.id, person.id);
-  if (person.id === project.assigned_technical_person_id && !pending) {
-    throw new TechnicalRequestError(`${person.name} is already the technical person on this project.`, 400);
+  // Checked against the full team, not just the primary column — otherwise a
+  // second (or third) already-assigned person could be "requested" again.
+  const alreadyAssigned = (await listAssignedTechnicalPeople(project.id)).some((p) => p.id === person.id);
+  if (alreadyAssigned && !pending) {
+    throw new TechnicalRequestError(`${person.name} is already on this project's technical team.`, 400);
   }
   if (input.neededBy && !/^\d{4}-\d{2}-\d{2}$/.test(input.neededBy)) throw new TechnicalRequestError('Needed-by must be a date.', 400);
 

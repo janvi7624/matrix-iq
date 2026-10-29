@@ -1003,8 +1003,19 @@ export interface ProjectRecord {
   tender_pbg: string;
   tender_emd: number | '';
   payment_terms: string;
+  // The PRIMARY technical person — the first one ever assigned, kept for
+  // every existing reader that only shows one name (dashboards, TMS handoff,
+  // lifecycle emails). A project can now have more than one technical
+  // person at once; the full, equal list is assigned_technical_people below
+  // (lib/projectTechnicalRequest.ts) — these two never disagree about
+  // WHETHER someone is assigned, only about showing one name vs. all of them.
   assigned_technical_person_id: string;
   assigned_technical_person_name: string;
+  // Every CURRENTLY assigned technical person, all equal — populated only by
+  // findProjectById (the project detail fetch); every list/dashboard read
+  // (listLight, list, readAll) leaves this [] since those views only ever
+  // showed the primary name above. See lib/projectTechnicalRequest.ts.
+  assigned_technical_people: { id: string; username: string; name: string }[];
   // See lib/tmsHandoff.ts — links to the TMS project auto-created/kept in
   // sync when assigned_technical_person_id is set.
   tms_project_id: string;
