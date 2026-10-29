@@ -1,6 +1,9 @@
 import { Model, Op } from 'sequelize';
 import { OfficeOperationExpenseRecord } from './types';
 import { db, isUuid } from './db';
+// The month-range date maths lives next to the filter parsing, where it is
+// pure and covered by tests without pulling this module's DB layer in.
+import { ExpenseMonth, monthRangeBounds } from './officeOperationExpenseValidation';
 
 // Same private helper the other stores each define (see e.g.
 // lib/marketingRequestStore.ts) — a raw Sequelize DATE comes back as a Date
@@ -78,14 +81,6 @@ const EDITABLE_FIELDS = ['date', 'usecase', 'usecase_detail', 'item_name', 'item
 // no own-records-vs-everyone scoping to apply the way the org-wide modules
 // need: everyone who can reach it at all sees the whole register. Access is
 // decided before this store is ever called.
-/** One month of the register, as the filter names it. */
-export interface ExpenseMonth {
-  /** Full year, e.g. 2026. */
-  year: number;
-  /** 1-12, NOT the 0-11 a JS Date uses. */
-  month: number;
-}
-
 /**
  * Every expense dated inside the INCLUSIVE month range `from`..`to`.
  *
@@ -93,22 +88,15 @@ export interface ExpenseMonth {
  * filter sends by default — so the ordinary case stays one month and the
  * range is not a second code path to keep in step.
  *
- * Both bounds are whole months: the query runs from the 1st of `from` up to,
- * but not including, the 1st of the month after `to`. Expressed that way
- * rather than as "the last day of `to`" so February, leap years and
- * 30-vs-31-day months need no special case.
- *
- * The caller is responsible for ordering the bounds; see the GET route, which
+ * The date window itself comes from monthRangeBounds (pure, and tested), and
+ * the caller is responsible for ordering the two ends: resolveMonthRange
  * swaps them if they arrive backwards.
  */
 async function list(from: ExpenseMonth, to: ExpenseMonth): Promise<OfficeOperationExpenseRecord[]> {
-  const startDate = `${from.year}-${String(from.month).padStart(2, '0')}-01`;
-  const endMonth = to.month === 12 ? 1 : to.month + 1;
-  const endYear = to.month === 12 ? to.year + 1 : to.year;
-  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+  const { startDate, endDateExclusive } = monthRangeBounds(from, to);
 
   const rows = await db.OfficeOperationExpense.findAll({
-    where: { date: { [Op.gte]: startDate, [Op.lt]: endDate } } as never,
+    where: { date: { [Op.gte]: startDate, [Op.lt]: endDateExclusive } } as never,
     include: INCLUDE_CREATOR as never,
     // Date first, then creation order for entries sharing a date, so the
     // numbering below is stable and reproducible.

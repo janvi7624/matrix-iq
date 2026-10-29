@@ -1,7 +1,6 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DomainKey, LeadCallOutcome, LeadHandoverOutcome, LeadOrigin, LeadPriority, LeadRecord, LeadSource, UserRole, LEAD_CALL_OUTCOMES } from '@/lib/types';
 import { LEAD_ORIGIN_OPTIONS, LEAD_ORIGIN_UNSET_LABEL, leadOriginLabel } from '@/lib/leadSources';
@@ -1383,8 +1382,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             onClose={() => setViewLead(null)}
             footer={
               <>
+                {/* Styled the same as the "To Project" button right below it
+                    (ToolbarLink shares ToolbarButton's .button class) — this
+                    used to be .mutedLink, a tiny unstyled grey table-cell
+                    link, which looked broken sitting next to the real
+                    Close/Delete pill buttons in a modal footer. */}
                 {viewLead.project_id ? (
-                  <Link href={`/projects/${viewLead.project_id}`} className={leadStyles.mutedLink}>View Project</Link>
+                  <ToolbarLink href={`/projects/${viewLead.project_id}`}>View Project</ToolbarLink>
                 ) : viewLead.call_outcome === 'suitable' ? (
                   <ToolbarButton onClick={() => handleConvertToProject(viewLead.id)}>To Project</ToolbarButton>
                 ) : null}

@@ -10,6 +10,85 @@ import { listActiveDepartments } from './departmentStore';
 
 export type ParseResult = { data: OfficeOperationExpenseInput } | { error: string };
 
+/** One month of the register, as the filter names it. 1-12, not JS's 0-11. */
+export interface ExpenseMonth {
+  year: number;
+  month: number;
+}
+
+/**
+ * The half-open date window a month range covers: from the 1st of `from`, up
+ * to but NOT including the 1st of the month after `to`.
+ *
+ * Half-open rather than "the last day of `to`" so February, leap years and
+ * 30-vs-31-day months need no special case — and December correctly rolls
+ * into January of the next year, which is the one place this is easy to get
+ * wrong.
+ */
+export function monthRangeBounds(from: ExpenseMonth, to: ExpenseMonth): { startDate: string; endDateExclusive: string } {
+  const endMonth = to.month === 12 ? 1 : to.month + 1;
+  const endYear = to.month === 12 ? to.year + 1 : to.year;
+  return {
+    startDate: `${from.year}-${String(from.month).padStart(2, '0')}-01`,
+    endDateExclusive: `${endYear}-${String(endMonth).padStart(2, '0')}-01`
+  };
+}
+
+/** The filter's raw query values, exactly as URLSearchParams hands them over. */
+export interface RawMonthRange {
+  year?: string | null;
+  month?: string | null;
+  fromYear?: string | null;
+  fromMonth?: string | null;
+  toYear?: string | null;
+  toMonth?: string | null;
+}
+
+/** A month as a single comparable integer, so ranges can be ordered. */
+function monthIndex(m: ExpenseMonth): number {
+  return m.year * 12 + m.month;
+}
+
+/** A sane 1-12 month, or the fallback. Rejects NaN, 0, 13, negatives, ''. */
+function clampMonth(raw: string | null | undefined, fallback: number): number {
+  const n = Number(raw);
+  return raw !== null && raw !== undefined && raw !== '' && Number.isInteger(n) && n >= 1 && n <= 12 ? n : fallback;
+}
+
+/** A sane 4-digit year, or the fallback. */
+function clampYear(raw: string | null | undefined, fallback: number): number {
+  const n = Number(raw);
+  return raw !== null && raw !== undefined && raw !== '' && Number.isInteger(n) && n >= 2000 && n <= 2100 ? n : fallback;
+}
+
+/**
+ * The month range the register should show, from the filter's query values.
+ *
+ * Layered fallbacks, so every older caller keeps working: each end of the
+ * range falls back to the single-month `year`/`month` pair this endpoint has
+ * always taken, which itself falls back to `fallback` (the current month). A
+ * request carrying only year/month therefore resolves to that one month —
+ * from and to equal — and a request carrying nothing resolves to this month.
+ *
+ * A backwards range is swapped rather than rejected. Picking August-to-June in
+ * the UI otherwise returns an empty register, which reads as "there were no
+ * expenses" instead of "you picked the ends the wrong way round".
+ *
+ * Out-of-range and unparseable values fall back rather than erroring: this is
+ * a read-only filter, and showing the current month beats a 400 for a stray
+ * `?month=0` in somebody's bookmark.
+ */
+export function resolveMonthRange(raw: RawMonthRange, fallback: ExpenseMonth): { from: ExpenseMonth; to: ExpenseMonth } {
+  const year = clampYear(raw.year, fallback.year);
+  const month = clampMonth(raw.month, fallback.month);
+
+  let from: ExpenseMonth = { year: clampYear(raw.fromYear, year), month: clampMonth(raw.fromMonth, month) };
+  let to: ExpenseMonth = { year: clampYear(raw.toYear, year), month: clampMonth(raw.toMonth, month) };
+  if (monthIndex(from) > monthIndex(to)) [from, to] = [to, from];
+
+  return { from, to };
+}
+
 // Shared by POST (create) and PUT (edit) so the two can't drift on what counts
 // as a valid entry — the edit path stays exactly as strict as the create path.
 // Returns a discriminated result rather than throwing, so the routes keep

@@ -4,7 +4,7 @@ import { officeOperationExpenseStore } from '@/lib/officeOperationExpenseStore';
 import { viewerCanAccessOfficeOperationExpenses } from '@/lib/officeOperationExpenseAccess';
 import { numberToIndianWords } from '@/lib/numberToWords';
 import { apiErrorResponse } from '@/lib/apiError';
-import { parseExpenseBody } from '@/lib/officeOperationExpenseValidation';
+import { parseExpenseBody, resolveMonthRange } from '@/lib/officeOperationExpenseValidation';
 import { findUsersByDepartmentName } from '@/lib/userStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendAdminExpenseNoticeEmail } from '@/lib/email/notifications';
@@ -54,25 +54,21 @@ export async function GET(request: NextRequest) {
   const now = new Date();
 
   // `year`/`month` remain the single-month form this route has always taken;
-  // `fromYear`/`fromMonth`/`toYear`/`toMonth` add the custom range. Each end
-  // of the range falls back to the single-month pair, which itself falls back
-  // to the current month — so an old caller sending only year/month, or
-  // nothing at all, behaves exactly as before.
-  const year = clampYear(url.searchParams.get('year'), now.getFullYear());
-  const month = clampMonth(url.searchParams.get('month'), now.getMonth() + 1);
-
-  let from = {
-    year: clampYear(url.searchParams.get('fromYear'), year),
-    month: clampMonth(url.searchParams.get('fromMonth'), month)
-  };
-  let to = {
-    year: clampYear(url.searchParams.get('toYear'), year),
-    month: clampMonth(url.searchParams.get('toMonth'), month)
-  };
-
-  // Picked backwards in the UI — treat it as the range they meant rather than
-  // returning an empty register that looks like "no expenses".
-  if (from.year * 12 + from.month > to.year * 12 + to.month) [from, to] = [to, from];
+  // `fromYear`/`fromMonth`/`toYear`/`toMonth` add the custom range. The
+  // fallback layering, clamping and backwards-range swap all live in
+  // resolveMonthRange so they are testable without an HTTP request.
+  const q = (key: string) => url.searchParams.get(key);
+  const { from, to } = resolveMonthRange(
+    {
+      year: q('year'),
+      month: q('month'),
+      fromYear: q('fromYear'),
+      fromMonth: q('fromMonth'),
+      toYear: q('toYear'),
+      toMonth: q('toMonth')
+    },
+    { year: now.getFullYear(), month: now.getMonth() + 1 }
+  );
 
   try {
     const records = await officeOperationExpenseStore.list(from, to);
@@ -95,18 +91,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return apiErrorResponse(error);
   }
-}
-
-/** A sane 1-12 month, or the fallback. Rejects NaN, 0, 13 and negatives. */
-function clampMonth(raw: string | null, fallback: number): number {
-  const n = Number(raw);
-  return Number.isInteger(n) && n >= 1 && n <= 12 ? n : fallback;
-}
-
-/** A sane 4-digit year, or the fallback. */
-function clampYear(raw: string | null, fallback: number): number {
-  const n = Number(raw);
-  return Number.isInteger(n) && n >= 2000 && n <= 2100 ? n : fallback;
 }
 
 export async function POST(request: NextRequest) {
