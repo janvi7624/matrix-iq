@@ -14,6 +14,7 @@
 // Pure: no DB, no clock of its own (`now` is always passed in), no I/O.
 
 import { DeadlinePolicy, istInstant, monthKey, nextWorkingDay, scheduleFor, WorkingDayPolicy, workingDaysBetween } from './dailyReportTime';
+import { ReportedActivity } from './dailyReportTypes';
 
 /**
  * The three time-triggered events, in the order they fire for one reporting
@@ -188,9 +189,15 @@ export interface PlannedZeroTotalWarning {
 }
 
 /**
- * The second (and every further) consecutive reporting day an employee's
- * AUTO-FETCHED total — not their full matrix, just the measures
- * lib/salesDailyAutoFetch.ts fills in — comes to zero.
+ * The second (and every further) consecutive reporting day on which an
+ * employee REPORTED nothing at all.
+ *
+ * "Nothing at all" means every cell of their submitted matrix was zero AND
+ * they wrote no notes. It used to mean only that the auto-fetched measures
+ * summed to zero, which warned people for work the app cannot observe — see
+ * ReportedActivity in lib/dailyReportTypes.ts for what that cost. The streak
+ * logic here was never the bug and is unchanged; what counts as a zero day
+ * is.
  *
  * `datesByEmployee` must list each employee's OWED reporting dates in
  * chronological order, starting one working day before the earliest date a
@@ -198,15 +205,15 @@ export interface PlannedZeroTotalWarning {
  * date has no predecessor to compare against and a streak that started
  * before the window can never be detected.
  *
- * `autoTotalByKey` (subjectKey -> summed auto measures) has an entry ONLY
- * for a date that was genuinely submitted. A missing entry breaks the streak
+ * `activityByKey` (subjectKey -> ReportedActivity) has an entry ONLY for a
+ * date that was genuinely submitted. A missing entry breaks the streak
  * rather than counting as a zero day — an employee who simply never filed is
  * already the missed-report warning's problem, a different one from "filed,
- * but nothing came through the auto fetch."
+ * and reported a genuinely empty day."
  */
 export function planZeroTotalWarnings(
   datesByEmployee: Map<string, string[]>,
-  autoTotalByKey: Map<string, number>,
+  activityByKey: Map<string, ReportedActivity>,
   alreadyWarned: Set<string>
 ): PlannedZeroTotalWarning[] {
   const planned: PlannedZeroTotalWarning[] = [];
@@ -214,12 +221,12 @@ export function planZeroTotalWarnings(
   for (const [employeeId, dates] of datesByEmployee) {
     let streak = 0;
     for (const reportDate of dates) {
-      const total = autoTotalByKey.get(subjectKey(employeeId, reportDate));
-      if (total === undefined) {
+      const activity = activityByKey.get(subjectKey(employeeId, reportDate));
+      if (activity === undefined) {
         streak = 0;
         continue;
       }
-      if (total > 0) {
+      if (activity.total > 0 || activity.hasNarrative) {
         streak = 0;
         continue;
       }

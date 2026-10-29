@@ -34,7 +34,23 @@ export const DEFAULT_DAILY_REPORT_CONFIG: Omit<DailyReportConfigRecord, 'id' | '
   deadline_time: '11:00',
   evening_reminder_time: '21:00',
   final_reminder_time: '10:00',
-  sales_auto_submit_time: '10:30',
+  // Blank = Sales/GEM-Sales reports are NEVER auto-filed; the rep submits
+  // their own report like every other department. Set a clock time here to
+  // turn auto-submit back on.
+  //
+  // It used to default to '10:30', which filed a sales rep's report for them
+  // on the next working morning. Removed as a policy decision (2026-10-29):
+  // a report the system submitted on your behalf is not a report you wrote,
+  // and it interacted badly with the activity warnings — an auto-filed report
+  // counts as submitted, so it suppressed the missed-report warning while
+  // generating a zero-activity one instead.
+  //
+  // This does NOT affect the auto-FETCHED numbers. Those are merged into the
+  // report on read (lib/dailyReportService.ts) and refreshed again on every
+  // save and submit (lib/dailyReportStore.ts), so a rep still opens their
+  // report with the system's figures already filled in — they just have to
+  // press submit themselves.
+  sales_auto_submit_time: '',
   warning_threshold: 3,
   reconcile_window_days: 7,
   scheduler_enabled: false,
@@ -66,7 +82,9 @@ function toRecord(row: Model): DailyReportConfigRecord {
     deadline_time: isClockTime(plain.deadline_time) ? (plain.deadline_time as string) : DEFAULT_DAILY_REPORT_CONFIG.deadline_time,
     evening_reminder_time: isClockTime(plain.evening_reminder_time) ? (plain.evening_reminder_time as string) : DEFAULT_DAILY_REPORT_CONFIG.evening_reminder_time,
     final_reminder_time: isClockTime(plain.final_reminder_time) ? (plain.final_reminder_time as string) : DEFAULT_DAILY_REPORT_CONFIG.final_reminder_time,
-    sales_auto_submit_time: isClockTime(plain.sales_auto_submit_time) ? (plain.sales_auto_submit_time as string) : DEFAULT_DAILY_REPORT_CONFIG.sales_auto_submit_time,
+    // Falls back to '' (off), not to a time: anything that is not a readable
+    // clock time must not be guessed into auto-filing someone's report.
+    sales_auto_submit_time: isClockTime(plain.sales_auto_submit_time) ? (plain.sales_auto_submit_time as string) : '',
     warning_threshold: Math.max(1, Number(plain.warning_threshold) || DEFAULT_DAILY_REPORT_CONFIG.warning_threshold),
     reconcile_window_days: Math.max(0, Number(plain.reconcile_window_days) ?? DEFAULT_DAILY_REPORT_CONFIG.reconcile_window_days),
     scheduler_enabled: Boolean(plain.scheduler_enabled),
@@ -173,10 +191,21 @@ export async function updateDailyReportConfig(patch: DailyReportConfigPatch, upd
     });
   }
 
-  for (const key of ['deadline_time', 'evening_reminder_time', 'final_reminder_time', 'sales_auto_submit_time'] as const) {
+  for (const key of ['deadline_time', 'evening_reminder_time', 'final_reminder_time'] as const) {
     if (patch[key] === undefined) continue;
     if (!isClockTime(patch[key])) throw new InvalidDailyReportConfigError(`${key.replace(/_/g, ' ')} must be a 24-hour HH:MM time.`);
     attrs[key] = patch[key];
+  }
+
+  // Handled apart from the three above because blank is MEANINGFUL here: it
+  // is how auto-submit is switched off, which is the default. The other three
+  // are event times the module cannot run without.
+  if (patch.sales_auto_submit_time !== undefined) {
+    const value = String(patch.sales_auto_submit_time).trim();
+    if (value !== '' && !isClockTime(value)) {
+      throw new InvalidDailyReportConfigError('Sales auto-submit time must be a 24-hour HH:MM time, or blank to switch auto-submit off.');
+    }
+    attrs.sales_auto_submit_time = value;
   }
 
   if (patch.warning_threshold !== undefined) {

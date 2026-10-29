@@ -1,6 +1,6 @@
 import { getDailyReportConfig, getDeadlinePolicy } from './dailyReportConfigStore';
 import { EligibleEmployee, employeeOwesDate, expandSubjects, listEligibleEmployees } from './dailyReportEligibility';
-import { autoSubmitReport, loadAutoTotalsByKey, loadSubmittedKeys } from './dailyReportStore';
+import { autoSubmitReport, loadReportedActivityByKey, loadSubmittedKeys } from './dailyReportStore';
 import { loadLeaveCoveredKeys } from './dailyReportLeaveClaimStore';
 import {
   claimEscalation,
@@ -211,7 +211,13 @@ export async function runDailyReportSweep(options: SweepOptions = {}): Promise<S
     // this ordering, a cron interval wide enough to span both the 10:30
     // auto-submit time and the (later) global deadline in one sweep would
     // warn someone the same pass that just auto-submitted for them.
-    if (salesEmployees.length) {
+    // A blank sales_auto_submit_time means auto-submit is OFF, which is the
+    // default: Sales reports are submitted by the rep, like every other
+    // department's. Skipped before any work is planned, so nothing is
+    // claimed, counted or notified. The auto-FETCHED figures are unaffected —
+    // they are merged in on read and refreshed on every save, so the rep
+    // still opens a report with the system's numbers already in it.
+    if (salesEmployees.length && config.sales_auto_submit_time) {
       const salesIdSet = new Set(salesEmployees.map((e) => e.id));
       // Capped to a short, separate lookback rather than the full
       // reconcile_window_days: auto-submit's own premise is "by tomorrow
@@ -305,8 +311,8 @@ export async function runDailyReportSweep(options: SweepOptions = {}): Promise<S
       // started before the window could never be detected the day the
       // window first includes it.
       const extendedFrom = previousWorkingDay(from, policy);
-      const [autoTotalByKey, alreadyWarned] = await Promise.all([
-        loadAutoTotalsByKey(salesIds, extendedFrom, to),
+      const [activityByKey, alreadyWarned] = await Promise.all([
+        loadReportedActivityByKey(salesIds, extendedFrom, to),
         // Scoped to zero_total only: a date can already carry a 'scheduler'
         // (missed entirely) warning from before it was later auto-submitted
         // — that date's one (employee, date) slot is occupied by an
@@ -317,7 +323,7 @@ export async function runDailyReportSweep(options: SweepOptions = {}): Promise<S
       ]);
       const extendedDates = [extendedFrom, ...reportDates];
       const datesByEmployee = new Map(salesEmployees.map((e) => [e.id, extendedDates.filter((d) => employeeOwesDate(e, d))]));
-      const plannedZero = planZeroTotalWarnings(datesByEmployee, autoTotalByKey, alreadyWarned);
+      const plannedZero = planZeroTotalWarnings(datesByEmployee, activityByKey, alreadyWarned);
 
       for (const zero of plannedZero) {
         const employee = employeeById.get(zero.employeeId);
@@ -548,8 +554,12 @@ async function processZeroTotalWarning(planned: PlannedZeroTotalWarning, employe
     const result = await deliver({
       kind: 'zero_total_warning',
       recipients: [targetFor(employee)],
-      title: `No sales activity recorded — ${planned.reportDate}`,
-      body: `Your auto-tracked sales activity has been zero for two reporting days in a row, through ${planned.reportDate}. You have ${activeCount} active warning${activeCount === 1 ? '' : 's'} this month.`,
+      // Says what is actually being measured. The old wording — "your
+      // auto-tracked sales activity has been zero" — described a signal that
+      // ignored everything the person typed, so a rep who had entered a
+      // dozen meetings was told they had recorded nothing.
+      title: `No activity reported — ${planned.reportDate}`,
+      body: `Your daily report has shown no activity for two reporting days in a row, through ${planned.reportDate} — every figure zero and no notes. If that is not right, open the report and fill in your numbers or add a note. You have ${activeCount} active warning${activeCount === 1 ? '' : 's'} this month.`,
       // Same reasoning as processWarning's own fallback: a null `warning`
       // means the row already existed, so the notification still resolves
       // somewhere sensible via the claimed ledger row instead.
@@ -730,17 +740,22 @@ export async function previewDailyReportSweep(now = new Date()): Promise<{
     const autoSubmitFloor = addDays(istDate(now), -AUTO_SUBMIT_LOOKBACK_DAYS);
     const salesSubjects = subjects.filter((s) => salesIdSet.has(s.employeeId) && s.reportDate >= autoSubmitFloor);
 
-    autoSubmitDue = planAutoSubmits(salesSubjects, { submitted, leaveCovered }, now, config.sales_auto_submit_time, policy).length;
+    // Blank time = auto-submit off, so nothing is ever due. Guarded here
+    // rather than around the whole block because the zero-activity pass
+    // below is independent of auto-submit and must still be previewed.
+    autoSubmitDue = config.sales_auto_submit_time
+      ? planAutoSubmits(salesSubjects, { submitted, leaveCovered }, now, config.sales_auto_submit_time, policy).length
+      : 0;
     if (autoSubmitDue) byKind.AUTO_SUBMIT = autoSubmitDue;
 
     const extendedFrom = previousWorkingDay(from, policy);
-    const [autoTotalByKey, alreadyWarned] = await Promise.all([
-      loadAutoTotalsByKey(salesIds, extendedFrom, to),
+    const [activityByKey, alreadyWarned] = await Promise.all([
+      loadReportedActivityByKey(salesIds, extendedFrom, to),
       loadWarningKeys(salesIds, extendedFrom, to, ['zero_total'])
     ]);
     const extendedDates = [extendedFrom, ...reportDates];
     const datesByEmployee = new Map(salesEmployees.map((e) => [e.id, extendedDates.filter((d) => employeeOwesDate(e, d))]));
-    zeroTotalWarningsDue = planZeroTotalWarnings(datesByEmployee, autoTotalByKey, alreadyWarned).length;
+    zeroTotalWarningsDue = planZeroTotalWarnings(datesByEmployee, activityByKey, alreadyWarned).length;
     if (zeroTotalWarningsDue) byKind.ZERO_TOTAL_WARNING = zeroTotalWarningsDue;
   }
 

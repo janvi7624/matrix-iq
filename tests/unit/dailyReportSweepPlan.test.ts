@@ -325,16 +325,19 @@ describe('the 2-zero-day streak warning', () => {
   const D2 = '2026-10-20';
   const D3 = '2026-10-21';
 
+  /** One submitted report's reported activity: every matrix cell, plus notes. */
+  const act = (total: number, hasNarrative = false) => ({ total, hasNarrative });
+
   it('does not warn on a single zero day', () => {
-    const totals = new Map([[subjectKey(EMP, D1), 0]]);
+    const totals = new Map([[subjectKey(EMP, D1), act(0)]]);
     const planned = planZeroTotalWarnings(new Map([[EMP, [D1]]]), totals, new Set());
     expect(planned).toEqual([]);
   });
 
   it('warns on the second consecutive zero day', () => {
     const totals = new Map([
-      [subjectKey(EMP, D1), 0],
-      [subjectKey(EMP, D2), 0]
+      [subjectKey(EMP, D1), act(0)],
+      [subjectKey(EMP, D2), act(0)]
     ]);
     const planned = planZeroTotalWarnings(new Map([[EMP, [D1, D2]]]), totals, new Set());
     expect(planned).toEqual([{ employeeId: EMP, reportDate: D2 }]);
@@ -342,9 +345,9 @@ describe('the 2-zero-day streak warning', () => {
 
   it('keeps warning on a third consecutive zero day too', () => {
     const totals = new Map([
-      [subjectKey(EMP, D1), 0],
-      [subjectKey(EMP, D2), 0],
-      [subjectKey(EMP, D3), 0]
+      [subjectKey(EMP, D1), act(0)],
+      [subjectKey(EMP, D2), act(0)],
+      [subjectKey(EMP, D3), act(0)]
     ]);
     const planned = planZeroTotalWarnings(new Map([[EMP, [D1, D2, D3]]]), totals, new Set());
     expect(planned).toEqual([
@@ -355,9 +358,9 @@ describe('the 2-zero-day streak warning', () => {
 
   it('a non-zero day breaks the streak', () => {
     const totals = new Map([
-      [subjectKey(EMP, D1), 0],
-      [subjectKey(EMP, D2), 4],
-      [subjectKey(EMP, D3), 0]
+      [subjectKey(EMP, D1), act(0)],
+      [subjectKey(EMP, D2), act(4)],
+      [subjectKey(EMP, D3), act(0)]
     ]);
     const planned = planZeroTotalWarnings(new Map([[EMP, [D1, D2, D3]]]), totals, new Set());
     expect(planned).toEqual([]);
@@ -367,8 +370,8 @@ describe('the 2-zero-day streak warning', () => {
     // D2 has no entry at all — not submitted, so it is neither a zero day
     // nor a non-zero day, it simply is not there to extend the streak.
     const totals = new Map([
-      [subjectKey(EMP, D1), 0],
-      [subjectKey(EMP, D3), 0]
+      [subjectKey(EMP, D1), act(0)],
+      [subjectKey(EMP, D3), act(0)]
     ]);
     const planned = planZeroTotalWarnings(new Map([[EMP, [D1, D2, D3]]]), totals, new Set());
     expect(planned).toEqual([]);
@@ -376,8 +379,8 @@ describe('the 2-zero-day streak warning', () => {
 
   it('does not re-warn a date already recorded', () => {
     const totals = new Map([
-      [subjectKey(EMP, D1), 0],
-      [subjectKey(EMP, D2), 0]
+      [subjectKey(EMP, D1), act(0)],
+      [subjectKey(EMP, D2), act(0)]
     ]);
     const alreadyWarned = new Set([subjectKey(EMP, D2)]);
     const planned = planZeroTotalWarnings(new Map([[EMP, [D1, D2]]]), totals, alreadyWarned);
@@ -386,10 +389,10 @@ describe('the 2-zero-day streak warning', () => {
 
   it('tracks a separate streak per employee', () => {
     const totals = new Map([
-      [subjectKey(EMP, D1), 0],
-      [subjectKey(EMP, D2), 0],
-      [subjectKey(EMP2, D1), 5],
-      [subjectKey(EMP2, D2), 0]
+      [subjectKey(EMP, D1), act(0)],
+      [subjectKey(EMP, D2), act(0)],
+      [subjectKey(EMP2, D1), act(5)],
+      [subjectKey(EMP2, D2), act(0)]
     ]);
     const datesByEmployee = new Map([
       [EMP, [D1, D2]],
@@ -399,5 +402,50 @@ describe('the 2-zero-day streak warning', () => {
     // EMP2's D1 was non-zero, so EMP2's D2 is only a first zero day, not a
     // second — only EMP warns.
     expect(planned).toEqual([{ employeeId: EMP, reportDate: D2 }]);
+  });
+
+  // The defect this signal was rebuilt for: it used to be fed the auto-fetched
+  // measures alone, so work the app cannot observe read as silence. All 13
+  // warnings on record when that was found were of this kind.
+  describe('counts what the employee reported, not only what the app observed', () => {
+    it('does not warn when hand-typed measures carry the day', () => {
+      // Sachin Kacha's real case: every auto measure zero, 12 and 14 meetings
+      // typed in by hand, warned on both days anyway.
+      const totals = new Map([
+        [subjectKey(EMP, D1), act(12)],
+        [subjectKey(EMP, D2), act(14)]
+      ]);
+      expect(planZeroTotalWarnings(new Map([[EMP, [D1, D2]]]), totals, new Set())).toEqual([]);
+    });
+
+    it('does not warn when the day was written up in the notes', () => {
+      // Manoj Menon's real case: zero figures, notes filled in, three
+      // warnings — which is the HR escalation threshold.
+      const totals = new Map([
+        [subjectKey(EMP, D1), act(0, true)],
+        [subjectKey(EMP, D2), act(0, true)]
+      ]);
+      expect(planZeroTotalWarnings(new Map([[EMP, [D1, D2]]]), totals, new Set())).toEqual([]);
+    });
+
+    it('a noted day breaks a streak exactly as a non-zero day does', () => {
+      const totals = new Map([
+        [subjectKey(EMP, D1), act(0)],
+        [subjectKey(EMP, D2), act(0, true)],
+        [subjectKey(EMP, D3), act(0)]
+      ]);
+      expect(planZeroTotalWarnings(new Map([[EMP, [D1, D2, D3]]]), totals, new Set())).toEqual([]);
+    });
+
+    it('still warns on a genuinely empty report two days running', () => {
+      // The signal is narrowed, not defanged: all figures zero AND no notes
+      // is still a reported empty day, and still warns on the second.
+      const totals = new Map([
+        [subjectKey(EMP, D1), act(0)],
+        [subjectKey(EMP, D2), act(0)]
+      ]);
+      expect(planZeroTotalWarnings(new Map([[EMP, [D1, D2]]]), totals, new Set()))
+        .toEqual([{ employeeId: EMP, reportDate: D2 }]);
+    });
   });
 });

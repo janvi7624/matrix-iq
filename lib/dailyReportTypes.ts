@@ -560,3 +560,29 @@ export interface DailyReportAnalyticsResponse {
   by_department: DailyReportAnalyticsRow[];
   by_employee: DailyReportAnalyticsRow[];
 }
+
+/**
+ * What one submitted report says the employee actually did that day — the
+ * input to the zero-activity streak warning.
+ *
+ * Both halves matter, and the reason is a real defect this replaced. The
+ * streak used to be fed the sum of the AUTO-fetched measures alone, which on
+ * the Sales template is 5 of 7 cells: everything except Meetings Completed
+ * and Meetings Scheduled, the two nothing in the app can observe. A rep whose
+ * day was meetings therefore reported a full matrix and was still told "No
+ * sales activity recorded", in the same warning ledger that escalates to HR
+ * at 3 occurrences. Measured 2026-10-28: all 13 zero-activity warnings on
+ * record were on reports that contained work — one of them a rep who had
+ * entered 14 meetings.
+ */
+export interface ReportedActivity {
+  /** Every measure cell on the submitted report summed — auto AND manual. */
+  total: number;
+  /**
+   * Whether the employee wrote the day up in the report's notes. A rep who
+   * reports zero countable numbers but explains why (travel, a cancelled
+   * visit, a day on one deal) has reported their day; treating that as
+   * silence is the same mistake in a different place.
+   */
+  hasNarrative: boolean;
+}

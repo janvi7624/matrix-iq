@@ -5,7 +5,8 @@ import {
   DailyReportHistoryItem,
   DailyReportRecord,
   DailyReportRevisionRecord,
-  DailyReportSubmissionStatus
+  DailyReportSubmissionStatus,
+  ReportedActivity
 } from './dailyReportTypes';
 import {
   BUILT_IN_TEMPLATES,
@@ -659,27 +660,41 @@ export async function loadSubmittedKeys(employeeIds: string[], from: string, to:
 }
 
 /**
- * subjectKey -> the sum of a SUBMITTED report's auto-fetched measure cells
- * only (lib/salesDailyAutoFetch.ts's 4 Sales/GEM-Sales measures) — never the
- * other, manually-typed measures on the same report. This is what
- * lib/dailyReportSweepPlan.ts's planZeroTotalWarnings tracks: whether the
- * auto fetch itself found anything, not whether the employee typed anything.
+ * subjectKey -> what a SUBMITTED report says the employee did that day, for
+ * lib/dailyReportSweepPlan.ts's planZeroTotalWarnings.
+ *
+ * This deliberately counts THE WHOLE MATRIX, auto and manual cells alike,
+ * plus whether the day was written up in the notes. It used to count only
+ * the auto-fetched measures — "whether the auto fetch found anything, not
+ * whether the employee typed anything" — and that was the bug: on the Sales
+ * template the auto measures are 5 of 7 cells, the exceptions being Meetings
+ * Completed and Meetings Scheduled, which stay manual because nothing in the
+ * app observes a meeting. A rep whose day was meetings filled in a complete
+ * report and was still warned for "no sales activity", into the same ledger
+ * that escalates to HR at 3 occurrences. Every one of the 13 warnings on
+ * record when this was found was of that kind.
  *
  * Reads the already-stored `matrix` rather than recomputing from
  * Lead/Quotation — saveReport overlays fresh auto values on every save and
  * submit (see computeSalesAutoMatrix), so a submitted report's stored value
- * for an auto measure key already IS the auto-fetched one.
+ * for an auto measure key already IS the auto-fetched one. Summing every key
+ * present also picks up retired measures a historical report still carries
+ * (e.g. 'Quotations Sent'), which is correct: it was reported activity.
  *
- * A row whose template has no autoMeasures contributes nothing — harmless,
- * since the caller is expected to have already narrowed `employeeIds` to
- * auto-measures employees, but correct either way.
+ * Eligibility is still keyed on the template having autoMeasures, so exactly
+ * the same population is considered as before — only the question asked
+ * about them changed.
  */
-export async function loadAutoTotalsByKey(employeeIds: string[], from: string, to: string): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
+export async function loadReportedActivityByKey(
+  employeeIds: string[],
+  from: string,
+  to: string
+): Promise<Map<string, ReportedActivity>> {
+  const map = new Map<string, ReportedActivity>();
   if (!employeeIds.length) return map;
   const rows = await db.DailyReport.findAll({
     where: { employee_id: employeeIds, report_date: { [Op.between]: [from, to] }, submission_status: SUBMITTED_STATUSES } as never,
-    attributes: ['employee_id', 'report_date', 'template_key', 'matrix']
+    attributes: ['employee_id', 'report_date', 'template_key', 'matrix', 'payload']
   });
   for (const row of rows) {
     const plain = row.get({ plain: true }) as Record<string, unknown>;
@@ -687,10 +702,15 @@ export async function loadAutoTotalsByKey(employeeIds: string[], from: string, t
     if (!autoMeasures?.length) continue;
     const matrix = (plain.matrix as Record<string, Record<string, unknown>>) ?? {};
     let total = 0;
-    for (const measure of autoMeasures) {
-      for (const value of Object.values(matrix[measure] ?? {})) total += Number(value) || 0;
+    for (const perChannel of Object.values(matrix)) {
+      for (const value of Object.values(perChannel ?? {})) total += Number(value) || 0;
     }
-    map.set(lookupKey(plain.employee_id as string, dateOnly(plain.report_date)), total);
+    const payload = (plain.payload as Record<string, unknown>) ?? {};
+    const narrative = typeof payload.notes === 'string' ? payload.notes.trim() : '';
+    map.set(lookupKey(plain.employee_id as string, dateOnly(plain.report_date)), {
+      total,
+      hasNarrative: narrative !== ''
+    });
   }
   return map;
 }

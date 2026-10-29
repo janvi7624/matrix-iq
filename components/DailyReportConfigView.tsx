@@ -465,7 +465,7 @@ export default function DailyReportConfigView() {
             <Input id="final-reminder" type="time" value={config.final_reminder_time} onChange={(e) => set('final_reminder_time', e.target.value)} />
           </div>
           <div className={calcStyles.field}>
-            <label className={calcStyles.label} htmlFor="sales-auto-submit">Sales/GEM-Sales auto-submit, next working day (IST)</label>
+            <label className={calcStyles.label} htmlFor="sales-auto-submit">Sales/GEM-Sales auto-submit, next working day (IST) — leave blank for manual</label>
             <Input
               id="sales-auto-submit"
               type="time"
@@ -473,8 +473,11 @@ export default function DailyReportConfigView() {
               onChange={(e) => set('sales_auto_submit_time', e.target.value)}
             />
             <div className={calcStyles.small}>
-              Applies only to employees on a template with auto-fetched measures. If they have not submitted by this time, the system files it for
-              them using their tracked leads, quotations and purchase orders.
+              <strong>Blank (the default) means Sales submit their own reports</strong>, like every other department. Their tracked leads,
+              quotations and purchase orders are still filled in for them automatically — they just press submit themselves.
+              {config.sales_auto_submit_time
+                ? ' Set to a time, so if a rep has not submitted by then the system files the report on their behalf.'
+                : ''}
             </div>
           </div>
         </div>
