@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardCheck, Download, Eye, FilePlus2, History, Pencil, Table2 } from 'lucide-react';
+import { CalendarOff, ClipboardCheck, Download, Eye, FilePlus2, History, Pencil, Table2 } from 'lucide-react';
 import { DailyReportPayloadInput, EMPTY_PAYLOAD, TemplateDefinition } from '@/lib/dailyReportTemplates';
 import {
   DailyReportEditRequestRecord,
@@ -12,6 +12,7 @@ import {
   TeamDailyReportRow
 } from '@/lib/dailyReportTypes';
 import { Granularity, PeriodBounds, resolveRange, selectableYears } from '@/lib/hrReportPeriod';
+import { canOfferMarkLeave } from '@/lib/dailyReportManagerLeave';
 import { exportListToPdf } from '@/lib/exportPdf';
 import AppShell from './AppShell';
 import DailyReportForm from './DailyReportForm';
@@ -169,6 +170,12 @@ export default function TeamDailyReportsView({
   }, [period, customFrom, customTo, rangeYear, rangeMonth, rangeQuarter, now, bounds]);
 
   const [dialog, setDialog] = useState<DialogMode>(null);
+  // Mark Leave is its own small dialog rather than another `dialog` kind:
+  // that one loads a report and a template to render a form, and this needs
+  // neither — only a reason.
+  const [leaveFor, setLeaveFor] = useState<TeamDailyReportRow | null>(null);
+  const [leaveReason, setLeaveReason] = useState('');
+  const [leaveSaving, setLeaveSaving] = useState(false);
   const [dialogReport, setDialogReport] = useState<DailyReportRecord | null>(null);
   const [dialogTemplate, setDialogTemplate] = useState<TemplateDefinition | null>(null);
   const [dialogPayload, setDialogPayload] = useState<DailyReportPayloadInput>(EMPTY_PAYLOAD);
@@ -393,6 +400,35 @@ export default function TeamDailyReportsView({
       toast.error(error instanceof Error ? error.message : 'Could not file this report.');
     } finally {
       setDialogSaving(false);
+    }
+  }
+
+  // The manager's own decision — no HR step. The date stops being expected
+  // of them and any warning already raised for it is waived.
+  async function markLeave() {
+    if (!leaveFor) return;
+    setLeaveSaving(true);
+    try {
+      const response = await fetch('/api/daily-reports/team/mark-leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId: leaveFor.employee_id, reportDate: date, reason: leaveReason })
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || `Could not mark leave (${response.status})`);
+      const name = leaveFor.employee_name;
+      setLeaveFor(null);
+      setLeaveReason('');
+      await load();
+      toast.success(
+        body?.waived_warning
+          ? `${name} is marked on leave for ${date}. The warning already recorded for that date has been waived, and they have been notified.`
+          : `${name} is marked on leave for ${date} — no report is expected and no warning will be raised. They have been notified.`
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not mark leave.');
+    } finally {
+      setLeaveSaving(false);
     }
   }
 
@@ -657,6 +693,20 @@ export default function TeamDailyReportsView({
                           ) : (
                             <span className={calcStyles.small}>—</span>
                           )}
+                          {/* "They weren't here" — the other honest answer to
+                              a missing report, and the one that stops the
+                              warning instead of inventing a report to avoid
+                              it. Hidden once a live claim already covers the
+                              date; see canOfferMarkLeave. */}
+                          {canOfferMarkLeave(row, data.can_file_for_others) && (
+                            <button
+                              type="button"
+                              className={historyStyles.rowAction}
+                              onClick={() => { setLeaveFor(row); setLeaveReason(''); }}
+                            >
+                              <CalendarOff size={14} /> Mark Leave
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -724,6 +774,48 @@ export default function TeamDailyReportsView({
             </div>
           )}
         </>
+      )}
+
+      {leaveFor && (
+        <Modal
+          title={`Mark ${leaveFor.employee_name} on leave — ${date}`}
+          ariaLabel="Mark a team member on leave for a reporting date"
+          onClose={() => setLeaveFor(null)}
+          dismissible={!leaveSaving}
+          footer={
+            <>
+              <ModalCancelButton onClick={() => setLeaveFor(null)} disabled={leaveSaving}>Cancel</ModalCancelButton>
+              <ModalOkButton onClick={markLeave} disabled={leaveSaving || !leaveReason.trim()}>
+                {leaveSaving ? 'Marking…' : 'Mark Leave'}
+              </ModalOkButton>
+            </>
+          }
+        >
+          <div className={`${styles.banner} ${styles.bannerNotice}`}>
+            <span className={styles.bannerIcon}><CalendarOff size={17} /></span>
+            <div className={styles.bannerBody}>
+              <div className={styles.bannerHeadline}>No report will be expected for {date}</div>
+              <div className={styles.bannerDetail}>
+                This is your decision as their manager — it does not wait for HR. {leaveFor.employee_name} will be told that you marked it and
+                why, HR sees it in the leave log, and if a missed-report warning was already recorded for {date} it is waived.
+              </div>
+            </div>
+          </div>
+          <div className={calcStyles.field}>
+            <label className={calcStyles.label} htmlFor="mark-leave-reason">
+              Reason <span className={calcStyles.small}>(required — {leaveFor.employee_name} and HR both see it)</span>
+            </label>
+            <Textarea
+              id="mark-leave-reason"
+              value={leaveReason}
+              onChange={(e) => setLeaveReason(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              placeholder="e.g. On approved casual leave / travelling for the Ahmedabad install"
+              disabled={leaveSaving}
+            />
+          </div>
+        </Modal>
       )}
 
       {dialog && (

@@ -107,6 +107,107 @@ export async function createClaim(input: CreateClaimInput): Promise<DailyReportL
   }
 }
 
+export interface MarkLeaveByManagerInput {
+  employeeId: string;
+  departmentId: string | null;
+  reportDate: string;
+  reason: string;
+  /** The manager doing the marking — recorded as the claim's reviewer. */
+  markedById: string;
+}
+
+export interface MarkLeaveByManagerResult {
+  claim: DailyReportLeaveClaimRecord;
+  /** Set when the marking waived a warning that had already been recorded. */
+  waivedWarningId: string | null;
+}
+
+/**
+ * The department manager marks a team member as on leave for one reporting
+ * date, taking the decision themselves.
+ *
+ * Written as an APPROVED claim rather than a PENDING one: the manager is the
+ * approver here, so there is nothing for HR to decide, and a PENDING row
+ * would sit in HR's to-do list forever. Recording the manager in
+ * reviewed_by/reviewed_at is what keeps "who excused this date" answerable —
+ * the same columns HR's own decision writes, so history reads uniformly
+ * whichever route excused a date.
+ *
+ * Waives an ACTIVE warning for that date, exactly as decideClaim's approval
+ * branch does: if the sweep already ran before the manager got to it, the
+ * date is still legitimately not worked and the warning must stop counting
+ * toward the HR threshold. The row becomes 'WAIVED' rather than being
+ * deleted, so the history still shows that a warning was raised and why it
+ * was dropped.
+ */
+export async function markLeaveByManager(input: MarkLeaveByManagerInput): Promise<MarkLeaveByManagerResult> {
+  if (!isIsoDate(input.reportDate)) throw new DailyReportLeaveClaimError('A valid reporting date is required.');
+  const reason = (input.reason || '').trim();
+  if (!reason) throw new DailyReportLeaveClaimError('Give a reason for marking this leave.');
+  if (reason.length > 2000) throw new DailyReportLeaveClaimError('Keep the reason under 2000 characters.');
+
+  // Readable message for the common case; the partial unique index is what
+  // actually holds under a race, and the catch below says the same thing.
+  const live = await db.DailyReportLeaveClaim.findOne({
+    where: { employee_id: input.employeeId, report_date: input.reportDate, status: LIVE_CLAIM_STATUSES } as never
+  });
+  if (live) {
+    const status = live.get('status') as DailyReportLeaveClaimStatus;
+    throw new DailyReportLeaveClaimError(
+      status === 'PENDING'
+        ? 'This person already has a leave claim awaiting HR for this date — decide that instead.'
+        : 'This date is already covered by approved leave.'
+    );
+  }
+
+  let claimId = '';
+  let waivedWarningId: string | null = null;
+
+  try {
+    await db.sequelize.transaction(async (t) => {
+      const row = await db.DailyReportLeaveClaim.create(
+        {
+          employee_id: input.employeeId,
+          department_id: input.departmentId,
+          report_date: input.reportDate,
+          reason,
+          attachments: [],
+          status: 'APPROVED',
+          reviewed_by: input.markedById,
+          reviewed_at: new Date(),
+          decision_reason: 'Marked as leave by the department manager.'
+        } as never,
+        { transaction: t }
+      );
+      claimId = row.get('id') as string;
+
+      const warning = await db.DailyReportWarning.findOne({
+        where: { employee_id: input.employeeId, report_date: input.reportDate } as never,
+        transaction: t
+      });
+      if (warning && warning.get('status') === 'ACTIVE') {
+        await warning.update(
+          {
+            status: 'WAIVED',
+            waived_by: input.markedById,
+            waived_at: new Date(),
+            waiver_reason: `Leave marked by department manager: ${reason}`
+          } as never,
+          { transaction: t }
+        );
+        waivedWarningId = warning.get('id') as string;
+      }
+    });
+  } catch (error) {
+    if ((error as { name?: string }).name === 'SequelizeUniqueConstraintError') {
+      throw new DailyReportLeaveClaimError('A leave claim for this date already exists.');
+    }
+    throw error;
+  }
+
+  return { claim: (await findClaimById(claimId)) as DailyReportLeaveClaimRecord, waivedWarningId };
+}
+
 export async function findClaimById(id: string): Promise<DailyReportLeaveClaimRecord | null> {
   if (!isUuid(id)) return null;
   const row = await db.DailyReportLeaveClaim.findByPk(id, { include: INCLUDES as never });
