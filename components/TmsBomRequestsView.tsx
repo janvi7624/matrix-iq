@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FileText } from 'lucide-react';
 import { TmsBomRequestRecord, TmsBomRequestStatus, TmsProjectRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE } from '@/lib/tmsLabels';
+import { bomPendingWithLabel } from '@/lib/tmsBomApprovalChain';
 import AppShell from './AppShell';
 import dashboardStyles from './dashboard.module.css';
 import tmsDashboardStyles from './tmsDashboard.module.css';
@@ -157,6 +158,14 @@ export default function TmsBomRequestsView({ currentUser }: TmsBomRequestsViewPr
     { key: 'qty', header: 'Qty', render: (r) => r.quantity },
     { key: 'requestedBy', header: 'Requested By', render: (r) => r.requested_by_name || '-' },
     { key: 'status', header: 'Status', render: (r) => <StatusBadge tone={TMS_BOM_STATUS_TONE[r.status]} label={TMS_BOM_STATUS_LABEL[r.status]} /> },
+    // "Where is it stuck" as a scannable column — the status badge says what
+    // has been approved, this says who it is sitting on now. Same helper the
+    // detail page's chain uses, so the two cannot disagree.
+    {
+      key: 'pendingWith',
+      header: 'Pending With',
+      render: (r) => bomPendingWithLabel(r, r.finance_stage_enabled !== false).replace(/^Pending: /, '') || '-'
+    },
     { key: 'actions', header: '', render: (r) => <Link className={historyStyles.button} href={`/tms/bom-requests/${r.id}`}>View</Link> }
   ];
 

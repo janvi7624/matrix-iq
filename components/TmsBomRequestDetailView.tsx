@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { TmsBomRequestRecord, UserRole } from '@/lib/types';
-import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, tmsBomPendingApprovalLabel } from '@/lib/tmsLabels';
+import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE } from '@/lib/tmsLabels';
+import { bomPendingWithLabel } from '@/lib/tmsBomApprovalChain';
+import TmsBomApprovalTrail from './TmsBomApprovalTrail';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -200,7 +202,8 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
   }
 
   const isRequester = !!currentUser.id && currentUser.id === record.requested_by_id;
-  const pendingLabel = tmsBomPendingApprovalLabel(record.status);
+  const financeStageEnabled = record.finance_stage_enabled !== false;
+  const pendingLabel = bomPendingWithLabel(record, financeStageEnabled);
 
   return (
     <AppShell title={record.item_name} subtitle={`${record.bom_request_code} · ${record.project_name}`} showBackLink>
@@ -224,7 +227,7 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
           <>
             {record.viewer_can_admin_approve && (
               <>
-                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleAdminApprove}>Approve (Administration)</button>
+                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={busy} onClick={handleAdminApprove}>Approve (Management)</button>
                 <button type="button" className={historyStyles.dangerButton} disabled={busy} onClick={handleAdminReject}>Reject</button>
               </>
             )}
@@ -248,6 +251,14 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
         </div>
       )}
 
+      {/* The whole chain, not just the current step — "where is pending and
+          where is approved" in one place, including who cleared each step
+          and when. */}
+      <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop18}`}>
+        <div className={calcStyles.h2}>Approval chain</div>
+        <TmsBomApprovalTrail record={record} financeStageEnabled={financeStageEnabled} />
+      </div>
+
       <div className={calcStyles.sectionPanel}>
         <div className={`${calcStyles.row} ${calcStyles.columns}`}>
           <div><strong>Project:</strong> {record.project_name}</div>
@@ -270,24 +281,19 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
         {record.status === 'rejected' && (
           <div className={styles.infoRowDanger}><strong>Rejection reason:</strong> {record.rejection_reason || '-'}</div>
         )}
-        {record.reviewed_by_name && (
-          <div className={styles.infoRow}><strong>Reviewed by (Technical Manager):</strong> {record.reviewed_by_name} on {formatDate(record.reviewed_at)}</div>
-        )}
-        {record.admin_reviewed_by_name && (
-          <div className={styles.infoRow}><strong>Approved by (Administration):</strong> {record.admin_reviewed_by_name} on {formatDate(record.admin_reviewed_at)}</div>
-        )}
-        {record.finance_reviewed_by_name && (
-          <div className={styles.infoRow}><strong>Approved by (Finance):</strong> {record.finance_reviewed_by_name} on {formatDate(record.finance_reviewed_at)}</div>
-        )}
-        {record.payment_marked_by_name && (
-          <div className={styles.infoRow}><strong>Payment marked by (Accounts):</strong> {record.payment_marked_by_name} on {formatDate(record.payment_marked_at)}</div>
-        )}
-        {record.received_by_name && (
-          <div className={styles.infoRow}><strong>Material received by:</strong> {record.received_by_name} on {formatDate(record.received_at)}</div>
-        )}
+        {/* Who approved what, and when, now lives in the Approval chain
+            panel above — it carries the same stamps for every step plus the
+            ones still outstanding, so repeating five of them here would only
+            give two places to disagree. 'Reviewed by (Technical Manager)'
+            was also the wrong name for it now that the first approval is
+            the requester's own department manager. */}
       </div>
 
-      {record.status === 'finance_approved' && isAccountsManager && (
+      {/* Payable at finance_approved, and at admin_approved when there is no
+          Finance Approver configured — matching what the mark-payment route
+          now accepts, so Accounts is never shown a request it cannot pay or
+          denied one it can. */}
+      {(record.status === 'finance_approved' || (record.status === 'admin_approved' && !financeStageEnabled)) && isAccountsManager && (
         <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop18}`}>
           <div className={calcStyles.h2}>Mark Payment Done</div>
           <div className={`${calcStyles.small} ${calcStyles.smallSpaced}`}>Attach a payment proof (receipt, transfer confirmation, etc.) to mark this request paid.</div>

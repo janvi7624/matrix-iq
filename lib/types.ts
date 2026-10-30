@@ -2029,6 +2029,12 @@ export interface TmsBomRequestRecord {
   viewer_can_reject?: boolean;
   viewer_can_admin_approve?: boolean;
   viewer_can_finance_approve?: boolean;
+  /**
+   * Whether a Finance Approver is configured, i.e. whether the optional
+   * Finance step is part of this org's chain at all. Drives the approval
+   * trail — see lib/tmsBomApprovalChain.ts.
+   */
+  finance_stage_enabled?: boolean;
 }
 
 export type TmsPurchaseStatus = 'requested' | 'quotation_required' | 'quotation_received' | 'approval_pending' | 'approved' | 'po_created' | 'ordered' | 'cancelled';

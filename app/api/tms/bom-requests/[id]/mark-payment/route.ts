@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTmsViewer, isAccountsManager } from '@/lib/tmsAccess';
+import { getTmsViewer, isAccountsManager, isBomFinanceStageEnabled } from '@/lib/tmsAccess';
 import { tmsBomRequestStore } from '@/lib/tmsBomRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
@@ -7,13 +7,15 @@ import { getClientIp } from '@/lib/requestIp';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
 import { findUserByUsername } from '@/lib/userStore';
+import { isBomAwaitingPayment } from '@/lib/tmsBomApprovalChain';
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
 }
 
-// finance_approved -> payment_done. Gated to whoever manages the "Accounts"
+// finance_approved (or admin_approved, when no Finance Approver is
+// configured) -> payment_done. Gated to whoever manages the "Accounts"
 // department (Department.managerIds, via lib/tmsAccess.ts's
 // isAccountsManager) — a payment-proof attachment is required, kept in its
 // own payment_proof_attachments field, separate from the general
@@ -35,7 +37,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const existing = await tmsBomRequestStore.findById(id);
     if (!existing) return NextResponse.json({ error: 'BOM request not found' }, { status: 404 });
-    if (existing.status !== 'finance_approved') {
+
+    // Payable from 'finance_approved' always, and from 'admin_approved' when
+    // no Finance Approver is configured — in that case Management approval
+    // IS the last approval before payment, and requiring 'finance_approved'
+    // left the request unpayable by anyone. See lib/tmsBomApprovalChain.ts
+    // on why the Finance step is optional.
+    if (!isBomAwaitingPayment(existing.status, await isBomFinanceStageEnabled())) {
       return NextResponse.json({ error: 'This request is not awaiting payment' }, { status: 400 });
     }
 
@@ -47,7 +55,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       entityType: 'tms_bom_request',
       entityId: id,
       action: 'BOM request payment marked done',
-      previousStatus: 'finance_approved',
+      previousStatus: existing.status,
       newStatus: 'payment_done',
       remarks: existing.item_name,
       ip: getClientIp(request)

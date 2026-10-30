@@ -1,0 +1,84 @@
+/* The BOQ approval chain, one row per step. A vertical rail rather than
+   horizontal chips: the step names are long ("Department Manager approval")
+   and there are six of them, which no phone width fits across. */
+
+.trail {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.step {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    padding: 0 0 14px 0;
+}
+
+/* The rail itself — drawn on every step but the last. */
+.step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 16px;
+    bottom: 0;
+    width: 2px;
+    background: var(--mx-border);
+}
+
+.marker {
+    position: relative;
+    z-index: 1;
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+    margin-top: 2px;
+    border-radius: 50%;
+    border: 2px solid var(--mx-border);
+    background: var(--mx-surface);
+}
+
+.body { flex: 1 1 auto; min-width: 0; }
+
+.headRow {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.label { font-size: 13px; font-weight: var(--mx-weight-semibold); color: var(--mx-ink); }
+
+.state {
+    font-size: 10px;
+    font-weight: var(--mx-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--mx-ink-muted);
+}
+
+.meta { font-size: 12px; color: var(--mx-ink-muted); margin-top: 1px; }
+
+/* Done: filled marker, full-strength text. */
+.done .marker { border-color: var(--mx-success, #059669); background: var(--mx-success, #059669); }
+.done .state { color: var(--mx-success, #059669); }
+
+/* Current: the one row that should catch the eye — this is the answer to
+   "where is it pending". */
+.current .marker { border-color: var(--mx-warning, #d97706); background: var(--mx-surface); box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.18); }
+.current .label { color: var(--mx-ink); }
+.current .state { color: var(--mx-warning, #d97706); }
+
+.rejected .marker { border-color: var(--mx-danger); background: var(--mx-danger); }
+.rejected .state { color: var(--mx-danger); }
+
+/* Upcoming and skipped both recede, but only skipped is struck through —
+   it is not going to happen, rather than not happened yet. */
+.upcoming .label,
+.upcoming .meta { opacity: 0.6; }
+
+.skipped .label { opacity: 0.5; text-decoration: line-through; }
+.skipped .meta { opacity: 0.5; }

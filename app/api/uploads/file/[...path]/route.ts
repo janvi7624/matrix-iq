@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
 import { partnerMayReadUpload } from '@/lib/partnerUploads';
+import { partnerMayReadMaterialFile } from '@/lib/partnerMaterialStore';
 
 // Authenticated read-through proxy for generic attachments — see
 // app/api/uploads/route.ts. Same pattern as /api/site-visits/image/[...path].
@@ -17,7 +18,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // ownership, because any employee may read any company attachment. An
   // external partner may read only their own prefix, or Partner A could pull
   // Partner B's documents by iterating a path. Internal access is unchanged.
-  if (viewer.partnerId && !partnerMayReadUpload(pathname, viewer.partnerId)) {
+  //
+  // A second, separate carve-out: a Marketing Material uploaded directly
+  // (not pasted as a Drive/external link) lives under an INTERNAL path —
+  // Marketing staff uploaded it, not the partner — so it would never match
+  // partnerMayReadUpload's own-prefix rule even once "Share with partners"
+  // is ticked. partnerMayReadMaterialFile re-checks it against the actual
+  // publication rule instead of the ownership-by-prefix one.
+  if (viewer.partnerId && !partnerMayReadUpload(pathname, viewer.partnerId) && !(await partnerMayReadMaterialFile(pathname, viewer.partnerId))) {
     // 404, not 403: a 403 would confirm the file exists.
     return NextResponse.json({ error: 'File not found' }, { status: 404 });
   }

@@ -4,6 +4,8 @@ import { reimbursementSheetStore } from './reimbursementSheetStore';
 import { tmsBomRequestStore } from './tmsBomRequestStore';
 import { travelScheduleStore } from './travelScheduleStore';
 import { monthKeyBounds } from './dateHelpers';
+import { isBomAwaitingPayment } from './tmsBomApprovalChain';
+import { getAppConfig } from './appConfigStore';
 import { AdminExpenseSheetEntry, OfficeExpenseSheetEntry, PaymentQueueItem, PaymentSource, PaymentQueueStatus, PaymentSummary } from './types';
 
 // A stated payment-SLA policy, not an asserted per-record fact — none of the
@@ -394,9 +396,14 @@ export async function getOfficeExpenseSheetEntries(sheetKey: string): Promise<Of
 }
 
 async function getBomRequestItems(): Promise<PaymentQueueItem[]> {
-  const all = await tmsBomRequestStore.readAll();
+  const [all, config] = await Promise.all([tmsBomRequestStore.readAll(), getAppConfig()]);
+  // With no Finance Approver configured, Management approval is the last
+  // approval before payment — so an 'admin_approved' request belongs in this
+  // queue. Requiring 'finance_approved' exactly kept it out of Accounts'
+  // sight entirely. See isBomAwaitingPayment.
+  const financeStageEnabled = !!config.bomFinanceApproverUsername;
   return all
-    .filter((r) => r.status === 'finance_approved' || r.status === 'payment_done')
+    .filter((r) => isBomAwaitingPayment(r.status, financeStageEnabled) || r.status === 'payment_done')
     .map((r) => {
       const status: PaymentQueueStatus = r.status === 'payment_done' ? 'paid' : 'payment_required';
       return {
@@ -594,7 +601,10 @@ export async function payItem(
       const rows = await tmsBomRequestStore.readAll();
       const existing = rows.find((r) => r.id === sourceId);
       if (!existing) return { ok: false, error: 'BOM request not found' };
-      if (existing.status !== 'finance_approved') return { ok: false, error: 'This request is not awaiting payment' };
+      const bomConfig = await getAppConfig();
+      if (!isBomAwaitingPayment(existing.status, !!bomConfig.bomFinanceApproverUsername)) {
+        return { ok: false, error: 'This request is not awaiting payment' };
+      }
       const proofUrls = input.proofUrls && input.proofUrls.length ? input.proofUrls : [];
       if (!proofUrls.length) return { ok: false, error: 'Payment proof is required for a BOM request payment' };
       const updated = await tmsBomRequestStore.markPaymentDone(sourceId, actor.username, proofUrls, paidAtFrom(input.paymentDate));

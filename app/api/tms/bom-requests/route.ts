@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findTechnicalManagers, getTmsViewer, requireTmsAction } from '@/lib/tmsAccess';
+import { getTmsViewer, isBomFinanceStageEnabled, requireTmsAction } from '@/lib/tmsAccess';
 import { tmsBomRequestStore, nextTmsBomRequestCode } from '@/lib/tmsBomRequestStore';
 import { tmsProjectStore } from '@/lib/tmsProjectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
-import { notifyUsers } from '@/lib/notificationStore';
-import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
-import { findUsersByUsernames } from '@/lib/userStore';
+import { notifyBomStageOne } from '@/lib/tmsBomStageNotify';
 import { TmsBomRequestRecord } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
@@ -16,8 +14,14 @@ export async function GET(request: NextRequest) {
   if (!(await requireTmsAction(viewer, 'tms-bom-requests', 'view'))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
-    const records = await tmsBomRequestStore.list(viewer);
-    return NextResponse.json(records);
+    const [records, financeStageEnabled] = await Promise.all([
+      tmsBomRequestStore.list(viewer),
+      isBomFinanceStageEnabled()
+    ]);
+    // Stamped on every row so the list can render the same "pending with"
+    // line as the detail page — the Finance step only counts when somebody
+    // is configured to take it. One config read, not one per row.
+    return NextResponse.json(records.map((record) => ({ ...record, finance_stage_enabled: financeStageEnabled })));
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -39,7 +43,8 @@ export async function POST(request: NextRequest) {
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
   // Submitted directly, or saved as a draft — `submit: true` (default) moves
-  // straight to 'submitted' and notifies Technical Managers, matching the
+  // straight to 'submitted' and notifies the requester's OWN department
+  // manager — not every Technical Manager; see findBomStageOneApprovers — matching the
   // "Engineer Creates BOM Request → Technical Manager Reviews" flow; a
   // Technical Manager creating one for record-keeping can pass submit:false
   // to keep it editable as a draft first.
@@ -103,31 +108,13 @@ export async function POST(request: NextRequest) {
         remarks: itemName,
         ip: getClientIp(request)
       });
-      const managers = await findTechnicalManagers();
-      const targets = managers.filter((m) => m.username && m.username !== viewer.username);
-      if (targets.length) {
-        await notifyUsers(targets.map((m) => m.username), {
-          title: 'New BOM request awaiting review',
-          body: `${viewer.username} submitted "${itemName}" for ${project.name}`,
-          type: 'tms_bom_request_submitted',
-          entityType: 'tms_bom_request',
-          entityId: created.id
-        });
-        const managerUsers = await findUsersByUsernames(targets.map((m) => m.username));
-        managerUsers.forEach((managerUser) => {
-          if (managerUser.email) {
-            void sendProcurementLifecycleEmail({
-              name: managerUser.name,
-              email: managerUser.email,
-              urlPath: `/tms/bom-requests/${created.id}`,
-              event: 'bom_submitted',
-              itemLabel: itemName,
-              projectName: project.name,
-              detail: `Submitted by ${viewer.username}`
-            });
-          }
-        });
-      }
+      await notifyBomStageOne({
+        requestId: created.id,
+        itemName,
+        projectName: project.name,
+        departmentId: created.department_id,
+        actorUsername: viewer.username
+      });
     }
 
     return NextResponse.json(created, { status: 201 });

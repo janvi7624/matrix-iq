@@ -119,6 +119,46 @@ export async function partnerCanOpenMaterial(partnerId: string, materialId: stri
 }
 
 /**
+ * May this partner read this stored upload path, because it is a Marketing
+ * Material published to them?
+ *
+ * app/api/uploads/file/[...path]/route.ts's ownership check only ever
+ * recognised a partner's OWN uploaded files (lib/partnerUploads.ts) — fine
+ * for a submission attachment, but a marketing document uploaded directly
+ * (rather than pasted as a Drive/external link) is uploaded by MARKETING
+ * STAFF, under an internal path, so every such document 404'd for a partner
+ * even after "Share with partners" was ticked. This re-derives the exact
+ * URL app/api/uploads/route.ts stored (same path, same per-segment
+ * encodeURIComponent), finds the one Material row it belongs to, and runs
+ * it through the SAME materialVisibleToPartner two-gate rule
+ * listPartnerMaterials already enforces — so a document that isn't actually
+ * published, or whose folder chain isn't, still 404s, same as a forged id
+ * does in partnerCanOpenMaterial above.
+ */
+export async function partnerMayReadMaterialFile(pathname: string, partnerId: string): Promise<boolean> {
+  if (!isUuid(partnerId) || !pathname || pathname.includes('..')) return false;
+  const url = `/api/uploads/file/${pathname.split('/').map(encodeURIComponent).join('/')}`;
+  const row = await db.Material.findOne({ where: { web_view_link: url } as never });
+  if (!row) return false;
+
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  const material: PublishableMaterial = {
+    id: plain.id as string,
+    folderId: (plain.folder_id as string) ?? null,
+    partnerVisible: plain.partner_visible === true,
+    partnerAudience: Array.isArray(plain.partner_audience) ? (plain.partner_audience as string[]) : []
+  };
+
+  const folderRows = await db.MaterialFolder.findAll();
+  const folders: PublishableFolder[] = folderRows.map((f) => {
+    const p = f.get({ plain: true }) as Record<string, unknown>;
+    return { id: p.id as string, parentId: (p.parent_id as string) ?? null, partnerVisible: p.partner_visible === true };
+  });
+
+  return materialVisibleToPartner(material, folders, partnerId);
+}
+
+/**
  * Record that someone opened a document.
  *
  * Fire-and-forget by convention, like logAudit and notifyUsers: a logging

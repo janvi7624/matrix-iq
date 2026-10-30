@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTmsViewer, requireTmsAction, isAdministrationManager, isBomFinanceApprover } from '@/lib/tmsAccess';
+import {
+  getTmsViewer,
+  requireTmsAction,
+  isAdministrationManager,
+  isBomFinanceApprover,
+  isBomFinanceStageEnabled,
+  canDecideBomStageOne
+} from '@/lib/tmsAccess';
 import { tmsBomRequestStore } from '@/lib/tmsBomRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { TmsBomRequestRecord } from '@/lib/types';
@@ -19,11 +26,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const record = await tmsBomRequestStore.findById(id);
     if (!record) return NextResponse.json({ error: 'BOM request not found' }, { status: 404 });
 
-    const [viewerCanApprove, viewerCanReject, viewerCanAdminApprove, viewerCanFinanceApprove] = await Promise.all([
-      requireTmsAction(viewer, 'tms-bom-requests', 'approve'),
-      requireTmsAction(viewer, 'tms-bom-requests', 'reject'),
+    // The Approve/Reject buttons now ask the same question the approve and
+    // reject routes ask — "do you manage THIS request's department" — rather
+    // than the role-only check, which showed an Approve button to every
+    // Technical Manager and then let the API accept it.
+    const [viewerCanApprove, viewerCanReject, viewerCanAdminApprove, financeApprover, financeStageEnabled] = await Promise.all([
+      canDecideBomStageOne(viewer, record.department_id, 'approve'),
+      canDecideBomStageOne(viewer, record.department_id, 'reject'),
       isAdministrationManager(viewer),
-      isBomFinanceApprover(viewer)
+      isBomFinanceApprover(viewer),
+      isBomFinanceStageEnabled()
     ]);
 
     return NextResponse.json({
@@ -31,7 +43,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       viewer_can_approve: viewerCanApprove,
       viewer_can_reject: viewerCanReject,
       viewer_can_admin_approve: viewerCanAdminApprove,
-      viewer_can_finance_approve: viewerCanFinanceApprove
+      // No Finance Approver configured means there is no Finance step to
+      // take — offering the button to a privileged viewer would insert a
+      // stage the org does not use and strand the request there.
+      viewer_can_finance_approve: financeStageEnabled && financeApprover,
+      finance_stage_enabled: financeStageEnabled
     });
   } catch (error) {
     return apiErrorResponse(error);

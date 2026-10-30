@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findTechnicalManagers, getTmsViewer, requireTmsAction } from '@/lib/tmsAccess';
+import { getTmsViewer, requireTmsAction } from '@/lib/tmsAccess';
 import { tmsBomRequestStore } from '@/lib/tmsBomRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
-import { notifyUsers } from '@/lib/notificationStore';
-import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
-import { findUsersByUsernames } from '@/lib/userStore';
+import { notifyBomStageOne } from '@/lib/tmsBomStageNotify';
 
-// draft -> submitted, and notifies every Technical Manager.
+// draft -> submitted, and notifies the requester's own department manager.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getTmsViewer(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -36,31 +34,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ip: getClientIp(request)
     });
 
-    const managers = await findTechnicalManagers();
-    const targets = managers.filter((m) => m.username && m.username !== viewer.username);
-    if (targets.length) {
-      await notifyUsers(targets.map((m) => m.username), {
-        title: 'New BOM request awaiting review',
-        body: `${viewer.username} submitted "${existing.item_name}" for ${existing.project_name}`,
-        type: 'tms_bom_request_submitted',
-        entityType: 'tms_bom_request',
-        entityId: id
-      });
-      const managerUsers = await findUsersByUsernames(targets.map((m) => m.username));
-      managerUsers.forEach((managerUser) => {
-        if (managerUser.email) {
-          void sendProcurementLifecycleEmail({
-            name: managerUser.name,
-            email: managerUser.email,
-            urlPath: `/tms/bom-requests/${id}`,
-            event: 'bom_submitted',
-            itemLabel: existing.item_name,
-            projectName: existing.project_name,
-            detail: `Submitted by ${viewer.username}`
-          });
-        }
-      });
-    }
+    await notifyBomStageOne({
+      requestId: id,
+      itemName: existing.item_name,
+      projectName: existing.project_name,
+      departmentId: existing.department_id,
+      actorUsername: viewer.username
+    });
 
     return NextResponse.json(updated);
   } catch (error) {

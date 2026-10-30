@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTmsViewer, requireTmsAction } from '@/lib/tmsAccess';
+import { canDecideBomStageOne, getTmsViewer } from '@/lib/tmsAccess';
 import { tmsBomRequestStore } from '@/lib/tmsBomRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
@@ -8,14 +8,13 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
 import { findUserByUsername } from '@/lib/userStore';
 
-// submitted/under_review -> rejected. Gated on the 'reject' action — falls
-// back to isPrivileged when unconfigured for a role (see
-// isModuleActionAllowed), same as every other module's reject route.
+// submitted/under_review -> rejected. Gated the same way as approve/: the
+// 'reject' action AND managing the request's own department, so the decision
+// to turn a request down sits with the same one manager who could have
+// approved it. See canDecideBomStageOne.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getTmsViewer(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const allowed = await requireTmsAction(viewer, 'tms-bom-requests', 'reject');
-  if (!allowed) return NextResponse.json({ error: 'Forbidden — only a Technical Manager can decline this request' }, { status: 403 });
 
   const { id } = await params;
   const body = await request.json().catch(() => null);
@@ -25,6 +24,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const existing = await tmsBomRequestStore.findById(id);
     if (!existing) return NextResponse.json({ error: 'BOM request not found' }, { status: 404 });
+    if (!(await canDecideBomStageOne(viewer, existing.department_id, 'reject'))) {
+      return NextResponse.json(
+        { error: `Forbidden — only the ${existing.department_name || 'requesting'} department's manager can decline this request` },
+        { status: 403 }
+      );
+    }
     if (existing.status !== 'submitted' && existing.status !== 'under_review') {
       return NextResponse.json({ error: 'Only a request awaiting review can be declined' }, { status: 400 });
     }

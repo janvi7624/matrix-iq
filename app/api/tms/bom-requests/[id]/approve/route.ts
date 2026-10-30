@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTmsViewer, requireTmsAction } from '@/lib/tmsAccess';
+import { canDecideBomStageOne, getTmsViewer } from '@/lib/tmsAccess';
 import { tmsBomRequestStore } from '@/lib/tmsBomRequestStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
@@ -9,20 +9,28 @@ import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
 import { findUserByUsername, findUsersByUsernames } from '@/lib/userStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
 
-// submitted/under_review -> approved. Gated on the 'approve' action, which
-// only Technical Manager (and privileged roles) carry per the seeded
-// permission matrix.
+// submitted/under_review -> approved. Gated on the 'approve' action AND on
+// managing the request's own department: the permission matrix grants the
+// action to every Technical Manager org-wide, which on its own let the AI or
+// AV manager approve a Robotics request they were never meant to see. See
+// canDecideBomStageOne.
+//
+// The request is loaded BEFORE the gate, because the gate now depends on
+// which department it belongs to.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getTmsViewer(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await requireTmsAction(viewer, 'tms-bom-requests', 'approve'))) {
-    return NextResponse.json({ error: 'Forbidden — only a Technical Manager can approve this request' }, { status: 403 });
-  }
 
   const { id } = await params;
   try {
     const existing = await tmsBomRequestStore.findById(id);
     if (!existing) return NextResponse.json({ error: 'BOM request not found' }, { status: 404 });
+    if (!(await canDecideBomStageOne(viewer, existing.department_id, 'approve'))) {
+      return NextResponse.json(
+        { error: `Forbidden — only the ${existing.department_name || 'requesting'} department's manager can approve this request` },
+        { status: 403 }
+      );
+    }
     if (existing.status !== 'submitted' && existing.status !== 'under_review') {
       return NextResponse.json({ error: 'Only a request awaiting review can be approved' }, { status: 400 });
     }
@@ -67,8 +75,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const notifyTargets = adminManagers.filter((m) => m.username && m.username !== viewer.username);
     if (notifyTargets.length) {
       await notifyUsers(notifyTargets.map((m) => m.username), {
-        title: 'BOM request awaiting Administration approval',
-        body: `"${existing.item_name}" for ${existing.project_name} was approved by Technical Manager ${viewer.username}`,
+        title: 'BOQ request awaiting Management approval',
+        body: `"${existing.item_name}" for ${existing.project_name} was approved by ${existing.department_name || 'the department'} manager ${viewer.username}`,
         type: 'tms_bom_request_pending_admin',
         entityType: 'tms_bom_request',
         entityId: id
@@ -83,7 +91,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             event: 'bom_pending_admin',
             itemLabel: existing.item_name,
             projectName: existing.project_name,
-            detail: `Approved by Technical Manager ${viewer.username}`
+            detail: `Approved by ${existing.department_name || 'the department'} manager ${viewer.username}`
           });
         }
       });

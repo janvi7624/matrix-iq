@@ -7,7 +7,7 @@ import { ModulePermissionAction } from './types';
 import { db } from './db';
 import { TmsModuleKey } from './tmsConstants';
 import { getAppConfig } from './appConfigStore';
-import { departmentsManagedBy, listDepartmentManagers } from './departmentStore';
+import { departmentsManagedBy, findDepartmentById, listDepartmentManagers } from './departmentStore';
 
 // TMS (Technical Management System) — a self-contained module gated on BOTH
 // department (Robotics/AI/AV/R&D) and role/action permission. See the
@@ -169,6 +169,78 @@ export async function findTechnicalManagers(): Promise<{ id: string; username: s
     attributes: ['id', 'username', 'name']
   });
   return rows.map((r) => ({ id: r.get('id') as string, username: r.get('username') as string, name: r.get('name') as string }));
+}
+
+export interface BomStageOneApprovers {
+  approvers: { id: string; username: string; name: string }[];
+  /**
+   * True when the request's own department has no manager configured and
+   * this fell back to every Technical Manager.
+   */
+  usedFallback: boolean;
+  departmentName: string;
+}
+
+/**
+ * Who reviews a BOM/BOQ request at the first stage: the manager of the
+ * REQUESTER'S OWN department, and nobody else.
+ *
+ * This used to be findTechnicalManagers() — every user holding the
+ * technical-manager role, org-wide. With three of them (AI, AV, Robotics)
+ * that meant a Robotics engineer's request was mailed to the AI and AV
+ * managers too, and since the approve route gated on the ROLE alone, any of
+ * them could approve it. A department's spending decisions belong to that
+ * department's manager; the other two are being asked to rubber-stamp work
+ * they have no visibility into, which is both noise and a real authority
+ * leak.
+ *
+ * Resolved from Department.managerIds — the same "who manages department X"
+ * concept the Administration and Accounts stages already use, and the same
+ * one tmsTeamDepartmentIds scopes row visibility by, so who can SEE a
+ * request and who can APPROVE it now come from one definition instead of
+ * two that disagree.
+ *
+ * Falls back to every Technical Manager when the department has no manager
+ * configured. All 11 live departments have one today, so this is a guard
+ * against a future gap rather than a current one — but a request that
+ * notifies nobody and can be approved by nobody would be stuck forever,
+ * which is the worse failure. Same safety-net direction as
+ * isAdministrationManager/isAccountsManager, and the caller logs it so the
+ * gap is visible rather than silent.
+ */
+export async function findBomStageOneApprovers(departmentId: string): Promise<BomStageOneApprovers> {
+  const department = departmentId ? await findDepartmentById(departmentId) : undefined;
+  const departmentName = department?.name ?? '';
+  const managers = departmentName ? (await listDepartmentManagers())[departmentName] || [] : [];
+  if (managers.length) return { approvers: managers, usedFallback: false, departmentName };
+  return { approvers: await findTechnicalManagers(), usedFallback: true, departmentName };
+}
+
+/**
+ * May this viewer take the first-stage decision on a request from this
+ * department?
+ *
+ * Two conditions, both required: the permission matrix still has to grant
+ * the approve/reject action (so an engineer cannot approve anything), AND
+ * the viewer has to be one of the people that request is actually routed to.
+ * The second half is what the role check alone was missing.
+ */
+export async function canDecideBomStageOne(viewer: TmsViewer, departmentId: string, action: 'approve' | 'reject'): Promise<boolean> {
+  if (viewer.isPrivileged) return true;
+  if (!(await requireTmsAction(viewer, 'tms-bom-requests', action))) return false;
+  const { approvers } = await findBomStageOneApprovers(departmentId);
+  return approvers.some((m) => m.username === viewer.username);
+}
+
+/**
+ * Whether the optional Finance step is in play at all — i.e. somebody is
+ * configured to take it. With nobody configured, Management approval hands
+ * straight to Accounts; see lib/tmsBomApprovalChain.ts for why that step is
+ * optional rather than mandatory.
+ */
+export async function isBomFinanceStageEnabled(): Promise<boolean> {
+  const config = await getAppConfig();
+  return !!config.bomFinanceApproverUsername;
 }
 
 // The BOM Request Administration stage (approved -> admin_approved) —

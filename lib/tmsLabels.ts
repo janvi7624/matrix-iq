@@ -79,36 +79,12 @@ export const TMS_BOM_STATUS_TONE: Record<TmsBomRequestStatus, StatusTone> = {
   completed: 'done'
 };
 
-// "Which approval is still pending" — one line summarizing the next step in
-// the Engineer -> Technical Manager -> Administration -> Finance -> Accounts
-// -> Requester chain, so anyone looking at a request can tell at a glance
-// where it's stuck without having to know the full status enum.
-export function tmsBomPendingApprovalLabel(status: TmsBomRequestStatus): string {
-  switch (status) {
-    case 'draft':
-      return 'Not yet submitted';
-    case 'submitted':
-    case 'under_review':
-      return 'Pending: Technical Manager approval';
-    case 'approved':
-      return 'Pending: Administration approval';
-    case 'admin_approved':
-      return 'Pending: Finance approval';
-    case 'finance_approved':
-      return 'Pending: Accounts payment';
-    case 'payment_done':
-      return 'Pending: material received confirmation';
-    case 'received':
-    case 'completed':
-      return 'Complete — no approval pending';
-    case 'rejected':
-      return 'Rejected';
-    case 'sent_for_procurement':
-      return 'With Procurement';
-    default:
-      return '';
-  }
-}
+// "Which approval is still pending" now lives in lib/tmsBomApprovalChain.ts
+// (bomPendingWithLabel), derived from the same stage trail the detail page
+// renders. The fixed-string version that used to be here named "Technical
+// Manager" for a step that belongs to the requester's own department
+// manager, and named Finance as the next step even when no Finance Approver
+// was configured to take it.
 
 export const TMS_PURCHASE_STATUS_LABEL: Record<TmsPurchaseStatus, string> = {
   requested: 'Requested',

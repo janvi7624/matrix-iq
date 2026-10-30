@@ -6,7 +6,8 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendProcurementLifecycleEmail } from '@/lib/email/notifications';
-import { findUserByUsername } from '@/lib/userStore';
+import { findUsersByDepartmentName, findUsersByUsernames } from '@/lib/userStore';
+import { listDepartmentManagers } from '@/lib/departmentStore';
 import { getAppConfig } from '@/lib/appConfigStore';
 
 // approved -> admin_approved. Gated to whoever manages the "Administration"
@@ -41,30 +42,64 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ip: getClientIp(request)
     });
 
+    // Who holds it next depends on whether a Finance Approver exists.
+    //
+    // This used to notify the configured finance approver and nobody else —
+    // so with AppConfig.bomFinanceApproverId unset (its live state) a
+    // management-approved request notified NOBODY, and could then only be
+    // moved by an admin, since both the Finance gate and the payment gate
+    // required a stage this org has no owner for. The request just stopped.
+    //
+    // With no Finance Approver configured the chain is
+    // Department Manager -> Management -> Accounts, so Accounts is told it
+    // is theirs to pay. Configure one and the Finance step comes back.
     const config = await getAppConfig();
-    const notifyTargets = config.bomFinanceApproverUsername && config.bomFinanceApproverUsername !== viewer.username
-      ? [config.bomFinanceApproverUsername]
-      : [];
+    const financeStageEnabled = !!config.bomFinanceApproverUsername;
+
+    const nextUp = financeStageEnabled
+      ? {
+          usernames: [config.bomFinanceApproverUsername],
+          title: 'BOQ request awaiting Finance approval',
+          event: 'bom_admin_approved' as const,
+          type: 'tms_bom_request_admin_approved'
+        }
+      : {
+          // Full Accounts roster, not only its configured manager — the same
+          // reason finance-approve/ gives: Department.managerIds['Accounts']
+          // misses the people who actually process payments.
+          usernames: Array.from(
+            new Set([
+              ...(await findUsersByDepartmentName('Accounts')).map((u) => u.username),
+              ...((await listDepartmentManagers())['Accounts'] || []).map((m) => m.username)
+            ])
+          ),
+          title: 'BOQ request awaiting payment',
+          event: 'bom_finance_approved' as const,
+          type: 'tms_bom_request_finance_approved'
+        };
+
+    const notifyTargets = nextUp.usernames.filter((username) => username && username !== viewer.username);
     if (notifyTargets.length) {
       await notifyUsers(notifyTargets, {
-        title: 'BOM request awaiting Finance approval',
-        body: `"${existing.item_name}" for ${existing.project_name} was approved by Administration (${viewer.username})`,
-        type: 'tms_bom_request_admin_approved',
+        title: nextUp.title,
+        body: `"${existing.item_name}" for ${existing.project_name} was approved by Management (${viewer.username})`,
+        type: nextUp.type,
         entityType: 'tms_bom_request',
         entityId: id
       });
-      const financeApprover = await findUserByUsername(notifyTargets[0]);
-      if (financeApprover?.email) {
+      const recipients = await findUsersByUsernames(notifyTargets);
+      recipients.forEach((recipient) => {
+        if (!recipient.email) return;
         void sendProcurementLifecycleEmail({
-          name: financeApprover.name,
-          email: financeApprover.email,
+          name: recipient.name,
+          email: recipient.email,
           urlPath: `/tms/bom-requests/${id}`,
-          event: 'bom_admin_approved',
+          event: nextUp.event,
           itemLabel: existing.item_name,
           projectName: existing.project_name,
-          detail: `Approved by Administration (${viewer.username})`
+          detail: `Approved by Management (${viewer.username})`
         });
-      }
+      });
     }
 
     return NextResponse.json(updated);
