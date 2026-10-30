@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dailyReportErrorResponse, guardDailyReport, isGuardFailure, readPayload } from '@/lib/dailyReportApi';
 import { resolveEmployeeIdentity } from '@/lib/dailyReportService';
-import { saveReport } from '@/lib/dailyReportStore';
+import { findReportForDate, saveReport, SUBMITTED_STATUSES } from '@/lib/dailyReportStore';
+import { findLiveEditRequest } from '@/lib/dailyReportEditRequestStore';
 import { notifyReportSubmitted } from '@/lib/dailyReportNotify';
 import { resolveReportManagers } from '@/lib/dailyReportAccess';
 import { findAssignmentByDepartmentId } from '@/lib/dailyReportTemplateStore';
@@ -38,6 +39,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Your account has no department assigned, so a report cannot be filed.' }, { status: 409 });
     }
 
+    // A SUBMITTED report needs a live, approved, unspent grant — looked up
+    // here and only ever CONSUMED inside saveReport's transaction, same
+    // split as PATCH /api/daily-reports/[id]. Without this, this route
+    // (the one the employee's own Daily Report page always saves through —
+    // for a brand-new draft, a resave, AND any edit after approval) never
+    // passed editAuthority at all, so an approved grant was unusable here:
+    // every save past submission failed with "already filed", including
+    // the one it was meant to allow.
+    const existing = await findReportForDate(employee.id, employee.departmentId, reportDate);
+    const wasSubmitted = !!existing && SUBMITTED_STATUSES.includes(existing.submission_status);
+    const grant = wasSubmitted ? await findLiveEditRequest(existing.id) : undefined;
+    const editAuthority = grant?.status === 'APPROVED' ? ('grant' as const) : undefined;
+
     const { report, justSubmitted, wasEdited } = await saveReport({
       employeeId: employee.id,
       departmentId: employee.departmentId,
@@ -45,7 +59,8 @@ export async function POST(request: NextRequest) {
       payload: readPayload(body),
       mode,
       actorId: viewer.userId,
-      onBehalf: false
+      onBehalf: false,
+      editAuthority
     });
 
     // Only on the transition into submitted, and only after the write has
