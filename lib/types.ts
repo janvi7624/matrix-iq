@@ -1834,6 +1834,12 @@ export interface TmsProjectRecord {
   department_id: string;
   department_name: string;
   project_type: TmsProjectType;
+  // Free text — 'R&D' / 'Development' / 'Client' from the fixed options, or
+  // whatever was typed when 'Other' was picked (the typed text replaces the
+  // literal word 'Other' in storage, same pattern as the Office Operation
+  // Expense register's own 'Other' fields). '' for a project created before
+  // this field existed.
+  project_category: string;
   department_ids: string[];
   department_names: string[];
   project_manager_id: string;

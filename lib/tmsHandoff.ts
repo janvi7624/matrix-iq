@@ -68,6 +68,9 @@ export async function syncTmsProjectForAssignment(project: ProjectRecord, assign
     department_id: departmentId,
     department_name: '',
     project_type: 'department',
+    // Sales handoffs don't carry a category — nobody picked one in TMS, so
+    // there's nothing to default this to without guessing.
+    project_category: '',
     department_ids: [departmentId],
     department_names: [],
     // The person Sales assigned owns it until a technical manager says

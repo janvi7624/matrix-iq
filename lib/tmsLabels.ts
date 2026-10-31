@@ -9,6 +9,12 @@ import { TmsBomRequestStatus, TmsDeliveryStatus, TmsPriority, TmsProjectStatus, 
 export const TMS_PRIORITY_LABEL: Record<TmsPriority, string> = { low: 'Low', medium: 'Medium', high: 'High' };
 export const TMS_PRIORITY_TONE: Record<TmsPriority, PriorityTone> = { low: 'cool', medium: 'info', high: 'warm' };
 
+// The fixed choices on the Project Category dropdown. 'Other' is a UI-only
+// sentinel, never stored as-is — picking it reveals a text field, and the
+// typed text is what actually gets submitted as project_category (see
+// TmsProjectsView's handleCreate).
+export const TMS_PROJECT_CATEGORY_OPTIONS = ['R&D', 'Development', 'Client'] as const;
+
 export const TMS_PROJECT_STATUS_LABEL: Record<TmsProjectStatus, string> = {
   planning: 'Planning',
   not_started: 'Not Started',

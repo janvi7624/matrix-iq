@@ -11,6 +11,7 @@ const FIELDS = [
   { name: 'description' },
   { name: 'department_id', kind: 'nullable' as const },
   { name: 'project_type' },
+  { name: 'project_category' },
   { name: 'project_manager_id', kind: 'nullable' as const },
   { name: 'team_member_ids', kind: 'json' as const },
   { name: 'start_date', kind: 'nullable' as const },

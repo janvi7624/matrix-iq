@@ -125,3 +125,74 @@ tr:hover .employeeExpanded { display: flex; }
 .unallocatedRow input { margin-top: 3px; flex: 0 0 auto; }
 
 .unallocatedRow > span { display: flex; flex-direction: column; gap: 1px; }
+
+/* "Add Multiple" — bulk entry. Mirrors the bulk* classes in
+   reimbursement.module.css and officeOperationExpenses.module.css so all
+   three bulk forms read as one feature. */
+.bulkTableWrap { overflow-x: auto; }
+.bulkTable { width: 100%; border-collapse: collapse; min-width: 760px; }
+.bulkTable th {
+    text-align: left;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--mx-ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 6px;
+    border-bottom: 1px solid var(--mx-border-strong);
+}
+.bulkTable td { padding: 5px 6px; vertical-align: top; }
+.bulkTable input, .bulkTable select { min-width: 0; }
+
+.bulkColNum { width: 28px; text-align: center; font-size: 12px; color: var(--mx-ink-faint); padding-top: 10px !important; }
+.bulkColType { width: 150px; }
+.bulkColDate { width: 150px; }
+.bulkColWhere { width: 220px; }
+.bulkColAmount { width: 120px; }
+.bulkColRemove { width: 28px; }
+
+.bulkRowError > td { background: var(--mx-danger-subtle); }
+.bulkRowErrorText { font-size: 12px; color: var(--mx-danger); padding: 2px 0 4px; }
+
+/* Type-dependent fields and the employee list — the widest parts of a row,
+   so they get their own line rather than widening every column. */
+.bulkDetailLine { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0 2px; }
+.bulkDetailLine input, .bulkDetailLine select { width: auto; flex: 0 1 160px; }
+
+/* From/To share one cell; side by side keeps the journey readable. */
+.bulkInlinePair { display: flex; gap: 6px; }
+.bulkInlinePair input { flex: 1 1 0; }
+
+.bulkEmployeeChips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
+.bulkEmployeeChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--mx-ink);
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    padding: 3px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.bulkEmployeeChip:hover { border-color: var(--mx-brand); }
+
+.bulkRemoveBtn {
+    background: none;
+    border: none;
+    color: var(--mx-ink-faint);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px;
+}
+.bulkRemoveBtn:hover:not(:disabled) { color: var(--mx-danger); }
+.bulkRemoveBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.bulkFooterRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.bulkTotalText { margin-left: auto; font-size: 13px; color: var(--mx-ink); font-variant-numeric: tabular-nums; }
+.bulkSubmitRow { display: flex; gap: 8px; margin-top: 14px; }
+
+/* Two entry points side by side in the header. */
+.headerActions { display: flex; gap: 8px; flex-wrap: wrap; }

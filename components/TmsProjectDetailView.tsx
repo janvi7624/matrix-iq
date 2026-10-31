@@ -621,6 +621,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
               <div><strong>Client:</strong> {project.client_name || '-'}</div>
               <div><strong>Client contact:</strong> {project.client_contact || '-'}</div>
+              <div><strong>Category:</strong> {project.project_category || '-'}</div>
               <div><strong>Project Manager:</strong> {project.project_manager_name || '-'}</div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>

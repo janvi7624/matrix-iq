@@ -26,6 +26,10 @@ module.exports = (sequelize, DataTypes) => {
     // department_id still holds the primary/owning one for every existing
     // single-department caller.
     project_type: { type: DataTypes.ENUM('department', 'combined'), allowNull: false, defaultValue: 'department' },
+    // 'R&D' / 'Development' / 'Client' from the fixed dropdown, or whatever
+    // was typed when 'Other' was picked — free text, not an ENUM, since
+    // 'Other' can hold anything. Nullable: optional on the create form.
+    project_category: { type: DataTypes.STRING },
     priority: { type: DataTypes.ENUM('low', 'medium', 'high'), allowNull: false, defaultValue: 'medium' },
     progress_percent: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     remarks: { type: DataTypes.TEXT },

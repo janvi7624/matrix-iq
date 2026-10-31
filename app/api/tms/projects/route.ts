@@ -5,6 +5,7 @@ import { tmsProjectStore, nextTmsProjectCode } from '@/lib/tmsProjectStore';
 import { findDepartmentById } from '@/lib/departmentStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { TmsPriority, TmsProjectRecord, TmsProjectType } from '@/lib/types';
+import { resolveProjectCategory } from '@/lib/tmsProjectCategory';
 
 const VALID_PRIORITY: TmsPriority[] = ['low', 'medium', 'high'];
 
@@ -43,6 +44,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'A valid technical department (Robotics, AI, AV, or R&D) is required' }, { status: 400 });
   }
 
+  const resolvedCategory = resolveProjectCategory(body.projectCategory, body.projectCategoryOther);
+  if (!resolvedCategory.ok) return NextResponse.json({ error: resolvedCategory.error }, { status: 400 });
+  const projectCategory = resolvedCategory.value;
+
   const projectType: TmsProjectType = body.projectType === 'combined' ? 'combined' : 'department';
   const requestedDeptIds = toStringArray(body.departmentIds);
   let departmentIds = [departmentId];
@@ -77,6 +82,7 @@ export async function POST(request: NextRequest) {
     department_id: department.id,
     department_name: department.name,
     project_type: projectType,
+    project_category: projectCategory,
     department_ids: departmentIds,
     department_names: [],
     project_manager_id: typeof body.projectManagerId === 'string' ? body.projectManagerId.trim() : '',

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ExternalLink, Layers } from 'lucide-react';
 import { DepartmentRecord, TmsPriority, TmsProjectRecord, TmsProjectStatus, TmsProjectType, UserRole } from '@/lib/types';
 import { TMS_DEPARTMENTS } from '@/lib/tmsConstants';
-import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_ROLE_LABEL, todayIso } from '@/lib/tmsLabels';
+import { TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_CATEGORY_OPTIONS, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_ROLE_LABEL, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
 import dashboardStyles from './dashboard.module.css';
 import tmsDashboardStyles from './tmsDashboard.module.css';
@@ -47,6 +47,8 @@ const EMPTY_FORM = {
   description: '',
   departmentId: '',
   projectType: 'department' as TmsProjectType,
+  projectCategory: '',
+  projectCategoryOther: '',
   departmentIds: [] as string[],
   projectManagerId: '',
   teamMemberIds: [] as string[],
@@ -205,6 +207,10 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     }
     if (form.projectType === 'combined' && new Set([form.departmentId, ...form.departmentIds]).size < 2) {
       toast.error('Select at least 2 departments for a combined project.');
+      return;
+    }
+    if (form.projectCategory === 'Other' && !form.projectCategoryOther.trim()) {
+      toast.error('Specify the project category.');
       return;
     }
     // A row with a date but no name is half-filled, not a phase — refusing
@@ -417,6 +423,29 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
                 <option value="combined">Combined Project</option>
               </Select>
             </Field>
+          </FieldRow>
+          <FieldRow>
+            <Field label="Project Category">
+              <Select
+                value={form.projectCategory}
+                onChange={(e) => setForm((f) => ({ ...f, projectCategory: e.target.value, projectCategoryOther: e.target.value === 'Other' ? f.projectCategoryOther : '' }))}
+              >
+                <option value="">Select category…</option>
+                {TMS_PROJECT_CATEGORY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+                <option value="Other">Other</option>
+              </Select>
+            </Field>
+            {form.projectCategory === 'Other' && (
+              <Field label="Specify category">
+                <Input
+                  placeholder="e.g. Internal Tooling"
+                  value={form.projectCategoryOther}
+                  onChange={(e) => setForm((f) => ({ ...f, projectCategoryOther: e.target.value }))}
+                />
+              </Field>
+            )}
           </FieldRow>
           {form.projectType === 'combined' && (
             <Field label="Other Departments Involved">

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
 import ExpenseCategoryEditor from './ExpenseCategoryEditor';
+import OfficeOperationExpenseBulkForm from './OfficeOperationExpenseBulkForm';
 import { OfficeOperationExpenseRecord } from '@/lib/types';
 import { exportOfficeOperationExpensesXlsx } from '@/lib/officeOperationExpenseXlsx';
 import historyStyles from './quotationHistory.module.css';
@@ -111,6 +112,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
   }, [toast]);
 
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   // The far end of the period actually queried: the To selects in range mode,
   // and the From month itself otherwise. Everything downstream — the fetch,
@@ -232,6 +234,15 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
             <button type="button" className={historyStyles.button} onClick={() => setCategoriesOpen(true)}>
               Categories
             </button>
+            {/* Same pair of entry points reimbursement offers: one expense
+                goes to its own page, several are entered inline here. */}
+            <button
+              type="button"
+              className={historyStyles.button}
+              onClick={() => setBulkOpen((v) => !v)}
+            >
+              {bulkOpen ? 'Cancel' : '+ Add Multiple'}
+            </button>
             <button
               type="button"
               className={`${historyStyles.button} ${historyStyles.primary}`}
@@ -241,6 +252,13 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
             </button>
           </div>
         </div>
+
+        {bulkOpen && (
+          <OfficeOperationExpenseBulkForm
+            onClose={() => setBulkOpen(false)}
+            onSaved={() => fetchRecords(year, month, rangeToYear, rangeToMonth)}
+          />
+        )}
 
         {records.length > 0 && (
           <div

@@ -177,3 +177,75 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* "Add Multiple" — the bulk entry table. Mirrors reimbursement.module.css's
+   bulk* classes so the two bulk forms read as one feature; kept local rather
+   than shared because the column widths are this module's own fields. */
+.bulkTableWrap { overflow-x: auto; }
+.bulkTable { width: 100%; border-collapse: collapse; min-width: 980px; }
+.bulkTable th {
+    text-align: left;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--mx-ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 6px;
+    border-bottom: 1px solid var(--mx-border-strong);
+}
+.bulkTable td { padding: 5px 6px; vertical-align: top; }
+.bulkTable input, .bulkTable select { min-width: 0; }
+
+.bulkColNum { width: 28px; text-align: center; font-size: 12px; color: var(--mx-ink-faint); padding-top: 10px !important; }
+.bulkColDate { width: 140px; }
+.bulkColOffice { width: 120px; }
+.bulkColUsecase { width: 140px; }
+.bulkColItem { width: 150px; }
+.bulkColQty { width: 70px; }
+.bulkColAmount { width: 110px; }
+.bulkColPaidBy { width: 130px; }
+.bulkColRemove { width: 28px; }
+
+/* The whole row, main line and detail line both, so a rejected row is
+   obvious without hunting for the message. */
+.bulkRowError > td { background: var(--mx-danger-subtle); }
+.bulkRowErrorText { font-size: 12px; color: var(--mx-danger); padding: 2px 0 4px; }
+
+/* Conditional fields live on a second line rather than widening the table:
+   which ones appear depends on the category and expense head picked. */
+.bulkDetailLine { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0 2px; }
+.bulkDetailLine input, .bulkDetailLine select { width: auto; flex: 1 1 160px; }
+
+/* Item Names are a multi-select; checkboxes as chips stay readable at the
+   twelve-or-so options some expense heads have. */
+.bulkSubChips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
+.bulkSubChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--mx-ink);
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    padding: 3px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.bulkSubChip:hover { border-color: var(--mx-brand); }
+
+.bulkFooterRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.bulkTotalText { margin-left: auto; font-size: 13px; color: var(--mx-ink); font-variant-numeric: tabular-nums; }
+.bulkSubmitRow { display: flex; gap: 8px; margin-top: 14px; }
+
+/* Row remove — same control as the other bulk forms. */
+.bulkRemoveBtn {
+    background: none;
+    border: none;
+    color: var(--mx-ink-faint);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px;
+}
+.bulkRemoveBtn:hover:not(:disabled) { color: var(--mx-danger); }
+.bulkRemoveBtn:disabled { opacity: 0.35; cursor: not-allowed; }

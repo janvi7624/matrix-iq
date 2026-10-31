@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
+import AdminExpenseBulkForm from './AdminExpenseBulkForm';
 import historyStyles from './quotationHistory.module.css';
 import styles from './adminExpenses.module.css';
 
@@ -75,6 +76,7 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -124,14 +126,26 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
       <div className={styles.pageWrap}>
         <div className={styles.headerRow}>
           <h2 className={styles.headerTitle}>Admin Expenses</h2>
-          <button
-            type="button"
-            className={`${historyStyles.button} ${historyStyles.primary}`}
-            onClick={() => router.push('/admin-expenses/new')}
-          >
-            + Add Expense
-          </button>
+          <div className={styles.headerActions}>
+            {/* Same pair of entry points reimbursement and Office Operation
+                offer: one expense gets its own page, several are entered
+                inline here. */}
+            <button type="button" className={historyStyles.button} onClick={() => setBulkOpen((v) => !v)}>
+              {bulkOpen ? 'Cancel' : '+ Add Multiple'}
+            </button>
+            <button
+              type="button"
+              className={`${historyStyles.button} ${historyStyles.primary}`}
+              onClick={() => router.push('/admin-expenses/new')}
+            >
+              + Add Expense
+            </button>
+          </div>
         </div>
+
+        {bulkOpen && (
+          <AdminExpenseBulkForm onClose={() => setBulkOpen(false)} onSaved={() => fetchEntries()} />
+        )}
 
         {loading ? (
           <div className={styles.centerMuted}>Loading…</div>
