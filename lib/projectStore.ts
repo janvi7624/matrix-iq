@@ -1,5 +1,5 @@
 import { Model, Op, QueryTypes, Transaction } from 'sequelize';
-import { ProjectNote, ProjectRecord, ProjectStage, ProjectTimelineEvent } from './types';
+import { ProjectNote, ProjectRecord, ProjectStage, ProjectStatus, ProjectTimelineEvent } from './types';
 import { clearOverrideOnStageChange, clampPercent, resolveClosingPercent } from './salesStageRules';
 import { db, isUuid, sequelize } from './db';
 import { resolveVisibilityScope } from './departmentScope';
@@ -680,25 +680,78 @@ export async function listAssignedTechnicalPeople(projectId: string): Promise<{ 
 // already lists their TMS projects, so picking one logs a plain note against
 // it (no TMS task, no further linking — see lib/dailyReportTemplates.ts's
 // AI_TEMPLATE `sales_project_id` field).
-export async function listOngoingAssignedProjects(employeeId: string): Promise<{ id: string; name: string }[]> {
-  if (!isUuid(employeeId)) return [];
-  const teamAssignments = await db.ProjectTechnicalAssignment.findAll({ where: { user_id: employeeId } as never, attributes: ['project_id'] });
-  const teamProjectIds = teamAssignments.map((r) => r.get('project_id') as string);
+export interface SelectableSalesProject {
+  id: string;
+  name: string;
+  status: ProjectStatus;
+  /**
+   * True when this employee is personally an assigned technical person on it
+   * (primary or co-assignee). Their own projects sort first and the picker
+   * labels them, so a long list still leads with the few that are theirs.
+   */
+  mine: boolean;
+}
+
+/**
+ * Sales Projects the AI Daily Report's picker may offer.
+ *
+ * Scoped with resolveOwnerWhere — the SAME rule the Projects page itself
+ * uses — so the two screens agree about what this person's projects are.
+ * The previous version matched only `assigned_technical_person_id` plus
+ * co-assignments, which is a narrower idea of "theirs" than the Projects
+ * page has: that page also counts projects they created and ones they are
+ * the lead on, and expands through their department scope. For a manager
+ * the gap was large — one AI manager saw 33 active projects on the Projects
+ * page and was offered 18 here, with no way to pick the rest.
+ *
+ * Status: everything except 'lost'. The old filter was `status: 'active'`
+ * exactly, which dropped WON projects — and a won deal is precisely when
+ * delivery and installation work happens, so those are the ones most likely
+ * to need a daily report against them. 'on_hold' is kept for the same
+ * reason: on hold is not finished. Only a lost deal has no future work.
+ *
+ * Resolved for the EMPLOYEE whose report it is, not the viewer — a manager
+ * filing on someone's behalf must see that person's projects, not their own.
+ */
+export async function listSelectableSalesProjects(employeeUsername: string, employeeId: string): Promise<SelectableSalesProject[]> {
+  if (!isUuid(employeeId) || !employeeUsername) return [];
+
+  const ownerWhere = await resolveOwnerWhere(employeeUsername);
   const rows = await db.Project.findAll({
-    where: {
-      status: 'active',
-      [Op.or]: [
-        { assigned_technical_person_id: employeeId },
-        ...(teamProjectIds.length ? [{ id: { [Op.in]: teamProjectIds } }] : [])
-      ]
-    } as never,
-    attributes: ['id', 'project_name', 'client_name', 'company'],
+    where: { ...ownerWhere, status: { [Op.ne]: 'lost' } } as never,
+    attributes: ['id', 'project_name', 'client_name', 'company', 'status', 'assigned_technical_person_id'],
     order: [['created_at', 'DESC']]
   });
-  return rows.map((r) => {
-    const p = r.get({ plain: true }) as { id: string; project_name?: string; client_name?: string; company?: string };
-    return { id: p.id, name: projectLabel(p) };
+
+  // One query for "which of these is she actually on", rather than one per
+  // row — the co-assignee table is the only way to know for the non-primary
+  // case.
+  const ownAssignments = await db.ProjectTechnicalAssignment.findAll({
+    where: { user_id: employeeId } as never,
+    attributes: ['project_id']
   });
+  const ownProjectIds = new Set(ownAssignments.map((r) => r.get('project_id') as string));
+
+  const projects = rows.map((r) => {
+    const p = r.get({ plain: true }) as {
+      id: string;
+      project_name?: string;
+      client_name?: string;
+      company?: string;
+      status: ProjectStatus;
+      assigned_technical_person_id?: string;
+    };
+    return {
+      id: p.id,
+      name: projectLabel(p),
+      status: p.status,
+      mine: p.assigned_technical_person_id === employeeId || ownProjectIds.has(p.id)
+    };
+  });
+
+  // Theirs first, the rest in the query's newest-first order. A stable sort
+  // keeps that second ordering intact within each group.
+  return projects.sort((a, b) => Number(b.mine) - Number(a.mine));
 }
 
 // Appends one timeline entry and, when `advanceStageTo` is given, moves the

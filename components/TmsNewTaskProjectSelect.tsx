@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Select from './ui/Select';
 import calcStyles from './calculator.module.css';
 import styles from './dailyReport.module.css';
@@ -17,13 +18,23 @@ export interface TmsProjectOption {
   departmentName: string;
 }
 
-// An ongoing Sales Project the employee is a formally assigned technical
-// person on (lib/projectStore.ts's listOngoingAssignedProjects) — picking
-// one is just a note against that deal: nothing is created or synced in
-// TMS for it, unlike a TmsProjectOption pick below.
+// A Sales Project this employee can report against
+// (lib/projectStore.ts's listSelectableSalesProjects) — picking one is just
+// a note against that deal: nothing is created or synced in TMS for it,
+// unlike a TmsProjectOption pick below.
 export interface SalesProjectOption {
   id: string;
   name: string;
+  /** 'active' | 'on_hold' | 'won' — never 'lost'; the store filters those out. */
+  status?: string;
+  /** True when they are personally an assigned technical person on it. */
+  mine?: boolean;
+}
+
+/** Non-active statuses are shown, so a won deal is not mistaken for a live one. */
+function salesLabel(project: SalesProjectOption): string {
+  if (!project.status || project.status === 'active') return project.name;
+  return `${project.name} (${project.status.replace('_', ' ')})`;
 }
 
 // AI_TEMPLATE's `project` field, bespoke-rendered (see its own doc comment
@@ -62,6 +73,8 @@ export default function TmsNewTaskProjectSelect({
   locked: boolean;
   onChange: (selection: { projectId: string; salesProjectId: string; projectName: string }) => void;
 }) {
+  const [search, setSearch] = useState('');
+
   if (error) return <div className={styles.errorText}>{error}</div>;
 
   // A locked row (however it got linked — picked from the existing-task
@@ -101,6 +114,23 @@ export default function TmsNewTaskProjectSelect({
 
   const stillLoading = projects === null || salesProjects === null;
 
+  // A manager can be on forty-odd projects, which is more than a native
+  // dropdown shows without scrolling — so the list is filterable. Matching
+  // on the name only; the status suffix is decoration, not something anyone
+  // would search for.
+  const needle = search.trim().toLowerCase();
+  const matches = (name: string) => !needle || name.toLowerCase().includes(needle);
+
+  // The selected option always survives the filter. Dropping it would make
+  // the control look empty while the row still holds that value.
+  const tmsShown = (projects ?? []).filter((p) => matches(p.name) || p.id === projectId);
+  const salesShown = (salesProjects ?? []).filter((p) => matches(p.name) || p.id === salesProjectId);
+  const mine = salesShown.filter((p) => p.mine);
+  const theirs = salesShown.filter((p) => !p.mine);
+
+  const totalAll = (projects ?? []).length + (salesProjects ?? []).length;
+  const totalShown = tmsShown.length + salesShown.length;
+
   return (
     <div className={`${calcStyles.field} ${styles.tmsNewTaskPicker}`}>
       <label className={calcStyles.label}>
@@ -110,24 +140,54 @@ export default function TmsNewTaskProjectSelect({
       {stillLoading ? (
         <div className={calcStyles.small}>Loading your TMS and Sales projects…</div>
       ) : (
-        <Select value={selectValue} onChange={(e) => handleChange(e.target.value)}>
-          <option value="">— Select —</option>
-          {projects && projects.length > 0 && (
-            <optgroup label="TMS Projects">
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </optgroup>
+        <>
+          {totalAll > 8 && (
+            <input
+              type="search"
+              className={calcStyles.formControl}
+              value={search}
+              placeholder={`Search ${totalAll} projects…`}
+              aria-label="Search your projects"
+              onChange={(e) => setSearch(e.target.value)}
+            />
           )}
-          {salesProjects && salesProjects.length > 0 && (
-            <optgroup label="Sales Projects (ongoing, assigned to you)">
-              {salesProjects.map((p) => (
-                <option key={p.id} value={`${SALES_PREFIX}${p.id}`}>{p.name}</option>
-              ))}
-            </optgroup>
+          <Select value={selectValue} onChange={(e) => handleChange(e.target.value)}>
+            <option value="">— Select —</option>
+            {tmsShown.length > 0 && (
+              <optgroup label="TMS Projects">
+                {tmsShown.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </optgroup>
+            )}
+            {/* Their own assignments first and in their own group — the
+                widened list includes their team's projects too, and without
+                this split the few that are actually theirs would be lost
+                among them. */}
+            {mine.length > 0 && (
+              <optgroup label="Sales Projects — assigned to you">
+                {mine.map((p) => (
+                  <option key={p.id} value={`${SALES_PREFIX}${p.id}`}>{salesLabel(p)}</option>
+                ))}
+              </optgroup>
+            )}
+            {theirs.length > 0 && (
+              <optgroup label="Sales Projects — your team's">
+                {theirs.map((p) => (
+                  <option key={p.id} value={`${SALES_PREFIX}${p.id}`}>{salesLabel(p)}</option>
+                ))}
+              </optgroup>
+            )}
+            <option value={OTHER_VALUE}>Other (not tracked in TMS)</option>
+          </Select>
+          {needle && (
+            <div className={calcStyles.small}>
+              {totalShown === 0
+                ? 'No project matches that. Clear the search, or pick "Other".'
+                : `Showing ${totalShown} of ${totalAll}.`}
+            </div>
           )}
-          <option value={OTHER_VALUE}>Other (not tracked in TMS)</option>
-        </Select>
+        </>
       )}
       {projectId && (
         <div className={calcStyles.small}>

@@ -94,13 +94,22 @@ export interface OfficeRowFlags {
   itemIsFreeText: boolean;
 }
 
-/** The same four derived flags the single form computes, in one place. */
+/**
+ * The same four derived flags the single form computes, in one place.
+ *
+ * Every lookup is defensive. The options come from a fetch, and the two
+ * free-text fields in particular are added by the options ROUTE from
+ * constants rather than coming out of the stored option set — so a caller
+ * holding a server-shaped ResolvedExpenseOptions has neither of them. A
+ * missing list should mean "no free-text heads", not a crash that takes the
+ * whole form down mid-entry.
+ */
 export function officeRowFlags(row: Pick<OfficeExpenseRow, 'usecase' | 'itemName'>, options: OfficeExpenseOptionsLike): OfficeRowFlags {
   return {
-    usecaseSubs: row.usecase ? options.usecaseSubOptions[row.usecase] : undefined,
-    usecaseIsFreeText: !!row.usecase && row.usecase === options.usecaseFreeText,
-    itemSubs: row.itemName ? options.itemSubOptions[row.itemName] : undefined,
-    itemIsFreeText: !!row.itemName && options.itemFreeTextItems.includes(row.itemName)
+    usecaseSubs: row.usecase ? options.usecaseSubOptions?.[row.usecase] : undefined,
+    usecaseIsFreeText: !!row.usecase && !!options.usecaseFreeText && row.usecase === options.usecaseFreeText,
+    itemSubs: row.itemName ? options.itemSubOptions?.[row.itemName] : undefined,
+    itemIsFreeText: !!row.itemName && (options.itemFreeTextItems ?? []).includes(row.itemName)
   };
 }
 
