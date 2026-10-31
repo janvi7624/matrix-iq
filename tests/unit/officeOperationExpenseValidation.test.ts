@@ -1,4 +1,24 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// The picklists are admin-editable now, so parseExpenseBody awaits
+// getExpenseOptions() on EVERY call — not only for the 'Department' item.
+// That turned this file into a database test by accident: with the DB
+// unreachable all 16 cases below sat on a connection until vitest's 5s
+// timeout killed them, which is also how they would behave in CI.
+//
+// Stubbed with resolveExpenseOptions(null) — the built-in defaults, pure and
+// DB-free — because that is exactly what the assertions below expect: they
+// compare against the OFFICE_EXPENSE_ITEMS/ITEM_SUB_OPTIONS constants.
+// Mocked before the import under test, per this repo's convention (see
+// dailyReportDashboardStatus.test.ts).
+vi.mock('../../lib/officeExpenseOptionStore', async () => {
+  const { resolveExpenseOptions } = await import('../../lib/officeExpenseOptionResolve');
+  return {
+    getExpenseOptions: vi.fn(async () => resolveExpenseOptions(null)),
+    invalidateExpenseOptionsCache: vi.fn()
+  };
+});
+
 import { parseExpenseBody } from '../../lib/officeOperationExpenseValidation';
 import {
   ITEM_FREE_TEXT_ITEMS,
@@ -10,9 +30,9 @@ import {
 
 // Covers the 'Other' escape hatch for an Item Name sub-selection (e.g.
 // Pantry -> Other -> a typed description) — the server-side counterpart to
-// components/OfficeOperationExpensesView.tsx's itemSubOther field. No DB
-// access needed: that only happens for itemName === 'Department', which
-// none of these exercise.
+// components/OfficeOperationExpensesView.tsx's itemSubOther field. The one
+// path that still reaches the database is itemName === 'Department'
+// (listActiveDepartments), which none of these exercise.
 
 function body(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {

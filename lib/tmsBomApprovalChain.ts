@@ -1,4 +1,4 @@
-// The BOM/BOQ request approval chain, as data.
+// The BOM request approval chain, as data.
 //
 // One place that answers "what are the steps, which one is this request
 // sitting on, who cleared the earlier ones" — so the detail page, the list

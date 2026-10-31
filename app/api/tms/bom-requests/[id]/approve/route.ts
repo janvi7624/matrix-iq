@@ -75,7 +75,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const notifyTargets = adminManagers.filter((m) => m.username && m.username !== viewer.username);
     if (notifyTargets.length) {
       await notifyUsers(notifyTargets.map((m) => m.username), {
-        title: 'BOQ request awaiting Management approval',
+        title: 'BOM request awaiting Management approval',
         body: `"${existing.item_name}" for ${existing.project_name} was approved by ${existing.department_name || 'the department'} manager ${viewer.username}`,
         type: 'tms_bom_request_pending_admin',
         entityType: 'tms_bom_request',

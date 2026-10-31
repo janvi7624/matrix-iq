@@ -5,7 +5,7 @@ import styles from './tmsBomApprovalTrail.module.css';
 
 // "Where is it pending, and where was it approved" — the whole chain on
 // screen, one row per step, so nobody has to interpret a single status badge
-// to work out who is sitting on a BOQ request.
+// to work out who is sitting on a BOM request.
 //
 // Reads its states from lib/tmsBomApprovalChain.ts rather than switching on
 // the status here, so the trail, the pending line and the server's routing

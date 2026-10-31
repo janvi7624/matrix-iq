@@ -182,7 +182,7 @@ export interface BomStageOneApprovers {
 }
 
 /**
- * Who reviews a BOM/BOQ request at the first stage: the manager of the
+ * Who reviews a BOM request at the first stage: the manager of the
  * REQUESTER'S OWN department, and nobody else.
  *
  * This used to be findTechnicalManagers() — every user holding the

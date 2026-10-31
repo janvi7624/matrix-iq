@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const nextUp = financeStageEnabled
       ? {
           usernames: [config.bomFinanceApproverUsername],
-          title: 'BOQ request awaiting Finance approval',
+          title: 'BOM request awaiting Finance approval',
           event: 'bom_admin_approved' as const,
           type: 'tms_bom_request_admin_approved'
         }
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               ...((await listDepartmentManagers())['Accounts'] || []).map((m) => m.username)
             ])
           ),
-          title: 'BOQ request awaiting payment',
+          title: 'BOM request awaiting payment',
           event: 'bom_finance_approved' as const,
           type: 'tms_bom_request_finance_approved'
         };

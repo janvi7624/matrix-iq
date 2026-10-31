@@ -3,7 +3,7 @@ import { notifyUsers } from './notificationStore';
 import { sendProcurementLifecycleEmail } from './email/notifications';
 import { findUsersByUsernames } from './userStore';
 
-// "A BOQ request is waiting for you" — the first-stage notification, in one
+// "A BOM request is waiting for you" — the first-stage notification, in one
 // place because it fires from two routes (creating a request with
 // submit:true, and submitting a saved draft) and those two had drifted into
 // copies of the same block.
@@ -24,7 +24,7 @@ export interface BomStageOneNotice {
 export async function notifyBomStageOne(notice: BomStageOneNotice): Promise<void> {
   const { approvers, usedFallback, departmentName } = await findBomStageOneApprovers(notice.departmentId);
   if (usedFallback) {
-    // Loud, because it means a BOQ request was routed to every Technical
+    // Loud, because it means a BOM request was routed to every Technical
     // Manager rather than to one department's own — the exact behaviour this
     // routing replaced. The cure is a manager on that department in
     // Department Master, not a code change.
@@ -43,7 +43,7 @@ export async function notifyBomStageOne(notice: BomStageOneNotice): Promise<void
   await notifyUsers(
     targets.map((m) => m.username),
     {
-      title: 'New BOQ request awaiting your approval',
+      title: 'New BOM request awaiting your approval',
       body: `${notice.actorUsername} submitted "${notice.itemName}" for ${notice.projectName}`,
       type: 'tms_bom_request_submitted',
       entityType: 'tms_bom_request',

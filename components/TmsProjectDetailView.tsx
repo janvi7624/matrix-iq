@@ -639,9 +639,9 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           </div>
 
           <div className={`${calcStyles.sectionPanel} ${styles.panelSpacedTop16}`}>
-            <div className={`${calcStyles.h2} ${calcStyles.h2Reset}`}>BOQ &amp; Procurement</div>
+            <div className={`${calcStyles.h2} ${calcStyles.h2Reset}`}>BOM &amp; Procurement</div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-              <div><strong>BOQ Requests:</strong> {bomRequests.length}</div>
+              <div><strong>BOM Requests:</strong> {bomRequests.length}</div>
               <div><strong>Pending:</strong> {bomRequests.filter((b) => b.status === 'draft' || b.status === 'submitted' || b.status === 'under_review').length}</div>
               <div><strong>Approved:</strong> {bomRequests.filter((b) => b.status === 'approved' || b.status === 'admin_approved' || b.status === 'finance_approved').length}</div>
               <div><strong>Procurement Items:</strong> {procurements.length}</div>
