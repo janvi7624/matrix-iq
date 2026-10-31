@@ -582,6 +582,14 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
               // locked, the rows-layout counterpart to the Sales grid's
               // "Auto" cells.
               const isAutoRow = template.rowFields.some((f) => f.hidden && f.locksRowWhenSet !== false && asString(entry[f.key]) !== '');
+              // A row locked because the EMPLOYEE linked a TMS task is not
+              // the same thing as a row the system generated. Both have
+              // read-only fields, but a link is a choice a person made and
+              // can get wrong — so it has to be reversible. Previously the
+              // entry tools were hidden for every locked row alike, which
+              // meant linking the wrong task left that row stuck in the
+              // report with no way to unlink, delete or re-link it.
+              const isTmsLinked = !!template.supportsTmsTaskLink && asString(entry.tms_task_id) !== '';
               return (
                 <div className={styles.entryCard} key={index}>
                   <div className={styles.entryHead}>
@@ -594,17 +602,32 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                         </span>
                       )}
                     </span>
-                    {!disabled && !isAutoRow && (
+                    {!disabled && (!isAutoRow || isTmsLinked) && (
                       <div className={styles.entryTools}>
                         {template.supportsTmsTaskLink && (
                           <button
                             type="button"
                             className={styles.iconBtn}
                             onClick={() => setTmsPickerTarget(index)}
-                            aria-label={`Link ${template.entryNoun ?? 'entry'} ${index + 1} to an existing TMS task`}
-                            title="Link to an existing TMS task"
+                            aria-label={
+                              isTmsLinked
+                                ? `Link ${template.entryNoun ?? 'entry'} ${index + 1} to a different TMS task`
+                                : `Link ${template.entryNoun ?? 'entry'} ${index + 1} to an existing TMS task`
+                            }
+                            title={isTmsLinked ? 'Link to a different TMS task' : 'Link to an existing TMS task'}
                           >
                             <Link2 size={15} />
+                          </button>
+                        )}
+                        {isTmsLinked && (
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            onClick={() => unlinkTmsTask(index)}
+                            aria-label={`Unlink ${template.entryNoun ?? 'entry'} ${index + 1} from its TMS task`}
+                            title="Unlink from TMS — keeps the text, makes the row editable again"
+                          >
+                            <Unlink size={15} />
                           </button>
                         )}
                         <button
