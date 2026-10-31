@@ -5,6 +5,24 @@ import { viewerCanAccessOfficeOperationExpenses } from '@/lib/officeOperationExp
 import { parseExpenseBody } from '@/lib/officeOperationExpenseValidation';
 import { apiErrorResponse } from '@/lib/apiError';
 
+// Added for the Add/Edit Expense page (no longer a modal over the list) —
+// the edit page needs to load one record directly by id rather than relying
+// on it already being in the list's currently-filtered month.
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const viewer = await getViewerContext(request);
+  if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await viewerCanAccessOfficeOperationExpenses(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const { id } = await params;
+  try {
+    const record = await officeOperationExpenseStore.findById(id);
+    if (!record) return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
+    return NextResponse.json(record);
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

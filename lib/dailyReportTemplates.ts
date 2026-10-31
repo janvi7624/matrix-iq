@@ -992,7 +992,8 @@ const AI_TEMPLATE: TemplateDefinition = {
   entryNoun: 'Task',
   minEntries: 1,
   supportsTmsTaskLink: true,
-  autoRowHint: 'Linked to a TMS task — synced automatically, not editable. Add your notes below.',
+  autoRowHint:
+    'Linked to a TMS task. These fields mirror the task and are kept in step with it, so they are not edited here — use "Change in TMS" below, or unlink the row to edit it freely. Your own notes for the day go in Notes.',
   headerFields: [],
   rowFields: [
     TASK_ID_FIELD,

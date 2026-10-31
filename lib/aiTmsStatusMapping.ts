@@ -142,3 +142,25 @@ export function engineerActionsForStatusLabel(label: string): EngineerTaskAction
   const status = LABEL_TO_STATUS[label];
   return status ? ENGINEER_ACTIONS_BY_STATUS[status] : [];
 }
+
+/**
+ * The patch that detaches an AI entry from its TMS task.
+ *
+ * Linking a task locks the row, so getting the link wrong used to leave that
+ * row stranded in the day's report — no unlink, no delete, no re-link. This
+ * is the way back out.
+ *
+ * What it clears is exactly the link and the fields that exist ONLY to
+ * mirror TMS. What it keeps is everything the row would still need as an
+ * ordinary entry: task_description, priority, status, due_date and project
+ * hold the real task's values, and blanking them would make correcting a
+ * mis-link cost the employee a retype.
+ *
+ * tms_project_id is cleared as well. It is the marker for "create a NEW TMS
+ * task for this row on the next submit" (createPendingTmsTasksFromEntries),
+ * and leaving it set would turn an unlink into a silent request for a
+ * freshly created task — swapping one unwanted link for another.
+ */
+export function unlinkTmsPatch(): Record<string, string> {
+  return { tms_task_id: '', tms_project_id: '', tms_status_label: '', tms_progress_percent: '' };
+}

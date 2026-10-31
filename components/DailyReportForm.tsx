@@ -23,7 +23,7 @@ import { useSalesAutoDetail } from './useSalesAutoDetail';
 import TmsTaskPicker, { TmsLinkableTask } from './TmsTaskPicker';
 import TmsLinkedTaskPanel from './TmsLinkedTaskPanel';
 import TmsNewTaskProjectSelect, { TmsProjectOption, SalesProjectOption } from './TmsNewTaskProjectSelect';
-import { buildEntryPatchFromTmsTask, reverseAiPriority } from '@/lib/aiTmsStatusMapping';
+import { buildEntryPatchFromTmsTask, reverseAiPriority, unlinkTmsPatch } from '@/lib/aiTmsStatusMapping';
 
 // The renderer half of the form engine. One component for all eight
 // department formats, driven by the TemplateDefinition the server sends —
@@ -394,20 +394,10 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
   }
 
   // Detach a row from its TMS task, turning it back into an ordinary
-  // editable row.
-  //
-  // Only the LINK and the fields that exist solely to mirror TMS are
-  // cleared. The task description, priority, status, due date and project
-  // are deliberately kept: they currently hold the real task's values, and
-  // throwing them away would punish somebody for correcting a mis-link by
-  // making them retype the row. They become editable, which is the point.
-  //
-  // Clears tms_project_id too, so unlinking cannot leave the row looking
-  // like a request to CREATE a new TMS task on the next submit (see
-  // createPendingTmsTasksFromEntries) — that would replace one surprise
-  // link with another.
+  // editable row. What that clears and what it keeps is unlinkTmsPatch's
+  // contract — kept there so it is testable and stated once.
   function unlinkTmsTask(index: number) {
-    patchEntry(index, { tms_task_id: '', tms_project_id: '', tms_status_label: '', tms_progress_percent: '' });
+    patchEntry(index, unlinkTmsPatch());
   }
 
   // TmsLinkedTaskPanel's write actions (POSTs straight to TMS's own API
@@ -614,8 +604,12 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                       {template.entryNoun ?? 'Entry'} {index + 1}
                       {derived.task_code && <span className={styles.entryCode}>{derived.task_code}</span>}
                       {isAutoRow && (
+                        // "Auto" is wrong for a TMS-linked row: nothing was
+                        // automatic about it — the employee chose the task.
+                        // Labelling it as though the system produced it is
+                        // part of why the row read as untouchable.
                         <span className={styles.autoMeasureBadge} title={template.autoRowHint ?? 'Filled in automatically — not editable.'}>
-                          Auto
+                          {isTmsLinked ? 'TMS' : 'Auto'}
                         </span>
                       )}
                     </span>
@@ -709,7 +703,7 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                         )}
                       </Fragment>
                     ))}
-                    {isAutoRow && asString(entry.tms_task_id) && (
+                    {isTmsLinked && (
                       <a
                         className={styles.tmsLinkOut}
                         href={`/tms/tasks/${asString(entry.tms_task_id)}`}
@@ -719,14 +713,21 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
                         View in TMS ↗
                       </a>
                     )}
-                    {!disabled && isAutoRow && asString(entry.tms_task_id) && (
+                    {!disabled && isTmsLinked && (
                       <TmsLinkedTaskPanel
+                        // Keyed by the TASK, not the row position. Without
+                        // this the panel kept its instance — and its editor
+                        // state — when rows were deleted or reordered, so a
+                        // "Save to TMS" could write one task's text onto a
+                        // different task that had shifted into that index.
+                        key={asString(entry.tms_task_id)}
                         taskId={asString(entry.tms_task_id)}
                         taskName={asString(entry.task_description)}
                         description={asString(entry.task_description)}
                         priority={reverseAiPriority(asString(entry.priority))}
                         currentDeadline={asString(entry.due_date)}
                         tmsStatusLabel={asString(entry.tms_status_label)}
+                        progressLabel={asString(entry.tms_progress_percent)}
                         onPatch={(patch) => patchEntry(index, patch)}
                       />
                     )}

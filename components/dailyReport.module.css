@@ -539,18 +539,85 @@
 .tmsLinkedPanel {
   margin-top: 10px;
 }
-.tmsLinkedPanelToggle {
+
+/* A real header rather than the bare text link this used to be: on a linked
+   row this panel is the ONLY place the task can be changed, so it has to
+   look like a control and say what it acts on. */
+.tmsLinkedPanelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
   font: inherit;
-  font-size: 12.5px;
-  font-weight: var(--mx-weight-semibold);
-  color: var(--mx-info);
-  background: none;
-  border: none;
-  padding: 0;
+  text-align: left;
+  padding: 7px 10px;
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-radius-sm);
+  background: var(--mx-surface-2, rgba(127, 127, 127, 0.05));
   cursor: pointer;
 }
-.tmsLinkedPanelToggle:hover {
-  text-decoration: underline;
+.tmsLinkedPanelHead:hover {
+  border-color: var(--mx-info);
+}
+
+.tmsLinkedPanelHeadMain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.tmsLinkedPanelTitle {
+  font-size: 12.5px;
+  font-weight: var(--mx-weight-semibold);
+  color: var(--mx-ink);
+}
+
+/* The real TMS word ("Ready for Review"), not the lossy 3-way bucket — this
+   is what tells you which actions will be on offer inside. */
+.tmsLinkedStatus {
+  font-size: 11px;
+  font-weight: var(--mx-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--mx-info);
+  border: 1px solid var(--mx-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.tmsLinkedMeta {
+  font-size: 11.5px;
+  color: var(--mx-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tmsLinkedPanelChevron {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: var(--mx-weight-semibold);
+  color: var(--mx-info);
+  white-space: nowrap;
+}
+
+/* Why the row above is read-only. Stated once, here, instead of leaving
+   people to conclude the form is broken. */
+.tmsLinkedNote {
+  font-size: 11.5px;
+  color: var(--mx-ink-muted);
+  margin-bottom: 10px;
+  line-height: 1.45;
+}
+
+/* Replaces five permanently greyed-out buttons whose only explanation was a
+   `title` attribute — invisible on a touchscreen. */
+.tmsLinkedUnavailable {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--mx-ink-muted);
 }
 .tmsLinkedPanelBody {
   margin-top: 8px;

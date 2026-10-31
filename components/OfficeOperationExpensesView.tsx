@@ -1,25 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
-import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
 import ExpenseCategoryEditor from './ExpenseCategoryEditor';
 import { OfficeOperationExpenseRecord } from '@/lib/types';
 import { exportOfficeOperationExpensesXlsx } from '@/lib/officeOperationExpenseXlsx';
-import { OFFICE_LOCATIONS, PAID_BY_OPTIONS } from '@/lib/officeOperationExpenseOptions';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './officeOperationExpenses.module.css';
-
-interface OptionsPayload {
-  usecases: string[];
-  usecaseSubOptions: Record<string, string[]>;
-  usecaseFreeText: string;
-  items: string[];
-  itemSubOptions: Record<string, string[]>;
-  itemFreeTextItems: string[];
-}
 
 const MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -42,30 +32,6 @@ function formatSrNo(n: number): string {
   return String(n).padStart(4, '0');
 }
 
-const emptyForm = {
-  date: '',
-  officeLocation: '',
-  usecase: '',
-  usecaseDetail: '',
-  itemName: '',
-  itemSubNames: [] as string[],
-  // Only used while itemSubNames includes 'Other' — the typed description
-  // that replaces the literal "Other" in what's actually submitted, same
-  // pattern as remarksOther below.
-  itemSubOther: '',
-  // Only used while itemName is one of ITEM_FREE_TEXT_ITEMS (Maintenance,
-  // Rent) — the whole sub-selection is this one typed description rather
-  // than a checkbox list. See handleSubmit.
-  itemFreeTextDetail: '',
-  itemQty: '',
-  amount: '',
-  description: '',
-  remarks: '',
-  // Only used while `remarks === 'Other'` — the typed name that becomes the
-  // real submitted value (see handleSubmit).
-  remarksOther: ''
-};
-
 interface OfficeOperationExpensesViewProps {
   // Only the name is used — it stamps "Prepared By" on the Excel sheet.
   currentUser: { name: string };
@@ -73,9 +39,9 @@ interface OfficeOperationExpensesViewProps {
 
 export default function OfficeOperationExpensesView({ currentUser }: OfficeOperationExpensesViewProps) {
   const toast = useToast();
+  const router = useRouter();
   const now = useMemo(() => new Date(), []);
 
-  const [options, setOptions] = useState<OptionsPayload | null>(null);
   const [records, setRecords] = useState<OfficeOperationExpenseRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [totalInWords, setTotalInWords] = useState('');
@@ -100,38 +66,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
   // that collapse-then-reexpand on every filter change is what reads as the
   // whole page "vibrating" when someone clicks through several months.
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm);
-
-  const setField = useCallback(<K extends keyof typeof emptyForm>(key: K, value: string) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  // Sub-items are multi-select, so this toggles one value in or out of the list.
-  const toggleSubItem = useCallback((value: string) => {
-    setForm((prev) => {
-      const nowOn = !prev.itemSubNames.includes(value);
-      return {
-        ...prev,
-        itemSubNames: nowOn ? [...prev.itemSubNames, value] : prev.itemSubNames.filter((v) => v !== value),
-        // Unchecking 'Other' clears its typed description too, so a stale
-        // answer can't survive being deselected and then re-checked blank.
-        itemSubOther: value === 'Other' && !nowOn ? '' : prev.itemSubOther
-      };
-    });
-  }, []);
-
-  // Which second-level fields the current selections call for. Driven entirely
-  // by the server's option payload, so adding a sub-item list in
-  // lib/officeOperationExpenseOptions.ts lights the dropdown up here with no
-  // change to this component.
-  const usecaseSubs = options && form.usecase ? options.usecaseSubOptions[form.usecase] : undefined;
-  const usecaseIsFreeText = !!options && form.usecase === options.usecaseFreeText;
-  const itemSubs = options && form.itemName ? options.itemSubOptions[form.itemName] : undefined;
-  const itemIsFreeTextSelected = !!options && !!form.itemName && options.itemFreeTextItems.includes(form.itemName);
 
   // Deliberately does NOT flip `loading` on at the top: this runs from the
   // month/year effect below, and a synchronous setState in an effect body
@@ -175,17 +110,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     }
   }, [toast]);
 
-  // Bumped after a category edit so the form picks the new lists up without
-  // a page reload — the dropdowns must match what the API will accept.
-  const [optionsKey, setOptionsKey] = useState(0);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
-
-  useEffect(() => {
-    fetch('/api/office-operation-expenses/options')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) setOptions(data); })
-      .catch(() => { /* form falls back to disabled selects until this succeeds */ });
-  }, [optionsKey]);
 
   // The far end of the period actually queried: the To selects in range mode,
   // and the From month itself otherwise. Everything downstream — the fetch,
@@ -211,47 +136,6 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
     fetchRecords(year, month, rangeToYear, rangeToMonth);
   }, [year, month, rangeToYear, rangeToMonth, fetchRecords]);
 
-  function resetForm() {
-    setForm(emptyForm);
-    setEditId(null);
-  }
-
-  function startEdit(record: OfficeOperationExpenseRecord) {
-    setEditId(record.id);
-    // A stored name outside the three fixed options only ever got there via
-    // 'Other' (see handleSubmit) — reopen it the same way it was entered,
-    // rather than as a blank, unrecognized select value.
-    const isNamedOption = (PAID_BY_OPTIONS as readonly string[]).includes(record.remarks) && record.remarks !== 'Other';
-    // Same idea for an Item Name sub-option: a stored value outside the
-    // known list for this item only ever got there via a typed 'Other'
-    // description — reopen it as 'Other' checked, with its text restored,
-    // rather than a selection the checkboxes don't recognise.
-    const knownSubs = options?.itemSubOptions[record.item_name] ?? [];
-    const customSub = record.item_sub_names.find((n) => !knownSubs.includes(n));
-    const isFreeTextItem = !!options?.itemFreeTextItems.includes(record.item_name);
-    setForm({
-      date: record.date,
-      officeLocation: record.office_location,
-      usecase: record.usecase,
-      usecaseDetail: record.usecase_detail,
-      itemName: record.item_name,
-      itemSubNames: isFreeTextItem
-        ? []
-        : customSub
-          ? record.item_sub_names.map((n) => (n === customSub ? 'Other' : n))
-          : record.item_sub_names,
-      itemSubOther: !isFreeTextItem ? (customSub ?? '') : '',
-      itemFreeTextDetail: isFreeTextItem ? (record.item_sub_names[0] ?? '') : '',
-      // null must reopen as an empty field, not the string "null".
-      itemQty: record.item_qty === null ? '' : String(record.item_qty),
-      amount: String(record.amount),
-      description: record.description,
-      remarks: isNamedOption ? record.remarks : record.remarks ? 'Other' : '',
-      remarksOther: isNamedOption ? '' : record.remarks
-    });
-    setShowForm(true);
-  }
-
   async function handleDelete(record: OfficeOperationExpenseRecord) {
     if (!confirm(`Delete expense Sr No. ${formatSrNo(record.sr_no)}? This cannot be undone.`)) return;
     setDeleting(record.id);
@@ -268,96 +152,6 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
       toast.error('Network error');
     } finally {
       setDeleting(null);
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!form.date) { toast.error('Select a date'); return; }
-    if (!form.officeLocation) { toast.error('Select the office location'); return; }
-    if (!form.usecase) { toast.error('Select a category'); return; }
-    if (usecaseSubs && !form.usecaseDetail) { toast.error(`Select which ${form.usecase.toLowerCase()} this is`); return; }
-    if (usecaseIsFreeText && !form.usecaseDetail.trim()) { toast.error('Describe the category'); return; }
-    if (!form.itemName) { toast.error('Select an expense head'); return; }
-    if (itemSubs?.length && !form.itemSubNames.length) { toast.error(form.itemName === 'Department' ? 'Select at least one department' : `Select at least one Item Name for ${form.itemName}`); return; }
-    if (form.itemSubNames.includes('Other') && !form.itemSubOther.trim()) { toast.error(`Describe the "Other" ${form.itemName} item`); return; }
-    if (itemIsFreeTextSelected && !form.itemFreeTextDetail.trim()) { toast.error(`Describe the ${form.itemName} expense`); return; }
-    if (!form.remarks) { toast.error('Select who paid'); return; }
-    if (form.remarks === 'Other' && !form.remarksOther.trim()) { toast.error('Enter the name of who paid'); return; }
-    // Qty is optional — only complain when something was typed and it's not a
-    // usable number.
-    if (form.itemQty.trim() && !(Number(form.itemQty) > 0)) { toast.error('Item Qty must be greater than zero'); return; }
-    if (!(Number(form.amount) > 0)) { toast.error('Amount must be greater than zero'); return; }
-
-    setSaving(true);
-    try {
-      const payload = {
-        date: form.date,
-        officeLocation: form.officeLocation,
-        usecase: form.usecase,
-        usecaseDetail: usecaseSubs || usecaseIsFreeText ? form.usecaseDetail : '',
-        itemName: form.itemName,
-        itemSubNames: itemIsFreeTextSelected
-          ? [form.itemFreeTextDetail.trim()]
-          : // 'Other' itself is never stored — same reasoning as remarks below —
-            // the typed description replaces it so the register reads what the
-            // item actually was, not the literal word "Other".
-            itemSubs?.length
-            ? form.itemSubNames.map((n) => (n === 'Other' ? form.itemSubOther.trim() : n))
-            : [],
-        // Empty string, not 0 — the server reads '' as "not specified" and
-        // stores NULL, whereas 0 would fail its positive-number check.
-        itemQty: form.itemQty.trim(),
-        amount: Number(form.amount),
-        description: form.description,
-        // 'Other' itself is never stored — the typed name is what Paid By
-        // actually means in that case.
-        remarks: form.remarks === 'Other' ? form.remarksOther.trim() : form.remarks
-      };
-
-      const res = await fetch(
-        editId ? `/api/office-operation-expenses/${editId}` : '/api/office-operation-expenses',
-        {
-          method: editId ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }
-      );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        toast.error(data?.error || `Failed to save (${res.status})`);
-        return;
-      }
-
-      toast.success(editId ? 'Expense updated' : 'Expense saved');
-      resetForm();
-      setShowForm(false);
-
-      // Jump the filter to the saved entry's month so a row dated outside the
-      // period currently on screen doesn't silently vanish after saving.
-      //
-      // With a range, anywhere INSIDE it is already on screen, so only a date
-      // beyond either end moves the filter — and moving it drops back to that
-      // one month rather than silently stretching the range to reach it,
-      // which would change what the person is looking at more than they
-      // asked for.
-      const [savedYear, savedMonth] = form.date.split('-').map(Number);
-      const monthIndex = (y: number, m: number) => y * 12 + m;
-      const saved = monthIndex(savedYear, savedMonth);
-      const onScreen = saved >= monthIndex(year, month) && saved <= monthIndex(rangeToYear, rangeToMonth);
-      if (!onScreen) {
-        setLoading(true);
-        setRangeMode(false);
-        setYear(savedYear);
-        setMonth(savedMonth);
-      } else {
-        await fetchRecords(year, month, rangeToYear, rangeToMonth);
-      }
-    } catch {
-      toast.error('Network error');
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -387,7 +181,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
       {categoriesOpen && (
         <ExpenseCategoryEditor
           onClose={() => setCategoriesOpen(false)}
-          onSaved={() => setOptionsKey((k) => k + 1)}
+          onSaved={() => { /* the Add/Edit page fetches its own fresh options on every mount */ }}
         />
       )}
       <div className={styles.pageWrap}>
@@ -441,215 +235,12 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
             <button
               type="button"
               className={`${historyStyles.button} ${historyStyles.primary}`}
-              onClick={() => { resetForm(); setShowForm((prev) => !prev); }}
+              onClick={() => router.push('/office-operation-expenses/new')}
             >
-              {showForm ? 'Cancel' : '+ Add Expense'}
+              + Add Expense
             </button>
           </div>
         </div>
-
-        {showForm && (
-          <Modal
-            title={editId ? 'Edit Expense' : 'Add Expense'}
-            ariaLabel={editId ? 'Edit Expense' : 'Add Expense'}
-            onClose={() => { resetForm(); setShowForm(false); }}
-            size="wide"
-            dismissible={!saving}
-          >
-            <form onSubmit={handleSubmit}>
-            <div className={styles.editingNote}>
-              {editId
-                ? <>Editing Sr No. is fixed — the serial never changes once assigned.</>
-                : <>Sr No. is assigned automatically when you save.</>}
-            </div>
-
-            <div className={styles.formGrid}>
-              <div>
-                <label className={styles.fieldLabel}>Date *</label>
-                <input type="date" className={`${calcStyles.formControl} ${styles.fullWidth}`} value={form.date} onChange={(e) => setField('date', e.target.value)} />
-              </div>
-
-              <div>
-                <label className={styles.fieldLabel}>Office Location *</label>
-                {/* Same segmented-pill control as the Quotation type toggle
-                    (historyStyles.modeToggle) — the app's one established look
-                    for "pick one of a few options", reused here instead of a
-                    plain radio list. */}
-                <div className={historyStyles.modeToggle} role="radiogroup" aria-label="Office Location">
-                  {OFFICE_LOCATIONS.map((loc) => (
-                    <button
-                      key={loc}
-                      type="button"
-                      role="radio"
-                      aria-checked={form.officeLocation === loc}
-                      className={`${historyStyles.modeToggleBtn} ${form.officeLocation === loc ? historyStyles.modeToggleBtnActive : ''}`}
-                      onClick={() => setField('officeLocation', loc)}
-                    >
-                      {loc}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className={styles.fieldLabel}>Category *</label>
-                <select
-                  className={`${calcStyles.formControl} ${styles.fullWidth}`}
-                  value={form.usecase}
-                  onChange={(e) => { setField('usecase', e.target.value); setField('usecaseDetail', ''); }}
-                  disabled={!options}
-                >
-                  <option value="">Select category…</option>
-                  {options?.usecases.map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-
-              {usecaseSubs && (
-                <div>
-                  <label className={styles.fieldLabel}>{form.usecase} — which one? *</label>
-                  <select className={`${calcStyles.formControl} ${styles.fullWidth}`} value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)}>
-                    <option value="">Select…</option>
-                    {usecaseSubs.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-              )}
-
-              {usecaseIsFreeText && (
-                <div>
-                  <label className={styles.fieldLabel}>Specify category *</label>
-                  <input type="text" className={calcStyles.formControl} placeholder="e.g. Annual audit" value={form.usecaseDetail} onChange={(e) => setField('usecaseDetail', e.target.value)} style={{ width: '100%' }} />
-                </div>
-              )}
-
-              <div>
-                <label className={styles.fieldLabel}>Expense Head *</label>
-                <select
-                  className={`${calcStyles.formControl} ${styles.fullWidth}`}
-                  value={form.itemName}
-                  onChange={(e) => { setField('itemName', e.target.value); setForm((prev) => ({ ...prev, itemSubNames: [], itemSubOther: '', itemFreeTextDetail: '' })); }}
-                  disabled={!options}
-                >
-                  <option value="">Select expense head…</option>
-                  {options?.items.map((i) => <option key={i} value={i}>{i}</option>)}
-                </select>
-              </div>
-
-              {!!itemSubs?.length && (
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label className={styles.fieldLabel}>
-                    {form.itemName === 'Department' ? 'Departments' : `${form.itemName} — Item Names`} *
-                    {form.itemSubNames.length > 0 && ` · ${form.itemSubNames.length} selected`}
-                  </label>
-                  {/* Multi-select: one entry can cover several sub-items, e.g. a
-                      single pantry bill for milk, sugar and lemon. */}
-                  <div style={{
-                    display: 'flex', flexWrap: 'wrap', gap: 6, padding: 10,
-                    border: '1px solid var(--mx-border, #e5e7eb)', borderRadius: 'var(--mx-radius-xs, 6px)',
-                    background: 'var(--mx-surface, #fff)', maxHeight: 190, overflowY: 'auto'
-                  }}>
-                    {itemSubs.map((sub) => {
-                      const on = form.itemSubNames.includes(sub);
-                      return (
-                        <label key={sub} style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-                          padding: '4px 10px', borderRadius: 14, fontSize: '13px', userSelect: 'none',
-                          border: `1px solid ${on ? 'var(--mx-brand, #2563eb)' : 'var(--mx-border, #e5e7eb)'}`,
-                          background: on ? 'var(--mx-brand-subtle, #eff6ff)' : 'transparent',
-                          color: on ? 'var(--mx-brand, #2563eb)' : 'var(--mx-ink)',
-                          fontWeight: on ? 600 : 400
-                        }}>
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            onChange={() => toggleSubItem(sub)}
-                            style={{ accentColor: 'var(--mx-brand, #2563eb)', margin: 0 }}
-                          />
-                          {sub}
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {form.itemSubNames.includes('Other') && (
-                    <input
-                      type="text"
-                      className={`${calcStyles.formControl} ${styles.fullWidth}`}
-                      placeholder="What is it?"
-                      value={form.itemSubOther}
-                      onChange={(e) => setField('itemSubOther', e.target.value)}
-                      style={{ marginTop: 8 }}
-                    />
-                  )}
-                </div>
-              )}
-
-              {itemIsFreeTextSelected && (
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label className={styles.fieldLabel}>{form.itemName} — what is it? *</label>
-                  <input
-                    type="text"
-                    className={`${calcStyles.formControl} ${styles.fullWidth}`}
-                    placeholder={
-                      form.itemName === 'Rent'
-                        ? 'e.g. October office rent'
-                        : form.itemName === 'Maintenance'
-                          ? 'e.g. AC servicing, plumbing repair'
-                          : 'Describe what this was for'
-                    }
-                    value={form.itemFreeTextDetail}
-                    onChange={(e) => setField('itemFreeTextDetail', e.target.value)}
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className={styles.fieldLabel}>Item Qty</label>
-                <input type="number" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="Optional" value={form.itemQty} onChange={(e) => setField('itemQty', e.target.value)} min="0" step="0.01" />
-              </div>
-
-              <div>
-                <label className={styles.fieldLabel}>Amount (₹) *</label>
-                <input type="number" className={`${calcStyles.formControl} ${styles.fullWidth}`} placeholder="e.g. 4800" value={form.amount} onChange={(e) => setField('amount', e.target.value)} min="0" step="0.01" />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
-              <div>
-                <label className={styles.fieldLabel}>Description</label>
-                <textarea className={calcStyles.formControl} rows={2} placeholder="What was purchased or paid for" value={form.description} onChange={(e) => setField('description', e.target.value)} style={{ width: '100%', resize: 'vertical' }} />
-              </div>
-              <div>
-                <label className={styles.fieldLabel}>Paid By *</label>
-                <select
-                  className={`${calcStyles.formControl} ${styles.fullWidth}`}
-                  value={form.remarks}
-                  onChange={(e) => { setField('remarks', e.target.value); if (e.target.value !== 'Other') setField('remarksOther', ''); }}
-                >
-                  <option value="">Select who paid…</option>
-                  {PAID_BY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-                {form.remarks === 'Other' && (
-                  <input
-                    className={`${calcStyles.formControl} ${styles.fullWidth}`}
-                    placeholder="Enter name *"
-                    value={form.remarksOther}
-                    onChange={(e) => setField('remarksOther', e.target.value)}
-                    style={{ marginTop: 8 }}
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className={styles.formActions}>
-              <button type="submit" className={`${historyStyles.button} ${historyStyles.primary}`} disabled={saving}>
-                {saving ? (editId ? 'Updating…' : 'Saving…') : (editId ? 'Update Expense' : 'Save Expense')}
-              </button>
-              <button type="button" className={historyStyles.button} onClick={() => { resetForm(); setShowForm(false); }}>
-                Cancel
-              </button>
-            </div>
-            </form>
-          </Modal>
-        )}
 
         {records.length > 0 && (
           <div
@@ -738,7 +329,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                       <div className={styles.rowActions}>
                         <button
                           type="button"
-                          onClick={() => startEdit(record)}
+                          onClick={() => router.push(`/office-operation-expenses/${record.id}/edit`)}
                           className={styles.editButton}
                         >
                           Edit
