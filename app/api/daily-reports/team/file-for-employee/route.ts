@@ -28,7 +28,13 @@ import { isIsoDate, isUuidLike } from '@/lib/dailyReportApiIds';
 //   * The employee is told it happened. Somebody filing a report in your
 //     name and you not knowing is not acceptable.
 export async function POST(request: NextRequest) {
-  const guard = await guardDailyReport(request, 'team-daily-reports');
+  // 'daily-report' here, not 'team-daily-reports': that key is
+  // MANAGER_GATED (lib/moduleConfigStore.ts) and only ever passes for
+  // viewer.isPrivileged OR viewer.isDepartmentManager — a flag guardDailyReport
+  // never sets, so it could never pass for exactly the non-privileged
+  // department managers this feature is for. The real, correctly-computed
+  // check is canAccessTeamDashboard below.
+  const guard = await guardDailyReport(request, 'daily-report');
   if (isGuardFailure(guard)) return guard.response;
   const { viewer } = guard;
 

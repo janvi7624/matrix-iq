@@ -30,7 +30,14 @@ import { isUuidLike } from '@/lib/dailyReportApiIds';
 //   * Audited, and any warning it waives keeps its row with the reason
 //     attached rather than being deleted.
 export async function POST(request: NextRequest) {
-  const guard = await guardDailyReport(request, 'team-daily-reports');
+  // 'daily-report' here, not 'team-daily-reports': that key is
+  // MANAGER_GATED (lib/moduleConfigStore.ts) and only ever passes for
+  // viewer.isPrivileged OR viewer.isDepartmentManager — a flag guardDailyReport
+  // never sets, so it could never pass for exactly the non-privileged
+  // department managers this feature is for (a plain 'user'/'technical-manager'
+  // role who manages a department via Department.managerIds). The real,
+  // correctly-computed check is canAccessTeamDashboard below.
+  const guard = await guardDailyReport(request, 'daily-report');
   if (isGuardFailure(guard)) return guard.response;
   const { viewer } = guard;
 

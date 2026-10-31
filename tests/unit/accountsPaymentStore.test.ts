@@ -102,7 +102,13 @@ describe('computeSummary', () => {
 
   it('only counts paid items from the current calendar month toward paidThisMonthAmount', () => {
     const thisMonth = new Date();
+    // setMonth() overflows when the current day doesn't exist in the target
+    // month: run this on 31 Oct and setMonth(8) asks for 31 September, which
+    // JS rolls forward to 1 October — back inside the CURRENT month, so the
+    // 999 that is supposed to be excluded got counted. Anchoring to the 15th
+    // first makes the subtraction land in the previous month on every date.
     const lastMonth = new Date();
+    lastMonth.setDate(15);
     lastMonth.setMonth(lastMonth.getMonth() - 1);
     const items = [
       makeItem({ status: 'paid', amount: 400, paidAt: thisMonth.toISOString() }),

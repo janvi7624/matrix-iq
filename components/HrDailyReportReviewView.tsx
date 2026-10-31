@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarOff, CheckCircle2, Paperclip, ShieldAlert, XCircle } from 'lucide-react';
 import { DailyReportLeaveClaimRecord, DailyReportWarningGroup } from '@/lib/dailyReportTypes';
+import { earlierActiveWarnings, finalActiveWarning, finalWarningHeadline } from '@/lib/dailyReportWarningView';
 import AppShell from './AppShell';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
@@ -81,7 +82,11 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
   const [claimTotal, setClaimTotal] = useState(0);
 
   const [month, setMonth] = useState(istMonth());
-  const [warningView, setWarningView] = useState('active');
+  // Defaults to the people who have reached the threshold, because that is
+  // the only group this tab can act on. Showing everyone with a single
+  // missed report put a person on warning 1 of 4 next to a person who had
+  // run out of them, which buried the ones needing a decision.
+  const [warningView, setWarningView] = useState('escalated');
   const [warningSearch, setWarningSearch] = useState('');
   const [groups, setGroups] = useState<DailyReportWarningGroup[]>([]);
   const [threshold, setThreshold] = useState(3);
@@ -319,15 +324,19 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
           <FilterBar>
             <Input type="month" auto value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Reporting month" />
             <Select auto value={warningView} onChange={(e) => setWarningView(e.target.value)} aria-label="Warning view">
-              <option value="active">With active warnings</option>
-              <option value="escalated">At or over the threshold</option>
+              <option value="escalated">Needs action — final warning reached</option>
+              <option value="active">Everyone with any active warning</option>
               <option value="all">All, including fully waived</option>
             </Select>
             <input type="text" value={warningSearch} placeholder="Search employee…" onChange={(e) => setWarningSearch(e.target.value)} aria-label="Search employee" />
           </FilterBar>
 
           <div className={styles.kpiRow}>
-            <StatTile value={groups.length} label="Employees in this view" />
+            <StatTile
+              value={groups.length}
+              label={warningView === 'escalated' ? 'Needing your action' : 'Employees in this view'}
+              tone={warningView === 'escalated' && groups.length ? 'danger' : 'default'}
+            />
             <StatTile value={totalActive} label="Active warnings" tone={totalActive ? 'danger' : 'default'} />
             <StatTile value={escalatedGroups} label="Escalated to HR" tone={escalatedGroups ? 'warning' : 'default'} />
             <StatTile value={threshold} label="Escalation threshold" />
@@ -338,8 +347,12 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
           ) : groups.length === 0 ? (
             <EmptyState
               icon={ShieldAlert}
-              title="No missed-report warnings for this month"
-              message="Warnings are recorded when a reporting deadline passes with no report and no leave claim."
+              title={warningView === 'escalated' ? 'Nobody has reached the warning limit this month' : 'No missed-report warnings for this month'}
+              message={
+                warningView === 'escalated'
+                  ? `Nothing needs your decision. Employees below ${threshold} warnings are not shown here — switch the filter above to see them.`
+                  : 'Warnings are recorded when a reporting deadline passes with no report and no leave claim.'
+              }
             />
           ) : (
             groups.map((group) => (
@@ -355,52 +368,89 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
                         </>
                       )}
                     </div>
+                    {/* The counts moved to the final-warning headline and the
+                        collapsed waived summary — stating "4 of 4" three
+                        times on one card is the noise this tab had. */}
                     <div className={styles.groupMeta}>
-                      {group.department_name || '—'} · {group.month_key} · {group.active_warnings} of {threshold} active
-                      {group.waived_warnings > 0 && ` · ${group.waived_warnings} waived`}
-                      {' · '}
-                      {PATTERN_LABEL[group.pattern] ?? group.pattern}
+                      {group.department_name || '—'} · {group.month_key} · {PATTERN_LABEL[group.pattern] ?? group.pattern}
                       {group.hr_escalated_at && ` · escalated ${formatDateTime(group.hr_escalated_at)}`}
                     </div>
                   </div>
                 </div>
-                <div className={styles.dateChips}>
-                  {group.warnings.map((warning) =>
-                    warning.status === 'WAIVED' ? (
-                      <span
-                        key={warning.id}
-                        className={`${styles.dateChip} ${styles.dateChipWaived}`}
-                        title={`Waived${warning.waived_by_name ? ` by ${warning.waived_by_name}` : ''}${warning.waiver_reason ? `: ${warning.waiver_reason}` : ''}`}
-                      >
-                        {formatDate(warning.report_date)}
-                      </span>
-                    ) : (
-                      <button
-                        key={warning.id}
-                        type="button"
-                        className={styles.dateChip}
-                        onClick={() => {
-                          setReason('');
-                          setWaiveDialog({ warningId: warning.id, employeeName: group.employee_name, reportDate: warning.report_date });
-                        }}
-                      >
-                        {formatDate(warning.report_date)} · waive
-                      </button>
-                    )
-                  )}
-                </div>
-                {group.warnings.some((warning) => warning.status === 'WAIVED') && (
-                  <ul className={styles.inlineList}>
-                    {group.warnings
-                      .filter((warning) => warning.status === 'WAIVED')
-                      .map((warning) => (
-                        <li key={warning.id}>
-                          {formatDate(warning.report_date)} waived{warning.waived_by_name ? ` by ${warning.waived_by_name}` : ''}
-                          {warning.waived_at ? ` on ${formatDateTime(warning.waived_at)}` : ''}
-                          {warning.waiver_reason ? ` — ${warning.waiver_reason}` : ''}
-                        </li>
-                      ))}
-                  </ul>
+                {/* The one warning HR is being asked about, on its own. The
+                    run-up to it is still reachable below, because waiving an
+                    EARLIER date is how an employee is brought back under the
+                    threshold — but it is context, not the headline. */}
+                {(() => {
+                  const final = finalActiveWarning(group.warnings);
+                  const earlier = earlierActiveWarnings(group.warnings);
+                  if (!final) {
+                    return (
+                      <div className={styles.groupMeta}>
+                        Every warning this month has been waived — nothing to action.
+                      </div>
+                    );
+                  }
+                  return (
+                    <>
+                      <div className={styles.dateChips}>
+                        <span className={styles.groupMeta}>{finalWarningHeadline(group, threshold)}</span>
+                        <button
+                          type="button"
+                          className={styles.dateChip}
+                          onClick={() => {
+                            setReason('');
+                            setWaiveDialog({ warningId: final.id, employeeName: group.employee_name, reportDate: final.report_date });
+                          }}
+                        >
+                          {formatDate(final.report_date)} · waive
+                        </button>
+                      </div>
+                      {earlier.length > 0 && (
+                        <details className={styles.detailsBlock}>
+                          <summary className={styles.detailsSummary}>
+                            {earlier.length} earlier {earlier.length === 1 ? 'warning' : 'warnings'} this month
+                          </summary>
+                          <div className={styles.dateChips}>
+                            {earlier.map((warning) => (
+                              <button
+                                key={warning.id}
+                                type="button"
+                                className={styles.dateChip}
+                                onClick={() => {
+                                  setReason('');
+                                  setWaiveDialog({ warningId: warning.id, employeeName: group.employee_name, reportDate: warning.report_date });
+                                }}
+                              >
+                                {formatDate(warning.report_date)} · waive
+                              </button>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </>
+                  );
+                })()}
+                {/* Already dealt with, so also collapsed — kept because
+                    "who waived this and why" is the first question asked
+                    when a waiver is queried later. */}
+                {group.waived_warnings > 0 && (
+                  <details className={styles.detailsBlock}>
+                    <summary className={styles.detailsSummary}>
+                      {group.waived_warnings} waived this month
+                    </summary>
+                    <ul className={styles.inlineList}>
+                      {group.warnings
+                        .filter((warning) => warning.status === 'WAIVED')
+                        .map((warning) => (
+                          <li key={warning.id}>
+                            {formatDate(warning.report_date)} waived{warning.waived_by_name ? ` by ${warning.waived_by_name}` : ''}
+                            {warning.waived_at ? ` on ${formatDateTime(warning.waived_at)}` : ''}
+                            {warning.waiver_reason ? ` — ${warning.waiver_reason}` : ''}
+                          </li>
+                        ))}
+                    </ul>
+                  </details>
                 )}
               </div>
             ))

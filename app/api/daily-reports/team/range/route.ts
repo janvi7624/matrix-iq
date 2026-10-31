@@ -8,10 +8,13 @@ import { canAccessTeamDashboard } from '@/lib/dailyReportAccess';
 // The Month/Quarter/Year/Custom Range filters on Team Daily Reports — see
 // buildTeamDailyReportsRange's doc comment for why this is a separate
 // endpoint rather than teaching /team a second shape of response. Same guard
-// as that route: 'team-daily-reports' module access, then a genuine
+// as that route: 'daily-report' module access (NOT 'team-daily-reports' —
+// that key is MANAGER_GATED and only passes for viewer.isPrivileged OR
+// viewer.isDepartmentManager, a flag guardDailyReport never sets, so it
+// could never pass for a non-privileged department manager), then a genuine
 // department-manager check (or org-wide), not a role string.
 export async function GET(request: NextRequest) {
-  const guard = await guardDailyReport(request, 'team-daily-reports');
+  const guard = await guardDailyReport(request, 'daily-report');
   if (isGuardFailure(guard)) return guard.response;
   const { viewer } = guard;
 

@@ -69,7 +69,12 @@ describe('closedProjectsVisible', () => {
 describe('isClosedQuotation', () => {
   const quote = (over: Partial<Parameters<typeof isClosedQuotation>[0]> = {}) => ({
     status: 'sent',
-    created_at: '2026-10-01T00:00:00.000Z',
+    // Relative to now, not a fixed date. Expiry is derived from
+    // created_at + validity_days against the real clock, so the old pinned
+    // '2026-10-01' + 30 days fixture turned into an EXPIRED quote on
+    // 31 Oct 2026 — and expired counts as closed, so the "a sent quote is
+    // not closed" case started failing on that date and every day after.
+    created_at: new Date().toISOString(),
     validity_days: 30,
     status_changed_at: '',
     ...over

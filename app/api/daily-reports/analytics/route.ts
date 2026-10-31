@@ -10,8 +10,14 @@ import { isUuidLike } from '@/lib/dailyReportApiIds';
 // Compliance for one calendar month. Narrowed to the viewer's own scope
 // exactly like the team dashboard — a department manager sees their
 // department's compliance, an org-wide viewer sees everyone's.
+//
+// Guarded on 'daily-report', not 'team-daily-reports': that key is
+// MANAGER_GATED (lib/moduleConfigStore.ts) and only passes for
+// viewer.isPrivileged OR viewer.isDepartmentManager — a flag guardDailyReport
+// never sets, so it could never pass for a non-privileged department
+// manager. The real check is the scope test just below.
 export async function GET(request: NextRequest) {
-  const guard = await guardDailyReport(request, 'team-daily-reports');
+  const guard = await guardDailyReport(request, 'daily-report');
   if (isGuardFailure(guard)) return guard.response;
   const { viewer } = guard;
 
