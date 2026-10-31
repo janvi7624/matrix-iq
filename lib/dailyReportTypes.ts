@@ -154,6 +154,14 @@ export interface DailyReportWarningGroup {
   pattern: string;
   hr_escalated: boolean;
   hr_escalated_at: string;
+  /** '' when this employee/month was never escalated. */
+  escalation_id: string;
+  /** When HR recorded what they did — '' means still pending. */
+  hr_action_taken_at: string;
+  hr_action_by_name: string;
+  hr_action_note: string;
+  /** How many times the HR manager has been chased about it. */
+  hr_reminders_sent: number;
   warnings: DailyReportWarningRecord[];
 }
 

@@ -16,7 +16,15 @@ module.exports = (sequelize, DataTypes) => {
     // 'pending' | 'sent' | 'failed' | 'dry_run' — feeds the admin
     // notification-delivery log.
     email_status: { type: DataTypes.STRING, allowNull: false, defaultValue: 'pending' },
-    email_error: { type: DataTypes.TEXT }
+    email_error: { type: DataTypes.TEXT },
+    // HR recording that they have DEALT with this — not the same as waiving
+    // a warning, which is only one of the possible responses. Until this is
+    // set, the sweep reminds the HR manager that action is pending.
+    acknowledged_at: { type: DataTypes.DATE },
+    acknowledged_by: { type: DataTypes.UUID },
+    action_note: { type: DataTypes.TEXT },
+    reminder_last_sent_at: { type: DataTypes.DATE },
+    reminder_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 }
   }, {
     tableName: 'daily_report_escalations',
     underscored: true,
@@ -25,6 +33,7 @@ module.exports = (sequelize, DataTypes) => {
 
   DailyReportEscalation.associate = (models) => {
     DailyReportEscalation.belongsTo(models.User, { foreignKey: 'employee_id', as: 'employee' });
+    DailyReportEscalation.belongsTo(models.User, { foreignKey: 'acknowledged_by', as: 'acknowledgedBy' });
   };
 
   return DailyReportEscalation;

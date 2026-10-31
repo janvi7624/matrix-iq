@@ -240,7 +240,47 @@ export async function resolveReportManagers(departmentName: string, extraManager
   return withEmails(managers);
 }
 
-/** Who receives HR escalations. Empty is a real, reportable misconfiguration. */
+/**
+ * The HR MANAGER(s) — whoever manages the HR department in Department
+ * Master. The supervisor of the HR queue, and who gets chased when an
+ * escalation sits unactioned.
+ *
+ * Empty is a real, reportable misconfiguration.
+ */
 export async function resolveHrRecipients(): Promise<NotificationRecipient[]> {
   return withEmails(findHrManagers(await listDepartmentManagers()));
+}
+
+/**
+ * Who an HR escalation goes to: the HR manager(s) AND the HR team, because
+ * both have a part in it — the manager owns the outcome, the team does the
+ * work. The manager alone meant one person (hardik.acharya, today) was the
+ * single point of failure for every escalation in the org.
+ *
+ * "The HR team" is resolved from the HR ROLE, not from membership of the HR
+ * department. Those are not the same set here: the HR & Admin department
+ * also contains a marketing-role user, who has no business receiving other
+ * people's disciplinary escalations — and who is, as it happens, currently
+ * escalated herself. Role is the question actually being asked ("do you do
+ * HR work"); the department is just where someone sits.
+ *
+ * Deliberately NOT folded into resolveHrRecipients: that one also routes
+ * leave claims, and widening it here would have quietly broadened those too.
+ */
+export async function resolveHrEscalationRecipients(): Promise<NotificationRecipient[]> {
+  const managers = findHrManagers(await listDepartmentManagers());
+  const hrRole = await db.User.findAll({
+    include: [{ model: db.Role, as: 'role', where: { key: 'hr' } as never, attributes: [] }],
+    where: { status: 'active' } as never,
+    attributes: ['id', 'username', 'name']
+  });
+
+  const byId = new Map<string, { id: string; username: string; name: string }>();
+  for (const manager of managers) byId.set(manager.id, manager);
+  for (const row of hrRole) {
+    const id = row.get('id') as string;
+    if (byId.has(id)) continue;
+    byId.set(id, { id, username: row.get('username') as string, name: row.get('name') as string });
+  }
+  return withEmails([...byId.values()]);
 }

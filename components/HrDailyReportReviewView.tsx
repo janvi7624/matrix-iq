@@ -87,6 +87,8 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
   // missed report put a person on warning 1 of 4 next to a person who had
   // run out of them, which buried the ones needing a decision.
   const [warningView, setWarningView] = useState('escalated');
+  const [actionDialog, setActionDialog] = useState<{ escalationId: string; employeeName: string; monthKey: string } | null>(null);
+  const [actionNote, setActionNote] = useState('');
   const [warningSearch, setWarningSearch] = useState('');
   const [groups, setGroups] = useState<DailyReportWarningGroup[]>([]);
   const [threshold, setThreshold] = useState(3);
@@ -182,6 +184,32 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
       toast.success('Warning waived. It stays in the history but no longer counts towards escalation.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not waive this warning.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Clearing an escalation is NOT waiving a warning — HR may well decide the
+  // warnings stand. This records that they dealt with it, and is what stops
+  // the two-day reminders going to the HR manager.
+  async function recordAction() {
+    if (!actionDialog) return;
+    if (!actionNote.trim()) return toast.error('Record what action was taken.');
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/daily-reports/hr/escalations/${actionDialog.escalationId}/acknowledge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: actionNote.trim() })
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.error || `Could not record this action (${response.status})`);
+      setActionDialog(null);
+      setActionNote('');
+      await load();
+      toast.success('Action recorded. The HR manager will no longer be reminded about this one.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not record this action.');
     } finally {
       setSaving(false);
     }
@@ -364,7 +392,9 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
                       {group.hr_escalated && (
                         <>
                           {' '}
-                          <span className={`${styles.badge} ${styles.badgeMissing}`}>HR informed</span>
+                          <span className={`${styles.badge} ${styles.badgeMissing}`}>
+                            {group.hr_action_taken_at ? 'Actioned' : 'Action pending'}
+                          </span>
                         </>
                       )}
                     </div>
@@ -431,6 +461,36 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
                     </>
                   );
                 })()}
+                {/* The escalation's own state, which is separate from the
+                    warnings: HR can decide the warnings STAND and still have
+                    acted. Recording that is what stops the manager chases. */}
+                {group.hr_escalated && group.escalation_id && (
+                  group.hr_action_taken_at ? (
+                    <div className={styles.groupMeta}>
+                      Actioned{group.hr_action_by_name ? ` by ${group.hr_action_by_name}` : ''} on {formatDateTime(group.hr_action_taken_at)}
+                      {group.hr_action_note ? ` — ${group.hr_action_note}` : ''}
+                    </div>
+                  ) : (
+                    <div className={styles.dateChips}>
+                      <span className={styles.groupMeta}>
+                        HR action pending{group.hr_escalated_at ? ` since ${formatDateTime(group.hr_escalated_at)}` : ''}
+                        {group.hr_reminders_sent > 0 &&
+                          ` · manager reminded ${group.hr_reminders_sent}×`}
+                      </span>
+                      <button
+                        type="button"
+                        className={styles.dateChip}
+                        onClick={() => {
+                          setActionNote('');
+                          setActionDialog({ escalationId: group.escalation_id, employeeName: group.employee_name, monthKey: group.month_key });
+                        }}
+                      >
+                        Record action
+                      </button>
+                    </div>
+                  )
+                )}
+
                 {/* Already dealt with, so also collapsed — kept because
                     "who waived this and why" is the first question asked
                     when a waiver is queried later. */}
@@ -490,6 +550,48 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
               value={reason}
               placeholder={claimDialog.decision === 'APPROVED' ? 'e.g. Approved sick leave on record for this date.' : 'e.g. No leave was approved for this date.'}
               onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+        </Modal>
+      )}
+
+      {actionDialog && (
+        <Modal
+          title={`Record HR action — ${actionDialog.employeeName}, ${actionDialog.monthKey}`}
+          ariaLabel="Record the action HR took on this escalation"
+          onClose={() => setActionDialog(null)}
+          dismissible={!saving}
+          footer={
+            <>
+              <ModalCancelButton onClick={() => setActionDialog(null)} disabled={saving}>Cancel</ModalCancelButton>
+              <ModalOkButton onClick={recordAction} disabled={saving || !actionNote.trim()}>
+                {saving ? 'Saving…' : 'Record Action'}
+              </ModalOkButton>
+            </>
+          }
+        >
+          <div className={`${styles.banner} ${styles.bannerNotice}`}>
+            <span className={styles.bannerIcon}><ShieldAlert size={17} /></span>
+            <div className={styles.bannerBody}>
+              <div className={styles.bannerHeadline}>This closes the escalation, not the warnings</div>
+              <div className={styles.bannerDetail}>
+                The warnings stay exactly as they are — waive them separately if that is the right call. Recording an action here says HR
+                has dealt with it, and stops the reminders to the HR manager.
+              </div>
+            </div>
+          </div>
+          <div className={calcStyles.field}>
+            <label className={calcStyles.label} htmlFor="hr-action-note">
+              What was done <span className={calcStyles.small}>(required)</span>
+            </label>
+            <Textarea
+              id="hr-action-note"
+              value={actionNote}
+              onChange={(e) => setActionNote(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              placeholder="e.g. Spoken to him and his manager on 31 Oct; reports to be filed daily from Monday"
+              disabled={saving}
             />
           </div>
         </Modal>

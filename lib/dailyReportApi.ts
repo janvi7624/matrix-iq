@@ -3,7 +3,7 @@ import { getViewerContext, ViewerContext } from './viewerContext';
 import { isModuleAccessAllowed } from './moduleConfigStore';
 import { DailyReportValidationError, DailyReportConflictError, DailyReportNotFoundError } from './dailyReportStore';
 import { DailyReportLeaveClaimError } from './dailyReportLeaveClaimStore';
-import { DailyReportWarningError } from './dailyReportWarningStore';
+import { DailyReportEscalationError, DailyReportWarningError } from './dailyReportWarningStore';
 import { InvalidDailyReportConfigError } from './dailyReportConfigStore';
 import { InvalidTemplateAssignmentError } from './dailyReportTemplateStore';
 import { apiErrorResponse } from './apiError';
@@ -64,6 +64,7 @@ export function dailyReportErrorResponse(error: unknown): NextResponse {
   if (
     error instanceof DailyReportLeaveClaimError ||
     error instanceof DailyReportWarningError ||
+    error instanceof DailyReportEscalationError ||
     error instanceof InvalidDailyReportConfigError ||
     error instanceof InvalidTemplateAssignmentError
   ) {

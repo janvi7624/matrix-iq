@@ -214,6 +214,12 @@ export interface EscalationRecord {
   notifiedUsernames: string[];
   emailStatus: string;
   emailError: string;
+  /** Set once HR records what they did about it — see acknowledgeEscalation. */
+  acknowledgedAt: string;
+  acknowledgedByName: string;
+  actionNote: string;
+  reminderLastSentAt: string;
+  reminderCount: number;
 }
 
 function toEscalation(row: Model): EscalationRecord {
@@ -227,8 +233,76 @@ function toEscalation(row: Model): EscalationRecord {
     notifiedAt: isoOrEmpty(plain.notified_at),
     notifiedUsernames: Array.isArray(plain.notified_usernames) ? (plain.notified_usernames as string[]) : [],
     emailStatus: (plain.email_status as string) ?? 'pending',
-    emailError: (plain.email_error as string) ?? ''
+    emailError: (plain.email_error as string) ?? '',
+    acknowledgedAt: isoOrEmpty(plain.acknowledged_at),
+    acknowledgedByName: (plain.acknowledgedBy as { name?: string; username?: string } | null)?.name
+      ?? (plain.acknowledgedBy as { username?: string } | null)?.username
+      ?? '',
+    actionNote: (plain.action_note as string) ?? '',
+    reminderLastSentAt: isoOrEmpty(plain.reminder_last_sent_at),
+    reminderCount: Number(plain.reminder_count) || 0
   };
+}
+
+const acknowledgedByInclude = { model: db.User, as: 'acknowledgedBy', attributes: ['id', 'username', 'name'] };
+
+export class DailyReportEscalationError extends Error {}
+
+/**
+ * HR records what they did about an escalation.
+ *
+ * A note is required and a waiver is not: the right response to four genuine
+ * missed reports is usually a conversation, and demanding a waiver to clear
+ * the item would have pushed HR into exempting reports they meant to stand
+ * by. The note is the action.
+ *
+ * Acknowledging is what stops the two-day reminders to the HR manager — see
+ * lib/dailyReportEscalationFollowUp.ts.
+ */
+export async function acknowledgeEscalation(id: string, userId: string, note: string): Promise<EscalationRecord> {
+  if (!isUuid(id)) throw new DailyReportEscalationError('Escalation not found.');
+  const trimmed = (note || '').trim();
+  if (!trimmed) throw new DailyReportEscalationError('Record what action was taken.');
+  if (trimmed.length > 2000) throw new DailyReportEscalationError('Keep the note under 2000 characters.');
+
+  const row = await db.DailyReportEscalation.findByPk(id);
+  if (!row) throw new DailyReportEscalationError('Escalation not found.');
+  if (row.get('acknowledged_at')) {
+    throw new DailyReportEscalationError('This escalation has already been actioned.');
+  }
+
+  await row.update({ acknowledged_at: new Date(), acknowledged_by: userId, action_note: trimmed } as never);
+  const withAssoc = await db.DailyReportEscalation.findByPk(id, { include: [acknowledgedByInclude] as never });
+  return toEscalation(withAssoc as Model);
+}
+
+/**
+ * Escalations that were notified and never actioned — the candidates the
+ * follow-up planner filters by age.
+ *
+ * Filtered in SQL only on "notified and not acknowledged" (the partial index
+ * added in 20261031090000); the age and reminder-cap rules live in
+ * planEscalationReminders, where they are testable without a database.
+ */
+export async function listPendingActionEscalations(): Promise<(EscalationRecord & { employeeName: string })[]> {
+  const rows = await db.DailyReportEscalation.findAll({
+    where: { acknowledged_at: null, notified_at: { [Op.ne]: null }, email_status: 'sent' } as never,
+    include: [{ model: db.User, as: 'employee', attributes: ['id', 'username', 'name'] }, acknowledgedByInclude] as never,
+    order: [['notified_at', 'ASC']]
+  });
+  return rows.map((row) => {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    const employee = plain.employee as { name?: string; username?: string } | null;
+    return { ...toEscalation(row), employeeName: employee?.name ?? employee?.username ?? '' };
+  });
+}
+
+/** Stamps a chase so the next one is a further `dueDays` away. */
+export async function markEscalationReminded(id: string, at: Date, previousCount: number): Promise<void> {
+  await db.DailyReportEscalation.update(
+    { reminder_last_sent_at: at, reminder_count: previousCount + 1 } as never,
+    { where: { id } as never }
+  );
 }
 
 /**
@@ -275,7 +349,12 @@ export async function loadEscalatedKeys(employeeIds: string[], monthKeys: string
 export async function loadEscalations(employeeIds: string[], monthKeys: string[]): Promise<Map<string, EscalationRecord>> {
   const map = new Map<string, EscalationRecord>();
   if (!employeeIds.length || !monthKeys.length) return map;
-  const rows = await db.DailyReportEscalation.findAll({ where: { employee_id: employeeIds, month_key: monthKeys } as never });
+  const rows = await db.DailyReportEscalation.findAll({
+    where: { employee_id: employeeIds, month_key: monthKeys } as never,
+    // Needed for acknowledgedByName — the HR Warnings card names whoever
+    // recorded the action.
+    include: [acknowledgedByInclude] as never
+  });
   for (const row of rows) {
     const record = toEscalation(row);
     map.set(escalationKey(record.employeeId, record.monthKey), record);
@@ -369,6 +448,13 @@ export async function listWarningGroups(filters: WarningGroupFilters = {}, thres
         pattern: 'none',
         hr_escalated: !!escalation,
         hr_escalated_at: escalation?.notifiedAt ?? '',
+        // So the card can show "action pending since…" or "actioned by X",
+        // and offer the one control that stops the manager reminders.
+        escalation_id: escalation?.id ?? '',
+        hr_action_taken_at: escalation?.acknowledgedAt ?? '',
+        hr_action_by_name: escalation?.acknowledgedByName ?? '',
+        hr_action_note: escalation?.actionNote ?? '',
+        hr_reminders_sent: escalation?.reminderCount ?? 0,
         warnings: []
       };
       groups.set(key, group);

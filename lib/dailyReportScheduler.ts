@@ -7,7 +7,9 @@ import {
   loadActiveCountsByMonth,
   loadEscalatedKeys,
   loadWarningKeys,
+  listPendingActionEscalations,
   markEscalationNotified,
+  markEscalationReminded,
   recordWarning
 } from './dailyReportWarningStore';
 import {
@@ -24,7 +26,8 @@ import {
   sweepWindow
 } from './dailyReportSweepPlan';
 import { approvalRecipients, claimNotificationEvent, clearFailedClaim, deliver, loadSentEventKeys, NotifyTarget, recordEventOutcome } from './dailyReportNotify';
-import { resolveHrRecipients } from './dailyReportAccess';
+import { resolveHrEscalationRecipients, resolveHrRecipients } from './dailyReportAccess';
+import { HR_ACTION_DUE_DAYS, planEscalationReminders, reminderMessage } from './dailyReportEscalationFollowUp';
 import { addDays, formatIst, istDate, monthKey, previousWorkingDay, scheduleFor } from './dailyReportTime';
 import { BUILT_IN_TEMPLATES } from './dailyReportTemplates';
 import { db } from './db';
@@ -92,6 +95,8 @@ export interface SweepStats {
   skipped: number;
   warningsRecorded: number;
   escalationsSent: number;
+  /** Chases sent to the HR manager for escalations nobody has actioned. */
+  actionRemindersSent: number;
   catchUp: number;
   failures: { employeeId: string; reportDate: string; kind: string; error: string }[];
   dryRun: boolean;
@@ -114,6 +119,7 @@ function emptyStats(dryRun: boolean): SweepStats {
     skipped: 0,
     warningsRecorded: 0,
     escalationsSent: 0,
+    actionRemindersSent: 0,
     catchUp: 0,
     failures: [],
     dryRun
@@ -344,6 +350,12 @@ export async function runDailyReportSweep(options: SweepOptions = {}): Promise<S
     }
 
     await processEscalations(employees, reportDates, config.warning_threshold, dryRun, stats);
+
+    // After the escalations, because an escalation raised in THIS run has
+    // obviously not been actioned yet and must not be chased in the same
+    // breath — planEscalationReminders' age check is what keeps that from
+    // happening, and running it last keeps the ordering obvious.
+    await processPendingActionReminders(config.warning_threshold, dryRun, now, stats);
 
     return finish(stats.failures.length ? 'partial' : 'ok', stats);
   } catch (error) {
@@ -618,7 +630,8 @@ async function processEscalations(
   const planned = planEscalations(activeCounts, alreadyEscalated, threshold);
   if (!planned.length) return;
 
-  const [hrRecipients, employeeById] = [await resolveHrRecipients(), new Map(employees.map((e) => [e.id, e]))];
+  // Both the HR manager(s) and the HR team — see resolveHrEscalationRecipients.
+  const [hrRecipients, employeeById] = [await resolveHrEscalationRecipients(), new Map(employees.map((e) => [e.id, e]))];
 
   for (const escalation of planned) {
     const employee = employeeById.get(escalation.employeeId);
@@ -692,6 +705,96 @@ async function processEscalations(
       result.emailFailures.length ? `Email not delivered to: ${result.emailFailures.join(', ')}` : undefined
     );
     stats.escalationsSent += 1;
+  }
+}
+
+/**
+ * Chases the HR MANAGER about escalations HR has not actioned.
+ *
+ * The escalation email was the end of the line: HR was told, and nothing
+ * then watched whether anybody did anything. Two days is the window; after
+ * that the manager is told it is still pending, and again every two days up
+ * to HR_REMINDER_MAX, because a notification that repeats forever is one
+ * people learn to ignore.
+ *
+ * Addressed to the manager(s) only, not the whole HR team that got the
+ * original — the point of a chase is that it goes up, not sideways.
+ */
+async function processPendingActionReminders(
+  threshold: number,
+  dryRun: boolean,
+  now: Date,
+  stats: SweepStats
+): Promise<void> {
+  const pending = await listPendingActionEscalations();
+  if (!pending.length) return;
+
+  const planned = planEscalationReminders(
+    pending.map((escalation) => ({
+      id: escalation.id,
+      employeeId: escalation.employeeId,
+      employeeName: escalation.employeeName,
+      monthKey: escalation.monthKey,
+      warningCount: escalation.warningCount,
+      notifiedAt: escalation.notifiedAt ? new Date(escalation.notifiedAt) : null,
+      acknowledgedAt: escalation.acknowledgedAt ? new Date(escalation.acknowledgedAt) : null,
+      reminderLastSentAt: escalation.reminderLastSentAt ? new Date(escalation.reminderLastSentAt) : null,
+      reminderCount: escalation.reminderCount
+    })),
+    now
+  );
+  if (!planned.length) return;
+
+  const managers = await resolveHrRecipients();
+  if (!managers.length) {
+    // Same reasoning as the escalation itself: an org with no HR manager
+    // mapped would otherwise never learn its chases go nowhere.
+    console.error(
+      `[daily-report] ${planned.length} escalation(s) are unactioned past the ${HR_ACTION_DUE_DAYS}-day window, but no HR manager is configured in Department Master — nobody could be reminded.`
+    );
+    return;
+  }
+
+  for (const reminder of planned) {
+    const message = reminderMessage(reminder, threshold);
+
+    if (dryRun) {
+      console.info(`[daily-report][dry-run] would remind the HR manager: ${message.title} (reminder ${reminder.reminderNumber})`);
+      stats.actionRemindersSent += 1;
+      continue;
+    }
+
+    try {
+      const result = await deliver({
+        kind: 'hr_escalation',
+        // The employee is the subject, so they are excluded unless they are
+        // the only recipient — approvalRecipients, same as the escalation.
+        recipients: approvalRecipients(reminder.employeeId, managers).map((m) => ({ username: m.username, name: m.name, email: m.email })),
+        title: message.title,
+        body: message.body,
+        entityType: 'daily_report_escalation',
+        entityId: reminder.escalationId,
+        type: 'daily_report_escalation_action_pending',
+        reportDate: reminder.monthKey,
+        deadlineLabel: '',
+        actionPath: `/hr/daily-reports?tab=warnings&month=${reminder.monthKey}`,
+        employeeName: reminder.employeeName,
+        extra: { activeWarnings: reminder.warningCount, threshold },
+        dryRun
+      });
+
+      // Stamped whether or not delivery succeeded, so a bad address cannot
+      // turn into a chase every single sweep.
+      await markEscalationReminded(reminder.escalationId, now, reminder.previousReminderCount);
+      if (result.inApp || result.email) stats.actionRemindersSent += 1;
+    } catch (error) {
+      stats.failures.push({
+        employeeId: reminder.employeeId,
+        reportDate: reminder.monthKey,
+        kind: 'HR_ACTION_REMINDER',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 }
 
