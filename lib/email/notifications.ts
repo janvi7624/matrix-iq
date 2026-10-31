@@ -18,6 +18,7 @@ import { renderReimbursementLifecycleEmail, ReimbursementLifecycleEmailData } fr
 import { renderCelebrationEmail, CelebrationEmailData } from './templates/celebration';
 import { renderMissingBillsEmail, MissingBillsEmailData } from './templates/missingBills';
 import { renderAdminExpenseNoticeEmail, AdminExpenseNoticeEmailData } from './templates/adminExpenseNotice';
+import { renderAccountsPaymentDoneEmail, AccountsPaymentDoneEmailData } from './templates/accountsPaymentDone';
 import { renderLeadHandoverEmail, LeadHandoverEmailData } from './templates/leadHandover';
 import { renderMissingProjectDetailsEmail, MissingProjectDetailsEmailData } from './templates/missingProjectDetails';
 import { renderDailyReportEmail, DailyReportEmailData } from './templates/dailyReport';
@@ -302,6 +303,28 @@ export async function sendAdminExpenseNoticeEmail(data: { email: string } & Admi
   } catch (error) {
     console.error(
       `[email] Admin expense notice (${data.action}) for batch "${data.expenseType}" could not be sent to ${data.email}:`,
+      error instanceof Error ? error.message : error
+    );
+  }
+}
+
+// The Accounts Payment Queue's one notice to whoever raised the payable.
+// urlPath differs per source (a reimbursement sheet, a BOM request and a
+// travel request each have their own page), so the caller supplies it the
+// same way the procurement sender above does.
+export async function sendAccountsPaymentDoneEmail(
+  data: { email: string; urlPath: string } & Omit<AccountsPaymentDoneEmailData, 'url'>
+): Promise<void> {
+  if (!data.email) return;
+
+  try {
+    const appUrl = resolveAppUrl();
+    const url = appUrl ? `${appUrl}${data.urlPath}` : data.urlPath;
+    const { subject, html, text } = renderAccountsPaymentDoneEmail({ ...data, url });
+    await sendEmail({ to: data.email, subject, html, text });
+  } catch (error) {
+    console.error(
+      `[email] Payment-done notice for "${data.description}" could not be sent to ${data.email}:`,
       error instanceof Error ? error.message : error
     );
   }

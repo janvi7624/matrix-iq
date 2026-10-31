@@ -72,9 +72,14 @@ export async function GET(request: NextRequest) {
   const admin = await assertAdmin(request);
   if (!admin) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
+  // ?batchId= returns the one batch, for the Edit Expense page (no longer a
+  // modal over the already-loaded list) — same batchId convention DELETE
+  // already uses.
+  const batchId = request.nextUrl.searchParams.get('batchId');
+
   try {
     const rows = await db.Reimbursement.findAll({
-      where: { is_admin_entry: true } as never,
+      where: (batchId ? { admin_note: batchId, is_admin_entry: true } : { is_admin_entry: true }) as never,
       include: [
         { model: db.User, as: 'creator', attributes: ['id', 'username', 'name'] },
         { model: db.User, as: 'approver', attributes: ['id', 'username', 'name'] },
@@ -117,6 +122,12 @@ export async function GET(request: NextRequest) {
       } else if (creator && !g.employees.find((e: { id: string }) => e.id === empId)) {
         g.employees.push({ id: empId, name: (creator.name as string) || (creator.username as string) || empId });
       }
+    }
+
+    if (batchId) {
+      const entry = grouped.get(batchId);
+      if (!entry) return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+      return NextResponse.json({ entry });
     }
 
     return NextResponse.json({ entries: [...grouped.values()] });

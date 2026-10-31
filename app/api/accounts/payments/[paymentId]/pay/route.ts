@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { isAccountsPaymentActor } from '@/lib/accountsPaymentAccess';
-import { findPaymentItem, payItem, parsePaymentId, resolveEntityIds } from '@/lib/accountsPaymentStore';
-import { findUserByUsername } from '@/lib/userStore';
+import { findPaymentItem, payItem, parsePaymentId, resolveEntityIds, resolveRequesterUsernames } from '@/lib/accountsPaymentStore';
+import {
+  PAYMENT_SOURCE_LABEL,
+  formatPaymentAmount,
+  paymentDoneNotification,
+  paymentSourcePath
+} from '@/lib/accountsPaymentNotice';
+import { notifyUsers } from '@/lib/notificationStore';
+import { sendAccountsPaymentDoneEmail } from '@/lib/email/notifications';
+import { findUserByUsername, findUsersByUsernames } from '@/lib/userStore';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -81,6 +89,63 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       remarks: isGrouped ? `${baseRemarks} — part of ${paymentId}` : baseRemarks,
       ip: getClientIp(request)
     })));
+
+    // Tell whoever raised it. This queue settles five kinds of payable and
+    // notified NOBODY — the person who claimed the money found out by seeing
+    // it arrive, or by revisiting the page. Addressed with the same
+    // resolveRequesterUsernames the hold/resume notices already use, so
+    // "who does this concern" is one definition, not two.
+    //
+    // After the audit rows on purpose: a notification is the one part of
+    // this that reaches a person, and it must never be the reason a
+    // completed payment reports as failed. Hence the try/catch — the money
+    // has moved and the record says so either way.
+    try {
+      const recipients = await resolveRequesterUsernames(parsed.source, parsed.sourceId);
+      if (recipients.length) {
+        const notice = paymentDoneNotification({
+          sourceLabel: PAYMENT_SOURCE_LABEL[parsed.source],
+          description: existing.description,
+          amountLabel: formatPaymentAmount(existing.amount),
+          paymentDate,
+          paymentMethod,
+          paymentReference,
+          paidByName: actor.name || actor.username
+        });
+        const urlPath = paymentSourcePath(parsed.source, parsed.sourceId);
+
+        await notifyUsers(recipients, {
+          title: notice.title,
+          body: notice.body,
+          type: 'accounts_payment_done',
+          entityType: AUDIT_ENTITY_TYPE[parsed.source],
+          entityId: parsed.sourceId
+        });
+
+        const users = await findUsersByUsernames(recipients);
+        for (const user of users) {
+          if (!user.email) continue;
+          void sendAccountsPaymentDoneEmail({
+            email: user.email,
+            urlPath,
+            name: user.name || user.username,
+            sourceLabel: PAYMENT_SOURCE_LABEL[parsed.source],
+            description: existing.description,
+            amount: formatPaymentAmount(existing.amount),
+            paymentDate,
+            paymentMethod,
+            paymentReference,
+            paidBy: actor.name || actor.username,
+            remarks
+          });
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[accounts-payment] ${paymentId} was paid successfully but the notification could not be sent:`,
+        error instanceof Error ? error.message : error
+      );
+    }
 
     // An Office sheet's bare month key stops resolving once paid (its entries
     // move into a paid group), so this can legitimately be null here.
