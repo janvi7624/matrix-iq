@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Trash2, Link2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Trash2, Link2, Unlink } from 'lucide-react';
 import {
   DailyReportFieldDef,
   DailyReportPayloadInput,
@@ -391,6 +391,23 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
 
   function removeEntry(index: number) {
     onChange({ ...value, entries: entries.filter((_, i) => i !== index) });
+  }
+
+  // Detach a row from its TMS task, turning it back into an ordinary
+  // editable row.
+  //
+  // Only the LINK and the fields that exist solely to mirror TMS are
+  // cleared. The task description, priority, status, due date and project
+  // are deliberately kept: they currently hold the real task's values, and
+  // throwing them away would punish somebody for correcting a mis-link by
+  // making them retype the row. They become editable, which is the point.
+  //
+  // Clears tms_project_id too, so unlinking cannot leave the row looking
+  // like a request to CREATE a new TMS task on the next submit (see
+  // createPendingTmsTasksFromEntries) — that would replace one surprise
+  // link with another.
+  function unlinkTmsTask(index: number) {
+    patchEntry(index, { tms_task_id: '', tms_project_id: '', tms_status_label: '', tms_progress_percent: '' });
   }
 
   // TmsLinkedTaskPanel's write actions (POSTs straight to TMS's own API
