@@ -132,7 +132,9 @@ function rowToTimelineEvent(plain: Record<string, unknown>): ProjectTimelineEven
   };
 }
 
-const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
+// 'name' added alongside 'username' so sales_person_name below can resolve a
+// real display name without a second query — see toRecord.
+const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username', 'name'] };
 const assignedTechnicalPersonInclude = { model: db.User, as: 'assignedTechnicalPersonRef', attributes: ['id', 'name'] };
 const projectLeadInclude = { model: db.User, as: 'projectLeadRef', attributes: ['id', 'name'] };
 const notesInclude = { model: db.ProjectNote, as: 'notes' };
@@ -152,10 +154,18 @@ const lightIncludes = [creatorInclude, assignedTechnicalPersonInclude, projectLe
 
 function toRecord(row: Model): ProjectRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
+  const creator = plain.creator as { username?: string; name?: string } | null;
   const record: Record<string, unknown> = {
     id: plain.id,
     created_at: isoOrEmpty(plain.createdAt),
-    created_by: (plain.creator as { username?: string } | null)?.username ?? '',
+    created_by: creator?.username ?? '',
+    // The sales_person COLUMN is free text that holds a username far more
+    // often than a name (see lib/projectSalesOwner.ts) — this resolves the
+    // real display name from the SAME creator join created_by already uses,
+    // same convention as lib/partnerProjectStore.ts's salespersonNameOf.
+    // Falls back to the raw column, then username, so a deactivated/missing
+    // creator still shows something rather than a blank "Sales Person:".
+    sales_person_name: creator?.name || creator?.username || (plain.sales_person as string) || '',
     updated_at: isoOrEmpty(plain.updatedAt),
     assigned_technical_person_name: (plain.assignedTechnicalPersonRef as { name?: string } | null)?.name ?? '',
     // Real value populated only by findProjectById below (a second, cheap

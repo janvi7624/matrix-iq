@@ -85,6 +85,10 @@ export async function createProjectFromLead(lead: LeadRecord, opts: CreateProjec
     email: lead.email,
     address: lead.city,
     sales_person: opts.attributeToUsername,
+    // Resolved on read from the real user record (lib/projectStore.ts's
+    // toRecord) once this is actually saved — not meaningful on this
+    // not-yet-persisted input object.
+    sales_person_name: '',
     source: projectSource,
     status: 'active',
     stage: 'cold_call',

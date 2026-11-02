@@ -180,6 +180,11 @@ function plainToProjectRecord(row: Model): ProjectRecord {
     ...plain,
     // See the note in lib/partnerDemoStore.ts — the attribute is createdAt.
     created_at: plain.createdAt instanceof Date ? plain.createdAt.toISOString() : String(plain.createdAt ?? ''),
+    // Same resolution salespersonNameOf already does for this view's own
+    // salespersonName field below — populated here too now that
+    // ProjectRecord itself carries this field (lib/projectStore.ts's
+    // internal toRecord resolves it the same way).
+    sales_person_name: salespersonNameOf(row),
     notes: ((plain.notes as Record<string, unknown>[]) ?? []).map((n) => ({
       id: n.id as string,
       at: n.at instanceof Date ? n.at.toISOString() : String(n.at ?? ''),

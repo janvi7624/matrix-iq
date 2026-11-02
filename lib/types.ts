@@ -905,6 +905,11 @@ export interface ProjectRecord {
   email: string;
   address: string;
   sales_person: string;
+  // Resolved display name for sales_person/created_by — see
+  // lib/projectStore.ts's toRecord. Use this for anything shown to a
+  // person; sales_person itself is free text that usually holds a
+  // username, not a name (see lib/projectSalesOwner.ts).
+  sales_person_name: string;
   // Where this project/contact originated (referral, website, cold call...) —
   // carried over from the retired CRM module (section 23), which had this as
   // its one distinct field beyond what Projects already tracked.
