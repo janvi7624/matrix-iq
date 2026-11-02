@@ -999,7 +999,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         toast.error(body?.error || 'Could not assign the sales person.');
         return;
       }
-      const name = salesUsers?.find((u) => u.id === salesOwnerId)?.name || body?.project?.sales_person;
+      const name = salesUsers?.find((u) => u.id === salesOwnerId)?.name || body?.project?.sales_person_name || body?.project?.sales_person;
       toast.success(name ? `${name} is now the sales person.` : 'Sales person assigned.');
       setShowSalesOwner(false);
       await load();
@@ -1317,7 +1317,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               <div className={historyStyles.projectHeaderMeta}>
                 {/* <span>ID: <strong>{project.id}</strong></span> */}
                 <span>Client: <strong>{project.client_name || '-'}</strong></span>
-                <span>Sales Person: <strong>{project.sales_person}</strong></span>
+                <span>Sales Person: <strong>{project.sales_person_name || project.sales_person}</strong></span>
                 <span>Stage: <strong>{STAGE_LABEL[project.stage]}</strong></span>
                 <span>
                   Status:{' '}
@@ -2575,7 +2575,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
               {' The change is recorded on the project timeline.'}
               {/* Matches who lib/projectSalesOwner.ts actually notifies — the
                   outgoing owner, and never the person making the change. */}
-              {project.created_by && project.created_by !== currentUser.username ? ` ${project.sales_person || project.created_by} is told that it has moved.` : ''}
+              {project.created_by && project.created_by !== currentUser.username ? ` ${project.sales_person_name || project.sales_person || project.created_by} is told that it has moved.` : ''}
               {project.created_by === currentUser.username && !isPrivileged ? ' Editing the project details moves to them too.' : ''}
             </p>
             <div className={calcStyles.field}>

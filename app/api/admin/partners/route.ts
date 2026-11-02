@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { canManagePartners } from '@/lib/partnerAccess';
+import { canCreatePartner, canManagePartners } from '@/lib/partnerAccess';
 import { createPartner, listPartners } from '@/lib/partnerStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await canManagePartners(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  // Creating is wider than managing by a named list of individuals — see
+  // canCreatePartner on why the role matrix cannot express 'these two'.
+  if (!(await canCreatePartner(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });

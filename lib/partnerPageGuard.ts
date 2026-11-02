@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, verifySessionToken } from './auth';
 import { findUserStatusById } from './userStore';
 import { findPartnerById, isPartnerUsable } from './partnerStore';
+import { partnerOnboardingComplete } from './partnerOnboarding';
 import { isModuleAccessAllowed } from './moduleConfigStore';
 import { PartnerRecord, UserRole } from './types';
 
@@ -28,7 +29,10 @@ export interface PartnerPageViewer {
  * suspended should land on the login screen, not on a portal page explaining
  * internal state to them.
  */
-export async function requirePartnerPage(moduleKey?: string): Promise<PartnerPageViewer> {
+export async function requirePartnerPage(
+  moduleKey?: string,
+  options: { allowDuringOnboarding?: boolean } = {}
+): Promise<PartnerPageViewer> {
   const cookieStore = await cookies();
   const session = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
   if (!session) redirect('/login');
@@ -41,6 +45,13 @@ export async function requirePartnerPage(moduleKey?: string): Promise<PartnerPag
 
   const partner = await findPartnerById(user.partnerId);
   if (!partner || !isPartnerUsable(partner.status)) redirect('/login');
+
+  // Until all three onboarding documents are approved, every portal page
+  // leads to the onboarding screen. A redirect rather than a refusal: they
+  // are a legitimate partner with something to do, not an intruder.
+  if (!options.allowDuringOnboarding && !partnerOnboardingComplete(partner)) {
+    redirect('/partner/onboarding');
+  }
 
   const viewer: PartnerPageViewer = {
     id: user.id,

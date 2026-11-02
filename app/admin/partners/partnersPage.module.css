@@ -75,3 +75,22 @@
   color: var(--mx-ink);
   overflow-wrap: anywhere;
 }
+
+/* Onboarding documents on the partner detail page — one row per required
+   document, with its state and the approve/reject controls. */
+.documentRow {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--mx-border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+.documentRow:last-of-type { border-bottom: none; }
+
+.documentActions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* The rejection reason. Full width under the row it belongs to, so it is
+   obviously attached to that document and not the next one. */
+.documentReject { flex: 1 1 100%; margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }

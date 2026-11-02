@@ -61,6 +61,13 @@ function partnerCompany(over: Record<string, unknown> = {}) {
     relationship_manager_id: 'rm-1',
     relationship_manager_name: 'Priya',
     notes: '',
+    created_by: 'creator-1',
+    created_by_name: 'Prashant',
+    // Onboarded by default. The gate added with partner onboarding refuses a
+    // partner whose three documents are not all approved, so a fixture
+    // without this would exercise that gate rather than the isolation rules
+    // these tests are about — the onboarding cases are their own below.
+    onboarded_at: '2026-11-01T10:00:00.000Z',
     created_at: '',
     updated_at: '',
     ...over
@@ -117,6 +124,28 @@ describe('getPartnerViewer — the mirror-image refusal', () => {
     partnerCompany();
     const viewer = await getPartnerViewer(REQ);
     expect(viewer?.partner.company_name).toBe('Acme Systems');
+  });
+
+  // The onboarding gate. A partner whose Agreement, NDA and Payment
+  // Agreement are not all approved can sign in, but every partner API
+  // except the onboarding ones is closed to them — so the restriction does
+  // not rely on the portal's navigation hiding links.
+  it('refuses a partner that has not finished onboarding', async () => {
+    partnerCompany({ onboarded_at: null });
+    expect(await getPartnerViewer(REQ)).toBeNull();
+  });
+
+  it('allows that same partner through the onboarding routes', async () => {
+    partnerCompany({ onboarded_at: null });
+    const viewer = await getPartnerViewer(REQ, { allowDuringOnboarding: true });
+    expect(viewer?.partner.company_name).toBe('Acme Systems');
+  });
+
+  // Otherwise a partner could be stranded: refused everywhere, including the
+  // one screen that would let them comply.
+  it('still refuses a suspended partner even during onboarding', async () => {
+    partnerCompany({ status: 'suspended', onboarded_at: null });
+    expect(await getPartnerViewer(REQ, { allowDuringOnboarding: true })).toBeNull();
   });
 
   it('refuses internal staff — there is no act-as-partner mode', async () => {

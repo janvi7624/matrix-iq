@@ -24,6 +24,16 @@ module.exports = (sequelize, DataTypes) => {
     product_categories: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     territory: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     relationship_manager_id: { type: DataTypes.UUID },
+    // When the last onboarding document (Agreement, NDA, Payment Agreement)
+    // was approved by the account creator. NULL means onboarding is
+    // incomplete: the partner may sign in but reaches only
+    // /partner/onboarding. Partners that predate onboarding were backfilled
+    // to their created_at — see the 20261102090000 migration.
+    //
+    // Must be declared here, not only in the migration: without it Sequelize
+    // never SELECTs the column, toRecord reads undefined, and every existing
+    // partner reads as un-onboarded and loses the portal.
+    onboarded_at: { type: DataTypes.DATE },
     notes: { type: DataTypes.TEXT },
     created_by: { type: DataTypes.UUID },
     updated_by: { type: DataTypes.UUID }

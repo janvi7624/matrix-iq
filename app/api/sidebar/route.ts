@@ -9,6 +9,9 @@ import { isMarketingManager, canAssignLeads } from '@/lib/permissions';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { listVisibleModules } from '@/lib/moduleConfigStore';
+import { findPartnerById } from '@/lib/partnerStore';
+import { partnerOnboardingComplete } from '@/lib/partnerOnboarding';
+import { PARTNER_ROLE_KEYS } from '@/lib/partnerRoles';
 import { travelScheduleStore } from '@/lib/travelScheduleStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
 import { marketingReminderBand } from '@/lib/marketingRequestReminder';
@@ -42,8 +45,30 @@ export async function GET(request: NextRequest) {
         isPrivileged: false,
         partnerId: viewer.partnerId
       });
+
+      // A partner still in onboarding gets ONE nav item. Every other portal
+      // page redirects them to /partner/onboarding anyway
+      // (lib/partnerPageGuard.ts), and a full sidebar whose every link
+      // bounces is the opposite of "not full access yet" — it reads as a
+      // broken portal rather than an incomplete signup.
+      const partner = await findPartnerById(viewer.partnerId);
+      const modules = partner && !partnerOnboardingComplete(partner)
+        ? [{
+            key: 'partner-onboarding',
+            label: 'Onboarding',
+            desc: 'Upload your Agreement, NDA and Payment Agreement.',
+            icon: 'file-text',
+            href: '/partner/onboarding',
+            section: 'Partner Portal',
+            order: 0,
+            enabled: true,
+            isCustom: false,
+            visibleToRoles: [...PARTNER_ROLE_KEYS]
+          }]
+        : partnerModules;
+
       return NextResponse.json({
-        modules: partnerModules,
+        modules,
         viewer: { username: viewer.username, name: viewer.name, role: viewer.role, isPartner: true },
         badges: {}
       });

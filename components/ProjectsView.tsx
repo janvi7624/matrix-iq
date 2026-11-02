@@ -349,7 +349,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     if (fSearch.trim()) out.push({ key: 'search', label: 'Search', value: fSearch.trim(), clear: () => setFSearch('') });
     if (fStage) out.push({ key: 'stage', label: 'Stage', value: STAGE_LABEL[fStage], clear: () => setFStage('') });
     if (fStatus) out.push({ key: 'status', label: 'Status', value: STATUS_LABEL[fStatus], clear: () => setFStatus('') });
-    if (fSalesPerson) out.push({ key: 'salesPerson', label: 'Sales person', value: fSalesPerson, clear: () => setFSalesPerson('') });
+    if (fSalesPerson) out.push({ key: 'salesPerson', label: 'Sales person', value: salesPersonNameByUsername.get(fSalesPerson) || fSalesPerson, clear: () => setFSalesPerson('') });
     if (fLead) out.push({ key: 'lead', label: 'Project lead', value: selectedLead?.name ?? fLead, clear: () => setFLead('') });
     if (fType) out.push({ key: 'type', label: 'Opportunity', value: OPPORTUNITY_TYPE_LABEL[fType], clear: () => setFType('') });
     if (fDepartment) out.push({ key: 'department', label: 'Department', value: PROJECT_DEPARTMENT_LABEL[fDepartment], clear: () => setFDepartment('') });
@@ -382,7 +382,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       });
     }
     return out;
-  }, [fSearch, fStage, fStatus, fSalesPerson, fLead, selectedLead, fType, fDepartment, fSource, fPriority, fConfirmation, fAwaitingMine, fAwaitingTeam, fFrom, fTo, fClosingPreset, fClosingFrom, fClosingTo]);
+  }, [fSearch, fStage, fStatus, fSalesPerson, salesPersonNameByUsername, fLead, selectedLead, fType, fDepartment, fSource, fPriority, fConfirmation, fAwaitingMine, fAwaitingTeam, fFrom, fTo, fClosingPreset, fClosingFrom, fClosingTo]);
 
   const advancedActiveCount = activeFilters.filter((f) => !QUICK_FILTER_KEYS.has(f.key)).length;
 
@@ -640,7 +640,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     exportListToPdf(
       'Project Dashboard',
       ['Client', 'Company', 'Sales Person', 'Department', 'Project Lead', 'Source', 'Approx. Price', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
-      filtered.map((p) => [p.client_name, p.company, p.sales_person, formatProjectDepartments(p.departments), p.project_lead_name ? `${p.project_lead_name}${p.opportunity_type ? ` (${OPPORTUNITY_TYPE_LABEL[p.opportunity_type]})` : ''}` : '-', p.source || '-', formatMoney(p.approx_price), STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
+      filtered.map((p) => [p.client_name, p.company, p.sales_person_name || p.sales_person, formatProjectDepartments(p.departments), p.project_lead_name ? `${p.project_lead_name}${p.opportunity_type ? ` (${OPPORTUNITY_TYPE_LABEL[p.opportunity_type]})` : ''}` : '-', p.source || '-', formatMoney(p.approx_price), STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
       `projects-${new Date().toISOString().slice(0, 10)}.pdf`
     );
   }
@@ -678,7 +678,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         </>
       )
     },
-    { key: 'salesPerson', header: 'Sales Person', headerClassName: historyStyles.colSalesPerson, render: (p) => p.sales_person },
+    { key: 'salesPerson', header: 'Sales Person', headerClassName: historyStyles.colSalesPerson, render: (p) => p.sales_person_name || p.sales_person },
     { key: 'department', header: 'Department', headerClassName: historyStyles.colDepartment, render: (p) => formatProjectDepartments(p.departments) },
     {
       key: 'projectLead',
@@ -946,7 +946,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           >
             <dl className={historyStyles.quickFacts}>
               <div><dt>Company</dt><dd>{quickView.company || '-'}</dd></div>
-              <div><dt>Sales Person</dt><dd>{quickView.sales_person || '-'}</dd></div>
+              <div><dt>Sales Person</dt><dd>{quickView.sales_person_name || quickView.sales_person || '-'}</dd></div>
               <div><dt>Department</dt><dd>{formatProjectDepartments(quickView.departments) || '-'}</dd></div>
               <div><dt>Project Lead</dt><dd>{quickView.project_lead_name || '-'}</dd></div>
               <div><dt>Opportunity</dt><dd>{quickView.opportunity_type ? OPPORTUNITY_TYPE_LABEL[quickView.opportunity_type] : '-'}</dd></div>
@@ -1171,7 +1171,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
                   <Select id="pfSalesPerson" value={fSalesPerson} onChange={(e) => setFSalesPerson(e.target.value)}>
                     <option value="">All sales people</option>
                     {salesPeople.map((s) => (
-                      <option key={s} value={s}>{s}</option>
+                      <option key={s} value={s}>{salesPersonNameByUsername.get(s) || s}</option>
                     ))}
                   </Select>
                 </FilterField>

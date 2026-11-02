@@ -196,6 +196,10 @@ export async function POST(request: NextRequest) {
     email: typeof body.email === 'string' ? body.email.trim() : '',
     address: typeof body.address === 'string' ? body.address.trim() : '',
     sales_person: salesPerson,
+    // Resolved from the real user record on read (projectStore.create()
+    // re-fetches with the creator join) — not meaningful on this
+    // not-yet-persisted input object.
+    sales_person_name: '',
     source,
     status: 'active',
     stage: 'cold_call',

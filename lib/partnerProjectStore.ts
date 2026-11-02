@@ -6,6 +6,7 @@ import { PartnerSubmissionStatus, canReviewTransition } from './partnerProjectSt
 import { PARTNER_REVIEW_EVENT_LABEL, PARTNER_SUBMISSION_EVENT_LABEL } from './partnerReviewThread';
 import { SubmissionChange, formatChangeSummary, summariseSubmissionChanges } from './partnerSubmissionDiff';
 import { PartnerVisibleProject, toPartnerVisibleProject } from './partnerVisibility';
+import { resolveSalesPersonName } from './projectSalesPersonName';
 
 // Partner-sourced projects: intake, the partner's own reads, and the Sales
 // review that accepts or refuses a submission.
@@ -214,17 +215,16 @@ function salespersonNameOf(row: Model): string {
   const salesPerson = (plain.sales_person as string) || '';
   if (!salesPerson) return '';
 
-  // Resolve a real display name from the owning user record. The
-  // sales_person COLUMN is deliberately not used as the answer: it is free
-  // text that holds usernames far more often than names, so returning it
-  // would hand the partner an internal account handle.
+  // Resolve a real display name from the owning user record — see
+  // lib/projectSalesPersonName.ts, shared with lib/projectStore.ts's own
+  // internal resolution so the two can't drift apart.
   //
   // Honest limitation: if that account has no display name set, the app-wide
   // `name || username` convention applies and a username can still appear —
   // there is no better handle, and leaving the field blank would wrongly
   // read as "nobody is assigned".
   const creator = plain.creator as { name?: string; username?: string } | null;
-  return creator?.name || creator?.username || salesPerson;
+  return resolveSalesPersonName(creator, salesPerson);
 }
 
 async function contextFor(projectId: string, partnerId: string, row: Model) {

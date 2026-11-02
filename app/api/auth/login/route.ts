@@ -5,6 +5,7 @@ import { logLoginAttempt } from '@/lib/loginHistoryStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { resolveIsPrivileged } from '@/lib/permissions';
+import { isConfiguredPartnerCreator } from '@/lib/partnerAccess';
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -31,11 +32,14 @@ export async function POST(request: NextRequest) {
     // UserRecord deliberately has no partner field: the binding is an access
     // -control fact, not profile data, and keeping it off the widely-passed
     // user shape means no screen can accidentally render or edit it.
-    const [, , isPrivileged, partnerBinding] = await Promise.all([
+    const [, , isPrivileged, partnerBinding, partnerCreator] = await Promise.all([
       recordLogin(user.id),
       logLoginAttempt({ username, success: true, ip }),
       resolveIsPrivileged(user.role),
-      findUserStatusById(user.id)
+      findUserStatusById(user.id),
+      // Opens /admin/partners for the named sales staff who bring partners
+      // in, without making them admins — see SessionPayload.partnerCreator.
+      isConfiguredPartnerCreator(user.id)
     ]);
     const token = await createSessionToken({
       id: user.id,
@@ -43,6 +47,7 @@ export async function POST(request: NextRequest) {
       role: user.role,
       mustChangePassword: user.mustChangePassword,
       isPrivileged,
+      partnerCreator,
       partnerId: partnerBinding?.partnerId
     });
     const response = NextResponse.json({

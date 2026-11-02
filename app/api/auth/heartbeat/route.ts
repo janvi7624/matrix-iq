@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       role: session.role,
       mustChangePassword: session.mustChangePassword,
       isPrivileged: session.isPrivileged,
+      partnerCreator: session.partnerCreator,
       partnerId: session.partnerId
     });
 

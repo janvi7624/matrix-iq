@@ -5,6 +5,7 @@ import { db, isUuid, sequelize } from './db';
 import { resolveVisibilityScope } from './departmentScope';
 import { isUserADepartmentManager, departmentsManagedBy } from './departmentStore';
 import { projectLabel } from './projectLabel';
+import { resolveSalesPersonName } from './projectSalesPersonName';
 
 const FIELDS = [
   { name: 'client_name' },
@@ -159,13 +160,7 @@ function toRecord(row: Model): ProjectRecord {
     id: plain.id,
     created_at: isoOrEmpty(plain.createdAt),
     created_by: creator?.username ?? '',
-    // The sales_person COLUMN is free text that holds a username far more
-    // often than a name (see lib/projectSalesOwner.ts) — this resolves the
-    // real display name from the SAME creator join created_by already uses,
-    // same convention as lib/partnerProjectStore.ts's salespersonNameOf.
-    // Falls back to the raw column, then username, so a deactivated/missing
-    // creator still shows something rather than a blank "Sales Person:".
-    sales_person_name: creator?.name || creator?.username || (plain.sales_person as string) || '',
+    sales_person_name: resolveSalesPersonName(creator, plain.sales_person as string),
     updated_at: isoOrEmpty(plain.updatedAt),
     assigned_technical_person_name: (plain.assignedTechnicalPersonRef as { name?: string } | null)?.name ?? '',
     // Real value populated only by findProjectById below (a second, cheap

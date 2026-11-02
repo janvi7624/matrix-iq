@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { UserRole } from './types';
 import { getViewerContext } from './viewerContext';
 import { findPartnerById, isPartnerUsable } from './partnerStore';
+import { partnerOnboardingComplete } from './partnerOnboarding';
 import { PartnerRecord } from './types';
 
 export interface PartnerViewer {
@@ -29,7 +30,10 @@ export interface PartnerViewer {
  * until the next login, so without this check a suspended partner would keep
  * working for the life of their session.
  */
-export async function getPartnerViewer(request: NextRequest): Promise<PartnerViewer | null> {
+export async function getPartnerViewer(
+  request: NextRequest,
+  options: { allowDuringOnboarding?: boolean } = {}
+): Promise<PartnerViewer | null> {
   const viewer = await getViewerContext(request, { allowPartner: true });
   if (!viewer || !viewer.partnerId) return null;
 
@@ -37,6 +41,14 @@ export async function getPartnerViewer(request: NextRequest): Promise<PartnerVie
   // A binding pointing at a partner that no longer resolves is a broken
   // account, not an unrestricted one — fail closed.
   if (!partner || !isPartnerUsable(partner.status)) return null;
+
+  // Onboarding gate. A partner whose Agreement, NDA and Payment Agreement
+  // have not all been approved by their account creator reaches only the
+  // onboarding routes — which pass allowDuringOnboarding, since refusing
+  // those would leave them no way to comply. Every other partner API is
+  // closed to them, so the restriction does not depend on the portal's
+  // navigation hiding the links.
+  if (!options.allowDuringOnboarding && !partnerOnboardingComplete(partner)) return null;
 
   return {
     userId: viewer.userId,

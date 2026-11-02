@@ -1,5 +1,6 @@
 import { hasCapability, isSalesLeadManager } from './permissions';
 import { isModuleActionAllowed } from './permissions';
+import { getAppConfig } from './appConfigStore';
 
 /**
  * Who may create and run partner accounts.
@@ -21,6 +22,63 @@ export async function canManagePartners(viewer: { username: string; role: string
   if (await isSalesLeadManager(viewer.username)) return true;
   if (viewer.isPrivileged) return true;
   return isModuleActionAllowed(viewer, 'partners', 'manage');
+}
+
+/**
+ * Who may CREATE a partner account, and then owns it.
+ *
+ * Wider than canManagePartners by a named list of individuals
+ * (AppConfig.partnerCreatorIds). The people who bring partners in are
+ * ordinary sales staff on the generic 'user' role, shared with a dozen other
+ * accounts — so the role matrix cannot express "these two" without granting
+ * it to all of them. The list is additive only: everyone who could already
+ * manage partners still can.
+ *
+ * Creating is separated from managing because the two are different jobs
+ * here. A creator owns the partners they bring in — they approve that
+ * partner's onboarding documents and watch their activity — but has no
+ * business editing somebody else's partners, which canManagePartners still
+ * governs.
+ */
+export async function canCreatePartner(viewer: { userId?: string; username: string; role: string; isPrivileged: boolean }): Promise<boolean> {
+  if (await canManagePartners(viewer)) return true;
+  if (!viewer.userId) return false;
+  const config = await getAppConfig();
+  return config.partnerCreatorIds.includes(viewer.userId);
+}
+
+/**
+ * Whether this user id is on the configured partner-creator list.
+ *
+ * Separate from canCreatePartner because the login route needs the answer
+ * for the session claim and has only the user id at that point — no role
+ * record, no viewer shape. Privileged accounts reach the partner routes via
+ * isPrivileged already, so this is only about the named individuals.
+ */
+export async function isConfiguredPartnerCreator(userId: string): Promise<boolean> {
+  if (!userId) return false;
+  const config = await getAppConfig();
+  return config.partnerCreatorIds.includes(userId);
+}
+
+/**
+ * Who may approve or reject one partner's onboarding documents.
+ *
+ * The person who created the account, or its relationship manager — "the
+ * account creator" from the requirement, with the RM included because
+ * ownership is routinely handed over and a partner should not be stuck
+ * waiting on someone who has left.
+ *
+ * Admins and sales managers keep their override, which is what stops a
+ * partner being stranded when neither of those two people is available.
+ */
+export async function canReviewPartnerDocuments(
+  viewer: { userId?: string; username: string; role: string; isPrivileged: boolean },
+  partner: { created_by?: string | null; relationship_manager_id?: string | null }
+): Promise<boolean> {
+  if (viewer.userId && partner.created_by && viewer.userId === partner.created_by) return true;
+  if (viewer.userId && partner.relationship_manager_id && viewer.userId === partner.relationship_manager_id) return true;
+  return canManagePartners(viewer);
 }
 
 /**

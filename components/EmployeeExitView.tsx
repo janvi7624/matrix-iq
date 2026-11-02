@@ -470,7 +470,7 @@ function ProjectDetailFields({ project }: { project: ProjectRecord | null }) {
       <DetailRow label="Stage" value={STAGE_LABEL[project.stage] || project.stage} />
       <DetailRow label="Status" value={project.status} />
       <DetailRow label="Priority" value={project.priority} />
-      <DetailRow label="Sales Person" value={project.sales_person || '—'} />
+      <DetailRow label="Sales Person" value={project.sales_person_name || project.sales_person || '—'} />
       <DetailRow label="Assigned Technical Person" value={project.assigned_technical_person_name || '—'} />
       <DetailRow label="Expected Closing" value={formatDate(project.expected_closing_date)} />
       <DetailRow label="Next Follow-up" value={formatDate(project.next_follow_up_date)} />

@@ -37,16 +37,25 @@ function toRecord(row: Model): PartnerRecord {
     relationship_manager_id: (plain.relationship_manager_id as string) ?? '',
     relationship_manager_name: (plain.relationshipManager as { name?: string } | null)?.name ?? '',
     notes: (plain.notes as string) ?? '',
+    created_by: (plain.created_by as string) ?? '',
+    created_by_name:
+      (plain.creator as { name?: string; username?: string } | null)?.name
+      ?? (plain.creator as { username?: string } | null)?.username
+      ?? '',
+    onboarded_at: isoOrEmpty(plain.onboarded_at),
     created_at: isoOrEmpty(plain.createdAt),
     updated_at: isoOrEmpty(plain.updatedAt)
   };
 }
 
 const rmInclude = { model: db.User, as: 'relationshipManager', attributes: ['id', 'name', 'username'] };
+// Needed for created_by_name — the onboarding screens name the person who
+// created the account, because they are the one who approves its documents.
+const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'name', 'username'] };
 
 export async function findPartnerById(id: string): Promise<PartnerRecord | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.Partner.findByPk(id, { include: [rmInclude] });
+  const row = await db.Partner.findByPk(id, { include: [rmInclude, creatorInclude] });
   return row ? toRecord(row) : undefined;
 }
 
@@ -64,7 +73,7 @@ export function isPartnerUsable(status: PartnerStatus | string): boolean {
 }
 
 export async function listPartners(): Promise<PartnerRecord[]> {
-  const rows = await db.Partner.findAll({ include: [rmInclude], order: [['created_at', 'DESC']] });
+  const rows = await db.Partner.findAll({ include: [rmInclude, creatorInclude], order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
 }
 

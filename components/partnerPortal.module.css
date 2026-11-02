@@ -390,3 +390,68 @@
   min-height: 38px;
   overflow-wrap: anywhere;
 }
+
+/* Partner onboarding — the one page a partner reaches before their
+   Agreement, NDA and Payment Agreement are approved. It has no navigation to
+   fall back on, so each document states its own status and reason inline. */
+.onboardingCard { margin-top: 14px; }
+
+.onboardingHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.onboardingTitle { font-size: 14px; font-weight: var(--mx-weight-bold); color: var(--mx-ink); }
+
+.onboardingState {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: var(--mx-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border: 1px solid var(--mx-border);
+    border-radius: 999px;
+    padding: 2px 10px;
+    white-space: nowrap;
+}
+
+.onboardingState_approved { color: var(--mx-success, #059669); border-color: var(--mx-success, #059669); }
+.onboardingState_pending { color: var(--mx-warning, #d97706); border-color: var(--mx-warning, #d97706); }
+.onboardingState_rejected { color: var(--mx-danger); border-color: var(--mx-danger); }
+.onboardingState_not_started { color: var(--mx-ink-muted); }
+
+/* The reason a document came back. Prominent on purpose: it is the only
+   thing that tells the partner what to change. */
+.onboardingRejection {
+    margin: 8px 0;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--mx-ink);
+    background: var(--mx-danger-subtle);
+    border-left: 3px solid var(--mx-danger);
+    border-radius: var(--mx-radius-sm);
+}
+
+.onboardingFiles { margin: 8px 0 10px; padding-left: 18px; font-size: 13px; }
+.onboardingFiles a { color: var(--mx-info); }
+
+.onboardingUpload {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 6px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: var(--mx-weight-semibold);
+    color: var(--mx-ink-muted);
+    border: 1px dashed var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    cursor: pointer;
+}
+.onboardingUpload:hover { border-color: var(--mx-brand); color: var(--mx-brand); }

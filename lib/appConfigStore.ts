@@ -54,6 +54,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   marketingOwnerUsername: '',
   bomFinanceApproverId: '',
   bomFinanceApproverUsername: '',
+  partnerCreatorIds: [],
   // Preserves the exact previous hardcoded "1st-5th" submission window
   // (app/api/reimbursement/sheet/[id]/submit/route.ts) until an admin
   // deliberately changes or clears it.
@@ -104,6 +105,7 @@ function toRecord(row: Model): AppConfig {
     marketingOwnerId: (plain.marketingOwnerId as string) ?? '',
     marketingOwnerUsername: (plain.marketingOwner as { username?: string } | null)?.username ?? '',
     bomFinanceApproverId: (plain.bomFinanceApproverId as string) ?? '',
+    partnerCreatorIds: Array.isArray(plain.partnerCreatorIds) ? (plain.partnerCreatorIds as string[]) : [],
     bomFinanceApproverUsername: (plain.bomFinanceApprover as { username?: string } | null)?.username ?? '',
     reimbursementDeadlineDay: plain.reimbursementDeadlineDay === null || plain.reimbursementDeadlineDay === undefined ? null : Number(plain.reimbursementDeadlineDay),
     updated_at: isoOrEmpty(plain.updatedAt),

@@ -60,6 +60,21 @@ export interface SessionPayload {
   // login, or their next password change) — same staleness class this app
   // already accepts for the `role` claim itself.
   isPrivileged: boolean;
+  /**
+   * May this account reach Partner Management despite not being privileged?
+   *
+   * Partner accounts are brought in by ordinary sales staff on the generic
+   * 'user' role, but Partner Management lives under /admin/partners, which
+   * proxy.ts gates on isPrivileged. Rather than making those people admins —
+   * which would hand them User Management, Role Management and every other
+   * /admin screen — this one claim opens exactly the partner routes.
+   *
+   * Resolved from AppConfig.partnerCreatorIds at login and baked into the
+   * signed token, for the same reason isPrivileged is: proxy.ts cannot load
+   * Sequelize. Same staleness trade-off too — somebody added to the list
+   * sees it from their next login.
+   */
+  partnerCreator?: boolean;
   // Which external partner company this account belongs to, or undefined for
   // every internal employee. Baked into the signed token at login/reissue for
   // exactly the same reason isPrivileged is (see above): proxy.ts has to
@@ -104,6 +119,7 @@ export async function createSessionToken(user: {
   role: UserRole;
   mustChangePassword?: boolean;
   isPrivileged: boolean;
+  partnerCreator?: boolean;
   partnerId?: string | null;
 }): Promise<string> {
   const secret = process.env.ADMIN_SESSION_SECRET;
@@ -115,6 +131,9 @@ export async function createSessionToken(user: {
     exp: Date.now() + SESSION_TTL_MS,
     mustChangePassword: user.mustChangePassword || undefined,
     isPrivileged: user.isPrivileged,
+    // Omitted entirely when false, so an ordinary token keeps the exact shape
+    // this app already issued.
+    partnerCreator: user.partnerCreator || undefined,
     // `|| undefined` so an internal account's token carries no partner key at
     // all, rather than an explicit null — keeps existing tokens and internal
     // ones byte-identical in shape to what this app already issued.

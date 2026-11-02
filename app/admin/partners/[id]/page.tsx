@@ -5,10 +5,19 @@ import Link from 'next/link';
 import { PartnerRecord, PartnerStatus } from '@/lib/types';
 import { PROJECT_DEPARTMENTS, PROJECT_DEPARTMENT_LABEL } from '@/lib/projectDepartmentOptions';
 import { PARTNER_ROLE_KEYS, PARTNER_ROLE_LABEL } from '@/lib/partnerRoles';
+import { PARTNER_DOCUMENT_KINDS, PARTNER_DOCUMENT_LABEL } from '@/lib/partnerOnboarding';
 import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import pageStyles from '../partnersPage.module.css';
+
+interface PartnerDocumentRow {
+  kind: (typeof PARTNER_DOCUMENT_KINDS)[number];
+  files: { name: string; path: string }[];
+  status: 'pending' | 'approved' | 'rejected';
+  reviewed_by_name: string;
+  review_remarks: string;
+}
 
 interface PartnerUser {
   id: string;
@@ -52,6 +61,11 @@ export default function PartnerDetailPage({ params }: { params: Promise<{ id: st
   const [issuing, setIssuing] = useState(false);
   // Surfaced once, never stored — see the credentialBox comment in the CSS.
   const [credential, setCredential] = useState<{ username: string; password: string } | null>(null);
+  const [documents, setDocuments] = useState<PartnerDocumentRow[]>([]);
+  const [docProgress, setDocProgress] = useState<{ allApproved: boolean } | null>(null);
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  const [rejectFor, setRejectFor] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -69,13 +83,55 @@ export default function PartnerDetailPage({ params }: { params: Promise<{ id: st
     }
   }, [id]);
 
+  const loadDocuments = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/partners/${id}/documents`);
+      if (!res.ok) return;
+      const body = await res.json();
+      setDocuments(body.documents || []);
+      setDocProgress(body.progress || null);
+    } catch {
+      // The rest of the page stays usable without this panel.
+    }
+  }, [id]);
+
+  // Approve or reject one onboarding document. A rejection carries a reason —
+  // it is the only thing that tells the partner what to change, and the API
+  // refuses a rejection without one.
+  async function review(kind: string, decision: 'approved' | 'rejected', remarks: string) {
+    setReviewing(kind);
+    setError('');
+    try {
+      const res = await fetch(`/api/admin/partners/${id}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, decision, remarks })
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(body?.error || 'Could not record that decision.');
+        return;
+      }
+      setRejectFor(null);
+      setRejectNote('');
+      // Reload the partner too: approving the last document stamps
+      // onboarded_at, which is what this page shows as "portal unlocked".
+      await Promise.all([loadDocuments(), load()]);
+    } catch {
+      setError('Could not reach the server.');
+    } finally {
+      setReviewing(null);
+    }
+  }
+
   useEffect(() => {
     load();
+    loadDocuments();
     fetch('/api/users/lite')
       .then((r) => (r.ok ? r.json() : []))
       .then(setStaff)
       .catch(() => setStaff([]));
-  }, [load]);
+  }, [load, loadDocuments]);
 
   async function patch(body: Record<string, unknown>) {
     setError('');
@@ -325,6 +381,93 @@ export default function PartnerDetailPage({ params }: { params: Promise<{ id: st
               Nothing is deleted, and reactivating restores access.
             </p>
           </>
+        )}
+      </div>
+
+      {/* Onboarding documents. Until all three are approved the partner can
+          sign in but reaches only the onboarding screen — so this panel is
+          what actually opens their portal, and it says so. */}
+      <h2 className={calcStyles.h2}>Onboarding documents</h2>
+      <div className={calcStyles.sectionPanel}>
+        <p className={calcStyles.small}>
+          {partner.onboarded_at
+            ? `Onboarding completed on ${new Date(partner.onboarded_at).toLocaleDateString('en-IN')} — this partner has the full portal.`
+            : 'This partner can sign in but reaches only the onboarding screen until all three documents are approved.'}
+        </p>
+
+        {PARTNER_DOCUMENT_KINDS.map((kind) => {
+          const doc = documents.find((d) => d.kind === kind);
+          const busy = reviewing === kind;
+          return (
+            <div key={kind} className={pageStyles.documentRow}>
+              <div>
+                <strong>{PARTNER_DOCUMENT_LABEL[kind]}</strong>
+                <div className={calcStyles.small}>
+                  {!doc ? (
+                    'Not uploaded yet.'
+                  ) : (
+                    <>
+                      {doc.status === 'approved' && `Approved${doc.reviewed_by_name ? ` by ${doc.reviewed_by_name}` : ''}.`}
+                      {doc.status === 'rejected' && `Rejected — ${doc.review_remarks}`}
+                      {doc.status === 'pending' && 'Uploaded, awaiting your review.'}
+                      {doc.files.map((f) => (
+                        <span key={f.path}>
+                          {' '}
+                          <a href={`/api/uploads/file/${f.path}`} target="_blank" rel="noopener noreferrer">{f.name}</a>
+                        </span>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {doc && doc.status !== 'approved' && (
+                <div className={pageStyles.documentActions}>
+                  <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => review(kind, 'approved', '')}>
+                    {busy ? 'Saving…' : 'Approve'}
+                  </button>
+                  <button
+                    type="button"
+                    className={historyStyles.button}
+                    disabled={busy}
+                    onClick={() => { setRejectFor(kind); setRejectNote(''); }}
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
+
+              {rejectFor === kind && (
+                <div className={pageStyles.documentReject}>
+                  <label className={calcStyles.label} htmlFor={`reject-${kind}`}>
+                    What needs correcting? <span className={calcStyles.small}>(required — the partner sees this)</span>
+                  </label>
+                  <textarea
+                    id={`reject-${kind}`}
+                    className={calcStyles.formControl}
+                    rows={2}
+                    value={rejectNote}
+                    onChange={(e) => setRejectNote(e.target.value)}
+                  />
+                  <div className={pageStyles.documentActions}>
+                    <button
+                      type="button"
+                      className={calcStyles.btn}
+                      disabled={busy || !rejectNote.trim()}
+                      onClick={() => review(kind, 'rejected', rejectNote)}
+                    >
+                      Send back
+                    </button>
+                    <button type="button" className={historyStyles.button} onClick={() => setRejectFor(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {docProgress && !docProgress.allApproved && (
+          <p className={calcStyles.small}>Approving the last outstanding document opens the full portal for this partner.</p>
         )}
       </div>
 

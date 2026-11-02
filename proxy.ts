@@ -3,6 +3,7 @@ import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 // Pure constants, no imports of their own — safe here under the
 // never-touch-the-database rule documented below.
 import { PARTNER_HOME, isPartnerPath } from '@/lib/partnerRoles';
+import { mayReachAdminArea } from '@/lib/adminAreaAccess';
 
 // IMPORTANT — this file must never import anything that touches the database
 // (Sequelize/lib/db.ts or anything built on it, directly or transitively).
@@ -44,8 +45,6 @@ const PUBLIC_PATHS = new Set([
   '/api/cron/backoffice-monthly-summary',
   '/api/cron/daily-report-monthly-summary'
 ]);
-// admin + superadmin only — plain 'user' accounts are blocked from all of these.
-const ADMIN_ONLY_PREFIXES = ['/admin', '/quotation-history', '/api/admin'];
 // Reachable even while a bulk-imported account is force-locked to changing
 // its temporary password — see the mustChangePassword gate below.
 const CHANGE_PASSWORD_ALLOWED_PATHS = new Set(['/change-password', '/api/auth/change-password', '/api/auth/me', '/api/auth/heartbeat']);
@@ -103,12 +102,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
-  const isAdminOnly = ADMIN_ONLY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  // The admin-area gate, in one place — see lib/adminAreaAccess.ts for the
+  // Partner Management exemption and why it is exactly two prefixes wide.
+
   // session.isPrivileged is computed once at login (see app/api/auth/login,
   // app/api/auth/change-password) from Role Management's live isPrivileged
   // flag and signed into the token — see the SessionPayload.isPrivileged
   // comment in lib/auth.ts for the staleness trade-off this accepts.
-  if (isAdminOnly && !session.isPrivileged) {
+  if (!mayReachAdminArea(pathname, session)) {
     if (isApi) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.redirect(new URL('/', request.url));
   }

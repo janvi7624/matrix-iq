@@ -200,6 +200,15 @@ export interface PartnerRecord {
   // Resolved for display; '' when no RM is assigned or the account is gone.
   relationship_manager_name: string;
   notes: string;
+  /** Who created the account, and therefore approves its onboarding documents. */
+  created_by: string;
+  created_by_name: string;
+  /**
+   * When the last onboarding document was approved. '' means onboarding is
+   * incomplete: the partner may sign in but reaches only /partner/onboarding.
+   * Partners that predate onboarding were backfilled to their created_at.
+   */
+  onboarded_at: string;
   created_at: string;
   updated_at: string;
 }
@@ -1398,6 +1407,16 @@ export interface AppConfig {
   // (username).
   bomFinanceApproverId: string;
   bomFinanceApproverUsername: string;
+  /**
+   * Staff who may create partner accounts, by user id.
+   *
+   * A per-USER list because module permissions here are per-ROLE, and the
+   * sales people who do this share the generic 'user' role with a dozen
+   * other accounts — granting it to the role would hand partner creation to
+   * all of them. Admins and sales managers can always create partners
+   * regardless; this list is purely additive. See canCreatePartner.
+   */
+  partnerCreatorIds: string[];
   // Day-of-month by which a Reimbursement sheet must be submitted — set in
   // Application Settings > Reimbursement Settings. null = no deadline
   // enforced. A specific month's deadline can be extended past this without
