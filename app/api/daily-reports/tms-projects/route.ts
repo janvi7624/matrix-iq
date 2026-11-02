@@ -43,15 +43,9 @@ export async function GET(request: NextRequest) {
     // technical person on is just a note against that deal — nothing is
     // created in TMS for it. See TmsNewTaskProjectSelect.tsx for how the
     // picker keeps the two visually and behaviourally distinct.
-    // The employee's own username, because the Sales-project scope is
-    // resolved for whoever the report belongs to — not for a manager who
-    // happens to be filing it.
-    const employeeRow = await db.User.findByPk(employeeId, { attributes: ['username'] });
-    const employeeUsername = (employeeRow?.get('username') as string) || '';
-
     const [projects, salesProjects] = await Promise.all([
       tmsProjectStore.listForMember(employeeId),
-      listSelectableSalesProjects(employeeUsername, employeeId)
+      listSelectableSalesProjects(employeeId)
     ]);
     return NextResponse.json({
       projects: projects.map((p) => ({ id: p.id, name: p.name, departmentName: p.department_name })),

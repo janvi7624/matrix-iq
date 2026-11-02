@@ -25,10 +25,8 @@ export interface TmsProjectOption {
 export interface SalesProjectOption {
   id: string;
   name: string;
-  /** 'active' | 'on_hold' | 'won' — never 'lost'; the store filters those out. */
+  /** 'active' | 'on_hold' | 'won' | 'lost' — every assignment is offered. */
   status?: string;
-  /** True when they are personally an assigned technical person on it. */
-  mine?: boolean;
 }
 
 /** Non-active statuses are shown, so a won deal is not mistaken for a live one. */
@@ -125,8 +123,6 @@ export default function TmsNewTaskProjectSelect({
   // the control look empty while the row still holds that value.
   const tmsShown = (projects ?? []).filter((p) => matches(p.name) || p.id === projectId);
   const salesShown = (salesProjects ?? []).filter((p) => matches(p.name) || p.id === salesProjectId);
-  const mine = salesShown.filter((p) => p.mine);
-  const theirs = salesShown.filter((p) => !p.mine);
 
   const totalAll = (projects ?? []).length + (salesProjects ?? []).length;
   const totalShown = tmsShown.length + salesShown.length;
@@ -160,20 +156,12 @@ export default function TmsNewTaskProjectSelect({
                 ))}
               </optgroup>
             )}
-            {/* Their own assignments first and in their own group — the
-                widened list includes their team's projects too, and without
-                this split the few that are actually theirs would be lost
-                among them. */}
-            {mine.length > 0 && (
+            {/* One group: every Sales Project this person is personally
+                assigned to, whatever its status. No team projects — see
+                listSelectableSalesProjects. */}
+            {salesShown.length > 0 && (
               <optgroup label="Sales Projects — assigned to you">
-                {mine.map((p) => (
-                  <option key={p.id} value={`${SALES_PREFIX}${p.id}`}>{salesLabel(p)}</option>
-                ))}
-              </optgroup>
-            )}
-            {theirs.length > 0 && (
-              <optgroup label="Sales Projects — your team's">
-                {theirs.map((p) => (
+                {salesShown.map((p) => (
                   <option key={p.id} value={`${SALES_PREFIX}${p.id}`}>{salesLabel(p)}</option>
                 ))}
               </optgroup>
