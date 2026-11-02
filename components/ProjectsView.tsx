@@ -319,6 +319,15 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   useAutoRefresh(load);
 
   const salesPeople = useMemo(() => Array.from(new Set(projects.map((p) => p.sales_person).filter(Boolean))).sort(), [projects]);
+  // sales_person itself is a username (lib/projectSalesOwner.ts) — this maps
+  // it to the display name every project with that owner already carries,
+  // so the filter dropdown and chip can show a name while fSalesPerson/the
+  // actual filtering keep comparing against the username unchanged.
+  const salesPersonNameByUsername = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of projects) if (p.sales_person && p.sales_person_name) map.set(p.sales_person, p.sales_person_name);
+    return map;
+  }, [projects]);
   const sources = useMemo(() => Array.from(new Set(projects.map((p) => p.source).filter(Boolean))).sort(), [projects]);
 
   // Custom Range reveals its own two date inputs; every other preset
