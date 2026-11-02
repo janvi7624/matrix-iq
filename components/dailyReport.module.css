@@ -537,6 +537,12 @@
 /* TmsLinkedTaskPanel — the write half of the link: actions that post
    straight to TMS's own API routes. */
 .tmsLinkedPanel {
+  /* Was left to default grid placement (one auto-sized track, same width as
+     a small field) inside the 12-column .entryGrid — a header with a title,
+     a status pill and a "Change in TMS" chevron, plus a body full of
+     buttons, had nowhere near enough room and wrapped onto several broken
+     lines. It needs the row to itself. */
+  grid-column: 1 / -1;
   margin-top: 10px;
 }
 
@@ -642,8 +648,12 @@
 }
 
 /* A linked AI task's way back to the real record — small, inline, under the
-   locked fields rather than competing with them for width. */
+   locked fields rather than competing with them for width. Same full-row
+   reasoning as .tmsLinkedPanel above: without a span it was auto-placed into
+   a single narrow track instead of sitting on its own line under the
+   fields. */
 .tmsLinkOut {
+  grid-column: 1 / -1;
   display: inline-block;
   margin-top: 2px;
   font-size: 12.5px;

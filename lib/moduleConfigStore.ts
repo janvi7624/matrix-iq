@@ -12,6 +12,7 @@ import {
   PARTNER_SUPPORT_SECTION
 } from './partnerRoles';
 import { canAccessHrExpenseModule, isHrExpenseModule } from './hrExpenseAccess';
+import { PARTNER_WORKSPACE_MODULE_KEY, canSeePartnerWorkspace, isPartnerWorkspaceModule } from './partnerWorkspaceAccess';
 
 // listModuleConfigs() (and its seed/reconcile pass) used to run in full on
 // every module-gated request — proxy.ts's own comment already flagged this
@@ -221,6 +222,17 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // for why an already-seeded row still ends up at 10 too.
   { key: 'partners', label: 'Partner Management', desc: 'Channel partners, distributors and dealers — accounts, access, assigned relationship manager, and everything they have submitted.', icon: 'share-2', href: '/admin/partners', section: 'Sales', order: 10, enabled: true, isCustom: false, visibleToRoles: PARTNER_INTERNAL_ROLES },
   { key: 'partner-analytics', label: 'Partner Analytics', desc: 'Compare partner performance — submissions, conversion, demos and won business.', icon: 'bar-chart', href: '/admin/partners/analytics', section: 'Reports', order: 5, enabled: true, isCustom: false, visibleToRoles: PARTNER_INTERNAL_ROLES },
+  // Granted by INVOLVEMENT, not by role — visibleToRoles is bypassed for
+  // this key entirely (see isPartnerWorkspaceModule in listVisibleModules).
+  // The list is kept to the admin tier only so that if the involvement
+  // branch were ever removed, this tile fails closed rather than appearing
+  // for every 'user' account.
+  //
+  // Separate from 'partners' above on purpose: that one is the org-wide
+  // administrative view under /admin, this is a salesperson's own book of
+  // partners outside it. Same records, different question — "every partner
+  // we have" versus "the partners I brought in".
+  { key: PARTNER_WORKSPACE_MODULE_KEY, label: 'Partner', desc: 'Your partners — onboarding documents to approve, and everything they have submitted.', icon: 'handshake', href: '/partners', section: 'Sales', order: 11, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
   { key: 'support-tickets', label: 'Technical Support', desc: 'After-sales support tickets — triage, assignment, SLA tracking, and resolution.', icon: 'inbox', href: '/support', section: 'Support', order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_INTERNAL_ROLES, 'technical-manager', 'team-lead', 'engineer', 'technician'] },
 
   // ---- Partner Portal: the PARTNER half (external-facing) ----
@@ -751,6 +763,11 @@ export async function listVisibleModules(viewer: {
   username?: string;
   // '' / undefined for internal staff. See PARTNER_RESTRICTED_KEYS.
   partnerId?: string | null;
+  // Whether this person is involved with any partner. Resolved by the
+  // caller because the answer needs a query and this filter is synchronous
+  // — the same arrangement isDepartmentManager uses. See
+  // lib/partnerWorkspaceAccess.ts.
+  isPartnerStakeholder?: boolean;
 }): Promise<ModuleConfigRecord[]> {
   const all = await listModuleConfigs();
   const isPartner = !!viewer.partnerId;
@@ -774,6 +791,11 @@ export async function listVisibleModules(viewer: {
     // express it and is bypassed for these three keys. `enabled` above still
     // applies, so Module Manager can still switch them off entirely.
     if (isHrExpenseModule(m.key)) return canAccessHrExpenseModule(m.key, viewer);
+    // Granted by involvement rather than by role: whoever may create a
+    // partner, or is the creator/relationship manager of one. A role list
+    // cannot express it — the people who do this sit on the generic 'user'
+    // role alongside a dozen others.
+    if (isPartnerWorkspaceModule(m.key)) return canSeePartnerWorkspace(viewer);
     return m.visibleToRoles.includes(viewer.role) && departmentAllowsModule(m, viewer.department, viewer.isPrivileged);
   });
 }
@@ -789,7 +811,7 @@ export async function listVisibleModules(viewer: {
 // data by hitting the API directly even if they know the URL.
 export async function isModuleAccessAllowed(
   key: string,
-  viewer: { role: UserRole; isPrivileged: boolean; department?: string | null; isDepartmentManager?: boolean; username?: string; partnerId?: string | null }
+  viewer: { role: UserRole; isPrivileged: boolean; department?: string | null; isDepartmentManager?: boolean; username?: string; partnerId?: string | null; isPartnerStakeholder?: boolean }
 ): Promise<boolean> {
   const all = await listModuleConfigs();
   const config = all.find((m) => m.key === key);
@@ -806,6 +828,10 @@ export async function isModuleAccessAllowed(
   // role rule below, including the isPrivileged bypass, so a 'manager'
   // can't reach HR/Admin spend through it.
   if (isHrExpenseModule(key)) return canAccessHrExpenseModule(key, viewer);
+
+  // Same involvement grant as the tile list, so "can see it" and "can call
+  // its API" stay in step.
+  if (isPartnerWorkspaceModule(key)) return canSeePartnerWorkspace(viewer);
 
   // MANAGER_GATED_KEYS bypasses the role-list check entirely, same reasoning
   // as listVisibleModules above — a department manager can hold any role, so

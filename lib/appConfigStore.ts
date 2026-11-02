@@ -189,6 +189,15 @@ export async function updateAppConfig(patch: Partial<AppConfig>, updatedBy: stri
   if (attrs.bomFinanceApproverId !== undefined) {
     (attrs as Record<string, unknown>).bomFinanceApproverId = attrs.bomFinanceApproverId || null;
   }
+  // partnerCreatorIds is a JSONB list that grants access (the Partner module
+  // and the right to create partners), so it is sanitised rather than spread
+  // through: anything that is not a list of non-empty strings becomes an
+  // empty list, which fails closed.
+  if (attrs.partnerCreatorIds !== undefined) {
+    (attrs as Record<string, unknown>).partnerCreatorIds = Array.isArray(attrs.partnerCreatorIds)
+      ? [...new Set(attrs.partnerCreatorIds.filter((id): id is string => typeof id === 'string' && !!id.trim()))]
+      : [];
+  }
   // Unlike defaultTaxPercent, a blank/invalid value here means "no
   // deadline" (null), not 0 — 0 would be a nonsensical "due before the
   // month starts" cutoff.

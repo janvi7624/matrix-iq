@@ -5,3 +5,29 @@
 .templateBlock { border-top: none; padding-top: 0; margin-top: 0; }
 .templateBlockDivider { border-top: 1px solid #eef0f2; padding-top: 12px; margin-top: 12px; }
 .templateLabel { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
+
+/* "Who can create partner accounts" — a named list rather than a role, so
+   it is a checkbox per person. Wraps into columns because this is every
+   active internal account. */
+.creatorGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px 2px;
+}
+
+.creatorChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--mx-ink);
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    padding: 4px 9px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.creatorChip:hover { border-color: var(--mx-brand); }

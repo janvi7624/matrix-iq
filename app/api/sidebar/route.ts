@@ -9,6 +9,7 @@ import { isMarketingManager, canAssignLeads } from '@/lib/permissions';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { listVisibleModules } from '@/lib/moduleConfigStore';
+import { resolvePartnerStakeholder } from '@/lib/partnerWorkspaceAccess';
 import { findPartnerById } from '@/lib/partnerStore';
 import { partnerOnboardingComplete } from '@/lib/partnerOnboarding';
 import { PARTNER_ROLE_KEYS } from '@/lib/partnerRoles';
@@ -82,11 +83,18 @@ export async function GET(request: NextRequest) {
     // resolved into a boolean BEFORE it's called (team-tasks visibility), and
     // the travel-schedule badge logic further down already needed deptManagers
     // anyway — resolving it here once avoids fetching it a second time there.
-    const [user, deptManagers] = await Promise.all([findUserNameAndDeptByUsername(viewer.username), listDepartmentManagers()]);
+    const [user, deptManagers, isPartnerStakeholder] = await Promise.all([
+      findUserNameAndDeptByUsername(viewer.username),
+      listDepartmentManagers(),
+      // The Partner tile is granted by involvement, not role — resolved here
+      // because listVisibleModules is synchronous. See
+      // lib/partnerWorkspaceAccess.ts.
+      resolvePartnerStakeholder(viewer.userId)
+    ]);
     const isDeptManager = Object.values(deptManagers).some((list) => list.some((m) => m.username === viewer.username));
 
     const [modules, leads, canAssign, isMarketingReviewer, demosForBadge, backOfficeCounts] = await Promise.all([
-      listVisibleModules({ role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager }),
+      listVisibleModules({ role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager, isPartnerStakeholder }),
       // The lead list itself rather than computeLeadStats — same single query
       // that helper runs internally, but the badge below needs two counts it
       // doesn't expose (this viewer's OWN unattended leads, not their whole

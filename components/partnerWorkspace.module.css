@@ -1,0 +1,37 @@
+/* The Partner module's own screens — a salesperson's book of partners,
+   outside /admin. */
+
+.headerRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.counts { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--mx-ink); }
+
+/* The only thing on this screen that blocks somebody else from working. */
+.needsMe {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: var(--mx-weight-semibold);
+    color: var(--mx-warning, #d97706);
+}
+
+.onboardingPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    white-space: nowrap;
+    border: 1px solid var(--mx-border);
+    border-radius: 999px;
+    padding: 2px 9px;
+}
+
+.ok { color: var(--mx-success, #059669); border-color: var(--mx-success, #059669); }
+.wait { color: var(--mx-warning, #d97706); border-color: var(--mx-warning, #d97706); }
+.todo { color: var(--mx-ink-muted); }

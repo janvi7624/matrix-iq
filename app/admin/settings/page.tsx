@@ -225,6 +225,45 @@ export default function ApplicationSettingsPage() {
               </div>
             </div>
 
+            <h2 className={calcStyles.h2}>Partner Settings</h2>
+            <div className={calcStyles.sectionPanel}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Who can create partner accounts</label>
+                {/* A list of named people, not a role: the sales staff who
+                    bring partners in sit on the generic 'user' role together
+                    with a dozen other accounts, so granting it to the role
+                    would hand partner creation to all of them. */}
+                <div className={pageStyles.creatorGrid}>
+                  {users.map((u) => {
+                    const chosen = config.partnerCreatorIds.includes(u.id);
+                    return (
+                      <label key={u.id} className={pageStyles.creatorChip}>
+                        <input
+                          type="checkbox"
+                          checked={chosen}
+                          onChange={() =>
+                            set(
+                              'partnerCreatorIds',
+                              chosen
+                                ? config.partnerCreatorIds.filter((id) => id !== u.id)
+                                : [...config.partnerCreatorIds, u.id]
+                            )
+                          }
+                        />
+                        {u.name || u.username} <span className={calcStyles.small}>({u.username})</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className={styles.status}>
+                These people get the <strong>Partner</strong> module and can create partner accounts, without being made admins.
+                Each one they create is theirs: they approve its Agreement, NDA and Payment Agreement, and see only their own
+                partners. Anyone named as a partner&apos;s relationship manager gets the module too, without being listed here.
+                A person added or removed sees the change from their next sign-in.
+              </div>
+            </div>
+
             <h2 className={calcStyles.h2}>Reimbursement Settings</h2>
             <div className={calcStyles.sectionPanel}>
               <div className={`${calcStyles.field} ${pageStyles.maxWidth320}`}>
