@@ -206,6 +206,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // is always captured (previously this silently overwrote it with zero
     // history). next_follow_up_date is a plain reminder date, unaffected.
     if (typeof body.nextFollowUpDate === 'string') patch.next_follow_up_date = body.nextFollowUpDate;
+    // Commit's own stage gate (lib/salesStageRules.ts STAGE_GATES.commit) —
+    // previously accepted nowhere on this route, so the gate rejected the
+    // move to Commit with no way to actually supply either field.
+    if (typeof body.expectedPoDate === 'string') patch.expected_po_date = body.expectedPoDate;
+    if (typeof body.confirmedByContact === 'string') patch.confirmed_by_contact = body.confirmedByContact.trim();
     // Intake fields (lib/projectIntake.ts) — accepted individually here,
     // unlike POST's all-at-once parseProjectIntake, since this is a Proposal
     // form filling in ONE missing detail (onFillProject in

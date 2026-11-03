@@ -92,7 +92,15 @@ type OverviewField =
   | 'clientName' | 'company' | 'contactPerson' | 'altContactPhone' | 'phone' | 'email' | 'address' | 'source'
   | 'priority' | 'status' | 'stage' | 'coldCallResponded' | 'nextFollowUpDate'
   | 'closingProbabilityPercent' | 'approxPrice'
-  | 'projectLeadId' | 'opportunityType';
+  | 'projectLeadId' | 'opportunityType'
+  // Commit's own stage gate (lib/salesStageRules.ts STAGE_GATES.commit) — the
+  // only two fields it demands, and until now the only way to fill them was
+  // to already know their exact field names and send them in a hand-crafted
+  // PATCH, since nothing on screen asked for either. Plain Overview fields,
+  // same as every other gate's own fields (approxPrice for Quotation), so
+  // they can be filled in any time before the move to Commit, not only at
+  // the moment it is blocked.
+  | 'expectedPoDate' | 'confirmedByContact';
 
 const NUMERIC_OVERVIEW_FIELDS: OverviewField[] = ['closingProbabilityPercent', 'approxPrice'];
 
@@ -127,6 +135,8 @@ function savedOverviewValue(project: ProjectRecord, field: OverviewField): strin
     case 'approxPrice': return project.approx_price === '' ? '' : String(project.approx_price);
     case 'projectLeadId': return project.project_lead_id || '';
     case 'opportunityType': return project.opportunity_type || '';
+    case 'expectedPoDate': return project.expected_po_date || '';
+    case 'confirmedByContact': return project.confirmed_by_contact || '';
   }
 }
 
@@ -2053,6 +2063,26 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
                 ) : (
                   <div className={calcStyles.small}>{project.approx_price === '' ? '-' : `₹${project.approx_price.toLocaleString('en-IN')}`}</div>
                 )}
+              </div>
+            </div>
+            {/* Commit's own stage gate — see the OverviewField comment above.
+                Filling these in here is what makes "Current stage" actually
+                savable as Commit; without them the save is refused with
+                nowhere on screen to act on it. */}
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Expected PO Date</label>
+                {canEdit ? (
+                  <input type="date" className={calcStyles.formControl} value={overviewValue('expectedPoDate')} onChange={(e) => setOverviewField('expectedPoDate', e.target.value)} />
+                ) : <div className={calcStyles.small}>{formatDate(project.expected_po_date)}</div>}
+                <span className={calcStyles.small}>Required before this deal can move to Commit.</span>
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Customer contact who confirmed</label>
+                {canEdit ? (
+                  <input className={calcStyles.formControl} placeholder="Name / designation of who verbally confirmed" value={overviewValue('confirmedByContact')} onChange={(e) => setOverviewField('confirmedByContact', e.target.value)} onKeyDown={overviewKeyDown} />
+                ) : <div className={calcStyles.small}>{project.confirmed_by_contact || '-'}</div>}
+                <span className={calcStyles.small}>Required before this deal can move to Commit.</span>
               </div>
             </div>
             {/* One Save for the whole card. It appears only once something has
