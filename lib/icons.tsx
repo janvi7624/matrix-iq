@@ -52,6 +52,7 @@ import {
   ReceiptIndianRupee,
   Cake,
   KanbanSquare,
+  Handshake,
   CheckSquare,
   Library,
   Truck,
@@ -198,6 +199,10 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   cake: Cake,
   users: Users,
   'share-2': Share2,
+  // The Partner module's tile. Added with that module — an icon key that is
+  // not in this registry renders as its own literal text in a 16px slot,
+  // i.e. as no icon at all (see the check-square note above).
+  handshake: Handshake,
   'log-out': LogOut,
   'kanban-square': KanbanSquare,
   library: Library

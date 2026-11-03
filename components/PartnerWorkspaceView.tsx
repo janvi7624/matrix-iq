@@ -29,16 +29,49 @@ interface WorkspacePartner extends PartnerRecord {
   onboarding: OnboardingSummary;
 }
 
-function onboardingLabel(o: OnboardingSummary): { text: string; tone: 'ok' | 'wait' | 'todo' } {
-  if (o.allApproved) return { text: 'Fully onboarded', tone: 'ok' };
+const TOTAL_DOCUMENTS = PARTNER_DOCUMENT_KINDS.length;
+
+/**
+ * What this partner's onboarding row says.
+ *
+ * `onboardedAt` is the source of truth for "are they through onboarding",
+ * not the document counts — exactly as the gate itself is
+ * (partnerOnboardingComplete). Deriving this from documents alone was wrong
+ * for every partner that predates the feature: both existing partners were
+ * grandfathered with no documents on file, so they read as "0 of 3
+ * approved" while having full portal access.
+ *
+ * They are still flagged, because a partner with access and no agreement on
+ * file is worth knowing about — just not as though they were blocked.
+ */
+function onboardingLabel(
+  o: OnboardingSummary,
+  onboardedAt: string
+): { text: string; tone: 'ok' | 'wait' | 'todo' } {
+  if (onboardedAt) {
+    const noDocuments = o.approvedCount === 0 && o.awaitingReview === 0 && o.rejected === 0;
+    return noDocuments
+      ? { text: 'Active — no documents on file', tone: 'ok' }
+      : { text: 'Fully onboarded', tone: 'ok' };
+  }
   if (o.awaitingReview > 0) {
     return {
       text: `${o.awaitingReview} document${o.awaitingReview === 1 ? '' : 's'} awaiting your review`,
       tone: 'wait'
     };
   }
-  if (o.rejected > 0) return { text: `${o.rejected} sent back — waiting on the partner`, tone: 'todo' };
-  return { text: `${o.approvedCount} of ${PARTNER_DOCUMENT_KINDS.length} approved`, tone: 'todo' };
+  if (o.rejected > 0) {
+    return { text: `${o.rejected} sent back — waiting on the partner`, tone: 'todo' };
+  }
+  // Says who it is waiting on, rather than a bare count that reads like a
+  // score. Nothing uploaded at all is the common state for a new partner.
+  if (o.missing === TOTAL_DOCUMENTS) {
+    return { text: 'Not started — waiting on the partner', tone: 'todo' };
+  }
+  return {
+    text: `${TOTAL_DOCUMENTS - o.missing} of ${TOTAL_DOCUMENTS} uploaded — waiting on the partner`,
+    tone: 'todo'
+  };
 }
 
 export default function PartnerWorkspaceView() {
@@ -122,7 +155,7 @@ export default function PartnerWorkspaceView() {
                   {[...partners]
                     .sort((a, b) => b.onboarding.awaitingReview - a.onboarding.awaitingReview)
                     .map((partner) => {
-                      const label = onboardingLabel(partner.onboarding);
+                      const label = onboardingLabel(partner.onboarding, partner.onboarded_at);
                       return (
                         <tr key={partner.id}>
                           <td>{partner.company_name}</td>

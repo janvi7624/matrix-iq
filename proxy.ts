@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth';
 // Pure constants, no imports of their own — safe here under the
 // never-touch-the-database rule documented below.
-import { PARTNER_HOME, isPartnerPath } from '@/lib/partnerRoles';
+import { PARTNER_HOME, isPartnerPath, isPartnerPortalArea } from '@/lib/partnerRoles';
 import { mayReachAdminArea } from '@/lib/adminAreaAccess';
 
 // IMPORTANT — this file must never import anything that touches the database
@@ -86,7 +86,10 @@ export async function proxy(request: NextRequest) {
   // it, not data — see the SessionPayload.partnerId comment in lib/auth.ts.
   // A suspended partner is still stopped, just one layer in, by
   // lib/partnerContext.ts, which re-reads the partner's live status.
-  const isPartnerArea = pathname === '/partner' || pathname.startsWith('/partner/') || pathname.startsWith('/api/partner');
+  // Segment-bounded — see isPartnerPortalArea. The inlined version this
+  // replaced also matched /api/partners, the internal Partner module's own
+  // API, and refused it to employees.
+  const isPartnerArea = isPartnerPortalArea(pathname);
   if (session.partnerId) {
     // Outbound: a partner may never leave the portal.
     if (!isPartnerPath(pathname)) {

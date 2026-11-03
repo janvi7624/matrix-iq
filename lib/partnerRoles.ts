@@ -75,6 +75,27 @@ export function isPartnerPath(pathname: string): boolean {
 }
 
 /**
+ * Is this path the partner-facing PORTAL — the area internal staff may not
+ * enter, and partners may not leave?
+ *
+ * Matched on whole path segments, which is the whole point of having this as
+ * a named function. proxy.ts previously inlined it as
+ * `pathname.startsWith('/api/partner')`, which also swallowed
+ * `/api/partners` — the internal Partner module's own API — and refused it
+ * to employees with a 403. The portal is `/partner` and `/api/partner`
+ * exactly, plus their subtrees; a sibling route whose name merely begins the
+ * same way is a different thing.
+ */
+export function isPartnerPortalArea(pathname: string): boolean {
+  return (
+    pathname === '/partner' ||
+    pathname.startsWith('/partner/') ||
+    pathname === '/api/partner' ||
+    pathname.startsWith('/api/partner/')
+  );
+}
+
+/**
  * The portal's own module keys (Module Manager / sidebar entries).
  *
  * These get the same no-generic-isPrivileged-bypass treatment that

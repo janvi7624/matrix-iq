@@ -103,7 +103,9 @@ export async function POST(request: NextRequest) {
         // unassigned partner is one nobody is watching.
         relationship_manager_id: str(body.relationship_manager_id) || viewer.userId
       },
-      viewer.username
+      // The user ID, not the username — created_by is a UUID column, and
+      // passing a username here fails the insert outright.
+      viewer.userId
     );
 
     await logAudit({
