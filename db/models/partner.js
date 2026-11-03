@@ -35,6 +35,14 @@ module.exports = (sequelize, DataTypes) => {
     // partner reads as un-onboarded and loses the portal.
     onboarded_at: { type: DataTypes.DATE },
     notes: { type: DataTypes.TEXT },
+    website: { type: DataTypes.STRING(255) },
+    pan_number: { type: DataTypes.STRING(20) },
+    bank_account_name: { type: DataTypes.STRING(255) },
+    bank_account_number: { type: DataTypes.STRING(40) },
+    bank_ifsc_code: { type: DataTypes.STRING(20) },
+    bank_name: { type: DataTypes.STRING(255) },
+    // 'internal' | 'partner' — see the 20261103100000 migration.
+    financial_details_scope: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'internal' },
     created_by: { type: DataTypes.UUID },
     updated_by: { type: DataTypes.UUID }
   }, {

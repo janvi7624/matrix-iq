@@ -179,6 +179,13 @@ export type UserStatus = 'active' | 'inactive';
  */
 export type PartnerStatus = 'pending' | 'active' | 'suspended' | 'inactive';
 
+// Who maintains PAN, bank details and website: 'partner' lets the partner
+// fill/edit them themselves on their own portal login (app/partner/profile);
+// 'internal' keeps them admin/RM-only, entered on the Partner Detail page.
+// Chosen once at creation (PartnerCreateView's checkbox) but editable later —
+// see lib/partnerStore.ts's updatePartner.
+export type PartnerFinancialDetailsScope = 'partner' | 'internal';
+
 export interface PartnerRecord {
   id: string;
   partner_code: string;
@@ -200,6 +207,13 @@ export interface PartnerRecord {
   // Resolved for display; '' when no RM is assigned or the account is gone.
   relationship_manager_name: string;
   notes: string;
+  website: string;
+  pan_number: string;
+  bank_account_name: string;
+  bank_account_number: string;
+  bank_ifsc_code: string;
+  bank_name: string;
+  financial_details_scope: PartnerFinancialDetailsScope;
   /** Who created the account, and therefore approves its onboarding documents. */
   created_by: string;
   created_by_name: string;

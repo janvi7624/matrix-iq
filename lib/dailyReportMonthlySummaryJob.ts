@@ -101,6 +101,18 @@ export async function runDailyReportMonthlySummary(): Promise<DailyReportMonthly
     }
 
     const summary = await computeDailyReportRangeSummary([department.id], from, to, { label: monthLabel });
+
+    // Nothing was owed by this department all month — no working days in
+    // scope, or nobody in it expected to file — so there is nothing to
+    // report. Administration is the live example: it would otherwise mail
+    // its manager a summary reading 0 expected, 0 submitted, 0 missing,
+    // which is noise sitting next to the real summaries and teaches people
+    // to ignore the whole mail. The month stays CLAIMED so this is decided
+    // once rather than reconsidered on every sweep.
+    if (summary.totals.expected === 0) {
+      departmentsSkipped += 1;
+      continue;
+    }
     const managerUsers = await db.User.findAll({ where: { id: managers.map((m) => m.id) } as never, attributes: ['id', 'name', 'email'] });
     let sent = 0;
     for (const row of managerUsers) {

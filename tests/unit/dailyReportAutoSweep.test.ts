@@ -9,6 +9,12 @@ const runSweep = vi.fn();
 const readConfig = vi.fn();
 vi.mock('../../lib/dailyReportScheduler', () => ({ runDailyReportSweep: (...a: unknown[]) => runSweep(...a) }));
 vi.mock('../../lib/dailyReportConfigStore', () => ({ getDailyReportConfig: () => readConfig() }));
+// These tests are about the scheduling chain, not the monthly review. The
+// real job reaches the database and sends mail, so it is stubbed — without
+// this the tick awaits it before the assertions can see the sweep run.
+vi.mock('../../lib/monthlySummaryJobs', () => ({
+  runMonthlySummaries: vi.fn(async () => ({ dailyReport: { error: 'stubbed' }, backOffice: { error: 'stubbed' } }))
+}));
 
 import { nextRunAt, startDailyReportAutoSweep, sweepClockTimes } from '../../lib/dailyReportAutoSweep';
 

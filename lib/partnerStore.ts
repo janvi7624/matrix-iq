@@ -1,6 +1,7 @@
 import { Model } from 'sequelize';
-import { PartnerRecord, PartnerStatus } from './types';
+import { PartnerRecord, PartnerStatus, PartnerFinancialDetailsScope } from './types';
 import { db, isUuid } from './db';
+import { partnerCodePrefix } from './partnerCode';
 
 // Partner company master. Phase 0 scope: the reads the access layer needs
 // (resolve a partner, decide whether it may be used) plus code generation.
@@ -37,6 +38,13 @@ function toRecord(row: Model): PartnerRecord {
     relationship_manager_id: (plain.relationship_manager_id as string) ?? '',
     relationship_manager_name: (plain.relationshipManager as { name?: string } | null)?.name ?? '',
     notes: (plain.notes as string) ?? '',
+    website: (plain.website as string) ?? '',
+    pan_number: (plain.pan_number as string) ?? '',
+    bank_account_name: (plain.bank_account_name as string) ?? '',
+    bank_account_number: (plain.bank_account_number as string) ?? '',
+    bank_ifsc_code: (plain.bank_ifsc_code as string) ?? '',
+    bank_name: (plain.bank_name as string) ?? '',
+    financial_details_scope: ((plain.financial_details_scope as PartnerFinancialDetailsScope) ?? 'internal') as PartnerFinancialDetailsScope,
     created_by: (plain.created_by as string) ?? '',
     created_by_name:
       (plain.creator as { name?: string; username?: string } | null)?.name
@@ -92,11 +100,18 @@ export interface PartnerInput {
   territory?: string[];
   relationship_manager_id?: string | null;
   notes?: string;
+  website?: string;
+  pan_number?: string;
+  bank_account_name?: string;
+  bank_account_number?: string;
+  bank_ifsc_code?: string;
+  bank_name?: string;
+  financial_details_scope?: PartnerFinancialDetailsScope;
 }
 
 export async function createPartner(input: PartnerInput, createdByUserId: string): Promise<PartnerRecord> {
   const row = await db.Partner.create({
-    partner_code: await nextPartnerCode(),
+    partner_code: await nextPartnerCode(input.departments || []),
     company_name: input.company_name,
     contact_person: input.contact_person || '',
     email: input.email || '',
@@ -116,6 +131,16 @@ export async function createPartner(input: PartnerInput, createdByUserId: string
     territory: input.territory || [],
     relationship_manager_id: input.relationship_manager_id || null,
     notes: input.notes || '',
+    website: input.website || '',
+    pan_number: input.pan_number || '',
+    bank_account_name: input.bank_account_name || '',
+    bank_account_number: input.bank_account_number || '',
+    bank_ifsc_code: input.bank_ifsc_code || '',
+    bank_name: input.bank_name || '',
+    // Defaults 'internal' — today's behaviour for every existing partner:
+    // an admin/RM fills these in, not the partner. 'partner' is an explicit
+    // opt-in at creation (PartnerCreateView's checkbox).
+    financial_details_scope: input.financial_details_scope === 'partner' ? 'partner' : 'internal',
     created_by: createdByUserId,
     updated_by: createdByUserId
   } as never);
@@ -130,11 +155,21 @@ export async function updatePartner(id: string, patch: Partial<PartnerInput>, up
   // a permanent reference, and status moves only through setPartnerStatus
   // below, which is the one place the transition rules live.
   const fields: Record<string, unknown> = { updated_by: updatedByUserId };
-  for (const key of ['company_name', 'contact_person', 'email', 'phone', 'address', 'city', 'state', 'country', 'gst_number', 'departments', 'product_categories', 'territory', 'notes'] as const) {
+  for (const key of [
+    'company_name', 'contact_person', 'email', 'phone', 'address', 'city', 'state', 'country', 'gst_number',
+    'departments', 'product_categories', 'territory', 'notes',
+    'website', 'pan_number', 'bank_account_name', 'bank_account_number', 'bank_ifsc_code', 'bank_name'
+  ] as const) {
     if (patch[key] !== undefined) fields[key] = patch[key];
   }
   if (patch.relationship_manager_id !== undefined) {
     fields.relationship_manager_id = patch.relationship_manager_id || null;
+  }
+  // Kept out of the blanket loop above: who may set it differs by caller
+  // (the partner-facing profile route never sends it — only an admin/RM can
+  // move a partner between scopes), not just whether the value is patchable.
+  if (patch.financial_details_scope === 'partner' || patch.financial_details_scope === 'internal') {
+    fields.financial_details_scope = patch.financial_details_scope;
   }
   await row.update(fields as never);
   return findPartnerById(id);
@@ -172,19 +207,26 @@ export async function setPartnerStatus(id: string, status: PartnerStatus, update
 }
 
 /**
- * Next partner code in the PTR-#### series.
+ * Next partner code, in the series its departments put it in: PTR-AI-####,
+ * PTR-ROB-####, PTR-AV-#### for a partner tied to exactly one TMS
+ * department, PTR-ALL-#### for one spanning all three, or the plain
+ * PTR-#### series (every partner created before this existed, and anything
+ * that doesn't cleanly fit one bucket — see partnerCodeSegment).
  *
- * Derived from the highest existing code rather than from a row count, so
- * deleting a partner can never cause the next one to reuse a retired code —
- * codes appear in correspondence and must stay stable references. Soft-deleted
- * rows are deliberately included (paranoid: false) for exactly that reason.
+ * Each series numbers independently, derived from THAT series' highest
+ * existing code rather than a row count, so deleting a partner can never
+ * cause the next one in its series to reuse a retired code — codes appear in
+ * correspondence and must stay stable references. Soft-deleted rows are
+ * deliberately included (paranoid: false) for exactly that reason.
  */
-export async function nextPartnerCode(): Promise<string> {
+export async function nextPartnerCode(departments: readonly string[] = []): Promise<string> {
+  const prefix = partnerCodePrefix(departments);
+  const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`);
   const rows = await db.Partner.findAll({ attributes: ['partner_code'], paranoid: false });
   let max = 0;
   for (const row of rows) {
-    const match = /^PTR-(\d+)$/.exec((row.get('partner_code') as string) || '');
+    const match = pattern.exec((row.get('partner_code') as string) || '');
     if (match) max = Math.max(max, Number(match[1]));
   }
-  return `PTR-${String(max + 1).padStart(4, '0')}`;
+  return `${prefix}${String(max + 1).padStart(4, '0')}`;
 }

@@ -4,6 +4,8 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
+import { PROJECT_DEPARTMENTS, PROJECT_DEPARTMENT_LABEL, ProjectDepartment } from '@/lib/projectDepartmentOptions';
+import { partnerCodePrefix } from '@/lib/partnerCode';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './partnerWorkspace.module.css';
@@ -32,9 +34,23 @@ export default function PartnerCreateView() {
   // you next — the upload itself happens on the partner's own page, which is
   // also where it can be done later if the answer changes.
   const [documentSource, setDocumentSource] = useState<'partner' | 'us'>('partner');
+  // Drives the partner code's PTR-AI-/PTR-ROB-/PTR-AV-/PTR-ALL- segment (see
+  // lib/partnerCode.ts) — not asked for anywhere else on this deliberately
+  // minimal form, so it has to be collected here.
+  const [departments, setDepartments] = useState<ProjectDepartment[]>([]);
+  // Who will fill in PAN, bank details and website: checked lets the partner
+  // do it themselves later on their own portal login; unchecked (default)
+  // keeps it admin/RM-only, entered on the partner's page after creation —
+  // same "decide now, fill in later" shape as documentSource above, and for
+  // the same reason (nobody fills in a form this long in one sitting).
+  const [partnerManagesFinancials, setPartnerManagesFinancials] = useState(false);
 
   function set(key: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleDepartment(d: ProjectDepartment) {
+    setDepartments((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
   }
 
   async function submit(e: FormEvent) {
@@ -45,7 +61,11 @@ export default function PartnerCreateView() {
       const res = await fetch('/api/partners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify({
+          ...form,
+          departments,
+          financial_details_scope: partnerManagesFinancials ? 'partner' : 'internal'
+        })
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) { toast.error(body?.error || 'Could not create this partner.'); return; }
@@ -109,6 +129,46 @@ export default function PartnerCreateView() {
             <label className={calcStyles.label} htmlFor="gst_number">GST number</label>
             <input id="gst_number" className={calcStyles.formControl} value={form.gst_number} onChange={(e) => set('gst_number', e.target.value)} />
           </div>
+        </div>
+
+        {/* Determines the partner code's segment (PTR-AI-0002, PTR-ROB-0002,
+            PTR-AV-0002, or PTR-ALL-0002 for all three) — see
+            lib/partnerCode.ts. Optional: left blank, the partner gets the
+            plain PTR-#### series, same as before this existed. */}
+        <div className={calcStyles.field}>
+          <span className={calcStyles.label}>Departments</span>
+          <div className={styles.choiceRow}>
+            {PROJECT_DEPARTMENTS.filter((d) => d !== 'other').map((d) => (
+              <label key={d} className={calcStyles.small}>
+                <input type="checkbox" checked={departments.includes(d)} onChange={() => toggleDepartment(d)} />{' '}
+                {PROJECT_DEPARTMENT_LABEL[d]}
+              </label>
+            ))}
+          </div>
+          <span className={calcStyles.small}>
+            Partner code will start <strong>{partnerCodePrefix(departments)}</strong>
+            {partnerCodePrefix(departments) === 'PTR-' ? ' (no department, or more than one without all three)' : ''}.
+          </span>
+        </div>
+
+        {/* Who maintains PAN, bank details and website. Neither is asked for
+            here — same reasoning as the document choice below: get the
+            account made first, fill the rest in afterwards, on whichever
+            page ends up owning it. */}
+        <div className={calcStyles.field}>
+          <label className={calcStyles.small}>
+            <input
+              type="checkbox"
+              checked={partnerManagesFinancials}
+              onChange={(e) => setPartnerManagesFinancials(e.target.checked)}
+            />{' '}
+            <strong>Let the partner fill in their own PAN number, bank details & website</strong>
+          </label>
+          <span className={calcStyles.small}>
+            {partnerManagesFinancials
+              ? 'They get a new "Company Profile" page in their own portal login to fill and edit these themselves.'
+              : 'Left unchecked: these stay admin/RM-only, entered on this partner’s page after creation.'}
+          </span>
         </div>
 
         {/* Who provides the Agreement, NDA and Payment Agreement.

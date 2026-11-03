@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
   if (!companyName) return NextResponse.json({ error: 'Company name is required' }, { status: 400 });
 
   const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 
   try {
     const partner = await createPartner(
@@ -98,10 +99,17 @@ export async function POST(request: NextRequest) {
         city: str(body.city),
         state: str(body.state),
         gst_number: str(body.gst_number),
+        // Drives the partner code's PTR-AI-/PTR-ROB-/PTR-AV-/PTR-ALL- segment
+        // — see nextPartnerCode in lib/partnerStore.ts.
+        departments: list(body.departments),
         // Defaults to the creator: the person bringing the partner in is
         // normally the one who will manage the relationship, and an
         // unassigned partner is one nobody is watching.
-        relationship_manager_id: str(body.relationship_manager_id) || viewer.userId
+        relationship_manager_id: str(body.relationship_manager_id) || viewer.userId,
+        // Who will maintain PAN, bank details and website — the checkbox on
+        // PartnerCreateView. Anything but the literal 'partner' opt-in stays
+        // 'internal' (today's behaviour), handled by createPartner's own default.
+        financial_details_scope: body.financial_details_scope === 'partner' ? 'partner' : 'internal'
       },
       // The user ID, not the username — created_by is a UUID column, and
       // passing a username here fails the insert outright.

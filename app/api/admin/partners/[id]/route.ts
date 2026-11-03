@@ -81,7 +81,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         product_categories: list(body.product_categories),
         territory: list(body.territory),
         relationship_manager_id: body.relationship_manager_id === undefined ? undefined : str(body.relationship_manager_id) || null,
-        notes: str(body.notes)
+        notes: str(body.notes),
+        website: str(body.website),
+        pan_number: str(body.pan_number),
+        bank_account_name: str(body.bank_account_name),
+        bank_account_number: str(body.bank_account_number),
+        bank_ifsc_code: str(body.bank_ifsc_code),
+        bank_name: str(body.bank_name),
+        financial_details_scope: body.financial_details_scope === 'partner' || body.financial_details_scope === 'internal' ? body.financial_details_scope : undefined
       },
       viewer.userId
     );

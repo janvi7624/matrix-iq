@@ -247,7 +247,14 @@ export default function PartnerDetailView({ id }: { id: string }) {
       gst_number: edit.gst_number,
       departments: edit.departments,
       relationship_manager_id: edit.relationship_manager_id || '',
-      notes: edit.notes
+      notes: edit.notes,
+      website: edit.website,
+      pan_number: edit.pan_number,
+      bank_account_name: edit.bank_account_name,
+      bank_account_number: edit.bank_account_number,
+      bank_ifsc_code: edit.bank_ifsc_code,
+      bank_name: edit.bank_name,
+      financial_details_scope: edit.financial_details_scope
     });
     if (ok) setEditing(false);
   }
@@ -351,6 +358,54 @@ export default function PartnerDetailView({ id }: { id: string }) {
               <textarea className={calcStyles.formControl} rows={3} value={edit.notes ?? ''} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} />
               <span className={calcStyles.small}>Internal only — never shown in the partner portal.</span>
             </div>
+
+            {/* PAN, bank details and website. Always editable here regardless
+                of scope — this screen is "our side", which always has full
+                access. The checkbox only decides whether the PARTNER ALSO
+                gets to see/edit these, on their own portal login
+                (app/partner/profile) — lib/types.ts's
+                PartnerFinancialDetailsScope. */}
+            <div className={calcStyles.field}>
+              <label className={calcStyles.small}>
+                <input
+                  type="checkbox"
+                  checked={edit.financial_details_scope === 'partner'}
+                  onChange={(e) => setEdit({ ...edit, financial_details_scope: e.target.checked ? 'partner' : 'internal' })}
+                />{' '}
+                <strong>Partner can also fill in their own PAN number, bank details & website</strong>
+              </label>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Website</label>
+                <input className={calcStyles.formControl} value={edit.website ?? ''} onChange={(e) => setEdit({ ...edit, website: e.target.value })} />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>PAN number</label>
+                <input className={calcStyles.formControl} value={edit.pan_number ?? ''} onChange={(e) => setEdit({ ...edit, pan_number: e.target.value.toUpperCase() })} />
+              </div>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Bank name</label>
+                <input className={calcStyles.formControl} value={edit.bank_name ?? ''} onChange={(e) => setEdit({ ...edit, bank_name: e.target.value })} />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Account holder name</label>
+                <input className={calcStyles.formControl} value={edit.bank_account_name ?? ''} onChange={(e) => setEdit({ ...edit, bank_account_name: e.target.value })} />
+              </div>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>Account number</label>
+                <input className={calcStyles.formControl} value={edit.bank_account_number ?? ''} onChange={(e) => setEdit({ ...edit, bank_account_number: e.target.value })} />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label}>IFSC code</label>
+                <input className={calcStyles.formControl} value={edit.bank_ifsc_code ?? ''} onChange={(e) => setEdit({ ...edit, bank_ifsc_code: e.target.value.toUpperCase() })} />
+              </div>
+            </div>
+
             <div className={pageStyles.actionsRow}>
               <button type="button" className={calcStyles.btn} onClick={saveEdit}>Save</button>
               <button type="button" className={historyStyles.button} onClick={() => setEditing(false)}>Cancel</button>
@@ -395,6 +450,28 @@ export default function PartnerDetailView({ id }: { id: string }) {
                 <span className={pageStyles.detailLabel}>Departments</span>
                 <span className={pageStyles.detailValue}>
                   {partner.departments.length ? partner.departments.map((d) => PROJECT_DEPARTMENT_LABEL[d as keyof typeof PROJECT_DEPARTMENT_LABEL] ?? d).join(', ') : '-'}
+                </span>
+              </div>
+              <div className={pageStyles.detailItem}>
+                <span className={pageStyles.detailLabel}>Website</span>
+                <span className={pageStyles.detailValue}>{partner.website || '-'}</span>
+              </div>
+              <div className={pageStyles.detailItem}>
+                <span className={pageStyles.detailLabel}>PAN number</span>
+                <span className={pageStyles.detailValue}>{partner.pan_number || '-'}</span>
+              </div>
+              <div className={pageStyles.detailItem}>
+                <span className={pageStyles.detailLabel}>Bank details</span>
+                <span className={pageStyles.detailValue}>
+                  {partner.bank_name || partner.bank_account_number
+                    ? [partner.bank_name, partner.bank_account_name, partner.bank_account_number, partner.bank_ifsc_code].filter(Boolean).join(' · ')
+                    : '-'}
+                </span>
+              </div>
+              <div className={pageStyles.detailItem}>
+                <span className={pageStyles.detailLabel}>PAN/bank/website managed by</span>
+                <span className={pageStyles.detailValue}>
+                  {partner.financial_details_scope === 'partner' ? 'Partner (their own portal login)' : 'Us (admin/RM only)'}
                 </span>
               </div>
             </div>

@@ -137,36 +137,25 @@ async function runMonthlySummariesQuietly(reason: string): Promise<void> {
 }
 
 async function tick(reason: 'boot' | 'scheduled'): Promise<void> {
-  // The monthly summaries ride along on this schedule.
-  //
-  // They were built as HTTP endpoints for an external cron, and that cron
-  // was never set up: both run ledgers held zero rows, so no department
-  // manager, nor Mayank Jani, nor Back Office had ever received a monthly
-  // review — while this sweep had run 157 times. Running them here removes
-  // the dependency on infrastructure that does not exist.
-  //
-  // Before the sweep, not after: if the sweep were ever to throw despite its
-  // documentation, the monthly mail should still go out. Each job claims its
-  // month before sending, so being called four times a day is a no-op after
-  // the first call of the month.
-  await runMonthlySummariesQuietly(reason);
-
   try {
     const result = await runDailyReportSweep({ trigger: 'auto' });
     // Quiet on the ordinary no-op: a skipped run is the expected state when
-    // the scheduler is switched off.
-    if (result.status === 'skipped') return;
-    const sent = Object.entries(result.stats.sent ?? {})
-      .map(([kind, count]) => `${kind}=${count}`)
-      .join(' ');
-    console.info(
-      `[daily-report] auto sweep (${reason}) ${result.status}${result.stats.dryRun ? ' [dry run]' : ''}` +
-        `${sent ? ` — ${sent}` : ' — nothing due'}`
-    );
-    for (const failure of result.stats.failures ?? []) {
-      console.error(
-        `[daily-report] auto sweep failure: ${failure.kind} ${failure.employeeId} ${failure.reportDate} — ${failure.error}`
+    // the scheduler is switched off. NOT an early return — the monthly
+    // summaries below must still run. Turning the daily sweep off is a
+    // decision about reminders, not a reason to stop the monthly review.
+    if (result.status !== 'skipped') {
+      const sent = Object.entries(result.stats.sent ?? {})
+        .map(([kind, count]) => `${kind}=${count}`)
+        .join(' ');
+      console.info(
+        `[daily-report] auto sweep (${reason}) ${result.status}${result.stats.dryRun ? ' [dry run]' : ''}` +
+          `${sent ? ` — ${sent}` : ' — nothing due'}`
       );
+      for (const failure of result.stats.failures ?? []) {
+        console.error(
+          `[daily-report] auto sweep failure: ${failure.kind} ${failure.employeeId} ${failure.reportDate} — ${failure.error}`
+        );
+      }
     }
   } catch (error) {
     // runDailyReportSweep is documented never to throw, so reaching here means
@@ -174,6 +163,24 @@ async function tick(reason: 'boot' | 'scheduled'): Promise<void> {
     // what keeps the next wake-up from being the one that never comes.
     console.error('[daily-report] auto sweep threw, which it should not; the schedule continues.', error);
   }
+
+  // The monthly summaries ride along on this schedule, AFTER the sweep.
+  //
+  // They were built as HTTP endpoints for an external cron that was never
+  // set up: both run ledgers held zero rows, so no department manager, nor
+  // Mayank Jani, nor Back Office had ever received a monthly review — while
+  // this sweep had run 157 times. Running them here removes the dependency
+  // on infrastructure that does not exist.
+  //
+  // After, not before. Running them first delayed the sweep behind a job
+  // that touches every department and sends mail — the sweep is the
+  // time-critical one, since it drives that day's reminders and warnings.
+  // Outside the try/catch above rather than inside it, so a sweep failure
+  // still cannot suppress the monthly mail.
+  //
+  // Each job claims its month before sending, so being called on every
+  // wake-up is a no-op after the first call of the month.
+  await runMonthlySummariesQuietly(reason);
 }
 
 /**
