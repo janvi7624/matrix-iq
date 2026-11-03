@@ -10,7 +10,13 @@ import { apiErrorResponse } from '@/lib/apiError';
 // "Type" was added when the directory started listing prospects (leads with
 // no project) beside customers — without it the two are indistinguishable
 // once the file leaves the app.
-const HEADERS = ['Sr. No.', 'Type', 'Name', 'Company Name', 'Mobile Number', 'E-mail ID', 'Product Handlers', 'Projects', 'Whose Client', 'Remarks', 'By Default User ID'];
+//
+// "Product Handlers" is deliberately still here although the screen's column
+// of that name became the "New Project" action. The screen traded a data
+// column for a button; a CSV has no buttons, and this is the only way the
+// product/handler pairs leave the app, so dropping it would lose information
+// rather than mirror the screen.
+const HEADERS =['Sr. No.', 'Type', 'Name', 'Company Name', 'Mobile Number', 'E-mail ID', 'Product Handlers', 'Projects', 'Whose Client', 'Remarks', 'By Default User ID'];
 
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);

@@ -14,6 +14,72 @@ export function normalizeClientText(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+// Legal-form words that say nothing about WHICH client this is. Stripped
+// only from the end, and only as whole words, so "Patel Industries" and
+// "Patel Trading" stay distinct while "Acme Pvt Ltd", "Acme Ltd." and
+// "Acme" become one row.
+const LEGAL_SUFFIXES = [
+  'private limited',
+  'pvt ltd',
+  'pvt limited',
+  'private ltd',
+  'limited',
+  'private',
+  'llp',
+  'ltd',
+  'inc',
+  'incorporated',
+  'corporation',
+  'corp',
+  'company',
+  'co'
+];
+
+/**
+ * The key Client Master groups rows by.
+ *
+ * Client Master is derived from Projects and Leads, so the "client" is
+ * whatever was typed into each one. Grouping on trim+lowercase alone — what
+ * it did before — left the same customer sitting on several rows whenever
+ * the spelling differed by punctuation, spacing or a legal suffix:
+ * "Adani Pvt. Ltd.", "Adani Pvt Ltd" and "ADANI  LTD" were three clients.
+ *
+ * So this also collapses internal whitespace, drops punctuation, and removes
+ * a trailing legal form. Deliberately conservative: it merges only names
+ * that differ by noise. Two genuinely different clients whose names differ
+ * by a real word still get their own rows — merging those would be far worse
+ * than leaving a duplicate, because it would hide one client's projects
+ * inside another's.
+ *
+ * NOT fuzzy. textSimilarity below exists for the "did you mean?" nudge,
+ * where a human confirms; grouping happens with no human in the loop, so it
+ * stays exact-after-normalisation.
+ */
+export function clientDirectoryKey(value: string): string {
+  let key = normalizeClientText(value)
+    // Punctuation to spaces rather than nothing: "a.b.c" is three words, not
+    // one, and "acme-industries" should match "acme industries".
+    .replace(/[.,'"&/\\()\-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Repeatedly, so "Acme Pvt. Ltd. Co." reduces all the way down.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const suffix of LEGAL_SUFFIXES) {
+      if (key === suffix) break; // the name IS the suffix — keep it rather than empty the key
+      if (key.endsWith(` ${suffix}`)) {
+        key = key.slice(0, -(suffix.length + 1)).trim();
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  return key;
+}
+
 // Classic edit-distance DP. Inputs here are always short (person/company
 // names), so the O(n*m) table is negligible — no need for the rolling-array
 // optimization.

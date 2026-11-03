@@ -63,15 +63,18 @@ const SORT_LABEL: Record<SortKey, string> = {
   name: 'Name', company: 'Company Name', owner: 'Client Owner', projects: 'Project Count', updated: 'Last Updated', created: 'Created Date'
 };
 
-const COLUMN_KEYS = ['srNo', 'type', 'name', 'company', 'mobile', 'email', 'handlers', 'projects', 'owner', 'remarks', 'defaultUser'] as const;
+const COLUMN_KEYS = ['srNo', 'type', 'name', 'company', 'mobile', 'email', 'newProject', 'projects', 'owner', 'remarks', 'defaultUser'] as const;
 type ColumnKey = (typeof COLUMN_KEYS)[number];
 const COLUMN_LABEL: Record<ColumnKey, string> = {
   srNo: 'Sr. No.', type: 'Type', name: 'Name', company: 'Company Name', mobile: 'Mobile Number', email: 'E-mail ID',
-  handlers: 'Product Handlers', projects: 'Projects', owner: 'Whose Client', remarks: 'Remarks', defaultUser: 'By Default User ID'
+  newProject: 'New Project', projects: 'Projects', owner: 'Whose Client', remarks: 'Remarks', defaultUser: 'By Default User ID'
 };
-// v2: the Type column is new, and a saved v1 set would have hidden it for
-// everyone who ever opened the Columns menu.
-const COLUMN_STORAGE_KEY = 'clientMaster.visibleColumns.v2';
+// The key is versioned because a saved set is a list of column keys, so a set
+// saved against an older column list silently hides any column added since —
+// for everyone who ever opened the Columns menu.
+//   v2: the Type column was new.
+//   v3: 'handlers' became 'newProject'.
+const COLUMN_STORAGE_KEY = 'clientMaster.visibleColumns.v3';
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -435,22 +438,26 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       }
     },
     {
-      key: 'handlers',
-      header: 'Product Handlers',
-      render: (c) =>
-        c.productHandlers.length === 0 ? (
-          <span className={calcStyles.small}>-</span>
-        ) : (
-          <Popover ariaLabel="Product handlers" trigger={`${c.productHandlers.length} Handler${c.productHandlers.length === 1 ? '' : 's'}`}>
-            <div className={calcStyles.small} style={{ fontWeight: 700, marginBottom: 8 }}>Product Handlers</div>
-            {c.productHandlers.map((h, i) => (
-              <div key={i} style={{ padding: '6px 0', borderBottom: i < c.productHandlers.length - 1 ? '1px solid var(--mx-border)' : 'none' }}>
-                <div style={{ fontWeight: 600 }}>{h.product}</div>
-                <div className={calcStyles.small}>{h.handledBy}</div>
-              </div>
-            ))}
-          </Popover>
-        )
+      key: 'newProject',
+      header: 'New Project',
+      // Replaced the Product Handlers column. A directory of clients is the
+      // natural place to start their next job, and the handler list was
+      // read-only trivia in a column people were scanning for an action.
+      //
+      // Offered on EVERY row, prospects included: a prospect with no project
+      // yet is exactly who you would be opening one for. The Projects page
+      // fills in this client's details from their most recent project (or
+      // just the company name, when there is no project to copy from) and
+      // still creates a NEW project — see useExistingClient there.
+      render: (c) => (
+        <Link
+          className={historyStyles.button}
+          href={`/projects?newForClient=${encodeURIComponent(c.displayName)}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          + New Project
+        </Link>
+      )
     },
     {
       key: 'projects',

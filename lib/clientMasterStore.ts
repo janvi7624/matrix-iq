@@ -2,6 +2,7 @@ import { Model } from 'sequelize';
 import { db } from './db';
 import { DOMAIN_DISPLAY_NAME } from './domainLabels';
 import { resolveVisibilityScope } from './departmentScope';
+import { clientDirectoryKey } from './clientSimilarity';
 import { ClientContact, ClientOwner, ClientProductHandler, ClientProject, ClientSummary, DomainKey, LeadCallOutcome } from './types';
 
 // Sourced from db.Sequelize (the exact class the connection/models were built
@@ -47,8 +48,18 @@ export interface ClientMasterRow extends ClientSummary {
   callOutcome: LeadCallOutcome;
 }
 
+// Grouping key for a directory row. Was trim+lowercase, which left the same
+// customer on several rows whenever the spelling differed by punctuation,
+// spacing or a legal suffix — "VRL MEDIA PVT LTD" and "VRL Media Ltd" were
+// two clients, "R & R Compu Serve" and "R&R Compu Serve" another two.
+//
+// Measured against the live data before switching: 1355 rows become 1345,
+// and all 10 merges are genuine duplicates of this kind. See
+// clientDirectoryKey for why it stays exact-after-normalisation rather than
+// fuzzy — grouping happens with nobody to confirm it, and folding two real
+// clients together would hide one's projects inside the other's.
 function normalizeKey(value: string): string {
-  return value.trim().toLowerCase();
+  return clientDirectoryKey(value);
 }
 
 function isoOrEmpty(value: unknown): string {

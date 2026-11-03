@@ -246,6 +246,24 @@
 .duplicateSuggestionLink:hover {
     text-decoration: underline;
 }
+
+/* The primary action on a duplicate suggestion: fill the client in and stay
+   on the form. A solid control next to the plain "open the existing one"
+   link, because a second project for an existing client is the ordinary
+   case and navigating away is the exception. */
+.duplicateSuggestionAction {
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    color: var(--mx-surface);
+    background: var(--mx-info);
+    border: 1px solid var(--mx-info);
+    border-radius: var(--mx-radius-sm);
+    padding: 5px 11px;
+    cursor: pointer;
+}
+.duplicateSuggestionAction:hover { filter: brightness(1.07); }
 /* Prepared By team-member picker (components/ui/TeamMemberSelect.tsx) —
    only rendered for the Khushi/Maulik-style on-behalf-of case, everyone
    else keeps the plain locked-to-self input above unchanged. */

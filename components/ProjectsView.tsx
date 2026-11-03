@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { FolderKanban } from 'lucide-react';
 import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRole } from '@/lib/types';
 import { closingProbabilityStyle, FORWARD_STAGES, STAGE_LABEL, stageProgressPercent } from '@/lib/projectStages';
-import { findClosestClient } from '@/lib/clientSimilarity';
+import { clientDirectoryKey, findClosestClient } from '@/lib/clientSimilarity';
 import { closedProjectsVisible, isClosedProject } from '@/lib/projectVisibility';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { exportListToPdf } from '@/lib/exportPdf';
@@ -256,6 +256,20 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   const [fClosingPreset, setFClosingPreset] = useState<ClosingDatePreset>('all');
   const [fClosingFrom, setFClosingFrom] = useState('');
   const [fClosingTo, setFClosingTo] = useState('');
+  // ?newForClient=<name> — Client Master's "New Project" action, so adding a
+  // second project for an existing client starts from that client instead of
+  // an empty form. Read once on mount, same shape as the filter deep-links
+  // below (and for the same reason: useSearchParams would force this whole
+  // view behind a Suspense boundary).
+  //
+  // Held until `projects` has loaded, because the contact details are copied
+  // from that client's most recent project — the name in the URL alone would
+  // leave the phone, email and address to be retyped.
+  const [pendingClientName, setPendingClientName] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('newForClient') || '';
+  });
+
   // 'pending_confirmation' | '' — driven by Dashboard's "Projects awaiting
   // your confirmation" attention item linking to ?filter=pending_confirmation,
   // read once on mount rather than via useSearchParams() (which would force
@@ -510,6 +524,57 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       : null),
     [showForm, form.clientName, form.company, projects]
   );
+
+  // Arriving from Client Master's "New Project": open the form and fill in
+  // that client, once their projects are actually loaded. Runs once — the
+  // pending name is cleared whether or not a match was found, so a client
+  // who somehow has no project still gets an open form rather than a loop.
+  useEffect(() => {
+    if (!pendingClientName || !projects.length) return;
+    const wanted = clientDirectoryKey(pendingClientName);
+    const match = projects.find((p) => clientDirectoryKey(p.company || p.client_name) === wanted);
+    setShowForm(true);
+    if (match) useExistingClient(match.id, { quiet: true });
+    else setForm((f) => ({ ...f, company: pendingClientName }));
+    setPendingClientName('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingClientName, projects]);
+
+  /**
+   * Copies an existing client's details into the open New Project form.
+   *
+   * This is what the duplicate suggestion should always have offered. A
+   * second project for an existing client is the ordinary case — a fit-out
+   * after a supply, a new site, next year's order — and the suggestion's
+   * only action was a link that navigated away, so choosing the client you
+   * meant threw away the project you were creating.
+   *
+   * Copies the client identity and contact fields ONLY. Nothing about the
+   * previous deal — no value, no stage, no departments, no assignees —
+   * because this is a new project for the same client, not a copy of their
+   * last one.
+   */
+  function useExistingClient(projectId: string, options: { quiet?: boolean } = {}) {
+    const source = projects.find((p) => p.id === projectId);
+    if (!source) return;
+    setForm((f) => ({
+      ...f,
+      clientName: source.client_name || f.clientName,
+      company: source.company || f.company,
+      contactPerson: source.contact_person || f.contactPerson,
+      phone: source.phone || f.phone,
+      altContactPhone: source.alt_contact_phone || f.altContactPhone,
+      email: source.email || f.email,
+      address: source.address || f.address
+    }));
+    // Quiet when the form was opened FROM Client Master: the person asked for
+    // this client, so confirming it back at them is noise. The toast matters
+    // only when they clicked the duplicate suggestion, where the point is
+    // that a new project is still being created.
+    if (!options.quiet) {
+      toast.success('Client details filled in. This still creates a new project for them.');
+    }
+  }
 
   // Adding a remark without leaving the dashboard. Deliberately the same
   // PATCH the detail view's timeline box uses, so a remark added here is the
@@ -983,10 +1048,23 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               <div className={calcStyles.duplicateSuggestion}>
                 <span>
                   Are you talking about <strong>{possibleDuplicate.project.clientName || possibleDuplicate.project.company}</strong>
-                  {possibleDuplicate.project.company && possibleDuplicate.project.clientName ? ` — ${possibleDuplicate.project.company}` : ''}? A project for them already exists.
+                  {possibleDuplicate.project.company && possibleDuplicate.project.clientName ? ` — ${possibleDuplicate.project.company}` : ''}? They already have a project.
                 </span>
+                {/* "Use their details" is the primary action and it KEEPS you
+                    on this form. The only option here used to be a link that
+                    navigated away to the existing project, so picking the
+                    suggested client abandoned the new project you were
+                    creating — the common case is a second project for a
+                    client we already have, not a mistake. */}
+                <button
+                  type="button"
+                  className={calcStyles.duplicateSuggestionAction}
+                  onClick={() => useExistingClient(possibleDuplicate.project.id)}
+                >
+                  Use their details for this new project
+                </button>
                 <Link className={calcStyles.duplicateSuggestionLink} href={`/projects/${possibleDuplicate.project.id}`} target="_blank" rel="noopener noreferrer">
-                  Open it instead →
+                  Open the existing one
                 </Link>
               </div>
             )}

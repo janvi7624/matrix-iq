@@ -106,6 +106,7 @@ export function isPartnerPortalArea(pathname: string): boolean {
  */
 export const PARTNER_PORTAL_MODULE_KEYS = [
   'partner-dashboard',
+  'partner-profile',
   'partner-projects',
   'partner-quotations',
   'partner-demos',
