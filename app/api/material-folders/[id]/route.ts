@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { canManageMaterials } from '@/lib/permissions';
+import { mentionsRoles, readMaterialRoleList } from '@/lib/materialRoleInput';
 import { deleteFolder, findFolderById, FolderTreeError, updateFolder } from '@/lib/materialFolderStore';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -26,6 +27,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.name === 'string') patch.name = body.name;
     if (typeof body.description === 'string') patch.description = body.description.trim();
     if (typeof body.partnerVisible === 'boolean') patch.partnerVisible = body.partnerVisible;
+    // Only when the body mentions roles — absent means "leave them alone",
+    // [] means "open it back up to everyone". See mentionsRoles.
+    if (mentionsRoles(body)) patch.visibleToRoles = await readMaterialRoleList(body.visibleToRoles);
     // Present-but-null means "move to the top level", which is why this
     // checks for the key rather than for a truthy value.
     if ('parentId' in body) patch.parentId = typeof body.parentId === 'string' && body.parentId ? body.parentId : null;

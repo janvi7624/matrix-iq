@@ -641,3 +641,41 @@
   background: #fff7ed;
   border: 1px solid #fed7aa;
 }
+
+/* ---- Role scope picker (components/ui/RoleScopePicker.tsx) ------------
+   "Everyone, or these roles" as a row of toggle chips rather than a column
+   of checkboxes: the list is short, the common answer is the first chip, and
+   a selected/unselected chip reads at a glance in a way a half-ticked
+   checkbox column does not. */
+.roleScopeRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.roleScopeChip,
+.roleScopeChipOn {
+    font: inherit;
+    font-size: 11.5px;
+    line-height: 1.2;
+    padding: 5px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
+    color: var(--mx-ink-muted);
+}
+
+.roleScopeChipOn {
+    border-color: var(--mx-info);
+    background: var(--mx-info);
+    color: var(--mx-surface);
+    font-weight: 650;
+}
+
+.roleScopeChip:hover {
+    border-color: var(--mx-info);
+    color: var(--mx-ink);
+}

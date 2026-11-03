@@ -10,6 +10,7 @@ import {
   FolderTreeError,
   hasSiblingNamed
 } from './materialFolderTree';
+import { folderChainAllowsRole, roleAllows, RoleScopedFolder } from './materialRoleVisibility';
 
 // Folders in the Material library — MatrixIQ's own structure for the
 // collateral, not a mirror of anything in Drive.
@@ -37,6 +38,14 @@ export interface MaterialFolderRecord {
    * state and explain why a shared document is not reaching anyone.
    */
   partnerVisible: boolean;
+  /**
+   * Which internal roles may browse this folder.
+   *
+   * [] = every internal role, the library's historical behaviour. A
+   * populated array narrows this folder AND everything inside it — the
+   * folder is a containing boundary, exactly as it is for partnerVisible.
+   */
+  visibleToRoles: string[];
 }
 
 export { FolderTreeError };
@@ -71,6 +80,48 @@ export async function listFolderTree(): Promise<FolderNode[]> {
   return allNodes();
 }
 
+/**
+ * Who is looking, for the role gate in lib/materialRoleVisibility.ts.
+ *
+ * Passed into the read functions rather than applied by each route, because
+ * the gate has to hold for every caller — a filter written at the route
+ * level is the one that gets forgotten on the next route. Omitting the scope
+ * means "no gate", which is what the management and partner paths want:
+ * partner visibility is a separate, already-central rule, and a curator sees
+ * the whole library on purpose (see seesEveryRole).
+ */
+export interface RoleScope {
+  role: string;
+  /** True for superadmin and for whoever may manage materials. */
+  seesEverything: boolean;
+}
+
+/** The whole tree with each folder's role list — what the chain walk needs. */
+export async function listRoleScopedFolders(): Promise<RoleScopedFolder[]> {
+  return (await allFolderRows()).map(toRoleScoped);
+}
+
+function toRoleScoped(row: Model): RoleScopedFolder {
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  return {
+    id: plain.id as string,
+    parentId: (plain.parent_id as string) ?? null,
+    visibleToRoles: toRoleList(plain.visible_to_roles)
+  };
+}
+
+/** Whatever JSONB came back, as a clean list of role keys. */
+export function toRoleList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '');
+}
+
+/** Does this scope admit this folder? A null folder is the top level. */
+export async function isFolderVisibleToScope(folderId: string | null, scope?: RoleScope): Promise<boolean> {
+  if (!folderId || !scope || scope.seesEverything) return true;
+  return folderChainAllowsRole(await listRoleScopedFolders(), folderId, scope.role);
+}
+
 // The breadcrumb for a folder, root first.
 /**
  * A crumb carries the folder's publication state as well as its name.
@@ -83,6 +134,8 @@ export async function listFolderTree(): Promise<FolderNode[]> {
  */
 export interface BreadcrumbFolder extends FolderNode {
   partnerVisible: boolean;
+  /** [] = every internal role — the same meaning as on the folder itself. */
+  visibleToRoles: string[];
 }
 
 export async function folderBreadcrumb(folderId: string | null): Promise<BreadcrumbFolder[]> {
@@ -91,19 +144,31 @@ export async function folderBreadcrumb(folderId: string | null): Promise<Breadcr
   // folderChainPublished's treatment of a null folderId.
   if (!folderId) return [];
   const rows = await allFolderRows();
-  const publishedById = new Map(rows.map((row) => [row.get('id') as string, row.get('partner_visible') === true]));
-  return folderPath(rows.map(toNode), folderId).map((node) => ({
-    ...node,
-    partnerVisible: publishedById.get(node.id) === true
-  }));
+  const byId = new Map(rows.map((row) => [row.get('id') as string, row]));
+  return folderPath(rows.map(toNode), folderId).map((node) => {
+    const plain = (byId.get(node.id)?.get({ plain: true }) ?? {}) as Record<string, unknown>;
+    return {
+      ...node,
+      partnerVisible: plain.partner_visible === true,
+      visibleToRoles: toRoleList(plain.visible_to_roles)
+    };
+  });
 }
 
 // The subfolders shown inside one folder, each with the counts that tell
 // somebody whether it's worth opening.
-export async function listSubfolders(parentId: string | null): Promise<MaterialFolderRecord[]> {
+export async function listSubfolders(parentId: string | null, scope?: RoleScope): Promise<MaterialFolderRecord[]> {
   const rows = await allFolderRows();
   const nodes = rows.map(toNode);
-  const children = directChildren(nodes, parentId);
+  const byIdForScope = new Map(rows.map((row) => [row.get('id') as string, toRoleList(row.get('visible_to_roles'))]));
+  let children = directChildren(nodes, parentId);
+  // Only the children's OWN lists are checked here, not the whole chain: to
+  // be standing in `parentId` at all you already passed every gate above it
+  // (the route checks that with isFolderVisibleToScope), so re-walking the
+  // ancestors would be work that can only reach the same answer.
+  if (scope && !scope.seesEverything) {
+    children = children.filter((child) => roleAllows(byIdForScope.get(child.id), scope.role));
+  }
   if (!children.length) return [];
 
   const byId = new Map(rows.map((row) => [row.get('id') as string, row]));
@@ -138,7 +203,8 @@ export async function listSubfolders(parentId: string | null): Promise<MaterialF
       subfolderCount: subfolderCountBy.get(child.id) ?? 0,
       materialCount: materialCountBy.get(child.id) ?? 0,
       updatedAt: isoOrEmpty(plain.updatedAt),
-      partnerVisible: plain.partner_visible === true
+      partnerVisible: plain.partner_visible === true,
+      visibleToRoles: toRoleList(plain.visible_to_roles)
     };
   });
 }
@@ -154,6 +220,8 @@ export interface CreateFolderInput {
   parentId: string | null;
   description?: string;
   partnerVisible?: boolean;
+  /** [] or omitted = every internal role. See lib/materialRoleVisibility.ts. */
+  visibleToRoles?: string[];
   actorId: string;
 }
 
@@ -177,6 +245,9 @@ export async function createFolder(input: CreateFolderInput): Promise<FolderNode
     // Opt-in, same as a document. A new folder is internal until someone
     // says otherwise.
     partner_visible: input.partnerVisible === true,
+    // Unrestricted unless asked for, so adding a folder never quietly hides
+    // it from the company.
+    visible_to_roles: toRoleList(input.visibleToRoles),
     created_by: input.actorId || null,
     updated_by: input.actorId || null
   } as never);
@@ -190,6 +261,8 @@ export interface UpdateFolderInput {
   parentId?: string | null;
   description?: string;
   partnerVisible?: boolean;
+  /** [] = open it back up to every internal role. */
+  visibleToRoles?: string[];
   actorId: string;
 }
 
@@ -219,6 +292,7 @@ export async function updateFolder(id: string, patch: UpdateFolderInput): Promis
   if (patch.parentId !== undefined) attrs.parent_id = patch.parentId;
   if (patch.description !== undefined) attrs.description = patch.description;
   if (patch.partnerVisible !== undefined) attrs.partner_visible = patch.partnerVisible === true;
+  if (patch.visibleToRoles !== undefined) attrs.visible_to_roles = toRoleList(patch.visibleToRoles);
 
   await row.update(attrs as never);
   return toNode(row);

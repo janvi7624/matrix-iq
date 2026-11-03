@@ -35,7 +35,11 @@ module.exports = (sequelize, DataTypes) => {
     partner_visible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     // [] = every partner (once visible); a populated array = only those
     // partner ids.
-    partner_audience: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
+    partner_audience: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+    // The internal counterpart of partner_audience: [] = every internal role,
+    // a populated array = only those role keys. Narrowed further by the
+    // folder chain above it — see lib/materialRoleVisibility.ts.
+    visible_to_roles: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
   }, {
     tableName: 'materials',
     underscored: true,

@@ -25,6 +25,7 @@ import { Skeleton } from './ui/Skeleton';
 import { CATEGORY_ICON, KIND_ICON, formatWhen } from './materialIcons';
 import { breadcrumbChainPublished } from '@/lib/materialPublication';
 import { useToast } from './ui/ToastProvider';
+import RoleScopePicker from './ui/RoleScopePicker';
 import { useConfirm } from './ui/ConfirmDialog';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import SegmentedToggle from './ui/SegmentedToggle';
@@ -61,6 +62,7 @@ interface MaterialDocument {
   addedBy: string;
   updatedAt: string;
   partnerVisible: boolean;
+  visibleToRoles: string[];
 }
 
 interface ProductGroup {
@@ -87,6 +89,7 @@ interface Subfolder {
   subfolderCount: number;
   materialCount: number;
   partnerVisible: boolean;
+  visibleToRoles: string[];
 }
 
 interface Crumb {
@@ -94,6 +97,7 @@ interface Crumb {
   name: string;
   parentId: string | null;
   partnerVisible: boolean;
+  visibleToRoles: string[];
 }
 
 interface MaterialsPayload {
@@ -108,6 +112,7 @@ interface MaterialsPayload {
   countByCategory: Record<string, number>;
   canManage: boolean;
   knownProducts: string[];
+  assignableRoles: { key: string; label: string }[];
 }
 
 const EMPTY_FORM = {
@@ -125,7 +130,11 @@ const EMPTY_FORM = {
   // decks and competitor comparisons alongside partner collateral, and an
   // accidental share to an external company cannot be un-seen. Opting in is
   // one click; opting out after the fact is not.
-  partnerVisible: false
+  partnerVisible: false,
+  // [] = every internal role, which is what the library has always
+  // meant. Narrowing is always a deliberate act — see
+  // lib/materialRoleVisibility.ts.
+  visibleToRoles: [] as string[]
 };
 type FormValues = typeof EMPTY_FORM;
 
@@ -256,7 +265,7 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
     }
   }
 
-  async function handleSaveFolder(mode: 'new' | 'edit', folder: Subfolder | null, values: { name: string; description: string; partnerVisible: boolean }) {
+  async function handleSaveFolder(mode: 'new' | 'edit', folder: Subfolder | null, values: { name: string; description: string; partnerVisible: boolean; visibleToRoles: string[] }) {
     const isNew = mode === 'new';
     try {
       const response = await fetch(isNew ? '/api/material-folders' : `/api/material-folders/${folder!.id}`, {
@@ -313,6 +322,20 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
   // already have. Imported rather than reimplemented so this screen can
   // never claim "shared" for something the server hides.
   const folderChainShared = breadcrumbChainPublished(breadcrumb);
+  // The roles the open folder chain is already narrowed to, [] when it is
+  // open to everyone. Passed into both forms so they can warn that a
+  // narrower pick inside a narrowed folder reaches nobody — the
+  // folder-chain half of lib/materialRoleVisibility.ts, which is
+  // invisible from inside a single form.
+  const folderChainRoles = useMemo(() => {
+    const narrowed = breadcrumb.filter((crumb) => crumb.visibleToRoles.length > 0);
+    if (!narrowed.length) return [] as string[];
+    // The INTERSECTION, not the union: each folder on the way down
+    // narrows again, so a role has to be admitted by every one of them.
+    return narrowed
+      .map((crumb) => crumb.visibleToRoles)
+      .reduce((kept, next) => kept.filter((role) => next.includes(role)));
+  }, [breadcrumb]);
   const searching = debouncedSearch.trim().length > 0;
   const flatMode = Boolean(data?.flatMode);
   const isEmptyLibrary = !loading && !loadFailed && (data?.totalProducts ?? 0) === 0 && !subfolders.length;
@@ -656,6 +679,8 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
           folder={folderDialog.mode === 'edit' ? folderDialog.folder : null}
           parentName={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : 'Library'}
           parentShared={folderChainShared}
+          assignableRoles={data?.assignableRoles ?? []}
+          parentNarrowing={folderChainRoles}
           onClose={() => setFolderDialog(null)}
           onSave={(values) => handleSaveFolder(folderDialog.mode, folderDialog.mode === 'edit' ? folderDialog.folder : null, values)}
         />
@@ -667,6 +692,8 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
           defaultCategory={category === 'all' ? 'datasheet' : category}
           knownProducts={data?.knownProducts ?? []}
           folderShared={folderChainShared}
+          assignableRoles={data?.assignableRoles ?? []}
+          folderNarrowing={folderChainRoles}
           onClose={() => setEditing(null)}
           onSave={(values) => handleSave(editing, values)}
         />
@@ -682,6 +709,8 @@ function MaterialDialog({
   defaultCategory,
   knownProducts,
   folderShared,
+  assignableRoles,
+  folderNarrowing,
   onClose,
   onSave
 }: {
@@ -690,6 +719,9 @@ function MaterialDialog({
   knownProducts: string[];
   /** Is every folder from here to the root published to partners? */
   folderShared: boolean;
+  assignableRoles: { key: string; label: string }[];
+  /** Roles the open folder chain is already limited to, [] when open. */
+  folderNarrowing: string[];
   onClose: () => void;
   onSave: (values: FormValues) => void;
 }) {
@@ -709,7 +741,8 @@ function MaterialDialog({
           uploadedFileName: '',
           customLink: existing.source === 'link' ? existing.webViewLink : '',
           mimeType: '',
-          partnerVisible: existing.partnerVisible
+          partnerVisible: existing.partnerVisible,
+          visibleToRoles: existing.visibleToRoles
         }
       : { ...EMPTY_FORM, category: defaultCategory }
   );
@@ -987,6 +1020,15 @@ function MaterialDialog({
           </div>
         )}
       </div>
+      <RoleScopePicker
+        roles={assignableRoles}
+        value={values.visibleToRoles}
+        onChange={(next) => set('visibleToRoles', next)}
+        label="Who can see this"
+        hint="Everyone, unless you limit it. A document limited to a role is also still limited by the folder it sits in."
+        parentNarrowing={folderNarrowing}
+      />
+
 
       <div className={styles.formNote}>
         {values.mode === 'drive' ? (
@@ -1017,6 +1059,8 @@ function FolderDialog({
   folder,
   parentName,
   parentShared,
+  assignableRoles,
+  parentNarrowing,
   onClose,
   onSave
 }: {
@@ -1024,12 +1068,16 @@ function FolderDialog({
   parentName: string;
   /** Is every folder from the PARENT up to the root published to partners? */
   parentShared: boolean;
+  assignableRoles: { key: string; label: string }[];
+  /** Roles the parent chain is already limited to, [] when open. */
+  parentNarrowing: string[];
   onClose: () => void;
-  onSave: (values: { name: string; description: string; partnerVisible: boolean }) => void;
+  onSave: (values: { name: string; description: string; partnerVisible: boolean; visibleToRoles: string[] }) => void;
 }) {
   const [name, setName] = useState(folder?.name ?? '');
   const [description, setDescription] = useState(folder?.description ?? '');
   const [partnerVisible, setPartnerVisible] = useState(folder?.partnerVisible ?? false);
+  const [visibleToRoles, setVisibleToRoles] = useState<string[]>(folder?.visibleToRoles ?? []);
   const [error, setError] = useState('');
 
   function handleSubmit() {
@@ -1038,7 +1086,7 @@ function FolderDialog({
       return;
     }
     setError('');
-    onSave({ name: name.trim(), description: description.trim(), partnerVisible });
+    onSave({ name: name.trim(), description: description.trim(), partnerVisible, visibleToRoles });
   }
 
   return (
@@ -1100,6 +1148,15 @@ function FolderDialog({
           </div>
         )}
       </div>
+
+      <RoleScopePicker
+        roles={assignableRoles}
+        value={visibleToRoles}
+        onChange={setVisibleToRoles}
+        label="Who can see this folder"
+        hint="Everyone, unless you limit it. Limiting a folder also limits everything inside it."
+        parentNarrowing={parentNarrowing}
+      />
     </Modal>
   );
 }

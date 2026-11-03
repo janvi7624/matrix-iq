@@ -5,13 +5,21 @@ import { createMaterial, listMaterials, listProductNames } from '@/lib/materialS
 import { isMaterialCategory, MATERIAL_CATEGORIES } from '@/lib/materialCategories';
 import { groupByCategory } from '@/lib/materialGrouping';
 import { resolveMaterialLink } from '@/lib/materialLinkInput';
-import { findFolderById, folderBreadcrumb, listSubfolders } from '@/lib/materialFolderStore';
+import { findFolderById, folderBreadcrumb, isFolderVisibleToScope, listSubfolders } from '@/lib/materialFolderStore';
+import { seesEveryRole } from '@/lib/materialRoleVisibility';
+import { readMaterialRoleList } from '@/lib/materialRoleInput';
+import { listActiveRoles } from '@/lib/roleStore';
 import { apiErrorResponse } from '@/lib/apiError';
 
-// Readable by EVERY signed-in user, by design — the point of the module is
+// Readable by every signed-in user by default — the point of the module is
 // that anyone can find a datasheet without being given access to the Drive
 // folder it lives in. Writing is Marketing's alone (POST below, and
 // PATCH/DELETE on [id]).
+//
+// "By default" because a folder or document may now be narrowed to specific
+// roles (lib/materialRoleVisibility.ts), which is what the per-role SoP
+// folders use. An unrestricted row — every row that existed before that —
+// still reaches everyone.
 //
 // The response is grouped the way the library is browsed: category →
 // product → link. Grouping happens here, not in the browser, so counts and
@@ -39,17 +47,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'That folder no longer exists.' }, { status: 404 });
     }
 
-    const [materials, canManage, subfolders, breadcrumb] = await Promise.all([
+    // The role gate needs the manage flag first, because a curator is exempt
+    // from it — so this one lookup can't ride along in the Promise.all below.
+    const canManage = await canManageMaterials(viewer);
+    const scope = { role: viewer.role, seesEverything: seesEveryRole(viewer.role, canManage) };
+
+    // A folder somebody is not entitled to reads as gone rather than as
+    // forbidden: the same answer a deleted folder gives, so a URL cannot be
+    // used to confirm that a restricted folder exists.
+    if (!(await isFolderVisibleToScope(folderId, scope))) {
+      return NextResponse.json({ error: 'That folder no longer exists.' }, { status: 404 });
+    }
+
+    const [materials, subfolders, breadcrumb] = await Promise.all([
       listMaterials({
         category: categoryParam && isMaterialCategory(categoryParam) ? categoryParam : undefined,
         search,
         folderId,
-        anyFolder: flatMode
+        anyFolder: flatMode,
+        scope
       }),
-      canManageMaterials(viewer),
       // No subfolders while searching: a flat result list with a folder grid
       // above it would imply the folders were results too.
-      flatMode ? Promise.resolve([]) : listSubfolders(folderId),
+      flatMode ? Promise.resolve([]) : listSubfolders(folderId, scope),
+      // Not scoped: isFolderVisibleToScope above already proved every folder
+      // on this chain is one the viewer may see, so there is nothing here to
+      // filter.
       folderBreadcrumb(folderId)
     ]);
 
@@ -58,7 +81,11 @@ export async function GET(request: NextRequest) {
     // Tab counts are over the WHOLE library — every folder — so they mean
     // the same thing wherever you're standing and don't change as you
     // navigate. Counted in PRODUCTS, because that's what a tab will show.
-    const unfiltered = await listMaterials({ anyFolder: true });
+    //
+    // Scoped, and that matters: an unscoped count is a count of documents the
+    // viewer cannot open, so the tabs would advertise restricted material and
+    // "12 datasheets" would lead to a list of three.
+    const unfiltered = await listMaterials({ anyFolder: true, scope });
     const unfilteredGroups = groupByCategory(unfiltered, MATERIAL_CATEGORIES);
     const countByCategory: Record<string, number> = {};
     for (const category of MATERIAL_CATEGORIES) countByCategory[category] = 0;
@@ -75,6 +102,14 @@ export async function GET(request: NextRequest) {
       totalDocuments: unfiltered.length,
       countByCategory,
       canManage,
+      // The roles the add/edit form offers to narrow a folder or document to.
+      // Sent with the library rather than fetched from an admin endpoint:
+      // only a curator sees the form, the list is tiny, and /api/admin/roles
+      // would mean granting Marketing admin access to answer a question the
+      // page already had a request in flight for.
+      assignableRoles: canManage
+        ? (await listActiveRoles()).map((role) => ({ key: role.key, label: role.label }))
+        : [],
       // Only Marketing sees the add form, so only Marketing needs the
       // existing product names it suggests from.
       knownProducts: canManage ? await listProductNames() : []
@@ -140,6 +175,10 @@ export async function POST(request: NextRequest) {
       // Opt-in, never inferred: the library also holds internal sales decks
       // and competitor comparisons, so a missing field means "internal".
       partnerVisible: body.partnerVisible === true,
+      // Also opt-in, and in the other direction: a missing field means every
+      // internal role, which is what the library has always meant. Narrowing
+      // has to be asked for.
+      visibleToRoles: await readMaterialRoleList(body.visibleToRoles),
       actorId: viewer.userId
     });
     return NextResponse.json({ material }, { status: 201 });

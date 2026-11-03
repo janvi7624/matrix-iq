@@ -11,7 +11,11 @@ module.exports = (sequelize, DataTypes) => {
     updated_by: { type: DataTypes.UUID, allowNull: true },
     // A published document inside an UNpublished folder stays hidden — the
     // folder acts as a containing boundary. See the 20261020097000 migration.
-    partner_visible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
+    partner_visible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    // [] = every internal role may browse it; a populated array narrows it to
+    // those role keys, and the narrowing applies to everything inside too.
+    // See lib/materialRoleVisibility.ts and the 20261103140000 migration.
+    visible_to_roles: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
   }, {
     tableName: 'material_folders',
     underscored: true,

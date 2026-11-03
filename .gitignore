@@ -53,3 +53,7 @@ dev-server.log
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Generated SoP PDFs — rebuilt by scripts/generate-sop-library.ts from the
+# live configuration, so a committed copy would be a stale one.
+.sop-out/

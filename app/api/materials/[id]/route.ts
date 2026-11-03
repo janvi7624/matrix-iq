@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { canManageMaterials } from '@/lib/permissions';
+import { mentionsRoles, readMaterialRoleList } from '@/lib/materialRoleInput';
 import { isMaterialCategory } from '@/lib/materialCategories';
 import { materialLinkFieldsPresent, resolveMaterialLink } from '@/lib/materialLinkInput';
 import { deleteMaterial, findMaterialById, MaterialPatch, updateMaterial } from '@/lib/materialStore';
@@ -48,6 +49,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (typeof body.partnerVisible === 'boolean') patch.partnerVisible = body.partnerVisible;
+    // Only when the body actually mentions roles. An absent field means
+    // "leave them alone" and [] means "open it back up to everyone" — treat
+    // them alike and every unrelated edit to a restricted document, such as
+    // fixing its title, would quietly un-restrict it.
+    if (mentionsRoles(body)) patch.visibleToRoles = await readMaterialRoleList(body.visibleToRoles);
     if (typeof body.title === 'string') patch.title = body.title.trim() || (patch.product ?? existing.product);
     if (typeof body.description === 'string') patch.description = body.description.trim();
 

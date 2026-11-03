@@ -1,6 +1,8 @@
 import { Model, Op } from 'sequelize';
 import { db, isUuid } from './db';
 import { fileKindFromMime, isMaterialCategory, MaterialCategory, MaterialFileKind } from './materialCategories';
+import { listRoleScopedFolders, RoleScope } from './materialFolderStore';
+import { materialVisibleToRole } from './materialRoleVisibility';
 
 // The material library: what Marketing has published, and where it lives in
 // Drive. MatrixIQ stores the LINK, never the file — so this table is small,
@@ -35,6 +37,15 @@ export interface MaterialRecord {
    * the card can warn when it is on but the folder chain is closed.
    */
   partnerVisible: boolean;
+  /**
+   * Which internal roles may see this document.
+   *
+   * [] = every internal role, which is what the library has always meant and
+   * what ordinary collateral keeps meaning. A populated array narrows it, and
+   * the folder chain above narrows it further — see
+   * lib/materialRoleVisibility.ts.
+   */
+  visibleToRoles: string[];
 }
 
 const INCLUDE_PEOPLE = [{ model: db.User, as: 'creator', attributes: ['id', 'name', 'username'] }];
@@ -79,8 +90,17 @@ function toRecord(row: Model): MaterialRecord {
         : fileKindFromMime((plain.mime_type as string) || '', title),
     addedBy: creator?.name || creator?.username || '',
     updatedAt: isoOrEmpty(plain.updatedAt),
-    partnerVisible: plain.partner_visible === true
+    partnerVisible: plain.partner_visible === true,
+    // Anything that is not an array of strings reads as unrestricted, so a
+    // row written before the column existed behaves exactly as it did then.
+    visibleToRoles: toRoleList(plain.visible_to_roles)
   };
+}
+
+/** Whatever JSONB came back, as a clean list of role keys. */
+function toRoleList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '');
 }
 
 export interface ListMaterialsFilters {
@@ -93,6 +113,12 @@ export interface ListMaterialsFilters {
   // all" has to be the separate `anyFolder` flag rather than a falsy value.
   folderId?: string | null;
   anyFolder?: boolean;
+  /**
+   * Who is looking. Omitted = no role gate, which is what the management and
+   * partner paths want — partner visibility is its own central rule, and a
+   * curator sees the whole library on purpose (see seesEveryRole).
+   */
+  scope?: RoleScope;
 }
 
 export async function listMaterials(filters: ListMaterialsFilters = {}): Promise<MaterialRecord[]> {
@@ -121,13 +147,38 @@ export async function listMaterials(filters: ListMaterialsFilters = {}): Promise
       ['title', 'ASC']
     ]
   });
-  return rows.map(toRecord);
+  const records = rows.map(toRecord);
+
+  // Applied after the query, not as a WHERE clause, because the rule is not
+  // expressible in one: the folder CHAIN decides, so answering it in SQL
+  // would mean a recursive CTE per row. The library is small (tens of rows,
+  // and the folder tree is capped at five deep by MAX_FOLDER_DEPTH), so one
+  // extra read of the tree is cheaper than that and far easier to verify.
+  const { scope } = filters;
+  if (!scope || scope.seesEverything) return records;
+  const folders = await listRoleScopedFolders();
+  return records.filter((record) =>
+    materialVisibleToRole({ id: record.id, folderId: record.folderId, visibleToRoles: record.visibleToRoles }, folders, scope.role)
+  );
 }
 
-export async function findMaterialById(id: string): Promise<MaterialRecord | undefined> {
+export async function findMaterialById(id: string, scope?: RoleScope): Promise<MaterialRecord | undefined> {
   if (!isUuid(id)) return undefined;
   const row = await db.Material.findByPk(id, { include: INCLUDE_PEOPLE as never });
-  return row ? toRecord(row) : undefined;
+  if (!row) return undefined;
+  const record = toRecord(row);
+  if (!scope || scope.seesEverything) return record;
+  // Undefined rather than a thrown error, so a caller that cannot see it gets
+  // the same "no such document" it would get for a deleted one. Knowing a
+  // document exists but is not for you is itself a small leak, and every
+  // caller already handles undefined.
+  const folders = await listRoleScopedFolders();
+  const visible = materialVisibleToRole(
+    { id: record.id, folderId: record.folderId, visibleToRoles: record.visibleToRoles },
+    folders,
+    scope.role
+  );
+  return visible ? record : undefined;
 }
 
 export interface MaterialInput {
@@ -150,6 +201,8 @@ export interface MaterialInput {
   // content-type would be invented.
   mimeType: string;
   partnerVisible: boolean;
+  /** [] = every internal role. See lib/materialRoleVisibility.ts. */
+  visibleToRoles: string[];
   actorId: string;
 }
 
@@ -168,6 +221,7 @@ export async function createMaterial(input: MaterialInput): Promise<MaterialReco
     source: input.source,
     mime_type: input.mimeType || null,
     partner_visible: input.partnerVisible === true,
+    visible_to_roles: toRoleList(input.visibleToRoles),
     created_by: input.actorId || null,
     updated_by: input.actorId || null
   } as never);
@@ -191,6 +245,7 @@ export async function updateMaterial(id: string, patch: MaterialPatch): Promise<
   if (patch.title !== undefined) attrs.title = patch.title;
   if (patch.description !== undefined) attrs.description = patch.description;
   if (patch.partnerVisible !== undefined) attrs.partner_visible = patch.partnerVisible === true;
+  if (patch.visibleToRoles !== undefined) attrs.visible_to_roles = toRoleList(patch.visibleToRoles);
   if (patch.webViewLink !== undefined) {
     attrs.web_view_link = patch.webViewLink;
     attrs.drive_file_id = patch.driveFileId || null;
