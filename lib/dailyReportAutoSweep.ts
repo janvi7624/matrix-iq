@@ -1,5 +1,6 @@
 import { runDailyReportSweep } from './dailyReportScheduler';
 import { getDailyReportConfig } from './dailyReportConfigStore';
+import { runMonthlySummaries } from './monthlySummaryJobs';
 import { addDays, formatIst, istDate, istInstant } from './dailyReportTime';
 
 // Runs the Daily Report sweep inside the server process, so the module works
@@ -104,7 +105,52 @@ declare global {
   var __nantaDailyReportSweepTimer: NodeJS.Timeout | undefined;
 }
 
+/**
+ * Runs both monthly summaries without letting either disturb the sweep.
+ *
+ * Logs only when something actually happened: this is called on every
+ * wake-up and is a no-op for all but the first call of each month, so a line
+ * per tick would be noise that buries the one line that matters.
+ */
+async function runMonthlySummariesQuietly(reason: string): Promise<void> {
+  try {
+    const outcome = await runMonthlySummaries();
+
+    const daily = outcome.dailyReport;
+    if ('departmentsSent' in daily && (daily.departmentsSent > 0 || daily.adminBriefStatus === 'sent')) {
+      console.info(
+        `[monthly-summary] (${reason}) ${daily.monthLabel}: ${daily.departmentsSent} department summary(ies) sent, admin brief ${daily.adminBriefStatus}.`
+      );
+    }
+
+    const back = outcome.backOffice;
+    if ('sent' in back && back.sent > 0) {
+      console.info(`[monthly-summary] (${reason}) Back Office ${back.monthKey}: sent to ${back.sent} manager(s).`);
+    }
+  } catch (error) {
+    // runMonthlySummaries already guards each job individually, so reaching
+    // here means something outside both of them failed. The sweep continues
+    // regardless — a monthly email is not a reason to stop the day's
+    // reminders and warnings.
+    console.error('[monthly-summary] threw outside the per-job guards; the sweep continues.', error);
+  }
+}
+
 async function tick(reason: 'boot' | 'scheduled'): Promise<void> {
+  // The monthly summaries ride along on this schedule.
+  //
+  // They were built as HTTP endpoints for an external cron, and that cron
+  // was never set up: both run ledgers held zero rows, so no department
+  // manager, nor Mayank Jani, nor Back Office had ever received a monthly
+  // review — while this sweep had run 157 times. Running them here removes
+  // the dependency on infrastructure that does not exist.
+  //
+  // Before the sweep, not after: if the sweep were ever to throw despite its
+  // documentation, the monthly mail should still go out. Each job claims its
+  // month before sending, so being called four times a day is a no-op after
+  // the first call of the month.
+  await runMonthlySummariesQuietly(reason);
+
   try {
     const result = await runDailyReportSweep({ trigger: 'auto' });
     // Quiet on the ordinary no-op: a skipped run is the expected state when
