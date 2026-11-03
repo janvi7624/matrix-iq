@@ -6,6 +6,16 @@
   padding: 0 16px;
 }
 
+/* quotationHistory.module.css's .table sets overflow:hidden for its rounded
+   corners, which makes the TABLE itself (rather than .tableWrap, the div
+   that actually scrolls sideways) the nearest scrolling ancestor for
+   position:sticky — so a cell "stuck" to it just rides along with the
+   table instead of staying on screen. This class+type selector outranks
+   the plain .table rule, handing the scrolling-ancestor role back to
+   .tableWrap so .colActions below genuinely stays pinned to the visible
+   edge on a narrow laptop screen. */
+.actionsStickyWrap table { overflow: visible; }
+
 .headerRow {
   display: flex;
   align-items: center;
@@ -154,6 +164,21 @@
 .rowActions {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* This table has no table-layout:fixed or per-column widths — table-layout:
+   auto just compresses every column, this one included, to fit the row
+   inside a narrow laptop viewport. min-width is a floor so Edit/Delete never
+   get crushed below a usable size; sticky pins the cell to the right edge
+   of .tableWrap's scroll viewport (paired with .actionsStickyWrap above) so
+   the buttons stay reachable without hunting for a horizontal scrollbar. */
+.colActions {
+  min-width: 150px;
+  position: sticky;
+  right: 0;
+  background: var(--mx-surface, #fff);
+  z-index: 1;
 }
 
 .editButton {
@@ -165,6 +190,8 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .deleteButton {
@@ -176,6 +203,8 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* "Add Multiple" — the bulk entry table. Mirrors reimbursement.module.css's

@@ -34,6 +34,16 @@ module.exports = (sequelize, DataTypes) => {
     // Application Settings rather than hardcoded, so it survives the person
     // changing).
     bomFinanceApproverId: { type: DataTypes.UUID },
+    // Staff who may create partner accounts, by user id — a per-USER list
+    // because module permissions are per-role and the sales people who do
+    // this share the generic 'user' role with a dozen other accounts.
+    //
+    // Must be declared here, not only in the migration and the store:
+    // Sequelize silently ignores an attribute a model does not know, so
+    // without this line row.update() dropped the value on every save and
+    // reads came back undefined — the settings checkboxes appeared to
+    // untick themselves the moment the page reloaded.
+    partnerCreatorIds: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     // Day-of-month by which a Reimbursement sheet must be submitted — null
     // means no deadline enforced. See db/models/reimbursementDeadlineExtension.js
     // for the per-month override that can push a specific period's cutoff

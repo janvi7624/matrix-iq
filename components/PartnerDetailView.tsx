@@ -68,6 +68,7 @@ export default function PartnerDetailView({ id }: { id: string }) {
   const [documents, setDocuments] = useState<PartnerDocumentRow[]>([]);
   const [docProgress, setDocProgress] = useState<{ allApproved: boolean } | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
   const [rejectFor, setRejectFor] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
 
@@ -102,6 +103,37 @@ export default function PartnerDetailView({ id }: { id: string }) {
   // Approve or reject one onboarding document. A rejection carries a reason —
   // it is the only thing that tells the partner what to change, and the API
   // refuses a rejection without one.
+  // Supply a document ourselves, rather than waiting for the partner to
+  // upload it. Two steps: store the file, then record it against the
+  // document — the same shape the partner's own upload uses.
+  async function uploadForPartner(kind: string, files: FileList | null) {
+    if (!files?.length) return;
+    setUploading(kind);
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('folder', 'partner-documents');
+      for (let i = 0; i < files.length; i++) fd.append('files', files[i]);
+      const stored = await fetch('/api/uploads', { method: 'POST', body: fd });
+      const storedBody = await stored.json().catch(() => null);
+      if (!stored.ok) { setError(storedBody?.error || 'Upload failed.'); return; }
+
+      const paths: string[] = storedBody?.urls || [];
+      const res = await fetch(`/api/admin/partners/${id}/documents`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, files: paths.map((path, i) => ({ path, name: files[i]?.name || 'document' })) })
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) { setError(body?.error || 'Could not record that document.'); return; }
+      await Promise.all([loadDocuments(), load()]);
+    } catch {
+      setError('Could not reach the server.');
+    } finally {
+      setUploading(null);
+    }
+  }
+
   async function review(kind: string, decision: 'approved' | 'rejected', remarks: string) {
     setReviewing(kind);
     setError('');
@@ -425,21 +457,39 @@ export default function PartnerDetailView({ id }: { id: string }) {
                 </div>
               </div>
 
-              {doc && doc.status !== 'approved' && (
-                <div className={pageStyles.documentActions}>
-                  <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => review(kind, 'approved', '')}>
-                    {busy ? 'Saving…' : 'Approve'}
-                  </button>
-                  <button
-                    type="button"
-                    className={historyStyles.button}
-                    disabled={busy}
-                    onClick={() => { setRejectFor(kind); setRejectNote(''); }}
-                  >
-                    Reject
-                  </button>
-                </div>
-              )}
+              <div className={pageStyles.documentActions}>
+                {doc && doc.status !== 'approved' && (
+                  <>
+                    <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => review(kind, 'approved', '')}>
+                      {busy ? 'Saving…' : 'Approve'}
+                    </button>
+                    <button
+                      type="button"
+                      className={historyStyles.button}
+                      disabled={busy}
+                      onClick={() => { setRejectFor(kind); setRejectNote(''); }}
+                    >
+                      Reject
+                    </button>
+                  </>
+                )}
+
+                {/* Upload it ourselves. A signed agreement often arrives by
+                    email before the partner ever logs in, and making them
+                    re-upload it through the portal is busywork. Counts as
+                    approved, because only somebody who could approve this
+                    document may supply it (see the PUT route). */}
+                <label className={pageStyles.documentUpload}>
+                  {uploading === kind ? 'Uploading…' : doc ? 'Replace with our copy' : 'Upload on their behalf'}
+                  <input
+                    type="file"
+                    multiple
+                    hidden
+                    disabled={uploading === kind}
+                    onChange={(e) => uploadForPartner(kind, e.target.files)}
+                  />
+                </label>
+              </div>
 
               {rejectFor === kind && (
                 <div className={pageStyles.documentReject}>

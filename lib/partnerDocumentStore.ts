@@ -74,6 +74,21 @@ export interface SubmitDocumentInput {
   kind: string;
   files: PartnerDocumentFile[];
   submittedById: string;
+  /**
+   * Set when a member of staff is uploading on the partner's behalf AND may
+   * approve this partner's documents — a signed agreement that arrived by
+   * email, say, rather than through the portal.
+   *
+   * It lands approved rather than pending because the person uploading is
+   * the same person who would approve it: asking them to click Approve on a
+   * file they just provided is theatre, not a control. The record still
+   * shows both facts — submitted_by and reviewed_by are both them, and the
+   * remark says it was provided by staff, so nobody later mistakes it for
+   * something the partner sent.
+   *
+   * Never set for an upload that came from the partner's own session.
+   */
+  approvedByUploader?: boolean;
 }
 
 /**
@@ -102,32 +117,67 @@ export async function submitPartnerDocument(input: SubmitDocumentInput): Promise
     where: { partner_id: input.partnerId, kind: input.kind } as never
   });
 
+  const now = new Date();
+  const staffProvided = !!input.approvedByUploader;
+  const attrs = staffProvided
+    ? {
+        files,
+        status: 'approved',
+        submitted_at: now,
+        submitted_by: input.submittedById,
+        reviewed_by: input.submittedById,
+        reviewed_at: now,
+        review_remarks: 'Provided by our team on the partner’s behalf.'
+      }
+    : {
+        files,
+        status: 'pending',
+        submitted_at: now,
+        submitted_by: input.submittedById,
+        reviewed_by: null,
+        reviewed_at: null,
+        review_remarks: null
+      };
+
   if (existing) {
-    await existing.update({
-      files,
-      status: 'pending',
-      submitted_at: new Date(),
-      submitted_by: input.submittedById,
-      reviewed_by: null,
-      reviewed_at: null,
-      review_remarks: null
-    } as never);
+    await existing.update(attrs as never);
   } else {
-    await db.PartnerDocument.create({
-      partner_id: input.partnerId,
-      kind: input.kind,
-      files,
-      status: 'pending',
-      submitted_at: new Date(),
-      submitted_by: input.submittedById
-    } as never);
+    await db.PartnerDocument.create({ partner_id: input.partnerId, kind: input.kind, ...attrs } as never);
   }
+
+  // A staff upload can be the thing that completes onboarding, so the gate
+  // is stamped here too — otherwise a partner whose three documents were all
+  // supplied by our own team would stay locked out of the portal with
+  // nothing left for anyone to approve.
+  if (staffProvided) await stampOnboardedIfComplete(input.partnerId);
 
   const row = await db.PartnerDocument.findOne({
     where: { partner_id: input.partnerId, kind: input.kind } as never,
     include: INCLUDES as never
   });
   return toRecord(row as Model);
+}
+
+/**
+ * Sets partners.onboarded_at when every required document is approved.
+ *
+ * Shared by the two paths that can complete onboarding — a reviewer
+ * approving the last one, and staff uploading the last one themselves — so
+ * the gate cannot be opened by one and missed by the other. Stamped once
+ * only: a document replaced and re-approved later keeps the original date.
+ */
+async function stampOnboardedIfComplete(partnerId: string): Promise<boolean> {
+  const all = await db.PartnerDocument.findAll({
+    where: { partner_id: partnerId } as never,
+    attributes: ['kind', 'status']
+  });
+  const after = all.map((r) => ({ kind: r.get('kind') as string, status: r.get('status') as string }));
+  if (!approvalCompletesOnboarding(after)) return false;
+
+  const partner = await db.Partner.findByPk(partnerId);
+  if (!partner || partner.get('onboarded_at')) return false;
+  await partner.update({ onboarded_at: new Date() } as never);
+  return true;
 }
 
 export interface ReviewDocumentResult {

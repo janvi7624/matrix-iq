@@ -94,3 +94,19 @@
 /* The rejection reason. Full width under the row it belongs to, so it is
    obviously attached to that document and not the next one. */
 .documentReject { flex: 1 1 100%; margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+
+/* "Upload on their behalf" — the staff-side counterpart to the partner's own
+   upload. Dashed, to read as an input rather than a committing action. */
+.documentUpload {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    color: var(--mx-ink-muted);
+    border: 1px dashed var(--mx-border-strong);
+    border-radius: var(--mx-radius-sm);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.documentUpload:hover { border-color: var(--mx-brand); color: var(--mx-brand); }

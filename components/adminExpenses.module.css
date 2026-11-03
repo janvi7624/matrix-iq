@@ -1,5 +1,15 @@
 /* components/AdminExpensesView.tsx — was inline style={{}} objects. */
 .pageWrap { max-width: 1000px; margin: 0 auto; padding: 0 16px; }
+/* quotationHistory.module.css's .table sets overflow:hidden for its rounded
+   corners, which — same as that file's own .tableViewport comment about its
+   sticky <th> — makes the TABLE itself the nearest scrolling ancestor for
+   position:sticky, instead of .tableWrap (the div that actually scrolls
+   sideways). A sticky cell "stuck" to a container that never scrolls just
+   rides along with the table, so on a narrow screen it scrolled off along
+   with everything else. This table/type-selector combo outranks the plain
+   .table class rule, handing the scrolling-ancestor role back to .tableWrap
+   so .colActions below genuinely stays pinned to the visible edge. */
+.actionsStickyWrap table { overflow: visible; }
 .headerRow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .headerTitle { font-size: 20px; font-weight: 700; color: var(--mx-ink); }
 .editingBanner {
@@ -66,17 +76,37 @@
 tr:hover .employeeCollapsed { display: none; }
 tr:hover .employeeExpanded { display: flex; }
 
-.colDate { width: 10%; }
-.colType { width: 12%; }
-.colRoute { width: 16%; }
-.colTotal { width: 10%; }
-.colEmployees { width: 20%; }
-.colPerPerson { width: 10%; }
-.colAdded { width: 10%; }
-.colActions { width: 12%; }
+/* These used to sum to 110% (10+12+16+10+20+10+10+10+12) — with
+   table-layout:fixed that silently shrank every column below its intended
+   share, the Actions column included, which is exactly what left no room
+   for Approve/Edit/Delete on a small laptop screen. Rebalanced to sum to
+   100, with Actions given the extra room it actually needs. */
+.colDate { width: 9%; }
+.colType { width: 10%; }
+.colRoute { width: 14%; }
+.colTotal { width: 9%; }
+.colEmployees { width: 16%; }
+.colPerPerson { width: 9%; }
+.colAdded { width: 9%; }
 .perPersonCell { font-weight: 600; color: #16a34a; }
 .addedCell { white-space: nowrap; font-size: 12.5px; color: var(--mx-ink-muted); }
-.rowActions { display: flex; gap: 6px; }
+/* Pinned to the right edge of .tableWrap's own scroll viewport (same
+   sticky-on-a-scroll-container technique as quotationHistory.module.css's
+   .wideCellPin, mirrored to the right) so Approve/Edit/Delete stay reachable
+   without hunting for a horizontal scrollbar on a narrower laptop screen.
+   min-width is a floor, not a cap: table-layout:fixed can still shrink the
+   OTHER columns, but never this one below what its buttons need. flex-wrap
+   is the last-resort safety net if even that floor is tight — buttons stack
+   onto a second line instead of visually overflowing the cell. */
+.colActions {
+  width: 15%;
+  min-width: 190px;
+  position: sticky;
+  right: 0;
+  background: var(--mx-surface, #fff);
+  z-index: 1;
+}
+.rowActions { display: flex; gap: 6px; flex-wrap: wrap; }
 .editRowBtn {
     padding: 4px 10px;
     border-radius: 6px;

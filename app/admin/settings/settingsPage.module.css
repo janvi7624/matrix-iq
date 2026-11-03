@@ -6,28 +6,55 @@
 .templateBlockDivider { border-top: 1px solid #eef0f2; padding-top: 12px; margin-top: 12px; }
 .templateLabel { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
 
-/* "Who can create partner accounts" — a named list rather than a role, so
-   it is a checkbox per person. Wraps into columns because this is every
-   active internal account. */
-.creatorGrid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    max-height: 220px;
-    overflow-y: auto;
-    padding: 4px 2px;
-}
 
-.creatorChip {
+/* "Who can create partner accounts" — a named list, so it needs to stay
+   readable at every-account-in-the-company scale. Three parts: who has it
+   today, a search, then the list. */
+.creatorChosen { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+
+.creatorTag {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     font-size: 12.5px;
-    color: var(--mx-ink);
-    border: 1px solid var(--mx-border-strong);
-    border-radius: var(--mx-radius-sm);
-    padding: 4px 9px;
-    cursor: pointer;
-    white-space: nowrap;
+    font-weight: 600;
+    color: var(--mx-brand);
+    background: var(--mx-surface-2, rgba(127, 127, 127, 0.06));
+    border: 1px solid var(--mx-brand);
+    border-radius: 999px;
+    padding: 3px 6px 3px 11px;
 }
-.creatorChip:hover { border-color: var(--mx-brand); }
+.creatorTag button {
+    border: none;
+    background: none;
+    color: inherit;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 3px;
+}
+.creatorTag button:hover { color: var(--mx-danger); }
+
+.creatorList {
+    margin-top: 8px;
+    max-height: 260px;
+    overflow-y: auto;
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-radius-sm);
+}
+
+/* One row per person rather than wrapped chips: names are of wildly
+   different lengths, and a column scans far faster than a ragged block. */
+.creatorRow {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 11px;
+    border-bottom: 1px solid var(--mx-border);
+    cursor: pointer;
+    font-size: 13px;
+}
+.creatorRow:last-child { border-bottom: none; }
+.creatorRow:hover { background: var(--mx-surface-2, rgba(127, 127, 127, 0.05)); }
+.creatorRowOn { background: var(--mx-surface-2, rgba(127, 127, 127, 0.08)); }
+.creatorName { flex: 1 1 auto; color: var(--mx-ink); }

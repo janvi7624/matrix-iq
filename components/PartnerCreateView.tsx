@@ -6,6 +6,7 @@ import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
+import styles from './partnerWorkspace.module.css';
 
 // Creating a partner from inside the Partner module.
 //
@@ -27,6 +28,10 @@ export default function PartnerCreateView() {
     gst_number: ''
   });
   const [saving, setSaving] = useState(false);
+  // Which way the documents will arrive. Only affects where this form sends
+  // you next — the upload itself happens on the partner's own page, which is
+  // also where it can be done later if the answer changes.
+  const [documentSource, setDocumentSource] = useState<'partner' | 'us'>('partner');
 
   function set(key: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -44,7 +49,11 @@ export default function PartnerCreateView() {
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) { toast.error(body?.error || 'Could not create this partner.'); return; }
-      toast.success('Partner created. Issue their portal login next — they upload their documents, you approve them.');
+      toast.success(
+        documentSource === 'us'
+          ? 'Partner created. Upload their documents below — each one counts as approved.'
+          : 'Partner created. Issue their portal login next, then they upload their documents for you to approve.'
+      );
       router.push(`/partners/${body.partner.id}`);
     } catch {
       toast.error('Could not reach the server.');
@@ -102,9 +111,47 @@ export default function PartnerCreateView() {
           </div>
         </div>
 
+        {/* Who provides the Agreement, NDA and Payment Agreement.
+            Asked here because the answer changes what happens next, and
+            because a signed agreement often already exists — reaching us by
+            email long before the partner logs in. */}
+        <div className={calcStyles.field}>
+          <label className={calcStyles.label}>Who will provide the onboarding documents?</label>
+          <div className={styles.choiceRow}>
+            <label className={`${styles.choice} ${documentSource === 'partner' ? styles.choiceActive : ''}`}>
+              <input
+                type="radio"
+                name="documentSource"
+                checked={documentSource === 'partner'}
+                onChange={() => setDocumentSource('partner')}
+              />
+              <span>
+                <strong>The partner uploads them</strong>
+                <span className={calcStyles.small}>
+                  They sign in, upload all three, and you approve each one. They cannot use the rest of the portal until you do.
+                </span>
+              </span>
+            </label>
+            <label className={`${styles.choice} ${documentSource === 'us' ? styles.choiceActive : ''}`}>
+              <input
+                type="radio"
+                name="documentSource"
+                checked={documentSource === 'us'}
+                onChange={() => setDocumentSource('us')}
+              />
+              <span>
+                <strong>I already have them</strong>
+                <span className={calcStyles.small}>
+                  You upload them on the partner&apos;s page straight after this. They count as approved, since you are the approver.
+                </span>
+              </span>
+            </label>
+          </div>
+        </div>
+
         <div className={historyStyles.formActions}>
           <button type="submit" className={calcStyles.btn} disabled={saving}>
-            {saving ? 'Creating…' : 'Create partner'}
+            {saving ? 'Creating…' : documentSource === 'us' ? 'Create & upload documents' : 'Create partner'}
           </button>
           <button type="button" className={historyStyles.button} onClick={() => router.push('/partners')}>Cancel</button>
         </div>

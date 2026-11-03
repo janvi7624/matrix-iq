@@ -13,6 +13,7 @@ export default function ApplicationSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [termsText, setTermsText] = useState('');
   const [users, setUsers] = useState<{ id: string; username: string; name: string }[]>([]);
+  const [creatorSearch, setCreatorSearch] = useState('');
 
   useEffect(() => {
     fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
@@ -233,27 +234,70 @@ export default function ApplicationSettingsPage() {
                     bring partners in sit on the generic 'user' role together
                     with a dozen other accounts, so granting it to the role
                     would hand partner creation to all of them. */}
-                <div className={pageStyles.creatorGrid}>
-                  {users.map((u) => {
-                    const chosen = config.partnerCreatorIds.includes(u.id);
-                    return (
-                      <label key={u.id} className={pageStyles.creatorChip}>
-                        <input
-                          type="checkbox"
-                          checked={chosen}
-                          onChange={() =>
-                            set(
-                              'partnerCreatorIds',
-                              chosen
-                                ? config.partnerCreatorIds.filter((id) => id !== u.id)
-                                : [...config.partnerCreatorIds, u.id]
-                            )
-                          }
-                        />
-                        {u.name || u.username} <span className={calcStyles.small}>({u.username})</span>
-                      </label>
-                    );
-                  })}
+                {/* Chosen people are pulled out above the search, so the
+                    answer to "who has this today" is readable at a glance
+                    rather than being hunted for among every account in the
+                    company. */}
+                {config.partnerCreatorIds.length > 0 && (
+                  <div className={pageStyles.creatorChosen}>
+                    {config.partnerCreatorIds.map((id) => {
+                      const u = users.find((x) => x.id === id);
+                      return (
+                        <span key={id} className={pageStyles.creatorTag}>
+                          {u ? u.name || u.username : 'Unknown user'}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${u ? u.name || u.username : 'this user'}`}
+                            onClick={() => set('partnerCreatorIds', config.partnerCreatorIds.filter((x) => x !== id))}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <input
+                  type="search"
+                  className={calcStyles.formControl}
+                  value={creatorSearch}
+                  placeholder={`Search ${users.length} people by name or username…`}
+                  aria-label="Search people"
+                  onChange={(e) => setCreatorSearch(e.target.value)}
+                />
+
+                <div className={pageStyles.creatorList}>
+                  {users
+                    .filter((u) => {
+                      const q = creatorSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return `${u.name} ${u.username}`.toLowerCase().includes(q);
+                    })
+                    .map((u) => {
+                      const chosen = config.partnerCreatorIds.includes(u.id);
+                      return (
+                        <label key={u.id} className={`${pageStyles.creatorRow} ${chosen ? pageStyles.creatorRowOn : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={chosen}
+                            onChange={() =>
+                              set(
+                                'partnerCreatorIds',
+                                chosen
+                                  ? config.partnerCreatorIds.filter((id) => id !== u.id)
+                                  : [...config.partnerCreatorIds, u.id]
+                              )
+                            }
+                          />
+                          <span className={pageStyles.creatorName}>{u.name || u.username}</span>
+                          <span className={calcStyles.small}>{u.username}</span>
+                        </label>
+                      );
+                    })}
+                  {users.filter((u) => `${u.name} ${u.username}`.toLowerCase().includes(creatorSearch.trim().toLowerCase())).length === 0 && (
+                    <p className={calcStyles.small}>Nobody matches that.</p>
+                  )}
                 </div>
               </div>
               <div className={styles.status}>

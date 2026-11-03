@@ -281,7 +281,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
             {loading ? 'Loading…' : <>No expenses recorded for {MONTH_NAMES[month]} {year}. Click &quot;+ Add Expense&quot; to add the first entry.</>}
           </div>
         ) : (
-          <div className={historyStyles.tableWrap} style={loading ? { opacity: 0.55, pointerEvents: 'none' } : undefined} aria-busy={loading || undefined}>
+          <div className={`${historyStyles.tableWrap} ${styles.actionsStickyWrap}`} style={loading ? { opacity: 0.55, pointerEvents: 'none' } : undefined} aria-busy={loading || undefined}>
             <table className={historyStyles.table}>
               <thead>
                 <tr>
@@ -295,7 +295,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                   <th>Description</th>
                   <th>Paid By</th>
                   <th>Entered By</th>
-                  <th>Actions</th>
+                  <th className={styles.colActions}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -343,7 +343,7 @@ export default function OfficeOperationExpensesView({ currentUser }: OfficeOpera
                     <td style={{ maxWidth: 220 }}>{record.description || '—'}</td>
                     <td style={{ maxWidth: 200 }}>{record.remarks || '—'}</td>
                     <td style={{ whiteSpace: 'nowrap', fontSize: '12.5px', color: 'var(--mx-ink-muted)' }}>{record.creator_name || '—'}</td>
-                    <td>
+                    <td className={styles.colActions}>
                       <div className={styles.rowActions}>
                         <button
                           type="button"

@@ -35,3 +35,27 @@
 .ok { color: var(--mx-success, #059669); border-color: var(--mx-success, #059669); }
 .wait { color: var(--mx-warning, #d97706); border-color: var(--mx-warning, #d97706); }
 .todo { color: var(--mx-ink-muted); }
+
+/* "Who will provide the onboarding documents?" — two cards rather than a
+   dropdown, because each option has a consequence worth reading before
+   choosing. */
+.choiceRow { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.choice {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    flex: 1 1 260px;
+    padding: 11px 13px;
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-radius-md, 8px);
+    cursor: pointer;
+}
+.choice:hover { border-color: var(--mx-brand); }
+.choice span { display: flex; flex-direction: column; gap: 2px; }
+.choice strong { font-size: 13px; }
+
+.choiceActive {
+    border-color: var(--mx-brand);
+    background: var(--mx-surface-2, rgba(127, 127, 127, 0.05));
+}

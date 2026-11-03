@@ -76,6 +76,7 @@ export default function PartnerOnboardingView({
   const [data, setData] = useState<Payload | null>(null);
   const [uploading, setUploading] = useState<PartnerDocumentKind | null>(null);
   const [failed, setFailed] = useState('');
+  const [dragOver, setDragOver] = useState<PartnerDocumentKind | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -186,13 +187,38 @@ export default function PartnerOnboardingView({
                   </ul>
                 )}
 
-                <label className={styles.onboardingUpload}>
-                  <Upload size={15} />
-                  {busy ? 'Uploading…' : step.state === 'not_started' ? 'Upload document' : 'Replace document'}
+                {/* A drop zone rather than a bare file button: these are
+                    scans and PDFs that are usually already sitting in an
+                    email or a folder, and dragging one in is fewer steps
+                    than a file dialog. It is still a <label> wrapping a real
+                    file input, so clicking and the keyboard both work — the
+                    drag handlers are an addition, not a replacement. */}
+                <label
+                  className={`${styles.onboardingUpload} ${dragOver === step.kind ? styles.onboardingUploadOver : ''} ${busy ? styles.onboardingUploadBusy : ''}`}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(step.kind); }}
+                  onDragLeave={() => setDragOver(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(null);
+                    void uploadFor(step.kind, e.dataTransfer.files);
+                  }}
+                >
+                  <Upload size={16} />
+                  <span className={styles.onboardingUploadText}>
+                    <strong>
+                      {busy
+                        ? 'Uploading…'
+                        : step.state === 'not_started'
+                          ? 'Drop the file here, or click to choose'
+                          : 'Replace — drop a file here, or click to choose'}
+                    </strong>
+                    <span className={calcStyles.small}>PDF, JPG or PNG. Several files are fine if it is scanned page by page.</span>
+                  </span>
                   <input
                     type="file"
                     multiple
                     hidden
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                     disabled={busy}
                     onChange={(e) => uploadFor(step.kind, e.target.files)}
                   />

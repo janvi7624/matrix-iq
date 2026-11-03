@@ -154,7 +154,7 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
             No admin expenses added yet. Click &quot;+ Add Expense&quot; to get started.
           </div>
         ) : (
-          <div className={historyStyles.tableWrap}>
+          <div className={`${historyStyles.tableWrap} ${styles.actionsStickyWrap}`}>
             <table className={`${historyStyles.table} ${historyStyles.tableFixed}`}>
               <thead>
                 <tr>
@@ -233,7 +233,7 @@ export default function AdminExpensesView({ currentUser }: { currentUser: { user
                         </span>
                       )}
                     </td>
-                    <td>
+                    <td className={styles.colActions}>
                       <div className={styles.rowActions}>
                         {isApprover && entry.approval_status === 'pending_approval' && (
                           <button
