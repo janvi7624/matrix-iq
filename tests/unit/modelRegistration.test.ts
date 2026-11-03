@@ -43,3 +43,52 @@ describe('db/models/index.js', () => {
     expect(db.Partner).toBeDefined();
   });
 });
+
+// The same mistake one level down.
+//
+// A column can exist in the database and in the TypeScript record and STILL
+// be invisible, because Sequelize silently ignores an attribute its model
+// does not declare: writes drop the value and reads come back undefined. It
+// has now happened three times on this feature — partners.onboarded_at, the
+// partnerDocument model file, and app_config.partnerCreatorIds, whose
+// settings checkboxes appeared to untick themselves on save.
+//
+// Nothing else catches it. The migration is right, the store is right, the
+// types are right, typecheck passes and the build passes.
+//
+// Scoped to the tables this feature touches rather than every model: a few
+// older tables legitimately carry columns no model declares, and a blanket
+// assertion would fail for reasons that are not bugs.
+describe('model attributes match the database columns', () => {
+  const TABLES: { model: string; table: string }[] = [
+    { model: 'AppConfig', table: 'app_config' },
+    { model: 'Partner', table: 'partners' },
+    { model: 'PartnerDocument', table: 'partner_documents' }
+  ];
+
+  for (const { model, table } of TABLES) {
+    it(`${model} declares every column of ${table}`, async () => {
+      const mod = (await import('../../db/models')) as unknown as Record<string, { rawAttributes?: Record<string, unknown> }>;
+      const sequelize = (mod as unknown as { sequelize: { query: (sql: string, o: unknown) => Promise<unknown[]> } }).sequelize;
+
+      const rows = (await sequelize.query(
+        `select column_name from information_schema.columns where table_name = '${table}'`,
+        { logging: false }
+      ))[0] as { column_name: string }[];
+
+      // Sequelize maps camelCase attributes onto snake_case columns on an
+      // underscored model, so compare both spellings.
+      const declared = new Set<string>();
+      for (const attr of Object.keys(mod[model]?.rawAttributes ?? {})) {
+        declared.add(attr);
+        declared.add(attr.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`));
+      }
+
+      const undeclared = rows.map((r) => r.column_name).filter((col) => !declared.has(col));
+      expect(
+        undeclared,
+        `${table} has columns that ${model} does not declare, so Sequelize will drop them on write and read them as undefined: ${undeclared.join(', ')}`
+      ).toEqual([]);
+    });
+  }
+});
