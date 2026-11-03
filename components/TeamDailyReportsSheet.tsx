@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TeamMatrixCell, TeamMatrixEmployee, TeamMatrixResponse } from '@/lib/dailyReportTypes';
+import { formatIstDayShort, formatIstWeekday } from '@/lib/dailyReportTime';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './teamSheet.module.css';
@@ -39,17 +40,12 @@ function rangeFor(preset: Preset): { from: string; to: string } {
 }
 
 function columnLabel(date: string): { weekday: string; day: string } {
-  const d = new Date(`${date}T00:00:00Z`);
-  return {
-    weekday: d.toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'UTC' }),
-    day: String(d.getUTCDate())
-  };
+  return { weekday: formatIstWeekday(date), day: String(Number(date.slice(8, 10))) };
 }
 
-/** 'Mon, 22 Oct' — the sheet's own date column, readable at a glance. */
+/** 'Mon 22 Oct' — the sheet's own date column, readable at a glance. */
 function sheetDate(date: string): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return formatIstDayShort(date);
 }
 
 function cellClass(cell: TeamMatrixCell | undefined): string {

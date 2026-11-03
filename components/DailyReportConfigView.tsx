@@ -18,6 +18,7 @@ import ErrorState from './ui/ErrorState';
 import { SkeletonRows } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
+import { formatIstDateTime } from '@/lib/dailyReportTime';
 
 // Daily Report Configuration.
 //
@@ -37,11 +38,8 @@ const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatDateTime(iso: string): string {
   if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
-  } catch {
-    return iso;
-  }
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? iso : formatIstDateTime(parsed);
 }
 
 interface SweepPreview {

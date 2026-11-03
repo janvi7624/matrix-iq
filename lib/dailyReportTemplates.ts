@@ -429,7 +429,7 @@ const SALES_TEMPLATE: TemplateDefinition = {
 // field per activity for what is really the same concept — see each
 // field's own comment for the specific simplification and why.
 const GEM_ACTIVITY = {
-  TENDER_EXPLORE: 'Tender Explore',
+  TENDER_EXPLORE: 'Tender Explore / Review',
   PROPOSAL_CREATION: 'Proposal Creation',
   VENDOR_FOLLOWUP: 'Vendor Followup',
   BID_SUBMISSION: 'Bid Submission',
@@ -440,12 +440,48 @@ const GEM_ACTIVITY = {
   ONSITE: 'OnSite: Visit / Meeting / Demo'
 } as const;
 
+/**
+ * Spellings an activity was filed under before it was renamed.
+ *
+ * A GEM_ACTIVITY string is both the dropdown label AND the value stored on
+ * every filed row, so renaming one would orphan the reports already filed
+ * under the old spelling: showWhen would stop matching and an old row would
+ * render with its activity-specific fields simply gone.
+ *
+ * So a renamed activity keeps its old string as a VALID stored value while
+ * `selectableOptions` keeps it off the dropdown — the same options vs
+ * selectableOptions split Proposal Creation already relies on. Nothing is
+ * rewritten in the database: a label change is not a reason to edit filed
+ * reports, and a report should keep reading the way it was filed.
+ *
+ * 'Tender Explore' -> 'Tender Explore / Review' (12 filed rows carry the old
+ * one): the activity always covered reviewing a tender, not only finding it.
+ */
+const GEM_LEGACY_ACTIVITY = {
+  TENDER_EXPLORE: 'Tender Explore'
+} as const;
+
+/**
+ * Every stored spelling of Tender Explore / Review — what showWhen and
+ * linkedOptions have to match on, so a row filed under either one shows the
+ * same fields. Spread rather than listed, so a future rename is one entry in
+ * GEM_LEGACY_ACTIVITY above and nothing else.
+ */
+const TENDER_EXPLORE_VALUES = [GEM_ACTIVITY.TENDER_EXPLORE, GEM_LEGACY_ACTIVITY.TENDER_EXPLORE];
+
 const GEM_QUALIFICATION_STATUS_OPTIONS = ['Qualified', 'Not Qualified', 'Under Evaluation', 'Pending'];
 const GEM_FOLLOW_UP_METHOD_OPTIONS = ['Call', 'Email', 'WhatsApp', 'Meeting', 'Other'];
 const GEM_SUBMISSION_STATUS_OPTIONS = ['In Progress', 'Submitted Successfully', 'Pending', 'Rejected', 'Technical Issue'];
 const GEM_DOCUMENT_PREP_STATUS_OPTIONS = ['Not Started', 'In Progress', 'Pending Information', 'Ready for Review', 'Completed'];
-const GEM_COMMUNICATION_WITH_OPTIONS = ['Client', 'Vendor', 'Internal Team', 'Other'];
-const GEM_COMMUNICATION_MODE_OPTIONS = ['Call', 'Email', 'WhatsApp', 'Video Conference', 'In-Person', 'Other'];
+// 'Joint' — a call or meeting run jointly with a partner/vendor alongside the
+// client, which none of Client / Vendor / Internal Team on its own describes.
+// Before 'Other', which stays last so the escape hatch reads as the escape
+// hatch.
+const GEM_COMMUNICATION_WITH_OPTIONS = ['Client', 'Vendor', 'Internal Team', 'Joint', 'Other'];
+// 'Con. call' — an audio conference call, next to plain 'Call' because that is
+// what it is a kind of. Distinct from 'Video Conference', which is the one
+// that was already here.
+const GEM_COMMUNICATION_MODE_OPTIONS = ['Call', 'Con. call', 'Email', 'WhatsApp', 'Video Conference', 'In-Person', 'Other'];
 const GEM_MEETING_TYPE_OPTIONS = ['Meeting', 'Training', 'Presentation', 'Internal Discussion', 'Review', 'Other'];
 const GEM_PARTICIPANTS_OPTIONS = ['Internal Team', 'Client', 'Vendor'];
 const GEM_YES_NO = ['Yes', 'No'];
@@ -454,9 +490,14 @@ const GEM_YES_NO = ['Yes', 'No'];
 // four activities that use it. One field (dependsOn + linkedOptions) rather
 // than four, the same pattern HR_TEMPLATE already uses for Category ->
 // Activity — showWhen still hides it entirely for every other activity.
+const TENDER_EXPLORE_STATUS_OPTIONS = ['Identified', 'Under Review', 'Qualified', 'Disqualified', 'On Hold', 'Completed'];
+
 const GEM_CURRENT_STATUS_OPTIONS: Record<string, string[]> = {
-  [GEM_ACTIVITY.TENDER_EXPLORE]: ['Identified', 'Under Review', 'Qualified', 'Disqualified', 'On Hold', 'Completed'],
-  [GEM_ACTIVITY.PROPOSAL_CREATION]: ['Not Started', 'In Progress', 'Internal Review', 'Sent to Client', 'Revision Required', 'Completed'],
+  // Keyed under both spellings (see GEM_LEGACY_ACTIVITY) so a row filed as
+  // 'Tender Explore' still offers — and still validates against — the same
+  // statuses it was filed with.
+  ...Object.fromEntries(TENDER_EXPLORE_VALUES.map((value) => [value, TENDER_EXPLORE_STATUS_OPTIONS])),
+  [GEM_ACTIVITY.PROPOSAL_CREATION]:['Not Started', 'In Progress', 'Internal Review', 'Sent to Client', 'Revision Required', 'Completed'],
   [GEM_ACTIVITY.VENDOR_FOLLOWUP]: ['Awaiting Response', 'Response Received', 'Negotiation', 'Follow-up Required', 'Completed'],
   [GEM_ACTIVITY.EMPANELMENT]: ['Not Started', 'Documents Pending', 'In Progress', 'Submitted', 'Under Review', 'Approved', 'Rejected']
 };
@@ -484,12 +525,17 @@ const GEM_SALES_TEMPLATE: TemplateDefinition = {
       label: 'GEM Team Activity',
       type: 'select',
       required: true,
-      options: Object.values(GEM_ACTIVITY),
+      // Every value a stored row may legitimately carry, which is wider than
+      // what a person may pick: the renamed spellings in GEM_LEGACY_ACTIVITY
+      // are here so an already-filed row still validates and still renders.
+      options: [...Object.values(GEM_ACTIVITY), ...Object.values(GEM_LEGACY_ACTIVITY)],
       // Proposal Creation is a valid STORED value (an auto-generated row
       // carries it) but not a CHOSEN one — excluded here so there is no way
       // to manually create a "Proposal Creation" activity that then sits
       // there editable; the only way one exists is the real thing, via
-      // autoEntryActivity.
+      // autoEntryActivity. The legacy spellings are excluded for the same
+      // reason in reverse: a filed row keeps its old value, but nobody can
+      // create a new one under it.
       selectableOptions: Object.values(GEM_ACTIVITY).filter((activity) => activity !== GEM_ACTIVITY.PROPOSAL_CREATION),
       width: 'lg',
       // Switching this after other fields are already filled in would
@@ -510,7 +556,7 @@ const GEM_SALES_TEMPLATE: TemplateDefinition = {
       required: true,
       maxLength: 255,
       width: 'md',
-      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.BID_SUBMISSION] }
+      showWhen: { field: 'gem_team_activity', equals: [...TENDER_EXPLORE_VALUES, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.BID_SUBMISSION] }
     },
     {
       // Simplification: the brief doesn't always mark Location required for
@@ -537,7 +583,7 @@ const GEM_SALES_TEMPLATE: TemplateDefinition = {
       showWhen: {
         field: 'gem_team_activity',
         equals: [
-          GEM_ACTIVITY.TENDER_EXPLORE,
+          ...TENDER_EXPLORE_VALUES,
           GEM_ACTIVITY.VENDOR_FOLLOWUP,
           GEM_ACTIVITY.BID_SUBMISSION,
           GEM_ACTIVITY.EMPANELMENT,
@@ -558,7 +604,7 @@ const GEM_SALES_TEMPLATE: TemplateDefinition = {
       type: 'text',
       maxLength: 120,
       width: 'md',
-      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE, GEM_ACTIVITY.BID_SUBMISSION, GEM_ACTIVITY.TENDER_DOCS] }
+      showWhen: { field: 'gem_team_activity', equals: [...TENDER_EXPLORE_VALUES, GEM_ACTIVITY.BID_SUBMISSION, GEM_ACTIVITY.TENDER_DOCS] }
     },
     {
       key: 'project_value',
@@ -567,7 +613,7 @@ const GEM_SALES_TEMPLATE: TemplateDefinition = {
       integer: false,
       currency: true,
       width: 'sm',
-      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.BID_SUBMISSION, GEM_ACTIVITY.TENDER_DOCS] }
+      showWhen: { field: 'gem_team_activity', equals: [...TENDER_EXPLORE_VALUES, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.BID_SUBMISSION, GEM_ACTIVITY.TENDER_DOCS] }
     },
     {
       key: 'current_status',
@@ -576,7 +622,7 @@ const GEM_SALES_TEMPLATE: TemplateDefinition = {
       dependsOn: 'gem_team_activity',
       linkedOptions: GEM_CURRENT_STATUS_OPTIONS,
       width: 'md',
-      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.VENDOR_FOLLOWUP, GEM_ACTIVITY.EMPANELMENT] }
+      showWhen: { field: 'gem_team_activity', equals: [...TENDER_EXPLORE_VALUES, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.VENDOR_FOLLOWUP, GEM_ACTIVITY.EMPANELMENT] }
     },
     {
       key: 'activity_brief',
@@ -587,19 +633,19 @@ const GEM_SALES_TEMPLATE: TemplateDefinition = {
       width: 'xl',
       showWhen: {
         field: 'gem_team_activity',
-        equals: [GEM_ACTIVITY.TENDER_EXPLORE, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.VENDOR_FOLLOWUP, GEM_ACTIVITY.BID_SUBMISSION, GEM_ACTIVITY.EMPANELMENT, GEM_ACTIVITY.TENDER_DOCS]
+        equals: [...TENDER_EXPLORE_VALUES, GEM_ACTIVITY.PROPOSAL_CREATION, GEM_ACTIVITY.VENDOR_FOLLOWUP, GEM_ACTIVITY.BID_SUBMISSION, GEM_ACTIVITY.EMPANELMENT, GEM_ACTIVITY.TENDER_DOCS]
       }
     },
 
     // ---- Tender Explore only ----
-    { key: 'due_date', label: 'Due Date', type: 'date', width: 'sm', showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE] } },
+    { key: 'due_date', label: 'Due Date', type: 'date', width: 'sm', showWhen: { field: 'gem_team_activity', equals: TENDER_EXPLORE_VALUES } },
     {
       key: 'qualification_status',
       label: 'Qualification Status',
       type: 'select',
       options: GEM_QUALIFICATION_STATUS_OPTIONS,
       width: 'sm',
-      showWhen: { field: 'gem_team_activity', equals: [GEM_ACTIVITY.TENDER_EXPLORE] }
+      showWhen: { field: 'gem_team_activity', equals: TENDER_EXPLORE_VALUES }
     },
 
     // ---- Proposal Creation only — every field here is auto-filled from

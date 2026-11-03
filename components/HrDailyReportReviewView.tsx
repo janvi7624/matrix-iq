@@ -21,6 +21,7 @@ import { SkeletonRows } from './ui/Skeleton';
 import { SegmentedButton } from './ui/SegmentedToggle';
 import { useToast } from './ui/ToastProvider';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { formatIstDate, formatIstDateTime } from '@/lib/dailyReportTime';
 
 // HR Daily Report Review — two tabs, because HR does two distinct jobs here:
 // decide leave exemptions, and review or waive missed-report warnings.
@@ -33,21 +34,13 @@ import { useAutoRefresh } from '@/lib/useAutoRefresh';
 type Tab = 'leave' | 'warnings';
 
 function formatDate(value: string): string {
-  if (!value) return '—';
-  try {
-    return new Date(`${value}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
-  } catch {
-    return value;
-  }
+  return value ? formatIstDate(value) : '—';
 }
 
 function formatDateTime(iso: string): string {
   if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
-  } catch {
-    return iso;
-  }
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? iso : formatIstDateTime(parsed);
 }
 
 function istMonth(): string {

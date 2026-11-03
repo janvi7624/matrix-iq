@@ -949,9 +949,9 @@ describe('GEM Sales — activity-conditional fields', () => {
 
   it('lists all nine activities, verbatim', () => {
     const activityField = gem.rowFields.find((f) => f.key === 'gem_team_activity');
-    expect(activityField?.options).toEqual([
-      'Tender Explore',
-      'Proposal Creation',
+    expect(activityField?.selectableOptions).toEqual([
+      'Tender Explore / Review',
+      // 'Proposal Creation' is deliberately absent — see the test above.
       'Vendor Followup',
       'Bid Submission',
       'Empanelment',
@@ -962,12 +962,67 @@ describe('GEM Sales — activity-conditional fields', () => {
     ]);
   });
 
+  // 'Tender Explore' was renamed to 'Tender Explore / Review'. The string is
+  // both the label and the stored value, so filed rows still carry the old
+  // one — these pin that a rename can never orphan them again.
+  describe('the renamed Tender Explore activity', () => {
+    const legacyEntry = {
+      gem_team_activity: 'Tender Explore',
+      client: 'Acme Corp',
+      location: 'Mumbai',
+      due_date: '2026-10-20',
+      activity_brief: 'Explored a new tender listing.'
+    };
+
+    it('still accepts the old spelling as a stored value', () => {
+      expect(validateReportPayload(gem, gemPayload([legacyEntry]), true).ok).toBe(true);
+    });
+
+    it('does not offer the old spelling in the dropdown', () => {
+      const activityField = gem.rowFields.find((f) => f.key === 'gem_team_activity');
+      expect(activityField?.options).toContain('Tender Explore');
+      expect(activityField?.selectableOptions).not.toContain('Tender Explore');
+    });
+
+    it('still shows the old spelling its own fields — not a stripped row', () => {
+      // The whole risk of the rename: showWhen stops matching, the
+      // activity-specific fields read as hidden, and validateReportPayload
+      // drops them. due_date is Tender Explore-only, so it is the canary.
+      const result = validateReportPayload(gem, gemPayload([legacyEntry]), true);
+      expect(result.normalized.entries[0].due_date).toBe('2026-10-20');
+    });
+
+    it('offers the same Current Status set under both spellings', () => {
+      const statusField = gem.rowFields.find((f) => f.key === 'current_status');
+      expect(statusField?.linkedOptions?.['Tender Explore']).toEqual(
+        statusField?.linkedOptions?.['Tender Explore / Review']
+      );
+      expect(validateReportPayload(gem, gemPayload([{ ...legacyEntry, current_status: 'Disqualified' }]), true).ok).toBe(true);
+    });
+  });
+
+  it('offers Joint as a Communication With, and Con. call as a mode', () => {
+    const base = {
+      gem_team_activity: 'Communication',
+      location: 'Chennai',
+      purpose_brief: 'Joint call with the partner and the client.'
+    };
+    expect(gem.rowFields.find((f) => f.key === 'communication_with')?.options).toContain('Joint');
+    expect(gem.rowFields.find((f) => f.key === 'communication_mode')?.options).toContain('Con. call');
+    expect(
+      validateReportPayload(gem, gemPayload([{ ...base, communication_with: 'Joint', communication_mode: 'Con. call' }]), true).ok
+    ).toBe(true);
+    // 'Other' stays last, so the escape hatch still reads as the escape hatch.
+    const withOptions = gem.rowFields.find((f) => f.key === 'communication_with')?.options ?? [];
+    expect(withOptions[withOptions.length - 1]).toBe('Other');
+  });
+
   it('only persists the fields for the chosen activity, never a stale value left over from a different one', () => {
     // A row carrying both Tender Explore's and Proposal Creation's fields —
     // as if the client never cleared the previous activity's answers —
     // with gem_team_activity set to Tender Explore.
     const entry = {
-      gem_team_activity: 'Tender Explore',
+      gem_team_activity: 'Tender Explore / Review',
       client: 'Acme Corp',
       location: 'Mumbai',
       due_date: '2026-10-20',
@@ -985,11 +1040,11 @@ describe('GEM Sales — activity-conditional fields', () => {
 
   it('current_status offers a different option set per activity under the same field', () => {
     const statusField = gem.rowFields.find((f) => f.key === 'current_status');
-    expect(statusField?.linkedOptions?.['Tender Explore']).toContain('Disqualified');
+    expect(statusField?.linkedOptions?.['Tender Explore / Review']).toContain('Disqualified');
     expect(statusField?.linkedOptions?.['Empanelment']).toContain('Documents Pending');
-    expect(statusField?.linkedOptions?.['Tender Explore']).not.toEqual(statusField?.linkedOptions?.['Empanelment']);
+    expect(statusField?.linkedOptions?.['Tender Explore / Review']).not.toEqual(statusField?.linkedOptions?.['Empanelment']);
 
-    const base = { gem_team_activity: 'Tender Explore', client: 'X', location: 'Y', activity_brief: 'Z' };
+    const base = { gem_team_activity: 'Tender Explore / Review', client: 'X', location: 'Y', activity_brief: 'Z' };
     expect(validateReportPayload(gem, gemPayload([{ ...base, current_status: 'Disqualified' }]), true).ok).toBe(true);
     // A real status, just not one Tender Explore offers.
     expect(validateReportPayload(gem, gemPayload([{ ...base, current_status: 'Documents Pending' }]), true).ok).toBe(false);

@@ -1,0 +1,69 @@
+/* components/MySoldProjectsView.tsx, components/MySoldProjectDetailView.tsx */
+.pageWrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+.colCode { width: 10%; }
+.colDept { width: 12%; }
+.colStatus { width: 13%; }
+.colPriority { width: 10%; }
+.colProgress { width: 9%; }
+.colDate { width: 11%; }
+.colSales { width: 14%; }
+
+.nowrap { white-space: nowrap; }
+
+.projectNameCell { font-weight: 600; color: var(--mx-ink); }
+.fieldHint { font-size: 11.5px; color: var(--mx-ink-muted); margin-top: 2px; }
+
+.clickableRow { cursor: pointer; }
+.clickableRow:hover td { background: var(--mx-surface-sunken); }
+
+/* Detail page */
+.backLink { margin-bottom: 16px; }
+
+.headRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.headTitle { font-size: 20px; font-weight: 700; color: var(--mx-ink); }
+.headCode { font-size: 13px; color: var(--mx-ink-muted); margin-top: 2px; }
+.headBadges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.readOnlyNote {
+  margin-bottom: 16px;
+  padding: 8px 14px;
+  background: var(--mx-info-subtle, #eff6ff);
+  border: 1px solid var(--mx-info, #2563eb);
+  border-radius: var(--mx-radius-xs, 6px);
+  font-size: 12.5px;
+  color: var(--mx-info, #2563eb);
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.detailItem { display: flex; flex-direction: column; gap: 3px; }
+.detailLabel { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--mx-ink-muted); }
+.detailValue { font-size: 14px; color: var(--mx-ink); }
+
+.sectionTitle { font-size: 16px; font-weight: 700; color: var(--mx-ink); margin: 24px 0 12px; }
+
+.taskProgressBar {
+  width: 80px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--mx-surface-sunken);
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+.taskProgressFill { height: 100%; background: var(--mx-brand, #2563eb); }

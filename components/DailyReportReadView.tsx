@@ -7,6 +7,7 @@ import {
   computeDerivedValues,
   computeMatrixTotals
 } from '@/lib/dailyReportTemplates';
+import { formatIstClock, formatIstDate } from '@/lib/dailyReportTime';
 import { useSalesAutoDetail } from './useSalesAutoDetail';
 import styles from './dailyReport.module.css';
 
@@ -41,6 +42,24 @@ function pickDerived(source: object | undefined, key: string): unknown {
   return source ? (source as Record<string, unknown>)[key] : undefined;
 }
 
+/**
+ * A stored value as a reader should see it.
+ *
+ * Dates and times are stored in the machine forms their inputs produce —
+ * '2026-11-02' and '18:58' — and this view used to print them exactly as
+ * stored. On the row templates that is most of the page: a GEM Sales report
+ * reviewed in a day listed "Communication Date 2026-11-02", "Due Date
+ * 2026-11-14", "From 09:30". Reading a filed report is not reading a form,
+ * so they are rendered the way the rest of the module renders a date.
+ */
+function displayText(field: DailyReportFieldDef, value: unknown): string {
+  const text = asText(value);
+  if (!text) return '';
+  if (field.type === 'date') return formatIstDate(text);
+  if (field.type === 'time') return formatIstClock(text);
+  return text;
+}
+
 /** Fields worth showing: not hidden, and with something in them. */
 function readableFields(
   fields: DailyReportFieldDef[],
@@ -53,7 +72,7 @@ function readableFields(
       field,
       // A computed field's value never comes from the payload — it is derived
       // server-side, which is why it is looked up separately here.
-      text: asText(field.type === 'computed' ? pickDerived(derived, field.key) ?? values[field.key] : values[field.key])
+      text: displayText(field, field.type === 'computed' ? pickDerived(derived, field.key) ?? values[field.key] : values[field.key])
     }))
     .filter((entry) => entry.text !== '');
 }

@@ -342,3 +342,66 @@ export function navigableWorkingDays(reportDate: string, today: string, policy: 
 export function formatIst(instant: Date): string {
   return `${istDate(instant)} ${istClock(instant)} IST`;
 }
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * A stored 'YYYY-MM-DD' as a human reads it: "02 Nov 2026".
+ *
+ * Built here rather than with toLocaleDateString('en-IN', …) for two
+ * reasons, and the second is why this function exists at all:
+ *
+ *   1. The same reason formatIst is hand-built — an odd ICU build must not
+ *      render a different date than the one this module computed.
+ *   2. ICU punctuates. en-IN renders a date-and-time as "02 Nov, 6:58 pm"
+ *      and a weekday-and-date as "Mon, 2 Nov", and that comma read as a
+ *      mistake to the people reviewing reports all day — reasonably, since
+ *      the same screens also dropped the year, so "02 Nov," looked like a
+ *      truncation. A fixed format has no opinion to drift.
+ *
+ * Returns the input unchanged if it is not an ISO date, so a half-typed or
+ * unexpected value shows as itself instead of "Invalid Date" or ''.
+ */
+export function formatIstDate(date: string): string {
+  const match = DATE_RE.exec(date ?? '');
+  if (!match) return date ?? '';
+  const month = MONTH_SHORT[Number(match[2]) - 1];
+  if (!month) return date;
+  return `${match[3]} ${month} ${match[1]}`;
+}
+
+/** 'HH:MM' (24h) as a human reads it: "6:58 pm". Midnight is 12:00 am. */
+export function formatIstClock(clock: string): string {
+  const match = TIME_RE.exec(clock ?? '');
+  if (!match) return clock ?? '';
+  const hours = Number(match[1]);
+  const suffix = hours < 12 ? 'am' : 'pm';
+  const shown = hours % 12 === 0 ? 12 : hours % 12;
+  return `${shown}:${match[2]} ${suffix}`;
+}
+
+/**
+ * An instant in IST, date and time: "02 Nov 2026 · 6:58 pm".
+ *
+ * The year is always present — a "Submitted" stamp without one is unreadable
+ * on a report from last December — and the separator is the middle dot this
+ * app already uses to join a line of facts, not the comma ICU would insert.
+ */
+export function formatIstDateTime(instant: Date): string {
+  return `${formatIstDate(istDate(instant))} · ${formatIstClock(istClock(instant))}`;
+}
+
+/** "Mon 2 Nov" — the compact column heading the month sheet needs. */
+export function formatIstDayShort(date: string): string {
+  const match = DATE_RE.exec(date ?? '');
+  if (!match) return date ?? '';
+  const month = MONTH_SHORT[Number(match[2]) - 1];
+  if (!month) return date;
+  return `${WEEKDAY_SHORT[dayOfWeek(date)]} ${Number(match[3])} ${month}`;
+}
+
+/** "Mon" / "Tue" — the weekday of a stored IST date. */
+export function formatIstWeekday(date: string): string {
+  return DATE_RE.test(date ?? '') ? WEEKDAY_SHORT[dayOfWeek(date)] : '';
+}

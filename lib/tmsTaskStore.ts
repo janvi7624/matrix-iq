@@ -117,6 +117,18 @@ async function findById(id: string): Promise<TmsTaskRecord | undefined> {
   return row ? toRecord(row) : undefined;
 }
 
+// Every task under one project, unfiltered by assignee/department — for the
+// Sales side's read-only "My Sold Projects" detail (lib/tmsSalesVisibility.ts),
+// where the caller has already authorized itself to view THIS PROJECT (the
+// project's own sales_person_username, not a TMS department/role) before
+// calling this. Same "caller already authorized itself" shape as
+// listForAssignee above, just scoped by project instead of person.
+async function listForProject(projectId: string): Promise<TmsTaskRecord[]> {
+  if (!isUuid(projectId)) return [];
+  const rows = await db.TmsTask.findAll({ where: { project_id: projectId } as never, include: ALL_INCLUDES, order: [['due_date', 'ASC']] });
+  return rows.map(toRecord);
+}
+
 async function create(record: TmsTaskRecord): Promise<TmsTaskRecord> {
   const attrs: Record<string, unknown> = {};
   for (const { name, kind = 'string' } of FIELDS) attrs[name] = toAttr((record as unknown as Record<string, unknown>)[name], kind);
@@ -309,4 +321,4 @@ export async function listRecentTaskUpdatesForAssignee(userId: string, limit = 1
   });
 }
 
-export const tmsTaskStore = { list, readAll, listForAssignee, findById, create, update, remove };
+export const tmsTaskStore = { list, readAll, listForAssignee, listForProject, findById, create, update, remove };

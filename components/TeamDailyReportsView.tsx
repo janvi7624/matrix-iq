@@ -35,6 +35,7 @@ import TeamDailyReportsSheet from './TeamDailyReportsSheet';
 import TaskCategoryEditor from './TaskCategoryEditor';
 import sheetStyles from './teamSheet.module.css';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { formatIstDateTime } from '@/lib/dailyReportTime';
 
 type Period = 'day' | 'month' | 'quarter' | 'year' | 'custom';
 
@@ -74,11 +75,8 @@ const STATUS_FILTERS = [
 
 function formatDateTime(iso: string): string {
   if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
-  } catch {
-    return iso;
-  }
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? iso : formatIstDateTime(parsed);
 }
 
 function istToday(): string {

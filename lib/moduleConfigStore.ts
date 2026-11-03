@@ -306,7 +306,17 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // tabs — see ABSORBED_INTO_MERGED_PAGE above); key/visibleToRoles unchanged
   // so this row's own permission data is untouched.
   { key: 'tms-users', label: 'Users & Tab Access', desc: 'Manage technical team accounts, and which TMS roles can view, create, edit, delete, approve, or manage each tab.', icon: 'user', href: '/tms/team', section: 'TMS', order: 6, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
-  { key: 'tms-tab-access', label: 'Tab Access', desc: 'Configure which TMS roles can view, create, edit, delete, approve, or manage each TMS tab.', icon: 'shield', href: '/tms/tab-access', section: 'TMS', order: 7, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST }
+  { key: 'tms-tab-access', label: 'Tab Access', desc: 'Configure which TMS roles can view, create, edit, delete, approve, or manage each TMS tab.', icon: 'shield', href: '/tms/tab-access', section: 'TMS', order: 7, enabled: true, isCustom: false, visibleToRoles: TMS_MANAGER_ONLY_ROLES, visibleToDepartments: TMS_DEPARTMENT_LIST },
+  // The Sales side's own window into TMS — NOT 'tms-'-prefixed on purpose:
+  // isModuleAccessAllowed special-cases any key.startsWith('tms') through
+  // TMS_OVERSIGHT_ROLES/department gating, which is exactly the TMS-STAFF
+  // model this module must stay outside of. No visibleToDepartments either,
+  // for the same reason — a sales account is never in Robotics/AI/AV. WHAT
+  // each viewer actually sees (their own sold projects, or their team's) is
+  // decided by lib/tmsSalesVisibility.ts's resolveVisibilityScope-based
+  // scoping, same "role here is just who CAN open the page" shape as
+  // 'billing' above.
+  { key: 'my-sold-projects', label: 'My Sold Projects', desc: 'Read-only TMS status for projects you sold — or your team’s, if you manage Sales.', icon: 'layout-dashboard', href: '/tms/my-sold-projects', section: 'TMS', order: 8, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS }
 ];
 
 // Icon values above changed from free-typed emoji to curated icon keys

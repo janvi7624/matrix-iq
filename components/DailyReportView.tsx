@@ -30,6 +30,7 @@ import { SkeletonRows } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { formatIstDate, formatIstDateTime, formatIstDayShort, formatIstWeekday } from '@/lib/dailyReportTime';
 
 // The employee's own Daily Report page.
 //
@@ -61,24 +62,16 @@ const BANNER_CLASS = {
 const IST = 'Asia/Kolkata';
 
 function formatDate(value: string): string {
-  if (!value) return '—';
-  try {
-    return new Date(`${value}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: IST });
-  } catch {
-    return value;
-  }
+  return value ? formatIstDate(value) : '—';
 }
 
 function formatDateTime(iso: string): string {
   if (!iso) return '—';
-  try {
-    // Every timestamp this module shows is IST, matching the deadline it is
-    // being compared against — a browser in another zone must not render a
-    // different "submitted at" than the one the deadline was judged in.
-    return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: IST });
-  } catch {
-    return iso;
-  }
+  // Every timestamp this module shows is IST, matching the deadline it is
+  // being compared against — a browser in another zone must not render a
+  // different "submitted at" than the one the deadline was judged in.
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? iso : formatIstDateTime(parsed);
 }
 
 /** Today in IST — the picker's upper bound and the "Today" pill's test. */
@@ -86,13 +79,10 @@ function istToday(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: IST, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
-function parts(value: string, opts: Intl.DateTimeFormatOptions): string {
-  if (!value) return '';
-  try {
-    return new Date(`${value}T12:00:00+05:30`).toLocaleDateString('en-IN', { ...opts, timeZone: IST });
-  } catch {
-    return '';
-  }
+/** The day number of a stored IST date, for the day strip's cells. */
+function dayNumber(value: string): string {
+  const day = value.slice(8, 10);
+  return day ? String(Number(day)) : '';
 }
 
 /** "Due in 3h 12m" / "Overdue by 2d 4h" — minute granularity is enough. */
@@ -464,7 +454,7 @@ export default function DailyReportView({
           </button>
           <div className={styles.dateBlock}>
             <div className={styles.dateHeadline}>
-              {parts(data.report_date, { weekday: 'short' })}, {parts(data.report_date, { day: 'numeric', month: 'short' })}
+              {formatIstDayShort(data.report_date)}
               {/* The strip is anchored to today, so after a long jump with
                   the picker the selected date can sit outside it entirely.
                   One click back beats stepping forward a day at a time. */}
@@ -540,8 +530,8 @@ export default function DailyReportView({
                 aria-label={`${formatDate(item.report_date)} — ${state.label}`}
                 title={`${formatDate(item.report_date)} — ${state.label}`}
               >
-                <span className={styles.dayCellDow}>{parts(item.report_date, { weekday: 'short' })}</span>
-                <span className={styles.dayCellNum}>{parts(item.report_date, { day: 'numeric' })}</span>
+                <span className={styles.dayCellDow}>{formatIstWeekday(item.report_date)}</span>
+                <span className={styles.dayCellNum}>{dayNumber(item.report_date)}</span>
                 <span className={`${styles.dayCellDot} ${state.dot}`} aria-hidden="true" />
               </button>
             );
