@@ -18,6 +18,9 @@ import HealthGauge, { BAND_COLOR, BAND_TEXT } from './ui/HealthGauge';
 import DepartmentHealthDetail from './DepartmentHealthDetail';
 import { BRAND } from '@/lib/branding';
 import type { MyDailyReportStatus } from '@/lib/dailyReportTypes';
+import type { DailyReportAdminBrief } from '@/lib/dailyReportService';
+import type { MyTargetSummary } from '@/lib/myTargetSummary';
+import type { UpcomingCelebrations } from '@/lib/celebrationStore';
 import { useModuleSections } from '@/lib/useModuleSections';
 import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
@@ -178,6 +181,11 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [salesTeamSummary, setSalesTeamSummary] = useState<SalesTeamSummaryRow[] | null>(null);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [openHealthDepartment, setOpenHealthDepartment] = useState<string | null>(null);
+  // Folded into /api/dashboard's own payload — see that route's comment for
+  // why these three specifically (and not health/celebrations) moved in.
+  const [myTarget, setMyTarget] = useState<MyTargetSummary | null>(null);
+  const [dailyReportBrief, setDailyReportBrief] = useState<DailyReportAdminBrief | null>(null);
+  const [upcomingCelebrations, setUpcomingCelebrations] = useState<UpcomingCelebrations | null>(null);
 
   // Health Section Controls
   const [healthBandFilter, setHealthBandFilter] = useState<'all' | 'red' | 'yellow' | 'green'>('all');
@@ -246,6 +254,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setPendingProjectConfirmationsTeam(data.pendingProjectConfirmationsTeam ?? 0);
         setSalesLeadership(!!data.salesLeadership);
         setSalesTeamSummary(data.salesTeamSummary ?? null);
+        // Each of these four is independently .catch(() => null)-guarded
+        // server-side (see app/api/dashboard/route.ts), so a failure in any
+        // one of them arrives here as a plain null, same as before each had
+        // its own fetch with its own try/catch — never throws and never
+        // blanks the rest of this response.
+        setDailyReport(data.dailyReportStatus ?? null);
+        setMyTarget(data.myTarget ?? null);
+        setDailyReportBrief(data.dailyReportBrief ?? null);
+        setUpcomingCelebrations(data.upcomingCelebrations ?? null);
       })
       .catch(() => {
         // A background refresh that fails leaves the page exactly as it is.
@@ -266,6 +283,10 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setRecentQuotations([]);
         setSalesLeadership(false);
         setSalesTeamSummary(null);
+        setDailyReport(null);
+        setMyTarget(null);
+        setDailyReportBrief(null);
+        setUpcomingCelebrations(null);
       });
   }
 
@@ -276,24 +297,6 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       // Same reasoning as above — keep the gauges that are on screen.
       .catch(() => {});
   }
-
-  // Its own request rather than part of /api/dashboard: that payload is
-  // shared by every role and this is personal to the viewer, and a failure
-  // here must only hide the shortcut, never break the dashboard.
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/daily-reports/me/status')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!cancelled) setDailyReport(data);
-      })
-      .catch(() => {
-        if (!cancelled) setDailyReport(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     void loadDashboard(true);
@@ -911,10 +914,10 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       </div>
 
       {/* 4. MY TARGET PANEL (When applicable) */}
-      <MyTargetPanel />
+      <MyTargetPanel data={myTarget} />
 
       {/* 4b. ALL-DEPARTMENTS DAILY REPORT BRIEF (org-wide visibility only) */}
-      <DailyReportAdminBriefWidget />
+      <DailyReportAdminBriefWidget data={dailyReportBrief} />
 
       {/* 5. PERSONAL ASSIGNMENTS HUB (When applicable) */}
       {(myAssignedProjects.length > 0 || myAssignedDemos.length > 0) && (
@@ -1288,7 +1291,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       <div className={styles.sectionHeading}>
         <span>🎉 Company Celebrations</span>
       </div>
-      <CelebrationsSection />
+      <CelebrationsSection data={upcomingCelebrations} />
 
       {/* 8. REDESIGNED WORKSPACE & OPERATIONAL MODULES DIRECTORY */}
       <section className={styles.modulesSection} aria-label="Workspace & System Modules">

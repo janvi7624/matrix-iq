@@ -10,6 +10,10 @@ import {
   TeamDailyReportRow
 } from './dailyReportTypes';
 import { getDailyReportConfig, getDeadlinePolicy } from './dailyReportConfigStore';
+import { lastClaimableMonth } from './reimbursementPeriod';
+import { monthKeyBounds } from './dateHelpers';
+import { monthKeyOf, monthLabelOf } from './backOfficeDemoSummary';
+import { listActiveDepartments } from './departmentStore';
 import { resolveTemplateForDepartment } from './dailyReportTemplateStore';
 import { buildHistory, findReportForDate, listRevisions, loadReportStatuses, SUBMITTED_STATUSES } from './dailyReportStore';
 import { findLiveClaim, loadClaimStatusByDate, loadLeaveCoveredKeys } from './dailyReportLeaveClaimStore';
@@ -537,6 +541,72 @@ export function aggregateRangeRowsByDepartment(rows: TeamDailyReportRangeRow[]):
     b.compliance_percent = denominator > 0 ? Math.round((b.submitted / denominator) * 100) : 100;
   }
   return result.sort((a, b) => a.department_name.localeCompare(b.department_name));
+}
+
+export interface DailyReportAdminBrief {
+  monthLabel: string;
+  rows: DepartmentRollupRow[];
+  totals: { expected: number; submitted: number; submitted_late: number; missing: number; leave_covered: number };
+  monthKey: string;
+  from: string;
+  to: string;
+  partialMonth: boolean;
+  showingCurrentMonthBecausePreviousHadNoData: boolean;
+}
+
+/**
+ * All-departments Daily Report brief — the SAME figures
+ * app/api/cron/daily-report-monthly-summary emails to Mayank Jani,
+ * computed fresh on every call rather than replaying the mailed snapshot.
+ *
+ * Extracted from app/api/dashboard/daily-report-brief/route.ts (still the
+ * standalone endpoint, now a thin wrapper around this) so
+ * app/api/dashboard/route.ts can fold it into the Dashboard's one combined
+ * payload too, gated the same way (viewAllDepartments) by each caller.
+ */
+export async function buildDailyReportAdminBrief(): Promise<DailyReportAdminBrief> {
+  const policy = await getDeadlinePolicy();
+  const today = istDate(new Date());
+
+  // One month's window, never running past today: a day that has not
+  // happened cannot be a missing report. See the route's own prior comment
+  // for the 29-Oct incident this guards against.
+  const windowFor = (y: number, m: number) => {
+    const key = monthKeyOf(y, m);
+    const bounds = monthKeyBounds(key);
+    const from = bounds?.from ?? '';
+    const monthEnd = bounds ? new Date(new Date(bounds.to).getTime() - 86400000).toISOString().slice(0, 10) : '';
+    return { key, from, monthEnd, to: monthEnd > today ? today : monthEnd };
+  };
+
+  const previous = lastClaimableMonth();
+  let w = windowFor(previous.year, previous.month);
+
+  // Fall forward to the current month when the previous one has no tracked
+  // working days at all (predates TRACKING_START_DATE).
+  const previousHasData = workingDaysBetween(w.from, w.to, policy).length > 0;
+  if (!previousHasData) {
+    const [cy, cm] = today.split('-').map(Number);
+    w = windowFor(cy, cm);
+  }
+
+  const partialMonth = w.to < w.monthEnd;
+  const monthLabel = monthLabelOf(w.key) + (partialMonth ? ' (to date)' : '');
+
+  const departments = await listActiveDepartments();
+  const summary = await computeDailyReportRangeSummary(departments.map((d) => d.id), w.from, w.to, { label: monthLabel });
+  const rows = aggregateRangeRowsByDepartment(summary.rows);
+
+  return {
+    monthLabel,
+    rows,
+    totals: summary.totals,
+    monthKey: w.key,
+    from: w.from,
+    to: w.to,
+    partialMonth,
+    showingCurrentMonthBecausePreviousHadNoData: !previousHasData
+  };
 }
 
 // Declared after use above by hoisting — kept down here so the two exported

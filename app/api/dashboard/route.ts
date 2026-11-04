@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
-import { listVisibleModules } from '@/lib/moduleConfigStore';
+import { listVisibleModules, isModuleAccessAllowed } from '@/lib/moduleConfigStore';
+import { buildMyDailyReportStatus, buildDailyReportAdminBrief } from '@/lib/dailyReportService';
+import { buildMyTargetSummary } from '@/lib/myTargetSummary';
+import { getUpcomingCelebrations } from '@/lib/celebrationStore';
 import { projectStore } from '@/lib/projectStore';
 import { siteVisitStore } from '@/lib/siteVisitStore';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
@@ -41,6 +44,27 @@ import { buildSalesTeamSummary, isSalesLeadership, SalesTeamSummaryRow } from '@
 // technical/backoffice roles and department managers), so both are fetched
 // distinctly rather than collapsed into one, to avoid silently changing
 // either number.
+//
+// Also now folds in the four small per-viewer widgets Dashboard.tsx used to
+// fetch as their OWN separate round trips (My Target, the all-departments
+// Daily Report brief, "have I filed today", upcoming birthdays/
+// anniversaries) — each kept as its own standalone endpoint too (see
+// app/api/targets/me, app/api/dashboard/daily-report-brief,
+// app/api/hr-dashboard) for any other caller, both now thin wrappers around
+// the same shared lib function this route calls directly. Each is
+// `.catch(() => null)`-guarded independently, same "a failure here must
+// only hide the shortcut, never break the dashboard" rule the ORIGINAL
+// separate requests already relied on (see the removed useEffect in
+// Dashboard.tsx) — one of these throwing must not 500 the whole page.
+//
+// Deliberately NOT folded in: /api/dashboard/health (its own TTL cache
+// shared across concurrent viewers, on a slower independent refresh
+// cadence — merging would force it onto this route's faster cadence and
+// multiply its already-expensive per-department scoring) and
+// /api/dashboard/celebrations (fires the day's celebration emails exactly
+// once per mount; this route's data is also polled every 60s by
+// useAutoRefresh, and folding it in would re-run that side effect on every
+// poll instead of once per page load).
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -60,6 +84,12 @@ export async function GET(request: NextRequest) {
       hasCapability(viewer.role, 'viewAllDepartments')
     ]);
     const canSeeQueue = viewer.isPrivileged || viewer.role === 'engineer' || viewer.role === 'backoffice' || isDeptManager;
+    const viewerForModules = { role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager };
+    // Reads the already-cached module list resolved by listVisibleModules
+    // below — gates dailyReportStatus the same way the standalone
+    // app/api/daily-reports/me/status route's guardDailyReport does, just
+    // degrading to null instead of a 403 (this route must never fail whole).
+    const canSeeDailyReport = await isModuleAccessAllowed('daily-report', viewerForModules);
 
     // canSeeQueue also gates backOfficeKpis below — isBackOffice (backoffice
     // role or privileged) always implies canSeeQueue, so demosForQueue is
@@ -75,9 +105,13 @@ export async function GET(request: NextRequest) {
       managersByDepartment,
       quotationsForViewer,
       backOfficeDcs,
-      marketingRecords
+      marketingRecords,
+      myTarget,
+      upcomingCelebrations,
+      dailyReportStatus,
+      dailyReportBrief
     ] = await Promise.all([
-      listVisibleModules({ role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager }),
+      listVisibleModules(viewerForModules),
       projectStore.listLight(viewer.username, viewer.isPrivileged),
       siteVisitStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, viewer.isPrivileged),
@@ -95,7 +129,11 @@ export async function GET(request: NextRequest) {
       (async () => {
         const isReviewer = await isMarketingManager(viewer);
         return { isReviewer, records: await marketingRequestStore.list(viewer.username, isReviewer) };
-      })()
+      })(),
+      buildMyTargetSummary(viewer.userId, viewer.username).catch(() => null),
+      getUpcomingCelebrations().catch(() => null),
+      canSeeDailyReport ? buildMyDailyReportStatus(viewer.userId).catch(() => null) : Promise.resolve(null),
+      seesOrgWide ? buildDailyReportAdminBrief().catch(() => null) : Promise.resolve(null)
     ]);
 
     // Sales Manager / Admin / Super Admin only — see lib/salesTeamSummary.ts
@@ -286,7 +324,11 @@ export async function GET(request: NextRequest) {
       pendingTechnicalApprovals,
       travelPendingCount,
       salesLeadership,
-      salesTeamSummary
+      salesTeamSummary,
+      myTarget,
+      upcomingCelebrations,
+      dailyReportStatus,
+      dailyReportBrief
     });
   } catch (error) {
     return apiErrorResponse(error);

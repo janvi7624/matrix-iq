@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import styles from './dailyReportAdminBrief.module.css';
 
@@ -31,24 +30,15 @@ interface BriefPayload {
 // All-departments Daily Report brief — last month, every department, one
 // row each. Same data app/api/cron/daily-report-monthly-summary emails to
 // Mayank Jani; this is the "in dashboard" half of that request, computed
-// fresh on every load rather than replaying the mailed snapshot (see the API
-// route's own comment on why).
+// fresh on every load rather than replaying the mailed snapshot (see
+// lib/dailyReportService.ts's buildDailyReportAdminBrief).
 //
 // Renders nothing for anyone without org-wide visibility — same
 // "render nothing until the data says so" convention as MyTargetPanel,
 // so most dashboards are completely unaffected by this existing at all.
-export default function DailyReportAdminBriefWidget() {
-  const [data, setData] = useState<BriefPayload | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    fetch('/api/dashboard/daily-report-brief')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body) => { if (active && body) setData(body); })
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, []);
-
+// Comes in as a prop from Dashboard.tsx's one combined /api/dashboard
+// fetch rather than its own request — see that route's own comment.
+export default function DailyReportAdminBriefWidget({ data }: { data: BriefPayload | null }) {
   if (!data || data.rows.length === 0) return null;
 
   const t = data.totals;

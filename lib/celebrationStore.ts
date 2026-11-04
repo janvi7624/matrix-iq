@@ -161,3 +161,98 @@ export async function shouldShowCelebrationsPopup(userId: string): Promise<boole
   await user.update({ celebrationPopupViewDate: today, celebrationPopupViewCount: viewsToday + 1 } as never);
   return true;
 }
+
+export interface UpcomingCelebrationEntry {
+  name: string;
+  employeeId: string;
+  department: string;
+  designation: string;
+  date: string;
+  daysAway: number;
+  isToday: boolean;
+  years?: number;
+}
+
+export interface UpcomingCelebrations {
+  birthdays: UpcomingCelebrationEntry[];
+  anniversaries: UpcomingCelebrationEntry[];
+}
+
+/**
+ * Birthdays/work anniversaries in the next 30 days — the Dashboard's
+ * "Upcoming Birthdays" / "Work Anniversaries" panels. A DIFFERENT window
+ * than getTodaysCelebrations above (today only, drives the popup + email);
+ * this one is purely a read, no side effects, safe to call as often as
+ * needed.
+ *
+ * Extracted from app/api/hr-dashboard/route.ts (still the standalone
+ * endpoint, now a thin wrapper around this) so app/api/dashboard/route.ts
+ * can fold it into the Dashboard's one combined payload too. Despite the
+ * name, that route was never HR-restricted — any signed-in viewer could
+ * already call it.
+ */
+export async function getUpcomingCelebrations(): Promise<UpcomingCelebrations> {
+  const users = await listUsers();
+  const today = new Date();
+  const birthdays: UpcomingCelebrationEntry[] = [];
+  const anniversaries: UpcomingCelebrationEntry[] = [];
+
+  const todayMonth = today.getMonth();
+  const todayDate = today.getDate();
+  const todayYear = today.getFullYear();
+
+  for (const u of users) {
+    if (u.status !== 'active') continue;
+
+    if (u.birthday) {
+      const bd = new Date(u.birthday + 'T00:00:00');
+      const bdMonth = bd.getMonth();
+      const bdDate = bd.getDate();
+
+      const nextOccurrence = new Date(todayYear, bdMonth, bdDate);
+      if (nextOccurrence < new Date(todayYear, todayMonth, todayDate)) {
+        nextOccurrence.setFullYear(todayYear + 1);
+      }
+      const diffMs = nextOccurrence.getTime() - new Date(todayYear, todayMonth, todayDate).getTime();
+      const daysAway = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+      if (daysAway <= 30) {
+        birthdays.push({
+          name: u.name, employeeId: u.employeeId, department: u.department,
+          designation: u.designation, date: u.birthday,
+          daysAway, isToday: daysAway === 0
+        });
+      }
+    }
+
+    if (u.dateOfJoining) {
+      const doj = new Date(u.dateOfJoining + 'T00:00:00');
+      const dojMonth = doj.getMonth();
+      const dojDate = doj.getDate();
+      const dojYear = doj.getFullYear();
+
+      if (dojYear >= todayYear) continue;
+
+      const nextOccurrence = new Date(todayYear, dojMonth, dojDate);
+      if (nextOccurrence < new Date(todayYear, todayMonth, todayDate)) {
+        nextOccurrence.setFullYear(todayYear + 1);
+      }
+      const diffMs = nextOccurrence.getTime() - new Date(todayYear, todayMonth, todayDate).getTime();
+      const daysAway = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      const years = nextOccurrence.getFullYear() - dojYear;
+
+      if (daysAway <= 30) {
+        anniversaries.push({
+          name: u.name, employeeId: u.employeeId, department: u.department,
+          designation: u.designation, date: u.dateOfJoining,
+          daysAway, isToday: daysAway === 0, years
+        });
+      }
+    }
+  }
+
+  birthdays.sort((a, b) => a.daysAway - b.daysAway);
+  anniversaries.sort((a, b) => a.daysAway - b.daysAway);
+
+  return { birthdays, anniversaries };
+}

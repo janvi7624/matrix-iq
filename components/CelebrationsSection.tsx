@@ -1,9 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Cake, Award, PartyPopper } from 'lucide-react';
-import { SkeletonRows } from './ui/Skeleton';
-import historyStyles from './quotationHistory.module.css';
 import styles from './celebrations.module.css';
 
 interface CelebrationEntry {
@@ -140,52 +138,25 @@ function CelebrationPanel({
   );
 }
 
+interface CelebrationsData {
+  birthdays: CelebrationEntry[];
+  anniversaries: CelebrationEntry[];
+}
+
 // The upcoming birthdays / work anniversaries block, previously its own
 // "HR Dashboard" page (/hr-dashboard, removed). It lives on the main
-// dashboard now: /api/hr-dashboard is readable by any signed-in viewer, so
-// there's nothing HR-specific left to gate. A failed fetch renders nothing
-// rather than toasting — this is one section of a shared dashboard, not the
-// whole page, so it must never block the rest of it.
-export default function CelebrationsSection() {
-  const [birthdays, setBirthdays] = useState<CelebrationEntry[]>([]);
-  const [anniversaries, setAnniversaries] = useState<CelebrationEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    fetch('/api/hr-dashboard')
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data) => {
-        if (!active) return;
-        setBirthdays(data.birthdays || []);
-        setAnniversaries(data.anniversaries || []);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!active) return;
-        setLoadFailed(true);
-        setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (loadFailed) return null;
-
-  if (loading) {
-    return (
-      <div className={historyStyles.tableWrap}>
-        <SkeletonRows rows={4} columns={4} />
-      </div>
-    );
-  }
-
+// dashboard now, as a prop from Dashboard.tsx's one combined /api/dashboard
+// fetch (see lib/celebrationStore.ts's getUpcomingCelebrations) rather than
+// its own request — there's nothing HR-specific to gate, any signed-in
+// viewer may see it. Renders nothing on missing/failed data — this is one
+// section of a shared dashboard, not the whole page, so it must never block
+// the rest of it.
+export default function CelebrationsSection({ data }: { data: CelebrationsData | null }) {
   // Nothing to celebrate in the next 30 days — render nothing at all
   // rather than two empty panels and a row of zeroes taking up the foot of
   // the dashboard.
-  if (!birthdays.length && !anniversaries.length) return null;
+  if (!data || (!data.birthdays.length && !data.anniversaries.length)) return null;
+  const { birthdays, anniversaries } = data;
 
   return (
     <div className={styles.panelGrid}>

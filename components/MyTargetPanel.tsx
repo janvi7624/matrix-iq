@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import SegmentedToggle from './ui/SegmentedToggle';
@@ -48,26 +48,17 @@ interface MyTargetPayload {
 }
 
 // The rep's own target on their own Dashboard — Monthly, Quarterly and
-// Yearly off one fetch (all three scales come back together, so switching
-// tabs is instant and the three can't disagree with each other).
+// Yearly all come from the one combined /api/dashboard payload Dashboard.tsx
+// already fetches (see lib/myTargetSummary.ts), so switching tabs is instant
+// and the three can't disagree with each other.
 //
 // Renders NOTHING until the data says this viewer carries a target, so every
 // non-sales role's dashboard is unchanged rather than gaining an empty
 // "₹0 of ₹0" card.
-export default function MyTargetPanel() {
-  const [data, setData] = useState<MyTargetPayload | null>(null);
+export default function MyTargetPanel({ data }: { data: MyTargetPayload | null }) {
   const [scale, setScale] = useState<Scale>('monthly');
 
-  useEffect(() => {
-    let active = true;
-    fetch('/api/targets/me')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body) => { if (active && body?.hasAnyTarget) setData(body); })
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, []);
-
-  if (!data) return null;
+  if (!data || !data.hasAnyTarget) return null;
 
   const p = data.periods[scale];
   const percent = Math.min(100, Math.max(0, p.achievementPercent));
