@@ -646,8 +646,25 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     }
   }
 
-  const greeting = useMemo(() => getTimeGreeting(), []);
-  const formattedDate = useMemo(() => getFormattedDate(), []);
+  // Deliberately NOT computed during the render pass (a useMemo(fn, [])
+  // here still runs on the SERVER during SSR, and again on the CLIENT
+  // during hydration) — the server process's clock/timezone can legitimately
+  // read a different hour, or even a different calendar day, than the
+  // browser's, especially across the UTC/IST gap this app's users sit in.
+  // That mismatch between the SSR pass's text and the hydration pass's text
+  // is exactly what threw React's hydration error #418 ("text content did
+  // not match") in production. Deferred to a post-mount effect instead —
+  // the same "render something stable first, fill in the real value after
+  // mount" shape every data-fetching view in this app already uses; the
+  // instant the greeting/date have not resolved yet, the heading reads
+  // 'Welcome back' and the date is blank, for one render.
+  const [greeting, setGreeting] = useState<{ text: string; Icon: typeof Sun } | null>(null);
+  const [formattedDate, setFormattedDate] = useState('');
+  useEffect(() => {
+    setGreeting(getTimeGreeting());
+    setFormattedDate(getFormattedDate());
+  }, []);
+  const GreetingIcon = greeting?.Icon ?? Sun;
   const totalModuleCount = allFlattenedModules.length;
 
   return (
@@ -705,8 +722,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           </div>
           <div className={styles.heroText}>
             <div className={styles.heroGreetingRow}>
-              <span className={styles.heroGreetingIcon}><greeting.Icon size={18} /></span>
-              <h1 className={styles.heroTitle}>{greeting.text}, {currentUser.name.split(' ')[0]}</h1>
+              <span className={styles.heroGreetingIcon}><GreetingIcon size={18} /></span>
+              <h1 className={styles.heroTitle}>{greeting?.text ?? 'Welcome back'}, {currentUser.name.split(' ')[0]}</h1>
             </div>
             <div className={styles.heroSubtitleRow}>
               <span className={styles.heroDate}>

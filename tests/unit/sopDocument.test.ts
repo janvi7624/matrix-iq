@@ -361,6 +361,65 @@ describe('the controlled-document frame', () => {
   });
 });
 
+// A partner account has no department, no department manager and files no
+// Daily Report. A procedure that requires those of them states a requirement
+// that cannot be met, which is the one defect that discredits a whole
+// document — so the shared clauses are filtered by the kind of account.
+describe('clauses that do not apply to a partner', () => {
+  const mods = [mod({ key: 'partner-dashboard', label: 'Dashboard', section: 'Partner Portal', href: '/partner' })];
+  const partner = role({ key: 'partner-admin', label: 'Partner Admin' });
+
+  it('leaves the daily-reporting requirement out of a partner procedure', () => {
+    const titles = buildSopDocument(partner, mods).generalRequirements.map((block) => block.title);
+    expect(titles).not.toContain('Daily reporting');
+    expect(titles).not.toContain('Role and departmental scope');
+    expect(titles).toContain('Scope of a partner account');
+  });
+
+  it('keeps it for an internal role, and leaves the partner clause out', () => {
+    const titles = buildSopDocument(role(), mods).generalRequirements.map((block) => block.title);
+    expect(titles).toContain('Daily reporting');
+    expect(titles).toContain('Role and departmental scope');
+    expect(titles).not.toContain('Scope of a partner account');
+  });
+
+  // The numbering is cited in mail and in meetings, so it may not skip
+  // because a clause was dropped for this kind of account.
+  it('renumbers consecutively after filtering, in both directions', () => {
+    for (const subject of [partner, role()]) {
+      const doc = buildSopDocument(subject, mods);
+      for (const clauses of [doc.generalRequirements, doc.nonConformance]) {
+        expect(clauses.map((block) => block.index)).toEqual(clauses.map((_, i) => String(i + 1)));
+      }
+    }
+  });
+
+  it('does not name a department manager or HR in a partner responsibility table', () => {
+    const parties = buildSopDocument(partner, mods).responsibilities.map((row) => row.party);
+    expect(parties).not.toContain('Department manager');
+    expect(parties).not.toContain('Human Resources');
+    expect(parties).toContain('Relationship manager');
+    expect(parties).toContain('Partner Admin (account holder)');
+  });
+
+  it('does not list the Daily Report as a record of a partner\'s work', () => {
+    const partnerRecords = buildSopDocument(partner, mods).records.map((row) => row.record);
+    expect(partnerRecords.some((record) => record.includes('Daily Report'))).toBe(false);
+    const internalRecords = buildSopDocument(role(), mods).records.map((row) => row.record);
+    expect(internalRecords.some((record) => record.includes('Daily Report'))).toBe(true);
+  });
+
+  it('states the tenant boundary rather than a departmental one', () => {
+    const doc = buildSopDocument(partner, mods);
+    expect(doc.dataScope).toContain('partner organisation');
+    expect(doc.dataScope).not.toContain('Department Master');
+    expect(doc.accessRows.map((row) => row.attribute)).toContain('Tenant boundary');
+    expect(doc.scope.body[0]).toContain('external partner account');
+
+    expect(buildSopDocument(role(), mods).accessRows.map((row) => row.attribute)).not.toContain('Tenant boundary');
+  });
+});
+
 describe('sopFileName', () => {
   it('names the file after the role as a person reads it', () => {
     expect(sopFileName({ key: 'technical-manager', label: 'Technical Manager' })).toBe('MatrixIQ SoP - Technical Manager.pdf');

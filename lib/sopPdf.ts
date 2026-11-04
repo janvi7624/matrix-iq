@@ -722,7 +722,7 @@ export async function renderSopPdf(document: SopDocument, meta: SopPdfMeta): Pro
   paragraph(
     doc,
     cursor,
-    `This clause covers the ${document.moduleCount} modules available to this role, in the order in which they appear in the MatrixIQ navigation. Each sub-clause states the purpose of the module, where it is found, what the role is authorised to do in it, the steps to be followed, and the controls that apply.`,
+    `This clause covers the ${document.moduleCount} modules available to this role, in the order in which they appear in the MatrixIQ navigation. Each sub-clause states the purpose of the module, where it is found, what the role is authorised to do in it, the steps to be followed, and the controls that apply. The purpose is quoted as it stands in the module register (R2); the remainder is this procedure.`,
     { gap: 3.4 }
   );
 

@@ -121,6 +121,16 @@ export default function ReimbursementView({ currentUser }: Props) {
   const claimableMonth = useMemo(() => lastClaimableMonth(now), [now]);
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  // Guards the "new entries locked to {month}" hint below, which renders
+  // now/claimableMonth directly as text — `now` is a fresh Date on every
+  // render pass (the useMemo above still runs once during SSR and again
+  // during hydration), so the server's clock/timezone can legitimately
+  // read a different month than the browser's right at the UTC/IST
+  // boundary this app's users sit across. Rendering that text before the
+  // client has actually mounted is what throws React's hydration error
+  // #418 ("text content did not match"); waiting one tick avoids it.
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => setHasMounted(true), []);
   const [records, setRecords] = useState<ReimbursementRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [totalInWords, setTotalInWords] = useState('');
@@ -668,7 +678,7 @@ export default function ReimbursementView({ currentUser }: Props) {
             {showBulkForm ? 'Cancel' : '+ Add Multiple'}
           </button>
         )}
-        {canEdit && !canAddNewEntries && (
+        {canEdit && !canAddNewEntries && hasMounted && (
           <span className={styles.addLockedHint}>
             New entries can only be added for {MONTHS[now.getMonth()]} {now.getFullYear()} or {MONTHS[claimableMonth.month - 1]} {claimableMonth.year}.
           </span>

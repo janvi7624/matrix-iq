@@ -35,50 +35,50 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
   // ---------------------------------------------------------------- Workspace
   'daily-report': {
     steps: [
-      'Open Daily Report. It opens on today; the arrows and the date strip move between your working days.',
-      'Fill in the form your department was assigned. The shape differs per department — a row per activity for most, one narrative for AV, a numeric grid for Sales and GEM Sales.',
-      'Save as draft as often as you like. Nothing is reported until you submit.',
-      'Submit before the deadline (11:30 IST by default). Your department manager is emailed that you filed.',
-      'A submitted report is locked. To change it, raise an edit request from the same page and wait for your manager to approve it.'
+      'Open Daily Report. It opens on the current date; the arrows and the date strip move between the user\'s working days.',
+      'Complete the form assigned to the user\'s department. The form differs by department: a row per activity for most, a single narrative for AV, and a numeric grid for Sales and GEM Sales.',
+      'Save as draft as often as required. Nothing is reported until the report is submitted.',
+      'Submit before the deadline, 11:30 IST by default. The department manager is notified by email that the report was filed.',
+      'A submitted report is locked. To amend it, raise an edit request from the same screen and await approval by the department manager.'
     ],
     rules: [
-      'Missing the deadline creates a WARNING against you automatically at 11:30. Four active warnings escalate you to HR.',
-      'Reminders go out the evening before (21:00) and again at 10:00. If you are not going to file, tell your manager — they can mark you on leave, which exempts the day instead of warning you.',
+      'A missed deadline raises a warning against the account automatically at 11:30. Four active warnings are escalated to Human Resources.',
+      'Reminders are issued at 21:00 on the preceding evening and again at 10:00. Where the report will not be filed, the department manager shall be informed; the manager can record the day as leave, which exempts it instead of raising a warning.',
       'Sales and GEM Sales rows that the system already knows about (quotation activity) are filled in and locked. Do not retype them elsewhere.',
       'Changing a row\'s activity type clears the fields belonging to the old one. The GEM activity picker asks first for exactly this reason.'
     ]
   },
   'team-daily-reports': {
     steps: [
-      'Open Team Daily Reports to see your department\'s filing status for a day, week, fortnight or month.',
+      'Open Team Daily Reports to review the department\'s filing status for a day, week, fortnight or month.',
       'Click a cell to read what somebody filed, or to file on their behalf.',
       'Mark a team member on leave for a date they could not file — that exempts the day rather than letting it become a warning.',
       'Approve or decline edit requests on reports that are already submitted.'
     ],
     rules: [
-      'You see your own department, plus any department you are listed as manager of in Department Master. Nothing wider.',
+      'Visibility extends to the user\'s own department and to any department for which the user is named as manager in Department Master. No department beyond those.',
       'Filing on someone\'s behalf is recorded as on-behalf-of, not as them. The record stays honest.',
       'The Month preset counts every working day in the month, including ones that have not happened yet, so a mid-month figure reads lower than the department is actually running at.'
     ]
   },
   'my-tasks': {
     steps: [
-      'Open My Tasks for everything assigned to you, across sales and admin work.',
-      'Update status as you go, and add a remark when the status change needs explaining.',
+      'Open My Tasks for every task assigned to the user, across sales and administrative work.',
+      'Update the status as the work progresses, and add a remark wherever a status change requires explanation.',
       'Close the task when it is done.'
     ],
-    rules: ['An overdue task stays overdue in analytics and on your manager\'s dashboard. Re-date it deliberately rather than leaving it to rot.']
+    rules: ['An overdue task remains overdue in analytics and on the manager\'s dashboard. Re-date it deliberately rather than leaving it open.']
   },
   'team-tasks': {
     steps: [
-      'Open Team Tasks to see what your team is carrying.',
-      'Reassign or re-date anything stuck, and read the remark trail before you chase.'
+      'Open Team Tasks to review the work the team is carrying.',
+      'Reassign or re-date any task that is stuck, and read the remark trail before following it up.'
     ]
   },
   'admin-task-assignment': {
     steps: [
       'Open Task Planner to create work for somebody else.',
-      'Pick the assignee — an individual, or a department\'s manager where you want them to distribute it.',
+      'Select the assignee: an individual, or a department manager where the work is to be distributed by that manager.',
       'Set a due date and a clear title; the assignee sees both in My Tasks and is notified.'
     ],
     rules: ['A task with no due date never becomes overdue and so never chases anyone. Set one.']
@@ -90,12 +90,12 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
       'Open Project Dashboard for every sales project, from site visit through to close.',
       'Add a project with New Project. Type the client name — if they already exist, the form offers to use their details.',
       'Choose "Use their details for this new project" to copy the client\'s identity and contacts from their most recent project. This still creates a NEW project.',
-      'Move the project along its stages as reality changes, and add remarks as you go — the remark trail is what makes the timeline readable later.'
+      'Advance the project through its stages as the position changes, and add remarks at each step; the remark trail is what makes the timeline readable afterwards.'
     ],
     rules: [
       'The duplicate suggestion copies the client ONLY — never the value, stage, departments or assignees. A second project for an existing client is the ordinary case, not a copy of their last deal.',
-      '"Open the existing one" opens in a new tab on purpose, so it cannot discard the project you were typing.',
-      'What you can see depends on your role\'s data scope: without org-wide visibility you see your own records plus any department you manage.'
+      '"Open the existing one" opens in a new tab deliberately, so that the project being entered is not discarded.',
+      'Visibility depends on the role\'s data scope: without org-wide visibility, the user sees their own records and those of any department they manage.'
     ]
   },
   quotation: {
@@ -106,31 +106,31 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
       'Save, then send or print the PDF.'
     ],
     rules: [
-      'Markup, discount, custom-product pricing and the AMC percentage are a separate permission from creating a quotation. If those inputs are locked for you, that is deliberate — ask rather than working around it.',
+      'Markup, discount, custom-product pricing and the AMC percentage are governed by a permission separate from creating a quotation. Where those inputs are locked, that is a configured control; the permission shall be requested rather than circumvented.',
       'Revise an existing quotation rather than creating a near-duplicate: the revision keeps the history attached to the same client.'
     ]
   },
   'my-quotations': {
     steps: [
       'Open Existing Quotations to search what has already been raised and follow it up.',
-      'Filter by client, status or date to find the one you mean.',
+      'Filter by client, status or date to locate the required record.',
       'Open it to revise, re-print or record the outcome.'
     ]
   },
   leads: {
     steps: [
-      'Open Lead Capture / Inquiry and add the enquiry with whatever you have — a phone number alone is enough to start.',
-      'Record the call outcome each time you speak to them.',
+      'Open Lead Capture / Inquiry and record the enquiry with whatever detail is available; a telephone number alone is sufficient to open it.',
+      'Record the outcome of every call with the enquirer.',
       'Convert the lead to a project once there is something real to quote.'
     ],
     rules: [
-      'Leads are scoped to the ones you created or were assigned, not org-wide. An expo drops hundreds of cards in here and they are not everybody\'s to work.',
+      'Leads are scoped to those the user created or was assigned, and are not org-wide. An exhibition can add several hundred records, and they are not open to every user to work.',
       'A lead with no project yet shows in Client Master as a prospect rather than as a customer with zero projects.'
     ]
   },
   'client-master': {
     steps: [
-      'Open Client Master for the single directory of everyone you deal with — customers (from projects) and prospects (from leads with no project yet).',
+      'Open Client Master for the single directory of every counterparty: customers, drawn from projects, and prospects, drawn from leads with no project yet.',
       'Use New Project on any row to start another job for that client with their details already filled in.',
       'Open a row to see their projects, contacts, owners and remarks together.'
     ],
@@ -170,7 +170,7 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
   partners: {
     steps: [
       'Open Partner Management to create a partner organisation and name its relationship manager.',
-      'Collect the three onboarding documents — Agreement, NDA and Payment Agreement. Either the partner uploads them, or you upload on their behalf.',
+      'Obtain the three onboarding documents: Agreement, NDA and Payment Agreement. They are uploaded either by the partner or by the relationship manager on the partner\'s behalf.',
       'Review each document. The partner gets full portal access only once all three are approved by the account creator.'
     ],
     rules: [
@@ -180,14 +180,14 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
   },
   'partner-workspace': {
     steps: [
-      'Open Partner to see only the partners you created or are the relationship manager for.',
+      'Open Partner to review only the partners the user created, or for which the user is the relationship manager.',
       'Track their documents, activity and requirements from here rather than from the admin list.'
     ],
-    rules: ['The point of this module is that it is scoped to you. If you are seeing somebody else\'s partners, say so — that is a bug, not a feature.']
+    rules: ['This module is scoped to the user by design. Visibility of another user\'s partners is a defect and shall be reported as a suspected access defect rather than used.']
   },
   'my-sold-projects': {
     steps: [
-      'Open My Sold Projects to follow what you sold through technical execution, without needing the whole TMS.',
+      'Open My Sold Projects to follow the projects the user sold through technical execution, without access to the whole of TMS.',
       'Check status and raise a question against the project rather than chasing by phone.'
     ]
   },
@@ -206,20 +206,20 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
   'tms-tasks': {
     steps: [
       'Open Tasks to see technical work items.',
-      'Update status as you progress and attach what the next person needs.'
+      'Update the status as execution progresses, and attach whatever the next party requires.'
     ],
     rules: ['Engineers and Technicians see their own tasks. Full visibility across the team is a separate permission.']
   },
   'tms-bom-requests': {
     steps: [
-      'Open BOM Request and raise the bill of materials you need.',
-      'It goes to YOUR department\'s manager first — Robotics to the Robotics manager, not to every technical manager.',
+      'Open BOM Request and raise the bill of materials required.',
+      'The request is routed to the manager of the requester\'s own department first — Robotics to the Robotics manager, and not to every technical manager.',
       'After that manager approves, it goes to Mayank Jani.',
       'After that approval it goes to Accounts for payment.',
       'The request page shows where it currently sits and what has already been approved.'
     ],
     rules: [
-      'The chain is sequential. A request waiting at stage one has not reached Mayank and will not until your own manager acts.',
+      'The approval chain is sequential. A request held at the first stage has not reached Mayank and will not do so until the requester\'s own department manager has acted.',
       'Approved is not paid. The last step is Accounts, and the request says so until payment is marked.'
     ]
   },
@@ -251,14 +251,14 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
   // ---------------------------------------------------------------------- HR
   reimbursement: {
     steps: [
-      'Open Reimbursement and start a claim for the period.',
-      'Add each expense as its own row — use the multi-row entry rather than one lumped line.',
-      'Attach the bill for every row. A row without a bill will come back to you.',
-      'Submit. It goes to your approver, then to Accounts for payment.'
+      'Open Reimbursement and raise a claim for the period.',
+      'Add each expense as its own row, using the multi-row entry rather than a single combined line.',
+      'Attach the bill for every row. A row without a bill is returned to the claimant.',
+      'Submit. The claim is routed to the approver, then to Accounts for payment.'
     ],
     rules: [
-      'Claims have a deadline per period. A late claim is a conversation, not an entitlement.',
-      'Attachments must actually open. Photograph the whole bill, not a corner of it.'
+      'Claims have a deadline for each period. A claim submitted after the deadline is not an entitlement and requires the approver\'s agreement.',
+      'Every attachment shall open and be legible. Photograph the whole bill rather than part of it.'
     ]
   },
   'office-operation-expenses': {
@@ -279,7 +279,7 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
   'hr-reports': {
     steps: [
       'Open HR Expense Report for the consolidated view of reimbursement, office operation and admin expense.',
-      'Filter to the month and department you are reporting on, and export.'
+      'Filter to the month and department being reported on, and export.'
     ]
   },
   'hr-employees': {
@@ -296,13 +296,13 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
       'Waive it with a reason, or carry it forward into the HR process.'
     ],
     rules: [
-      'You have two days to act. After that your HR manager is reminded that the action is still pending.',
+      'The action shall be taken within two days. After that period the HR manager is reminded that it remains pending.',
       'The escalation mail goes to both the HR manager and HR, so "I didn\'t see it" is not where this ends up.'
     ]
   },
   'travel-schedule': {
     steps: [
-      'Open Travel Schedule and raise the trip before you travel.',
+      'Open Travel Schedule and raise the trip before travelling.',
       'Record purpose, dates and destination; get it approved; then record the actual booking.'
     ]
   },
@@ -318,30 +318,30 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
   // --------------------------------------------------------------- Accounts
   'accounts-payments': {
     steps: [
-      'Open Payments for the queue of things approved and waiting to be paid — reimbursements, BOM requests, travel bookings.',
-      'Pay, then mark it paid here so the requester and the approver both see it closed.'
+      'Open Payments for the queue of items approved and awaiting payment: reimbursements, BOM requests and travel bookings.',
+      'Make the payment, then mark it paid here, so that both the requester and the approver see it closed.'
     ],
-    rules: ['This queue is for the Accounts team and admins. Marking something paid is the signal everybody upstream is waiting for — do not batch it up for later.']
+    rules: ['This queue is for the Accounts team and administrators. Marking an item paid is the signal every party upstream is waiting for, and shall be recorded when the payment is made rather than batched.']
   },
 
   // -------------------------------------------------------------- Marketing
   materials: {
     steps: [
       'Open Materials to find a datasheet, case study, brochure, presentation or certificate.',
-      'Browse by folder, or search — search looks through the whole library, not just the folder you are standing in.',
+      'Browse by folder, or search. Search covers the whole library and not only the folder currently open.',
       'Marketing adds documents: pick the folder, give it a product and a category, and either paste a Drive link, upload the file, or paste any other web address.'
     ],
     rules: [
       'A folder or document can be limited to specific roles. Limiting a folder limits everything inside it, so the SoP folders show each role only its own.',
-      'For a Drive link, MatrixIQ stores the LINK, not the file — if Drive says "Restricted", nobody else can open it. Check in a private window before you add it.',
+      'For a Drive link, MatrixIQ stores the link and not the file. Where Drive reports the file as restricted, no other user can open it. Verify the link in a private browser window before adding it.',
       'Sharing with partners needs the document AND every folder above it shared. Ticking the document alone does nothing.'
     ]
   },
   'marketing-requests': {
     steps: [
-      'Open Marketing Requests and raise what you need designed or produced.',
-      'Say what it is for and when you need it — the wizard asks in order.',
-      'It is approved, assigned, and comes back to you as a final submission. Comment on the request rather than mailing the designer.'
+      'Open Marketing Requests and raise the item to be designed or produced.',
+      'State the purpose and the date required; the wizard asks for these in order.',
+      'The request is approved, assigned, and returned to the requester as a final submission. Comments shall be made on the request rather than by mail to the designer.'
     ]
   },
 
@@ -360,7 +360,7 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
       'Open Analytics for the pipeline and activity picture.',
       'Set the period first, then read — most figures are period-sensitive.'
     ],
-    rules: ['Figures respect your data scope. Two people can legitimately see different totals on the same screen.']
+    rules: ['Figures observe the user\'s data scope. Two users can legitimately see different totals on the same screen.']
   },
   targets: {
     steps: ['Open Target Details to set and review targets, and to see actuals against them.']
@@ -390,7 +390,7 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
       'Save, and tell the people affected. Their SoP changes with it.'
     ],
     rules: [
-      'A module action left unset falls back to whether the role is privileged. Setting it explicitly is how you stop guessing.',
+      'A module action left unset falls back to whether the role is privileged. Setting it explicitly removes the ambiguity.',
       'View All Departments is the only switch that decides org-wide versus own-records data visibility. It is not the same as being privileged.'
     ]
   },
@@ -455,14 +455,14 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
 
   // ------------------------------------------------------- Partner Portal
   'partner-dashboard': {
-    steps: ['Sign in to the partner portal for your own dashboard — your leads, quotations, demos and documents in one place.']
+    steps: ['Sign in to the partner portal for the account\'s own dashboard: its leads, quotations, demos and documents in one place.']
   },
   'partner-profile': {
     steps: [
-      'Open Company Profile and keep your organisation\'s details and GST current.',
-      'Upload the Agreement, NDA and Payment Agreement here if your relationship manager has not uploaded them for you.'
+      'Open Company Profile and keep the organisation\'s details and GST registration current.',
+      'Upload the Agreement, NDA and Payment Agreement here where the relationship manager has not already done so.'
     ],
-    rules: ['Full portal access starts once all three documents are approved by the person who created your account.']
+    rules: ['Full portal access begins once all three documents are approved by the user who created the account.']
   },
   'partner-projects': {
     steps: ['Open My Leads / Projects to register a lead and follow it as it becomes a project.']
@@ -471,14 +471,14 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
     steps: ['Open Quotations to request a quotation and to read what came back.']
   },
   'partner-demos': {
-    steps: ['Open Demo Requests to ask for a demonstration for your customer, and to see when it is scheduled.']
+    steps: ['Open Demo Requests to request a demonstration for the customer, and to see when it is scheduled.']
   },
   'partner-materials': {
     steps: ['Open Marketing Materials for the brochures, datasheets, case studies and presentations published to partners.'],
-    rules: ['You see what has been published to partners. If something you expect is missing, ask your relationship manager rather than assuming it does not exist.']
+    rules: ['Visibility is limited to the material published to partners. Where an expected item is missing, the relationship manager shall be asked rather than the item presumed not to exist.']
   },
   'partner-marketing-requests': {
-    steps: ['Open Marketing Requests to ask for marketing collateral, and to track what you asked for.']
+    steps: ['Open Marketing Requests to request marketing collateral, and to track what was requested.']
   },
   'partner-support': {
     steps: ['Open Technical Support to raise a ticket and follow it. Keep the exchange on the ticket so the history stays in one place.']
