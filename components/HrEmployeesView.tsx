@@ -18,6 +18,7 @@ import SubmitButton from './ui/SubmitButton';
 import ToolbarButton from './ui/ToolbarButton';
 import Modal from './ui/Modal';
 import { useToast } from './ui/ToastProvider';
+import { fetchCached, invalidatePeopleCaches } from '@/lib/fetchCached';
 
 interface Employee {
   id: string;
@@ -82,6 +83,9 @@ export default function HrEmployeesView({ canCreate }: HrEmployeesViewProps) {
   const [saving, setSaving] = useState(false);
 
   async function load() {
+    // HR creates and edits employees here, so the same rule as User
+    // Management applies: the cached people lists are stale afterwards.
+    invalidatePeopleCaches();
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -101,9 +105,15 @@ export default function HrEmployeesView({ canCreate }: HrEmployeesViewProps) {
 
   useEffect(() => {
     if (!canCreate) return;
-    Promise.all([fetch('/api/departments'), fetch('/api/hr/roles')]).then(async ([deptRes, roleRes]) => {
-      if (deptRes.ok) setDepartments(await deptRes.json());
-      if (roleRes.ok) setRoles(await roleRes.json());
+    // Both are reference lists that only fill the create-employee form's
+    // dropdowns, so both are cached. A failure leaves the existing list
+    // alone, as the old `if (res.ok)` did.
+    Promise.all([
+      fetchCached('/api/departments').catch(() => null),
+      fetchCached('/api/hr/roles').catch(() => null)
+    ]).then(([departments, roles]) => {
+      if (departments) setDepartments(departments);
+      if (roles) setRoles(roles);
     });
   }, [canCreate]);
 

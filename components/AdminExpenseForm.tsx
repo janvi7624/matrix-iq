@@ -9,6 +9,7 @@ import { AdminEntry, UserOption } from './AdminExpensesView';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './adminExpenses.module.css';
+import { fetchCached } from '@/lib/fetchCached';
 
 const EXPENSE_TYPES = ['Hotel', 'Visa Expense', 'Bus Ticket', 'Train Ticket', 'Flight Ticket', 'Other Expense'];
 // Everything except 'Other Expense' itself — used to tell "this row's
@@ -86,7 +87,7 @@ export default function AdminExpenseForm({ editBatchId }: AdminExpenseFormProps)
   }, [users, empSearch]);
 
   useEffect(() => {
-    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then((data) => setUsers(Array.isArray(data) ? data : []));
+    fetchCached('/api/users/lite').then((data) => setUsers(Array.isArray(data) ? data : []));
   }, []);
 
   useEffect(() => {

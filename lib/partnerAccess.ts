@@ -82,6 +82,33 @@ export async function canReviewPartnerDocuments(
 }
 
 /**
+ * Who may view or edit ONE SPECIFIC partner's own record, page, portal
+ * logins and documents — the account's creator, its relationship manager, or
+ * anyone who can manage partners org-wide. Same rule as
+ * canReviewPartnerDocuments above (document approval and "may open this
+ * partner's own page" are the same relationship, by the same person), reused
+ * under its own name so a GET/PATCH on a single partner reads as what it
+ * actually checks.
+ *
+ * This is the rule PartnerCreateView promises on the spot — "You will be
+ * recorded as this partner's relationship manager, so it appears in your
+ * Partner list and you approve its Agreement, NDA and Payment Agreement" —
+ * for an ordinary sales account with none of canManagePartners' org-wide
+ * grants. Before this existed, every app/api/admin/partners/[id]/** route
+ * checked canManagePartners ALONE, which is true only for an admin, a sales
+ * lead manager, or someone with the viewAllDepartments capability — so the
+ * very person that promise was made to got a 403 opening their own partner's
+ * page, admin and sales-lead-manager accounts went on seeing it fine (hence
+ * the bug surfacing as "works for me, broken for them").
+ */
+export async function canAccessPartnerRecord(
+  viewer: { userId?: string; username: string; role: string; isPrivileged: boolean },
+  partner: { created_by?: string | null; relationship_manager_id?: string | null }
+): Promise<boolean> {
+  return canReviewPartnerDocuments(viewer, partner);
+}
+
+/**
  * Who may DELETE a partner — nobody, through this module.
  *
  * Kept as an explicit named rule rather than simply omitting the route, so

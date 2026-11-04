@@ -8,6 +8,7 @@ import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import pageStyles from './partnersPage.module.css';
+import { fetchCached } from '@/lib/fetchCached';
 
 const STATUS_LABEL: Record<PartnerStatus, string> = {
   pending: 'Pending setup',
@@ -63,8 +64,7 @@ export default function PartnerManagementPage() {
 
   useEffect(() => {
     load();
-    fetch('/api/users/lite')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/users/lite')
       .then(setUsers)
       .catch(() => setUsers([]));
   }, []);

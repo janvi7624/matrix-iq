@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { PartnerRecord, PartnerStatus } from '@/lib/types';
 import { PROJECT_DEPARTMENTS, PROJECT_DEPARTMENT_LABEL } from '@/lib/projectDepartmentOptions';
 import { PARTNER_ROLE_KEYS, PARTNER_ROLE_LABEL } from '@/lib/partnerRoles';
@@ -10,6 +11,7 @@ import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import pageStyles from './partnerDetail.module.css';
+import { fetchCached } from '@/lib/fetchCached';
 
 interface PartnerDocumentRow {
   kind: (typeof PARTNER_DOCUMENT_KINDS)[number];
@@ -53,6 +55,9 @@ const NEXT_STATUSES: Record<PartnerStatus, PartnerStatus[]> = {
 // the two audiences cannot drift into different behaviour — and the APIs it
 // calls do their own per-viewer authorization, so sharing it grants nothing.
 export default function PartnerDetailView({ id }: { id: string }) {
+  // The two routes this view renders under lead back to their own list —
+  // /admin/partners is org-wide and 403s for a non-privileged creator/RM.
+  const allPartnersHref = usePathname()?.startsWith('/admin') ? '/admin/partners' : '/partners';
   const [partner, setPartner] = useState<PartnerRecord | null>(null);
   const [users, setUsers] = useState<PartnerUser[]>([]);
   const [staff, setStaff] = useState<{ id: string; username: string; name: string }[]>([]);
@@ -163,8 +168,7 @@ export default function PartnerDetailView({ id }: { id: string }) {
   useEffect(() => {
     load();
     loadDocuments();
-    fetch('/api/users/lite')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/users/lite')
       .then(setStaff)
       .catch(() => setStaff([]));
   }, [load, loadDocuments]);
@@ -263,7 +267,7 @@ export default function PartnerDetailView({ id }: { id: string }) {
     return (
       <AppShell title="Partner" subtitle="Sales › partner management">
         <div className={historyStyles.status}>{status}</div>
-        <Link className={historyStyles.button} href="/admin/partners">← All partners</Link>
+        <Link className={historyStyles.button} href={allPartnersHref}>← All partners</Link>
       </AppShell>
     );
   }
@@ -271,7 +275,7 @@ export default function PartnerDetailView({ id }: { id: string }) {
   return (
     <AppShell title={partner.company_name} subtitle={`Sales › partner ${partner.partner_code}`}>
       <div className={pageStyles.actionsRow}>
-        <Link className={historyStyles.button} href="/admin/partners">← All partners</Link>
+        <Link className={historyStyles.button} href={allPartnersHref}>← All partners</Link>
       </div>
 
       {error && <div className={historyStyles.loginError}>{error}</div>}

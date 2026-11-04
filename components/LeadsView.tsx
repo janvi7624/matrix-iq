@@ -40,6 +40,7 @@ import Textarea from './ui/Textarea';
 import PriorityBadge from './ui/PriorityBadge';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { fetchCached } from '@/lib/fetchCached';
 
 interface LeadsViewProps {
   currentUser: { username: string; role: UserRole; isPrivileged: boolean };
@@ -300,15 +301,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   }
 
   // A 403 here is the expected answer for a rep rather than an error — it just
-  // means no assignment controls for them, so it stays silent.
+  // means no assignment controls for them, so it stays silent. Cached: this is
+  // called again on every focus and every slow-interval refresh alongside the
+  // leads themselves, and the roster of who may be assigned a lead does not
+  // change between two refreshes of the list.
   async function loadAssignees() {
     try {
-      const response = await fetch('/api/leads/assignees');
-      if (!response.ok) {
-        setAssignees(null);
-        return;
-      }
-      const data: { assignees: Assignee[] } = await response.json();
+      const data = await fetchCached<{ assignees: Assignee[] }>('/api/leads/assignees');
       setAssignees(data.assignees);
     } catch {
       setAssignees(null);

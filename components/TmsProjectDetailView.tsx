@@ -26,6 +26,7 @@ import { classifyDeadline, DEADLINE_BUCKET_BAND, DEADLINE_BUCKET_LABEL } from '@
 import { BAND_COLOR } from './ui/HealthGauge';
 import { AuditLogEntry } from '@/lib/types';
 import styles from './tmsDetail.module.css';
+import { fetchCached } from '@/lib/fetchCached';
 
 const PHASE_LABEL: Record<TmsProjectPhaseStatus, string> = {
   pending: 'Pending',
@@ -256,8 +257,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
   const [deciding, setDeciding] = useState(false);
 
   useEffect(() => {
-    fetch('/api/tms/assignable-users')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/tms/assignable-users')
       .then((users: PersonPickerOption[]) => setAssignableUsers(users))
       .catch(() => setAssignableUsers([]));
   }, []);

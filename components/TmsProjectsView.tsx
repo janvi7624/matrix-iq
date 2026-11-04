@@ -29,6 +29,7 @@ import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { fetchCached } from '@/lib/fetchCached';
 
 interface PhaseDraft {
   name: string;
@@ -137,12 +138,18 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     setLoading(true);
     setLoadFailed(false);
     try {
-      const [projectsRes, deptRes, usersRes] = await Promise.all([fetch('/api/tms/projects'), fetch('/api/departments'), fetch('/api/tms/assignable-users')]);
+      // Projects are live; the department list and the assignable-user list
+      // are reference data, shared with TMS Tasks and the pickers.
+      const [projectsRes, departments, users] = await Promise.all([
+        fetch('/api/tms/projects'),
+        fetchCached<DepartmentRecord[]>('/api/departments').catch(() => null),
+        fetchCached<PersonPickerOption[]>('/api/tms/assignable-users').catch(() => null)
+      ]);
       if (!projectsRes.ok) throw new Error(String(projectsRes.status));
       const data: TmsProjectRecord[] = await projectsRes.json();
       setProjects(data);
-      if (deptRes.ok) setDepartments(await deptRes.json());
-      if (usersRes.ok) setUsers(await usersRes.json());
+      if (departments) setDepartments(departments);
+      if (users) setUsers(users);
       setStatus(data.length ? `${data.length} project${data.length === 1 ? '' : 's'} found.` : '');
     } catch {
       setStatus('Could not reach the TMS API. Try refreshing.');

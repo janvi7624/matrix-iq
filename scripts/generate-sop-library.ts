@@ -51,6 +51,7 @@ import {
 import { createMaterial, listMaterials, updateMaterial } from '../lib/materialStore';
 import { formatIstDate } from '../lib/dailyReportTime';
 import { isPartnerRoleKey } from '../lib/partnerRoles';
+import { BRAND } from '../lib/branding';
 
 const PARENT_FOLDER = 'MatrixIQ SoP';
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -59,7 +60,12 @@ const OUT_DIR = path.join(process.cwd(), '.sop-out');
 /** The revision ledger. Committed, because it is the document's own history. */
 const REVISION_LOG = path.join(process.cwd(), 'scripts', 'sop-revision-log.json');
 
-const ORGANISATION = process.env.SOP_ORGANISATION || 'Nanta Technologies';
+// lib/branding.ts is the one place the real legal company name is allowed to
+// be hardcoded — every other file, this script included, reads it from
+// there. Was hardcoded here as 'Nanta Technologies', a name that doesn't
+// exist (the real one is NANTA TECH LIMITED) and printed wrong on all 12
+// already-filed SoP PDFs until this was caught.
+const ORGANISATION = process.env.SOP_ORGANISATION || BRAND.companyLegalName;
 const CLASSIFICATION = 'Internal — Confidential';
 const PARTNER_CLASSIFICATION = 'Confidential — Authorised Channel Partners';
 const ISSUED_BY = 'MatrixIQ Document Control';
@@ -122,7 +128,7 @@ function addYear(isoDate: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** Initials, for the document number — "Nanta Technologies" gives NT. */
+/** Initials, for the document number — "NANTA TECH LIMITED" gives NTL. */
 function organisationPrefix(name: string): string {
   const initials = name
     .split(/\s+/)

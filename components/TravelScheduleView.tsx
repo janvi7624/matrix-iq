@@ -12,6 +12,7 @@ import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './travelScheduleView.module.css';
+import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 interface UserOption {
   id: string;
@@ -67,8 +68,8 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
 
   useEffect(() => {
     load();
-    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
-    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
+    fetchCached('/api/users/lite').then(setUsers).catch(() => setUsers([]));
+    fetchCached('/api/projects', OPTIONS_TTL_MS).then(setProjects).catch(() => setProjects([]));
   }, []);
 
   async function handleCreate(e: FormEvent) {

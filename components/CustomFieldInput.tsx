@@ -6,6 +6,7 @@ import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
 import fieldStyles from './customFieldInput.module.css';
 import { useToast } from './ui/ToastProvider';
+import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 interface UserLite {
   username: string;
@@ -31,13 +32,13 @@ export default function CustomFieldInput({ field, value, onChange }: CustomField
 
   useEffect(() => {
     if (field.type === 'user' && users.length === 0) {
-      fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
+      fetchCached('/api/users/lite').then(setUsers).catch(() => setUsers([]));
     }
     if (field.type === 'project' && projects.length === 0) {
-      fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
+      fetchCached('/api/projects', OPTIONS_TTL_MS).then(setProjects).catch(() => setProjects([]));
     }
     if (field.type === 'product' && products.length === 0) {
-      fetch('/api/products').then((r) => (r.ok ? r.json() : [])).then(setProducts).catch(() => setProducts([]));
+      fetchCached('/api/products').then(setProducts).catch(() => setProducts([]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [field.type]);

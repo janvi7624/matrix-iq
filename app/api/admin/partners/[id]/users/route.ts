@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { canManagePartners } from '@/lib/partnerAccess';
+import { canAccessPartnerRecord } from '@/lib/partnerAccess';
 import { findPartnerById } from '@/lib/partnerStore';
 import { createPartnerUser, listPartnerUsers, PartnerUserError, updatePartnerUser } from '@/lib/partnerUserStore';
 import { PARTNER_ROLE_KEYS, PartnerRoleKey } from '@/lib/partnerRoles';
@@ -11,10 +11,13 @@ import { getClientIp } from '@/lib/requestIp';
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await canManagePartners(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
     const { id } = await params;
+    const partner = await findPartnerById(id);
+    if (!partner) return NextResponse.json({ error: 'Partner not found' }, { status: 404 });
+    // Record-level, not just org-wide — see canAccessPartnerRecord's comment.
+    if (!(await canAccessPartnerRecord(viewer, partner))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.json(await listPartnerUsers(id));
   } catch (error) {
     return apiErrorResponse(error);
@@ -24,7 +27,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await canManagePartners(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
@@ -45,6 +47,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params;
     const partner = await findPartnerById(id);
     if (!partner) return NextResponse.json({ error: 'Partner not found' }, { status: 404 });
+    // Record-level, not just org-wide — see canAccessPartnerRecord's comment.
+    if (!(await canAccessPartnerRecord(viewer, partner))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const result = await createPartnerUser(
       { partnerId: id, username, name, email, phone: typeof body.phone === 'string' ? body.phone.trim() : '', role: role as PartnerRoleKey },
@@ -79,7 +83,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await canManagePartners(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json().catch(() => null);
   const userId = typeof body?.userId === 'string' ? body.userId : '';
@@ -90,6 +93,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const { id } = await params;
+    const partner = await findPartnerById(id);
+    if (!partner) return NextResponse.json({ error: 'Partner not found' }, { status: 404 });
+    // Record-level, not just org-wide — see canAccessPartnerRecord's comment.
+    if (!(await canAccessPartnerRecord(viewer, partner))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     // Scoped by BOTH ids in the store, so a userId belonging to another
     // partner — or to an internal employee — simply does not resolve here.
     const result = await updatePartnerUser(id, userId, {

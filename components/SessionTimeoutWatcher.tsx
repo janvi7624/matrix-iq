@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
+import { clearFetchCache } from '@/lib/fetchCached';
 import {
   SESSION_ACTIVITY_STORAGE_KEY,
   SESSION_HEARTBEAT_MIN_GAP_MS,
@@ -90,6 +91,7 @@ export default function SessionTimeoutWatcher() {
     if (signingOutRef.current) return;
     signingOutRef.current = true;
     try {
+      clearFetchCache();
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch {
       // Even if that call fails the token is expiring anyway; still leave.

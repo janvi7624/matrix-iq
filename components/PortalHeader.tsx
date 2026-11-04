@@ -10,6 +10,7 @@ import GlobalSearch from './GlobalSearch';
 import NotificationBell from './NotificationBell';
 import styles from './quotationHistory.module.css';
 import { forgetCelebrationPopups } from '@/lib/celebrationPopupSeen';
+import { clearFetchCache } from '@/lib/fetchCached';
 
 interface PortalHeaderProps {
   title: string;
@@ -39,6 +40,9 @@ export default function PortalHeader({ title, subtitle, showBackLink = true }: P
     // So the birthday popup shows once on the NEXT login rather than being
     // suppressed for the rest of the day (lib/celebrationPopupSeen.ts).
     forgetCelebrationPopups();
+    // See Sidebar: router.push is a client navigation and leaves module
+    // state, the reference cache included, in place.
+    clearFetchCache();
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
     router.push('/login');
     router.refresh();

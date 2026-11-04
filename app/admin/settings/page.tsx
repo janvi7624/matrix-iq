@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell';
 import styles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import pageStyles from './settingsPage.module.css';
+import { fetchCached } from '@/lib/fetchCached';
 
 export default function ApplicationSettingsPage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -16,7 +17,7 @@ export default function ApplicationSettingsPage() {
   const [creatorSearch, setCreatorSearch] = useState('');
 
   useEffect(() => {
-    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
+    fetchCached('/api/users/lite').then(setUsers).catch(() => setUsers([]));
   }, []);
 
   async function load() {

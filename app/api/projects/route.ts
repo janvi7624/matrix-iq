@@ -44,12 +44,27 @@ export async function GET(request: NextRequest) {
 
   try {
     const records = await projectStore.listLight(viewer.username, viewer.isPrivileged);
+
+    // The remarks merge is a SECOND query, and a DISTINCT ON across the whole
+    // project_timeline_events table at that. Exactly one caller reads what it
+    // produces — components/ProjectsView.tsx, for the "last remark" column.
+    // The other eleven callers of this route use it as a project picker or to
+    // label a project_id, and were paying for that scan on every mount.
+    //
+    // So it is opt-in. The shape does not change either way: toRecord()
+    // already leaves last_remark empty for every bulk read, which is the
+    // documented convention for a resolved display field (see its comment),
+    // so a caller that does not ask gets exactly what it got before minus a
+    // value it never looked at.
+    if (request.nextUrl.searchParams.get('remarks') !== '1') return NextResponse.json(records);
+
     const lastRemarks = await listLastRemarks(records.map((r) => r.id));
-    const withRemarks = records.map((r) => {
-      const last = lastRemarks[r.id];
-      return last ? { ...r, last_remark: last.remark, last_remark_at: last.at, last_remark_by: last.by } : r;
-    });
-    return NextResponse.json(withRemarks);
+    return NextResponse.json(
+      records.map((r) => {
+        const last = lastRemarks[r.id];
+        return last ? { ...r, last_remark: last.remark, last_remark_at: last.at, last_remark_by: last.by } : r;
+      })
+    );
   } catch (error) {
     return apiErrorResponse(error);
   }

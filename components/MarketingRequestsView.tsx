@@ -42,6 +42,7 @@ import styles from './marketingRequests.module.css';
 import Button from './ui/Button';
 import SharedStatusBadge, { StatusTone } from './ui/StatusBadge';
 import SharedPriorityBadge, { PriorityTone } from './ui/PriorityBadge';
+import { fetchCached } from '@/lib/fetchCached';
 
 interface MarketingRequestsViewProps {
   currentUser: { id?: string; username: string; role: UserRole; isPrivileged: boolean };
@@ -1178,9 +1179,9 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
 
   useEffect(() => {
     loadRequests();
-    fetch('/api/technical-roster').then((r) => (r.ok ? r.json() : [])).then(setTechnicalRoster).catch(() => setTechnicalRoster([]));
+    fetchCached('/api/technical-roster').then(setTechnicalRoster).catch(() => setTechnicalRoster([]));
     fetch('/api/marketing-roster').then((r) => (r.ok ? r.json() : [])).then(setMarketingRoster).catch(() => setMarketingRoster([]));
-    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
+    fetchCached('/api/users/lite').then(setUsers).catch(() => setUsers([]));
   }, []);
 
   const counts = useMemo(() => {

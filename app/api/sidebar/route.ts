@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { leadStore } from '@/lib/leadStore';
+import { listLeadsForBadges } from '@/lib/leadStore';
 import { isLeadUnattended } from '@/lib/followUp';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { isMarketingManager, canAssignLeads } from '@/lib/permissions';
@@ -95,11 +95,12 @@ export async function GET(request: NextRequest) {
 
     const [modules, leads, canAssign, isMarketingReviewer, demosForBadge, backOfficeCounts] = await Promise.all([
       listVisibleModules({ role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager, isPartnerStakeholder }),
-      // The lead list itself rather than computeLeadStats — same single query
-      // that helper runs internally, but the badge below needs two counts it
-      // doesn't expose (this viewer's OWN unattended leads, not their whole
-      // department's), so counting here costs nothing extra.
-      leadStore.list(viewer.username, viewer.isPrivileged),
+      // The lead list itself rather than computeLeadStats, because the badge
+      // below needs two counts that helper doesn't expose (this viewer's OWN
+      // unattended leads, not their whole department's). Narrowed to the nine
+      // columns those two counts actually read — this endpoint runs on every
+      // page load, and it was fetching all 45 plus four user joins.
+      listLeadsForBadges(viewer.username),
       canAssignLeads(viewer),
       isMarketingManager(viewer),
       viewer.role === 'engineer' || isManagerTier ? demoScheduleStore.list(viewer.username, viewer.isPrivileged) : Promise.resolve(null),
@@ -119,7 +120,10 @@ export async function GET(request: NextRequest) {
     // design, since nobody has been asked to do anything with them yet.
     // The two sets can't overlap (an unassigned lead is never unattended), so
     // a sales manager who also works leads gets both added, not double-counted.
-    const myUnattendedLeads = leads.filter((l) => l.assigned_to === viewer.username && isLeadUnattended(l)).length;
+    // Matched on assigned_to_id rather than the assignee's username, which is
+    // what dropped the four user joins from the query above: the id is on the
+    // lead row itself, the username needed a join to resolve.
+    const myUnattendedLeads = leads.filter((l) => l.assigned_to_id === viewer.userId && isLeadUnattended(l)).length;
     const unassignedLeads = canAssign ? leads.filter((l) => !l.assigned_to_id).length : 0;
     if (myUnattendedLeads + unassignedLeads) badges.leads = myUnattendedLeads + unassignedLeads;
 

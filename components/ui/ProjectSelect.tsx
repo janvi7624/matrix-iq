@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ProjectRecord } from '@/lib/types';
 import { useProjectQuickCreate } from './ProjectQuickCreateDialog';
 import calcStyles from '../calculator.module.css';
+import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 interface ProjectSelectProps {
   value: string;
@@ -42,8 +43,7 @@ export default function ProjectSelect({ value, onChange, required, placeholder =
   const openQuickCreate = useProjectQuickCreate();
 
   useEffect(() => {
-    fetch('/api/projects')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/projects', OPTIONS_TTL_MS)
       .then(setProjects)
       .catch(() => setProjects([]));
   }, []);

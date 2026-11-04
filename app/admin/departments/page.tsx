@@ -8,6 +8,7 @@ import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import pageStyles from './departmentsPage.module.css';
+import { fetchCached, invalidatePeopleCaches } from '@/lib/fetchCached';
 
 export default function DepartmentMasterPage() {
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
@@ -25,6 +26,10 @@ export default function DepartmentMasterPage() {
   const confirm = useConfirm();
 
   async function load() {
+    // Same reasoning as User Management: every write here reloads the list,
+    // and a renamed department or a changed manager has to reach the cached
+    // /api/departments and /api/departments/managers other screens hold.
+    invalidatePeopleCaches();
     setStatus('Loading...');
     try {
       const response = await fetch('/api/admin/departments');
@@ -39,8 +44,7 @@ export default function DepartmentMasterPage() {
 
   useEffect(() => {
     load();
-    fetch('/api/users/lite')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/users/lite')
       .then(setUsers)
       .catch(() => setUsers([]));
   }, []);

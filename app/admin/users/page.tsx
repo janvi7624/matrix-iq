@@ -18,6 +18,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { usePrompt } from '@/components/ui/PromptDialog';
 import pageStyles from './usersPage.module.css';
+import { fetchCached, invalidatePeopleCaches } from '@/lib/fetchCached';
 
 interface RowMenuAction {
   label: string;
@@ -199,6 +200,12 @@ export default function ManageUsersPage() {
   // mount effect below doesn't need to set it, and doing so synchronously
   // inside an effect is what triggers a cascading re-render.
   const loadUsers = useCallback(async () => {
+    // Every write on this screen ends by reloading the list, so this one
+    // line covers all of them: creating, editing, deactivating or deleting a
+    // user makes the cached people lists other screens hold stale, and they
+    // are what fill the assignment and filter dropdowns. Doing it here
+    // rather than in each of the eight handlers means a ninth cannot forget.
+    invalidatePeopleCaches();
     try {
       const response = await fetch('/api/admin/users');
       if (!response.ok) throw new Error(`Server responded with ${response.status}`);
@@ -221,8 +228,7 @@ export default function ManageUsersPage() {
   }, [loadUsers]);
 
   const loadDepartments = useCallback(async () => {
-    await fetch('/api/departments')
-      .then((r) => (r.ok ? r.json() : []))
+    await fetchCached('/api/departments')
       .then((data: DepartmentRecord[]) => setDepartments(data))
       .catch(() => setDepartments([]));
   }, []);

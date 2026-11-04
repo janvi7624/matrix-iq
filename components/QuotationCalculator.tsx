@@ -38,6 +38,7 @@ import QuotationProposalForm from './QuotationProposalForm';
 import { EMPTY_PROPOSAL, ProposalDetails } from '@/lib/quotationProposal';
 import styles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
+import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 const DEFAULT_COST_INPUTS: CostInputs = { installationCost: 0, fabricationCost: 0, scaffoldingCost: 0, markupPercent: 0 };
 
@@ -285,8 +286,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
   }, []);
 
   useEffect(() => {
-    fetch('/api/projects')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/projects', OPTIONS_TTL_MS)
       .then((data: ProjectRecord[]) => setProjects(data))
       .catch(() => setProjects([]));
   }, []);

@@ -23,6 +23,7 @@ import styles from './backOffice.module.css';
 import FilterBar from './ui/FilterBar';
 import Modal, { ModalOkButton } from './ui/Modal';
 import Table, { TableColumn } from './ui/Table';
+import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 const DC_STATUS_LABEL: Record<DcStatus, string> = { prepared: 'Prepared', dispatched: 'Dispatched', returned: 'Returned', closed: 'Closed' };
 const DC_STATUS_TONE: Record<DcStatus, StatusTone> = {
@@ -1036,7 +1037,7 @@ function BackOfficeContent({ canManage }: { canManage: boolean }) {
 
   useEffect(() => {
     load();
-    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
+    fetchCached('/api/projects', OPTIONS_TTL_MS).then(setProjects).catch(() => setProjects([]));
     fetch('/api/backoffice/employees').then((r) => (r.ok ? r.json() : [])).then(setEmployees).catch(() => setEmployees([]));
   }, []);
 

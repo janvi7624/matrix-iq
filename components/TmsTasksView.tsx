@@ -31,6 +31,7 @@ import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn, TableWrap } from './ui/Table';
 import TmsPersonDashboard from './TmsPersonDashboard';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { fetchCached } from '@/lib/fetchCached';
 
 const EMPTY_FORM = {
   name: '',
@@ -198,18 +199,18 @@ export default function TmsTasksView({ currentUser }: TmsTasksViewProps) {
     setLoading(true);
     setLoadFailed(false);
     try {
-      const [tasksRes, projectsRes, deptRes, usersRes] = await Promise.all([
+      const [tasksRes, projectsRes, departments, users] = await Promise.all([
         fetch('/api/tms/tasks'),
         fetch('/api/tms/projects'),
-        fetch('/api/departments'),
-        fetch('/api/tms/assignable-users')
+        fetchCached<DepartmentRecord[]>('/api/departments').catch(() => null),
+        fetchCached<PersonPickerOption[]>('/api/tms/assignable-users').catch(() => null)
       ]);
       if (!tasksRes.ok) throw new Error(String(tasksRes.status));
       const data: TmsTaskRecord[] = await tasksRes.json();
       setTasks(data);
       if (projectsRes.ok) setProjects(await projectsRes.json());
-      if (deptRes.ok) setDepartments(await deptRes.json());
-      if (usersRes.ok) setUsers(await usersRes.json());
+      if (departments) setDepartments(departments);
+      if (users) setUsers(users);
       setStatus(data.length ? `${data.length} task${data.length === 1 ? '' : 's'} found.` : '');
     } catch {
       setStatus('Could not reach the TMS API. Try refreshing.');

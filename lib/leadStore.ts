@@ -119,7 +119,14 @@ async function seesAllLeads(viewerUsername: string): Promise<boolean> {
 // could assign a lead to a rep who then couldn't open it — the rep didn't
 // capture it and may sit outside the capturer's department scope. Assignment
 // has to grant access or the feature doesn't work.
-async function listLeads(viewerUsername: string, _viewerIsPrivileged: boolean): Promise<LeadRecord[]> {
+/**
+ * Which leads this viewer may see.
+ *
+ * Extracted so the badge read below cannot drift from the list read: a badge
+ * counting leads its owner is not allowed to open would be a permission leak
+ * expressed as a number.
+ */
+async function leadVisibilityWhere(viewerUsername: string): Promise<Record<string | symbol, unknown>> {
   const scope = await resolveVisibilityScope(viewerUsername);
   const where: Record<string | symbol, unknown> = {};
   if (scope.scopedUserIds && !(await seesAllLeads(viewerUsername))) {
@@ -128,8 +135,76 @@ async function listLeads(viewerUsername: string, _viewerIsPrivileged: boolean): 
       { assigned_to_id: { [Op.in]: scope.scopedUserIds } }
     ];
   }
-  const rows = await db.Lead.findAll({ where: where as never, include: LEAD_INCLUDES(), order: [['created_at', 'DESC']] });
-  return rows.map(toLeadRecord);
+  return where;
+}
+
+/** Just enough of a lead for isLeadUnattended and the unassigned count. */
+const BADGE_ATTRIBUTES = [
+  'id',
+  'createdAt',
+  'assigned_to_id',
+  'assigned_at',
+  'project_id',
+  'call_outcome',
+  'called_at',
+  'callback_at',
+  'follow_up_actions'
+];
+
+/**
+ * The leads behind the sidebar's Leads badge, and nothing more.
+ *
+ * GET /api/sidebar runs on EVERY page load, and read every lead the viewer
+ * could see — all 45 columns, four user joins — to produce two integers: the
+ * viewer's own unattended leads, and the unassigned backlog for whoever
+ * routes them.
+ *
+ * Deliberately not a pair of SQL COUNTs. "Unattended" is lib/followUp.ts's
+ * isLeadUnattended, a rule over eight fields with its own tests, and a second
+ * copy of it in SQL would be free to drift from the one the Leads screen
+ * shows — the badge and the list would then disagree about the same lead.
+ * So the rule stays in one place, in JavaScript, and this stops fetching the
+ * 36 columns and the joins it never consults.
+ *
+ * Returns LeadRecord because the shared mapper formats a missing attribute
+ * into its empty value, the same convention as every other bulk read here.
+ * Only the fields above are populated; nothing but the badge should use it.
+ */
+export async function listLeadsForBadges(viewerUsername: string): Promise<LeadRecord[]> {
+  const rows = await db.Lead.findAll({
+    where: (await leadVisibilityWhere(viewerUsername)) as never,
+    attributes: BADGE_ATTRIBUTES
+  });
+  return rows.map((row) => base.toRecord(row));
+}
+
+async function listLeads(viewerUsername: string, _viewerIsPrivileged: boolean): Promise<LeadRecord[]> {
+  const where = await leadVisibilityWhere(viewerUsername);
+  const rows = await db.Lead.findAll({
+    where: where as never,
+    include: LEAD_INCLUDES(),
+    order: [['created_at', 'DESC']],
+    // meta_raw_field_data is the raw Meta lead-form payload, kept on the row
+    // deliberately so nothing an unmapped form field carries is lost (see
+    // lib/metaLeadIngest.ts). Nothing READS it: no screen, no export, no
+    // report, no analytics — grep the repo and the only hits are this store,
+    // the ingest that writes it, and the type.
+    //
+    // Measured at 378 kB across 1,262 leads, which was 38% of this query's
+    // payload. And this read has ten callers, GET /api/sidebar and GET
+    // /api/dashboard among them, so every page load in the app was carrying
+    // it — then again on the Leads screen's 60s auto-refresh.
+    //
+    // Excluded from the BULK read only. findLeadById and findLeadsByIds still
+    // return the column in full, which is where a single-lead view would read
+    // it from, so nothing has to change here if one is ever added.
+    attributes: { exclude: ['meta_raw_field_data'] }
+  });
+  // Emptied rather than left undefined, so a LeadRecord from this read still
+  // satisfies its own type. Same convention as projectStore's notes, timeline
+  // and last_remark: a bulk list read leaves the expensive fields empty and
+  // the single-record read populates them.
+  return rows.map((row) => ({ ...toLeadRecord(row), meta_raw_field_data: [] }));
 }
 
 export const leadStore = {

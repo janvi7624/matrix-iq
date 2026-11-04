@@ -14,6 +14,7 @@ import ProjectSelect from './ui/ProjectSelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './travelDetail.module.css';
+import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -152,12 +153,11 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
   }
 
   useEffect(() => {
-    fetch('/api/departments/managers')
-      .then((r) => (r.ok ? r.json() : {}))
+    fetchCached('/api/departments/managers')
       .then(setDepartmentManagers)
       .catch(() => setDepartmentManagers({}));
-    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setAllUsers).catch(() => setAllUsers([]));
-    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setAllProjects).catch(() => setAllProjects([]));
+    fetchCached('/api/users/lite').then(setAllUsers).catch(() => setAllUsers([]));
+    fetchCached('/api/projects', OPTIONS_TTL_MS).then(setAllProjects).catch(() => setAllProjects([]));
   }, []);
 
   async function load() {

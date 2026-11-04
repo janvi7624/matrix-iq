@@ -15,6 +15,7 @@ import { PARTNER_ROLE_LABEL, PARTNER_HOME } from '@/lib/partnerRoles';
 import { Search, Star, X, Sparkles, ChevronRight, Pin } from 'lucide-react';
 import styles from './sidebar.module.css';
 import { forgetCelebrationPopups } from '@/lib/celebrationPopupSeen';
+import { clearFetchCache } from '@/lib/fetchCached';
 
 interface Viewer {
   name: string;
@@ -200,6 +201,11 @@ export default function Sidebar() {
 
   async function handleLogout() {
     forgetCelebrationPopups();
+    // router.push below is a CLIENT-side navigation, so module state —
+    // the cached staff and department lists included — survives it. One
+    // browser can hold two sessions in sequence, and the second must not
+    // read the first's lists.
+    clearFetchCache();
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
     router.push('/login');
     router.refresh();

@@ -16,6 +16,7 @@ import { useToast } from './ToastProvider';
 import PersonPicker, { PersonPickerOption } from './PersonPicker';
 import notifyStyles from './notify.module.css';
 import calcStyles from '../calculator.module.css';
+import { fetchCached, invalidateProjectCaches, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 // Same field set and same POST /api/projects call as components/ProjectsView.tsx's
 // own "+ New Project" form (its EMPTY_FORM/handleCreate) — one implementation
@@ -124,8 +125,7 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
   // (they ARE the technical person, see app/api/projects/route.ts).
   useEffect(() => {
     if (!pending) return;
-    fetch('/api/technical-roster')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/technical-roster')
       .then((rows: PersonPickerOption[]) => setTechnicalRoster(rows))
       .catch(() => setTechnicalRoster([]));
   }, [pending]);
@@ -136,8 +136,10 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
   // provider with no access to that instance's state.
   useEffect(() => {
     if (!pending) return;
-    fetch('/api/projects')
-      .then((r) => (r.ok ? r.json() : []))
+    // Normally a cache hit: ProjectSelect, which is what opens this dialog,
+    // has already read the same list for its own dropdown. The re-fetch this
+    // comment describes is now free.
+    fetchCached('/api/projects', OPTIONS_TTL_MS)
       .then(setExistingProjects)
       .catch(() => setExistingProjects([]));
   }, [pending]);
@@ -211,6 +213,9 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
         toast.error(body?.error || 'Could not create this project. Please try again.');
         return;
       }
+      // A new project has to appear in every picker at once, so the cached
+      // copy they share goes rather than ageing out over the next minute.
+      invalidateProjectCaches();
       const { warning, ...project } = body as ProjectRecord & { warning?: string };
       // `warning`: created, but the technical creator couldn't be added as
       // its technical person — say so rather than claim they were.

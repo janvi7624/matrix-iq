@@ -5,6 +5,7 @@ import { CustomProduct, ProductRecord } from '@/lib/types';
 import { selectAllOnFocus } from '@/lib/numberInputHelpers';
 import styles from './calculator.module.css';
 import listStyles from './customProductsList.module.css';
+import { fetchCached } from '@/lib/fetchCached';
 
 interface CustomProductsListProps {
   products: CustomProduct[];
@@ -25,8 +26,7 @@ export default function CustomProductsList({ products, onAdd, onAddFromCatalog, 
   const [pickedId, setPickedId] = useState('');
 
   useEffect(() => {
-    fetch('/api/products')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/products')
       .then((data: ProductRecord[]) => setCatalog(data))
       .catch(() => setCatalog([]));
   }, []);

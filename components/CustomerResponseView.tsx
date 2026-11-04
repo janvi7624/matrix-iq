@@ -18,6 +18,7 @@ import SubmitButton from './ui/SubmitButton';
 import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 const EMPTY_FORM = { projectId: '', demoId: '', feedback: '', responseType: '' as CustomerResponseType | '', expectedDecisionDate: '', remarks: '' };
 
@@ -60,11 +61,16 @@ export default function CustomerResponseView({ currentUser }: CustomerResponseVi
   async function load() {
     setStatus('Loading...');
     try {
-      const [rRes, pRes] = await Promise.all([fetch('/api/customer-response'), fetch('/api/projects')]);
+      // The project list is read here only to label a project_id, so it
+      // comes from the picker cache; the records themselves are live.
+      const [rRes, projects] = await Promise.all([
+        fetch('/api/customer-response'),
+        fetchCached('/api/projects', OPTIONS_TTL_MS).catch(() => [])
+      ]);
       if (!rRes.ok) throw new Error(String(rRes.status));
       const data: CustomerResponseRecord[] = await rRes.json();
       setRecords(data);
-      setProjects(pRes.ok ? await pRes.json() : []);
+      setProjects(projects);
       setStatus(data.length ? `${data.length} response${data.length === 1 ? '' : 's'} found.` : '');
       setLoaded(true);
     } catch {

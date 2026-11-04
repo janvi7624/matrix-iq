@@ -18,6 +18,7 @@ import type { UserOption } from './AdminExpensesView';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import styles from './adminExpenses.module.css';
+import { fetchCached } from '@/lib/fetchCached';
 
 // "Add Multiple" for Admin Expenses — the same shape as
 // ReimbursementBulkAddForm and OfficeOperationExpenseBulkForm.
@@ -46,8 +47,7 @@ export default function AdminExpenseBulkForm({ onClose, onSaved }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/users/lite')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/users/lite')
       .then((data) => { if (!cancelled) setUsers(Array.isArray(data) ? data : []); })
       .catch(() => undefined);
     return () => { cancelled = true; };

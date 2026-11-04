@@ -25,6 +25,7 @@ import Table, { TableColumn } from './ui/Table';
 import Drawer from './ui/Drawer';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import GeneralTaskDetailPanel from './GeneralTaskDetailPanel';
+import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 interface EmployeeOption {
   id: string;
@@ -154,10 +155,18 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
     setLoading(true);
     setLoadFailed(false);
     try {
-      const [tasksRes, deptRes] = await Promise.all([fetch('/api/admin/task-assignment'), fetch('/api/departments')]);
+      // The tasks are live data and read fresh every time; the department
+      // list is reference data shared with every other screen, so it comes
+      // from the cache after the first screen that asked for it. Null on
+      // failure, which keeps whatever list is already on screen rather than
+      // failing the task load with it.
+      const [tasksRes, departments] = await Promise.all([
+        fetch('/api/admin/task-assignment'),
+        fetchCached<DepartmentRecord[]>('/api/departments').catch(() => null)
+      ]);
       if (!tasksRes.ok) throw new Error(String(tasksRes.status));
       setTasks(await tasksRes.json());
-      if (deptRes.ok) setDepartments(await deptRes.json());
+      if (departments) setDepartments(departments);
     } catch {
       setLoadFailed(true);
     } finally {
@@ -370,7 +379,7 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
 
   useEffect(() => {
     if (!showCreate) return;
-    fetch('/api/projects').then((r) => (r.ok ? r.json() : [])).then(setProjects).catch(() => setProjects([]));
+    fetchCached('/api/projects', OPTIONS_TTL_MS).then(setProjects).catch(() => setProjects([]));
     fetch('/api/tms/projects').then((r) => (r.ok ? r.json() : [])).then(setTmsProjects).catch(() => setTmsProjects([]));
   }, [showCreate]);
 

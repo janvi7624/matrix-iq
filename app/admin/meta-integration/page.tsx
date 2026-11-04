@@ -7,6 +7,7 @@ import styles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import { useToast } from '@/components/ui/ToastProvider';
 import pageStyles from './metaIntegrationPage.module.css';
+import { fetchCached } from '@/lib/fetchCached';
 
 interface CredentialStatus {
   appId: boolean;
@@ -76,8 +77,8 @@ export default function MetaIntegrationPage() {
 
   useEffect(() => {
     setWebhookUrl(`${window.location.origin}/api/integrations/meta/webhook`);
-    fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then(setUsers).catch(() => setUsers([]));
-    fetch('/api/departments').then((r) => (r.ok ? r.json() : [])).then(setDepartments).catch(() => setDepartments([]));
+    fetchCached('/api/users/lite').then(setUsers).catch(() => setUsers([]));
+    fetchCached('/api/departments').then(setDepartments).catch(() => setDepartments([]));
   }, []);
 
   async function load() {

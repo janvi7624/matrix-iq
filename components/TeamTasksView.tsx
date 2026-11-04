@@ -23,6 +23,7 @@ import SubmitButton from './ui/SubmitButton';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
 import ActivityTimeline from './ui/ActivityTimeline';
+import { fetchCached } from '@/lib/fetchCached';
 
 interface EmployeeOption {
   id: string;
@@ -101,10 +102,13 @@ export default function TeamTasksView({ currentUser }: TeamTasksViewProps) {
     setLoading(true);
     setLoadFailed(false);
     try {
-      const [tasksRes, deptRes] = await Promise.all([fetch('/api/team-tasks'), fetch('/api/departments')]);
+      const [tasksRes, departments] = await Promise.all([
+        fetch('/api/team-tasks'),
+        fetchCached<DepartmentRecord[]>('/api/departments').catch(() => null)
+      ]);
       if (!tasksRes.ok) throw new Error(String(tasksRes.status));
       setTasks(await tasksRes.json());
-      if (deptRes.ok) setDepartments(await deptRes.json());
+      if (departments) setDepartments(departments);
     } catch {
       setLoadFailed(true);
     } finally {

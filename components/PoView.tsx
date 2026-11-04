@@ -19,6 +19,7 @@ import Table, { TableColumn } from './ui/Table';
 import StatusBadge from './ui/StatusBadge';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import { getPoPaymentStatus } from '@/lib/poPaymentStatus';
+import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 const EMPTY_FORM = { projectId: '', poNumber: '', poDate: '', amount: '', advanceReceived: '', paymentTerms: '', attachmentUrl: '' };
 
@@ -175,11 +176,16 @@ export default function PoView({ currentUser }: PoViewProps) {
   async function load() {
     setStatus('Loading...');
     try {
-      const [rRes, pRes] = await Promise.all([fetch('/api/po'), fetch('/api/projects')]);
+      // The project list is read here only to label a project_id, so it
+      // comes from the picker cache; the records themselves are live.
+      const [rRes, projects] = await Promise.all([
+        fetch('/api/po'),
+        fetchCached('/api/projects', OPTIONS_TTL_MS).catch(() => [])
+      ]);
       if (!rRes.ok) throw new Error(String(rRes.status));
       const data: PoRecord[] = await rRes.json();
       setRecords(data);
-      setProjects(pRes.ok ? await pRes.json() : []);
+      setProjects(projects);
       setStatus(data.length ? `${data.length} PO${data.length === 1 ? '' : 's'} found.` : '');
       setLoaded(true);
     } catch {

@@ -53,6 +53,7 @@ import PersonPicker, { PersonPickerOption } from './ui/PersonPicker';
 import { useProjectLeads } from './ui/useProjectLeads';
 import { OPPORTUNITY_TYPES, OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
 import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE, ProjectLocationFields } from './ui/ProjectIntakeFields';
+import { fetchCached, invalidateProjectCaches } from '@/lib/fetchCached';
 import {
   DepartmentAmounts,
   PROJECT_DEPARTMENTS,
@@ -198,8 +199,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     // click away and the server took it (see app/api/projects/route.ts).
     // A privileged creator who wants the project themselves leaves it on
     // "Defaults to you".
-    fetch('/api/users/list?scope=sales')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/users/list?scope=sales')
       .then((users: { id: string; username: string; name: string }[]) => setAssignableUsers(users))
       .catch(() => setAssignableUsers([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,8 +209,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     // A technical creator IS the project's technical person (see
     // app/api/projects/route.ts) — nobody else needs picking.
     if (isTechnicalCreator) return;
-    fetch('/api/technical-roster')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/technical-roster')
       .then((rows: PersonPickerOption[]) => setTechnicalRoster(rows))
       .catch(() => setTechnicalRoster([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -311,7 +310,10 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     setLoading(true);
     setLoadFailed(false);
     try {
-      const response = await fetch('/api/projects');
+      // ?remarks=1 — this is the one screen that shows the last remark, and
+      // the only caller that pays for the DISTINCT ON it costs. Not cached:
+      // this is the live list people work from, auto-refreshed on focus.
+      const response = await fetch('/api/projects?remarks=1');
       if (!response.ok) throw new Error(String(response.status));
       const data: ProjectRecord[] = await response.json();
       setProjects(data);
@@ -668,6 +670,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         toast.error(body?.error || 'Could not create this project. Please try again.');
         return;
       }
+      // A new project has to appear in every picker at once, so the cached
+      // copy they share goes rather than ageing out over the next minute.
+      invalidateProjectCaches();
       // `warning`: created, but the technical creator couldn't be added as
       // its technical person — say so rather than claim they were.
       if (body?.warning) {

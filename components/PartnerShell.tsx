@@ -10,6 +10,7 @@ import SessionTimeoutWatcher from './SessionTimeoutWatcher';
 import Sidebar from './Sidebar';
 import historyStyles from './quotationHistory.module.css';
 import shellStyles from './sidebar.module.css';
+import { clearFetchCache } from '@/lib/fetchCached';
 
 interface PartnerShellProps {
   title: string;
@@ -35,6 +36,8 @@ export default function PartnerShell({ title, subtitle, partnerName, partnerCode
   const router = useRouter();
 
   async function handleLogout() {
+    // A partner session must not leave its cached lists for the next one.
+    clearFetchCache();
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
     router.push('/login');
     router.refresh();

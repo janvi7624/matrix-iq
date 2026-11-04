@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { canManagePartners } from '@/lib/partnerAccess';
+import { canAccessPartnerRecord } from '@/lib/partnerAccess';
 import { findPartnerById, setPartnerStatus, updatePartner } from '@/lib/partnerStore';
 import { listPartnerUsers } from '@/lib/partnerUserStore';
 import { PartnerStatus } from '@/lib/types';
@@ -13,12 +13,15 @@ const STATUSES: PartnerStatus[] = ['pending', 'active', 'suspended', 'inactive']
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await canManagePartners(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
     const { id } = await params;
     const partner = await findPartnerById(id);
     if (!partner) return NextResponse.json({ error: 'Partner not found' }, { status: 404 });
+    // Record-level, not just org-wide: the account's own creator/RM may open
+    // it too, same rule as approving its documents (canReviewPartnerDocuments)
+    // — see canAccessPartnerRecord's own comment for the bug this fixes.
+    if (!(await canAccessPartnerRecord(viewer, partner))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     // The partner's logins come back with the profile — the detail screen
     // always shows both, and splitting them would cost a second round trip
     // for data that is never wanted separately.
@@ -31,7 +34,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await canManagePartners(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
@@ -40,6 +42,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { id } = await params;
     const before = await findPartnerById(id);
     if (!before) return NextResponse.json({ error: 'Partner not found' }, { status: 404 });
+    // Record-level, not just org-wide — see the GET handler's identical check
+    // and canAccessPartnerRecord's own comment.
+    if (!(await canAccessPartnerRecord(viewer, before))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     // Status moves through its own store function, which owns the transition
     // rules — it is never just another patchable field.

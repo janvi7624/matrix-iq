@@ -78,6 +78,7 @@ import ProjectLeadField from './ui/ProjectLeadField';
 import OpportunityTypeField from './ui/OpportunityTypeField';
 import { useProjectLeads } from './ui/useProjectLeads';
 import { OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
+import { fetchCached } from '@/lib/fetchCached';
 
 // Every editable field on the Overview card, named as PATCH /api/projects/[id]
 // names it, so the save below is a straight copy of what changed.
@@ -372,16 +373,14 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   const [salesUsers, setSalesUsers] = useState<{ id: string; username: string; name: string; department: string }[] | null>(null);
 
   useEffect(() => {
-    fetch('/api/technical-roster')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/technical-roster')
       .then((rows: TechnicalRosterEntry[]) => setTechnicalRoster(rows))
       .catch(() => setTechnicalRoster([]));
   }, []);
 
   // Fetch users for the handover dropdown (server filters by department rules)
   useEffect(() => {
-    fetch('/api/users/list?scope=handover')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/users/list?scope=handover')
       .then((users: { id: string; username: string; name: string }[]) => setAllUsers(users))
       .catch(() => setAllUsers([]));
   }, []);
@@ -393,8 +392,7 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   // offering technical/accounts/HR staff here only produced a label the
   // Projects list then showed as fact. The server enforces the same rule.
   useEffect(() => {
-    fetch('/api/users/list?scope=sales')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/users/list?scope=sales')
       .then((users: { id: string; username: string; name: string }[]) => setOrgUsers(users))
       .catch(() => setOrgUsers([]));
   }, []);
@@ -491,12 +489,16 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
   useEffect(() => {
     if (!data?.project.partner_id) return;
     let cancelled = false;
-    fetch('/api/leads/assignees')
-      .then((r) => (r.ok ? r.json() : null))
+    // .catch(() => null) before the handler, not after it: a failed request
+    // has to fall through to the /api/users/lite branch below exactly as the
+    // old `r.ok ? … : null` did. Rejecting here instead would skip the
+    // fallback and leave the picker empty.
+    fetchCached('/api/leads/assignees')
+      .catch(() => null)
       .then((body) => {
         if (cancelled) return;
         if (body?.assignees) setSalesPeople(body.assignees);
-        else return fetch('/api/users/lite').then((r) => (r.ok ? r.json() : [])).then((u) => { if (!cancelled) setSalesPeople(u); });
+        else return fetchCached('/api/users/lite').then((u) => { if (!cancelled) setSalesPeople(u); });
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
@@ -985,8 +987,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
     setSalesOwnerId('');
     setShowSalesOwner(true);
     if (salesUsers) return;
-    fetch('/api/users/list?scope=sales')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+    // Already loaded eagerly into orgUsers on mount, so this is normally a
+    // cache hit rather than a second request for the same list.
+    fetchCached('/api/users/list?scope=sales')
       .then((users: { id: string; username: string; name: string; department: string }[]) => setSalesUsers(users))
       .catch(() => {
         // Left unloaded so the next open tries again.

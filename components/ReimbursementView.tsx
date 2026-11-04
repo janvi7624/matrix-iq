@@ -11,6 +11,7 @@ import { useToast } from './ui/ToastProvider';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './reimbursement.module.css';
+import { fetchCached } from '@/lib/fetchCached';
 
 interface Props {
   currentUser: { username: string; role: UserRole; isPrivileged: boolean; isReviewer: boolean };
@@ -289,7 +290,9 @@ export default function ReimbursementView({ currentUser }: Props) {
   }
 
   useEffect(() => {
-    fetch('/api/users/lite').then((r) => r.ok ? r.json() : []).then((data) => setUsers(Array.isArray(data) ? data : []));
+    fetchCached('/api/users/lite')
+      .then((data) => setUsers(Array.isArray(data) ? data : []))
+      .catch(() => setUsers([]));
   }, []);
 
   const fetchPending = useCallback(() => {

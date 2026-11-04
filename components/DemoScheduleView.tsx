@@ -22,6 +22,7 @@ import Button from './ui/Button';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { DEMO_STATUS_LABEL, stagesForMode } from '@/lib/demoStages';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
+import { fetchCached } from '@/lib/fetchCached';
 
 const ALL_DOMAINS = Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[];
 
@@ -539,12 +540,10 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
 
   useEffect(() => {
     load();
-    fetch('/api/technical-roster')
-      .then((r) => (r.ok ? r.json() : []))
+    fetchCached('/api/technical-roster')
       .then((data: TechnicalRosterEntry[]) => setTechnicalRoster(data))
       .catch(() => setTechnicalRoster([]));
-    fetch('/api/departments/managers')
-      .then((r) => (r.ok ? r.json() : {}))
+    fetchCached('/api/departments/managers')
       .then((data: Record<string, { id: string; username: string; name: string }[]>) => setManagersByDepartment(data))
       .catch(() => setManagersByDepartment({}));
   }, []);

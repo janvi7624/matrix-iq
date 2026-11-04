@@ -16,6 +16,7 @@ import { usePrompt } from './ui/PromptDialog';
 import EmptyState from './ui/EmptyState';
 import styles from './tmsDetail.module.css';
 import { Paperclip } from 'lucide-react';
+import { fetchCached } from '@/lib/fetchCached';
 
 function formatDate(iso: string): string {
   if (!iso) return '-';
@@ -48,8 +49,7 @@ export default function TmsBomRequestDetailView({ requestId, currentUser }: TmsB
 
   useEffect(() => {
     if (currentUser.isPrivileged) return;
-    fetch('/api/departments/managers')
-      .then((r) => (r.ok ? r.json() : {}))
+    fetchCached('/api/departments/managers')
       .then((byDepartment: Record<string, { username: string }[]>) => {
         setIsAccountsManager((byDepartment['Accounts'] || []).some((m) => m.username === currentUser.username));
       })
