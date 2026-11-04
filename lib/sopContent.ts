@@ -486,57 +486,230 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
 };
 
 /**
- * The pages every role's SoP opens with, before the module pages.
+ * The clause content every role's SoP shares.
  *
  * Written once rather than per role: these are the rules of the system
  * itself, and fourteen copies of them that could drift apart would be worse
- * than one copy everybody reads.
+ * than one copy everybody reads. The role-specific clauses — purpose, scope,
+ * responsibility, access — are assembled in lib/sopDocument.ts, because they
+ * depend on the role record and on the live module registry.
+ *
+ * The register is deliberately formal and uses "shall" for a requirement.
+ * This is a controlled document that an auditor may read and that a manager
+ * may have to hold somebody to; narrative asides belong in the module
+ * procedures above, not here.
  */
-export const SOP_PREAMBLE: { heading: string; body: string[] }[] = [
+
+export interface SopClauseBlock {
+  /**
+   * Position within the parent clause, so 7.1 is index '1' under clause 7.
+   *
+   * Assigned by lib/sopDocument.ts AFTER the blocks that do not apply to the
+   * role have been dropped, so the numbering never skips. Authored here as ''
+   * for that reason.
+   */
+  index: string;
+  title: string;
+  body: string[];
+  /**
+   * Which kind of account the clause applies to. Absent means both.
+   *
+   * It exists because of the partner roles. A Partner Admin files no Daily
+   * Report, has no department and has no manager in Department Master —
+   * printing those requirements in their procedure would be stating a
+   * requirement that cannot be met, which is the fastest way to have the
+   * whole document disregarded.
+   */
+  appliesTo?: 'internal' | 'partner';
+}
+
+/** 3.0 — the controlled sources this document is derived from. */
+export const SOP_REFERENCES: { ref: string; source: string; heldIn: string }[] = [
+  { ref: 'R1', source: 'Role permission matrix', heldIn: 'MatrixIQ > Role Management' },
+  { ref: 'R2', source: 'Module visibility and enablement register', heldIn: 'MatrixIQ > Module Manager' },
+  { ref: 'R3', source: 'Department and department-manager register', heldIn: 'MatrixIQ > Department Master' },
+  { ref: 'R4', source: 'Daily reporting deadline and reminder schedule', heldIn: 'MatrixIQ > Application Settings' },
+  { ref: 'R5', source: 'Record of configuration and data changes', heldIn: 'MatrixIQ > Audit Log' },
+  { ref: 'R6', source: 'User account, role and department assignment', heldIn: 'MatrixIQ > User Management' }
+];
+
+/** 4.0 — terms that carry a specific meaning in MatrixIQ. */
+export const SOP_DEFINITIONS: { term: string; meaning: string }[] = [
+  { term: 'MatrixIQ', meaning: 'The internal business application to which this procedure applies.' },
+  { term: 'Module', meaning: 'One functional screen, or group of screens, enabled and made visible through Module Manager (R2).' },
+  { term: 'Role', meaning: 'The set of permissions assigned to a user account. A user account holds exactly one role.' },
   {
-    heading: 'How to read this document',
+    term: 'Permission matrix',
+    meaning:
+      'The per-module, per-action grid held against a role in Role Management (R1). It governs every action that a module submits for a permission check.'
+  },
+  {
+    term: 'Privileged role',
+    meaning:
+      'A role flagged as privileged in Role Management. Where the permission matrix is silent on an action, a privileged role is allowed it and a non-privileged role is not.'
+  },
+  {
+    term: 'Department',
+    meaning:
+      'The organisational unit a user account is assigned to in User Management (R6). The department governs which records are in scope; the role governs which actions are permitted.'
+  },
+  {
+    term: 'Department manager',
+    meaning:
+      'The user named as manager of a department in Department Master (R3). Approvals, reminders and escalations are routed to that named user and not to a role.'
+  },
+  {
+    term: 'Daily Report',
+    meaning: 'The mandatory record of a working day, filed on the form assigned to the department and submitted before the configured deadline.'
+  },
+  { term: 'Working day', meaning: 'A day on which a Daily Report is required, as determined by the organisation calendar and by approved leave.' },
+  { term: 'BOM', meaning: 'Bill of Materials. A request for material against a task or project, routed for approval before issue.' },
+  { term: 'TMS', meaning: 'Task Management System. The modules through which work is assigned, executed and closed.' },
+  { term: 'GeM', meaning: 'Government e-Marketplace. The procurement portal against which tender and bid activity is recorded.' },
+  {
+    term: 'Partner',
+    meaning: 'An external channel account. A partner user sees only material published to partners, and only their own organisation’s records.'
+  },
+  { term: 'IST', meaning: 'Indian Standard Time, UTC+05:30. Every deadline, timestamp and reporting period in MatrixIQ is evaluated in IST.' },
+  { term: 'Shall', meaning: 'Denotes a mandatory requirement of this procedure.' },
+  { term: 'Should', meaning: 'Denotes a recommended practice that is not mandatory.' }
+];
+
+/** 7.0 — the requirements that apply to every role, in shall-form. */
+export const SOP_GENERAL_REQUIREMENTS: SopClauseBlock[] = [
+  {
+    index: '',
+    title: 'Account and attribution',
     body: [
-      'This SoP is written for one role. It covers only the modules that role can actually reach, and the "What you can do" line under each module is generated from that role\'s real permissions — not from a description of them.',
-      'That means it is specific to how MatrixIQ is configured right now. If Role Management or Module Manager is changed, this document is out of date and should be regenerated rather than edited by hand.',
-      'Each module page has the same four parts: what it is for, where it is, what you can do in it, and then the procedure and the rules. If you read only one part, read the rules — they are the things that go wrong silently.'
+      'The user shall access MatrixIQ only through the account issued to them. Credentials shall not be shared, and work shall not be carried out on another person’s session.',
+      'Every creation, amendment and deletion is recorded against the account that performed it in the Audit Log (R5). Work performed on a shared login is attributed to the account holder and not to the person at the keyboard.'
     ]
   },
   {
-    heading: 'Before anything else',
+    index: '',
+    title: 'Role and departmental scope',
+    appliesTo: 'internal',
     body: [
-      'Sign in with your own account. Work done on a shared login is attributed to whoever owns it, and the audit log is what answers questions about who changed what.',
-      'Your role decides what you may do. Your department decides what data is in scope for you. Those are two different things, and both are set in User Management.',
-      'If a screen or a field is locked for you, that is a configured decision rather than a fault. Ask for the permission; do not route around it.'
+      'The role determines which actions the user may perform. The department determines which records fall within the user’s scope. These are two independent settings, both held in User Management (R6).',
+      'The user shall not seek access to records outside their departmental scope in order to complete a task. Where a task requires data held by another department, the request shall be routed through that department’s manager.'
     ]
   },
   {
-    heading: 'The daily obligation',
+    index: '',
+    title: 'Permissions and unavailable functions',
     body: [
-      'Everybody who owes a daily report files one before the deadline, 11:30 IST unless an admin has changed it.',
-      'Reminders go out at 21:00 the evening before and again at 10:00. Missing the deadline creates a warning automatically; four active warnings escalate to HR.',
-      'If you cannot file — leave, travel, illness — tell your department manager. They can mark the day as leave, which exempts it. Silence becomes a warning.'
+      'Where a screen, a field or an action is unavailable to the user, that is a configured decision recorded in the permission matrix (R1) or the module register (R2). It shall be treated as a control and not as a fault.',
+      'The user shall not circumvent an unavailable function by any alternative route, including the use of another account, alteration of the same record through a different module, or export and re-entry of data. A permission that is genuinely required shall be requested through the authority named for it in clause 5.0.'
     ]
   },
   {
-    heading: 'When something looks wrong',
+    index: '',
+    title: 'Daily reporting',
+    appliesTo: 'internal',
     body: [
-      'Check the Audit Log first if you have access to it: most "who changed this" questions are answered there in a minute.',
-      'A missing notification is usually a configuration question — who is named as the department\'s manager in Department Master — rather than a failure to send.',
-      'Report anything that looks like a permissions leak immediately, especially seeing another person\'s or another partner\'s records.'
+      'Every user required to file a Daily Report shall submit it on each working day before the configured deadline, which is 11:30 IST unless altered in Application Settings (R4).',
+      'Reminders are issued automatically at 21:00 IST on the preceding evening and again at 10:00 IST on the day. A missed deadline generates a warning without further intervention, and four active warnings are escalated to Human Resources.',
+      'Where the user is unable to file, whether through approved leave, travel or illness, the department manager shall be informed and shall record the day as leave, which exempts it. An unreported absence is recorded as a missed day.'
+    ]
+  },
+  {
+    index: '',
+    title: 'Data entered into the system',
+    body: [
+      'The user shall record data in the module that owns it rather than in a note, an attachment or a file outside the application, so that it remains reportable.',
+      'Monetary values, quantities and dates shall be entered as agreed and shall not be adjusted to produce a desired total. A figure that is provisional shall be identified as such in the record.'
+    ]
+  },
+  {
+    index: '',
+    title: 'Scope of a partner account',
+    appliesTo: 'partner',
+    body: [
+      'The user shall access only the records of their own partner organisation. Records belonging to another partner are outside the scope of the account and shall not be sought.',
+      'Material published to partners is provided for the user’s own sales activity. It shall not be re-branded, re-published or circulated outside the user’s organisation without written consent.',
+      'Where the user’s organisation adds or releases staff, the Partner Admin shall update the portal users under Company Profile, so that access matches the people actually employed.'
+    ]
+  }
+];
+
+/**
+ * 9.0 — the records generated under this procedure.
+ *
+ * Tagged like the clauses, and for the same reason: a partner files no Daily
+ * Report, so listing one as a record of their work would be wrong.
+ */
+export const SOP_RECORDS: { record: string; location: string; retention: string; appliesTo?: 'internal' | 'partner' }[] = [
+  {
+    record: 'Daily Report entries and submissions',
+    location: 'Daily Report; Team Daily Reports',
+    retention: 'Application database; retained indefinitely',
+    appliesTo: 'internal'
+  },
+  { record: 'Configuration and data change history', location: 'Audit Log (R5)', retention: 'Application database; retained indefinitely' },
+  { record: 'Outbound notification and reminder ledger', location: 'Notification records', retention: 'Application database; retained indefinitely' },
+  {
+    record: 'Documents generated or uploaded, including quotations, challans and vouchers',
+    location: 'The module that produced them',
+    retention: 'Application file storage; served only to authorised users'
+  },
+  { record: 'Records created in the modules listed in clause 8', location: 'The respective module', retention: 'Application database; visible subject to clause 6' }
+];
+
+/** 10.0 — what to do when the system or the data does not look right. */
+export const SOP_ESCALATION: SopClauseBlock[] = [
+  {
+    index: '',
+    title: 'Incorrect or unexpected data',
+    body: [
+      'The user shall consult the Audit Log (R5) first, where access permits. Most questions of the form "who changed this" are answered there.',
+      'Where the record remains unexplained, the matter shall be raised with the authority named in clause 5.0 before the record is corrected, so that the correction is itself deliberate and traceable.'
+    ]
+  },
+  {
+    index: '',
+    title: 'Notifications not received',
+    appliesTo: 'internal',
+    body: [
+      'A notification that does not arrive is in most cases a question of configuration — who is named as the department’s manager in Department Master (R3) — rather than a failure to send.',
+      'The user shall verify the named manager before reporting a delivery fault.'
+    ]
+  },
+  {
+    index: '',
+    title: 'Suspected access or permission defect',
+    body: [
+      'Where the user is able to see or alter a record belonging to another person, another department or another partner and believes they should not be, the matter shall be reported to a system administrator immediately and shall not be investigated further by the user.',
+      'The user shall not demonstrate the defect to colleagues, and shall not export or circulate the data that was exposed.'
+    ]
+  },
+  {
+    index: '',
+    title: 'Departure from this procedure',
+    appliesTo: 'internal',
+    body: [
+      'Any departure from this procedure shall be authorised in advance by the department manager and shall be recorded in the Daily Report for the day on which it occurred.'
+    ]
+  },
+  {
+    index: '',
+    title: 'Questions and departures',
+    appliesTo: 'partner',
+    body: [
+      'Any question on this procedure, and any departure from it, shall be raised with the relationship manager through Technical Support, so that the exchange is recorded against the account rather than held in private correspondence.'
     ]
   }
 ];
 
 /** What the ten module actions mean, in words a reader can use. */
 export const ACTION_WORDS: Record<string, string> = {
-  view: 'open and read it',
-  create: 'add new records',
-  edit: 'change existing records',
+  view: 'open and read records',
+  create: 'create new records',
+  edit: 'amend existing records',
   delete: 'delete records',
-  export: 'export to CSV or Excel',
-  print: 'print or produce a PDF',
-  approve: 'approve what others submit',
-  reject: 'reject what others submit',
-  assign: 'assign work to other people',
-  manage: 'full administrative control of the module'
+  export: 'export data to CSV or Excel',
+  print: 'print or generate a PDF',
+  approve: 'approve submissions made by others',
+  reject: 'reject submissions made by others',
+  assign: 'assign work to other users',
+  manage: 'exercise full administrative control of the module'
 };

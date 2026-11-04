@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { actionAllowed, buildSopDocument, moduleRights, modulesForRole, rightsNote, sopFileName, SopModuleInput } from '../../lib/sopDocument';
+import {
+  actionAllowed,
+  buildSopDocument,
+  moduleRights,
+  modulesForRole,
+  rightsNote,
+  sopDocumentNumber,
+  sopFileName,
+  SopModuleInput
+} from '../../lib/sopDocument';
 import { MODULE_SOP } from '../../lib/sopContent';
 import { RoleRecord } from '../../lib/types';
 
@@ -180,7 +189,7 @@ describe('buildSopDocument', () => {
   });
 
   it('states the data scope from viewAllDepartments, not from privilege', () => {
-    expect(buildSopDocument(role(), mods).dataScope).toContain('Your own records');
+    expect(buildSopDocument(role(), mods).dataScope).toContain('Restricted');
     const wide = role({
       permissions: { modules: {}, manageSettings: false, manageUsers: false, manageRoles: false, manageDepartments: false, viewAllDepartments: true }
     });
@@ -230,7 +239,7 @@ describe('buildSopDocument', () => {
   it('prints explicit grants and refusals when the matrix has them', () => {
     const configured = withModules({ projects: { view: true, create: true, delete: false } });
     const page = buildSopDocument(configured, mods).sections[0].modules[0];
-    expect(page.can).toEqual(['open and read it', 'add new records']);
+    expect(page.can).toEqual(['open and read records', 'create new records']);
     expect(page.cannot).toEqual(['delete records']);
   });
 
@@ -250,6 +259,105 @@ describe('buildSopDocument', () => {
     expect(projects.procedurePending).toBe(false);
     expect(projects.steps).toEqual(MODULE_SOP.projects.steps);
     expect(projects.rules.length).toBeGreaterThan(0);
+  });
+});
+
+// The document-control half: the things that make this a controlled
+// procedure rather than a help page. They are worth pinning because a reader
+// cites them ("clause 8.2.3") and an auditor checks them.
+describe('the controlled-document frame', () => {
+  const mods = [
+    mod({ key: 'projects', section: 'Sales', order: 1 }),
+    mod({ key: 'quotation', label: 'Quotations', section: 'Sales', order: 2, href: '/quotation' }),
+    mod({ key: 'daily-report', label: 'Daily Report', section: 'Workspace', order: 3, href: '/daily-report' })
+  ];
+
+  it('numbers every module as a sub-clause of the procedure clause', () => {
+    const doc = buildSopDocument(role(), mods);
+    expect(doc.sections.map((s) => s.clause)).toEqual(['8.1', '8.2']);
+    expect(doc.sections[0].modules.map((m) => m.clause)).toEqual(['8.1.1', '8.1.2']);
+    expect(doc.sections[1].modules.map((m) => m.clause)).toEqual(['8.2.1']);
+  });
+
+  // The number must survive a rename of the role, because it is printed on
+  // every page and quoted in mail. So it comes from the key, not the label.
+  it('builds the document number from the role key, not its label', () => {
+    expect(sopDocumentNumber({ key: 'engineer' }, 'NT')).toBe('NT/MIQ/SOP/ENG');
+    expect(sopDocumentNumber({ key: 'technical-manager' }, 'NT')).toBe('NT/MIQ/SOP/TM');
+    expect(sopDocumentNumber({ key: 'hr' }, 'NT')).toBe('NT/MIQ/SOP/HR');
+    expect(buildSopDocument(role(), mods).control.documentNumber).toBe('NT/MIQ/SOP/ENG');
+  });
+
+  it('carries the issue details into the control block', () => {
+    const doc = buildSopDocument(role(), mods, {
+      revision: '03',
+      effectiveDate: '04 Nov 2026',
+      nextReviewDate: '04 Nov 2027',
+      prefix: 'NT'
+    });
+    expect(doc.control.revision).toBe('03');
+    expect(doc.control.effectiveDate).toBe('04 Nov 2026');
+    expect(doc.control.nextReviewDate).toBe('04 Nov 2027');
+    expect(doc.control.documentTitle).toBe('Standard Operating Procedure — Engineer');
+  });
+
+  // A first issue has nothing to supersede, and saying "supersedes rev 00"
+  // would invent a document nobody has.
+  it('declares an initial issue as superseding nothing', () => {
+    const doc = buildSopDocument(role(), mods);
+    expect(doc.control.supersedes).toBe('Nil — initial issue');
+    expect(doc.revisionHistory).toHaveLength(1);
+    expect(doc.revisionHistory[0].summary).toContain('Initial issue');
+  });
+
+  it('appends the current revision to the history it was given', () => {
+    const doc = buildSopDocument(role(), mods, {
+      revision: '02',
+      effectiveDate: '04 Nov 2026',
+      history: [{ revision: '01', date: '01 Oct 2026', summary: 'Initial issue.', issuedBy: 'Document Control' }]
+    });
+    expect(doc.revisionHistory.map((r) => r.revision)).toEqual(['01', '02']);
+    expect(doc.control.supersedes).toBe('Revision 01 dated 01 Oct 2026');
+    expect(doc.revisionHistory[1].summary).toContain('Reissued');
+  });
+
+  // The generator fingerprints the document to decide whether a revision is
+  // due. That only works if two builds of the same inputs are identical, so
+  // nothing inside may read the clock.
+  it('builds identically twice, so the generator can fingerprint it', () => {
+    const first = buildSopDocument(role(), mods, { revision: '01', effectiveDate: '04 Nov 2026' });
+    const second = buildSopDocument(role(), mods, { revision: '01', effectiveDate: '04 Nov 2026' });
+    expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+  });
+
+  it('states the privilege fallback in the access clause, in both directions', () => {
+    const standard = buildSopDocument(role(), mods).accessRows.find((row) => row.attribute === 'Privilege level');
+    expect(standard?.provision).toContain('refused');
+    const privileged = buildSopDocument(role({ isPrivileged: true }), mods).accessRows.find((row) => row.attribute === 'Privilege level');
+    expect(privileged?.provision).toContain('allowed');
+  });
+
+  // Clause 5 is what a manager reads to know who signs off. A role that can
+  // rewrite the permission matrix has to appear there as holding that
+  // authority, not only in clause 6.
+  it('names an administrative authority in the responsibility table', () => {
+    const admin = role({
+      key: 'admin',
+      label: 'Admin',
+      permissions: { modules: {}, manageSettings: true, manageUsers: true, manageRoles: true, manageDepartments: false, viewAllDepartments: true }
+    });
+    const parties = buildSopDocument(admin, mods).responsibilities.map((row) => row.party);
+    expect(parties).toContain('Admin (administrative authority)');
+    const row = buildSopDocument(admin, mods).responsibilities.find((r) => r.party === 'Admin (administrative authority)');
+    expect(row?.responsibility).toContain('role permission matrix (R1)');
+
+    expect(buildSopDocument(role(), mods).responsibilities.map((r) => r.party)).not.toContain('Engineer (administrative authority)');
+  });
+
+  it('counts the scope clause from the modules actually covered', () => {
+    const doc = buildSopDocument(role(), mods);
+    expect(doc.scope.inScope[0]).toContain('3 modules');
+    expect(doc.scope.body[0]).toContain('role key: engineer');
   });
 });
 

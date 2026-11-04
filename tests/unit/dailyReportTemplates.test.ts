@@ -267,7 +267,11 @@ describe('validation rules', () => {
   function completeHrEntry(over: Record<string, unknown> = {}) {
     return {
       category: 'Recruitment',
-      activity: 'Resume screening',
+      // Specific Activity is multiple:true — an array of one or more chosen
+      // activities under the category, not a single string. See the
+      // 'accepts several activities under one category' test below for the
+      // multi-value case itself.
+      activity: ['Resume screening'],
       description: 'Screened 18 CVs for the field engineer role.',
       priority: 'High',
       status: 'Completed',
@@ -281,12 +285,40 @@ describe('validation rules', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('rejects a category/activity pair that does not exist', () => {
-    // The linked dropdown prevents this in the UI; the server has to reject
-    // it too, because the UI is not the control.
+  it('accepts several activities chosen under one category', () => {
     const result = validateReportPayload(
       hr,
-      payload({ entries: [completeHrEntry({ activity: 'Payroll input' })] }),
+      payload({ entries: [completeHrEntry({ activity: ['Resume screening', 'Interview scheduling'] })] }),
+      true
+    );
+    expect(result.issues).toEqual([]);
+    expect(result.ok).toBe(true);
+    expect(result.normalized.entries[0].activity).toEqual(['Resume screening', 'Interview scheduling']);
+  });
+
+  it('requires at least one activity, same as any other required field', () => {
+    const result = validateReportPayload(hr, payload({ entries: [completeHrEntry({ activity: [] })] }), true);
+    expect(result.ok).toBe(false);
+    expect(result.issues.some((i) => i.path === 'entries.0.activity')).toBe(true);
+  });
+
+  it('trims, drops blanks, and de-duplicates a multi-select activity list', () => {
+    const result = validateReportPayload(
+      hr,
+      payload({ entries: [completeHrEntry({ activity: [' Resume screening ', '', 'Resume screening', 'Interview scheduling'] })] }),
+      true
+    );
+    expect(result.ok).toBe(true);
+    expect(result.normalized.entries[0].activity).toEqual(['Resume screening', 'Interview scheduling']);
+  });
+
+  it('rejects a category/activity pair that does not exist', () => {
+    // The linked dropdown prevents this in the UI; the server has to reject
+    // it too, because the UI is not the control. Rejected even when it is
+    // only ONE of several chosen activities.
+    const result = validateReportPayload(
+      hr,
+      payload({ entries: [completeHrEntry({ activity: ['Resume screening', 'Payroll input'] })] }),
       true
     );
     expect(result.ok).toBe(false);
@@ -294,7 +326,7 @@ describe('validation rules', () => {
     // The same activity under its own category is fine.
     expect(HR_ACTIVITY_CATALOGUE['Payroll & Compliance']).toContain('Payroll input');
     expect(
-      validateReportPayload(hr, payload({ entries: [completeHrEntry({ category: 'Payroll & Compliance', activity: 'Payroll input' })] }), true).ok
+      validateReportPayload(hr, payload({ entries: [completeHrEntry({ category: 'Payroll & Compliance', activity: ['Payroll input'] })] }), true).ok
     ).toBe(true);
   });
 

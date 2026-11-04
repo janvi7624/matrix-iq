@@ -1,0 +1,110 @@
+{
+  "admin": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 52 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "64bc7088f1a8162f"
+    }
+  ],
+  "manager": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 35 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "4b34ada959cf9058"
+    }
+  ],
+  "backoffice": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 20 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "a2e2a14d5f114341"
+    }
+  ],
+  "user": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 19 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "476708e90967955f"
+    }
+  ],
+  "technical-manager": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 25 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "09c0d4d4dded6e51"
+    }
+  ],
+  "team-lead": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 23 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "efd1e348e3a8821d"
+    }
+  ],
+  "engineer": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 25 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "2a4207e5e2008bed"
+    }
+  ],
+  "marketing": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 19 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "05a4720c31cec729"
+    }
+  ],
+  "accounts": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 20 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "75df2fdfa758c27a"
+    }
+  ],
+  "hr": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 24 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "9e0b82a658f39ff8"
+    }
+  ],
+  "partner-admin": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 8 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "7156a8ce9c36d206"
+    }
+  ],
+  "partner-user": [
+    {
+      "revision": "01",
+      "date": "2026-11-04",
+      "summary": "Initial issue, generated from the live MatrixIQ configuration. 8 modules in clause 8.0.",
+      "issuedBy": "MatrixIQ Document Control",
+      "hash": "21fb0ddd1b2ed603"
+    }
+  ]
+}

@@ -70,6 +70,12 @@ function asString(value: unknown): string {
   return String(value);
 }
 
+/** A multiple:true 'select' field's current value — never trusts a stale
+ *  non-array payload (e.g. from before the field became multi-select). */
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
+
 /** Options for a plain or dependent select. Empty when the parent is unset. */
 function optionsFor(field: DailyReportFieldDef, row: Record<string, unknown>): string[] {
   // What a PERSON may choose — narrower than what's a valid stored value
@@ -95,7 +101,7 @@ interface FieldProps {
   path: string;
   issues: Record<string, string>;
   disabled: boolean;
-  onFieldChange: (key: string, value: string) => void;
+  onFieldChange: (key: string, value: string | string[]) => void;
   derived?: DerivedEntryValues;
 }
 
@@ -171,6 +177,34 @@ function FieldControl({ field, row, path, issues, disabled, onFieldChange, deriv
       case 'select': {
         const options = optionsFor(field, row);
         const parentUnset = !!field.dependsOn && !asString(row[field.dependsOn]);
+        if (field.multiple) {
+          const selected = asStringArray(row[field.key]);
+          return (
+            <div className={styles.pickerBox} role="group" aria-label={field.label} aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-error` : undefined}>
+              {parentUnset ? (
+                <div className={calcStyles.small}>{`Choose a ${field.dependsOn?.replace(/_/g, ' ')} first`}</div>
+              ) : options.length === 0 ? (
+                <div className={calcStyles.small}>No options yet.</div>
+              ) : (
+                options.map((option) => {
+                  const checked = selected.includes(option);
+                  return (
+                    <label key={option} className={`${styles.pickerRow} ${checked ? styles.pickerRowOn : ''}`}>
+                      <input
+                        type="checkbox"
+                        className={styles.pickerCheckbox}
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={() => onFieldChange(field.key, checked ? selected.filter((v) => v !== option) : [...selected, option])}
+                      />
+                      <span className={styles.pickerName}>{option}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          );
+        }
         return (
           <Select
             id={id}
@@ -332,7 +366,7 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
     };
   }, [template.supportsTmsTaskLink, employeeId]);
 
-  function setHeader(key: string, next: string) {
+  function setHeader(key: string, next: string | string[]) {
     onChange({ ...value, header: { ...value.header, [key]: next } });
   }
 
@@ -352,12 +386,14 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
     while (changed) {
       changed = false;
       for (const field of template.rowFields) {
+        const isMultiSelect = field.type === 'select' && field.multiple;
         const current = patched[field.key];
-        if (current === undefined || current === '') continue;
+        const currentlyBlank = isMultiSelect ? asStringArray(current).length === 0 : current === undefined || current === '';
+        if (currentlyBlank) continue;
         const dependsOnUnset = field.dependsOn && !asString(patched[field.dependsOn]);
         const hiddenByShowWhen = !isFieldVisible(field, patched);
         if (dependsOnUnset || hiddenByShowWhen) {
-          patched[field.key] = '';
+          patched[field.key] = isMultiSelect ? [] : '';
           changed = true;
         }
       }
@@ -365,7 +401,7 @@ export default function DailyReportForm({ template, value, onChange, issues = {}
     return patched;
   }
 
-  async function setEntry(index: number, key: string, next: string) {
+  async function setEntry(index: number, key: string, next: string | string[]) {
     const entry = entries[index] ?? {};
     const governingField = template.rowFields.find((f) => f.key === key);
     if (governingField?.confirmOnChange) {

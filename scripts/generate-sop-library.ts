@@ -16,6 +16,14 @@
  * reuses the folders it made and REPLACES each role's document rather than
  * filing a second copy beside it.
  *
+ * Idempotent in the document-control sense too. Each document carries a
+ * revision number, and a revision that climbs on every run would be worthless
+ * — so the content is fingerprinted and recorded in scripts/sop-revision-log.json.
+ * A run where nothing has changed reprints the same revision with the same
+ * effective date; a run after a permissions change issues the next one and
+ * says so in the document's own revision history table. That ledger is the
+ * document history: commit it with the work.
+ *
  * The parent folder is deliberately left open to everyone while each role
  * folder is narrowed. That is the folder-chain rule in
  * lib/materialRoleVisibility.ts doing exactly what it exists for: the parent
@@ -27,12 +35,12 @@
  * would be a fifteenth copy of the other fourteen.
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { listActiveRoles, listRoles } from '../lib/roleStore';
 import { listModuleConfigs } from '../lib/moduleConfigStore';
-import { buildSopDocument, sopFileName, SopModuleInput } from '../lib/sopDocument';
+import { buildSopDocument, SopDocument, SopIssue, SopRevision, sopDocumentNumber, sopFileName, SopModuleInput } from '../lib/sopDocument';
 import { renderSopPdf } from '../lib/sopPdf';
 import {
   createFolder,
@@ -42,10 +50,19 @@ import {
 } from '../lib/materialFolderStore';
 import { createMaterial, listMaterials, updateMaterial } from '../lib/materialStore';
 import { formatIstDate } from '../lib/dailyReportTime';
+import { isPartnerRoleKey } from '../lib/partnerRoles';
 
 const PARENT_FOLDER = 'MatrixIQ SoP';
 const DRY_RUN = process.argv.includes('--dry-run');
 const OUT_DIR = path.join(process.cwd(), '.sop-out');
+
+/** The revision ledger. Committed, because it is the document's own history. */
+const REVISION_LOG = path.join(process.cwd(), 'scripts', 'sop-revision-log.json');
+
+const ORGANISATION = process.env.SOP_ORGANISATION || 'Nanta Technologies';
+const CLASSIFICATION = 'Internal — Confidential';
+const PARTNER_CLASSIFICATION = 'Confidential — Authorised Channel Partners';
+const ISSUED_BY = 'MatrixIQ Document Control';
 
 /** Who the documents are filed as. Resolved, never guessed — see main(). */
 const ACTOR_USERNAME = process.env.SOP_ACTOR || 'main';
@@ -53,6 +70,99 @@ const ACTOR_USERNAME = process.env.SOP_ACTOR || 'main';
 function log(message: string): void {
   // eslint-disable-next-line no-console
   console.log(message);
+}
+
+interface LoggedRevision {
+  revision: string;
+  /** ISO date, so the log does not depend on a display format. */
+  date: string;
+  summary: string;
+  issuedBy: string;
+  /** Fingerprint of the document's content, excluding its own issue details. */
+  hash: string;
+}
+
+type RevisionLog = Record<string, LoggedRevision[]>;
+
+function readRevisionLog(): RevisionLog {
+  if (!existsSync(REVISION_LOG)) return {};
+  try {
+    const parsed = JSON.parse(readFileSync(REVISION_LOG, 'utf8'));
+    return parsed && typeof parsed === 'object' ? (parsed as RevisionLog) : {};
+  } catch {
+    // A corrupt ledger must not silently restart every document at revision
+    // 01 — that would claim an initial issue for a document people already
+    // hold.
+    throw new Error(`${REVISION_LOG} exists but could not be parsed. Fix or remove it before reissuing.`);
+  }
+}
+
+/**
+ * What this document says, independent of which revision it is.
+ *
+ * The whole point: re-running the generator must NOT bump a revision when
+ * nothing has changed. A revision number that climbs on every run tells a
+ * reader the document was revised when it was merely regenerated, and then
+ * nobody trusts the number. So the content is fingerprinted, and the revision
+ * moves only when the fingerprint does.
+ */
+function contentHash(document: SopDocument): string {
+  const { control: _control, revisionHistory: _history, ...content } = document;
+  return createHash('sha256').update(JSON.stringify(content)).digest('hex').slice(0, 16);
+}
+
+function nextRevision(previous: string | undefined): string {
+  const current = Number.parseInt(previous ?? '0', 10);
+  return String((Number.isFinite(current) ? current : 0) + 1).padStart(2, '0');
+}
+
+function addYear(isoDate: string): string {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCFullYear(date.getUTCFullYear() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Initials, for the document number — "Nanta Technologies" gives NT. */
+function organisationPrefix(name: string): string {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '');
+  return initials.slice(0, 4) || 'ORG';
+}
+
+/**
+ * One number per document, collisions resolved.
+ *
+ * Two labels can abbreviate to the same letters — "Marketing" and "Market
+ * Research" both give MAR — and two controlled documents may not share a
+ * number. Roles are numbered in their configured order, so the assignment is
+ * stable across runs as long as that order is.
+ */
+function assignDocumentNumbers(roles: { key: string; label: string }[], prefix: string): Map<string, string> {
+  const claimed = new Map<string, number>();
+  const assigned = new Map<string, string>();
+  for (const role of roles) {
+    const base = sopDocumentNumber(role, prefix);
+    const seen = claimed.get(base) ?? 0;
+    claimed.set(base, seen + 1);
+    assigned.set(role.key, seen ? `${base}-${seen + 1}` : base);
+  }
+  return assigned;
+}
+
+/**
+ * What the Materials list shows under the title.
+ *
+ * The document number and revision are repeated here so that somebody
+ * looking at the library can tell whether the copy they downloaded last month
+ * is the current one, without opening it.
+ */
+function materialDescription(control: SopDocument['control']): string {
+  return `${control.documentNumber} — ${control.documentTitle}. Revision ${control.revision}, effective ${control.effectiveDate}. ${control.classification}. Generated from the live MatrixIQ configuration; not to be amended by hand.`;
 }
 
 async function folderIdByPath(name: string, parentId: string | null): Promise<string | null> {
@@ -119,33 +229,84 @@ async function main(): Promise<void> {
 
   mkdirSync(OUT_DIR, { recursive: true });
 
-  const generatedOn = formatIstDate(new Date().toISOString().slice(0, 10));
-  const meta = { generatedOn, organisation: 'Nanta Technologies' };
+  const today = new Date().toISOString().slice(0, 10);
+  const generatedOn = formatIstDate(today);
+  const meta = { generatedOn, organisation: ORGANISATION };
+  const prefix = organisationPrefix(ORGANISATION);
+  const ledger = readRevisionLog();
+  const documentNumbers = assignDocumentNumbers(subjects, prefix);
 
   // Rendered BEFORE anything is created, so a dry run proves the documents
   // without touching the library at all — and so a rendering failure on the
   // twelfth role does not leave eleven folders already filed.
   log(`\nDocuments:`);
-  const rendered: { role: (typeof subjects)[number]; fileName: string; localPath: string; pending: number; modules: number }[] = [];
+  const rendered: {
+    role: (typeof subjects)[number];
+    fileName: string;
+    localPath: string;
+    pending: number;
+    modules: number;
+    control: SopDocument['control'];
+  }[] = [];
   let pendingTotal = 0;
+  let reissued = 0;
   const contradictions: string[] = [];
 
   for (const role of subjects) {
-    const document = buildSopDocument(role, modules as unknown as SopModuleInput[]);
-    if (!document.moduleCount) {
+    // Built once with no issue details to fingerprint the content, then again
+    // with the revision that fingerprint earns it. Cheap — it is a pure
+    // function over data already in memory.
+    const probe = buildSopDocument(role, modules as unknown as SopModuleInput[]);
+    if (!probe.moduleCount) {
       log(`  - ${role.label}: no modules are visible to this role, skipped.`);
       continue;
     }
 
+    const hash = contentHash(probe);
+    const history = ledger[role.key] ?? [];
+    const last = history[history.length - 1];
+    const unchanged = last?.hash === hash;
+
+    const issue: Partial<SopIssue> = {
+      revision: unchanged ? last.revision : nextRevision(last?.revision),
+      effectiveDate: formatIstDate(unchanged ? last.date : today),
+      nextReviewDate: formatIstDate(addYear(unchanged ? last.date : today)),
+      issuedBy: ISSUED_BY,
+      prefix,
+      documentNumber: documentNumbers.get(role.key),
+      // A partner's copy leaves the building, so "Internal" would be false on
+      // the one document where the classification actually matters.
+      classification: isPartnerRoleKey(role.key) ? PARTNER_CLASSIFICATION : CLASSIFICATION,
+      // The row for this revision is added by the builder; the ledger holds
+      // only the ones before it.
+      history: (unchanged ? history.slice(0, -1) : history).map(
+        (entry): SopRevision => ({
+          revision: entry.revision,
+          date: formatIstDate(entry.date),
+          summary: entry.summary,
+          issuedBy: entry.issuedBy
+        })
+      )
+    };
+
+    const document = buildSopDocument(role, modules as unknown as SopModuleInput[], issue);
     const bytes = await renderSopPdf(document, meta);
     const fileName = sopFileName(role);
     const localPath = path.join(OUT_DIR, fileName);
     writeFileSync(localPath, bytes);
     pendingTotal += document.pendingCount;
-    rendered.push({ role, fileName, localPath, pending: document.pendingCount, modules: document.moduleCount });
+    rendered.push({ role, fileName, localPath, pending: document.pendingCount, modules: document.moduleCount, control: document.control });
+
+    if (!unchanged) {
+      reissued += 1;
+      const current = document.revisionHistory[document.revisionHistory.length - 1];
+      ledger[role.key] = [...history, { revision: current.revision, date: today, summary: current.summary, issuedBy: current.issuedBy, hash }];
+    }
+
     log(
-      `  * ${role.label}: ${document.moduleCount} modules, ${document.pendingCount} without a written procedure, ` +
-        `${(bytes.byteLength / 1024).toFixed(0)} KB -> ${localPath}`
+      `  * ${document.control.documentNumber} rev. ${document.control.revision} — ${role.label}: ` +
+        `${document.moduleCount} modules, ${document.pendingCount} without a written procedure, ` +
+        `${(bytes.byteLength / 1024).toFixed(0)} KB${unchanged ? ' (content unchanged, revision held)' : ' (new revision)'}`
     );
     // Worth saying out loud on every run: Module Manager shows the tile and
     // Role Management refuses view on it. Neither screen can see the other,
@@ -159,14 +320,22 @@ async function main(): Promise<void> {
     log(`\nModule Manager and Role Management disagree for ${contradictions.length} role(s):`);
     for (const line of contradictions) log(`  ! ${line}`);
     log('  The tile is shown to the role, but the role is explicitly refused "view" on it.');
-    log('  Each SoP says so on that module\'s own page. Settle it in one screen or the other.');
+    log('  Each SoP says so in that module\'s own clause. Settle it in one screen or the other.');
   }
 
   if (DRY_RUN) {
-    log(`\n${rendered.length} PDF(s) written to ${OUT_DIR}. Nothing was uploaded or filed.`);
-    log(`${pendingTotal} module page(s) across all roles still have no written procedure.`);
+    log(`\n${rendered.length} PDF(s) written to ${OUT_DIR}. Nothing was uploaded, filed or recorded in the revision ledger.`);
+    log(`${reissued} document(s) would take a new revision; ${rendered.length - reissued} are unchanged.`);
+    log(`${pendingTotal} module clause(s) across all roles still have no written procedure.`);
     return;
   }
+
+  // Written before the documents are filed. If filing fails halfway the
+  // ledger is ahead of the library, which is recoverable — a re-run reissues
+  // nothing and files what is missing. The reverse, a filed document with no
+  // recorded revision, would restart it at 01 on the next run.
+  writeFileSync(REVISION_LOG, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
+  log(`\nRevision ledger: ${reissued} reissued, ${rendered.length - reissued} held, recorded in ${REVISION_LOG}.`);
 
   // The parent stays open to EVERYONE. Narrowing it would hide every role
   // folder inside it, because the chain gate is evaluated to the root.
@@ -184,7 +353,7 @@ async function main(): Promise<void> {
   log(`\nFiling:`);
   let written = 0;
 
-  for (const { role, fileName, localPath } of rendered) {
+  for (const { role, fileName, localPath, control } of rendered) {
     written += 1;
     const roleFolderId = await ensureFolder(
       role.label,
@@ -210,17 +379,18 @@ async function main(): Promise<void> {
         isFolder: false,
         source: 'upload',
         mimeType: 'application/pdf',
+        description: materialDescription(control),
         visibleToRoles: [role.key],
         actorId
       });
-      log(`    ~ replaced the existing document for ${role.label}`);
+      log(`    ~ replaced the document for ${role.label} with rev. ${control.revision}`);
     } else {
       await createMaterial({
         folderId: roleFolderId,
         product: PARENT_FOLDER,
         category: 'other',
         title: fileName,
-        description: `Standard Operating Procedure for the ${role.label} role. Generated ${generatedOn}.`,
+        description: materialDescription(control),
         driveFileId: '',
         webViewLink: uploadedUrl,
         isFolder: false,
@@ -230,13 +400,13 @@ async function main(): Promise<void> {
         visibleToRoles: [role.key],
         actorId
       });
-      log(`    + filed the SoP for ${role.label}`);
+      log(`    + filed ${control.documentNumber} rev. ${control.revision} for ${role.label}`);
     }
   }
 
   log(
     `\n${written} SoP(s) filed under "${PARENT_FOLDER}". ` +
-      `${pendingTotal} module page(s) across all roles still have no written procedure.`
+      `${pendingTotal} module clause(s) across all roles still have no written procedure.`
   );
   log(`Local copies kept in ${OUT_DIR} for review.`);
 }

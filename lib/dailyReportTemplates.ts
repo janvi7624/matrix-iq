@@ -84,6 +84,21 @@ export interface DailyReportFieldDef {
   /** For 'select'. Admin-overridable per department — see resolveTemplate(). */
   options?: string[];
   /**
+   * For 'select' only — lets a person choose more than one option instead of
+   * exactly one, e.g. HR's Specific Activity: one Activity Category can
+   * legitimately cover several things done that day ("Resume screening" AND
+   * "Interview scheduling" under Recruitment). The stored/posted value
+   * becomes a string ARRAY instead of a single string — everywhere a
+   * 'select' field's raw value is read (validateField, the row-cleaning step
+   * in validateReportPayload, isBlankEntry, the form renderer) branches on
+   * this flag rather than assuming one shape for every 'select'. `options`/
+   * `dependsOn`/`linkedOptions`/`selectableOptions` all mean the same thing
+   * they do for a single-select — only how many of them may be chosen
+   * changes. Absent/false preserves the original single-value behaviour
+   * exactly, so every existing 'select' field is unaffected.
+   */
+  multiple?: boolean;
+  /**
    * For 'select' — narrows what a PERSON can choose from in the dropdown,
    * while `options` (validateField's source of truth for what's a valid
    * stored value) stays the full set. Absent means the dropdown offers
@@ -378,8 +393,15 @@ const HR_TEMPLATE: TemplateDefinition = {
   headerFields: [],
   rowFields: [
     TASK_ID_FIELD,
-    { key: 'category', label: 'Activity Category', type: 'select', required: true, options: Object.keys(HR_ACTIVITY_CATALOGUE), width: 'md' },
-    { key: 'activity', label: 'Specific Activity', type: 'select', required: true, dependsOn: 'category', linkedOptions: HR_ACTIVITY_CATALOGUE, width: 'md' },
+    // confirmOnChange: switching category after one or more activities are
+    // already ticked would otherwise silently clear all of them — costlier
+    // now that Specific Activity can hold several, so the swap asks first.
+    { key: 'category', label: 'Activity Category', type: 'select', required: true, options: Object.keys(HR_ACTIVITY_CATALOGUE), width: 'md', confirmOnChange: true },
+    // One category, several activities under it — "Resume screening" AND
+    // "Interview scheduling" under Recruitment are both real work done the
+    // same day, and forcing a second row per activity just to record both
+    // was the actual complaint. See DailyReportFieldDef.multiple.
+    { key: 'activity', label: 'Specific Activity', type: 'select', multiple: true, required: true, dependsOn: 'category', linkedOptions: HR_ACTIVITY_CATALOGUE, width: 'md' },
     { key: 'description', label: 'Description', type: 'textarea', required: true, maxLength: 2000, width: 'xl' },
     { key: 'priority', label: 'Priority', type: 'select', required: true, options: PRIORITY_OPTIONS, width: 'sm' },
     { key: 'status', label: 'Status', type: 'select', required: true, options: HR_STATUS_OPTIONS, width: 'sm' },
@@ -1408,6 +1430,29 @@ function asTrimmedString(value: unknown): string {
   return String(value).trim();
 }
 
+/**
+ * A multiple:true 'select' field's raw value, normalized: non-string/blank
+ * entries dropped, trimmed, de-duplicated, original order kept. Used by
+ * every reader of such a field's value (validateField, validateReportPayload's
+ * row-cleaning, isBlankEntry) so "what counts as chosen" can never drift
+ * between them. A non-array raw value (nothing picked yet, or a stale
+ * single-string payload from before this field was multi-select) normalizes
+ * to an empty selection rather than throwing.
+ */
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of value) {
+    const s = typeof item === 'string' ? item.trim() : '';
+    if (s && !seen.has(s)) {
+      seen.add(s);
+      out.push(s);
+    }
+  }
+  return out;
+}
+
 function validateField(field: DailyReportFieldDef, raw: Record<string, unknown>, pathPrefix: string, strict: boolean, issues: ValidationIssue[]): void {
   // Computed fields are derived server-side (see computeDerivedValues) — a
   // client-supplied value is ignored rather than validated or trusted.
@@ -1420,6 +1465,28 @@ function validateField(field: DailyReportFieldDef, raw: Record<string, unknown>,
   if (!isFieldVisible(field, raw)) return;
 
   const path = `${pathPrefix}.${field.key}`;
+
+  // Multi-select branches off entirely here: its value is an ARRAY, so none
+  // of the single-string blank-check/maxLength/type-specific logic below
+  // applies to it (and running an array through asTrimmedString would just
+  // silently join it into one comma string — see asStringArray above).
+  if (field.type === 'select' && field.multiple) {
+    const values = asStringArray(raw[field.key]);
+    if (!values.length) {
+      if (strict && field.required) issues.push({ path, message: `${field.label} is required.` });
+      return;
+    }
+    const allowed = field.dependsOn && field.linkedOptions ? field.linkedOptions[asTrimmedString(raw[field.dependsOn])] : field.options;
+    if (!allowed) {
+      issues.push({ path, message: `Choose ${field.label.toLowerCase()} after selecting a valid category.` });
+      return;
+    }
+    for (const value of values) {
+      if (!allowed.includes(value)) issues.push({ path, message: `${value} is not a valid ${field.label}.` });
+    }
+    return;
+  }
+
   const value = asTrimmedString(raw[field.key]);
 
   if (!value) {
@@ -1513,7 +1580,11 @@ function isUrlLike(value: string): boolean {
 
 /** True when an entry has nothing in it — such rows are dropped, not rejected. */
 export function isBlankEntry(entry: Record<string, unknown>, template: TemplateDefinition): boolean {
-  return template.rowFields.every((f) => f.type === 'computed' || !asTrimmedString(entry[f.key]));
+  return template.rowFields.every((f) => {
+    if (f.type === 'computed') return true;
+    if (f.type === 'select' && f.multiple) return asStringArray(entry[f.key]).length === 0;
+    return !asTrimmedString(entry[f.key]);
+  });
 }
 
 export interface ValidationResult {
@@ -1547,6 +1618,11 @@ export function validateReportPayload(template: TemplateDefinition, input: Daily
 
   for (const field of template.headerFields) {
     validateField(field, input.header || {}, 'header', strict, issues);
+    if (field.type === 'select' && field.multiple) {
+      const values = asStringArray((input.header || {})[field.key]);
+      if (values.length) header[field.key] = values;
+      continue;
+    }
     const value = asTrimmedString((input.header || {})[field.key]);
     if (field.type !== 'computed' && value) header[field.key] = field.type === 'number' ? Number(value) : value;
   }
@@ -1580,6 +1656,11 @@ export function validateReportPayload(template: TemplateDefinition, input: Daily
         // client to have cleared what it can check for itself.
         if (!isFieldVisible(field, row)) return;
         if (field.dependsOn && !asTrimmedString(row[field.dependsOn])) return;
+        if (field.type === 'select' && field.multiple) {
+          const values = asStringArray(row[field.key]);
+          if (values.length) clean[field.key] = values;
+          return;
+        }
         const value = asTrimmedString(row[field.key]);
         if (value) clean[field.key] = field.type === 'number' ? Number(value) : value;
       });
