@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { poStore } from '@/lib/poStore';
-import { appendProjectTimeline, findProjectById, projectStore } from '@/lib/projectStore';
+import { appendProjectTimeline, closeProjectAsWonOnce, findProjectById, projectStore } from '@/lib/projectStore';
 import { findPendingTechnicalRequests } from '@/lib/projectTechnicalRequest';
 import { wonBriefFailure } from '@/lib/salesStageRules';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -106,8 +106,14 @@ export async function POST(request: NextRequest) {
         wonBlockedReason =
           'PO saved, but this project cannot close as won without a Project Brief — add it in the Overview tab. The sales target will not count the deal until then.';
       } else {
-        await projectStore.update(projectId, { status: 'won' });
-        await appendProjectTimeline(projectId, { by: viewer.username, stage: 'po_received', label: 'Closed as won — PO received' });
+        // Guarded: two concurrent PO submissions for the same not-yet-won
+        // project would otherwise both pass the status checks above and
+        // both flip it + log a "Closed as won" entry. Only the request that
+        // actually performs the transition logs it.
+        const didClose = await closeProjectAsWonOnce(projectId);
+        if (didClose) {
+          await appendProjectTimeline(projectId, { by: viewer.username, stage: 'po_received', label: 'Closed as won — PO received' });
+        }
         projectClosedAsWon = true;
       }
     } else {

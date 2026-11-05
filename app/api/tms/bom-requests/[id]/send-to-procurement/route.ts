@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const result = await tmsBomRequestStore.sendToProcurement(id, viewer.username);
-    if (!result) return NextResponse.json({ error: 'BOM request not found' }, { status: 404 });
+    if (!result) return NextResponse.json({ error: 'This request was already sent to procurement' }, { status: 409 });
 
     await logAudit({
       by: viewer.username,

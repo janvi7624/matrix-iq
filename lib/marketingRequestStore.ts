@@ -221,6 +221,39 @@ async function update(id: string, patch: Partial<MarketingRequestRecord>): Promi
   });
 }
 
+/**
+ * Same write path as update(), but only applies the patch if `guardField`
+ * still equals `expectedValue` at write time — a row lock closes the TOCTOU
+ * window between a route's status check and its write, so two concurrent
+ * requests (double-click, retried request, or two different actions racing
+ * the same status, e.g. approve vs reject) can't both succeed.
+ */
+async function updateGuarded(
+  id: string,
+  guardField: 'status' | 'assignment_status',
+  expectedValue: string,
+  patch: Partial<MarketingRequestRecord>
+): Promise<{ ok: true; record: MarketingRequestRecord } | { ok: false }> {
+  if (!isUuid(id)) return { ok: false };
+
+  return sequelize.transaction(async (t) => {
+    const row = await db.MarketingRequest.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!row) return { ok: false };
+    if ((row.get(guardField) as string) !== expectedValue) return { ok: false };
+
+    const attrs: Record<string, unknown> = {};
+    const patchObj = patch as unknown as Record<string, unknown>;
+    for (const { name, kind = 'string' } of FIELDS) {
+      if (name in patchObj) attrs[name] = toAttr(patchObj[name], kind);
+    }
+    if (patch.assigned_to_id !== undefined) attrs.assigned_to_id = patch.assigned_to_id || null;
+
+    await row.update(attrs as never, { transaction: t });
+    const withAssoc = await db.MarketingRequest.findByPk(id, { include: ALL_INCLUDES, transaction: t });
+    return { ok: true, record: toRecord(withAssoc as Model) };
+  });
+}
+
 async function remove(id: string, viewerUsername: string, viewerIsPrivileged: boolean): Promise<boolean> {
   if (!viewerIsPrivileged) return false;
   if (!isUuid(id)) return false;
@@ -257,4 +290,4 @@ async function findForPartner(id: string, partnerId: string): Promise<MarketingR
   return row ? toRecord(row) : null;
 }
 
-export const marketingRequestStore = { list, create, update, remove, readAll, assign, listForPartner, findForPartner };
+export const marketingRequestStore = { list, create, update, updateGuarded, remove, readAll, assign, listForPartner, findForPartner };

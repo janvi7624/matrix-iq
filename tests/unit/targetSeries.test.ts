@@ -54,12 +54,29 @@ describe('assembleTargetSeries', () => {
     expect(series.annualTarget).toBe(12 * LAKH);
   });
 
-  it('reports 0% rather than dividing by zero when no target is set', () => {
+  // A month nobody was given a target for is not a month they missed: the
+  // target is null, so the dashed line breaks there instead of diving to the
+  // axis and reading as a collapse.
+  it('leaves target null when no target was set, and never divides by zero', () => {
     const series = assembleTargetSeries(FY, MONTHS, {}, { '2026-04': LAKH }, SEPT);
-    expect(series.points.find((p) => p.key === '2026-04')!.achievementPercent).toBe(0);
+    const april = series.points.find((p) => p.key === '2026-04')!;
+    expect(april.target).toBeNull();
+    expect(april.achievementPercent).toBeNull();
     expect(series.totals.achievementPercent).toBe(0);
     expect(series.hasAnyTarget).toBe(false);
     expect(series.hasAnyAchievement).toBe(true);
+  });
+
+  // The Targets screen writes a 0 row for every month left blank, and
+  // computeStatus already calls a 0 target 'not_started' — so a stored zero
+  // has to read as 'none set' here too, or the two disagree on screen.
+  it('treats a stored zero target as none set', () => {
+    const mixed = { ...targets(0), '2026-04': LAKH };
+    const series = assembleTargetSeries(FY, MONTHS, mixed, {}, SEPT);
+    expect(series.points.find((p) => p.key === '2026-04')!.target).toBe(LAKH);
+    expect(series.points.find((p) => p.key === '2026-05')!.target).toBeNull();
+    expect(series.annualTarget).toBe(LAKH);
+    expect(series.hasAnyTarget).toBe(true);
   });
 
   it('allows achievement above 100% of target', () => {

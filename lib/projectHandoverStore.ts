@@ -67,11 +67,19 @@ export const projectHandoverStore = {
     return rows.map(toRecord);
   },
 
+  // Guarded on status='pending' at write time: two concurrent calls on the
+  // same request (a double-click, or approve racing reject/cancel) would
+  // otherwise both pass the route's own pending-status check and both act —
+  // e.g. one transferring ownership while the other fires a "declined"
+  // notification for the same request. Returns null when the race is lost
+  // (nothing left in 'pending' to update), so the caller can report it
+  // cleanly instead of silently double-processing.
   async respond(id: string, status: 'approved' | 'rejected' | 'cancelled', responseRemarks: string): Promise<ProjectHandoverRecord | null> {
-    await db.ProjectHandoverRequest.update(
+    const [count] = await db.ProjectHandoverRequest.update(
       { status, response_remarks: responseRemarks },
-      { where: { id } }
+      { where: { id, status: 'pending' } as never }
     );
+    if (count === 0) return null;
     return this.findById(id);
   }
 };

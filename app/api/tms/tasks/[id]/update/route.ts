@@ -59,7 +59,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const progressPercent = typeof body.progressPercent === 'number' ? body.progressPercent : undefined;
     const actor = viewer.userId;
 
-    const updated = await recordTaskUpdate({ taskId: id, status: newStatus, progressPercent, remark, updatedByUserId: actor });
+    const updated = await recordTaskUpdate({
+      taskId: id,
+      status: newStatus,
+      progressPercent,
+      remark,
+      updatedByUserId: actor,
+      expectedCurrentStatus: task.status
+    });
+    if (!updated) {
+      return NextResponse.json({ error: 'This task was already updated by someone else — reload and try again' }, { status: 409 });
+    }
 
     await logAudit({
       by: viewer.username,

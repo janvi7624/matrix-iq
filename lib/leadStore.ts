@@ -403,7 +403,15 @@ export interface AssignLeadsResult {
 export async function assignLeads(
   leadIds: string[],
   assigneeId: string,
-  assignerUsername: string
+  assignerUsername: string,
+  // Set by a self-claim ("take this unassigned lead for myself"): adds
+  // assigned_to_id IS NULL to the WHERE clause so two reps claiming the same
+  // card at once can't both win — the loser's row just doesn't match, same
+  // as any other lost-race case below, instead of silently overwriting
+  // whichever rep claimed it a moment earlier. A manager's ordinary
+  // reassignment is NOT guarded this way — overwriting the existing owner is
+  // exactly what that action is for.
+  options?: { requireCurrentlyUnassigned?: boolean }
 ): Promise<AssignLeadsResult> {
   const assigner = assignerUsername
     ? await db.User.findOne({ where: { username: assignerUsername } as never, attributes: ['id'] })
@@ -418,6 +426,8 @@ export async function assignLeads(
   // sequential round trips in a single request — it timed out long before it
   // finished. Written straight through the model rather than via
   // recordStore.update for the same reason.
+  const where: Record<string, unknown> = { id: ids };
+  if (options?.requireCurrentlyUnassigned) where.assigned_to_id = null;
   const [assigned] = await db.Lead.update(
     {
       assigned_to_id: assigneeId || null,
@@ -427,15 +437,27 @@ export async function assignLeads(
       assigned_at: assigneeId ? now : null,
       updated_at: now
     } as never,
-    { where: { id: ids } as never }
+    { where: where as never }
   );
 
-  // Anything that didn't match (already deleted, or an id outside this table)
-  // is reported the same way the per-lead loop used to report it.
+  // Anything that didn't match is reported the same way the per-lead loop
+  // used to report it. For a plain (non-claim) assignment, "didn't match"
+  // only means the row is gone (deleted, or never existed). For a self-claim,
+  // it can ALSO mean someone else claimed it a moment ago — the WHERE clause
+  // excludes that row from the UPDATE, but it still exists, so the ordinary
+  // "was it found at all" check below would wrongly call it a success. Check
+  // the actual resulting owner instead so a lost race is reported as failed,
+  // not silently credited to the loser.
   if (assigned < ids.length) {
-    const found = await db.Lead.findAll({ where: { id: ids } as never, attributes: ['id'] });
-    const foundIds = new Set(found.map((r) => r.get('id') as string));
-    failed.push(...ids.filter((id) => !foundIds.has(id)));
+    if (options?.requireCurrentlyUnassigned) {
+      const found = await db.Lead.findAll({ where: { id: ids } as never, attributes: ['id', 'assigned_to_id'] });
+      const ownerById = new Map(found.map((r) => [r.get('id') as string, r.get('assigned_to_id') as string | null]));
+      failed.push(...ids.filter((id) => ownerById.get(id) !== (assigneeId || null)));
+    } else {
+      const found = await db.Lead.findAll({ where: { id: ids } as never, attributes: ['id'] });
+      const foundIds = new Set(found.map((r) => r.get('id') as string));
+      failed.push(...ids.filter((id) => !foundIds.has(id)));
+    }
   }
 
   return { assigned, failed };

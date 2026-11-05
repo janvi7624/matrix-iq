@@ -7,6 +7,7 @@ import { buildTargetsFromMonths, fiscalYearMonthKeys, MonthAmounts, rollupSummar
 import { findSalesTarget, listSalesTargets, upsertSalesTargets } from '@/lib/salesTargetStore';
 import { computeAchievementForEmployees, computeStatus } from '@/lib/salesAchievement';
 import { apiErrorResponse } from '@/lib/apiError';
+import { db, isUuid } from '@/lib/db';
 
 const VALID_PERIOD_TYPES: TargetPeriodType[] = ['monthly', 'quarterly', 'half_yearly', 'annual'];
 
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
   const periodKey = body.month || body.quarter || body.half || undefined;
   const notes = typeof body.notes === 'string' ? body.notes : '';
 
-  if (!employeeId) return NextResponse.json({ error: 'Employee is required' }, { status: 400 });
+  if (!employeeId || !isUuid(employeeId)) return NextResponse.json({ error: 'A valid employee is required' }, { status: 400 });
   if (!fiscalYear) return NextResponse.json({ error: 'Fiscal year is required' }, { status: 400 });
 
   // Targets are entered MONTH BY MONTH — each month its own figure — and the
@@ -188,6 +189,13 @@ export async function POST(request: NextRequest) {
     if (!scope.seesOrgWide && !(scope.scopedUserIds ?? []).includes(employeeId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    // A well-formed but nonexistent id passes the scope check above for an
+    // org-wide viewer (seesOrgWide short-circuits it) and would otherwise
+    // only be caught by the targets table's FK constraint, surfacing as a
+    // raw 500 instead of a clean 404.
+    const employeeExists = await db.User.findByPk(employeeId, { attributes: ['id'] });
+    if (!employeeExists) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
 
     // Still all 19 periods in one transaction: the 12 months as entered, plus
     // the 4 quarters, 2 halves and the year derived from them. Writing the

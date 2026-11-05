@@ -44,6 +44,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const remarks = typeof body.remarks === 'string' ? body.remarks.trim() : '';
     const newStatus = decision === 'approve' ? 'manager_approved' : 'changes_requested';
     const updated = await travelScheduleStore.managerDecide(id, newStatus as 'manager_approved' | 'changes_requested', viewer.username, remarks);
+    if (!updated) return NextResponse.json({ error: 'This request was already decided' }, { status: 409 });
 
     await logAudit({
       by: viewer.username, role: viewer.role, entityType: 'travel_schedule', entityId: id,

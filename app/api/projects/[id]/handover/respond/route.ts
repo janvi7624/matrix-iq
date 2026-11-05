@@ -46,6 +46,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const remarks = typeof responseRemarks === 'string' ? responseRemarks.trim() : '';
 
   const updated = await projectHandoverStore.respond(handoverRequestId, status, remarks);
+  if (!updated) {
+    return NextResponse.json({ error: 'This handover request has already been responded to' }, { status: 409 });
+  }
 
   if (approved) {
     // Transfer project ownership

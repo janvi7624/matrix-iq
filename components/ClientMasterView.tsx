@@ -449,15 +449,29 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
       // fills in this client's details from their most recent project (or
       // just the company name, when there is no project to copy from) and
       // still creates a NEW project — see useExistingClient there.
-      render: (c) => (
-        <Link
-          className={historyStyles.button}
-          href={`/projects?newForClient=${encodeURIComponent(c.displayName)}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          + New Project
-        </Link>
-      )
+      render: (c) => {
+        // Hand the client over in full rather than by name alone. The name on
+        // its own made the Projects page re-find this client in the project
+        // directory, which fails for a prospect (there is no project to find)
+        // and leaves the contact details to be retyped. `key` is this row's
+        // own grouping key, so the lookup there is an exact match instead of
+        // a re-derived guess at the same normalisation.
+        const primary = c.contacts[0];
+        const params = new URLSearchParams({ newForClient: c.displayName, newClientKey: c.key });
+        if (primary?.clientName) params.set('ncClient', primary.clientName);
+        if (primary?.phone) params.set('ncPhone', primary.phone);
+        if (primary?.altContactPhone) params.set('ncAltPhone', primary.altContactPhone);
+        if (primary?.email) params.set('ncEmail', primary.email);
+        return (
+          <Link
+            className={historyStyles.button}
+            href={`/projects?${params.toString()}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            + New Project
+          </Link>
+        );
+      }
     },
     {
       key: 'projects',

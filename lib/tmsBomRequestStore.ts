@@ -179,14 +179,22 @@ async function decide(id: string, decision: 'approved' | 'rejected', reviewerUse
   const row = await db.TmsBomRequest.findByPk(id);
   if (!row) return null;
   const reviewer = await db.User.findOne({ where: { username: reviewerUsername } as never });
-  await row.update(
+  // Conditional on the status read above still holding at write time — the
+  // caller already checked status is submitted/under_review against this
+  // same read, but without this WHERE two concurrent decisions (a double-
+  // click, or an approve racing a reject) would both pass and both write,
+  // with the loser's notification/email still firing for a decision that
+  // never actually stuck.
+  const [affected] = await db.TmsBomRequest.update(
     {
       status: decision,
       reviewed_by_id: reviewer ? reviewer.get('id') : null,
       reviewed_at: new Date(),
       rejection_reason: decision === 'rejected' ? rejectionReason || '' : ''
-    } as never
+    } as never,
+    { where: { id, status: row.get('status') } as never }
   );
+  if (!affected) return null;
   const withAssoc = await db.TmsBomRequest.findByPk(id, { include: ALL_INCLUDES });
   return toRecord(withAssoc as Model);
 }
@@ -200,14 +208,16 @@ async function adminDecide(id: string, decision: 'admin_approved' | 'rejected', 
   const row = await db.TmsBomRequest.findByPk(id);
   if (!row) return null;
   const reviewer = await db.User.findOne({ where: { username: reviewerUsername } as never });
-  await row.update(
+  const [affected] = await db.TmsBomRequest.update(
     {
       status: decision,
       admin_reviewed_by_id: reviewer ? reviewer.get('id') : null,
       admin_reviewed_at: new Date(),
       rejection_reason: decision === 'rejected' ? rejectionReason || '' : ''
-    } as never
+    } as never,
+    { where: { id, status: row.get('status') } as never }
   );
+  if (!affected) return null;
   const withAssoc = await db.TmsBomRequest.findByPk(id, { include: ALL_INCLUDES });
   return toRecord(withAssoc as Model);
 }
@@ -221,14 +231,16 @@ async function financeDecide(id: string, decision: 'finance_approved' | 'rejecte
   const row = await db.TmsBomRequest.findByPk(id);
   if (!row) return null;
   const reviewer = await db.User.findOne({ where: { username: reviewerUsername } as never });
-  await row.update(
+  const [affected] = await db.TmsBomRequest.update(
     {
       status: decision,
       finance_reviewed_by_id: reviewer ? reviewer.get('id') : null,
       finance_reviewed_at: new Date(),
       rejection_reason: decision === 'rejected' ? rejectionReason || '' : ''
-    } as never
+    } as never,
+    { where: { id, status: row.get('status') } as never }
   );
+  if (!affected) return null;
   const withAssoc = await db.TmsBomRequest.findByPk(id, { include: ALL_INCLUDES });
   return toRecord(withAssoc as Model);
 }
@@ -270,7 +282,11 @@ async function markReceived(id: string, actorUsername: string): Promise<TmsBomRe
   const row = await db.TmsBomRequest.findByPk(id);
   if (!row) return null;
   const actor = await db.User.findOne({ where: { username: actorUsername } as never });
-  await row.update({ status: 'received', received_by_id: actor ? actor.get('id') : null, received_at: new Date() } as never);
+  const [affected] = await db.TmsBomRequest.update(
+    { status: 'received', received_by_id: actor ? actor.get('id') : null, received_at: new Date() } as never,
+    { where: { id, status: row.get('status') } as never }
+  );
+  if (!affected) return null;
   const withAssoc = await db.TmsBomRequest.findByPk(id, { include: ALL_INCLUDES });
   return toRecord(withAssoc as Model);
 }
@@ -288,7 +304,16 @@ async function sendToProcurement(id: string, actorUsername: string): Promise<{ b
   const procurementCode = await nextTmsProcurementCode();
 
   return sequelize.transaction(async (t) => {
-    await row.update({ status: 'sent_for_procurement' } as never, { transaction: t });
+    // Conditional on the status read above still holding, inside the same
+    // transaction — without this, two concurrent "Send to procurement"
+    // submissions (double-click) would both pass the route's status check
+    // and both create a TmsProcurement row for the same BOM request,
+    // duplicating the downstream procurement record, not just a notice.
+    const [affected] = await db.TmsBomRequest.update(
+      { status: 'sent_for_procurement' } as never,
+      { where: { id, status: plain.status } as never, transaction: t }
+    );
+    if (!affected) return null;
     const procRow = await db.TmsProcurement.create(
       {
         procurement_code: procurementCode,

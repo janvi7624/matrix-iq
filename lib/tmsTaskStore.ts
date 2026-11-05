@@ -6,6 +6,17 @@ import { EngineerTaskAction } from './tmsLabels';
 
 export type { EngineerTaskAction };
 
+// start_date/due_date are DATEONLY columns — an unvalidated garbage string
+// (not just '', which toAttr below already nulls out) reaches Postgres
+// directly and throws, surfacing as a leaked raw DB error via
+// apiErrorResponse (same bug class fixed in projectStore's filter params).
+// Routes validate with this before ever building a record/patch.
+export function isValidDateOnly(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
 const FIELDS = [
   { name: 'project_id' },
   { name: 'name' },
@@ -139,7 +150,7 @@ async function create(record: TmsTaskRecord): Promise<TmsTaskRecord> {
   return toRecord(withAssoc as Model);
 }
 
-async function update(id: string, patch: Partial<TmsTaskRecord>): Promise<TmsTaskRecord | null> {
+async function update(id: string, patch: Partial<TmsTaskRecord>, expectedStatus?: TmsTaskStatus): Promise<TmsTaskRecord | null> {
   if (!isUuid(id)) return null;
   const row = await db.TmsTask.findByPk(id);
   if (!row) return null;
@@ -162,7 +173,21 @@ async function update(id: string, patch: Partial<TmsTaskRecord>): Promise<TmsTas
     }
   }
 
-  await row.update(attrs as never);
+  // Conditional on the status the caller read before deciding this was a
+  // valid transition (e.g. isValidEngineerTransition/recordTaskUpdate) —
+  // two concurrent engineer actions on the same task (double-click, or two
+  // different actions racing) would otherwise both pass that read-time
+  // check and both write, leaving two conflicting TmsTaskUpdate history
+  // rows and two manager notifications for what should be one transition.
+  // Same pattern as reimbursementSheetStore's accounts-complete guard.
+  if (expectedStatus !== undefined) {
+    const [affected] = await db.TmsTask.update(attrs as never, {
+      where: { id, status: expectedStatus } as never
+    });
+    if (!affected) return null;
+  } else {
+    await row.update(attrs as never);
+  }
   const withAssoc = await db.TmsTask.findByPk(id, { include: ALL_INCLUDES });
   return toRecord(withAssoc as Model);
 }
@@ -276,6 +301,7 @@ export interface RecordTaskUpdateInput {
   progressPercent?: number;
   remark: string;
   updatedByUserId: string;
+  expectedCurrentStatus?: TmsTaskStatus;
 }
 
 // Inserts the immutable update-history row and patches the task's live
@@ -284,6 +310,16 @@ export interface RecordTaskUpdateInput {
 // always leaves a trail.
 export async function recordTaskUpdate(input: RecordTaskUpdateInput): Promise<TmsTaskRecord | null> {
   const clampedProgress = input.progressPercent === undefined ? undefined : Math.max(0, Math.min(100, input.progressPercent));
+  const patch: Record<string, unknown> = { status: input.status };
+  if (clampedProgress !== undefined) patch.progress_percent = clampedProgress;
+
+  // Apply the guarded status transition FIRST — only write the immutable
+  // history row below if it actually lands, so a lost race (see update())
+  // never leaves an orphaned TmsTaskUpdate row for a transition that didn't
+  // happen.
+  const updated = await update(input.taskId, patch as Partial<TmsTaskRecord>, input.expectedCurrentStatus);
+  if (!updated) return null;
+
   await db.TmsTaskUpdate.create({
     task_id: input.taskId,
     progress_percent: clampedProgress ?? 0,
@@ -292,9 +328,7 @@ export async function recordTaskUpdate(input: RecordTaskUpdateInput): Promise<Tm
     updated_by: input.updatedByUserId
   } as never);
 
-  const patch: Record<string, unknown> = { status: input.status };
-  if (clampedProgress !== undefined) patch.progress_percent = clampedProgress;
-  return update(input.taskId, patch as Partial<TmsTaskRecord>);
+  return updated;
 }
 
 export interface RecentTaskUpdate extends TmsTaskUpdateRecord {

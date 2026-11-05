@@ -32,7 +32,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Only a request still awaiting review can be approved' }, { status: 400 });
     }
 
-    const updated = await marketingRequestStore.update(id, { status: 'approved', updated_at: new Date().toISOString() });
+    const result = await marketingRequestStore.updateGuarded(id, 'status', 'submitted', {
+      status: 'approved',
+      updated_at: new Date().toISOString()
+    });
+    if (!result.ok) {
+      return NextResponse.json({ error: 'This request is no longer awaiting review' }, { status: 409 });
+    }
+    const updated = result.record;
 
     await logAudit({
       by: viewer.username,

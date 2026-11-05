@@ -363,58 +363,66 @@ export interface RespondInput {
  */
 export async function respondToQuotationRequest(id: string, input: RespondInput): Promise<InternalQuotationRequest | null> {
   if (!isUuid(id)) return null;
-  const row = await db.PartnerQuotationRequest.findByPk(id);
-  if (!row) return null;
 
-  const from = row.get('status') as string;
-  if (!canTransition(from, input.to)) {
-    throw new QuotationRequestError(`A ${from} request cannot be moved to ${input.to}`);
-  }
-  if (requiresResponseNote(input.to) && !input.note?.trim()) {
-    throw new QuotationRequestError('Say why this is not being quoted — the partner will see it');
-  }
-
-  let quotationId: string | null = null;
-  if (requiresQuotation(input.to)) {
-    if (!isUuid(input.quotationId ?? '')) {
-      throw new QuotationRequestError('Pick the quotation that answers this request');
-    }
-    // The quotation must belong to the SAME project the request was raised
-    // against. Without this check a mis-click could link a partner's request
-    // to another customer's quotation, and the portal would then offer them
-    // its number.
-    const quotation = await db.Quotation.findOne({
-      where: { id: input.quotationId, project_id: row.get('project_id') } as never
-    });
-    if (!quotation) throw new QuotationRequestError('That quotation is not on this project');
-    quotationId = input.quotationId as string;
-
-    // Answering the request IS sharing it. Selecting the quotation here used
-    // to only record a link, leaving someone to go to Existing Quotations
-    // and press Share separately — which meant the partner was told their
-    // quotation was ready while they still could not open it.
-    //
-    // Done BEFORE the status update, deliberately: shareQuotationWithPartner
-    // refuses a draft and re-checks that the project is this partner's, and
-    // a refusal must leave the request exactly as it was rather than marking
-    // it quoted with nothing shared.
-    try {
-      await shareQuotationWithPartner(
-        quotationId,
-        row.get('partner_id') as string,
-        input.handledByUserId,
-        input.note?.trim() ?? ''
-      );
-    } catch (error) {
-      // Translated so the route's single catch surfaces the real reason —
-      // "A draft quotation cannot be shared" is exactly what the person
-      // needs to read, not a generic failure.
-      if (error instanceof PartnerShareError) throw new QuotationRequestError(error.message);
-      throw error;
-    }
-  }
-
+  // The whole decision — read, transition check, quotation share, write —
+  // runs under one row lock so two concurrent responses (two reviewers, or a
+  // double-click) can't both pass canTransition() against the same starting
+  // status and both act: one sharing quotation A and the other quotation B
+  // on the same request, or a "quoted" and a "declined" notification both
+  // going out for the same request.
   return sequelize.transaction(async (t) => {
+    const row = await db.PartnerQuotationRequest.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!row) return null;
+
+    const from = row.get('status') as string;
+    if (!canTransition(from, input.to)) {
+      throw new QuotationRequestError(`A ${from} request cannot be moved to ${input.to}`);
+    }
+    if (requiresResponseNote(input.to) && !input.note?.trim()) {
+      throw new QuotationRequestError('Say why this is not being quoted — the partner will see it');
+    }
+
+    let quotationId: string | null = null;
+    if (requiresQuotation(input.to)) {
+      if (!isUuid(input.quotationId ?? '')) {
+        throw new QuotationRequestError('Pick the quotation that answers this request');
+      }
+      // The quotation must belong to the SAME project the request was raised
+      // against. Without this check a mis-click could link a partner's request
+      // to another customer's quotation, and the portal would then offer them
+      // its number.
+      const quotation = await db.Quotation.findOne({
+        where: { id: input.quotationId, project_id: row.get('project_id') } as never,
+        transaction: t
+      });
+      if (!quotation) throw new QuotationRequestError('That quotation is not on this project');
+      quotationId = input.quotationId as string;
+
+      // Answering the request IS sharing it. Selecting the quotation here used
+      // to only record a link, leaving someone to go to Existing Quotations
+      // and press Share separately — which meant the partner was told their
+      // quotation was ready while they still could not open it.
+      //
+      // Done BEFORE the status update, deliberately: shareQuotationWithPartner
+      // refuses a draft and re-checks that the project is this partner's, and
+      // a refusal must leave the request exactly as it was rather than marking
+      // it quoted with nothing shared.
+      try {
+        await shareQuotationWithPartner(
+          quotationId,
+          row.get('partner_id') as string,
+          input.handledByUserId,
+          input.note?.trim() ?? ''
+        );
+      } catch (error) {
+        // Translated so the route's single catch surfaces the real reason —
+        // "A draft quotation cannot be shared" is exactly what the person
+        // needs to read, not a generic failure.
+        if (error instanceof PartnerShareError) throw new QuotationRequestError(error.message);
+        throw error;
+      }
+    }
+
     await row.update(
       {
         status: input.to,

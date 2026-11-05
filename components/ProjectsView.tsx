@@ -265,9 +265,22 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // Held until `projects` has loaded, because the contact details are copied
   // from that client's most recent project — the name in the URL alone would
   // leave the phone, email and address to be retyped.
-  const [pendingClientName, setPendingClientName] = useState(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('newForClient') || '';
+  const [pendingClient, setPendingClient] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const name = params.get('newForClient') || '';
+    if (!name) return null;
+    return {
+      name,
+      // The directory's own grouping key, handed over rather than re-derived:
+      // Client Master may show a longer company spelling than any single
+      // project carries, so matching on the display name alone could miss.
+      key: params.get('newClientKey') || '',
+      clientName: params.get('ncClient') || '',
+      phone: params.get('ncPhone') || '',
+      altContactPhone: params.get('ncAltPhone') || '',
+      email: params.get('ncEmail') || ''
+    };
   });
 
   // 'pending_confirmation' | '' — driven by Dashboard's "Projects awaiting
@@ -585,16 +598,51 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // the pending name is cleared whether or not a match was found, so a
   // client who somehow has no project still gets an open form rather than a
   // loop.
+  // Arriving from Client Master: open the form and fill in everything that
+  // page already knew, immediately. This deliberately does NOT wait for the
+  // client directory — waiting for that fetch was the old behaviour, and on
+  // a slow response the button looked like it had done nothing at all. Set
+  // in an effect rather than in the useState initialisers because this view
+  // is server-rendered too, and deciding the opening state from
+  // window.location there makes the server and client markup disagree.
   useEffect(() => {
-    if (!pendingClientName || !clientDirectory.length) return;
-    const wanted = clientDirectoryKey(pendingClientName);
-    const match = clientDirectory.find((p) => clientDirectoryKey(p.company || p.client_name) === wanted);
+    if (!pendingClient) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowForm(true);
-    if (match) useExistingClient(match.id, { quiet: true });
-    else setForm((f) => ({ ...f, company: pendingClientName }));
-    setPendingClientName('');
+    setForm((f) => ({
+      ...f,
+      company: pendingClient.name,
+      clientName: pendingClient.clientName || f.clientName,
+      phone: pendingClient.phone || f.phone,
+      altContactPhone: pendingClient.altContactPhone || f.altContactPhone,
+      email: pendingClient.email || f.email
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingClientName, clientDirectory]);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingClient || !clientDirectory.length) return;
+    const wanted = pendingClient.key || clientDirectoryKey(pendingClient.name);
+    const match = clientDirectory.find((p) => clientDirectoryKey(p.company || p.client_name) === wanted);
+    if (match) {
+      // Top up only what is still blank. Client Master is the directory the
+      // person was just looking at, so where the two disagree its values win;
+      // the past project is here to supply what Client Master does not hold
+      // at all — the address above all, and a contact for a client whose
+      // record has none.
+      setForm((f) => ({
+        ...f,
+        clientName: f.clientName || match.client_name,
+        company: f.company || match.company,
+        contactPerson: f.contactPerson || match.contact_person,
+        phone: f.phone || match.phone,
+        altContactPhone: f.altContactPhone || match.alt_contact_phone,
+        email: f.email || match.email,
+        address: f.address || match.address
+      }));
+    }
+    setPendingClient(null);
+  }, [pendingClient, clientDirectory]);
 
   /**
    * Copies an existing client's details into the open New Project form.

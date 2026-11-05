@@ -18,7 +18,7 @@ interface SeriesPoint {
   key: string;
   label: string;
   fullLabel: string;
-  target: number;
+  target: number | null;
   achieved: number | null;
   achievementPercent: number | null;
   state: 'past' | 'current' | 'future';
@@ -40,13 +40,26 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: { paylo
   return (
     <div className={styles.chartTooltip}>
       <div className={styles.chartTooltipTitle}>{point.fullLabel}</div>
-      <div>Target: {formatMoney(point.target)}</div>
+      <div>
+        Target: {point.target === null ? <span className={styles.chartTooltipMuted}>none set</span> : formatMoney(point.target)}
+      </div>
       <div>
         Achieved:{' '}
         {point.achieved === null ? <span className={styles.chartTooltipMuted}>month not started</span> : formatMoney(point.achieved)}
       </div>
-      {point.achieved !== null && point.target > 0 ? <div>{point.achievementPercent}% of target</div> : null}
+      {point.achievementPercent !== null ? <div>{point.achievementPercent}% of target</div> : null}
     </div>
+  );
+}
+
+function isSeries(json: unknown): json is SeriesResponse {
+  if (!json || typeof json !== 'object') return false;
+  const candidate = json as Partial<SeriesResponse>;
+  return (
+    Array.isArray(candidate.points) &&
+    Array.isArray(candidate.fiscalYearOptions) &&
+    typeof candidate.fiscalYear === 'string' &&
+    !!candidate.totals
   );
 }
 
@@ -65,6 +78,11 @@ export default function TargetAchievementChart({ username }: { username: string 
       })
       .then((json: SeriesResponse) => {
         if (cancelled) return;
+        // A 200 whose body is not a series — a stale deploy, a proxy error
+        // page, a half-written response — is a failure, not data. Without
+        // this it reached the render as undefined and took the whole person
+        // modal down with it, not just the chart.
+        if (!isSeries(json)) throw new Error('The target trend came back in a shape this page does not understand.');
         setData(json);
       })
       .catch((e: Error) => {
@@ -130,6 +148,7 @@ export default function TargetAchievementChart({ username }: { username: string 
               stroke={TARGET_COLOR}
               strokeWidth={2}
               strokeDasharray="5 4"
+              connectNulls={false}
               dot={false}
             />
             {/* connectNulls stays off on purpose: a month that has not started

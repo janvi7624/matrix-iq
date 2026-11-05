@@ -263,7 +263,15 @@ async function update(id: string, patch: Partial<TravelScheduleRecord>): Promise
 
 // draft -> submitted
 async function submit(id: string): Promise<TravelScheduleRecord | null> {
-  return update(id, { status: 'submitted', change_request_remarks: '', change_requested_by: '' } as Partial<TravelScheduleRecord>);
+  if (!isUuid(id)) return null;
+  const row = await db.TravelSchedule.findByPk(id);
+  if (!row) return null;
+  const currentStatus = row.get('status') as string;
+  const attrs = { status: 'submitted', change_request_remarks: '', change_requested_by: '' };
+  const [affected] = await db.TravelSchedule.update(attrs as never, { where: { id, status: currentStatus } as never });
+  if (!affected) return null;
+  const withAssoc = await db.TravelSchedule.findByPk(id, { include: allIncludes() });
+  return toRecord(withAssoc as Model);
 }
 
 // submitted -> manager_approved | changes_requested
@@ -271,6 +279,7 @@ async function managerDecide(id: string, decision: 'manager_approved' | 'changes
   if (!isUuid(id)) return null;
   const row = await db.TravelSchedule.findByPk(id);
   if (!row) return null;
+  const currentStatus = row.get('status') as string;
   const actor = await db.User.findOne({ where: { username: actorUsername } as never });
   const attrs: Record<string, unknown> = {
     status: decision,
@@ -282,7 +291,11 @@ async function managerDecide(id: string, decision: 'manager_approved' | 'changes
     attrs.change_request_remarks = remarks || '';
     attrs.change_requested_by = 'Department Manager';
   }
-  await row.update(attrs as never);
+  // Conditional on the status read above still holding at write time — two
+  // concurrent manager decisions on the same request would otherwise both
+  // pass and both write (e.g. approve + request-changes landing together).
+  const [affected] = await db.TravelSchedule.update(attrs as never, { where: { id, status: currentStatus } as never });
+  if (!affected) return null;
   const withAssoc = await db.TravelSchedule.findByPk(id, { include: allIncludes() });
   return toRecord(withAssoc as Model);
 }
@@ -308,7 +321,10 @@ async function hrReview(id: string, decision: 'hr_reviewed' | 'changes_requested
     attrs.change_request_remarks = patch.remarks || '';
     attrs.change_requested_by = 'HR Department';
   }
-  await row.update(attrs as never);
+  // See managerDecide: conditional write so a lost race returns null instead
+  // of doubling hr_documents / double-deciding.
+  const [affected] = await db.TravelSchedule.update(attrs as never, { where: { id, status: plain.status } as never });
+  if (!affected) return null;
   const withAssoc = await db.TravelSchedule.findByPk(id, { include: allIncludes() });
   return toRecord(withAssoc as Model);
 }
@@ -318,6 +334,7 @@ async function adminDecide(id: string, decision: 'admin_approved' | 'changes_req
   if (!isUuid(id)) return null;
   const row = await db.TravelSchedule.findByPk(id);
   if (!row) return null;
+  const currentStatus = row.get('status') as string;
   const actor = await db.User.findOne({ where: { username: actorUsername } as never });
   const attrs: Record<string, unknown> = {
     status: decision,
@@ -329,7 +346,10 @@ async function adminDecide(id: string, decision: 'admin_approved' | 'changes_req
     attrs.change_request_remarks = remarks || '';
     attrs.change_requested_by = 'Admin Department';
   }
-  await row.update(attrs as never);
+  // See managerDecide: conditional write so a lost race returns null instead
+  // of double-deciding.
+  const [affected] = await db.TravelSchedule.update(attrs as never, { where: { id, status: currentStatus } as never });
+  if (!affected) return null;
   const withAssoc = await db.TravelSchedule.findByPk(id, { include: allIncludes() });
   return toRecord(withAssoc as Model);
 }
@@ -366,6 +386,7 @@ async function hrFinalVerify(id: string, decision: 'completed' | 'changes_reques
   if (!isUuid(id)) return null;
   const row = await db.TravelSchedule.findByPk(id);
   if (!row) return null;
+  const currentStatus = row.get('status') as string;
   const actor = await db.User.findOne({ where: { username: actorUsername } as never });
   const attrs: Record<string, unknown> = {
     status: decision === 'completed' ? 'completed' : 'changes_requested',
@@ -377,7 +398,10 @@ async function hrFinalVerify(id: string, decision: 'completed' | 'changes_reques
     attrs.change_request_remarks = remarks || '';
     attrs.change_requested_by = 'HR (Final Verification)';
   }
-  await row.update(attrs as never);
+  // See managerDecide: conditional write so a lost race returns null instead
+  // of double-deciding.
+  const [affected] = await db.TravelSchedule.update(attrs as never, { where: { id, status: currentStatus } as never });
+  if (!affected) return null;
   const withAssoc = await db.TravelSchedule.findByPk(id, { include: allIncludes() });
   return toRecord(withAssoc as Model);
 }

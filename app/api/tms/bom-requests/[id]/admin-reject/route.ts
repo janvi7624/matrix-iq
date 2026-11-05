@@ -30,6 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const updated = await tmsBomRequestStore.adminDecide(id, 'rejected', viewer.username, reason);
+    if (!updated) return NextResponse.json({ error: 'This request was already decided by someone else' }, { status: 409 });
 
     await logAudit({
       by: viewer.username,

@@ -39,6 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const newStatus = decision === 'approve' ? 'completed' : 'changes_requested';
 
     const updated = await travelScheduleStore.hrFinalVerify(id, newStatus as 'completed' | 'changes_requested', viewer.username, remarks);
+    if (!updated) return NextResponse.json({ error: 'This request was already decided' }, { status: 409 });
 
     await logAudit({
       by: viewer.username, role: viewer.role, entityType: 'travel_schedule', entityId: id,

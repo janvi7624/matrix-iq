@@ -7,7 +7,7 @@ import { findSalesTarget, updateSalesTargetNotes } from '@/lib/salesTargetStore'
 import { updateQuotationStatus } from '@/lib/quotationStore';
 import { appendProjectTimeline, findProjectById } from '@/lib/projectStore';
 import { cancelTmsProjectForLostDeal } from '@/lib/tmsHandoff';
-import { db } from '@/lib/db';
+import { db, isUuid } from '@/lib/db';
 import { Op } from 'sequelize';
 import { ProjectStage, QuotationStatus } from '@/lib/types';
 import { ASSIGNABLE_STAGES } from '@/lib/projectStages';
@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const employeeId = url.searchParams.get('employeeId') || '';
   if (!employeeId) return NextResponse.json({ error: 'employeeId is required' }, { status: 400 });
+  if (!isUuid(employeeId)) return NextResponse.json({ error: 'Invalid employeeId' }, { status: 400 });
 
   try {
     const scope = await resolveVisibilityScope(viewer.username);

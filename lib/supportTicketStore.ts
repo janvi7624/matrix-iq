@@ -1,5 +1,7 @@
 import { Model, Op } from 'sequelize';
+import { listActiveDepartments, listDepartmentManagers } from './departmentStore';
 import { db, isUuid, sequelize } from './db';
+import { isValidDateOnly } from './tmsTaskStore';
 import {
   SupportActor,
   SupportTicketStatus,
@@ -201,6 +203,13 @@ export interface CreateTicketInput {
   contactPerson?: string;
   contactMethod?: string;
   attachments?: string[];
+  /**
+   * Which department the requester needs help from. Supplying it routes the
+   * ticket to that department's manager on creation, who then picks the
+   * engineer — rather than the ticket landing in a shared queue with nobody
+   * named on it.
+   */
+  departmentId?: string;
 }
 
 const PRIORITIES = ['low', 'medium', 'high', 'critical'];
@@ -209,11 +218,19 @@ export async function createTicket(
   input: CreateTicketInput,
   createdByUserId: string,
   partnerId: string | null
-): Promise<{ id: string; ticket_number: string }> {
+): Promise<{ id: string; ticket_number: string; assignedToUserId: string | null }> {
   if (!input.title?.trim()) throw new SupportTicketError('A title is required');
   if (!input.description?.trim()) throw new SupportTicketError('Describe the issue');
 
   const priority = PRIORITIES.includes(input.priority ?? '') ? (input.priority as string) : 'medium';
+
+  // occurred_on is a DATEONLY column — an unvalidated garbage string reaches
+  // Postgres directly and throws, leaking a raw DB error (same bug class
+  // fixed in lib/tmsTaskStore.ts/lib/projectStore.ts). A blank value is fine
+  // (optional field); a non-empty garbage one is rejected up front.
+  if (input.occurredOn && !isValidDateOnly(input.occurredOn)) {
+    throw new SupportTicketError('Enter a valid date for when the issue occurred');
+  }
 
   // A project may be linked only if it belongs to the raising partner.
   let projectId: string | null = null;
@@ -222,6 +239,21 @@ export async function createTicket(
     const project = await db.Project.findOne({ where: where as never, attributes: ['id'] });
     if (!project) throw new SupportTicketError('That project could not be found');
     projectId = project.get('id') as string;
+  }
+
+  // Route to the chosen department's manager. Deliberately resolved BEFORE
+  // the transaction: it is two plain reads, and a department that has been
+  // deactivated or has no active manager must not abort a ticket somebody
+  // is trying to raise — the ticket is still created, just unrouted, which
+  // the queue already renders as "Unassigned".
+  let departmentId: string | null = null;
+  let managerId: string | null = null;
+  if (input.departmentId && isUuid(input.departmentId)) {
+    const department = (await listActiveDepartments()).find((d) => d.id === input.departmentId);
+    if (!department) throw new SupportTicketError('That department could not be found');
+    departmentId = department.id;
+    const managers = (await listDepartmentManagers())[department.name] ?? [];
+    managerId = managers[0]?.id ?? null;
   }
 
   return sequelize.transaction(async (t) => {
@@ -245,7 +277,16 @@ export async function createTicket(
         occurred_on: input.occurredOn || null,
         contact_person: input.contactPerson?.trim() || null,
         contact_method: input.contactMethod?.trim() || null,
-        attachments: input.attachments || []
+        attachments: input.attachments || [],
+        department_id: departmentId,
+        // The manager holds it until they name an engineer. assigned_by_id
+        // stays null on purpose: nobody assigned this, the routing did, and
+        // claiming a person did it would misread the ticket history.
+        assigned_to_id: managerId,
+        assigned_at: managerId ? new Date() : null
+        // status stays 'new'. Routing is not the same as being worked, and
+        // the SLA clock and the status transitions in
+        // lib/supportTicketWorkflow.ts both start from 'new'.
       } as never,
       { transaction: t }
     );
@@ -255,7 +296,7 @@ export async function createTicket(
       { ticket_id: id, from_status: null, to_status: 'new', by_user_id: createdByUserId, at: new Date() } as never,
       { transaction: t }
     );
-    return { id, ticket_number: ticketNumber };
+    return { id, ticket_number: ticketNumber, assignedToUserId: managerId };
   });
 }
 
@@ -442,7 +483,16 @@ export async function transitionTicket(input: TransitionInput): Promise<SupportT
       attrs.closed_at = null;
     }
 
-    await row.update(attrs as never, { transaction: t });
+    // Re-checked against the same `from` read above: without this WHERE,
+    // two concurrent transitions off the same stale status (a double-click,
+    // or two actors acting on the same ticket at once) would both pass the
+    // canTransition check and both write, silently losing one transition
+    // and double-appending history for it.
+    const [affected] = await db.SupportTicket.update(attrs as never, {
+      where: { id: input.ticketId, status: from } as never,
+      transaction: t
+    });
+    if (!affected) throw new SupportTicketError('This ticket was already updated — refresh and try again');
     await db.SupportTicketStatusHistory.create(
       { ticket_id: input.ticketId, from_status: from, to_status: input.to, by_user_id: input.byUserId, reason: input.reason?.trim() || null, at: now } as never,
       { transaction: t }

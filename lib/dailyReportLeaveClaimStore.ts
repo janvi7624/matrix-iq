@@ -367,10 +367,15 @@ export async function decideClaim(
   let rejectionOutcome: ClaimDecisionResult['rejectionOutcome'] = null;
 
   await db.sequelize.transaction(async (t) => {
-    await row.update(
+    const [affected] = await db.DailyReportLeaveClaim.update(
       { status: decision, reviewed_by: reviewerId, reviewed_at: new Date(), decision_reason: decisionReason } as never,
-      { transaction: t }
+      { where: { id, status: 'PENDING' } as never, transaction: t }
     );
+    if (affected === 0) {
+      // Lost the race — another request decided this claim first between
+      // our pre-check above and this transaction. Nothing has been written.
+      throw new DailyReportLeaveClaimError('This claim has already been decided.');
+    }
 
     const warning = await db.DailyReportWarning.findOne({
       where: { employee_id: employeeId, report_date: reportDate } as never,

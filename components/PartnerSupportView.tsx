@@ -41,13 +41,21 @@ const EMPTY = {
   occurredOn: '',
   projectId: '',
   contactPerson: '',
-  contactMethod: ''
+  contactMethod: '',
+  // Which department is being asked for help. Submitting it routes the
+  // ticket to that department's manager, who then names the engineer.
+  departmentId: ''
 };
 
 const ISSUE_TYPES = ['technical', 'installation', 'configuration', 'maintenance', 'warranty', 'amc', 'product_failure', 'other'];
 
 export default function PartnerSupportView({ partner }: { partner: PartnerRecord }) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  // Only departments that actually have an active manager are offered:
+  // choosing one with nobody to route to would leave the ticket sitting
+  // unassigned while looking to the requester as though it had been sent
+  // to someone.
+  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
   const [projects, setProjects] = useState<{ id: string; reference: string; company: string }[]>([]);
   const [status, setStatus] = useState('Loading...');
   const [showForm, setShowForm] = useState(false);
@@ -76,6 +84,13 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
       .then((r) => (r.ok ? r.json() : []))
       .then(setProjects)
       .catch(() => setProjects([]));
+    fetch('/api/departments')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { id: string; name: string; managerIds?: string[] }[]) => {
+        if (!Array.isArray(rows)) return;
+        setDepartments(rows.filter((d) => (d.managerIds?.length ?? 0) > 0).map((d) => ({ id: d.id, name: d.name })));
+      })
+      .catch(() => setDepartments([]));
   }, [load]);
 
   async function openTicket(id: string) {
@@ -163,6 +178,26 @@ export default function PartnerSupportView({ partner }: { partner: PartnerRecord
             <label className={calcStyles.label} htmlFor="st">Title *</label>
             <input id="st" className={calcStyles.formControl} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
           </div>
+          {departments.length > 0 && (
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="sdept">Which department do you need help from? *</label>
+              <select
+                id="sdept"
+                className={calcStyles.formControl}
+                value={form.departmentId}
+                onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+                required
+              >
+                <option value="">Select a department</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <p className={calcStyles.small}>
+                Goes straight to that department&rsquo;s manager, who will assign an engineer.
+              </p>
+            </div>
+          )}
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="sty">Issue type</label>

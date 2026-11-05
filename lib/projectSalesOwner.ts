@@ -1,5 +1,5 @@
 import { db, isUuid } from './db';
-import { appendProjectTimeline, canAccessProject, findProjectById, reassignProjectOwner } from './projectStore';
+import { appendProjectTimeline, canAccessProject, findProjectById, reassignProjectOwnerGuarded } from './projectStore';
 import { findUserById } from './userStore';
 import { projectHandoverStore } from './projectHandoverStore';
 import { logAudit } from './auditLogStore';
@@ -112,7 +112,10 @@ export async function assignSalesPerson(projectId: string, salesPersonId: string
   }
 
   const previousOwner = project.created_by;
-  await reassignProjectOwner(projectId, salesPerson.id);
+  const claimed = await reassignProjectOwnerGuarded(projectId, salesPerson.id, previousOwner);
+  if (!claimed) {
+    throw new SalesOwnerError('This project\'s sales person was just changed by someone else — reload and try again.', 409);
+  }
   await appendProjectTimeline(projectId, {
     by: actor.username,
     stage: project.stage,

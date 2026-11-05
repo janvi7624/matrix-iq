@@ -294,16 +294,12 @@ export interface ReviewInput {
  */
 export async function reviewPartnerSubmission(projectId: string, input: ReviewInput): Promise<ProjectRecord | undefined> {
   if (!isUuid(projectId)) return undefined;
-  const row = await db.Project.findByPk(projectId);
-  if (!row) return undefined;
+  const preCheck = await db.Project.findByPk(projectId);
+  if (!preCheck) return undefined;
 
-  const partnerId = row.get('partner_id') as string | null;
+  const partnerId = preCheck.get('partner_id') as string | null;
   if (!partnerId) throw new PartnerSubmissionError('This project was not submitted by a partner');
 
-  const from = (row.get('partner_submission_status') as string) || '';
-  if (!canReviewTransition(from, input.decision)) {
-    throw new PartnerSubmissionError(`A ${from || 'non-partner'} submission cannot be moved to ${input.decision}`);
-  }
   if (input.decision === 'rejected' && !input.remarks.trim()) {
     throw new PartnerSubmissionError('A reason is required when refusing a submission');
   }
@@ -312,6 +308,18 @@ export async function reviewPartnerSubmission(projectId: string, input: ReviewIn
   }
 
   return sequelize.transaction(async (t) => {
+    // Re-fetch under a row lock and re-check the transition inside the
+    // transaction — the pre-check above is just a fast-fail for the common
+    // case. Two concurrent reviews of the same submission (double-click, or
+    // one reviewer approving while another rejects) would otherwise both
+    // pass the earlier read-only check and both write + notify + assign.
+    const row = await db.Project.findByPk(projectId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!row) throw new PartnerSubmissionError('Project not found');
+    const from = (row.get('partner_submission_status') as string) || '';
+    if (!canReviewTransition(from, input.decision)) {
+      throw new PartnerSubmissionError(`A ${from || 'non-partner'} submission cannot be moved to ${input.decision}`);
+    }
+
     const attrs: Record<string, unknown> = {
       partner_submission_status: input.decision,
       partner_reviewed_by: input.reviewerUserId,
@@ -376,7 +384,11 @@ export async function respondToInfoRequest(partnerId: string, projectId: string,
   }
 
   await sequelize.transaction(async (t) => {
-    await row.update({ partner_submission_status: 'submitted' } as never, { transaction: t });
+    const [affected] = await db.Project.update(
+      { partner_submission_status: 'submitted' } as never,
+      { where: { id: projectId, partner_id: partnerId, partner_submission_status: 'info_requested' } as never, transaction: t }
+    );
+    if (!affected) throw new PartnerSubmissionError('This project is not waiting on information');
     await db.ProjectNote.create(
       {
         project_id: projectId,
@@ -476,7 +488,11 @@ export async function reviseSubmission(
   }
 
   await sequelize.transaction(async (t) => {
-    await row.update({ ...next, partner_submission_status: 'submitted' } as never, { transaction: t });
+    const [affected] = await db.Project.update(
+      { ...next, partner_submission_status: 'submitted' } as never,
+      { where: { id: projectId, partner_id: partnerId, partner_submission_status: 'info_requested' } as never, transaction: t }
+    );
+    if (!affected) throw new PartnerSubmissionError('This project is not open for changes');
 
     const summary = formatChangeSummary(changes);
     const text = [message.trim(), summary && `Updated:\n${summary}`].filter(Boolean).join('\n\n');

@@ -4,6 +4,7 @@ import { createTicket, listPartnerTickets, SupportTicketError } from '@/lib/supp
 import { findPartnerById } from '@/lib/partnerStore';
 import { notifyUsers } from '@/lib/notificationStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { notifySupportAssignee } from '@/lib/supportTicketNotify';
 import { db } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
@@ -44,11 +45,19 @@ export async function POST(request: NextRequest) {
         projectId: str(body.projectId),
         contactPerson: str(body.contactPerson),
         contactMethod: str(body.contactMethod),
+        departmentId: str(body.departmentId),
         attachments: Array.isArray(body.attachments) ? body.attachments.filter((a: unknown): a is string => typeof a === 'string') : []
       },
       viewer.userId,
       viewer.partnerId
     );
+
+    // The department manager this was routed to. Separate from the
+    // relationship-manager notice below: that one is about the partner
+    // relationship, this one is about who has to act on the ticket.
+    if (result.assignedToUserId) {
+      await notifySupportAssignee(result.assignedToUserId, result.ticket_number, str(body.title), result.id);
+    }
 
     const partner = await findPartnerById(viewer.partnerId);
     if (partner?.relationship_manager_id) {

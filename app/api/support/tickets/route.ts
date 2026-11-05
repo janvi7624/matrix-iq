@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { canWorkSupportQueue, listAssignableEngineers } from '@/lib/supportTicketAccess';
 import { createTicket, listInternalTickets, SupportTicketError } from '@/lib/supportTicketStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { notifySupportAssignee } from '@/lib/supportTicketNotify';
 
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
@@ -49,11 +50,19 @@ export async function POST(request: NextRequest) {
         projectId: str(body.projectId),
         contactPerson: str(body.contactPerson),
         contactMethod: str(body.contactMethod),
+        departmentId: str(body.departmentId),
         attachments: Array.isArray(body.attachments) ? body.attachments.filter((a: unknown): a is string => typeof a === 'string') : []
       },
       viewer.userId,
       null
     );
+
+    // Tell the department manager it is theirs. Fire-and-forget for the
+    // same reason the partner route does it that way: a notification that
+    // fails must not fail the ticket.
+    if (result.assignedToUserId) {
+      await notifySupportAssignee(result.assignedToUserId, result.ticket_number, str(body.title), result.id);
+    }
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     if (error instanceof SupportTicketError) return NextResponse.json({ error: error.message }, { status: 400 });

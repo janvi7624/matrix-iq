@@ -75,7 +75,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ongoing_activities: ongoingActivities,
         remarks: typeof body.remarks === 'string' ? body.remarks.trim() : ''
       };
-      patch.updates = [...existing.updates, entry];
+      const updated = await siteVisitStore.addUpdate(id, entry, patch.updated_at!);
+      return NextResponse.json(updated);
     } else {
       if (typeof body.companyName === 'string' && body.companyName.trim()) patch.company_name = body.companyName.trim();
       if (typeof body.contactPerson === 'string') patch.contact_person = body.contactPerson.trim();

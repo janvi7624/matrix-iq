@@ -123,7 +123,15 @@ export async function waiveWarning(id: string, waivedByUserId: string, reason: s
   if (!row) throw new DailyReportWarningError('Warning not found.');
   if (row.get('status') === 'WAIVED') throw new DailyReportWarningError('This warning has already been waived.');
 
-  await row.update({ status: 'WAIVED', waived_by: waivedByUserId, waived_at: new Date(), waiver_reason: trimmed } as never);
+  const [affected] = await db.DailyReportWarning.update(
+    { status: 'WAIVED', waived_by: waivedByUserId, waived_at: new Date(), waiver_reason: trimmed } as never,
+    { where: { id, status: 'ACTIVE' } as never }
+  );
+  if (affected === 0) {
+    // Lost the race — another request waived this warning first between
+    // our pre-check above and this write. Nothing has been written.
+    throw new DailyReportWarningError('This warning has already been waived.');
+  }
   return (await findWarningById(id)) as DailyReportWarningRecord;
 }
 
@@ -133,7 +141,13 @@ export async function reinstateWarning(id: string, reason: string): Promise<Dail
   const row = await db.DailyReportWarning.findByPk(id);
   if (!row) throw new DailyReportWarningError('Warning not found.');
   if (row.get('status') !== 'WAIVED') throw new DailyReportWarningError('This warning is already active.');
-  await row.update({ status: 'ACTIVE', waived_by: null, waived_at: null, waiver_reason: (reason || '').trim() || null } as never);
+  const [affected] = await db.DailyReportWarning.update(
+    { status: 'ACTIVE', waived_by: null, waived_at: null, waiver_reason: (reason || '').trim() || null } as never,
+    { where: { id, status: 'WAIVED' } as never }
+  );
+  if (affected === 0) {
+    throw new DailyReportWarningError('This warning is already active.');
+  }
   return (await findWarningById(id)) as DailyReportWarningRecord;
 }
 
@@ -271,7 +285,15 @@ export async function acknowledgeEscalation(id: string, userId: string, note: st
     throw new DailyReportEscalationError('This escalation has already been actioned.');
   }
 
-  await row.update({ acknowledged_at: new Date(), acknowledged_by: userId, action_note: trimmed } as never);
+  const [affected] = await db.DailyReportEscalation.update(
+    { acknowledged_at: new Date(), acknowledged_by: userId, action_note: trimmed } as never,
+    { where: { id, acknowledged_at: null } as never }
+  );
+  if (affected === 0) {
+    // Lost the race — another request acknowledged this escalation first
+    // between our pre-check above and this write. Nothing has been written.
+    throw new DailyReportEscalationError('This escalation has already been actioned.');
+  }
   const withAssoc = await db.DailyReportEscalation.findByPk(id, { include: [acknowledgedByInclude] as never });
   return toEscalation(withAssoc as Model);
 }

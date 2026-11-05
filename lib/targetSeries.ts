@@ -21,14 +21,21 @@ export interface TargetSeriesPoint {
   label: string;
   /** Tooltip label, e.g. 'April 2025'. */
   fullLabel: string;
-  /** Planned amount. Known for future months too — that is the plan. */
-  target: number;
+  /**
+   * Planned amount, or null for a month with no target. Null rather than 0
+   * for the same reason achieved is: a zero plots as a floor the person
+   * crashed through, when in fact nothing was ever asked of them that month.
+   * A stored 0 counts as "none set" — computeStatus in lib/salesAchievement.ts
+   * already treats it that way (it returns not_started), and the Targets
+   * screen writes a 0 row for every month left blank.
+   */
+  target: number | null;
   /**
    * Closed amount, or null for a month that has not started. Null rather
    * than 0 on purpose: a zero would draw a future month as a total miss.
    */
   achieved: number | null;
-  /** Achieved as a % of target; 0 when no target was set, null for future. */
+  /** Achieved as a % of target; null when either side is unknown. */
   achievementPercent: number | null;
   state: 'past' | 'current' | 'future';
 }
@@ -75,7 +82,8 @@ export function assembleTargetSeries(
   const points: TargetSeriesPoint[] = months.map((month) => {
     const state: TargetSeriesPoint['state'] =
       month.periodStart > today ? 'future' : month.periodEnd < today ? 'past' : 'current';
-    const target = round2(Number(monthTargets[month.key]) || 0);
+    const rawTarget = round2(Number(monthTargets[month.key]) || 0);
+    const target = rawTarget > 0 ? rawTarget : null;
     const achieved = state === 'future' ? null : round2(Number(monthAchieved[month.key]) || 0);
     return {
       key: month.key,
@@ -83,13 +91,13 @@ export function assembleTargetSeries(
       fullLabel: month.label,
       target,
       achieved,
-      achievementPercent: achieved === null ? null : target > 0 ? Math.round((achieved / target) * 100) : 0,
+      achievementPercent: achieved === null || target === null ? null : Math.round((achieved / target) * 100),
       state
     };
   });
 
   const started = points.filter((p) => p.achieved !== null);
-  const totalTarget = round2(started.reduce((sum, p) => sum + p.target, 0));
+  const totalTarget = round2(started.reduce((sum, p) => sum + (p.target ?? 0), 0));
   const totalAchieved = round2(started.reduce((sum, p) => sum + (p.achieved ?? 0), 0));
 
   return {
@@ -100,8 +108,8 @@ export function assembleTargetSeries(
       achieved: totalAchieved,
       achievementPercent: totalTarget > 0 ? Math.round((totalAchieved / totalTarget) * 100) : 0
     },
-    annualTarget: round2(points.reduce((sum, p) => sum + p.target, 0)),
-    hasAnyTarget: points.some((p) => p.target > 0),
+    annualTarget: round2(points.reduce((sum, p) => sum + (p.target ?? 0), 0)),
+    hasAnyTarget: points.some((p) => p.target !== null),
     hasAnyAchievement: started.some((p) => (p.achieved ?? 0) > 0)
   };
 }

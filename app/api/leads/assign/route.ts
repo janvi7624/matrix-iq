@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     // owner — that information is gone once the update lands.
     const previousById = new Map(visible.filter((l) => permitted.includes(l.id)).map((l) => [l.id, l]));
 
-    const result = await assignLeads(permitted, assigneeId, viewer.username);
+    const result = await assignLeads(permitted, assigneeId, viewer.username, { requireCurrentlyUnassigned: isSelfClaim });
 
     // One audit row per lead, written as a single batch — an expo assignment
     // is 600 rows, and one INSERT each would take longer than the request has.

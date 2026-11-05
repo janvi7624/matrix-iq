@@ -3,6 +3,35 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { travelScheduleStore, sanitizeCoTravellers, sanitizeHotelAccommodation, sanitizeAdvanceRequest } from '@/lib/travelScheduleStore';
 import { listAuditLog } from '@/lib/auditLogStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { listDepartmentManagers } from '@/lib/departmentStore';
+import { findUserByUsername, findUsersByDepartmentName } from '@/lib/userStore';
+import { TravelScheduleRecord } from '@/lib/types';
+
+// findById() (unlike list()) has no built-in scoping, so GET needs its own
+// authorization check — mirrors who's allowed to act on the record at any
+// stage of its lifecycle (manager-decide/hr-review/admin-decide/etc.), plus
+// the creator and any co-travellers, so nobody else can read another
+// employee's travel details (hotel, advance amount, remarks) by id.
+async function canViewTravelRequest(
+  viewer: { username: string; userId: string; role: string; isPrivileged: boolean },
+  record: TravelScheduleRecord
+): Promise<boolean> {
+  if (viewer.isPrivileged || viewer.role === 'admin' || viewer.role === 'superadmin') return true;
+  if (record.created_by === viewer.username) return true;
+  if (Array.isArray(record.companion_ids) && record.companion_ids.includes(viewer.userId)) return true;
+
+  const allManagers = await listDepartmentManagers();
+  const isManagerOf = (dept: string) => (allManagers[dept] || []).some((m) => m.username === viewer.username);
+  if (isManagerOf('HR') || isManagerOf('Admin') || isManagerOf('Administration')) return true;
+
+  const accountsDeptUsers = await findUsersByDepartmentName('Accounts');
+  if (accountsDeptUsers.some((u) => u.username === viewer.username) || isManagerOf('Accounts')) return true;
+
+  const creator = await findUserByUsername(record.created_by);
+  if (creator?.department && isManagerOf(creator.department)) return true;
+
+  return false;
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewerContext(request);
@@ -12,6 +41,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const record = await travelScheduleStore.findById(id);
     if (!record) return NextResponse.json({ error: 'Travel request not found' }, { status: 404 });
+    if (!(await canViewTravelRequest(viewer, record))) {
+      return NextResponse.json({ error: 'Not authorized to view this request' }, { status: 403 });
+    }
     const auditHistory = await listAuditLog('travel_schedule', id);
     return NextResponse.json({ ...record, audit_history: auditHistory });
   } catch (error) {

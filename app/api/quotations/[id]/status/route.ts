@@ -25,6 +25,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const updated = await updateQuotationStatus(id, body.status, viewer.username);
+    if (!updated) {
+      return NextResponse.json({ error: 'This quotation was already changed by someone else — reload and try again' }, { status: 409 });
+    }
     return NextResponse.json(updated);
   } catch (error) {
     return apiErrorResponse(error);

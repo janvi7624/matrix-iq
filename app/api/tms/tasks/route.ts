@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTmsViewer, requireTmsAction } from '@/lib/tmsAccess';
-import { tmsTaskStore } from '@/lib/tmsTaskStore';
+import { isValidDateOnly, tmsTaskStore } from '@/lib/tmsTaskStore';
 import { tmsProjectStore } from '@/lib/tmsProjectStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
@@ -42,6 +42,15 @@ export async function POST(request: NextRequest) {
   const project = await tmsProjectStore.findById(projectId);
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
+  const startDate = typeof body.startDate === 'string' ? body.startDate : '';
+  const dueDate = typeof body.dueDate === 'string' ? body.dueDate : '';
+  if (startDate && !isValidDateOnly(startDate)) {
+    return NextResponse.json({ error: 'Invalid start date' }, { status: 400 });
+  }
+  if (dueDate && !isValidDateOnly(dueDate)) {
+    return NextResponse.json({ error: 'Invalid due date' }, { status: 400 });
+  }
+
   const assigneeId = typeof body.assigneeId === 'string' ? body.assigneeId.trim() : '';
   const now = new Date().toISOString();
   const record: TmsTaskRecord = {
@@ -59,8 +68,8 @@ export async function POST(request: NextRequest) {
     priority: VALID_PRIORITY.includes(body.priority) ? body.priority : 'medium',
     status: 'to_do',
     progress_percent: 0,
-    start_date: typeof body.startDate === 'string' ? body.startDate : '',
-    due_date: typeof body.dueDate === 'string' ? body.dueDate : '',
+    start_date: startDate,
+    due_date: dueDate,
     completion_date: '',
     remarks: typeof body.remarks === 'string' ? body.remarks.trim() : '',
     attachments: [],

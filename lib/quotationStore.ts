@@ -311,7 +311,14 @@ export async function updateQuotationStatus(id: string, status: QuotationStatus,
   if (status !== previousStatus) {
     attrs.status_changed_at = status === 'approved' || status === 'rejected' ? new Date() : null;
   }
-  await row.update(attrs as never);
+  // Conditional on the status we read, not just id — two concurrent status
+  // changes (e.g. one approving, one rejecting the same quotation) would
+  // otherwise both pass and both fire a "status changed" email, one of them
+  // describing a status that's no longer the stored one.
+  const [affected] = await db.Quotation.update(attrs as never, {
+    where: { id, status: previousStatus } as never
+  });
+  if (affected === 0) return null;
   const updated = await findQuotationById(id);
   if (!updated) return null;
 
@@ -596,8 +603,16 @@ const CSV_COLUMNS: { key: keyof QuotationRecord; header: string }[] = [
   { key: 'last_follow_up_at', header: 'Last Follow-Up' }
 ];
 
+// A cell starting with =, +, -, @, tab or CR opens as a live formula in
+// Excel/Sheets when this CSV is downloaded — client_name/client_company/
+// prepared_by are free text the client or sales rep typed, so a value like
+// `=cmd|'/c calc'!A1` must be neutralized before it reaches the file.
 function csvEscape(value: unknown): string {
-  const str = String(value ?? '');
+  let str = String(value ?? '');
+  // Only neutralize actual free-text values — a negative number (discount,
+  // total) is typeof 'number' and must stay a real negative number in the
+  // sheet, not get turned into the text "'-123" by this same guard.
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(str)) str = `'${str}`;
   if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
   return str;
 }

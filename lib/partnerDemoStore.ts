@@ -277,6 +277,13 @@ export async function cancelPartnerDemo(partnerId: string, demoId: string): Prom
   if (!partnerCanCancelDemo(internalStatus)) {
     throw new PartnerDemoError('This demo is already being prepared — please speak to your contact to change it.');
   }
-  await row.update({ status: 'cancelled', partner_remark: 'Withdrawn by partner' } as never);
+  // Re-check at write time: without this WHERE, a partner's cancel racing
+  // staff moving the demo into "being prepared" could land after the read
+  // above and still go through.
+  const [affected] = await db.DemoSchedule.update(
+    { status: 'cancelled', partner_remark: 'Withdrawn by partner' } as never,
+    { where: { id: demoId, partner_id: partnerId, status: internalStatus } as never }
+  );
+  if (!affected) throw new PartnerDemoError('This demo is already being prepared — please speak to your contact to change it.');
   return true;
 }

@@ -26,6 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const updated = await tmsBomRequestStore.markReceived(id, viewer.username);
+    if (!updated) return NextResponse.json({ error: 'This request was already marked received' }, { status: 409 });
 
     await logAudit({
       by: viewer.username,

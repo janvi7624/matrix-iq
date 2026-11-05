@@ -926,6 +926,21 @@ export const projectStore = {
 // by the Employee Exit bulk-reassignment flow, which passes its own
 // transaction so this participates in the same atomic commit as every other
 // entity being reassigned.
+// Atomically flips a project to 'won' only if it isn't already — guards the
+// race in POST /api/po where two concurrent PO submissions for the same
+// project both read status !== 'won' and would otherwise both flip it and
+// both append a "Closed as won" timeline entry. Returns true only for the
+// request that actually performed the transition, so the caller knows
+// whether to log/notify.
+export async function closeProjectAsWonOnce(id: string): Promise<boolean> {
+  if (!isUuid(id)) return false;
+  const [count] = await db.Project.update(
+    { status: 'won', closed_at: new Date() } as never,
+    { where: { id, status: { [Op.ne]: 'won' } } as never }
+  );
+  return count > 0;
+}
+
 export async function reassignProjectOwner(id: string, newOwnerId: string, options?: { transaction?: Transaction }): Promise<void> {
   if (!isUuid(id) || !isUuid(newOwnerId)) return;
   const newOwner = await db.User.findByPk(newOwnerId, { attributes: ['id', 'username'], transaction: options?.transaction });
@@ -934,6 +949,24 @@ export async function reassignProjectOwner(id: string, newOwnerId: string, optio
     { created_by: newOwnerId, sales_person: newOwner.get('username') as string },
     { where: { id } as never, transaction: options?.transaction }
   );
+}
+
+// Same as reassignProjectOwner but only writes if the owner is still who the
+// caller last read (expectedPreviousOwnerId) — two concurrent "assign sales
+// person" calls (two different pickers, or a double-click) would otherwise
+// both pass their own stale read of created_by and both write, leaving two
+// conflicting audit/timeline entries and two "you were assigned" emails for
+// an ownership that only one of them actually holds. Returns false (no
+// write) if the row has already moved on from under the caller.
+export async function reassignProjectOwnerGuarded(id: string, newOwnerId: string, expectedPreviousOwnerId: string): Promise<boolean> {
+  if (!isUuid(id) || !isUuid(newOwnerId)) return false;
+  const newOwner = await db.User.findByPk(newOwnerId, { attributes: ['id', 'username'] });
+  if (!newOwner) return false;
+  const [affected] = await db.Project.update(
+    { created_by: newOwnerId, sales_person: newOwner.get('username') as string },
+    { where: { id, created_by: expectedPreviousOwnerId } as never }
+  );
+  return affected > 0;
 }
 
 export async function findProjectById(id: string): Promise<ProjectRecord | undefined> {

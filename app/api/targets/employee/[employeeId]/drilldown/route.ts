@@ -29,7 +29,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const url = new URL(request.url);
     const periodTypeParam = url.searchParams.get('periodType');
     const periodType: TargetPeriodType = VALID_PERIOD_TYPES.includes(periodTypeParam as TargetPeriodType) ? (periodTypeParam as TargetPeriodType) : 'monthly';
-    const fiscalYear = url.searchParams.get('fiscalYear') || currentFiscalYear();
+    const fiscalYearParam = url.searchParams.get('fiscalYear');
+    // A malformed value (garbage string, injection-shaped) would otherwise
+    // reach fiscalYearStartYear() below and throw, which apiErrorResponse
+    // turns into a 500 — not wrong data, just the wrong status for a bad
+    // request. Validate the "YYYY-YY" shape up front instead.
+    const fiscalYear = fiscalYearParam && /^\d{4}-\d{2}$/.test(fiscalYearParam) ? fiscalYearParam : currentFiscalYear();
     const periodKey = url.searchParams.get('periodKey');
     const period = periodKey !== null ? buildPeriod(periodType, fiscalYear, periodKey || undefined) : periodContainingDate(periodType);
 

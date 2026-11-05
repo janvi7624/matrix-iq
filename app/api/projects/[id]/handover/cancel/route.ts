@@ -33,6 +33,9 @@ export async function POST(request: NextRequest) {
   }
 
   const updated = await projectHandoverStore.respond(handoverRequestId, 'cancelled', '');
+  if (!updated) {
+    return NextResponse.json({ error: 'This request has already been responded to' }, { status: 409 });
+  }
 
   // Notify the recipient that the request was cancelled
   await notifyUsers([handover.to_username], {

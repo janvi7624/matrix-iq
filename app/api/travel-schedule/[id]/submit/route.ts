@@ -72,6 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         change_requested_by: ''
       } as never);
     }
+    if (!updated) return NextResponse.json({ error: 'This request was already submitted' }, { status: 409 });
 
     await logAudit({
       by: viewer.username, role: viewer.role, entityType: 'travel_schedule', entityId: id,

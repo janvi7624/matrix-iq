@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'This assignment is not awaiting your confirmation' }, { status: 400 });
     }
 
-    const updated = await marketingRequestStore.update(id, {
+    const result = await marketingRequestStore.updateGuarded(id, 'assignment_status', 'pending', {
       status: 'submitted',
       assigned_to_id: '',
       assigned_to: '',
@@ -42,6 +42,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       assignment_decline_reason: reason,
       updated_at: new Date().toISOString()
     });
+    if (!result.ok) {
+      return NextResponse.json({ error: 'This assignment was already accepted or declined' }, { status: 409 });
+    }
+    const updated = result.record;
 
     await logAudit({
       by: viewer.username,

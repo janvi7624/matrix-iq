@@ -127,6 +127,25 @@ async function create(record: SiteVisitRecord): Promise<SiteVisitRecord> {
   });
 }
 
+// Appends one update entry as a plain INSERT, never reading-then-replacing
+// the whole `updates` array. The PATCH route used to read the existing list,
+// append in JS, then hand the whole array to `update()` below (which
+// destroys and recreates every row) - two people (or a double-click) adding
+// an update at nearly the same time would both read the same snapshot, and
+// whichever write landed second silently discarded the other's entry. An
+// append-only insert has no such read-modify-write window.
+async function addUpdate(id: string, entry: SiteVisitUpdateEntry, updatedAt: string): Promise<SiteVisitRecord | null> {
+  if (!isUuid(id)) return null;
+  return sequelize.transaction(async (t) => {
+    const row = await db.SiteVisit.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!row) return null;
+    await db.SiteVisitUpdate.create(updateEntryToRow(entry, id) as never, { transaction: t });
+    await row.update({ updated_at: new Date(updatedAt) } as never, { transaction: t });
+    const withAssoc = await db.SiteVisit.findByPk(id, { include: [creatorInclude, updatesInclude], transaction: t });
+    return toRecord(withAssoc as Model);
+  });
+}
+
 async function update(id: string, patch: Partial<SiteVisitRecord>): Promise<SiteVisitRecord | null> {
   if (!isUuid(id)) return null;
   const row = await db.SiteVisit.findByPk(id);
@@ -162,4 +181,4 @@ async function remove(id: string, viewerUsername: string, viewerIsPrivileged: bo
   return true;
 }
 
-export const siteVisitStore = { list, listOwnedBy, create, update, remove, readAll };
+export const siteVisitStore = { list, listOwnedBy, create, update, addUpdate, remove, readAll };

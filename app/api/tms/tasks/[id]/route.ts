@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { canManageAllTmsTasks, getTmsViewer, requireTmsAction } from '@/lib/tmsAccess';
-import { canAccessTask, isValidNonManagerStatusChange, tmsTaskStore } from '@/lib/tmsTaskStore';
+import { canAccessTask, isValidDateOnly, isValidNonManagerStatusChange, tmsTaskStore } from '@/lib/tmsTaskStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendTaskLifecycleEmail } from '@/lib/email/notifications';
@@ -84,7 +84,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
       patch.status = body.status;
     }
-    if (typeof body.startDate === 'string') patch.start_date = body.startDate;
+    if (typeof body.startDate === 'string') {
+      if (body.startDate && !isValidDateOnly(body.startDate)) {
+        return NextResponse.json({ error: 'Invalid start date' }, { status: 400 });
+      }
+      patch.start_date = body.startDate;
+    }
     // due_date is deliberately NOT editable here. It is scored by
     // lib/departmentScoring.ts (on-time vs late vs overdue-and-open), so it
     // moves only through the audited flow in
@@ -109,7 +114,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       patch.assignee_id = newAssigneeId;
     }
 
-    const updated = await tmsTaskStore.update(id, patch);
+    // Guard a non-manager's status change against the same race the
+    // dedicated engineer-action route guards: two concurrent PATCHes (e.g.
+    // this route and the update/route.ts action route, or a double-click)
+    // both reading "in_progress" and both passing isValidNonManagerStatusChange
+    // against it would otherwise both write, letting a transition-rule check
+    // race past itself. Manager-tier edits (and any PATCH that doesn't touch
+    // status) are unaffected — they never had a transition rule to protect.
+    const isManagerStatusBypass = patch.status !== undefined && (await canManageAllTmsTasks(viewer));
+    const guardStatus = patch.status !== undefined && !isManagerStatusBypass ? existing.status : undefined;
+    const updated = await tmsTaskStore.update(id, patch, guardStatus);
+    if (!updated) {
+      return NextResponse.json({ error: 'This task was already updated by someone else — reload and try again' }, { status: 409 });
+    }
 
     const newAssignee = newAssigneeId ? await findUserById(newAssigneeId) : null;
     if (newAssigneeId) {

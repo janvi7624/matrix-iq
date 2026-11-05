@@ -29,11 +29,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Only a request still awaiting review can be declined' }, { status: 400 });
     }
 
-    const updated = await marketingRequestStore.update(id, {
+    const result = await marketingRequestStore.updateGuarded(id, 'status', 'submitted', {
       status: 'rejected',
       rejection_reason: reason,
       updated_at: new Date().toISOString()
     });
+    if (!result.ok) {
+      return NextResponse.json({ error: 'This request is no longer awaiting review' }, { status: 409 });
+    }
+    const updated = result.record;
 
     await logAudit({
       by: viewer.username,
