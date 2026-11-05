@@ -21,6 +21,17 @@ interface UserOption { id: string; username: string; name: string }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+// A sheet still sitting unapproved 2+ calendar months after its own period
+// is the "on hold for months" pattern the Pending Approvals queue exists to
+// surface — the queue itself has no month filter (app/api/reimbursement/
+// sheet/pending/route.ts), so these don't disappear, but nothing previously
+// distinguished them from this month's fresh submissions when scanning the
+// list.
+const STALE_MONTHS_THRESHOLD = 2;
+function monthsBehind(sheetYear: number, sheetMonth: number, now: Date): number {
+  return (now.getFullYear() * 12 + now.getMonth()) - (sheetYear * 12 + (sheetMonth - 1));
+}
+
 // Kept in step with ReimbursementBulkAddForm's own list — the two forms write
 // to the same column, so an option missing from one is a category that
 // silently can't be claimed through that route. 'Parking Fees' sits before
@@ -1226,13 +1237,16 @@ export default function ReimbursementView({ currentUser }: Props) {
                 <div className={styles.sheetCardList}>
                   {pendingSheets.map((s) => {
                     const cfg = STATUS_CONFIG[s.status] || STATUS_CONFIG.draft;
+                    const isStale = monthsBehind(s.year, s.month, now) >= STALE_MONTHS_THRESHOLD;
+                    const restBorderColor = isStale ? 'var(--mx-brand)' : 'var(--mx-border-strong)';
                     return (
                       <div
                         key={s.id}
                         onClick={() => openPendingSheet(s)}
-                        className={styles.sheetListCard}
+                        className={`${styles.sheetListCard} ${isStale ? styles.sheetListCardStale : ''}`}
+                        style={{ borderColor: restBorderColor }}
                         onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--mx-brand)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.08)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--mx-border-strong)'; e.currentTarget.style.boxShadow = 'none'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = restBorderColor; e.currentTarget.style.boxShadow = 'none'; }}
                       >
                         <div>
                           <div className={styles.sheetCardName}>
@@ -1240,6 +1254,7 @@ export default function ReimbursementView({ currentUser }: Props) {
                             <span className={styles.sheetCardIdTag}>
                               {s.creator_employee_id ? `(${s.creator_employee_id})` : ''}
                             </span>
+                            {isStale && <span className={styles.staleBadge}>{monthsBehind(s.year, s.month, now)}+ months pending</span>}
                           </div>
                           <div className={styles.sheetMeta}>
                             {s.creator_department ? `${s.creator_department} · ` : ''}{MONTHS[s.month - 1]} {s.year} · {s.sheet_code}
@@ -1312,6 +1327,19 @@ export default function ReimbursementView({ currentUser }: Props) {
                     </div>
 
                     <StepIndicator currentStep={cfg.step} status={sp.status} />
+
+                    {/* Awaiting the employee's resubmission — nothing for a
+                        reviewer to decide here (that reopens once they
+                        resubmit, back to 'submitted'), but this sheet now
+                        shows up in the queue so whoever is waiting on it
+                        can see it hasn't been forgotten. */}
+                    {(sp.status === 'manager_change_requested' || sp.status === 'hr_change_requested') && (
+                      <div className={styles.changeRequestNote}>
+                        <strong>Changes requested{sp.change_requested_by ? ` by ${sp.change_requested_by}` : ''}:</strong>{' '}
+                        {sp.change_request_remarks || '(no remarks recorded)'}
+                        <div className={calcStyles.mt6}>Waiting on {sp.creator_name} to make the fix and resubmit — there is nothing for you to approve until then.</div>
+                      </div>
+                    )}
 
                     {/* Manager decision panel */}
                     {sp.status === 'submitted' && (

@@ -6,7 +6,7 @@ import { DomainKey, LeadCallOutcome, LeadHandoverOutcome, LeadOrigin, LeadPriori
 import { LEAD_ORIGIN_OPTIONS, LEAD_ORIGIN_UNSET_LABEL, leadOriginLabel } from '@/lib/leadSources';
 import { LEAD_REFERENCE_OPTIONS, LeadReference } from '@/lib/leadReferenceOptions';
 import { LEAD_DOMAIN_TILES, LEAD_SUB_INTERESTS, LEAD_FOLLOW_UP_ACTIONS, LEAD_BUDGET_OPTIONS, LEAD_PRIORITY_META } from '@/lib/leadInterestOptions';
-import { isLeadUnattended } from '@/lib/followUp';
+import { FILTER_UNASSIGNED, FILTER_MINE, FILTER_UNSET } from '@/lib/leadFilters';
 import { todayDateInputValue } from '@/lib/dateHelpers';
 import { AlertTriangle, Ban, CalendarClock, CheckCircle2, Flame, Contact, Phone, PhoneCall, Share2, UserPlus, UserCheck, Pencil, Eye } from 'lucide-react';
 import AppShell from './AppShell';
@@ -55,14 +55,6 @@ interface Assignee {
 }
 
 const PAGE_SIZE = 20;
-
-// Sentinel values for the "Assigned to" filter dropdown. Prefixed so they can
-// never collide with a real user id.
-const FILTER_UNASSIGNED = '@unassigned';
-const FILTER_MINE = '@mine';
-// Sentinel for "no source recorded" — '' already means "no filter", so the
-// unset leads need a value of their own to be selectable.
-const FILTER_UNSET = '@unset';
 
 type Mode = 'capture' | 'list' | 'bulk';
 const MODE_OPTIONS: SegmentedOption<Mode>[] = [
@@ -130,12 +122,6 @@ function canLogCall(lead: LeadRecord, viewerUsername: string, canAssign: boolean
   if (lead.assigned_to === viewerUsername) return true;
   if (!lead.assigned_to_id) return true;
   return canAssign;
-}
-
-// The subset of leadNeedsCall() that is this viewer's own work — what the
-// "To Call" tile counts and the "to-call" filter shows.
-function leadIsMyCall(lead: LeadRecord, viewerUsername: string, canAssign: boolean): boolean {
-  return leadNeedsCall(lead) && canLogCall(lead, viewerUsername, canAssign);
 }
 
 // What came of the call, in one badge. The detail (who rang, when, what they
@@ -218,6 +204,15 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [converting, setConverting] = useState(false);
   const projectLeads = useProjectLeads();
   const [q, setQ] = useState('');
+  // Filtering moved server-side (see loadLeads below) — a request per
+  // keystroke would be a network round-trip where the old in-browser
+  // .filter() cost nothing, so the text search is debounced and only the
+  // settled value drives a fetch.
+  const [debouncedQ, setDebouncedQ] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
   const [priorityFilter, setPriorityFilter] = useState<LeadPriority | ''>('');
   const [interestFilter, setInterestFilter] = useState<DomainKey | ''>('');
   const [sourceFilter, setSourceFilter] = useState<LeadSource | ''>('');
@@ -234,7 +229,14 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [callFilter, setCallFilter] = useState<CallFilter>(startToCall ? 'to-call' : '');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [page, setPage] = useState(1);
-  const [stats, setStats] = useState<{ total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number; unassigned: number; assignedToMe: number } | null>(null);
+  const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState<{
+    total: number; today: number; hot: number; unattended: number; metaTotal: number; metaToday: number; unassigned: number; assignedToMe: number;
+    originCounts: Record<string, number>;
+    callStats: { toCall: number; suitable: number; notSuitable: number; completed: number; callbackDue: number };
+    metaFormOptions: string[];
+    metaCampaignOptions: string[];
+  } | null>(null);
   const [metaInfoLead, setMetaInfoLead] = useState<LeadRecord | null>(null);
   // The row's "View Full Details" action — everything the row itself no
   // longer shows (Email, Designation, the plain Source/origin tag,
@@ -273,21 +275,54 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
   const [bulkBusy, setBulkBusy] = useState(false);
   const canAssign = !!assignees;
 
-  async function loadLeads() {
-    setStatus('Loading...');
-    setLoading(true);
+  // Builds the query string from every filter dimension plus the current
+  // page — the backend does the actual WHERE/LIMIT now (lib/leadStore.ts's
+  // listFiltered), so this is the one place the whole filter state has to be
+  // kept in sync with what gets sent.
+  function buildLeadsQuery(forPage: number): string {
+    const params = new URLSearchParams();
+    params.set('page', String(forPage));
+    params.set('pageSize', String(PAGE_SIZE));
+    params.set('sort', sortBy);
+    if (debouncedQ.trim()) params.set('search', debouncedQ.trim());
+    if (priorityFilter) params.set('priority', priorityFilter);
+    if (interestFilter) params.set('interest', interestFilter);
+    if (sourceFilter) params.set('source', sourceFilter);
+    if (sourceFilter === 'meta_lead_ads') {
+      if (metaFormFilter) params.set('metaForm', metaFormFilter);
+      if (metaCampaignFilter) params.set('metaCampaign', metaCampaignFilter);
+    }
+    if (originFilter) params.set('origin', originFilter);
+    if (callFilter) params.set('callOutcome', callFilter);
+    if (unattendedOnly) params.set('unattended', '1');
+    if (assigneeFilter) params.set('assignee', assigneeFilter);
+    return params.toString();
+  }
+
+  // `silent` skips the loading flag — used for a refresh right after a
+  // mutation (assign, edit, log a call) or the auto-refresh tick, both of
+  // which used to patch the row in place specifically to avoid blanking the
+  // table (see handleLogCall's own comment). Now that a refetch is one page
+  // of ~20 rows rather than the whole list, it's cheap enough to just redo
+  // it — but still without flashing "Loading…" over whatever is on screen.
+  async function loadLeads(options: { silent?: boolean } = {}) {
+    if (!options.silent) {
+      setStatus('Loading...');
+      setLoading(true);
+    }
     setLoadFailed(false);
     try {
-      const response = await fetch('/api/leads');
+      const response = await fetch(`/api/leads?${buildLeadsQuery(page)}`);
       if (!response.ok) throw new Error(String(response.status));
-      const data: LeadRecord[] = await response.json();
-      setLeads(data);
-      setStatus(data.length ? `${data.length} lead${data.length === 1 ? '' : 's'}.` : 'No leads captured yet.');
+      const data: { leads: LeadRecord[]; total: number } = await response.json();
+      setLeads(data.leads);
+      setTotal(data.total);
+      setStatus(data.total ? `${data.total} lead${data.total === 1 ? '' : 's'}.` : 'No leads captured yet.');
     } catch {
       setStatus('Could not load leads. Refresh to try again.');
       setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (!options.silent) setLoading(false);
     }
   }
 
@@ -316,16 +351,37 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
 
   // Both halves of the page, refetched together on focus / slow interval
   // (lib/useAutoRefresh.ts) so the tiles cannot disagree with the table.
+  // Silent: this fires every 60s or on every tab-focus, and must not flash
+  // "Loading…" over the table each time.
   useAutoRefresh(() => {
-    loadLeads();
+    loadLeads({ silent: true });
     loadStats();
   });
 
   useEffect(() => {
-    loadLeads();
     loadStats();
     loadAssignees();
   }, []);
+
+  // A filter changing invalidates both the page (results may no longer span
+  // as many pages) and any multi-page selection (a selected lead chosen under
+  // one filter has no obvious meaning under another) — see selectedVisibleIds
+  // below for what used to do this implicitly by re-deriving from the full
+  // in-browser list, which no longer exists now that filtering is server-side.
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds(new Set());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQ, priorityFilter, interestFilter, sourceFilter, metaFormFilter, metaCampaignFilter, originFilter, callFilter, unattendedOnly, sortBy, assigneeFilter]);
+
+  // The actual fetch — fires on mount, on every filter settling (via the page
+  // reset above), on page navigation, and once canAssign resolves (the
+  // 'to-call' filter's meaning depends on it — see lib/leadStore.ts's
+  // isMyCallRow).
+  useEffect(() => {
+    loadLeads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, debouncedQ, priorityFilter, interestFilter, sourceFilter, metaFormFilter, metaCampaignFilter, originFilter, callFilter, unattendedOnly, sortBy, assigneeFilter, canAssign]);
 
   // Sends both the per-row change and the bulk action through the one
   // endpoint, so authorisation and audit logging can't diverge between them.
@@ -346,12 +402,16 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       }
       const result: { assigned: number; failed: string[]; assigneeName: string; leads: LeadRecord[] } = await response.json();
 
-      // Patch the rows in place from the response rather than refetching the
-      // whole list — keeps the current scroll position, filters and selection.
+      // Patch the rows in place first, for instant feedback, then a silent
+      // refetch — the assignment can move a lead out of the active filter
+      // (e.g. assigning the last "Unassigned" lead), which the in-place patch
+      // alone can't express now that filtering happens on the server; the
+      // refetch is one page of ~20 rows, cheap enough to just redo.
       setLeads((prev) => {
         const updatedById = new Map(result.leads.map((l) => [l.id, l]));
         return prev.map((l) => updatedById.get(l.id) ?? l);
       });
+      loadLeads({ silent: true });
       loadStats();
 
       const noun = `${result.assigned} lead${result.assigned === 1 ? '' : 's'}`;
@@ -416,18 +476,13 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     }
   }
 
-  // Distinct Form / Campaign names across the Meta leads already loaded.
-  // Derived from the list rather than a new endpoint: every Meta row already
-  // carries both names, and offering an option the current data cannot
-  // produce would be worse than offering none.
-  const metaFormOptions = useMemo(
-    () => Array.from(new Set(leads.filter((l) => l.source === 'meta_lead_ads').map((l) => l.meta_form_name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [leads]
-  );
-  const metaCampaignOptions = useMemo(
-    () => Array.from(new Set(leads.filter((l) => l.source === 'meta_lead_ads').map((l) => l.meta_campaign_name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [leads]
-  );
+  // Distinct Form / Campaign names across the viewer's Meta leads — now
+  // computed server-side (lib/leadStore.ts's computeLeadStats) over every
+  // Meta lead the viewer can see, not just whatever page happens to be
+  // loaded, so the dropdown offers the same options regardless of which page
+  // or filter you opened it from.
+  const metaFormOptions = stats?.metaFormOptions ?? [];
+  const metaCampaignOptions = stats?.metaCampaignOptions ?? [];
 
   // Moving the capture-method filter off Meta clears both, so re-entering
   // Meta never starts with a stale Form/Campaign already narrowing the list.
@@ -441,96 +496,28 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
     }
   }
 
-  const visibleLeads = useMemo(() => {
-    let rows = leads;
-    if (q.trim()) {
-      const needle = q.trim().toLowerCase();
-      rows = rows.filter((l) => `${l.name} ${l.company} ${l.city} ${l.email} ${l.mobile} ${l.alt_mobile}`.toLowerCase().includes(needle));
-    }
-    if (priorityFilter) rows = rows.filter((l) => l.priority === priorityFilter);
-    if (interestFilter) rows = rows.filter((l) => l.interests.includes(interestFilter));
-    if (sourceFilter) rows = rows.filter((l) => l.source === sourceFilter);
-    // Guarded rather than applied unconditionally: these two controls are
-    // hidden when the capture method isn't Meta, and a filter the user can no
-    // longer see must not keep narrowing the list.
-    if (sourceFilter === 'meta_lead_ads') {
-      if (metaFormFilter) rows = rows.filter((l) => l.meta_form_name === metaFormFilter);
-      if (metaCampaignFilter) rows = rows.filter((l) => l.meta_campaign_name === metaCampaignFilter);
-    }
-    if (originFilter) rows = rows.filter((l) => (l.lead_source || FILTER_UNSET) === originFilter);
-    if (callFilter === 'to-call') rows = rows.filter((l) => leadIsMyCall(l, currentUser.username, canAssign));
-    else if (callFilter === 'callback-due') rows = rows.filter((l) => l.call_outcome === 'callback' && !!l.callback_at && l.callback_at <= todayKey);
-    else if (callFilter) rows = rows.filter((l) => l.call_outcome === callFilter);
-    if (unattendedOnly) rows = rows.filter(isLeadUnattended);
-    if (assigneeFilter === FILTER_UNASSIGNED) rows = rows.filter((l) => !l.assigned_to_id);
-    else if (assigneeFilter === FILTER_MINE) rows = rows.filter((l) => l.assigned_to === currentUser.username);
-    else if (assigneeFilter) rows = rows.filter((l) => l.assigned_to_id === assigneeFilter);
-    const sorted = [...rows].sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'oldest') return a.created_at < b.created_at ? -1 : 1;
-      return a.created_at < b.created_at ? 1 : -1;
-    });
-    return sorted;
-  }, [leads, q, priorityFilter, interestFilter, sourceFilter, metaFormFilter, metaCampaignFilter, originFilter, callFilter, todayKey, unattendedOnly, sortBy, assigneeFilter, currentUser.username, canAssign]);
-
-  // The post-expo funnel, counted over the loaded list in one pass.
-  // Deliberately NOT lib/leadCall.ts's computeLeadCallStats, which is this
-  // same arithmetic: that module imports lib/db (plus the project and
-  // notification stores) at the top level, so importing it here would drag
-  // the server into the browser bundle. The rules below match it exactly.
-  // One count per source, over everything the viewer can see — the chip row
-  // is how you pick a category, so its numbers describe the whole list rather
-  // than whatever is currently filtered. "Not set" only appears when there is
-  // something in it; a clean database shouldn't carry a permanent empty chip.
-  const originCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const lead of leads) {
-      const key = lead.lead_source || FILTER_UNSET;
-      counts.set(key, (counts.get(key) || 0) + 1);
-    }
-    return counts;
-  }, [leads]);
-
-  const callStats = useMemo(() => {
-    let toCall = 0;
-    let suitable = 0;
-    let notSuitable = 0;
-    let completed = 0;
-    let callbackDue = 0;
-    for (const lead of leads) {
-      if (lead.call_outcome === 'suitable') suitable += 1;
-      else if (lead.call_outcome === 'not_suitable') notSuitable += 1;
-      else if (lead.call_outcome === 'completed') completed += 1;
-      else if (lead.call_outcome === 'callback') {
-        if (lead.callback_at && lead.callback_at <= todayKey) callbackDue += 1;
-      } else if (leadIsMyCall(lead, currentUser.username, canAssign)) toCall += 1;
-    }
-    return { toCall, suitable, notSuitable, completed, callbackDue };
-  }, [leads, todayKey, currentUser.username, canAssign]);
-
-  const totalPages = Math.max(1, Math.ceil(visibleLeads.length / PAGE_SIZE));
-  // Clamped at render rather than stored, because an ACTION can shrink the
-  // list under the page you are standing on: assign the last five unassigned
-  // leads while the "To Assign" filter is on, or log the last call while "To
-  // Call" is on, and the rows leave the filter. No filter state changed, so
-  // the reset effect below doesn't fire, page stays at 2, and Pagination
-  // hides itself once there is only one page — leaving "No leads match your
-  // filters" and no control to get back. Clamping keeps the stored page for
-  // when the list grows again; a filter change still resets it to 1.
+  // Filtering, sorting and pagination all happen on the server now
+  // (lib/leadStore.ts's listFiltered, driven by buildLeadsQuery above) — the
+  // 1,262+ lead table no longer round-trips through the browser just to
+  // decide what ten of them to show. `leads` IS the current page.
+  const pageRows = leads;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const pageRows = visibleLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  useEffect(() => {
-    setPage(1);
-  }, [q, priorityFilter, interestFilter, sourceFilter, metaFormFilter, metaCampaignFilter, originFilter, callFilter, unattendedOnly, sortBy, assigneeFilter]);
+  // The post-expo funnel and the origin chip row — both now come straight
+  // from GET /api/leads/stats (lib/leadStore.ts's computeLeadStats), computed
+  // over every lead the viewer can see, exactly as before; only WHERE the
+  // arithmetic runs changed; see that function for the one copy of the rule.
+  const originCounts = useMemo(() => new Map(Object.entries(stats?.originCounts ?? {})), [stats]);
+  const callStats = stats?.callStats ?? { toCall: 0, suitable: 0, notSuitable: 0, completed: 0, callbackDue: 0 };
 
-  // Selection is only ever acted on through this intersection with the visible
-  // rows, so a stale id left behind by a filter change simply stops counting —
-  // a bulk assign can never reach a lead the manager isn't looking at.
-  // Not memoized: it's a filter over one page's worth of rows, and wrapping a
-  // Set lookup in useMemo defeats the React Compiler's own memoization
-  // (react-hooks/preserve-manual-memoization) for no measurable gain.
-  const selectedVisibleIds = visibleLeads.filter((l) => selectedIds.has(l.id)).map((l) => l.id);
+  // Selection now spans pages deliberately (accumulated in selectedIds across
+  // page navigation within the same filters, cleared the moment a filter
+  // changes by the effect above) rather than being re-validated against a
+  // full in-browser list that no longer exists. A bulk action still can't
+  // reach a lead outside the viewer's scope — the server re-checks that
+  // independently of whatever the client thinks is selected.
+  const selectedVisibleIds = Array.from(selectedIds);
   const allOnPageSelected = pageRows.length > 0 && pageRows.every((l) => selectedIds.has(l.id));
 
   function toggleRowSelection(id: string) {
@@ -573,7 +560,10 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       }
       const result: LeadRecord & { duplicate?: boolean; duplicateCapturedBy?: string; handover?: LeadHandoverOutcome } = await response.json();
       // A merged duplicate updates an existing row in place instead of
-      // prepending a second copy of the same contact.
+      // prepending a second copy of the same contact — a reasonable guess at
+      // the common case (capturing while already on page 1, sorted newest
+      // first), backed up by a silent refetch so the list is exactly right
+      // the moment the rep switches to it regardless of sort/filter/page.
       setLeads((prev) => {
         const index = prev.findIndex((l) => l.id === result.id);
         if (index === -1) return [result, ...prev];
@@ -581,6 +571,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
         next[index] = result;
         return next;
       });
+      loadLeads({ silent: true });
       loadStats();
       return result;
     } catch {
@@ -737,10 +728,15 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
         return;
       }
       setCallLead(null);
-      // Patch the one row from the response, the way assign() does. Refetching
-      // the whole list emptied the table for as long as the request took —
-      // after an expo that's 600+ rows reloaded to change one of them, and the
-      // rep lost their scroll position and page after every single call.
+      // Patch the one row from the response first, the way assign() does, for
+      // instant feedback — then a silent refetch, same reasoning as assign():
+      // a call outcome routinely moves a lead out of the active filter (e.g.
+      // the "to-call" or "callback-due" queues), which the in-place patch
+      // alone can't express now that filtering is server-side. A refetch used
+      // to mean reloading 600+ rows to change one of them (see the git
+      // history of this comment); it's now one page of ~20, so redoing it is
+      // cheap and keeps scroll position since loadLeads({silent:true}) never
+      // shows a loading state.
       const savedLead = body?.lead;
       if (savedLead) setLeads((prev) => prev.map((l) => (l.id === savedLead.id ? savedLead : l)));
       toast.success(
@@ -752,9 +748,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               ? 'Marked completed.'
               : `Call back on ${formatDay(callForm.callbackAt)}.`
       );
-      // Only when the response didn't carry the row back (older server, odd
-      // proxy) is a full reload still needed to avoid showing stale state.
-      if (!savedLead) await loadLeads();
+      loadLeads({ silent: true });
       loadStats();
     } catch {
       setCallError('Could not reach the server.');
@@ -771,6 +765,11 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       return;
     }
     setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+    // A silent refetch, not just the optimistic removal — deleting the last
+    // row on a page should pull one in from the next page rather than
+    // leaving the page short, and `total` (and so the pagination control)
+    // needs to drop by one too.
+    loadLeads({ silent: true });
     loadStats();
   }
 
@@ -839,6 +838,10 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       }
       const updated: LeadRecord = await response.json();
       setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      // An edit can change exactly the fields a filter narrows on (priority,
+      // interest, source, origin) — same reasoning as assign()/the call log.
+      loadLeads({ silent: true });
+      loadStats();
       toast.success('Lead updated.');
       setEditingLead(null);
     } catch {
@@ -1174,7 +1177,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 aria-pressed={!originFilter}
                 onClick={() => setOriginFilter('')}
               >
-                All <span className={leadStyles.originCount}>{leads.length}</span>
+                All <span className={leadStyles.originCount}>{stats?.total ?? 0}</span>
               </button>
               {LEAD_ORIGIN_OPTIONS.map((o) => {
                 const n = originCounts.get(o.value) || 0;
@@ -1275,7 +1278,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
               >
                 Unattended only
               </SegmentedButton>
-              <ToolbarButton onClick={loadLeads}>Refresh</ToolbarButton>
+              <ToolbarButton onClick={() => loadLeads()}>Refresh</ToolbarButton>
               <ToolbarLink href="/api/leads/export.csv">Export CSV</ToolbarLink>
               <ToolbarButton onClick={() => window.print()}>Print</ToolbarButton>
             </FilterBar>
@@ -1309,7 +1312,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             {loading ? (
               <TableWrap><SkeletonRows rows={8} columns={columns.length} /></TableWrap>
             ) : loadFailed ? (
-              <ErrorState message="Could not load leads — check your connection and try again." onRetry={loadLeads} />
+              <ErrorState message="Could not load leads — check your connection and try again." onRetry={() => loadLeads()} />
             ) : (
               // No capped-height/internal-scroll wrapper here (unlike Projects'
               // .tableViewport) — with Email/Designation/Source/Captured-By
@@ -1323,9 +1326,9 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 empty={
                   <EmptyState
                     icon={Contact}
-                    title={leads.length === 0 ? 'No leads captured yet' : 'No leads match your filters'}
-                    message={leads.length === 0 ? 'Scan a business card to capture your first lead.' : 'Try clearing a filter or search term.'}
-                    action={leads.length === 0 ? <button type="button" className={leadStyles.primaryBtn} onClick={() => setMode('capture')}>Capture a Lead</button> : undefined}
+                    title={stats?.total === 0 ? 'No leads captured yet' : 'No leads match your filters'}
+                    message={stats?.total === 0 ? 'Scan a business card to capture your first lead.' : 'Try clearing a filter or search term.'}
+                    action={stats?.total === 0 ? <button type="button" className={leadStyles.primaryBtn} onClick={() => setMode('capture')}>Capture a Lead</button> : undefined}
                   />
                 }
               />

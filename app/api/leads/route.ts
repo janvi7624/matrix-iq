@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { leadStore, createOrMergeLead } from '@/lib/leadStore';
+import { leadStore, createOrMergeLead, LeadListQuery } from '@/lib/leadStore';
+import { canAssignLeads } from '@/lib/permissions';
 import { findHandoverRecipient, handOverCapturedLead } from '@/lib/leadHandover';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
@@ -12,13 +13,41 @@ import { isLeadReference } from '@/lib/leadReferenceOptions';
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITIES: LeadPriority[] = ['hot', 'warm', 'cool', ''];
 
+// `page` is the opt-in signal for the filtered/paginated path — a caller
+// that doesn't ask for a page (e.g. an older client, or any future one that
+// genuinely needs the whole set) gets the exact old behaviour, full list, no
+// params read. components/LeadsView.tsx is the one caller sending `page`
+// today; see lib/leadStore.ts's listFiltered for what each param does.
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const records = await leadStore.list(viewer.username, viewer.isPrivileged);
-    return NextResponse.json(records);
+    const params = request.nextUrl.searchParams;
+    if (!params.has('page')) {
+      const records = await leadStore.list(viewer.username, viewer.isPrivileged);
+      return NextResponse.json(records);
+    }
+
+    const query: LeadListQuery = {
+      search: params.get('search') || undefined,
+      priority: (params.get('priority') as LeadPriority) || undefined,
+      interest: (params.get('interest') as DomainKey) || undefined,
+      source: (params.get('source') as LeadListQuery['source']) || undefined,
+      metaForm: params.get('metaForm') || undefined,
+      metaCampaign: params.get('metaCampaign') || undefined,
+      origin: params.get('origin') || undefined,
+      callOutcome: params.get('callOutcome') || undefined,
+      unattendedOnly: params.get('unattended') === '1',
+      assignee: params.get('assignee') || undefined,
+      sortBy: (params.get('sort') as LeadListQuery['sortBy']) || undefined,
+      page: Number(params.get('page')) || 1,
+      pageSize: Number(params.get('pageSize')) || 20
+    } as LeadListQuery;
+
+    const canAssign = await canAssignLeads(viewer);
+    const result = await leadStore.listFiltered(viewer.username, viewer.userId, canAssign, query);
+    return NextResponse.json(result);
   } catch (error) {
     return apiErrorResponse(error);
   }

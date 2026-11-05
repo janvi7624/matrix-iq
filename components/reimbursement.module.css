@@ -154,8 +154,16 @@
 
 /* Sheet list cards (Pending / Approved landing lists) */
 .sheetCardList { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
-.sheetListCard { padding: 14px 18px; border-radius: var(--mx-radius-sm, 10px); background: var(--mx-surface); box-shadow: var(--mx-shadow-sm); cursor: pointer; transition: box-shadow 0.15s ease; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.sheetListCard { padding: 14px 18px; border-radius: var(--mx-radius-sm, 10px); background: var(--mx-surface); box-shadow: var(--mx-shadow-sm); cursor: pointer; transition: box-shadow 0.15s ease; display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid transparent; }
 .sheetListCard:hover { box-shadow: var(--mx-shadow-md); }
+/* Sitting unapproved for 2+ calendar months — the whole point of this list
+   being month-unscoped is that these don't fall out of it, so they need to
+   visibly stand out from this month's fresh submissions instead of just
+   being technically present. Border color is set inline alongside the
+   existing hover handlers (components/ReimbursementView.tsx), which
+   already mutate it directly — this class only carries the background. */
+.sheetListCardStale { background: var(--mx-red-50); }
+.staleBadge { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 10px; background: var(--mx-brand); color: var(--mx-surface); font-size: 11px; font-weight: 700; letter-spacing: 0.02em; }
 .sheetCardName { font-size: 14.5px; font-weight: 700; color: var(--mx-ink); margin-bottom: 2px; }
 .sheetCardIdTag { font-weight: 400; font-size: 12.5px; color: var(--mx-ink-faint); margin-left: 8px; }
 .sheetCardSubMeta { font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 2px; }

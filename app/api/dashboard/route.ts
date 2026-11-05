@@ -14,16 +14,16 @@ import { leadStore } from '@/lib/leadStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { hasCapability, isMarketingManager } from '@/lib/permissions';
 import { listDepartmentManagers, isUserADepartmentManager } from '@/lib/departmentStore';
-import { listTechnicalRoster } from '@/lib/technicalRoster';
 import { needsFollowUp, isLeadUnattended } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
 import { summarizeMarketingReminders } from '@/lib/marketingRequestReminder';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { listTechnicalRequestsAwaiting } from '@/lib/projectTechnicalRequest';
-import { findUserNameAndDeptByUsername } from '@/lib/userStore';
+import { findUserNameAndDeptByUsername, findUsersByIds } from '@/lib/userStore';
 import { travelScheduleStore } from '@/lib/travelScheduleStore';
 import { listSalesTeamRoster } from '@/lib/targetAccess';
 import { buildSalesTeamSummary, isSalesLeadership, SalesTeamSummaryRow } from '@/lib/salesTeamSummary';
+import { buildDepartmentBreakdown } from '@/lib/projectDepartmentOptions';
 
 // Single round trip for everything Dashboard.tsx needs on first paint —
 // replaces what used to be up to 13 separate client-side fetches (modules,
@@ -101,7 +101,6 @@ export async function GET(request: NextRequest) {
       demosForKpis,
       demosForQueue,
       leads,
-      technicalRoster,
       managersByDepartment,
       quotationsForViewer,
       backOfficeDcs,
@@ -122,7 +121,6 @@ export async function GET(request: NextRequest) {
       // assigned to THIS viewer — a department-wide total isn't something
       // they can act on, and the helper only offers the wider figure.
       leadStore.list(viewer.username, viewer.isPrivileged),
-      listTechnicalRoster(),
       listDepartmentManagers(),
       searchQuotationsFiltered({ viewerUsername: viewer.username }),
       isBackOffice ? deliveryChallanStore.list(viewer.username, true) : Promise.resolve(null),
@@ -298,8 +296,28 @@ export async function GET(request: NextRequest) {
       quotationStats = counts;
     }
 
-    // Rendered as the "Recent Quotations" 5-item card
-    const recentQuotationsTrimmed = [...quotationsForViewer].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 3);
+    // The "Projects by Department" card, counted here rather than in the
+    // browser. Sending projectsLight so the client could count it was 483 kB
+    // of a 522 kB response — 93% — and these few numbers were nearly all it
+    // did with them. See buildDepartmentBreakdown.
+    const departmentBreakdown = buildDepartmentBreakdown(projectsLight);
+
+    // The department of whoever each queued demo is assigned to — the only
+    // thing the dashboard ever did with the technical roster, which it used
+    // to fetch in full.
+    //
+    // listTechnicalRoster() runs four queries to rank every technical person
+    // by workload, and measured 346 ms — the slowest read on this route, so
+    // it set the floor for the whole dashboard. The dashboard used none of
+    // the ranking: it built an id -> department map and looked up at most a
+    // handful of demo assignees. This is that map, for exactly those ids.
+    const demoAssigneeIds = [...new Set(demosForQueue.map((d) => d.assigned_technical_person_id).filter((id): id is string => !!id))];
+    const demoAssigneeDepartments: Record<string, string> = {};
+    if (demoAssigneeIds.length) {
+      for (const user of await findUsersByIds(demoAssigneeIds)) {
+        demoAssigneeDepartments[user.id] = user.department ?? '';
+      }
+    }
 
     return NextResponse.json({
       modules,
@@ -314,11 +332,15 @@ export async function GET(request: NextRequest) {
       metaLeadsToday,
       marketingStats,
       marketingReminderUrgentCount,
-      allProjects: projectsLight,
+      // allProjects and recentQuotations are deliberately NOT returned.
+      // The panels that used them (Recent Projects, Recent Quotations,
+      // Projects Assigned to You) were removed from the dashboard, and the
+      // only survivor — the per-department card — is counted above. The
+      // drill-down modal loads projects when somebody opens it.
+      departmentBreakdown,
       demos: demosForQueue,
       managersByDepartment,
-      technicalRoster,
-      recentQuotations: recentQuotationsTrimmed,
+      demoAssigneeDepartments,
       quotationStats,
       pendingHandovers,
       pendingTechnicalApprovals,

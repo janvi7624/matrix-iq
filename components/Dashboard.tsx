@@ -2,16 +2,9 @@
 
 import { createElement, Fragment, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { DemoScheduleRecord, ModuleConfigRecord, ProjectHandoverRecord, ProjectRecord, QuotationRecord, UserRole } from '@/lib/types';
-import { TechnicalRosterEntry } from '@/lib/technicalRoster';
+import { DemoScheduleRecord, ModuleConfigRecord, ProjectHandoverRecord, ProjectRecord, UserRole } from '@/lib/types';
 import type { SalesTeamSummaryRow } from '@/lib/salesTeamSummary';
-import { STAGE_LABEL as PROJECT_STAGE_LABEL } from '@/lib/projectStages';
-import {
-  PROJECT_DEPARTMENTS,
-  PROJECT_DEPARTMENT_LABEL,
-  departmentValueOf,
-  matchesDepartmentFilter
-} from '@/lib/projectDepartmentOptions';
+import { DepartmentBreakdown } from '@/lib/projectDepartmentOptions';
 import { formatMoney } from '@/lib/format';
 import AppShell from './AppShell';
 import HealthGauge, { BAND_COLOR, BAND_TEXT } from './ui/HealthGauge';
@@ -67,6 +60,7 @@ import MyTargetPanel from './MyTargetPanel';
 import DailyReportAdminBriefWidget from './DailyReportAdminBriefWidget';
 import { useAutoRefresh, DEFAULT_REFRESH_MS } from '@/lib/useAutoRefresh';
 import styles from './dashboard.module.css';
+import { fetchCached, OPTIONS_TTL_MS } from '@/lib/fetchCached';
 
 const DUE_AFTER_SECTION = 'Workspace';
 const DUE_SECTION_LABEL = 'Due';
@@ -167,11 +161,16 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   const [metaLeadsToday, setMetaLeadsToday] = useState<number>(0);
   const [marketingStats, setMarketingStats] = useState<{ isReviewer: boolean; awaitingReview?: number; myOpenCount?: number } | null>(null);
   const [marketingReminderUrgentCount, setMarketingReminderUrgentCount] = useState<number>(0);
-  const [allProjects, setAllProjects] = useState<ProjectRecord[] | null>(null);
-  const [recentQuotations, setRecentQuotations] = useState<QuotationRecord[] | null>(null);
+  // Counted server-side. The full project list used to come down here — 483
+  // kB of a 522 kB response — so the browser could count four departments.
+  const [departmentBreakdown, setDepartmentBreakdown] = useState<DepartmentBreakdown | null>(null);
+  // Loaded only when the department drill-down is opened, which is rarely.
+  const [drillDownProjects, setDrillDownProjects] = useState<ProjectRecord[]>([]);
   const [demos, setDemos] = useState<DemoScheduleRecord[] | null>(null);
   const [managersByDepartment, setManagersByDepartment] = useState<ManagersByDepartment>({});
-  const [technicalRoster, setTechnicalRoster] = useState<TechnicalRosterEntry[]>([]);
+  // Just the department of each queued demo's assignee, which is all the
+  // dashboard ever needed from the technical roster. See the route.
+  const [demoAssigneeDepartments, setDemoAssigneeDepartments] = useState<Record<string, string>>({});
   const [pendingHandovers, setPendingHandovers] = useState<ProjectHandoverRecord[]>([]);
   const [pendingTechnicalApprovals, setPendingTechnicalApprovals] = useState<{ project_id: string; project_label: string; requested_name: string }[]>([]);
   const [travelPendingCount, setTravelPendingCount] = useState<number>(0);
@@ -242,11 +241,10 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setMetaLeadsToday(data.metaLeadsToday ?? 0);
         setMarketingStats(data.marketingStats ?? null);
         setMarketingReminderUrgentCount(data.marketingReminderUrgentCount ?? 0);
-        setAllProjects(data.allProjects ?? []);
+        setDepartmentBreakdown(data.departmentBreakdown ?? null);
         setDemos(data.demos ?? []);
         setManagersByDepartment(data.managersByDepartment ?? {});
-        setTechnicalRoster(data.technicalRoster ?? []);
-        setRecentQuotations(data.recentQuotations ?? []);
+        setDemoAssigneeDepartments(data.demoAssigneeDepartments ?? {});
         setPendingHandovers(data.pendingHandovers ?? []);
         setPendingTechnicalApprovals(data.pendingTechnicalApprovals ?? []);
         setTravelPendingCount(data.travelPendingCount ?? 0);
@@ -276,11 +274,10 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         setReminderCount(null);
         setUnattendedLeads(null);
         setMarketingStats(null);
-        setAllProjects([]);
+        setDepartmentBreakdown(null);
         setDemos([]);
         setManagersByDepartment({});
-        setTechnicalRoster([]);
-        setRecentQuotations([]);
+        setDemoAssigneeDepartments({});
         setSalesLeadership(false);
         setSalesTeamSummary(null);
         setDailyReport(null);
@@ -341,40 +338,40 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     if (showCelebrations) markCelebrationPopupSeen(currentUser.username);
   }, [showCelebrations, currentUser.username]);
 
-  const departmentBreakdown = useMemo(() => {
-    const projects = allProjects ?? [];
-    return {
-      rows: PROJECT_DEPARTMENTS.map((key) => ({
-        key,
-        label: PROJECT_DEPARTMENT_LABEL[key],
-        count: projects.filter((p) => matchesDepartmentFilter(p.departments, key)).length,
-        value: projects.reduce((sum, p) => sum + departmentValueOf(p, key), 0)
-      })),
-      unset: projects.filter((p) => !(p.departments ?? []).length).length,
-      multi: projects.filter((p) => (p.departments ?? []).length > 1).length,
-      total: projects.length
+  // The department drill-down needs the viewer's projects, but only once it
+  // is actually opened. /api/projects is the same viewer-scoped list the
+  // dashboard used to inline, and it is cached (lib/fetchCached), so this is
+  // often already warm from a picker elsewhere.
+  useEffect(() => {
+    if (!openHealthDepartment) return;
+    let cancelled = false;
+    fetchCached('/api/projects', OPTIONS_TTL_MS)
+      .then((rows: ProjectRecord[]) => {
+        if (!cancelled) setDrillDownProjects(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setDrillDownProjects([]);
+      });
+    return () => {
+      cancelled = true;
     };
-  }, [allProjects]);
-
-  const recentProjects = useMemo(() => (allProjects ? [...allProjects].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 3) : null), [allProjects]);
+  }, [openHealthDepartment]);
 
   const managedDepartments = useMemo(
     () => Object.entries(managersByDepartment).filter(([, managers]) => managers.some((m) => m.id === currentUser.id)).map(([name]) => name),
     [managersByDepartment, currentUser.id]
   );
 
-  const myAssignedProjects = useMemo(() => (allProjects || []).filter((p) => p.assigned_technical_person_id === currentUser.id), [allProjects, currentUser.id]);
   const myAssignedDemos = useMemo(() => (demos || []).filter((d) => d.assigned_technical_person_id === currentUser.id), [demos, currentUser.id]);
   const demosAwaitingMyConfirmation = useMemo(() => myAssignedDemos.filter((d) => d.status === 'pending_technical'), [myAssignedDemos]);
-  const rosterById = useMemo(() => new Map(technicalRoster.map((p) => [p.id, p])), [technicalRoster]);
   const demosAwaitingMyApproval = useMemo(() => {
     if (!managedDepartments.length) return [];
     return (demos || []).filter((d) => {
       if (d.status !== 'pending_manager') return false;
-      const assigneeDepartment = rosterById.get(d.assigned_technical_person_id)?.department;
+      const assigneeDepartment = demoAssigneeDepartments[d.assigned_technical_person_id];
       return !!assigneeDepartment && managedDepartments.includes(assigneeDepartment);
     });
-  }, [demos, managedDepartments, rosterById]);
+  }, [demos, managedDepartments, demoAssigneeDepartments]);
 
   const attentionItems = useMemo<AttentionItem[]>(() => {
     const items: AttentionItem[] = [];
@@ -802,184 +799,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         loading={headlineKpis === null || kpis === null}
       />
 
-      {/* 3. TOP DUAL/TRIPLE SPLIT GRID */}
-      <div className={`${styles.topGrid} ${salesLeadership ? styles.topGridPair : ''}`}>
-        {/* Needs Your Attention Hub */}
-        <div className={`${styles.attentionPanel} ${styles.topGridPanel} ${urgentAttentionCount > 0 ? styles.attentionPanelUrgent : ''}`}>
-          <div className={styles.attentionHead}>
-            <div className={styles.attentionHeadLeft}>
-              <span className={styles.attentionHeadIcon}><Zap size={16} /></span>
-              <span className={styles.attentionHeadTitle}>Needs Your Attention</span>
-            </div>
-            {urgentAttentionCount > 0 ? (
-              <span className={styles.attentionHeadBadge}>{urgentAttentionCount} urgent</span>
-            ) : pendingAttentionItems.length === 0 && !attentionLoading ? (
-              <span className={styles.attentionHeadClearBadge}>All Clear</span>
-            ) : null}
-          </div>
-
-          {pendingAttentionItems.length > 0 ? (
-            <div className={`${styles.attentionList} ${styles.attentionScroll}`}>
-              {pendingAttentionItems.map((item) => (
-                <AttentionRow key={item.key} item={item} />
-              ))}
-            </div>
-          ) : (
-            <div className={styles.attentionEmpty}>
-              {attentionLoading ? (
-                <span className={styles.attentionAllCaughtUp}>Checking active queues&hellip;</span>
-              ) : (
-                <div className={styles.attentionCaughtUpCard}>
-                  <div className={styles.attentionCaughtUpIcon}><CheckCircle2 size={24} /></div>
-                  <div className={styles.attentionCaughtUpTitle}>You&apos;re all caught up!</div>
-                  <div className={styles.attentionCaughtUpSub}>No pending approvals, urgent leads, or due reminders require your attention right now.</div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Sales Leadership Summary Table OR Non-leadership Insights Grid */}
-        {salesLeadership ? (
-          <SalesTeamSummaryPanel rows={salesTeamSummary} />
-        ) : (
-          <>
-            <div className={styles.recentCard}>
-              <div className={styles.recentCardHead}>
-                <h3>Recent Projects</h3>
-                <Link href="/projects">View all &rarr;</Link>
-              </div>
-              <div className={styles.recentList}>
-                {recentProjects === null && <div className={styles.recentEmpty}>Loading&hellip;</div>}
-                {recentProjects?.length === 0 && <div className={styles.recentEmpty}>No projects yet.</div>}
-                {recentProjects?.map((p) => (
-                  <Link key={p.id} href={`/projects/${p.id}`} className={styles.recentRow}>
-                    <div className={styles.recentRowMain}>
-                      <div className={styles.recentRowTitle}>{p.client_name || p.company || `Project ${p.id}`}</div>
-                      <div className={styles.recentRowMeta}>{PROJECT_STAGE_LABEL[p.stage] || p.stage}</div>
-                    </div>
-                    <ChevronRight size={14} className={styles.attentionArrow} />
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            <div className={styles.recentCard}>
-              <div className={styles.recentCardHead}>
-                <h3>Projects by Department</h3>
-                <Link href="/projects">View all &rarr;</Link>
-              </div>
-              <div className={styles.recentList}>
-                {allProjects === null && <div className={styles.recentEmpty}>Loading&hellip;</div>}
-                {allProjects !== null && departmentBreakdown.total === 0 && <div className={styles.recentEmpty}>No projects yet.</div>}
-                {allProjects !== null && departmentBreakdown.total > 0 && (
-                  <>
-                    {departmentBreakdown.rows.map((row) => (
-                      <Link key={row.key} href={`/projects?department=${row.key}`} className={styles.recentRow}>
-                        <div className={styles.recentRowMain}>
-                          <div className={styles.recentRowTitle}>{row.label}</div>
-                          <div className={styles.recentRowMeta}>{formatMoney(row.value)}</div>
-                        </div>
-                        <div className={styles.recentRowAmount}>{row.count}</div>
-                      </Link>
-                    ))}
-                    {departmentBreakdown.multi > 0 && (
-                      <div className={styles.recentRow}>
-                        <div className={styles.recentRowMain}>
-                          <div className={styles.recentRowMeta}>
-                            {departmentBreakdown.multi} project{departmentBreakdown.multi === 1 ? ' spans' : 's span'} more than one
-                            department and {departmentBreakdown.multi === 1 ? 'is' : 'are'} counted under each — values are split, counts are not.
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {departmentBreakdown.unset > 0 && (
-                      <div className={styles.recentRow}>
-                        <div className={styles.recentRowMain}>
-                          <div className={styles.recentRowTitle}>Not set</div>
-                          <div className={styles.recentRowMeta}>Created before departments were tracked</div>
-                        </div>
-                        <div className={styles.recentRowAmount}>{departmentBreakdown.unset}</div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className={styles.recentCard}>
-              <div className={styles.recentCardHead}>
-                <h3>Recent Quotations</h3>
-                <Link href="/my-quotations">View all &rarr;</Link>
-              </div>
-              <div className={styles.recentList}>
-                {recentQuotations === null && <div className={styles.recentEmpty}>Loading&hellip;</div>}
-                {recentQuotations?.length === 0 && <div className={styles.recentEmpty}>No quotations yet.</div>}
-                {recentQuotations?.map((q) => (
-                  <Link key={q.id} href={`/my-quotations?highlight=${q.id}`} className={styles.recentRow}>
-                    <div className={styles.recentRowMain}>
-                      <div className={styles.recentRowTitle}>{q.quotation_number}</div>
-                      <div className={styles.recentRowMeta}>{q.client_company || q.client_name || 'No client name'}</div>
-                    </div>
-                    <div className={styles.recentRowAmount}>{formatMoney(q.total)}</div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* 4. MY TARGET PANEL (When applicable) */}
-      <MyTargetPanel data={myTarget} />
-
-      {/* 4b. ALL-DEPARTMENTS DAILY REPORT BRIEF (org-wide visibility only) */}
-      <DailyReportAdminBriefWidget data={dailyReportBrief} />
-
-      {/* 5. PERSONAL ASSIGNMENTS HUB (When applicable) */}
-      {(myAssignedProjects.length > 0 || myAssignedDemos.length > 0) && (
-        <div className={styles.recentGrid}>
-          <div className={styles.recentCard}>
-            <div className={styles.recentCardHead}>
-              <h3>Projects Assigned to You</h3>
-              <Link href="/projects">View all &rarr;</Link>
-            </div>
-            <div className={styles.recentList}>
-              {myAssignedProjects.length === 0 && <div className={styles.recentEmpty}>None right now.</div>}
-              {myAssignedProjects.map((p) => (
-                <Link key={p.id} href={`/projects/${p.id}`} className={styles.recentRow}>
-                  <div className={styles.recentRowMain}>
-                    <div className={styles.recentRowTitle}>{p.client_name || p.company || `Project ${p.id}`}</div>
-                    <div className={styles.recentRowMeta}>{PROJECT_STAGE_LABEL[p.stage] || p.stage}</div>
-                  </div>
-                  <ChevronRight size={14} className={styles.attentionArrow} />
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className={styles.recentCard}>
-            <div className={styles.recentCardHead}>
-              <h3>Demos Assigned to You</h3>
-              <Link href="/demo-schedule">View all &rarr;</Link>
-            </div>
-            <div className={styles.recentList}>
-              {myAssignedDemos.length === 0 && <div className={styles.recentEmpty}>None right now.</div>}
-              {myAssignedDemos.map((d) => (
-                <Link key={d.id} href="/demo-schedule" className={styles.recentRow}>
-                  <div className={styles.recentRowMain}>
-                    <div className={styles.recentRowTitle}>{d.client_name}{d.company ? ` (${d.company})` : ''}</div>
-                    <div className={styles.recentRowMeta}>{d.status.replace(/_/g, ' ')}</div>
-                  </div>
-                  <ChevronRight size={14} className={styles.attentionArrow} />
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 6. REDESIGNED DEPARTMENT HEALTH & PERFORMANCE SECTION */}
+      {/* 3. DEPARTMENT HEALTH & PERFORMANCE — moved above the fold, it is what managers open the dashboard for */}
       {health && health.gauges.length > 0 && (
         <section className={styles.healthSection} aria-label="Department Health & Performance">
           <div className={styles.healthHead}>
@@ -1295,12 +1115,131 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         </section>
       )}
 
+      {/* 4. NEEDS YOUR ATTENTION + PROJECTS BY DEPARTMENT */}
+      <div className={`${styles.topGrid} ${salesLeadership ? styles.topGridPair : ''}`}>
+        {/* Needs Your Attention Hub */}
+        <div className={`${styles.attentionPanel} ${styles.topGridPanel} ${urgentAttentionCount > 0 ? styles.attentionPanelUrgent : ''}`}>
+          <div className={styles.attentionHead}>
+            <div className={styles.attentionHeadLeft}>
+              <span className={styles.attentionHeadIcon}><Zap size={16} /></span>
+              <span className={styles.attentionHeadTitle}>Needs Your Attention</span>
+            </div>
+            {urgentAttentionCount > 0 ? (
+              <span className={styles.attentionHeadBadge}>{urgentAttentionCount} urgent</span>
+            ) : pendingAttentionItems.length === 0 && !attentionLoading ? (
+              <span className={styles.attentionHeadClearBadge}>All Clear</span>
+            ) : null}
+          </div>
+
+          {pendingAttentionItems.length > 0 ? (
+            <div className={`${styles.attentionList} ${styles.attentionScroll}`}>
+              {pendingAttentionItems.map((item) => (
+                <AttentionRow key={item.key} item={item} />
+              ))}
+            </div>
+          ) : (
+            <div className={styles.attentionEmpty}>
+              {attentionLoading ? (
+                <span className={styles.attentionAllCaughtUp}>Checking active queues&hellip;</span>
+              ) : (
+                <div className={styles.attentionCaughtUpCard}>
+                  <div className={styles.attentionCaughtUpIcon}><CheckCircle2 size={24} /></div>
+                  <div className={styles.attentionCaughtUpTitle}>You&apos;re all caught up!</div>
+                  <div className={styles.attentionCaughtUpSub}>No pending approvals, urgent leads, or due reminders require your attention right now.</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Sales Leadership Summary Table OR Non-leadership Insights Grid */}
+        {salesLeadership ? (
+          <SalesTeamSummaryPanel rows={salesTeamSummary} />
+        ) : (
+          <>
+            <div className={styles.recentCard}>
+              <div className={styles.recentCardHead}>
+                <h3>Projects by Department</h3>
+                <Link href="/projects">View all &rarr;</Link>
+              </div>
+              <div className={styles.recentList}>
+                {departmentBreakdown === null && <div className={styles.recentEmpty}>Loading&hellip;</div>}
+                {departmentBreakdown !== null && departmentBreakdown.total === 0 && <div className={styles.recentEmpty}>No projects yet.</div>}
+                {departmentBreakdown !== null && departmentBreakdown.total > 0 && (
+                  <>
+                    {departmentBreakdown.rows.map((row) => (
+                      <Link key={row.key} href={`/projects?department=${row.key}`} className={styles.recentRow}>
+                        <div className={styles.recentRowMain}>
+                          <div className={styles.recentRowTitle}>{row.label}</div>
+                          <div className={styles.recentRowMeta}>{formatMoney(row.value)}</div>
+                        </div>
+                        <div className={styles.recentRowAmount}>{row.count}</div>
+                      </Link>
+                    ))}
+                    {departmentBreakdown.multi > 0 && (
+                      <div className={styles.recentRow}>
+                        <div className={styles.recentRowMain}>
+                          <div className={styles.recentRowMeta}>
+                            {departmentBreakdown.multi} project{departmentBreakdown.multi === 1 ? ' spans' : 's span'} more than one
+                            department and {departmentBreakdown.multi === 1 ? 'is' : 'are'} counted under each — values are split, counts are not.
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {departmentBreakdown.unset > 0 && (
+                      <div className={styles.recentRow}>
+                        <div className={styles.recentRowMain}>
+                          <div className={styles.recentRowTitle}>Not set</div>
+                          <div className={styles.recentRowMeta}>Created before departments were tracked</div>
+                        </div>
+                        <div className={styles.recentRowAmount}>{departmentBreakdown.unset}</div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+          </>
+        )}
+      </div>
+
+      {/* 5. MY TARGET PANEL (When applicable) */}
+      <MyTargetPanel data={myTarget} />
+
+      {/* 5b. ALL-DEPARTMENTS DAILY REPORT BRIEF (org-wide visibility only) */}
+      <DailyReportAdminBriefWidget data={dailyReportBrief} />
+
+      {/* 6. DEMOS ASSIGNED TO YOU (When applicable) */}
+      {myAssignedDemos.length > 0 && (
+        <div className={styles.recentGrid}>
+          <div className={styles.recentCard}>
+            <div className={styles.recentCardHead}>
+              <h3>Demos Assigned to You</h3>
+              <Link href="/demo-schedule">View all &rarr;</Link>
+            </div>
+            <div className={styles.recentList}>
+              {myAssignedDemos.length === 0 && <div className={styles.recentEmpty}>None right now.</div>}
+              {myAssignedDemos.map((d) => (
+                <Link key={d.id} href="/demo-schedule" className={styles.recentRow}>
+                  <div className={styles.recentRowMain}>
+                    <div className={styles.recentRowTitle}>{d.client_name}{d.company ? ` (${d.company})` : ''}</div>
+                    <div className={styles.recentRowMeta}>{d.status.replace(/_/g, ' ')}</div>
+                  </div>
+                  <ChevronRight size={14} className={styles.attentionArrow} />
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {openHealthDepartment && (
         <DepartmentHealthDetail
           department={openHealthDepartment}
           onClose={() => setOpenHealthDepartment(null)}
-          myProjects={allProjects || []}
+          myProjects={drillDownProjects}
         />
       )}
 

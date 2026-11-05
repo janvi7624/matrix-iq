@@ -6,6 +6,8 @@ import { db, isUuid } from './db';
 import { isLeadUnattended } from './followUp';
 import { resolveVisibilityScope, canAccessOwnedRecord } from './departmentScope';
 import { isSalesLeadManager } from './permissions';
+import { FILTER_MINE, FILTER_UNASSIGNED, FILTER_UNSET } from './leadFilters';
+import { todayDateInputValue } from './dateHelpers';
 
 function unionStrings(a: string[], b: string[]): string[] {
   return [...new Set([...a, ...b])];
@@ -207,8 +209,149 @@ async function listLeads(viewerUsername: string, _viewerIsPrivileged: boolean): 
   return rows.map((row) => ({ ...toLeadRecord(row), meta_raw_field_data: [] }));
 }
 
+export interface LeadListQuery {
+  search?: string;
+  priority?: LeadPriority;
+  interest?: DomainKey;
+  source?: LeadSource;
+  /** Only applied while source === 'meta_lead_ads', same as the screen's own rule. */
+  metaForm?: string;
+  metaCampaign?: string;
+  /** A real lead_source value, or lib/leadFilters.ts's FILTER_UNSET. */
+  origin?: string;
+  /** A LeadCallOutcome, or 'to-call' / 'callback-due'. */
+  callOutcome?: string;
+  unattendedOnly?: boolean;
+  /** A user id, or lib/leadFilters.ts's FILTER_UNASSIGNED / FILTER_MINE. */
+  assignee?: string;
+  sortBy?: 'newest' | 'oldest' | 'name';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface LeadListPage {
+  leads: LeadRecord[];
+  total: number;
+}
+
+const MAX_LEAD_PAGE_SIZE = 200;
+
+/** Narrow attributes for the two JS-only derived filters below — same shape as BADGE_ATTRIBUTES, for the same reason. */
+const CALL_DERIVED_ATTRIBUTES = ['id', 'call_outcome', 'assigned_to_id', 'project_id', 'callback_at', 'called_at', 'assigned_at', 'createdAt'];
+
+/**
+ * The Leads screen's list, filtered and paginated on the SERVER.
+ *
+ * Replaces shipping every visible lead to the browser so it can filter 1,262+
+ * rows across ten-odd dimensions on every keystroke (components/
+ * LeadsView.tsx used to do exactly that). Every filter below is applied as a
+ * real SQL WHERE condition EXCEPT unattendedOnly and callOutcome === 'to-call'
+ * — both are derived rules that intentionally live in exactly one place
+ * (lib/followUp.ts's isLeadUnattended; isMyCallRow above, which mirrors
+ * LeadsView's own former leadIsMyCall) rather than a second, SQL copy that
+ * could quietly drift from it. For those two, a lightweight id-only query
+ * (CALL_DERIVED_ATTRIBUTES, same idea as BADGE_ATTRIBUTES) runs first, scoped
+ * by every OTHER filter already applied, and its matching ids narrow the
+ * real query — so the one-off extra pass only ever runs over the already-
+ * narrowed candidate set, not the full table, except when one of these two
+ * is the ONLY filter in play.
+ */
+async function listLeadsFiltered(
+  viewerUsername: string,
+  viewerUserId: string,
+  canAssign: boolean,
+  query: LeadListQuery
+): Promise<LeadListPage> {
+  const and: Record<string | symbol, unknown>[] = [await leadVisibilityWhere(viewerUsername)];
+
+  const search = (query.search || '').trim();
+  if (search) {
+    const needle = `%${search}%`;
+    and.push({
+      [Op.or]: ['name', 'company', 'city', 'email', 'mobile', 'alt_mobile'].map((col) => ({ [col]: { [Op.iLike]: needle } }))
+    });
+  }
+  if (query.priority) and.push({ priority: query.priority });
+  if (query.interest) and.push({ interests: { [Op.contains]: [query.interest] } });
+  if (query.source) and.push({ source: query.source });
+  if (query.source === 'meta_lead_ads') {
+    if (query.metaForm) and.push({ meta_form_name: query.metaForm });
+    if (query.metaCampaign) and.push({ meta_campaign_name: query.metaCampaign });
+  }
+  if (query.origin) {
+    and.push(query.origin === FILTER_UNSET ? { lead_source: { [Op.or]: [null, ''] } } : { lead_source: query.origin });
+  }
+  if (query.assignee === FILTER_UNASSIGNED) and.push({ assigned_to_id: null });
+  else if (query.assignee === FILTER_MINE) and.push({ assigned_to_id: viewerUserId });
+  else if (query.assignee) and.push({ assigned_to_id: query.assignee });
+
+  const todayKey = todayDateInputValue();
+  if (query.callOutcome === 'callback-due') {
+    and.push({ call_outcome: 'callback', callback_at: { [Op.ne]: null, [Op.lte]: todayKey } });
+  } else if (query.callOutcome && query.callOutcome !== 'to-call') {
+    and.push({ call_outcome: query.callOutcome });
+  }
+
+  if (query.unattendedOnly || query.callOutcome === 'to-call') {
+    const candidateWhere = { [Op.and]: [...and] };
+    const candidates = await db.Lead.findAll({ where: candidateWhere as never, attributes: CALL_DERIVED_ATTRIBUTES });
+    const plain = candidates.map((row) => {
+      const p = row.get({ plain: true }) as {
+        id: string;
+        call_outcome: string;
+        assigned_to_id: string | null;
+        project_id: string | null;
+        callback_at: string | null;
+        called_at: Date | string | null;
+        assigned_at: Date | string | null;
+        createdAt: Date | string;
+      };
+      return {
+        id: p.id,
+        call_outcome: p.call_outcome,
+        assigned_to_id: p.assigned_to_id,
+        project_id: p.project_id,
+        callback_at: p.callback_at,
+        called_at: p.called_at ? new Date(p.called_at).toISOString() : '',
+        assigned_at: p.assigned_at ? new Date(p.assigned_at).toISOString() : '',
+        created_at: new Date(p.createdAt).toISOString()
+      };
+    });
+    const matching = plain.filter((l) => {
+      if (query.unattendedOnly && !isLeadUnattended({ ...l, assigned_to_id: l.assigned_to_id ?? undefined, project_id: l.project_id ?? undefined, callback_at: l.callback_at ?? undefined, follow_up_actions: [] })) return false;
+      if (query.callOutcome === 'to-call' && !isMyCallRow(l, viewerUserId, canAssign)) return false;
+      return true;
+    });
+    // An impossible id rather than an empty IN(), which Sequelize/Postgres
+    // would otherwise need to special-case — matches 0 rows either way.
+    and.push({ id: { [Op.in]: matching.length ? matching.map((l) => l.id) : ['00000000-0000-0000-0000-000000000000'] } });
+  }
+
+  const where = { [Op.and]: and };
+  const order: [string, string][] =
+    query.sortBy === 'name' ? [['name', 'ASC']] : query.sortBy === 'oldest' ? [['created_at', 'ASC']] : [['created_at', 'DESC']];
+  const page = Math.max(1, Math.floor(query.page || 1));
+  const pageSize = Math.min(MAX_LEAD_PAGE_SIZE, Math.max(1, Math.floor(query.pageSize || 20)));
+
+  const [total, rows] = await Promise.all([
+    db.Lead.count({ where: where as never }),
+    db.Lead.findAll({
+      where: where as never,
+      include: LEAD_INCLUDES(),
+      order: order as never,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      // Same exclusion as listLeads, same reason.
+      attributes: { exclude: ['meta_raw_field_data'] }
+    })
+  ]);
+
+  return { leads: rows.map((row) => ({ ...toLeadRecord(row), meta_raw_field_data: [] })), total };
+}
+
 export const leadStore = {
   list: listLeads,
+  listFiltered: listLeadsFiltered,
   listOwnedBy: base.listOwnedBy,
   create: base.create,
   update: base.update,
@@ -686,6 +829,19 @@ export interface LeadStats {
   unassigned: number;
   /** Assigned to the viewer personally. */
   assignedToMe: number;
+  /**
+   * lead_source -> count, over every lead the viewer can see. Moved here
+   * (previously computed in components/LeadsView.tsx from the fully-loaded
+   * list) so the Leads screen's origin chip row no longer needs the whole
+   * table in the browser to render — see lib/leadFilters.ts's FILTER_UNSET
+   * for the "no source recorded" bucket's key.
+   */
+  originCounts: Record<string, number>;
+  /** Same reasoning as originCounts — the call-outcome funnel tiles. */
+  callStats: { toCall: number; suitable: number; notSuitable: number; completed: number; callbackDue: number };
+  /** Distinct Form/Campaign names across the viewer's Meta Lead Ads leads — the "Where from: Meta" filter's two dropdowns. */
+  metaFormOptions: string[];
+  metaCampaignOptions: string[];
 }
 
 export interface MetaLeadAnalyticsBucket {
@@ -734,10 +890,52 @@ export async function computeMetaLeadAnalytics(viewerUsername: string, viewerIsP
   };
 }
 
-export async function computeLeadStats(viewerUsername: string, viewerIsPrivileged: boolean): Promise<LeadStats> {
+// The rep's queue: handed to somebody, nobody has called yet, and it isn't
+// already a project. Mirrors components/LeadsView.tsx's leadNeedsCall/
+// canLogCall/leadIsMyCall exactly (comment there explains why that copy
+// exists instead of importing canLogLeadCall from lib/leadCall.ts: once a
+// lead has passed the visibility WHERE clause it is already in scope, so the
+// only remaining questions are "is it mine / unassigned / can I assign
+// generally" — the same simplification applies here, for the same reason,
+// and keeps this aggregate a single query instead of one canLogLeadCall()
+// per lead.
+function leadNeedsCallRow(lead: { call_outcome: string; assigned_to_id?: string | null; project_id?: string | null }): boolean {
+  return !lead.call_outcome && !!lead.assigned_to_id && !lead.project_id;
+}
+function isMyCallRow(
+  lead: { call_outcome: string; assigned_to_id?: string | null; project_id?: string | null },
+  viewerUserId: string,
+  canAssign: boolean
+): boolean {
+  if (!leadNeedsCallRow(lead)) return false;
+  if (lead.project_id) return false;
+  if (lead.assigned_to_id === viewerUserId) return true;
+  if (!lead.assigned_to_id) return true;
+  return canAssign;
+}
+
+export async function computeLeadStats(viewerUsername: string, viewerIsPrivileged: boolean, viewerUserId: string, canAssign: boolean): Promise<LeadStats> {
   const leads = await listLeads(viewerUsername, viewerIsPrivileged);
   const todayStr = new Date().toDateString();
   const metaLeads = leads.filter((l) => l.source === 'meta_lead_ads');
+  const todayKey = todayDateInputValue();
+
+  const originCounts: Record<string, number> = {};
+  for (const l of leads) {
+    const key = l.lead_source || FILTER_UNSET;
+    originCounts[key] = (originCounts[key] ?? 0) + 1;
+  }
+
+  const callStats = { toCall: 0, suitable: 0, notSuitable: 0, completed: 0, callbackDue: 0 };
+  for (const l of leads) {
+    if (l.call_outcome === 'suitable') callStats.suitable += 1;
+    else if (l.call_outcome === 'not_suitable') callStats.notSuitable += 1;
+    else if (l.call_outcome === 'completed') callStats.completed += 1;
+    else if (l.call_outcome === 'callback') {
+      if (l.callback_at && l.callback_at <= todayKey) callStats.callbackDue += 1;
+    } else if (isMyCallRow(l, viewerUserId, canAssign)) callStats.toCall += 1;
+  }
+
   return {
     total: leads.length,
     today: leads.filter((l) => new Date(l.created_at).toDateString() === todayStr).length,
@@ -746,6 +944,10 @@ export async function computeLeadStats(viewerUsername: string, viewerIsPrivilege
     metaTotal: metaLeads.length,
     metaToday: metaLeads.filter((l) => new Date(l.created_at).toDateString() === todayStr).length,
     unassigned: leads.filter((l) => !l.assigned_to_id).length,
-    assignedToMe: leads.filter((l) => l.assigned_to === viewerUsername).length
+    assignedToMe: leads.filter((l) => l.assigned_to === viewerUsername).length,
+    originCounts,
+    callStats,
+    metaFormOptions: Array.from(new Set(metaLeads.map((l) => l.meta_form_name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    metaCampaignOptions: Array.from(new Set(metaLeads.map((l) => l.meta_campaign_name).filter(Boolean))).sort((a, b) => a.localeCompare(b))
   };
 }

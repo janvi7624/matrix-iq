@@ -120,3 +120,42 @@ export function departmentValueOf(
   // AND again under AV.
   return (project.departments?.length ?? 0) > 1 ? 0 : price;
 }
+
+/**
+ * The "Projects by Department" summary the dashboard shows.
+ *
+ * Computed here, server-side, because the alternative was shipping every
+ * project to the browser to count them: allProjects was 483 kB of a 522 kB
+ * dashboard response — 93% of it — and after the Recent Projects and
+ * Projects Assigned to You panels were removed, these few numbers and a
+ * drill-down modal were the only things left using it. The modal now loads
+ * projects when it is opened, which is rarely.
+ */
+export interface DepartmentBreakdown {
+  rows: { key: ProjectDepartment; label: string; count: number; value: number }[];
+  /** Projects carrying no department at all — created before it was tracked. */
+  unset: number;
+  /** Projects in more than one department: counted under each, values split. */
+  multi: number;
+  total: number;
+}
+
+export function buildDepartmentBreakdown(
+  projects: readonly {
+    approx_price: number | '';
+    departments?: readonly ProjectDepartment[];
+    department_amounts?: DepartmentAmounts;
+  }[]
+): DepartmentBreakdown {
+  return {
+    rows: PROJECT_DEPARTMENTS.map((key) => ({
+      key,
+      label: PROJECT_DEPARTMENT_LABEL[key],
+      count: projects.filter((p) => matchesDepartmentFilter(p.departments, key)).length,
+      value: projects.reduce((sum, p) => sum + departmentValueOf(p, key), 0)
+    })),
+    unset: projects.filter((p) => !(p.departments ?? []).length).length,
+    multi: projects.filter((p) => (p.departments ?? []).length > 1).length,
+    total: projects.length
+  };
+}

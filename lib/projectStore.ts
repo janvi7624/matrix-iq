@@ -6,6 +6,8 @@ import { resolveVisibilityScope } from './departmentScope';
 import { isUserADepartmentManager, departmentsManagedBy } from './departmentStore';
 import { projectLabel } from './projectLabel';
 import { resolveSalesPersonName } from './projectSalesPersonName';
+import { resolveProjectLead } from './projectLeadStore';
+import { departmentValueOf } from './projectDepartmentOptions';
 
 const FIELDS = [
   { name: 'client_name' },
@@ -255,6 +257,260 @@ async function listLight(viewerUsername: string): Promise<ProjectRecord[]> {
   const where = await resolveOwnerWhere(viewerUsername);
   const rows = await db.Project.findAll({ where: where as never, include: lightIncludes, order: [['created_at', 'DESC']] });
   return rows.map(toRecord);
+}
+
+export interface ProjectListQuery {
+  search?: string;
+  stage?: ProjectStage;
+  status?: ProjectStatus;
+  priority?: string;
+  salesPerson?: string;
+  source?: string;
+  department?: string;
+  type?: string;
+  /** A project lead's user id — matches what they lead OR what they personally own. */
+  lead?: string;
+  from?: string;
+  to?: string;
+  closingFrom?: string;
+  closingTo?: string;
+  confirmation?: string;
+  awaitingMine?: boolean;
+  awaitingTeam?: boolean;
+  /**
+   * Resolved client-side by lib/projectVisibility.ts's closedProjectsVisible
+   * (a pure function of the other filters — no reason to duplicate it here):
+   * true suppresses won/lost unless `status` itself names one of them.
+   */
+  includeClosed?: boolean;
+  sortBy?: 'newest' | 'oldest';
+  page?: number;
+  pageSize?: number;
+}
+
+const MAX_PROJECT_PAGE_SIZE = 200;
+
+/**
+ * Every WHERE condition components/ProjectsView.tsx's filter bar can express,
+ * built once and shared by listProjectsFiltered (the page) and
+ * getProjectFacets (the status-tile/total-value aggregates) below — so the
+ * two can never quietly disagree about what "matching the current filters"
+ * means. `includeStatus: false` is what lets the facets query ask "how many
+ * would each OTHER status tile show", by omitting whichever status the UI
+ * itself is about to add back on a per-tile basis.
+ */
+async function buildProjectWhere(
+  viewerUsername: string,
+  viewerUserId: string,
+  query: ProjectListQuery,
+  options: { includeStatus: boolean }
+): Promise<Record<string | symbol, unknown>> {
+  const and: Record<string | symbol, unknown>[] = [await resolveOwnerWhere(viewerUsername)];
+
+  const search = (query.search || '').trim();
+  if (search) {
+    const needle = `%${search}%`;
+    and.push({
+      [Op.or]: [
+        sequelize.where(sequelize.cast(sequelize.col('Project.id'), 'text'), { [Op.iLike]: needle }),
+        { client_name: { [Op.iLike]: needle } },
+        { company: { [Op.iLike]: needle } },
+        { contact_person: { [Op.iLike]: needle } }
+      ]
+    });
+  }
+  if (options.includeStatus && query.status) and.push({ status: query.status });
+  if (query.priority) and.push({ priority: query.priority });
+  if (query.salesPerson) and.push({ sales_person: query.salesPerson });
+  if (query.source) and.push({ source: query.source });
+  if (query.department) and.push({ departments: { [Op.contains]: [query.department] } });
+  if (query.stage) and.push({ stage: query.stage });
+  if (query.type) and.push({ opportunity_type: query.type });
+
+  if (query.lead) {
+    const lead = await resolveProjectLead(query.lead);
+    // An unresolvable id (stale link, tampered param) matches nothing rather
+    // than silently falling through to "no lead filter" and showing
+    // everyone's projects.
+    and.push(
+      lead
+        ? { [Op.or]: [{ project_lead_id: query.lead }, { created_by: lead.id }, { sales_person: lead.username }] }
+        : { id: '00000000-0000-0000-0000-000000000000' }
+    );
+  }
+
+  if (query.from) and.push({ created_at: { [Op.gte]: `${query.from}T00:00:00.000Z` } });
+  if (query.to) and.push({ created_at: { [Op.lte]: `${query.to}T23:59:59.999Z` } });
+
+  if (query.closingFrom || query.closingTo) {
+    and.push({ expected_closing_date: { [Op.ne]: null } });
+    if (query.closingFrom) and.push({ expected_closing_date: { [Op.gte]: query.closingFrom } });
+    if (query.closingTo) and.push({ expected_closing_date: { [Op.lte]: query.closingTo } });
+  }
+
+  // The deep-linked view is "mine to confirm", which is the creator check
+  // the detail page gates its confirm banner on — mirrors components/
+  // ProjectsView.tsx's filteredExceptStatus exactly.
+  if (query.awaitingMine) {
+    and.push({ lead_confirmation_status: 'pending_confirmation', created_by: viewerUserId });
+  } else if (query.awaitingTeam) {
+    and.push({ lead_confirmation_status: 'pending_confirmation', created_by: { [Op.ne]: viewerUserId } });
+  } else if (query.confirmation) {
+    and.push({ lead_confirmation_status: query.confirmation });
+  }
+
+  if (options.includeStatus && !query.status && !query.includeClosed) {
+    and.push({ status: { [Op.notIn]: ['won', 'lost'] } });
+  }
+
+  return { [Op.and]: and };
+}
+
+/**
+ * The Sales Projects list, filtered and paginated on the SERVER — replaces
+ * shipping every project (and, via ?remarks=1, a DISTINCT ON across the
+ * whole project_timeline_events table for every one of them) to the browser
+ * on every load so it could filter ~234+ rows across 14+ dimensions
+ * in-memory (components/ProjectsView.tsx used to do exactly that). The
+ * remarks merge still happens in the route, same as before — it now runs
+ * against this page's ~20 ids instead of the whole visible set, which is
+ * what actually shrinks that query; see app/api/projects/route.ts.
+ */
+async function listProjectsFiltered(
+  viewerUsername: string,
+  viewerUserId: string,
+  query: ProjectListQuery
+): Promise<{ projects: ProjectRecord[]; total: number }> {
+  const where = await buildProjectWhere(viewerUsername, viewerUserId, query, { includeStatus: true });
+  const order: [string, string][] = query.sortBy === 'oldest' ? [['created_at', 'ASC']] : [['created_at', 'DESC']];
+  const page = Math.max(1, Math.floor(query.page || 1));
+  const pageSize = Math.min(MAX_PROJECT_PAGE_SIZE, Math.max(1, Math.floor(query.pageSize || 20)));
+
+  const [total, rows] = await Promise.all([
+    db.Project.count({ where: where as never }),
+    db.Project.findAll({ where: where as never, include: lightIncludes, order: order as never, limit: pageSize, offset: (page - 1) * pageSize })
+  ]);
+
+  return { projects: rows.map(toRecord).map(normalizeProject), total };
+}
+
+export interface ProjectFacets {
+  /** status -> count, with every OTHER filter applied but not status itself — "what would each tile show". */
+  statusCounts: Record<ProjectStatus, number>;
+  /** Closed (won/lost) projects matching every other filter, hidden because includeClosed is off and status isn't narrowed to one of them. */
+  hiddenClosedCount: number;
+  /** Department-adjusted sum over the FULLY filtered set (status included), same arithmetic the Approx. Price column itself uses. */
+  totalValue: number;
+  /** Row count of the fully filtered set — same as listProjectsFiltered's `total`, kept here too so the KPI tiles never need a second round trip. */
+  total: number;
+  /** Every project the viewer can see, no filters at all — "Showing N of GRAND_TOTAL projects". */
+  grandTotal: number;
+}
+
+/**
+ * The status-tile counts, the hidden-closed notice and the Total Value KPI —
+ * all three used to come from scanning the full in-browser list
+ * (components/ProjectsView.tsx's filteredExceptStatus/hiddenClosedCount/
+ * dashboardKpis). Two lightweight queries: one GROUP BY status with every
+ * filter except status applied (what makes each tile answer "what would
+ * picking this show"), one minimal-column fetch of the fully-filtered set
+ * for the value sum, reduced in JS through the existing departmentValueOf —
+ * reused, not re-derived, so this can never disagree with the Approx. Price
+ * column over what a department split is worth.
+ */
+async function getProjectFacets(viewerUsername: string, viewerUserId: string, query: ProjectListQuery): Promise<ProjectFacets> {
+  const whereExceptStatus = await buildProjectWhere(viewerUsername, viewerUserId, query, { includeStatus: false });
+
+  const statusRows = (await db.Project.findAll({
+    where: whereExceptStatus as never,
+    attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+    group: ['status']
+  })) as unknown as Model[];
+  const statusCounts: Record<ProjectStatus, number> = { active: 0, on_hold: 0, won: 0, lost: 0 };
+  for (const row of statusRows) {
+    const plain = row.get({ plain: true }) as { status: ProjectStatus; count: string };
+    statusCounts[plain.status] = Number(plain.count) || 0;
+  }
+
+  const hiddenClosedCount = query.status || query.includeClosed ? 0 : statusCounts.won + statusCounts.lost;
+
+  const whereFull = await buildProjectWhere(viewerUsername, viewerUserId, query, { includeStatus: true });
+  const [total, valueRows] = await Promise.all([
+    db.Project.count({ where: whereFull as never }),
+    db.Project.findAll({ where: whereFull as never, attributes: ['approx_price', 'departments', 'department_amounts'] })
+  ]);
+  const totalValue = valueRows.reduce((sum, row) => {
+    const plain = row.get({ plain: true }) as { approx_price: string | number | null; departments: unknown; department_amounts: unknown };
+    const approx = plain.approx_price === null || plain.approx_price === undefined ? '' : Number(plain.approx_price);
+    return sum + departmentValueOf(
+      { approx_price: approx as number | '', departments: (plain.departments as never) ?? [], department_amounts: (plain.department_amounts as never) ?? {} },
+      (query.department as never) || ''
+    );
+  }, 0);
+
+  const grandTotal = await db.Project.count({ where: (await resolveOwnerWhere(viewerUsername)) as never });
+
+  return { statusCounts, hiddenClosedCount, totalValue, total, grandTotal };
+}
+
+export interface ProjectFilterOptions {
+  /** Every sales_person username the viewer's visible set carries, with its display name for the dropdown label. */
+  salesPeople: { username: string; name: string }[];
+  sources: string[];
+}
+
+/**
+ * The Sales Person / Source filter dropdowns' option lists — unfiltered (the
+ * viewer's full visible set, not whatever the other filters currently
+ * narrow to), same as components/ProjectsView.tsx's own salesPeople/sources
+ * used to derive from the full `projects` array before pagination existed.
+ */
+async function listProjectFilterOptions(viewerUsername: string): Promise<ProjectFilterOptions> {
+  const where = await resolveOwnerWhere(viewerUsername);
+  const rows = await db.Project.findAll({ where: where as never, attributes: ['sales_person', 'source'], group: ['sales_person', 'source'] });
+  const usernames = new Set<string>();
+  const sources = new Set<string>();
+  for (const row of rows) {
+    const plain = row.get({ plain: true }) as { sales_person: string | null; source: string | null };
+    if (plain.sales_person) usernames.add(plain.sales_person);
+    if (plain.source) sources.add(plain.source);
+  }
+  const users = usernames.size
+    ? await db.User.findAll({ where: { username: [...usernames] } as never, attributes: ['username', 'name'] })
+    : [];
+  const nameByUsername = new Map(users.map((u) => [u.get('username') as string, (u.get('name') as string) || (u.get('username') as string)]));
+  return {
+    salesPeople: [...usernames].sort().map((username) => ({ username, name: nameByUsername.get(username) || username })),
+    sources: [...sources].sort()
+  };
+}
+
+export interface ProjectDirectoryEntry {
+  id: string;
+  client_name: string;
+  company: string;
+  contact_person: string;
+  phone: string;
+  alt_contact_phone: string;
+  email: string;
+  address: string;
+}
+
+/**
+ * Identity + contact fields for every project the viewer can see — the "did
+ * someone already enter this client" duplicate-suggestion check, and the
+ * "copy this client's details into a new project" action it offers, both of
+ * which need the full set regardless of the main list's filters/pagination.
+ * No deal-specific fields (value, stage, departments, assignees) — a second
+ * project for the same client copies who they are, never the previous deal.
+ */
+async function listClientDirectory(viewerUsername: string): Promise<ProjectDirectoryEntry[]> {
+  const where = await resolveOwnerWhere(viewerUsername);
+  const rows = await db.Project.findAll({
+    where: where as never,
+    attributes: ['id', 'client_name', 'company', 'contact_person', 'phone', 'alt_contact_phone', 'email', 'address']
+  });
+  return rows.map((row) => row.get({ plain: true }) as ProjectDirectoryEntry);
 }
 
 // Strictly "projects this one user personally created" — used by admin
@@ -617,6 +873,10 @@ export async function resolveProjectDeadlineTier(viewer: { username: string; rol
 export const projectStore = {
   list: async (viewerUsername: string, _viewerIsPrivileged: boolean) => (await list(viewerUsername)).map(normalizeProject),
   listLight: async (viewerUsername: string, _viewerIsPrivileged: boolean) => (await listLight(viewerUsername)).map(normalizeProject),
+  listFiltered: listProjectsFiltered,
+  getFacets: getProjectFacets,
+  listFilterOptions: listProjectFilterOptions,
+  listClientDirectory,
   listOwnedBy: async (username: string) => (await listOwnedBy(username)).map(normalizeProject),
   // Unscoped — every project, no visibility filtering. For aggregate/admin
   // computations only (e.g. department health scoring), never for a

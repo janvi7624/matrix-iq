@@ -44,6 +44,7 @@ import FilterPanel, {
 } from './ui/FilterPanel';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
+import Pagination from './ui/Pagination';
 import Modal, { ModalCancelButton } from './ui/Modal';
 import ProjectSourceField from './ui/ProjectSourceField';
 import ProjectLeadField from './ui/ProjectLeadField';
@@ -306,53 +307,166 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     return isProjectDepartment(params.get('department') ?? '') || filter === 'pending_confirmation' || filter === 'team_pending_confirmation';
   });
 
-  async function load() {
-    setLoading(true);
-    setLoadFailed(false);
-    try {
-      // ?remarks=1 — this is the one screen that shows the last remark, and
-      // the only caller that pays for the DISTINCT ON it costs. Not cached:
-      // this is the live list people work from, auto-refreshed on focus.
-      const response = await fetch('/api/projects?remarks=1');
-      if (!response.ok) throw new Error(String(response.status));
-      const data: ProjectRecord[] = await response.json();
-      setProjects(data);
-      setLoaded(true);
-    } catch {
-      setLoadFailed(true);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  // Keeps the list current without reloading the page — refetches when the
-  // tab regains focus, and slowly while it is visible. See
-  // lib/useAutoRefresh.ts for why the cadence is deliberately slow.
-  useAutoRefresh(load);
-
-  const salesPeople = useMemo(() => Array.from(new Set(projects.map((p) => p.sales_person).filter(Boolean))).sort(), [projects]);
-  // sales_person itself is a username (lib/projectSalesOwner.ts) — this maps
-  // it to the display name every project with that owner already carries,
-  // so the filter dropdown and chip can show a name while fSalesPerson/the
-  // actual filtering keep comparing against the username unchanged.
-  const salesPersonNameByUsername = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of projects) if (p.sales_person && p.sales_person_name) map.set(p.sales_person, p.sales_person_name);
-    return map;
-  }, [projects]);
-  const sources = useMemo(() => Array.from(new Set(projects.map((p) => p.source).filter(Boolean))).sort(), [projects]);
-
   // Custom Range reveals its own two date inputs; every other preset
   // resolves to a fixed [from, to] window computed once per render (cheap —
-  // plain Date arithmetic, no fetch).
+  // plain Date arithmetic, no fetch). Moved up here (was declared further
+  // down, after `filtered`) because buildProjectParams/the fetch-triggering
+  // effects below now need it too.
   const closingRange = useMemo(
     () => (fClosingPreset === 'custom' ? { from: fClosingFrom, to: fClosingTo } : closingDatePresetRange(fClosingPreset)),
     [fClosingPreset, fClosingFrom, fClosingTo]
   );
+
+  // Any date range in play means closed deals belong in the answer: someone
+  // searching a range is asking what happened then, and omitting everything
+  // that closed would make the search quietly wrong. Covers both the created
+  // range and the expected-closing range.
+  const dateFilterActive = Boolean(fFrom || fTo || closingRange.from || closingRange.to);
+  const showClosed = closedProjectsVisible({
+    statusFilter: fStatus,
+    dateFilterActive,
+    userOverride: includeClosed
+  });
+
+  // Filtering, sorting and pagination now happen on the server
+  // (lib/projectStore.ts's listFiltered) — the full visible set (plus, on
+  // every load, a DISTINCT ON across the whole project_timeline_events table
+  // for the Last Remark column) no longer round-trips through the browser
+  // just to decide what ~20 rows to show.
+  const PROJECTS_PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [facets, setFacets] = useState<{
+    statusCounts: Record<ProjectStatus, number>;
+    hiddenClosedCount: number;
+    totalValue: number;
+    total: number;
+    grandTotal: number;
+  } | null>(null);
+  // The Sales Person / Source dropdown option lists and the client
+  // directory (id/client_name/company for every visible project, used by
+  // the New Project form's duplicate-client nudge) — both need the viewer's
+  // FULL set regardless of the main table's current filters/page, so they
+  // come from their own lightweight endpoints now rather than being derived
+  // from `projects` (which is just the current page).
+  const [filterOptions, setFilterOptions] = useState<{ salesPeople: { username: string; name: string }[]; sources: string[] }>({ salesPeople: [], sources: [] });
+  const [clientDirectory, setClientDirectory] = useState<{ id: string; client_name: string; company: string; contact_person: string; phone: string; alt_contact_phone: string; email: string; address: string }[]>([]);
+  // Debounced the same way components/LeadsView.tsx's search is — filtering
+  // moved server-side, so a request per keystroke would be a network round
+  // trip where the old in-browser .filter() cost nothing.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(fSearch), 300);
+    return () => clearTimeout(t);
+  }, [fSearch]);
+
+  // Every filter the backend understands, as query params — shared by load()
+  // (the page's rows), loadFacets() (the status tiles / total value) and
+  // handleExportPdf() (everything matching, unpaginated). Resolves the
+  // closed-visibility rule client-side (closedProjectsVisible is pure, no
+  // reason to duplicate it server-side) and sends the result as one flag.
+  function buildProjectParams(): URLSearchParams {
+    const params = new URLSearchParams();
+    if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+    if (fStage) params.set('stage', fStage);
+    if (fStatus) params.set('status', fStatus);
+    if (fPriority) params.set('priority', fPriority);
+    if (fSalesPerson) params.set('salesPerson', fSalesPerson);
+    if (fSource) params.set('source', fSource);
+    if (fDepartment) params.set('department', fDepartment);
+    if (fType) params.set('type', fType);
+    if (fLead) params.set('lead', fLead);
+    if (fFrom) params.set('from', fFrom);
+    if (fTo) params.set('to', fTo);
+    if (closingRange.from) params.set('closingFrom', closingRange.from);
+    if (closingRange.to) params.set('closingTo', closingRange.to);
+    if (fAwaitingMine) params.set('awaitingMine', '1');
+    else if (fAwaitingTeam) params.set('awaitingTeam', '1');
+    else if (fConfirmation) params.set('confirmation', fConfirmation);
+    if (showClosed) params.set('includeClosed', '1');
+    return params;
+  }
+
+  async function loadFacets() {
+    try {
+      const response = await fetch(`/api/projects/facets?${buildProjectParams().toString()}`);
+      if (response.ok) setFacets(await response.json());
+    } catch {
+      setFacets(null);
+    }
+  }
+
+  async function load(options: { silent?: boolean } = {}) {
+    if (!options.silent) setLoading(true);
+    setLoadFailed(false);
+    try {
+      const params = buildProjectParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(PROJECTS_PAGE_SIZE));
+      params.set('remarks', '1');
+      // Not cached: this is the live list people work from, auto-refreshed
+      // on focus.
+      const response = await fetch(`/api/projects?${params.toString()}`);
+      if (!response.ok) throw new Error(String(response.status));
+      const data: { projects: ProjectRecord[]; total: number } = await response.json();
+      setProjects(data.projects);
+      setTotal(data.total);
+      setLoaded(true);
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      if (!options.silent) setLoading(false);
+    }
+  }
+
+  async function loadFilterOptionsAndDirectory() {
+    try {
+      const [optionsRes, directoryRes] = await Promise.all([fetch('/api/projects/filter-options'), fetch('/api/projects/client-directory')]);
+      if (optionsRes.ok) setFilterOptions(await optionsRes.json());
+      if (directoryRes.ok) setClientDirectory(await directoryRes.json());
+    } catch {
+      // Both are secondary (dropdown options, a nudge) — a failed fetch
+      // leaves them empty rather than breaking the main list.
+    }
+  }
+
+  useEffect(() => {
+    loadFilterOptionsAndDirectory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A filter changing invalidates the page (results may no longer span as
+  // many pages) — same reasoning as components/LeadsView.tsx's identical
+  // reset effect.
+  useEffect(() => {
+    setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, fStage, fStatus, fPriority, fSalesPerson, fSource, fDepartment, fType, fLead, fFrom, fTo, closingRange.from, closingRange.to, fAwaitingMine, fAwaitingTeam, fConfirmation, showClosed]);
+
+  // The actual fetches — fire on mount, on every filter settling (via the
+  // page reset above), and on page navigation.
+  useEffect(() => {
+    load();
+    loadFacets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, debouncedSearch, fStage, fStatus, fPriority, fSalesPerson, fSource, fDepartment, fType, fLead, fFrom, fTo, closingRange.from, closingRange.to, fAwaitingMine, fAwaitingTeam, fConfirmation, showClosed]);
+
+  // Keeps the list current without reloading the page — refetches when the
+  // tab regains focus, and slowly while it is visible. See
+  // lib/useAutoRefresh.ts for why the cadence is deliberately slow. Silent:
+  // this fires every 60s or on every tab-focus, and must not flash a
+  // loading state over whatever is on screen.
+  useAutoRefresh(() => {
+    load({ silent: true });
+    loadFacets();
+  });
+
+  // Unfiltered — the viewer's whole visible set, from their own lightweight
+  // endpoint (lib/projectStore.ts's listFilterOptions) rather than derived
+  // from `projects`, which is now just the current page.
+  const salesPeople = filterOptions.salesPeople.map((p) => p.username);
+  const salesPersonNameByUsername = useMemo(() => new Map(filterOptions.salesPeople.map((p) => [p.username, p.name])), [filterOptions]);
+  const sources = filterOptions.sources;
 
   const selectedLead = useMemo(() => leadOptions.find((l) => l.id === fLead) ?? null, [leadOptions, fLead]);
 
@@ -429,118 +543,58 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
   // Active/On Hold/Lost all reading 0 and there would be no way to click
   // onwards. Standard faceted-filter behaviour: each tile answers "how many
   // would I get if I picked this", which is exactly what it then shows.
-  const filteredExceptStatus = useMemo(() => {
-    const q = fSearch.trim().toLowerCase();
-    return projects.filter((p) => {
-      // Filtering by a lead shows what they LEAD plus what they OWN — a lead
-      // is also a person with projects of their own, and both belong in "their"
-      // view. Nothing matches until the lead options have loaded.
-      if (fLead) {
-        const leads = p.project_lead_id === fLead;
-        const owns = !!selectedLead && (p.created_by === selectedLead.username || p.sales_person === selectedLead.username);
-        if (!leads && !owns) return false;
-      }
-      if (fType && p.opportunity_type !== fType) return false;
-      if (!matchesDepartmentFilter(p.departments, fDepartment)) return false;
-      if (fSalesPerson && p.sales_person !== fSalesPerson) return false;
-      if (fSource && p.source !== fSource) return false;
-      if (fStage && p.stage !== fStage) return false;
-      if (fPriority && p.priority !== fPriority) return false;
-      if (fFrom && p.created_at.slice(0, 10) < fFrom) return false;
-      if (fTo && p.created_at.slice(0, 10) > fTo) return false;
-      // The deep-linked view is "mine to confirm", which is the creator
-      // check the detail page gates its confirm banner on.
-      if (fAwaitingMine && !(p.lead_confirmation_status === 'pending_confirmation' && p.created_by === currentUser.username)) return false;
-      if (fAwaitingTeam && !(p.lead_confirmation_status === 'pending_confirmation' && p.created_by !== currentUser.username)) return false;
-      if (!fAwaitingMine && !fAwaitingTeam && fConfirmation && p.lead_confirmation_status !== fConfirmation) return false;
-      if ((closingRange.from || closingRange.to) && !p.expected_closing_date) return false;
-      if (closingRange.from && p.expected_closing_date < closingRange.from) return false;
-      if (closingRange.to && p.expected_closing_date > closingRange.to) return false;
-      if (q && ![p.id, p.client_name, p.company, p.contact_person].some((v) => (v || '').toLowerCase().includes(q))) return false;
-      return true;
-    });
-  }, [projects, fLead, selectedLead, fType, fDepartment, fSalesPerson, fSource, fStage, fPriority, fFrom, fTo, fSearch, fConfirmation, fAwaitingMine, fAwaitingTeam, currentUser.username, closingRange]);
+  // `projects` is now just the current page — filtering/pagination happen on
+  // the server (lib/projectStore.ts's listFiltered), so `filtered` IS
+  // `projects` (the backend already applied every filter, including status
+  // and closed-visibility, before returning this page). `pageRows` is kept
+  // as its own name only so the Table/count-label code below reads the same
+  // as components/LeadsView.tsx's equivalent.
+  const filtered = projects;
+  const pageRows = projects;
 
-  // Any date range in play means closed deals belong in the answer: someone
-  // searching a range is asking what happened then, and omitting everything
-  // that closed would make the search quietly wrong. Covers both the created
-  // range and the expected-closing range.
-  const dateFilterActive = Boolean(fFrom || fTo || closingRange.from || closingRange.to);
-  const showClosed = closedProjectsVisible({
-    statusFilter: fStatus,
-    dateFilterActive,
-    userOverride: includeClosed
-  });
-
-  const filtered = useMemo(() => {
-    return filteredExceptStatus.filter((p) => {
-      if (fStatus) return p.status === fStatus;
-      // Finished work is out of the default view. Not age-based: see
-      // lib/projectVisibility.ts for why 90 days hid nothing at all.
-      return showClosed || !isClosedProject(p);
-    });
-  }, [filteredExceptStatus, fStatus, showClosed]);
-
-  // Surfaced next to the filter bar so hiding never looks like data went
-  // missing. Counted off filteredExceptStatus rather than the raw list, so
-  // the number describes what THIS view is holding back — a count of every
-  // closed project in the database would be a different, misleading fact
-  // when a department or lead filter is also on.
-  const hiddenClosedCount = useMemo(() => {
-    if (showClosed) return 0;
-    return filteredExceptStatus.filter((p) => isClosedProject(p)).length;
-  }, [filteredExceptStatus, showClosed]);
-
-  // KPI tiles (Part 1.3) — deliberately derived from `filtered`, never
-  // `projects`, so they can never show a stale count against the visible
-  // table the way a separately-fetched/separately-computed KPI could.
-  const dashboardKpis = useMemo(() => {
-    // Status counts come from filteredExceptStatus, so each tile shows what
-    // clicking it will produce — including aged Won/Lost deals, which the
-    // default view hides but a Won/Lost pick reveals. Total and Total Value
-    // stay on filtered: those describe the list as it currently stands.
-    const won = filteredExceptStatus.filter((p) => p.status === 'won').length;
-    const lost = filteredExceptStatus.filter((p) => p.status === 'lost').length;
-    const active = filteredExceptStatus.filter((p) => p.status === 'active').length;
-    // The fourth ProjectStatus. Without its own tile the three above don't add
-    // up to Total and an on-hold deal shows in no tile at all — it is neither
-    // Active nor closed, and (unlike Won/Lost) never ages out of the list
-    // either, so it would otherwise sit here indefinitely uncounted.
-    const onHold = filteredExceptStatus.filter((p) => p.status === 'on_hold').length;
-    // Follows the Department filter: unfiltered this is the whole 50L of an
-    // AI+AV project, filtered to AI it is AI's 27L share. Same function the
-    // Approx. Price column uses, so the tile can never disagree with the rows
-    // adding up to it.
-    const totalValue = filtered.reduce((sum, p) => sum + departmentValueOf(p, fDepartment), 0);
-    return { total: filtered.length, won, lost, active, onHold, totalValue };
-  }, [filtered, filteredExceptStatus, fDepartment]);
+  // The status-tile counts, the hidden-closed notice and the Total Value KPI
+  // — all three now come from GET /api/projects/facets (lib/projectStore.ts's
+  // getFacets), computed server-side over the viewer's full filtered set,
+  // not just this page. See that function for the one copy of this
+  // arithmetic (departmentValueOf, closed-visibility).
+  const hiddenClosedCount = facets?.hiddenClosedCount ?? 0;
+  const dashboardKpis = {
+    total: facets?.total ?? 0,
+    won: facets?.statusCounts.won ?? 0,
+    lost: facets?.statusCounts.lost ?? 0,
+    active: facets?.statusCounts.active ?? 0,
+    onHold: facets?.statusCounts.on_hold ?? 0,
+    totalValue: facets?.totalValue ?? 0
+  };
 
   // A live, non-blocking nudge while the New Project form is open — the
-  // typed client name/company against every existing project, so a rep
-  // retyping a client someone already entered (under a slightly different
-  // spelling) gets a chance to open that one instead of creating a
-  // duplicate. Suggestion only: it never blocks or auto-cancels the submit.
+  // typed client name/company against every project the viewer can see
+  // (lib/projectStore.ts's listClientDirectory, loaded once on mount — see
+  // loadFilterOptionsAndDirectory), not just whatever page the main table
+  // happens to be showing. Suggestion only: it never blocks or auto-cancels
+  // the submit.
   const possibleDuplicate = useMemo(
     () => (showForm
-      ? findClosestClient(form.clientName, form.company, projects.map((p) => ({ id: p.id, clientName: p.client_name, company: p.company })))
+      ? findClosestClient(form.clientName, form.company, clientDirectory.map((p) => ({ id: p.id, clientName: p.client_name, company: p.company })))
       : null),
-    [showForm, form.clientName, form.company, projects]
+    [showForm, form.clientName, form.company, clientDirectory]
   );
 
   // Arriving from Client Master's "New Project": open the form and fill in
-  // that client, once their projects are actually loaded. Runs once — the
-  // pending name is cleared whether or not a match was found, so a client
-  // who somehow has no project still gets an open form rather than a loop.
+  // that client, once the client directory has actually loaded. Runs once —
+  // the pending name is cleared whether or not a match was found, so a
+  // client who somehow has no project still gets an open form rather than a
+  // loop.
   useEffect(() => {
-    if (!pendingClientName || !projects.length) return;
+    if (!pendingClientName || !clientDirectory.length) return;
     const wanted = clientDirectoryKey(pendingClientName);
-    const match = projects.find((p) => clientDirectoryKey(p.company || p.client_name) === wanted);
+    const match = clientDirectory.find((p) => clientDirectoryKey(p.company || p.client_name) === wanted);
     setShowForm(true);
     if (match) useExistingClient(match.id, { quiet: true });
     else setForm((f) => ({ ...f, company: pendingClientName }));
     setPendingClientName('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingClientName, projects]);
+  }, [pendingClientName, clientDirectory]);
 
   /**
    * Copies an existing client's details into the open New Project form.
@@ -557,7 +611,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
    * last one.
    */
   function useExistingClient(projectId: string, options: { quiet?: boolean } = {}) {
-    const source = projects.find((p) => p.id === projectId);
+    const source = clientDirectory.find((p) => p.id === projectId);
     if (!source) return;
     setForm((f) => ({
       ...f,
@@ -705,18 +759,43 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
       // the cached options would otherwise live.
       invalidateProjectCaches();
       setProjects((prev) => prev.filter((p) => p.id !== id));
+      // Silent refetch — `total`/the facet counts need to drop by one, and a
+      // deleted last-row-on-the-page should pull one in from the next page.
+      load({ silent: true });
+      loadFacets();
     } catch {
       toast.error('Could not delete this project.');
     }
   }
 
-  function handleExportPdf() {
-    exportListToPdf(
-      'Project Dashboard',
-      ['Client', 'Company', 'Sales Person', 'Department', 'Project Lead', 'Source', 'Approx. Price', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
-      filtered.map((p) => [p.client_name, p.company, p.sales_person_name || p.sales_person, formatProjectDepartments(p.departments), p.project_lead_name ? `${p.project_lead_name}${p.opportunity_type ? ` (${OPPORTUNITY_TYPE_LABEL[p.opportunity_type]})` : ''}` : '-', p.source || '-', formatMoney(p.approx_price), STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
-      `projects-${new Date().toISOString().slice(0, 10)}.pdf`
-    );
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  // `filtered`/`projects` is just the current page now — the export has
+  // always meant "everything matching the filters", so it fetches that set
+  // fresh rather than exporting only what happens to be on screen. A plain
+  // large pageSize rather than a dedicated "no pagination" mode: the backend
+  // already caps it (MAX_PROJECT_PAGE_SIZE in lib/projectStore.ts), and this
+  // view's own filtered sets have never run anywhere near that.
+  async function handleExportPdf() {
+    setExportingPdf(true);
+    try {
+      const params = buildProjectParams();
+      params.set('page', '1');
+      params.set('pageSize', '5000');
+      const response = await fetch(`/api/projects?${params.toString()}`);
+      if (!response.ok) throw new Error(String(response.status));
+      const data: { projects: ProjectRecord[]; total: number } = await response.json();
+      exportListToPdf(
+        'Project Dashboard',
+        ['Client', 'Company', 'Sales Person', 'Department', 'Project Lead', 'Source', 'Approx. Price', 'Stage', 'Status', 'Priority', 'Last Updated', 'Next Follow-up', 'Closing %'],
+        data.projects.map((p) => [p.client_name, p.company, p.sales_person_name || p.sales_person, formatProjectDepartments(p.departments), p.project_lead_name ? `${p.project_lead_name}${p.opportunity_type ? ` (${OPPORTUNITY_TYPE_LABEL[p.opportunity_type]})` : ''}` : '-', p.source || '-', formatMoney(p.approx_price), STAGE_LABEL[p.stage], STATUS_LABEL[p.status], PRIORITY_LABEL[p.priority], formatDateTime(p.updated_at), formatDate(p.next_follow_up_date), p.closing_probability_percent === '' ? '-' : `${p.closing_probability_percent}%`]),
+        `projects-${new Date().toISOString().slice(0, 10)}.pdf`
+      );
+    } catch {
+      toast.error('Could not export the PDF. Please try again.');
+    } finally {
+      setExportingPdf(false);
+    }
   }
 
   // The three fields the table no longer has room for. Defined once and used
@@ -975,13 +1054,13 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
               {showForm ? 'Cancel' : '+ New Project'}
             </button>
           )}
-          <ToolbarButton onClick={handleExportPdf}>
-            Export PDF
+          <ToolbarButton onClick={handleExportPdf} disabled={exportingPdf}>
+            {exportingPdf ? 'Exporting…' : 'Export PDF'}
           </ToolbarButton>
           <ToolbarButton onClick={() => window.print()}>
             Print
           </ToolbarButton>
-          <ToolbarButton onClick={load}>
+          <ToolbarButton onClick={() => { load(); loadFacets(); }}>
             Refresh
           </ToolbarButton>
           {/* Chasing the whole roster is an admin job, so this is the only
@@ -1338,7 +1417,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
           )}
 
           <FilterMeta
-            count={projectCountLabel(loading, filtered.length, projects.length)}
+            count={projectCountLabel(loading, dashboardKpis.total, facets?.grandTotal ?? 0)}
             activeFilters={activeFilters}
             onClearAll={clearAllFilters}
           />
@@ -1348,9 +1427,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
             with no explanation. */}
         {!loading && !loadFailed && fAwaitingTeam && (
           <div className={historyStyles.status}>
-            {filtered.length > 0 ? (
+            {dashboardKpis.total > 0 ? (
               <>
-                Showing {filtered.length} project{filtered.length === 1 ? '' : 's'} waiting on someone else to confirm.
+                Showing {dashboardKpis.total} project{dashboardKpis.total === 1 ? '' : 's'} waiting on someone else to confirm.
                 Only the person who owns each one can confirm it.
               </>
             ) : (
@@ -1365,9 +1444,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         )}
         {!loading && !loadFailed && fAwaitingMine && (
           <div className={historyStyles.status}>
-            {filtered.length > 0 ? (
+            {dashboardKpis.total > 0 ? (
               <>
-                Showing the {filtered.length} project{filtered.length === 1 ? '' : 's'} waiting for <strong>your</strong>{' '}
+                Showing the {dashboardKpis.total} project{dashboardKpis.total === 1 ? '' : 's'} waiting for <strong>your</strong>{' '}
                 confirmation. Open one to confirm it.
               </>
             ) : (
@@ -1402,24 +1481,27 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         {loading ? (
           <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={11} /></div>
         ) : loadFailed ? (
-          <ErrorState message="Could not load projects — check your connection and try again." onRetry={load} />
+          <ErrorState message="Could not load projects — check your connection and try again." onRetry={() => load()} />
         ) : (
         loaded && (
+          <>
           <Table
             columns={columns}
-            rows={filtered}
+            rows={pageRows}
             rowKey={(p) => p.id}
             tableClassName={historyStyles.tableFixed}
             wrapClassName={historyStyles.tableViewport}
             empty={
               <EmptyState
                 icon={FolderKanban}
-                title={projects.length === 0 ? 'No projects yet' : 'No projects match your filters'}
-                message={projects.length === 0 ? (isTechnicalCreator ? "Projects you're assigned to as technical lead show up here — or create one for a sales person when needed." : 'Create your first project to start tracking it through the pipeline.') : 'Try clearing a filter or search term.'}
+                title={(facets?.grandTotal ?? 0) === 0 ? 'No projects yet' : 'No projects match your filters'}
+                message={(facets?.grandTotal ?? 0) === 0 ? (isTechnicalCreator ? "Projects you're assigned to as technical lead show up here — or create one for a sales person when needed." : 'Create your first project to start tracking it through the pipeline.') : 'Try clearing a filter or search term.'}
                 action={<button type="button" className={calcStyles.btn} onClick={() => setShowForm(true)}>+ New Project</button>}
               />
             }
           />
+          <Pagination page={page} totalPages={Math.max(1, Math.ceil((facets?.total ?? 0) / PROJECTS_PAGE_SIZE))} onChange={setPage} />
+          </>
         )
         )}
     </AppShell>

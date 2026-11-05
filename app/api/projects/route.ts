@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { listLastRemarks, projectStore } from '@/lib/projectStore';
+import { listLastRemarks, projectStore, ProjectListQuery } from '@/lib/projectStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { ProjectPriority, ProjectRecord, UserRecord } from '@/lib/types';
+import { ProjectPriority, ProjectRecord, ProjectStage, ProjectStatus, UserRecord } from '@/lib/types';
 import { requestTechnicalPerson } from '@/lib/projectTechnicalRequest';
 import { findSalesPersonCandidate, notifySalesPersonAssigned, SalesOwnerError } from '@/lib/projectSalesOwner';
 import { isTechnicalRole } from '@/lib/technicalRoles';
@@ -38,11 +38,60 @@ function parseApproxPrice(value: unknown): number | undefined {
   return num;
 }
 
+// `page` is the opt-in signal for the filtered/paginated path, same
+// convention as GET /api/leads — a caller that doesn't ask for a page gets
+// the exact old behaviour (the full visible set, no params read), which is
+// what every one of this route's other ten-odd callers (project pickers,
+// id-to-label lookups) still wants. components/ProjectsView.tsx is the one
+// caller sending `page` today; see lib/projectStore.ts's listFiltered for
+// what each param does.
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
+    const params = request.nextUrl.searchParams;
+
+    if (params.has('page')) {
+      const query: ProjectListQuery = {
+        search: params.get('search') || undefined,
+        stage: (params.get('stage') as ProjectStage) || undefined,
+        status: (params.get('status') as ProjectStatus) || undefined,
+        priority: params.get('priority') || undefined,
+        salesPerson: params.get('salesPerson') || undefined,
+        source: params.get('source') || undefined,
+        department: params.get('department') || undefined,
+        type: params.get('type') || undefined,
+        lead: params.get('lead') || undefined,
+        from: params.get('from') || undefined,
+        to: params.get('to') || undefined,
+        closingFrom: params.get('closingFrom') || undefined,
+        closingTo: params.get('closingTo') || undefined,
+        confirmation: params.get('confirmation') || undefined,
+        awaitingMine: params.get('awaitingMine') === '1',
+        awaitingTeam: params.get('awaitingTeam') === '1',
+        includeClosed: params.get('includeClosed') === '1',
+        sortBy: (params.get('sort') as ProjectListQuery['sortBy']) || undefined,
+        page: Number(params.get('page')) || 1,
+        pageSize: Number(params.get('pageSize')) || 20
+      };
+
+      const { projects, total } = await projectStore.listFiltered(viewer.username, viewer.userId, query);
+      // Same remarks merge as before, now scoped to this page's ~20 ids
+      // instead of everything the viewer can see — see listLastRemarks's own
+      // comment and lib/projectStore.ts's listFiltered for why that is what
+      // actually shrinks the query.
+      if (params.get('remarks') !== '1') return NextResponse.json({ projects, total });
+      const lastRemarks = await listLastRemarks(projects.map((p) => p.id));
+      return NextResponse.json({
+        projects: projects.map((p) => {
+          const last = lastRemarks[p.id];
+          return last ? { ...p, last_remark: last.remark, last_remark_at: last.at, last_remark_by: last.by } : p;
+        }),
+        total
+      });
+    }
+
     const records = await projectStore.listLight(viewer.username, viewer.isPrivileged);
 
     // The remarks merge is a SECOND query, and a DISTINCT ON across the whole
@@ -56,7 +105,7 @@ export async function GET(request: NextRequest) {
     // documented convention for a resolved display field (see its comment),
     // so a caller that does not ask gets exactly what it got before minus a
     // value it never looked at.
-    if (request.nextUrl.searchParams.get('remarks') !== '1') return NextResponse.json(records);
+    if (params.get('remarks') !== '1') return NextResponse.json(records);
 
     const lastRemarks = await listLastRemarks(records.map((r) => r.id));
     return NextResponse.json(
