@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTmsViewer, requireTmsAction, TMS_MODULE_KEYS, TMS_ROLE_KEYS, TmsModuleKey } from '@/lib/tmsAccess';
 import { listModuleConfigs } from '@/lib/moduleConfigStore';
-import { findRoleById, listRoles, updateRole } from '@/lib/roleStore';
+import { findRoleById, listRoles, patchRoleModule } from '@/lib/roleStore';
 import { apiErrorResponse } from '@/lib/apiError';
-import { ModulePermissionSet, RolePermissions } from '@/lib/types';
+import { ModulePermissionSet } from '@/lib/types';
 
 // A focused, additional surface over the exact same RolePermissions.modules
 // data /admin/roles already edits — not a new permission engine. Technical
@@ -53,10 +53,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Splices in just this one module's permission set, leaving every other
-    // key of the role's matrix untouched — reuses updateRole()'s existing
-    // write path/cache invalidation entirely.
-    const mergedPermissions: RolePermissions = { ...role.permissions, modules: { ...role.permissions.modules, [moduleKey]: permissions } };
-    const updated = await updateRole(roleId, { permissions: mergedPermissions }, viewer.username);
+    // key of the role's matrix untouched — row-locked so a concurrent edit
+    // to a different module key on the same role can't race this one and
+    // silently erase it (see patchRoleModule).
+    const updated = await patchRoleModule(roleId, moduleKey, viewer.username, () => permissions);
     if (!updated) return NextResponse.json({ error: 'Role not found' }, { status: 404 });
     return NextResponse.json(updated);
   } catch (error) {

@@ -1,4 +1,4 @@
-import { Model, Op } from 'sequelize';
+import { Model, Op, UniqueConstraintError } from 'sequelize';
 import { TmsProjectRecord } from './types';
 import { db, isUuid } from './db';
 import { isTmsAdminTier, isTmsManagerTier, tmsTeamDepartmentIds, TmsViewer } from './tmsAccess';
@@ -247,15 +247,31 @@ async function create(record: TmsProjectRecord): Promise<TmsProjectRecord> {
 
   const departmentIds = record.department_ids && record.department_ids.length ? record.department_ids : record.department_id ? [record.department_id] : [];
 
-  const createdId = await db.sequelize.transaction(async (t) => {
-    const row = await db.TmsProject.create({ ...attrs, created_by: creator ? creator.get('id') : null } as never, { transaction: t });
-    const id = row.get('id') as string;
-    await syncDepartments(id, departmentIds, t);
-    return id;
-  });
-
-  const withAssoc = await db.TmsProject.findByPk(createdId, { include: ALL_INCLUDES });
-  return (await toRecords([withAssoc as Model]))[0];
+  // project_code is computed by the caller from a read-everything/find-max/+1
+  // scan (nextTmsProjectCode), which two concurrent creates can race to the
+  // same value for — the DB's unique constraint then rejects the loser. Self-
+  // heal by regenerating a fresh code and retrying, instead of surfacing that
+  // as a raw validation-error 500 to whichever request lost the race.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const createdId = await db.sequelize.transaction(async (t) => {
+        const row = await db.TmsProject.create({ ...attrs, created_by: creator ? creator.get('id') : null } as never, { transaction: t });
+        const id = row.get('id') as string;
+        await syncDepartments(id, departmentIds, t);
+        return id;
+      });
+      const withAssoc = await db.TmsProject.findByPk(createdId, { include: ALL_INCLUDES });
+      return (await toRecords([withAssoc as Model]))[0];
+    } catch (error) {
+      const isCodeCollision =
+        error instanceof UniqueConstraintError &&
+        Object.keys((error as UniqueConstraintError).fields || {}).includes('project_code');
+      if (!isCodeCollision || attempt === 2) throw error;
+      attrs.project_code = await nextTmsProjectCode();
+    }
+  }
+  // Unreachable — the loop above always returns or throws.
+  throw new Error('Failed to create TMS project');
 }
 
 async function update(id: string, patch: Partial<TmsProjectRecord>): Promise<TmsProjectRecord | null> {

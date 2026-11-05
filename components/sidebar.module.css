@@ -25,8 +25,26 @@
     box-shadow: 2px 0 20px rgba(15, 23, 42, 0.03);
     box-sizing: border-box;
     position: sticky;
-    top: 0;
-    height: 100vh;
+    /* Starts below however much of the header is still on screen, and takes
+       the rest — NOT a full 100vh, which made its last ~80px hang below the
+       bottom of the viewport and took the profile card and log-out button
+       with it.
+
+       --mx-header-visible is the header height MINUS how far the page has
+       scrolled, republished by PortalHeader as you scroll. At the top it is
+       the full header, so the sidebar sits under it and fits exactly; once
+       the header has scrolled away it is 0 and the sidebar is a clean 100vh
+       with no gap. A constant offset would have meant either a permanent gap
+       or a permanently pinned header covering the top of every table.
+
+       Measured, never hard-coded: the header wraps to two rows on a narrow
+       window (76px vs 98px here), so a literal would clip the profile card
+       again at exactly the widths where the space is tightest. The fallback
+       covers the single frame before the first measurement lands and is
+       rounded UP on purpose — guessing high costs a few px of gap for one
+       frame, guessing low re-creates the bug. */
+    top: var(--mx-header-visible, 80px);
+    height: calc(100vh - var(--mx-header-visible, 80px));
     transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 40;
 }

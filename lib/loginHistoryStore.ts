@@ -22,6 +22,31 @@ export async function logLoginAttempt(input: { username: string; success: boolea
   }
 }
 
+// Brute-force guard, found missing in an attack pass (20 rapid wrong
+// passwords against one account, zero throttling). Built on this table
+// rather than a new column/counter on the user — every login attempt is
+// already logged here, so no schema change is needed.
+//
+// Locked out once the most recent LOCKOUT_THRESHOLD attempts within
+// LOCKOUT_WINDOW_MS are ALL failures — walking back from "now", the streak
+// breaks (and the account is immediately usable again) the instant a real
+// success appears, so a legitimate user who mistypes their password a
+// couple of times and then gets it right is never locked out.
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+const LOCKOUT_THRESHOLD = 8;
+
+export async function isLoginLocked(username: string): Promise<boolean> {
+  const since = new Date(Date.now() - LOCKOUT_WINDOW_MS);
+  const rows = await db.LoginHistory.findAll({
+    where: { username: { [Op.iLike]: username }, at: { [Op.gte]: since } } as never,
+    order: [['at', 'DESC']],
+    limit: LOCKOUT_THRESHOLD,
+    attributes: ['success']
+  });
+  if (rows.length < LOCKOUT_THRESHOLD) return false;
+  return rows.every((row) => row.get('success') === false);
+}
+
 export async function listLoginHistory(username?: string, limit = 50): Promise<LoginHistoryEntry[]> {
   const where: Record<string, unknown> = {};
   if (username) where.username = { [Op.iLike]: username };

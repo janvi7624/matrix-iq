@@ -1,7 +1,7 @@
 import { Model } from 'sequelize';
 import { PublicUser, UserRecord, UserRole } from './types';
 import { hashPassword, verifyPassword } from './passwords';
-import { db, isUuid } from './db';
+import { db, isUuid, sequelize } from './db';
 import { listRoles, findRoleByKey } from './roleStore';
 import { sendUserCreatedEmail, sendAccountChangedEmail, sendPasswordChangedEmail } from './email/notifications';
 import { isPartnerRoleKey } from './partnerRoles';
@@ -168,15 +168,17 @@ export async function findAdminUsers(): Promise<{ id: string; username: string; 
 // lookup is free, a second round trip is not.
 export async function findUserStatusById(
   id: string
-): Promise<{ id: string; status: string; name: string; partnerId: string } | undefined> {
+): Promise<{ id: string; status: string; name: string; partnerId: string; sessionEpoch: number | null } | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.User.findByPk(id, { attributes: ['id', 'status', 'name', 'partnerId'] });
+  const row = await db.User.findByPk(id, { attributes: ['id', 'status', 'name', 'partnerId', 'lastLoginAt'] });
   if (!row) return undefined;
+  const lastLoginAt = row.get('lastLoginAt') as Date | null;
   return {
     id: row.get('id') as string,
     status: row.get('status') as string,
     name: (row.get('name') as string) || '',
-    partnerId: (row.get('partnerId') as string) || ''
+    partnerId: (row.get('partnerId') as string) || '',
+    sessionEpoch: lastLoginAt ? lastLoginAt.getTime() : null
   };
 }
 
@@ -252,11 +254,26 @@ export async function verifyLogin(username: string, password: string): Promise<U
   return ok ? user : null;
 }
 
-export async function recordLogin(id: string): Promise<void> {
-  if (!isUuid(id)) return;
+// Returns the exact Date written, for the caller to embed as the new
+// token's sessionEpoch claim (see lib/auth.ts) — must be the written value,
+// not a separately-computed `new Date()`, or the token would fail its own
+// revocation check on its very next request.
+export async function recordLogin(id: string): Promise<Date | undefined> {
+  if (!isUuid(id)) return undefined;
   const row = await db.User.findByPk(id);
-  if (!row) return;
-  await row.update({ lastLoginAt: new Date() } as never);
+  if (!row) return undefined;
+  const now = new Date();
+  await row.update({ lastLoginAt: now } as never);
+  return now;
+}
+
+// Re-stamps lastLoginAt — reused as a session-revocation epoch (see
+// SessionPayload.sessionEpoch) — to invalidate every token issued before
+// this call. Called on logout and on password change; NOT on an ordinary
+// login (recordLogin already does that) or on any unrelated profile edit,
+// which must never kill a user's own other valid sessions.
+export async function touchSessionEpoch(id: string): Promise<Date | undefined> {
+  return recordLogin(id);
 }
 
 export interface CreateUserInput {
@@ -368,10 +385,25 @@ export interface UpdateUserInput {
 
 export async function updateUser(id: string, patch: UpdateUserInput): Promise<PublicUser | null> {
   if (!isUuid(id)) return null;
+  // Row-locked so two concurrent updates on the same user (a double-click on
+  // "deactivate", or an admin toggling status while HR resets the password
+  // at the same instant) serialize instead of both reading the same stale
+  // `before` snapshot — without this, the second call's role/department/
+  // status-changed diff (used to decide whether to email) would be computed
+  // against data the first call had already superseded.
+  const result = await sequelize.transaction(async (t) => {
   // Fetched with the same includes as the post-update read below so role/
   // department can be diffed against the patch — the label (not just the
   // key) is what the account-changed email shows.
-  const row = await db.User.findByPk(id, { include: [roleInclude, deptInclude] });
+  const row = await db.User.findByPk(id, {
+    include: [roleInclude, deptInclude],
+    transaction: t,
+    // `of: db.User` — a plain `lock: t.LOCK.UPDATE` here fails with
+    // "FOR UPDATE cannot be applied to the nullable side of an outer join"
+    // because role/department are LEFT JOINed; scoping the lock to just
+    // the users row avoids trying to lock across the join.
+    lock: { level: t.LOCK.UPDATE, of: db.User }
+  });
   if (!row) return null;
   const before = toUserRecord(row);
 
@@ -412,11 +444,17 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Pu
   }
   if (patch.mustChangePassword !== undefined) attrs.mustChangePassword = patch.mustChangePassword;
 
-  await row.update(attrs as never);
-  const updatedRow = await db.User.findByPk(id, { include: [roleInclude, deptInclude] });
+  await row.update(attrs as never, { transaction: t });
+  const updatedRow = await db.User.findByPk(id, { include: [roleInclude, deptInclude], transaction: t });
   const updated = toPublicUser(toUserRecord(updatedRow as Model));
-
   const statusChanged = patch.status !== undefined && patch.status !== before.status;
+  return { updated, newRoleLabel, departmentChanged, statusChanged, shouldEmailPasswordChange };
+  });
+  if (!result) return null;
+  const { updated, newRoleLabel, departmentChanged, statusChanged, shouldEmailPasswordChange } = result;
+
+  // Notification emails fire after the transaction commits, not inside it —
+  // an SES round trip has no business holding the row lock open.
   if (newRoleLabel || departmentChanged || statusChanged) {
     const send = sendAccountChangedEmail({
       name: updated.name,

@@ -274,6 +274,25 @@ async function submit(id: string): Promise<TravelScheduleRecord | null> {
   return toRecord(withAssoc as Model);
 }
 
+// draft | changes_requested -> targetStatus, skipping stages the creator
+// already holds authority over (e.g. a department manager submitting their
+// own request skips straight past the manager-approval stage). Same
+// conditional-write guard as `submit` — without it, a double-click (or the
+// creator re-triggering submit right as a reviewer acts) could race past a
+// stale draft/changes_requested read.
+async function autoAdvanceSubmit(id: string, targetStatus: string): Promise<TravelScheduleRecord | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.TravelSchedule.findByPk(id);
+  if (!row) return null;
+  const currentStatus = row.get('status') as string;
+  if (currentStatus !== 'draft' && currentStatus !== 'changes_requested') return null;
+  const attrs = { status: targetStatus, change_request_remarks: '', change_requested_by: '' };
+  const [affected] = await db.TravelSchedule.update(attrs as never, { where: { id, status: currentStatus } as never });
+  if (!affected) return null;
+  const withAssoc = await db.TravelSchedule.findByPk(id, { include: allIncludes() });
+  return toRecord(withAssoc as Model);
+}
+
 // submitted -> manager_approved | changes_requested
 async function managerDecide(id: string, decision: 'manager_approved' | 'changes_requested', actorUsername: string, remarks?: string): Promise<TravelScheduleRecord | null> {
   if (!isUuid(id)) return null;
@@ -354,6 +373,36 @@ async function adminDecide(id: string, decision: 'admin_approved' | 'changes_req
   return toRecord(withAssoc as Model);
 }
 
+// hr_reviewed -> changes_requested routed to employee/manager/HR ("send back").
+// A single guarded write (no intermediate adminDecide call first) — the prior
+// code called adminDecide() to set 'changes_requested' and then immediately
+// overwrote that with an unguarded travelScheduleStore.update() to the real
+// revert target, leaving a window where a second write could land without
+// re-checking status. One conditional write on the ORIGINAL status closes it.
+async function adminSendBack(
+  id: string,
+  revertStatus: string,
+  changeBy: string,
+  remarks: string
+): Promise<TravelScheduleRecord | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.TravelSchedule.findByPk(id);
+  if (!row) return null;
+  const currentStatus = row.get('status') as string;
+  const attrs = {
+    status: revertStatus,
+    change_request_remarks: remarks,
+    change_requested_by: changeBy,
+    admin_reviewer_id: null,
+    admin_reviewed_at: null,
+    admin_remarks: ''
+  };
+  const [affected] = await db.TravelSchedule.update(attrs as never, { where: { id, status: currentStatus } as never });
+  if (!affected) return null;
+  const withAssoc = await db.TravelSchedule.findByPk(id, { include: allIncludes() });
+  return toRecord(withAssoc as Model);
+}
+
 // admin_approved -> ticket_booking (accounts completes booking)
 async function completeBooking(id: string, actorUsername: string, patch: { booking_details?: string; ticket_documents?: string[]; actual_cost?: number; paidAt?: Date }): Promise<TravelScheduleRecord | null> {
   if (!isUuid(id)) return null;
@@ -417,7 +466,8 @@ async function remove(id: string, viewerIsPrivileged: boolean): Promise<boolean>
 
 export const travelScheduleStore = {
   list, findById, create, update, submit,
-  managerDecide, hrReview, adminDecide, completeBooking, hrFinalVerify,
+  autoAdvanceSubmit,
+  managerDecide, hrReview, adminDecide, adminSendBack, completeBooking, hrFinalVerify,
   remove
 };
 

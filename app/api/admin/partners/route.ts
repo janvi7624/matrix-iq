@@ -5,6 +5,7 @@ import { createPartner, listPartners } from '@/lib/partnerStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
+import { db, isUuid } from '@/lib/db';
 
 // Internal partner management. Sits under /api/admin/* so proxy.ts's existing
 // isPrivileged gate applies on top of canManagePartners below — note that
@@ -43,6 +44,19 @@ export async function POST(request: NextRequest) {
 
   const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
   const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+
+  // Same unvalidated-FK class as app/api/partners/route.ts's POST: a
+  // malformed or nonexistent relationship_manager_id would otherwise throw
+  // a raw Postgres error, leaked as a 500.
+  const requestedRmId = str(body.relationship_manager_id);
+  if (requestedRmId) {
+    if (!isUuid(requestedRmId)) {
+      return NextResponse.json({ error: 'Invalid relationship manager' }, { status: 400 });
+    }
+    if (!(await db.User.findByPk(requestedRmId))) {
+      return NextResponse.json({ error: 'Relationship manager not found' }, { status: 404 });
+    }
+  }
 
   try {
     const partner = await createPartner(

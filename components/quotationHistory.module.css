@@ -31,6 +31,13 @@
        smudge rather than depth. The brand underline below does that job
        instead, and is the one decorative edge kept here. */
     border-bottom: 2px solid var(--mx-brand);
+    /* Scrolls away with the page, deliberately. Pinning it covered the top
+       of every long table as you scrolled — rows slid under an opaque bar.
+       The sidebar beside it is pinned to the viewport while sitting below
+       this bar in flow, so the space available to it changes as this
+       scrolls; PortalHeader publishes that remaining height continuously as
+       --mx-header-visible and the sidebar follows it, which fixes the
+       clipped profile card without this bar ever covering content. */
     position: relative;
     /* The app's own z-index scale (bottom of this file) — NOT a bare 1.
        A low literal z-index here still creates a stacking context, which

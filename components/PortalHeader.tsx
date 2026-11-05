@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
@@ -22,6 +22,55 @@ export default function PortalHeader({ title, subtitle, showBackLink = true }: P
   const router = useRouter();
   const pathname = usePathname();
   const [section, setSection] = useState<string | null>(null);
+
+  // Publishes how much of this bar is still on screen, as
+  // --mx-header-visible, so the sidebar beside it can be exactly "the rest
+  // of the screen" at every scroll position. The header scrolls away like
+  // any other element, so that number falls from its full height to 0 over
+  // the first screenful and the sidebar grows to meet it.
+  //
+  // Measured rather than hard-coded: the header has flex-wrap and becomes
+  // two rows on a narrow window, so a constant would clip the sidebar again
+  // at exactly the widths where the space matters most. ResizeObserver
+  // rather than a resize listener catches a wrap caused by a longer page
+  // title too, not only a window resize.
+  const headerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    let frame = 0;
+    let lastHeight = -1;
+    let lastVisible = -1;
+    const publish = () => {
+      frame = 0;
+      const height = Math.round(el.getBoundingClientRect().height);
+      if (height !== lastHeight) {
+        lastHeight = height;
+        document.documentElement.style.setProperty('--mx-header-h', `${height}px`);
+      }
+      const visible = Math.max(0, height - Math.round(window.scrollY));
+      // Only written when it actually changes: past the first screenful this
+      // is 0 on every scroll event, and rewriting a custom property on the
+      // root invalidates style for the whole document each time.
+      if (visible !== lastVisible) {
+        lastVisible = visible;
+        document.documentElement.style.setProperty('--mx-header-visible', `${visible}px`);
+      }
+    };
+    // Coalesced to one write per frame — scroll fires far faster than paint.
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(publish);
+    };
+    publish();
+    const observer = new ResizeObserver(schedule);
+    observer.observe(el);
+    window.addEventListener('scroll', schedule, { passive: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', schedule);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   // Breadcrumb section comes from the same /api/modules data Sidebar already
   // renders from — same source of truth, so "Section" here always matches
@@ -49,7 +98,7 @@ export default function PortalHeader({ title, subtitle, showBackLink = true }: P
   }
 
   return (
-    <header className={styles.header}>
+    <header ref={headerRef} className={styles.header}>
       <Link href="/" className={styles.headerBrand}>
         <Image src={BRAND.logoWeb} alt={`${BRAND.companyName} logo`} width={38} height={38} className={styles.headerLogo} unoptimized />
         <div>

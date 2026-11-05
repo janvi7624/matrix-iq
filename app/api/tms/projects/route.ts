@@ -6,8 +6,17 @@ import { findDepartmentById } from '@/lib/departmentStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { TmsPriority, TmsProjectRecord, TmsProjectType } from '@/lib/types';
 import { resolveProjectCategory } from '@/lib/tmsProjectCategory';
+import { isValidDateOnly } from '@/lib/tmsTaskStore';
 
 const VALID_PRIORITY: TmsPriority[] = ['low', 'medium', 'high'];
+
+// start_date/estimated_close_date/actual_close_date/deadline are DATEONLY
+// columns — an unvalidated garbage string reaches Postgres raw and throws
+// "invalid input syntax for type date", which apiErrorResponse would
+// otherwise surface as a leaked-detail 500 instead of a clean 400.
+function isBlankOrValidDate(value: string): boolean {
+  return value === '' || isValidDateOnly(value);
+}
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -64,8 +73,12 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date().toISOString();
+  const startDate = typeof body.startDate === 'string' ? body.startDate : '';
   const estimatedCloseDate = typeof body.estimatedCloseDate === 'string' ? body.estimatedCloseDate : '';
   const deadline = typeof body.deadline === 'string' && body.deadline ? body.deadline : estimatedCloseDate;
+  if (!isBlankOrValidDate(startDate) || !isBlankOrValidDate(estimatedCloseDate) || !isBlankOrValidDate(deadline)) {
+    return NextResponse.json({ error: 'Dates must be valid calendar dates (YYYY-MM-DD)' }, { status: 400 });
+  }
   const record: TmsProjectRecord = {
     id: `${Date.now()}`,
     project_code: await nextTmsProjectCode(),
@@ -89,7 +102,7 @@ export async function POST(request: NextRequest) {
     project_manager_name: '',
     team_member_ids: toStringArray(body.teamMemberIds),
     team_member_names: [],
-    start_date: typeof body.startDate === 'string' ? body.startDate : '',
+    start_date: startDate,
     estimated_close_date: estimatedCloseDate,
     actual_close_date: '',
     deadline,

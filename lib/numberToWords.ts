@@ -21,8 +21,17 @@ export function numberToIndianWords(num: number): string {
   if (num === 0) return 'Zero';
   if (num < 0) return `Minus ${numberToIndianWords(-num)}`;
 
-  const rupees = Math.floor(num);
-  const paise = Math.round((num - rupees) * 100);
+  // Round to the nearest paise BEFORE splitting into rupees/paise — summing
+  // several amounts (e.g. 100.10 + 50.30 + 20.60) lands on 170.99999999999997
+  // in floating point, and deriving paise from the raw sum can round to
+  // exactly 100, producing "...and undefined Paise Only".
+  const rounded = Math.round(num * 100) / 100;
+  let rupees = Math.floor(rounded);
+  let paise = Math.round((rounded - rupees) * 100);
+  if (paise >= 100) {
+    rupees += 1;
+    paise -= 100;
+  }
 
   let r = rupees;
   const parts: string[] = [];

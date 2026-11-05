@@ -50,6 +50,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const { id } = await params;
 
+    // Same ownership check GET already applies — without it, an engineer
+    // not assigned to this ticket (and who didn't raise it) could still
+    // transition its status or reassign it by knowing/guessing the id,
+    // even though they can't see it in their own queue.
+    const existing = await findTicketById(id);
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const allowed = await canViewTicket(
+      { ...viewer, partnerId: viewer.partnerId },
+      { created_by_user_id: (existing.raw.created_by_user_id as string) ?? '', assigned_to_id: (existing.raw.assigned_to_id as string) ?? '' }
+    );
+    if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
     // Triage — priority, department, assignment. Gated separately from the
     // status transition below: an engineer may work a ticket without being
     // able to reassign it or raise its priority.
@@ -152,6 +164,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const body = await request.json().catch(() => null);
   try {
     const { id } = await params;
+
+    // Same ownership check GET/PATCH apply — otherwise an engineer outside
+    // this ticket's assignment could still plant an internal note on it.
+    const existing = await findTicketById(id);
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const allowed = await canViewTicket(
+      { ...viewer, partnerId: viewer.partnerId },
+      { created_by_user_id: (existing.raw.created_by_user_id as string) ?? '', assigned_to_id: (existing.raw.assigned_to_id as string) ?? '' }
+    );
+    if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
     const isInternal = body?.isInternal !== false;
     await addComment(id, viewer.userId, typeof body?.body === 'string' ? body.body : '', isInternal,
       Array.isArray(body?.attachments) ? body.attachments.filter((a: unknown): a is string => typeof a === 'string') : []);

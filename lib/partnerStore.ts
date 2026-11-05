@@ -1,4 +1,4 @@
-import { Model } from 'sequelize';
+import { Model, UniqueConstraintError } from 'sequelize';
 import { PartnerRecord, PartnerStatus, PartnerFinancialDetailsScope } from './types';
 import { db, isUuid } from './db';
 import { partnerCodePrefix } from './partnerCode';
@@ -110,8 +110,31 @@ export interface PartnerInput {
 }
 
 export async function createPartner(input: PartnerInput, createdByUserId: string): Promise<PartnerRecord> {
-  const row = await db.Partner.create({
-    partner_code: await nextPartnerCode(input.departments || []),
+  // partner_code is computed from a read-everything/find-max/+1 scan
+  // (nextPartnerCode), which two concurrent creates can race to the same
+  // value for — the DB's unique constraint then rejects the loser. Self-heal
+  // by regenerating a fresh code and retrying, instead of surfacing that as a
+  // raw validation-error 500 to whichever request lost the race.
+  let code = await nextPartnerCode(input.departments || []);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const row = await createPartnerRow(input, createdByUserId, code);
+      return (await findPartnerById(row.get('id') as string)) as PartnerRecord;
+    } catch (error) {
+      const isCodeCollision =
+        error instanceof UniqueConstraintError &&
+        Object.keys((error as UniqueConstraintError).fields || {}).includes('partner_code');
+      if (!isCodeCollision || attempt === 2) throw error;
+      code = await nextPartnerCode(input.departments || []);
+    }
+  }
+  // Unreachable — the loop above always returns or throws.
+  throw new Error('Failed to create partner');
+}
+
+async function createPartnerRow(input: PartnerInput, createdByUserId: string, code: string) {
+  return db.Partner.create({
+    partner_code: code,
     company_name: input.company_name,
     contact_person: input.contact_person || '',
     email: input.email || '',
@@ -144,7 +167,6 @@ export async function createPartner(input: PartnerInput, createdByUserId: string
     created_by: createdByUserId,
     updated_by: createdByUserId
   } as never);
-  return (await findPartnerById(row.get('id') as string)) as PartnerRecord;
 }
 
 export async function updatePartner(id: string, patch: Partial<PartnerInput>, updatedByUserId: string): Promise<PartnerRecord | undefined> {
@@ -202,7 +224,17 @@ export async function setPartnerStatus(id: string, status: PartnerStatus, update
   if (from !== status && !canTransitionPartnerStatus(from, status)) {
     throw new Error(`A ${from} partner cannot be moved to ${status}`);
   }
-  await row.update({ status, updated_by: updatedByUserId } as never);
+  // Re-checked against the same `from` read above: without this WHERE, two
+  // concurrent status changes off the same stale status (e.g. one admin
+  // suspending while another deactivates) would both pass the transition
+  // check and both write — the second silently overwrites the first, and
+  // the audit log ends up describing an action that isn't what's actually
+  // stored.
+  const [affected] = await db.Partner.update(
+    { status, updated_by: updatedByUserId } as never,
+    { where: { id, status: from } as never }
+  );
+  if (!affected) throw new Error(`A ${from} partner cannot be moved to ${status}`);
   return findPartnerById(id);
 }
 

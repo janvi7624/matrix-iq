@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from '@/lib/auth';
 import { verifyLogin, recordLogin, findUserStatusById } from '@/lib/userStore';
-import { logLoginAttempt } from '@/lib/loginHistoryStore';
+import { logLoginAttempt, isLoginLocked } from '@/lib/loginHistoryStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { resolveIsPrivileged } from '@/lib/permissions';
@@ -22,6 +22,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Checked BEFORE touching the password at all, and rejected with the
+    // exact same status/message as a wrong password below — an attacker
+    // locked out can't tell that apart from simply guessing wrong again,
+    // which is what keeps this from becoming a username-enumeration or
+    // lockout-probing side channel.
+    if (await isLoginLocked(username)) {
+      await logLoginAttempt({ username, success: false, ip });
+      return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
+    }
+
     const user = await verifyLogin(username, password);
     if (!user) {
       await logLoginAttempt({ username, success: false, ip });
@@ -32,7 +42,7 @@ export async function POST(request: NextRequest) {
     // UserRecord deliberately has no partner field: the binding is an access
     // -control fact, not profile data, and keeping it off the widely-passed
     // user shape means no screen can accidentally render or edit it.
-    const [, , isPrivileged, partnerBinding, partnerCreator] = await Promise.all([
+    const [loginTimestamp, , isPrivileged, partnerBinding, partnerCreator] = await Promise.all([
       recordLogin(user.id),
       logLoginAttempt({ username, success: true, ip }),
       resolveIsPrivileged(user.role),
@@ -48,7 +58,11 @@ export async function POST(request: NextRequest) {
       mustChangePassword: user.mustChangePassword,
       isPrivileged,
       partnerCreator,
-      partnerId: partnerBinding?.partnerId
+      partnerId: partnerBinding?.partnerId,
+      // The exact value recordLogin just wrote — see SessionPayload.sessionEpoch.
+      // The fallback is unreachable in practice (verifyLogin just confirmed
+      // this user row exists), kept only so the type stays a plain number.
+      sessionEpoch: loginTimestamp?.getTime() ?? Date.now()
     });
     const response = NextResponse.json({
       ok: true,

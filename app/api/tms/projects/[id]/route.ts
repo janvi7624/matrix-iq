@@ -11,9 +11,15 @@ import { findUserById } from '@/lib/userStore';
 import { sendProjectLifecycleEmail } from '@/lib/email/notifications';
 import { listForProject as listDeadlineExtensions } from '@/lib/tmsDeadlineExtensionStore';
 import { listAuditLog } from '@/lib/auditLogStore';
+import { isValidDateOnly } from '@/lib/tmsTaskStore';
 
 const VALID_STATUS: TmsProjectStatus[] = ['planning', 'not_started', 'in_progress', 'on_hold', 'completed', 'cancelled'];
 const VALID_PRIORITY: TmsPriority[] = ['low', 'medium', 'high'];
+
+// Same DATEONLY-column validation gap as the create route — see its comment.
+function isBlankOrValidDate(value: string): boolean {
+  return value === '' || isValidDateOnly(value);
+}
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -82,9 +88,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.description === 'string') patch.description = body.description.trim();
     if (typeof body.projectManagerId === 'string') patch.project_manager_id = body.projectManagerId.trim();
     if (Array.isArray(body.teamMemberIds)) patch.team_member_ids = toStringArray(body.teamMemberIds);
-    if (typeof body.startDate === 'string') patch.start_date = body.startDate;
-    if (typeof body.estimatedCloseDate === 'string') patch.estimated_close_date = body.estimatedCloseDate;
-    if (typeof body.actualCloseDate === 'string') patch.actual_close_date = body.actualCloseDate;
+    if (typeof body.startDate === 'string') {
+      if (!isBlankOrValidDate(body.startDate)) return NextResponse.json({ error: 'startDate must be a valid calendar date (YYYY-MM-DD)' }, { status: 400 });
+      patch.start_date = body.startDate;
+    }
+    if (typeof body.estimatedCloseDate === 'string') {
+      if (!isBlankOrValidDate(body.estimatedCloseDate)) return NextResponse.json({ error: 'estimatedCloseDate must be a valid calendar date (YYYY-MM-DD)' }, { status: 400 });
+      patch.estimated_close_date = body.estimatedCloseDate;
+    }
+    if (typeof body.actualCloseDate === 'string') {
+      if (!isBlankOrValidDate(body.actualCloseDate)) return NextResponse.json({ error: 'actualCloseDate must be a valid calendar date (YYYY-MM-DD)' }, { status: 400 });
+      patch.actual_close_date = body.actualCloseDate;
+    }
     if (typeof body.budget === 'number') patch.budget = body.budget;
     if (VALID_STATUS.includes(body.status)) {
       patch.status = body.status;

@@ -358,6 +358,37 @@ export async function updateRole(id: string, patch: RoleUpdateInput, updatedBy: 
   return (await findRoleById(id)) ?? null;
 }
 
+// Patches ONE module key inside a role's permissions.modules, locking the row
+// so two concurrent edits to different module keys of the same role (e.g.
+// two admins in /api/tms/tab-access, or one there and one in /admin/roles)
+// can't both read the same stale permissions snapshot and have the second
+// write silently erase the first one's change. Caller supplies a pure
+// (currentModules) => nextModuleValue function rather than a precomputed
+// object, since the whole point is re-deriving it from a fresh, locked read.
+export async function patchRoleModule(
+  id: string,
+  moduleKey: string,
+  updatedBy: string,
+  computeModuleValue: (currentPermissions: RolePermissions) => RolePermissions['modules'][string]
+): Promise<RoleRecord | null> {
+  if (!isUuid(id)) return null;
+  const updater = await db.User.findOne({ where: { username: updatedBy } as never });
+
+  const ok = await db.sequelize.transaction(async (t) => {
+    const row = await db.Role.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!row) return false;
+    const current = row.get('permissions') as RolePermissions;
+    const nextValue = computeModuleValue(current);
+    const merged: RolePermissions = { ...current, modules: { ...current.modules, [moduleKey]: nextValue } };
+    await row.update({ permissions: merged, updatedBy: updater ? updater.get('id') : null } as never, { transaction: t });
+    return true;
+  });
+  if (!ok) return null;
+
+  invalidateCache(ROLES_CACHE_KEY);
+  return (await findRoleById(id)) ?? null;
+}
+
 export async function isRoleAssigned(key: string): Promise<boolean> {
   const role = await db.Role.findOne({ where: { key } as never });
   if (!role) return false;

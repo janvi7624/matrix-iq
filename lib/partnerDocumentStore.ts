@@ -214,17 +214,24 @@ export async function reviewPartnerDocument(
 
   const row = await db.PartnerDocument.findOne({ where: { partner_id: partnerId, kind } as never });
   if (!row) throw new PartnerDocumentError('That document has not been uploaded yet.');
-  if (row.get('status') === decision) {
+  const from = row.get('status') as string;
+  if (from === decision) {
     throw new PartnerDocumentError(`This document is already ${decision}.`);
   }
 
   let onboardingCompleted = false;
 
   await db.sequelize.transaction(async (t) => {
-    await row.update(
+    // Re-checked against the same `from` read above: without this WHERE,
+    // two reviewers deciding the same document at once (one approving, one
+    // rejecting) would both pass the stale-status check and both write —
+    // the second silently overwrites the first's decision instead of
+    // failing.
+    const [affected] = await db.PartnerDocument.update(
       { status: decision, reviewed_by: reviewerId, reviewed_at: new Date(), review_remarks: note || null } as never,
-      { transaction: t }
+      { where: { partner_id: partnerId, kind, status: from } as never, transaction: t }
     );
+    if (!affected) throw new PartnerDocumentError('This document was just reviewed by someone else — refresh and try again.');
 
     if (decision !== 'approved') return;
 

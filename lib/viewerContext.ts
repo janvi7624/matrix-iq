@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getSessionFromRequest } from './auth';
+import { getSessionFromRequest, isSessionEpochCurrent } from './auth';
 import { UserRole } from './types';
 import { resolveIsPrivileged } from './permissions';
 import { findUserStatusById } from './userStore';
@@ -65,6 +65,8 @@ export async function getViewerContext(request: NextRequest, options?: ViewerCon
   // the other's result.
   const [currentUser, isPrivileged] = await Promise.all([findUserStatusById(session.sub), resolveIsPrivileged(session.role)]);
   if (!currentUser || currentUser.status === 'inactive') return null;
+  // Logout/password-change revocation — see SessionPayload.sessionEpoch.
+  if (!isSessionEpochCurrent(session, currentUser.sessionEpoch)) return null;
   // Deny-by-default for external partner accounts — see ViewerContextOptions.
   // Resolved from the users row rather than session.partnerId: a token claim
   // is fine for route-area gating in proxy.ts, but this is the check every

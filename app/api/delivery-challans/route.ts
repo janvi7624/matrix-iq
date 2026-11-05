@@ -10,6 +10,7 @@ import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { db } from '@/lib/db';
 import { DcLineItem, DeliveryChallanRecord } from '@/lib/types';
+import { isValidDateOnly } from '@/lib/tmsTaskStore';
 
 function emptyChecklist() {
   return {
@@ -75,6 +76,9 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   const demoId = typeof body.demoId === 'string' ? body.demoId.trim() : '';
+  if (typeof body.expectedReturnDate === 'string' && body.expectedReturnDate && !isValidDateOnly(body.expectedReturnDate)) {
+    return NextResponse.json({ error: 'Invalid expected return date' }, { status: 400 });
+  }
 
   try {
     const issuer = await db.User.findOne({ where: { username: viewer.username } as never });

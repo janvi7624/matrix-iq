@@ -16,6 +16,15 @@
     width: auto;
     /* Don't let a flex row stretch them back to full width either. */
     flex: 0 0 auto;
+    /* width:auto sizes a <select> to its WIDEST OPTION, which is fine for a
+       fixed list and ruinous for one built from data: the Client Master
+       company filter carries ~1340 client names, and a single long one blew
+       the control out to 1511px and gave the whole page a horizontal
+       scrollbar. Capping at the container keeps the control inline without
+       letting one row of data decide the page width. The full text is still
+       readable in the open dropdown, which is not bound by this. */
+    max-width: 100%;
+    min-width: 0;
 }
 
 .modalFooter {

@@ -91,6 +91,28 @@ export interface SessionPayload {
   //         already accepted for `role` and `isPrivileged`, and it is safe
   //         here only because nothing reads tenant data off it.
   partnerId?: string;
+  /**
+   * Server-side revocation hook, found missing in an attack pass: this token
+   * scheme is otherwise 100% stateless, so neither logout nor a password
+   * change could ever kill an already-issued token before its own expiry.
+   *
+   * Rather than adding a new column (this app's only datastore is Postgres,
+   * and a schema migration wasn't available when this was fixed), this reuses
+   * users.lastLoginAt — already written exactly once per login — as a
+   * "session epoch": the epoch-ms value of lastLoginAt at the moment this
+   * token was issued. lib/viewerContext.ts/app/api/auth/me re-check this
+   * against the LIVE column value on every request; a mismatch means some
+   * later action re-stamped it, so this token is deliberately dead.
+   *
+   * Only two actions touch that column after the initial login that creates
+   * it: logout and password change (see lib/userStore.ts's touchSessionEpoch)
+   * — both re-stamp it to invalidate every token issued before that moment,
+   * which also means logging out on one device signs the account out
+   * everywhere. That's an accepted simplification, not an oversight: this
+   * app has no concept of distinguishing one active session from another to
+   * revoke individually.
+   */
+  sessionEpoch: number;
 }
 
 function toBase64Url(bytes: ArrayBuffer): string {
@@ -121,6 +143,11 @@ export async function createSessionToken(user: {
   isPrivileged: boolean;
   partnerCreator?: boolean;
   partnerId?: string | null;
+  // The live users.lastLoginAt value (as epoch ms) at the moment of issuance
+  // — see SessionPayload.sessionEpoch. Every caller of this function must
+  // pass the value it just wrote/read from the DB, not a freshly-computed
+  // Date.now(), or the token will immediately fail its own revocation check.
+  sessionEpoch: number;
 }): Promise<string> {
   const secret = process.env.ADMIN_SESSION_SECRET;
   if (!secret) throw new Error('ADMIN_SESSION_SECRET is not configured');
@@ -131,6 +158,7 @@ export async function createSessionToken(user: {
     exp: Date.now() + SESSION_TTL_MS,
     mustChangePassword: user.mustChangePassword || undefined,
     isPrivileged: user.isPrivileged,
+    sessionEpoch: user.sessionEpoch,
     // Omitted entirely when false, so an ordinary token keeps the exact shape
     // this app already issued.
     partnerCreator: user.partnerCreator || undefined,
@@ -171,4 +199,26 @@ export async function verifySessionToken(token: string | undefined | null): Prom
 // proxy.ts's coarse gating covers (e.g. "only superadmin may do X").
 export async function getSessionFromRequest(request: NextRequest): Promise<SessionPayload | null> {
   return verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
+}
+
+// Pure comparison — no DB access, safe for proxy.ts too if it's ever needed
+// there — shared by every call site that resolves the LIVE lastLoginAt
+// value (see SessionPayload.sessionEpoch) and needs to decide whether this
+// token is still the current one or was revoked by a later logout/password
+// change. `null`/`undefined` liveEpoch (an account that somehow has never
+// recorded a login) or a token issued before this check existed (no
+// sessionEpoch claim at all) both pass — there is nothing live to compare
+// against, so there is nothing to revoke.
+export function isSessionEpochCurrent(session: SessionPayload, liveEpochMs: number | null | undefined): boolean {
+  if (session.sessionEpoch == null || liveEpochMs == null) return true;
+  // Exact match, not a tolerance window: both sides read the SAME stored
+  // value (the token embeds exactly what recordLogin/touchSessionEpoch just
+  // wrote; the live side reads that same column back), so there is no
+  // independent-clock drift to absorb. An early version of this used a 1s
+  // tolerance "for driver rounding" and it masked a real revocation —
+  // logging out immediately after login left the old and new epoch within
+  // that window, so the just-logged-out token kept authenticating. Postgres
+  // round-trips a JS Date through its timestamp column losing nothing at
+  // millisecond precision, so exact equality is the correct check.
+  return session.sessionEpoch === liveEpochMs;
 }

@@ -7,6 +7,7 @@ import { PartnerStatus } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
+import { db, isUuid } from '@/lib/db';
 
 const STATUSES: PartnerStatus[] = ['pending', 'active', 'suspended', 'inactive'];
 
@@ -69,6 +70,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const str = (v: unknown) => (typeof v === 'string' ? v.trim() : undefined);
     const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : undefined);
+
+    // Same unvalidated-FK class as the create route (app/api/partners/route.ts):
+    // a malformed or nonexistent relationship_manager_id would otherwise throw
+    // a raw Postgres error, leaked as a 500.
+    if (typeof body.relationship_manager_id === 'string' && body.relationship_manager_id.trim()) {
+      const requestedRmId = body.relationship_manager_id.trim();
+      if (!isUuid(requestedRmId)) {
+        return NextResponse.json({ error: 'Invalid relationship manager' }, { status: 400 });
+      }
+      if (!(await db.User.findByPk(requestedRmId))) {
+        return NextResponse.json({ error: 'Relationship manager not found' }, { status: 404 });
+      }
+    }
 
     const updated = await updatePartner(
       id,

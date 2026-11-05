@@ -130,7 +130,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.nextFollowUpDate === 'string') patch.next_follow_up_date = body.nextFollowUpDate;
     if (Array.isArray(body.attachments)) patch.attachments = toStringArray(body.attachments);
 
-    const updated = await demoScheduleStore.update(id, patch);
+    const updated = await demoScheduleStore.update(id, patch, patch.status ? previousStatus : undefined);
+    if (!updated) return NextResponse.json({ error: 'This demo was already updated — refresh and try again' }, { status: 409 });
 
     if (patch.outcome && existing.project_id) {
       await appendProjectTimeline(existing.project_id, {

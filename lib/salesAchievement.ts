@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import { db } from './db';
 import { periodEndExclusive, periodContainingDate, TargetPeriodType } from './targetPeriod';
 import { findSalesTarget } from './salesTargetStore';
+import { istInstant, addDays } from './dailyReportTime';
 
 // The single authoritative "Won + Closed + Billing" calculation. Every
 // consumer (summary cards, employee table, drilldown modal, Performance
@@ -192,8 +193,13 @@ export function computeStatus(targetAmount: number, achievedAmount: number, peri
   if (ratio >= 1.1) return 'exceeded';
   if (ratio >= 1) return 'achieved';
 
-  const start = new Date(`${periodStart}T00:00:00`).getTime();
-  const end = new Date(`${periodEnd}T23:59:59`).getTime();
+  // periodStart/periodEnd are bare 'YYYY-MM-DD' IST calendar dates — parsed
+  // explicitly as IST instants (via lib/dailyReportTime.ts) rather than
+  // `new Date(periodStart + 'T00:00:00')`, which JS reads as the SERVER's
+  // local time and silently drifts by the server/IST offset on anything but
+  // an IST-clocked machine.
+  const start = istInstant(periodStart, '00:00').getTime();
+  const end = istInstant(addDays(periodEnd, 1), '00:00').getTime() - 1;
   const nowMs = now.getTime();
 
   if (nowMs > end) return 'at_risk';

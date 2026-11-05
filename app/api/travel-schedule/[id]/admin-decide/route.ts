@@ -39,8 +39,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const remarks = typeof body.remarks === 'string' ? body.remarks.trim() : '';
-    const newStatus = decision === 'approve' ? 'admin_approved' : 'changes_requested';
-    const updated = await travelScheduleStore.adminDecide(id, newStatus as 'admin_approved' | 'changes_requested', viewer.username, remarks);
+    let updated;
+    let newStatus: string;
+
+    if (decision === 'approve') {
+      newStatus = 'admin_approved';
+      updated = await travelScheduleStore.adminDecide(id, 'admin_approved', viewer.username, remarks);
+    } else {
+      // Admin can send back to employee (draft), manager (submitted), or HR (manager_approved)
+      const sendBackTo = typeof body.sendBackTo === 'string' ? body.sendBackTo : 'employee';
+      newStatus = sendBackTo === 'manager' ? 'submitted' : sendBackTo === 'hr' ? 'manager_approved' : 'changes_requested';
+      const changeBy = sendBackTo === 'manager' ? 'Admin Department (re-verify by Manager)'
+        : sendBackTo === 'hr' ? 'Admin Department (re-verify by HR)'
+        : 'Admin Department';
+      updated = await travelScheduleStore.adminSendBack(id, newStatus, changeBy, remarks);
+    }
     if (!updated) return NextResponse.json({ error: 'This request was already decided' }, { status: 409 });
 
     await logAudit({
@@ -68,13 +81,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     } else {
       // Admin can send back to employee (draft), manager (submitted), or HR (manager_approved)
       const sendBackTo = typeof body.sendBackTo === 'string' ? body.sendBackTo : 'employee';
-      let revertStatus = 'changes_requested'; // default: back to employee
-      let changeBy = 'Admin Department';
       const notifyUsernames: string[] = [];
 
       if (sendBackTo === 'manager') {
-        revertStatus = 'submitted';
-        changeBy = 'Admin Department (re-verify by Manager)';
         const allManagers = await listDepartmentManagers();
         const { findUserByUsername } = await import('@/lib/userStore');
         const creator = await findUserByUsername(existing.created_by);
@@ -82,22 +91,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const managers = creatorDept ? (allManagers[creatorDept] || []) : [];
         notifyUsernames.push(...managers.map((m) => m.username));
       } else if (sendBackTo === 'hr') {
-        revertStatus = 'manager_approved';
-        changeBy = 'Admin Department (re-verify by HR)';
         const hrManagers = (await listDepartmentManagers())['HR'] || [];
         notifyUsernames.push(...hrManagers.map((m) => m.username));
       } else {
         notifyUsernames.push(existing.created_by);
       }
-
-      await travelScheduleStore.update(id, {
-        status: revertStatus,
-        change_request_remarks: remarks,
-        change_requested_by: changeBy,
-        admin_reviewer_id: '',
-        admin_reviewed_at: '',
-        admin_remarks: ''
-      } as never);
 
       if (notifyUsernames.length) {
         await notifyUsers(notifyUsernames, {

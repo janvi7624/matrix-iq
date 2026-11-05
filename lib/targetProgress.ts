@@ -1,4 +1,5 @@
 import { computeStatus, TargetStatus } from './salesAchievement';
+import { istDate } from './dailyReportTime';
 
 // "How am I doing against my target, right now" — the arithmetic behind the
 // rep's own dashboard panel, kept pure so it can be tested without a
@@ -46,9 +47,7 @@ export function buildTargetProgress(
 ): TargetProgress {
   const start = dayStart(periodStart);
   const end = dayStart(periodEnd);
-  const today = dayStart(
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  );
+  const today = dayStart(istDate(now));
 
   // Inclusive of both ends: April 1-30 is 30 days, not 29.
   const daysTotal = Math.round((end - start) / DAY_MS) + 1;

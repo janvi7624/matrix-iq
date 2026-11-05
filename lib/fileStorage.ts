@@ -32,6 +32,79 @@ export class StorageUnavailableError extends Error {
   }
 }
 
+export class UnsupportedFileTypeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsupportedFileTypeError';
+  }
+}
+
+// Content-Type on upload is whatever the CLIENT's multipart part claims —
+// trivially forgeable (a plain <script> saved as evil.html, submitted with a
+// forged `Content-Type: text/html` part). Trusting that value, storing it,
+// and later echoing it back on GET is a stored-XSS hole: this endpoint backs
+// demo attachments, PO documents, installation reports, and partner
+// submissions, so ANY authenticated user — including an external partner —
+// could plant a file that runs script in whoever opens it next, same-origin,
+// with that viewer's session.
+//
+// Fixed with magic-byte sniffing instead of trusting the declared type (zero
+// extra dependency — the few signatures this app's uploads actually need are
+// cheap to check by hand), on both sides:
+//   - upload (putFile): the sniffed type must be on the allowlist below, or
+//     the upload is rejected outright. The SNIFFED type is what gets stored,
+//     never the client's claimed one.
+//   - serve (safeServeHeaders, used by every read-through proxy route):
+//     only the handful of types that cannot execute as markup when rendered
+//     (actual images, PDF) are ever sent inline; everything else is forced to
+//     download as application/octet-stream with Content-Disposition, and
+//     every response carries X-Content-Type-Options: nosniff so a browser
+//     can't MIME-sniff its way back to treating it as HTML regardless. This
+//     also protects whatever was already stored before this fix shipped.
+const INLINE_SAFE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf']);
+
+function matchesSignature(bytes: Buffer, offset: number, signature: number[]): boolean {
+  if (bytes.length < offset + signature.length) return false;
+  for (let i = 0; i < signature.length; i++) {
+    if (bytes[offset + i] !== signature[i]) return false;
+  }
+  return true;
+}
+
+// Returns the sniffed type if it's one we recognize and allow, else null.
+// `null` means "reject this upload" — an unrecognized file is not given the
+// benefit of the doubt.
+export function sniffContentType(bytes: Buffer): string | null {
+  if (matchesSignature(bytes, 0, [0x89, 0x50, 0x4e, 0x47])) return 'image/png';
+  if (matchesSignature(bytes, 0, [0xff, 0xd8, 0xff])) return 'image/jpeg';
+  if (matchesSignature(bytes, 0, [0x47, 0x49, 0x46, 0x38])) return 'image/gif';
+  if (matchesSignature(bytes, 0, [0x52, 0x49, 0x46, 0x46]) && matchesSignature(bytes, 8, [0x57, 0x45, 0x42, 0x50])) return 'image/webp';
+  if (matchesSignature(bytes, 0, [0x25, 0x50, 0x44, 0x46, 0x2d])) return 'application/pdf';
+  // OOXML (.docx/.xlsx/.pptx) and plain .zip are all a PK\x03\x04 zip
+  // container — we don't need to tell them apart, only that it's a real zip
+  // and not something pretending to be one; never served inline either way.
+  if (matchesSignature(bytes, 0, [0x50, 0x4b, 0x03, 0x04])) return 'application/zip';
+  // Legacy OLE compound file (.doc/.xls) — same reasoning as zip above.
+  if (matchesSignature(bytes, 0, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) return 'application/octet-stream';
+  return null;
+}
+
+// What every read-through proxy route (uploads, site-visit images, …) should
+// actually send: inline with its real sniffed type for the handful of types
+// that can't execute as markup, forced download as a generic octet-stream
+// otherwise — and nosniff always, so a browser never second-guesses this.
+export function safeServeHeaders(contentType: string, pathname: string): Record<string, string> {
+  if (INLINE_SAFE_TYPES.has(contentType)) {
+    return { 'Content-Type': contentType, 'X-Content-Type-Options': 'nosniff' };
+  }
+  const filename = pathname.split('/').pop() || 'download';
+  return {
+    'Content-Type': 'application/octet-stream',
+    'Content-Disposition': `attachment; filename="${filename.replace(/["\r\n]/g, '_')}"`,
+    'X-Content-Type-Options': 'nosniff'
+  };
+}
+
 export type StorageBackend = 'database' | 's3';
 
 // Explicit rather than inferred: a half-set AWS variable should not silently
@@ -247,7 +320,12 @@ export async function putFile(pathname: string, file: File, uploadedBy = ''): Pr
   // Buffered rather than streamed on purpose: the routes cap uploads at 10MB,
   // and both backends want a known length.
   const bytes = Buffer.from(await file.arrayBuffer());
-  const contentType = file.type || 'application/octet-stream';
+  // The client's declared `file.type` is never trusted for what gets stored
+  // — see UnsupportedFileTypeError's comment above. The actual bytes decide.
+  const contentType = sniffContentType(bytes);
+  if (!contentType) {
+    throw new UnsupportedFileTypeError(`${file.name || 'This file'} is not a supported file type.`);
+  }
   if (storageBackend() === 's3') await s3Put(pathname, bytes, contentType);
   else await dbPut(pathname, bytes, contentType, uploadedBy);
   return { pathname };

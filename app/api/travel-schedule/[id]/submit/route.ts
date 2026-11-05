@@ -66,11 +66,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (targetStatus === 'submitted') {
       updated = await travelScheduleStore.submit(id);
     } else {
-      updated = await travelScheduleStore.update(id, {
-        status: targetStatus,
-        change_request_remarks: '',
-        change_requested_by: ''
-      } as never);
+      updated = await travelScheduleStore.autoAdvanceSubmit(id, targetStatus);
     }
     if (!updated) return NextResponse.json({ error: 'This request was already submitted' }, { status: 409 });
 

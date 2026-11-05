@@ -34,7 +34,14 @@ export async function POST(request: NextRequest) {
       mustChangePassword: session.mustChangePassword,
       isPrivileged: session.isPrivileged,
       partnerCreator: session.partnerCreator,
-      partnerId: session.partnerId
+      partnerId: session.partnerId,
+      // Carried forward unchanged, same as every other claim here — heartbeat
+      // never re-reads the user, so it must not mint a fresh epoch of its own.
+      // A revoked token (logout/password-change on another request) stays
+      // revoked after a heartbeat: it keeps carrying the OLD epoch, which
+      // still fails the live check the next time something actually reads
+      // the DB (getViewerContext, /api/auth/me).
+      sessionEpoch: session.sessionEpoch
     });
 
     const response = NextResponse.json({ ok: true, expiresInMs: SESSION_IDLE_MS });

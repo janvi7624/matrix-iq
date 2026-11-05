@@ -8,6 +8,7 @@ import { getClientIp } from '@/lib/requestIp';
 import { listPartnerDocuments } from '@/lib/partnerDocumentStore';
 import { onboardingProgress } from '@/lib/partnerOnboarding';
 import { apiErrorResponse } from '@/lib/apiError';
+import { db, isUuid } from '@/lib/db';
 
 // The Partner workspace's own list — a salesperson's book of partners.
 //
@@ -89,6 +90,22 @@ export async function POST(request: NextRequest) {
   const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
   const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 
+  // relationship_manager_id is a UUID FK — a malformed value throws a raw
+  // Postgres "invalid input syntax for type uuid" error, and a well-formed
+  // but nonexistent one throws a raw FK-constraint violation; both would
+  // otherwise surface as an unhandled 500 with the DB error leaked in the
+  // response. Validate up front instead.
+  const requestedRmId = str(body.relationship_manager_id);
+  if (requestedRmId) {
+    if (!isUuid(requestedRmId)) {
+      return NextResponse.json({ error: 'Invalid relationship manager' }, { status: 400 });
+    }
+    const rmExists = await db.User.findByPk(requestedRmId);
+    if (!rmExists) {
+      return NextResponse.json({ error: 'Relationship manager not found' }, { status: 404 });
+    }
+  }
+
   try {
     const partner = await createPartner(
       {
@@ -105,7 +122,7 @@ export async function POST(request: NextRequest) {
         // Defaults to the creator: the person bringing the partner in is
         // normally the one who will manage the relationship, and an
         // unassigned partner is one nobody is watching.
-        relationship_manager_id: str(body.relationship_manager_id) || viewer.userId,
+        relationship_manager_id: requestedRmId || viewer.userId,
         // Who will maintain PAN, bank details and website — the checkbox on
         // PartnerCreateView. Anything but the literal 'partner' opt-in stays
         // 'internal' (today's behaviour), handled by createPartner's own default.

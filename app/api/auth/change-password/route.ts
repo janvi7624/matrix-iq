@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, createSessionToken, getSessionFromRequest, sessionCookieOptions } from '@/lib/auth';
-import { findUserById, updateUser, findUserStatusById } from '@/lib/userStore';
+import { findUserById, updateUser, findUserStatusById, touchSessionEpoch } from '@/lib/userStore';
 import { verifyPassword } from '@/lib/passwords';
 import { apiErrorResponse } from '@/lib/apiError';
 import { resolveIsPrivileged } from '@/lib/permissions';
@@ -34,6 +34,14 @@ export async function POST(request: NextRequest) {
 
     await updateUser(user.id, { password: newPassword, mustChangePassword: false, passwordChangeInitiatedBy: 'self' });
 
+    // Found missing in an attack pass: a password change must kill every
+    // OTHER token already issued for this account (two devices, an
+    // attacker's hijacked session) — otherwise "securing" the account by
+    // changing its password does nothing to a session someone else already
+    // holds. Re-stamping the epoch here does that; the token reissued below
+    // embeds the FRESH value, so this request's own session stays valid.
+    const sessionEpochDate = await touchSessionEpoch(user.id);
+
     // The reissued token must carry every claim the original did —
     // partnerId included, or a partner changing their password would be
     // handed an internal-shaped session.
@@ -49,7 +57,8 @@ export async function POST(request: NextRequest) {
       mustChangePassword: false,
       isPrivileged,
       partnerCreator,
-      partnerId: partnerBinding?.partnerId
+      partnerId: partnerBinding?.partnerId,
+      sessionEpoch: sessionEpochDate?.getTime() ?? Date.now()
     });
     const response = NextResponse.json({ ok: true });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());

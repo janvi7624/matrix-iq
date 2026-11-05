@@ -112,7 +112,17 @@ async function create(record: DemoScheduleRecord): Promise<DemoScheduleRecord> {
   });
 }
 
-async function update(id: string, patch: Partial<DemoScheduleRecord>): Promise<DemoScheduleRecord | null> {
+/**
+ * expectedStatus: when the caller is applying a status transition (computed
+ * against a status it read earlier), pass the status it read here. Without
+ * it, two concurrent PATCHes computing conflicting transitions off the same
+ * stale status (e.g. one cancelling, one marking demo_completed) would both
+ * pass their own legality check and both write — last write silently wins,
+ * with duplicate timeline/audit entries and a duplicate lifecycle email for
+ * whichever transition lost. With it, the write re-checks status at the DB
+ * and a lost race returns null instead of corrupting state.
+ */
+async function update(id: string, patch: Partial<DemoScheduleRecord>, expectedStatus?: string): Promise<DemoScheduleRecord | null> {
   if (!isUuid(id)) return null;
   const row = await db.DemoSchedule.findByPk(id);
   if (!row) return null;
@@ -123,7 +133,16 @@ async function update(id: string, patch: Partial<DemoScheduleRecord>): Promise<D
     for (const { name, kind = 'string' } of FIELDS) {
       if (name in patchObj) attrs[name] = toAttr(patchObj[name], kind);
     }
-    await row.update(attrs as never, { transaction: t });
+
+    if (expectedStatus !== undefined) {
+      const [affected] = await db.DemoSchedule.update(attrs as never, {
+        where: { id, status: expectedStatus } as never,
+        transaction: t
+      });
+      if (!affected) return null;
+    } else {
+      await row.update(attrs as never, { transaction: t });
+    }
 
     if (patch.products_required) {
       await db.DemoProductLine.destroy({ where: { demo_schedule_id: id } as never, transaction: t });

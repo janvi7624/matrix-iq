@@ -1,4 +1,4 @@
-import { getFile } from '@/lib/fileStorage';
+import { getFile, safeServeHeaders } from '@/lib/fileStorage';
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // should reach the user byte-for-byte as uploaded.
     return new NextResponse(result.blob, {
       headers: {
-        'Content-Type': result.contentType,
+        ...safeServeHeaders(result.contentType, pathname),
         'Cache-Control': 'private, max-age=86400, no-transform'
       }
     });

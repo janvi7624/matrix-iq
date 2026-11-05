@@ -1,6 +1,7 @@
 import { listPeriodOptions } from './targetPeriod';
 import { findMonthAmounts } from './salesTargetStore';
 import { computeMonthlyAchievement } from './salesAchievement';
+import { istDate } from './dailyReportTime';
 
 // The 12-month Target vs Achieved series behind the Performance Review
 // chart. The tiles beside it answer "how is this person doing in the current
@@ -55,10 +56,6 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function localYmd(now: Date): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
 function shortLabel(key: string): string {
   const [year, month] = key.split('-');
   const name = MONTH_SHORT[Number(month) - 1] ?? month;
@@ -77,7 +74,7 @@ export function assembleTargetSeries(
   monthAchieved: Record<string, number>,
   now: Date = new Date()
 ): MonthlyTargetSeries {
-  const today = localYmd(now);
+  const today = istDate(now);
 
   const points: TargetSeriesPoint[] = months.map((month) => {
     const state: TargetSeriesPoint['state'] =

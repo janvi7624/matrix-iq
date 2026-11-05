@@ -1,4 +1,4 @@
-import { putFile } from '@/lib/fileStorage';
+import { putFile, UnsupportedFileTypeError } from '@/lib/fileStorage';
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ urls });
   } catch (error) {
     if (error instanceof UploadTooLargeError) return NextResponse.json({ error: error.message }, { status: 413 });
+    if (error instanceof UnsupportedFileTypeError) return NextResponse.json({ error: error.message }, { status: 400 });
     return apiErrorResponse(error);
   }
 }

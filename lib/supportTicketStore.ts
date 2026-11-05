@@ -248,8 +248,14 @@ export async function createTicket(
   // the queue already renders as "Unassigned".
   let departmentId: string | null = null;
   let managerId: string | null = null;
-  if (input.departmentId && isUuid(input.departmentId)) {
-    const department = (await listActiveDepartments()).find((d) => d.id === input.departmentId);
+  if (input.departmentId) {
+    // A malformed id is refused rather than quietly dropped: the field is
+    // required on the form, so a value that cannot be resolved means the
+    // caller believes it picked a department. Silently filing the ticket
+    // unrouted would look to them like it had been sent somewhere.
+    const department = isUuid(input.departmentId)
+      ? (await listActiveDepartments()).find((d) => d.id === input.departmentId)
+      : undefined;
     if (!department) throw new SupportTicketError('That department could not be found');
     departmentId = department.id;
     const managers = (await listDepartmentManagers())[department.name] ?? [];
@@ -511,31 +517,41 @@ export async function triageTicket(
   byUserId: string
 ): Promise<SupportTicketView | undefined> {
   if (!isUuid(ticketId)) return undefined;
-  const row = await db.SupportTicket.findByPk(ticketId);
-  if (!row) return undefined;
 
-  const attrs: Record<string, unknown> = {};
-  const priority = patch.priority && PRIORITIES.includes(patch.priority) ? patch.priority : (row.get('priority') as string);
-  if (patch.priority) attrs.priority = priority;
-  if (patch.departmentId !== undefined) attrs.department_id = patch.departmentId || null;
+  // Row-locked so two concurrent triage calls (two managers, or a double-
+  // click) serialize instead of racing: without the lock, both would read
+  // the same stale `response_due_at`/priority snapshot and the second
+  // write could silently clobber fields the first one just set.
+  const found = await sequelize.transaction(async (t) => {
+    const row = await db.SupportTicket.findByPk(ticketId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!row) return false;
 
-  if (patch.assigneeId !== undefined) {
-    attrs.assigned_to_id = patch.assigneeId || null;
-    attrs.assigned_by_id = byUserId;
-    attrs.assigned_at = patch.assigneeId ? new Date() : null;
-  }
+    const attrs: Record<string, unknown> = {};
+    const priority = patch.priority && PRIORITIES.includes(patch.priority) ? patch.priority : (row.get('priority') as string);
+    if (patch.priority) attrs.priority = priority;
+    if (patch.departmentId !== undefined) attrs.department_id = patch.departmentId || null;
 
-  // Stamp the due dates the first time the ticket is triaged, or restamp if
-  // priority changed — a ticket upgraded to critical must be judged against
-  // the critical target. Measured from CREATION; see computeDueDates.
-  const policy = await policyFor(priority);
-  if (policy && (!row.get('response_due_at') || patch.priority)) {
-    const due = computeDueDates(isoOrEmpty(row.get('createdAt')), policy);
-    attrs.response_due_at = due.responseDueAt || null;
-    attrs.resolution_due_at = due.resolutionDueAt || null;
-  }
+    if (patch.assigneeId !== undefined) {
+      attrs.assigned_to_id = patch.assigneeId || null;
+      attrs.assigned_by_id = byUserId;
+      attrs.assigned_at = patch.assigneeId ? new Date() : null;
+    }
 
-  await row.update(attrs as never);
+    // Stamp the due dates the first time the ticket is triaged, or restamp if
+    // priority changed — a ticket upgraded to critical must be judged against
+    // the critical target. Measured from CREATION; see computeDueDates.
+    const policy = await policyFor(priority);
+    if (policy && (!row.get('response_due_at') || patch.priority)) {
+      const due = computeDueDates(isoOrEmpty(row.get('createdAt')), policy);
+      attrs.response_due_at = due.responseDueAt || null;
+      attrs.resolution_due_at = due.resolutionDueAt || null;
+    }
+
+    await row.update(attrs as never, { transaction: t });
+    return true;
+  });
+  if (!found) return undefined;
+
   const fresh = await db.SupportTicket.findByPk(ticketId, { include: ticketIncludes });
   const plain = (fresh as Model).get({ plain: true }) as Record<string, unknown>;
   return toView(plain, await slaFor(plain), false);

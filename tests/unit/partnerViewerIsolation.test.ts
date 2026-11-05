@@ -7,7 +7,12 @@ import type { NextRequest } from 'next/server';
 // hardens every existing internal API at once instead of relying on ~35
 // route files each remembering a check.
 
-vi.mock('../../lib/auth', () => ({ getSessionFromRequest: vi.fn() }));
+vi.mock('../../lib/auth', async () => {
+  const actual = await vi.importActual<typeof import('../../lib/auth')>('../../lib/auth');
+  // Keep the real (pure, DB-free) isSessionEpochCurrent — only the request-
+  // reading entrypoint is mocked here.
+  return { ...actual, getSessionFromRequest: vi.fn() };
+});
 vi.mock('../../lib/permissions', () => ({ resolveIsPrivileged: vi.fn(async () => false) }));
 vi.mock('../../lib/userStore', () => ({ findUserStatusById: vi.fn() }));
 vi.mock('../../lib/partnerStore', () => ({ findPartnerById: vi.fn(), isPartnerUsable: (s: string) => s === 'active' }));
