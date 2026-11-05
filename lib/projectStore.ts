@@ -8,6 +8,22 @@ import { projectLabel } from './projectLabel';
 import { resolveSalesPersonName } from './projectSalesPersonName';
 import { resolveProjectLead } from './projectLeadStore';
 import { departmentValueOf } from './projectDepartmentOptions';
+import { PROJECT_STAGES } from './types';
+
+const VALID_PROJECT_STATUSES: ProjectStatus[] = ['active', 'on_hold', 'won', 'lost'];
+const VALID_PROJECT_STAGES: Set<string> = new Set(PROJECT_STAGES);
+
+// A real YYYY-MM-DD calendar day. Round-trips through Date so "2026-02-30"
+// (shaped right, not a real day — Postgres normalizes it to 2026-03-02
+// rather than rejecting it outright, silently shifting the filter) is
+// rejected exactly like free text. Anything that fails this is treated as
+// absent rather than handed to the DATE column, which otherwise throws a raw
+// Postgres "invalid input syntax" 500 straight through to the caller.
+function isPlainDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
 
 const FIELDS = [
   { name: 'client_name' },
@@ -319,12 +335,20 @@ async function buildProjectWhere(
       ]
     });
   }
-  if (options.includeStatus && query.status) and.push({ status: query.status });
+  // An unrecognized status/stage (stale link, hand-crafted query, future
+  // enum drift) matches nothing rather than reaching the DB as a raw string —
+  // Postgres's own enum columns would otherwise reject it with a 500 that
+  // echoes the enum's internal name straight back to the caller.
+  if (options.includeStatus && query.status) {
+    and.push(VALID_PROJECT_STATUSES.includes(query.status) ? { status: query.status } : { id: '00000000-0000-0000-0000-000000000000' });
+  }
   if (query.priority) and.push({ priority: query.priority });
   if (query.salesPerson) and.push({ sales_person: query.salesPerson });
   if (query.source) and.push({ source: query.source });
   if (query.department) and.push({ departments: { [Op.contains]: [query.department] } });
-  if (query.stage) and.push({ stage: query.stage });
+  if (query.stage) {
+    and.push(VALID_PROJECT_STAGES.has(query.stage) ? { stage: query.stage } : { id: '00000000-0000-0000-0000-000000000000' });
+  }
   if (query.type) and.push({ opportunity_type: query.type });
 
   if (query.lead) {
@@ -339,13 +363,17 @@ async function buildProjectWhere(
     );
   }
 
-  if (query.from) and.push({ created_at: { [Op.gte]: `${query.from}T00:00:00.000Z` } });
-  if (query.to) and.push({ created_at: { [Op.lte]: `${query.to}T23:59:59.999Z` } });
+  const validFrom = query.from && isPlainDate(query.from) ? query.from : undefined;
+  const validTo = query.to && isPlainDate(query.to) ? query.to : undefined;
+  if (validFrom) and.push({ created_at: { [Op.gte]: `${validFrom}T00:00:00.000Z` } });
+  if (validTo) and.push({ created_at: { [Op.lte]: `${validTo}T23:59:59.999Z` } });
 
-  if (query.closingFrom || query.closingTo) {
+  const validClosingFrom = query.closingFrom && isPlainDate(query.closingFrom) ? query.closingFrom : undefined;
+  const validClosingTo = query.closingTo && isPlainDate(query.closingTo) ? query.closingTo : undefined;
+  if (validClosingFrom || validClosingTo) {
     and.push({ expected_closing_date: { [Op.ne]: null } });
-    if (query.closingFrom) and.push({ expected_closing_date: { [Op.gte]: query.closingFrom } });
-    if (query.closingTo) and.push({ expected_closing_date: { [Op.lte]: query.closingTo } });
+    if (validClosingFrom) and.push({ expected_closing_date: { [Op.gte]: validClosingFrom } });
+    if (validClosingTo) and.push({ expected_closing_date: { [Op.lte]: validClosingTo } });
   }
 
   // The deep-linked view is "mine to confirm", which is the creator check
