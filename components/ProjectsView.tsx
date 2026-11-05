@@ -608,6 +608,7 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
         return;
       }
       toast.success('Remark added.');
+      invalidateProjectCaches();
       // Reloaded rather than patched into local state: last_remark is
       // resolved server-side by GET /api/projects (listLastRemarks), so the
       // row has no way to compute its own new value.
@@ -700,6 +701,9 @@ export default function ProjectsView({ currentUser }: ProjectsViewProps) {
     try {
       const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error(String(response.status));
+      // A deleted project must leave every picker, not linger for the minute
+      // the cached options would otherwise live.
+      invalidateProjectCaches();
       setProjects((prev) => prev.filter((p) => p.id !== id));
     } catch {
       toast.error('Could not delete this project.');

@@ -51,6 +51,12 @@ export const DEFAULT_DAILY_REPORT_CONFIG: Omit<DailyReportConfigRecord, 'id' | '
   // report with the system's figures already filled in — they just have to
   // press submit themselves.
   sales_auto_submit_time: '',
+  // Blank = off, same reasoning as sales_auto_submit_time above: nothing
+  // auto-files anyone's report until an admin deliberately sets a time here.
+  // Unlike that switch, this one only ever promotes a draft that already has
+  // real content — see draft_auto_submit_time's own comment in
+  // lib/dailyReportTypes.ts.
+  draft_auto_submit_time: '',
   warning_threshold: 3,
   reconcile_window_days: 7,
   scheduler_enabled: false,
@@ -85,6 +91,7 @@ function toRecord(row: Model): DailyReportConfigRecord {
     // Falls back to '' (off), not to a time: anything that is not a readable
     // clock time must not be guessed into auto-filing someone's report.
     sales_auto_submit_time: isClockTime(plain.sales_auto_submit_time) ? (plain.sales_auto_submit_time as string) : '',
+    draft_auto_submit_time: isClockTime(plain.draft_auto_submit_time) ? (plain.draft_auto_submit_time as string) : '',
     warning_threshold: Math.max(1, Number(plain.warning_threshold) || DEFAULT_DAILY_REPORT_CONFIG.warning_threshold),
     reconcile_window_days: Math.max(0, Number(plain.reconcile_window_days) ?? DEFAULT_DAILY_REPORT_CONFIG.reconcile_window_days),
     scheduler_enabled: Boolean(plain.scheduler_enabled),
@@ -145,6 +152,7 @@ export interface DailyReportConfigPatch {
   evening_reminder_time?: string;
   final_reminder_time?: string;
   sales_auto_submit_time?: string;
+  draft_auto_submit_time?: string;
   warning_threshold?: number;
   reconcile_window_days?: number;
   scheduler_enabled?: boolean;
@@ -206,6 +214,15 @@ export async function updateDailyReportConfig(patch: DailyReportConfigPatch, upd
       throw new InvalidDailyReportConfigError('Sales auto-submit time must be a 24-hour HH:MM time, or blank to switch auto-submit off.');
     }
     attrs.sales_auto_submit_time = value;
+  }
+
+  // Same blank-is-meaningful handling as sales_auto_submit_time above.
+  if (patch.draft_auto_submit_time !== undefined) {
+    const value = String(patch.draft_auto_submit_time).trim();
+    if (value !== '' && !isClockTime(value)) {
+      throw new InvalidDailyReportConfigError('Draft auto-submit time must be a 24-hour HH:MM time, or blank to switch it off.');
+    }
+    attrs.draft_auto_submit_time = value;
   }
 
   if (patch.warning_threshold !== undefined) {

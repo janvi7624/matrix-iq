@@ -158,6 +158,7 @@ export default function DailyReportConfigView() {
             evening_reminder_time: config.evening_reminder_time,
             final_reminder_time: config.final_reminder_time,
             sales_auto_submit_time: config.sales_auto_submit_time,
+            draft_auto_submit_time: config.draft_auto_submit_time,
             warning_threshold: config.warning_threshold,
             reconcile_window_days: config.reconcile_window_days,
             scheduler_enabled: config.scheduler_enabled,
@@ -476,6 +477,21 @@ export default function DailyReportConfigView() {
               {config.sales_auto_submit_time
                 ? ' Set to a time, so if a rep has not submitted by then the system files the report on their behalf.'
                 : ''}
+            </div>
+          </div>
+          <div className={calcStyles.field}>
+            <label className={calcStyles.label} htmlFor="draft-auto-submit">Submit saved drafts automatically, next working day (IST) — leave blank to never do this</label>
+            <Input
+              id="draft-auto-submit"
+              type="time"
+              value={config.draft_auto_submit_time}
+              onChange={(e) => set('draft_auto_submit_time', e.target.value)}
+            />
+            <div className={calcStyles.small}>
+              <strong>Blank (the default) means nobody is auto-submitted.</strong> Set to a time before the deadline, and anyone who saved a
+              report as a draft but forgot to press submit has it filed on their behalf at that time — so they are not warned for a report they
+              actually filled in. Applies to every department, not just Sales. Never fires for someone with no draft at all, and never force-
+              submits an incomplete one.
             </div>
           </div>
         </div>

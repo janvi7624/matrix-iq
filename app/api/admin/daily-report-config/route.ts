@@ -186,6 +186,9 @@ export async function PATCH(request: NextRequest) {
     if (before.scheduler_enabled !== config.scheduler_enabled) changes.push(`scheduler ${config.scheduler_enabled ? 'ENABLED' : 'disabled'}`);
     if (before.dry_run !== config.dry_run) changes.push(`dry-run ${config.dry_run ? 'ON' : 'OFF (live notifications)'}`);
     if (before.deadline_time !== config.deadline_time) changes.push(`deadline ${before.deadline_time} -> ${config.deadline_time}`);
+    if (before.draft_auto_submit_time !== config.draft_auto_submit_time) {
+      changes.push(`draft auto-submit ${before.draft_auto_submit_time || 'off'} -> ${config.draft_auto_submit_time || 'off'}`);
+    }
     // Who is excused from a compliance obligation is exactly the kind of
     // change that should be answerable from the audit log a year later.
     if (before.exempt_employee_ids.length !== config.exempt_employee_ids.length) {

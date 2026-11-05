@@ -78,7 +78,7 @@ import ProjectLeadField from './ui/ProjectLeadField';
 import OpportunityTypeField from './ui/OpportunityTypeField';
 import { useProjectLeads } from './ui/useProjectLeads';
 import { OPPORTUNITY_TYPE_LABEL, OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
-import { fetchCached } from '@/lib/fetchCached';
+import { fetchCached, invalidateProjectCaches } from '@/lib/fetchCached';
 
 // Every editable field on the Overview card, named as PATCH /api/projects/[id]
 // names it, so the save below is a straight copy of what changed.
@@ -451,6 +451,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         return;
       }
       toast.success(approved ? 'Handover accepted! Project transferred to you.' : 'Handover declined.');
+      // Accepting hands the project TO this viewer, so it now belongs in
+      // their own project pickers. Kept unconditional rather than only on
+      // approval, for the same reason the rule itself is uniform.
+      invalidateProjectCaches();
       loadHandoverStatus();
       if (approved) load();
     } catch {
@@ -518,6 +522,9 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         return;
       }
       toast.success('Assignment confirmed.');
+      // Confirming makes this viewer the project's technical person, which is
+      // one of the things resolveOwnerWhere uses to decide who sees it.
+      invalidateProjectCaches();
       await load();
     } catch {
       toast.error('Could not reach the server.');
@@ -627,6 +634,10 @@ export default function ProjectDetailView({ projectId, currentUser }: ProjectDet
         const body = await response.json().catch(() => null);
         throw new Error(body?.error || String(response.status));
       }
+      // Every edit on this screen goes through here — client name, company,
+      // stage, status — and all of them can change what a project picker on
+      // another screen shows.
+      invalidateProjectCaches();
       await load();
       return true;
     } catch (error) {

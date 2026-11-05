@@ -24,6 +24,14 @@ module.exports = (sequelize, DataTypes) => {
     // unsubmitted Sales/GEM-Sales report (any auto-measures template) using
     // whatever was auto-fetched. See lib/salesDailyAutoFetch.ts.
     sales_auto_submit_time: { type: DataTypes.STRING, allowNull: false, defaultValue: '10:30' },
+    // 'HH:MM' IST, next working day — when the system submits, on ANY
+    // department's behalf, a report already saved as a DRAFT but never
+    // submitted. Separate from sales_auto_submit_time: that one stands in
+    // with auto-fetched data even for an empty report, this one only ever
+    // promotes a draft that already has real, validator-passing content —
+    // so it rescues "forgot to press submit", never "never opened it".
+    // Blank (the default) means off.
+    draft_auto_submit_time: { type: DataTypes.STRING, allowNull: false, defaultValue: '' },
     warning_threshold: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 3 },
     reconcile_window_days: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 7 },
     scheduler_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },

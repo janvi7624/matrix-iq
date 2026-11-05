@@ -1,6 +1,6 @@
 import { getDailyReportConfig, getDeadlinePolicy } from './dailyReportConfigStore';
 import { EligibleEmployee, employeeOwesDate, expandSubjects, listEligibleEmployees } from './dailyReportEligibility';
-import { autoSubmitReport, loadGrandTotalsByKey, loadSubmittedKeys } from './dailyReportStore';
+import { autoSubmitReport, loadDraftKeys, loadGrandTotalsByKey, loadSubmittedKeys } from './dailyReportStore';
 import { loadLeaveCoveredKeys } from './dailyReportLeaveClaimStore';
 import {
   claimEscalation,
@@ -263,6 +263,59 @@ export async function runDailyReportSweep(options: SweepOptions = {}): Promise<S
       }
     }
 
+    // Draft auto-submit — every department, not just Sales. Runs after the
+    // Sales pass above (so a Sales employee it just auto-filed no longer
+    // reads as DRAFT here) and still before the fresh submitted/leaveCovered
+    // reload below, for the same "recheck immediately before acting" reason.
+    // A blank draft_auto_submit_time means this is OFF, which is the
+    // default — see its own comment in lib/dailyReportConfigStore.ts.
+    //
+    // Restricted to subjects with an EXISTING draft (loadDraftKeys), which is
+    // what stops this from ever promoting someone who never opened their
+    // report at all — that stays the plain missed-report warning's problem,
+    // not this one's. autoSubmitReport's own strict validation is the second,
+    // independent safety net: a draft missing a required field throws,
+    // becomes a recorded failure, and is simply left to the ordinary warning
+    // path rather than being force-submitted incomplete.
+    if (config.draft_auto_submit_time) {
+      const draftFloor = addDays(istDate(now), -AUTO_SUBMIT_LOOKBACK_DAYS);
+      const draftCandidates = subjects.filter((s) => s.reportDate >= draftFloor);
+      const [draftSubmitted, draftLeaveCovered, draftKeys] = await Promise.all([
+        loadSubmittedKeys(employeeIds, from, to),
+        loadLeaveCoveredKeys(employeeIds, from, to),
+        loadDraftKeys(employeeIds, from, to)
+      ]);
+      const draftSubjects = draftCandidates.filter((s) => draftKeys.has(subjectKey(s.employeeId, s.reportDate)));
+      const plannedDraftAutoSubmits = planAutoSubmits(
+        draftSubjects,
+        { submitted: draftSubmitted, leaveCovered: draftLeaveCovered },
+        now,
+        config.draft_auto_submit_time,
+        policy
+      );
+
+      for (const event of plannedDraftAutoSubmits) {
+        bump(stats.planned, 'AUTO_SUBMIT');
+        if (event.late) stats.catchUp += 1;
+      }
+      for (const event of plannedDraftAutoSubmits) {
+        const employee = employeeById.get(event.employeeId);
+        if (!employee) continue;
+        try {
+          const handled = await processAutoSubmit(event, employee, dryRun, 'saved_draft');
+          if (handled) bump(stats.sent, 'AUTO_SUBMIT');
+          else stats.skipped += 1;
+        } catch (error) {
+          stats.failures.push({
+            employeeId: event.employeeId,
+            reportDate: event.reportDate,
+            kind: 'AUTO_SUBMIT',
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+    }
+
     // All three state sets are loaded in one pass each, immediately before
     // planning — this is the "recheck submission and leave status before
     // recording a warning" requirement, and it is also why planning is a
@@ -465,12 +518,27 @@ async function processWarning(
 }
 
 /**
- * Files a Sales/GEM-Sales report on an employee's behalf once the
- * configured auto-submit time has passed with nothing submitted — the
- * employee's own tracked activity (lib/salesDailyAutoFetch.ts) stands in for
- * whatever they did not type themselves.
+ * Submits a report on an employee's behalf once the relevant auto-submit
+ * time has passed with nothing submitted.
+ *
+ * Two distinct callers, two distinct stories, same mechanics and the same
+ * 'AUTO_SUBMIT' ledger kind (harmless to share: whichever pass gets there
+ * first makes the other a no-op on recheck, same as any other idempotent
+ * step in this file):
+ *   'tracked_activity' — Sales/GEM-Sales, the employee's own tracked
+ *     activity (lib/salesDailyAutoFetch.ts) stands in for whatever they did
+ *     not type themselves, even on an entirely untouched report.
+ *   'saved_draft' — any department, a report the employee already filled in
+ *     and saved but never pressed submit on. `source` only changes the
+ *     wording of the notification; autoSubmitReport itself does not care who
+ *     is calling it.
  */
-async function processAutoSubmit(event: PlannedAutoSubmit, employee: EligibleEmployee, dryRun: boolean): Promise<boolean> {
+async function processAutoSubmit(
+  event: PlannedAutoSubmit,
+  employee: EligibleEmployee,
+  dryRun: boolean,
+  source: 'tracked_activity' | 'saved_draft' = 'tracked_activity'
+): Promise<boolean> {
   // See clearFailedClaim's own comment: this is the one and only path that
   // actually auto-files the report, so a dead 'failed' claim from an
   // earlier interrupted attempt must not permanently block every future
@@ -502,7 +570,10 @@ async function processAutoSubmit(event: PlannedAutoSubmit, employee: EligibleEmp
       kind: 'auto_submitted',
       recipients: [targetFor(employee)],
       title: `Daily report auto-submitted — ${event.reportDate}`,
-      body: `Your ${event.reportDate} daily report was not submitted, so it has been filed automatically from your tracked activity.`,
+      body:
+        source === 'saved_draft'
+          ? `Your ${event.reportDate} daily report was saved but not submitted, so it has been filed automatically from what you had already entered.`
+          : `Your ${event.reportDate} daily report was not submitted, so it has been filed automatically from your tracked activity.`,
       entityType: 'daily_report',
       entityId: result.report.id,
       type: 'daily_report_auto_submitted',
@@ -812,6 +883,7 @@ export async function previewDailyReportSweep(now = new Date()): Promise<{
   eligibleEmployees: number;
   byKind: Record<string, number>;
   autoSubmitDue: number;
+  draftAutoSubmitDue: number;
   zeroTotalWarningsDue: number;
 }> {
   const config = await getDailyReportConfig();
@@ -819,7 +891,7 @@ export async function previewDailyReportSweep(now = new Date()): Promise<{
   const reportDates = sweepWindow(now, config.reconcile_window_days, policy);
   const employees = await listEligibleEmployees();
   if (!reportDates.length || !employees.length) {
-    return { reportDates, dueNow: [], eligibleEmployees: employees.length, byKind: {}, autoSubmitDue: 0, zeroTotalWarningsDue: 0 };
+    return { reportDates, dueNow: [], eligibleEmployees: employees.length, byKind: {}, autoSubmitDue: 0, draftAutoSubmitDue: 0, zeroTotalWarningsDue: 0 };
   }
   const employeeIds = employees.map((e) => e.id);
   const from = reportDates[0];
@@ -868,7 +940,20 @@ export async function previewDailyReportSweep(now = new Date()): Promise<{
     if (zeroTotalWarningsDue) byKind.ZERO_TOTAL_WARNING = zeroTotalWarningsDue;
   }
 
-  return { reportDates, dueNow, eligibleEmployees: employees.length, byKind, autoSubmitDue, zeroTotalWarningsDue };
+  // Draft auto-submit — every department, mirroring the generic pass inside
+  // runDailyReportSweep. Independent of salesEmployees.length: it is not
+  // Sales-specific, so it must still be previewed when there are none.
+  let draftAutoSubmitDue = 0;
+  if (config.draft_auto_submit_time) {
+    const draftFloor = addDays(istDate(now), -AUTO_SUBMIT_LOOKBACK_DAYS);
+    const draftCandidates = subjects.filter((s) => s.reportDate >= draftFloor);
+    const draftKeys = await loadDraftKeys(employeeIds, from, to);
+    const draftSubjects = draftCandidates.filter((s) => draftKeys.has(subjectKey(s.employeeId, s.reportDate)));
+    draftAutoSubmitDue = planAutoSubmits(draftSubjects, { submitted, leaveCovered }, now, config.draft_auto_submit_time, policy).length;
+    if (draftAutoSubmitDue) byKind.AUTO_SUBMIT = (byKind.AUTO_SUBMIT ?? 0) + draftAutoSubmitDue;
+  }
+
+  return { reportDates, dueNow, eligibleEmployees: employees.length, byKind, autoSubmitDue, draftAutoSubmitDue, zeroTotalWarningsDue };
 }
 
 /** Re-exported for the route's own logging. */

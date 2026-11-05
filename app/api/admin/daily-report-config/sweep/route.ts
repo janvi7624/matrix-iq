@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
         dueAt: event.dueAt.toISOString(),
         late: event.late
       })),
-      dueNowTotal: preview.dueNow.length + preview.autoSubmitDue + preview.zeroTotalWarningsDue
+      dueNowTotal: preview.dueNow.length + preview.autoSubmitDue + preview.draftAutoSubmitDue + preview.zeroTotalWarningsDue
     });
   } catch (error) {
     return dailyReportErrorResponse(error);

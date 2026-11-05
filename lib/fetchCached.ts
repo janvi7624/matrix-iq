@@ -218,11 +218,22 @@ export const REFERENCE_URLS = {
 } as const;
 
 /**
- * After a project is created, so every picker shows it.
+ * After ANY project write — created, edited, deleted — so no picker shows a
+ * project that has moved on.
  *
- * Edits are deliberately not invalidated: a renamed client in a dropdown
- * corrects itself within the minute, while a project that cannot be selected
- * at all blocks whatever the person was filling in.
+ * Uniform on purpose. The tempting optimisation is to invalidate only when a
+ * field a picker actually displays has changed, and skip it for, say, adding
+ * a remark. That would mean a rule with exceptions, where the next person to
+ * add a project field has to work out which bucket it falls in and the
+ * failure mode of guessing wrong is a stale dropdown nobody can reproduce.
+ * The cost of being uniform is one extra /api/projects fetch the next time a
+ * picker screen opens, which is not worth reasoning about per field.
+ *
+ * What this deliberately does NOT try to cover: a write that changes which
+ * projects SOMEBODY ELSE can see — requesting a handover, assigning another
+ * person technically. Their cache lives in their browser and no call here can
+ * reach it, so for those the TTL is the mechanism, not invalidation. Called
+ * only where the acting user's own list can have changed.
  */
 export function invalidateProjectCaches(): void {
   invalidateCached(REFERENCE_URLS.projects);

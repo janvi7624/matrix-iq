@@ -37,25 +37,28 @@ import { addDays, formatIst, istDate, istInstant } from './dailyReportTime';
  *
  *   final_reminder_time      10:00  the last nudge before the deadline
  *   sales_auto_submit_time   10:30  Sales/GEM-Sales auto-file
+ *   draft_auto_submit_time   11:29  a saved draft is submitted on its owner's behalf
  *   deadline_time            11:30  a missed report becomes a WARNING
  *   evening_reminder_time    21:00  the first nudge, on the day itself
  *
  * The request was "10:00 and 21:00 rather than every fifteen minutes". Those
- * two are here — and so are the other two, deliberately. The sweep sends what
- * is DUE at the moment it runs, so waking only at 10:00 and 21:00 would hold
- * every warning back to 21:00 (9.5 hours late) and every sales auto-submit
- * with it (10.5 hours late). Four precise wake-ups a day is still 92 fewer
- * than the quarter-hourly poll this replaced.
+ * two are here — and so are the other three, deliberately. The sweep sends
+ * what is DUE at the moment it runs, so waking only at 10:00 and 21:00 would
+ * hold every warning back to 21:00 (9.5 hours late) and every auto-submit
+ * with it. Five precise wake-ups a day is still 91 fewer than the
+ * quarter-hourly poll this replaced.
  */
 export function sweepClockTimes(config: {
   final_reminder_time?: string;
   sales_auto_submit_time?: string;
+  draft_auto_submit_time?: string;
   deadline_time?: string;
   evening_reminder_time?: string;
 }): string[] {
   const configured = [
     config.final_reminder_time,
     config.sales_auto_submit_time,
+    config.draft_auto_submit_time,
     config.deadline_time,
     config.evening_reminder_time
   ].filter((time): time is string => typeof time === 'string' && /^\d{2}:\d{2}$/.test(time));

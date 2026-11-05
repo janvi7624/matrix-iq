@@ -5,6 +5,7 @@ import {
   invalidateCached,
   invalidateCachedPrefix,
   invalidatePeopleCaches,
+  invalidateProjectCaches,
   isFresh,
   OPTIONS_TTL_MS,
   REFERENCE_TTL_MS
@@ -289,6 +290,35 @@ describe('invalidation', () => {
     invalidatePeopleCaches();
     for (const url of people) await fetchCached(url);
     expect(calls).toHaveLength(people.length * 2);
+  });
+
+  // The picker cache is dropped by ANY project write — create, edit or
+  // delete — rather than only by a create. A rule with exceptions would mean
+  // the next person adding a project field has to work out which bucket it
+  // falls in, and a wrong guess is a stale dropdown nobody can reproduce.
+  it('drops the project picker list, and only that', async () => {
+    await fetchCached('/api/projects', OPTIONS_TTL_MS);
+    await fetchCached('/api/users/lite');
+    expect(calls).toHaveLength(2);
+
+    invalidateProjectCaches();
+
+    await fetchCached('/api/projects', OPTIONS_TTL_MS);
+    expect(calls).toHaveLength(3);
+    // The people lists are a separate concern and must survive a project edit.
+    await fetchCached('/api/users/lite');
+    expect(calls).toHaveLength(3);
+  });
+
+  // The Projects screen's own live read is a different URL and is never
+  // cached, so invalidating must not be what keeps it fresh.
+  it('does not touch the Projects screen\'s own ?remarks=1 read', async () => {
+    await fetchCached('/api/projects', OPTIONS_TTL_MS);
+    invalidateProjectCaches();
+    // ?remarks=1 is fetched directly by ProjectsView, never through the
+    // cache — asserted here so a future change that starts caching it has to
+    // come past this test.
+    expect(calls.filter((c) => c.includes('remarks=1'))).toHaveLength(0);
   });
 
   // Live record lists are not cached at all, so invalidating people must not

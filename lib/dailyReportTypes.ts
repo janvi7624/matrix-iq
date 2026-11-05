@@ -477,6 +477,14 @@ export interface DailyReportConfigRecord {
    * auto-submitted by the system. See lib/salesDailyAutoFetch.ts.
    */
   sales_auto_submit_time: string;
+  /**
+   * 'HH:MM' IST on the next working day after the reporting date — when an
+   * existing DRAFT report (any department, any template) is submitted on the
+   * employee's behalf because they saved it but never pressed submit. Blank
+   * means off. Unlike sales_auto_submit_time this never files a report that
+   * has no draft content — see lib/dailyReportStore.ts's autoSubmitReport.
+   */
+  draft_auto_submit_time: string;
   warning_threshold: number;
   reconcile_window_days: number;
   scheduler_enabled: boolean;

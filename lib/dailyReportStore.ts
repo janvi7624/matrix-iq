@@ -659,6 +659,27 @@ export async function loadSubmittedKeys(employeeIds: string[], from: string, to:
 }
 
 /**
+ * subjectKey set for reports that are currently saved as a DRAFT.
+ *
+ * Feeds the generic draft-auto-submit pass in lib/dailyReportScheduler.ts —
+ * it is what keeps that pass from ever promoting someone who has no report
+ * at all. A date absent from both this set and loadSubmittedKeys's is simply
+ * not started, and must stay the plain missed-report warning's problem.
+ */
+export async function loadDraftKeys(employeeIds: string[], from: string, to: string): Promise<Set<string>> {
+  if (!employeeIds.length) return new Set();
+  const rows = await db.DailyReport.findAll({
+    where: {
+      employee_id: employeeIds,
+      report_date: { [Op.between]: [from, to] },
+      submission_status: 'DRAFT'
+    } as never,
+    attributes: ['employee_id', 'report_date']
+  });
+  return new Set(rows.map((r) => lookupKey(r.get('employee_id') as string, dateOnly(r.get('report_date')))));
+}
+
+/**
  * subjectKey -> a SUBMITTED report's GRAND TOTAL: every measure cell on the
  * matrix summed, auto and manual alike. The input to
  * lib/dailyReportSweepPlan.ts's planZeroTotalWarnings, which warns only when
