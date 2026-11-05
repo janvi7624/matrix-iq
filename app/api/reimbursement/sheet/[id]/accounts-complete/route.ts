@@ -35,6 +35,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const creator = await findUserByUsername(existing.created_by);
 
     const updated = await reimbursementSheetStore.accountsComplete(id, actorUser.id, paymentReference, remarks);
+    // Lost a race against a concurrent payment submission on this same sheet
+    // (status moved on between the check above and the conditional write) —
+    // report it plainly instead of logging/notifying a payment that didn't
+    // actually happen here.
+    if (!updated) return NextResponse.json({ error: 'This sheet was just paid by someone else — refresh and check' }, { status: 409 });
     const monthName = reimbursementSheetStore.MONTH_NAMES[existing.month] || '';
     const totalStr = `₹${existing.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 

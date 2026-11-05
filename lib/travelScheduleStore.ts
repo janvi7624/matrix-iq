@@ -351,7 +351,12 @@ async function completeBooking(id: string, actorUsername: string, patch: { booki
     ticket_documents: [...existingDocs, ...newDocs],
     actual_cost: patch.actual_cost ?? plain.actual_cost ?? null
   };
-  await row.update(attrs as never);
+  // Conditional on the status read above still holding at write time — two
+  // concurrent "Pay"/"Complete booking" submissions on the same request would
+  // otherwise both pass and both write, doubling the ticket_documents array
+  // and sending a duplicate payment-done notice.
+  const [affected] = await db.TravelSchedule.update(attrs as never, { where: { id, status: plain.status } as never });
+  if (!affected) return null;
   const withAssoc = await db.TravelSchedule.findByPk(id, { include: allIncludes() });
   return toRecord(withAssoc as Model);
 }

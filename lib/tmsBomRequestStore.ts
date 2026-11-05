@@ -244,14 +244,21 @@ async function markPaymentDone(id: string, actorUsername: string, proofUrls: str
   const plain = row.get({ plain: true }) as Record<string, unknown>;
   const actor = await db.User.findOne({ where: { username: actorUsername } as never });
   const existingProof = Array.isArray(plain.payment_proof_attachments) ? (plain.payment_proof_attachments as string[]) : [];
-  await row.update(
+  // Conditional on the status read above still holding at write time — the
+  // caller (accounts-payment pay route) already checked isBomAwaitingPayment
+  // against this same read, but without this WHERE two concurrent "Pay"
+  // submissions would both pass that check and both write, doubling up the
+  // proof-attachments array and sending a duplicate payment-done notice.
+  const [affected] = await db.TmsBomRequest.update(
     {
       status: 'payment_done',
       payment_marked_by_id: actor ? actor.get('id') : null,
       payment_marked_at: paidAt ?? new Date(),
       payment_proof_attachments: [...existingProof, ...proofUrls]
-    } as never
+    } as never,
+    { where: { id, status: plain.status } as never }
   );
+  if (!affected) return null;
   const withAssoc = await db.TmsBomRequest.findByPk(id, { include: ALL_INCLUDES });
   return toRecord(withAssoc as Model);
 }

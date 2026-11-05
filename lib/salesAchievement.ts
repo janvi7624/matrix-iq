@@ -218,3 +218,39 @@ export async function currentPeriodSnapshot(employeeId: string, periodType: Targ
 
   return { periodType, displayPeriod: target.displayPeriod, targetAmount: target.targetAmount, achievedAmount, achievementPercent, status };
 }
+
+// Achievement split across a list of consecutive months, from ONE query over
+// the whole span rather than a round-trip per month. Same row set and same
+// attribution rule as computeAchievement above — this module stays the only
+// place achievement is derived — so summing every bucket returned here equals
+// computeAchievement over the same span exactly.
+//
+// A row lands in the month its created_at falls in LOCALLY, matching how the
+// period bounds passed to fetchQualifyingRows are themselves plain dates. A
+// quotation approved within a few hours of midnight on the 1st can therefore
+// sit either side of a month boundary depending on the server's timezone;
+// that shifts which bar it appears in, never whether it is counted.
+export async function computeMonthlyAchievement(
+  employeeId: string,
+  months: { key: string; periodStart: string; periodEnd: string }[]
+): Promise<Record<string, number>> {
+  const buckets: Record<string, number> = {};
+  for (const month of months) buckets[month.key] = 0;
+  if (!months.length) return buckets;
+
+  const spanStart = months[0].periodStart;
+  const spanEnd = months[months.length - 1].periodEnd;
+  const [rows, nameToId] = await Promise.all([fetchQualifyingRows(spanStart, spanEnd), fetchNameToId()]);
+
+  for (const row of rows) {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    if (resolveQuotationOwner(plain, nameToId) !== employeeId) continue;
+    const createdAt = plain.createdAt instanceof Date ? plain.createdAt : new Date(String(plain.createdAt ?? ''));
+    if (Number.isNaN(createdAt.getTime())) continue;
+    // 'YYYY-MM' in local time — identical in shape to the month keys
+    // listPeriodOptions('monthly', fy) produces, which are always the 1st.
+    const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}`;
+    if (key in buckets) buckets[key] += toNumber(plain.total);
+  }
+  return buckets;
+}

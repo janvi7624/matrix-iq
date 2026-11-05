@@ -262,13 +262,23 @@ async function accountsComplete(
   const p = row.get({ plain: true }) as Record<string, unknown>;
   if (p.status !== 'hr_approved') return null;
 
-  await row.update({
-    status: 'payment_done',
-    accounts_handler_id: actorId,
-    accounts_completed_at: paidAt ?? new Date(),
-    accounts_remarks: remarks || null,
-    payment_reference: paymentReference || null,
-  } as never);
+  // Conditional on status still being hr_approved at write time, not just at
+  // the read above — two concurrent "Pay" submissions (double-click, retried
+  // request) would otherwise both pass the read-time check and both write,
+  // producing a second audit-log row and a duplicate "payment done" email to
+  // the employee. Only the first write's WHERE matches; the second affects 0
+  // rows and the caller (accounts-payment pay route) reports it as already paid.
+  const [affected] = await db.ReimbursementSheet.update(
+    {
+      status: 'payment_done',
+      accounts_handler_id: actorId,
+      accounts_completed_at: paidAt ?? new Date(),
+      accounts_remarks: remarks || null,
+      payment_reference: paymentReference || null,
+    } as never,
+    { where: { id, status: 'hr_approved' } as never }
+  );
+  if (!affected) return null;
   return fetchWithTotals(row);
 }
 

@@ -64,6 +64,9 @@ export async function POST(request: NextRequest) {
     const user = await createUser({ username, password, name, phone, email, role: requestedRole, employeeId, department, designation });
     return NextResponse.json(user, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Username already exists') {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return apiErrorResponse(error);
   }
 }

@@ -34,6 +34,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const updated = await travelScheduleStore.completeBooking(id, viewer.username, {
       booking_details: bookingDetails, ticket_documents: ticketDocuments, actual_cost: actualCost
     });
+    // Lost a race against a concurrent booking-completion submission on this
+    // same request — report it instead of logging/notifying a completion
+    // that didn't actually happen here.
+    if (!updated) return NextResponse.json({ error: 'This booking was just completed by someone else — refresh and check' }, { status: 409 });
 
     await logAudit({
       by: viewer.username, role: viewer.role, entityType: 'travel_schedule', entityId: id,

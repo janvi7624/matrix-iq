@@ -290,7 +290,15 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
 
   const passwordHash = await hashPassword(input.password);
   const departmentId = await resolveDepartmentId(input.department || '');
-  const row = await db.User.create({
+  // The findOne check above is a pre-flight, not a lock — two concurrent
+  // creates for the same username can both pass it and race to this
+  // create(), so the DB's own unique constraint (db/models/user.js) is the
+  // real guard. Without this catch, the loser gets a raw Sequelize
+  // UniqueConstraintError surfaced as an unstyled 500 instead of the same
+  // clean "already exists" error the pre-flight check gives everyone else.
+  let row;
+  try {
+    row = await db.User.create({
     username: input.username,
     passwordHash,
     name: input.name,
@@ -307,7 +315,13 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
     status: 'active',
     mustChangePassword: input.mustChangePassword ?? false,
     partnerId: input.partnerId || null
-  } as never);
+    } as never);
+  } catch (error) {
+    if (error instanceof Error && error.name === 'SequelizeUniqueConstraintError') {
+      throw new Error('Username already exists');
+    }
+    throw error;
+  }
 
   const created = await db.User.findByPk(row.get('id') as string, { include: [roleInclude, deptInclude] });
   const publicUser = toPublicUser(toUserRecord(created as Model));

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Modal, { ModalOkButton } from './ui/Modal';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
@@ -11,6 +12,15 @@ import { TMS_TASK_STATUS_LABEL } from '@/lib/tmsLabels';
 import { FOLLOW_UP_DAYS } from '@/lib/followUp';
 import { formatMoney } from '@/lib/format';
 import styles from './departmentHealthDetail.module.css';
+
+// Lazily loaded: recharts is a heavy dependency and this chart renders only
+// for a viewer who can manage targets, so it must not sit in the bundle the
+// Department Health drill-down pays for on open. ssr:false because the chart
+// measures its own container.
+const TargetAchievementChart = dynamic(() => import('./TargetAchievementChart'), {
+  ssr: false,
+  loading: () => <div className={styles.chartPanel}><SkeletonRows rows={3} columns={2} /></div>
+});
 
 const TARGET_STATUS_LABEL: Record<string, string> = {
   not_started: 'Not Started',
@@ -192,6 +202,7 @@ export default function PersonPerformanceDashboard({ username, name, department,
                   <div className={styles.totalLabel}>Status</div>
                 </div>
               </div>
+              <TargetAchievementChart username={username} />
             </>
           )}
 
