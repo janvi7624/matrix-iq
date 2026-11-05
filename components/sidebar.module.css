@@ -378,6 +378,20 @@
     background: rgba(148, 163, 184, 0.6);
 }
 
+/* Bottom fade shown only while the nav list has more content below the
+   fold (see Sidebar.tsx's updateNavFade) — the 4px scrollbar above is easy
+   to miss, especially right after the accordion expands a long section to
+   exactly fill the visible area. pointer-events:none so it never blocks a
+   click on the item underneath it. */
+.navFade {
+    position: relative;
+    flex-shrink: 0;
+    height: 18px;
+    margin-top: -18px;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, var(--mx-surface, #f7f7f8));
+}
+
 .sectionContainer {
     margin-top: 10px;
 }

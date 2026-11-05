@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { listActiveDepartments } from './departmentStore';
 import { getViewerContext, ViewerContext } from './viewerContext';
 import { findUserByUsername } from './userStore';
 import { isModuleAccessAllowed } from './moduleConfigStore';
@@ -138,23 +139,37 @@ export async function findTmsManagerTierUsers(): Promise<{ id: string; username:
 
 // Who should hear "a new project just landed in TMS and needs setup" —
 // lib/tmsHandoff.ts's one call site, fired once when a Sales handoff opens a
-// brand new tms_projects row. Scoped to the SAME department the project was
-// created under (not every manager-tier user org-wide, which would just be
-// noise for AI/AV/Robotics teams with nothing to do here) plus every
-// admin/superadmin, who can always see and reassign any project.
-export async function findTmsProjectSetupNotifyTargets(departmentId: string): Promise<{ id: string; username: string; name: string }[]> {
+// brand new tms_projects row.
+//
+// The department's manager and the person Sales assigned, and nobody else.
+// This used to resolve every technical-manager AND team-lead in the
+// department PLUS every admin/superadmin org-wide, so assigning one
+// technical person to one sales project rang the bell for people with no
+// part in it — the admins in particular got every handoff in the company.
+// Those two are the only ones who act on this: the manager sets the plan
+// and deadline, the assignee does the work.
+//
+// Managers come from Department.managerIds — the same "who manages
+// department X" definition demo-schedule routing, marketing-request routing
+// and BOM stage one already use, rather than a role sweep, so who is told
+// about a project and who is accountable for it cannot drift apart.
+export async function findTmsProjectSetupNotifyTargets(
+  departmentId: string,
+  assignedPersonId: string
+): Promise<{ id: string; username: string; name: string }[]> {
+  const department = (await listActiveDepartments()).find((d) => d.id === departmentId);
+  // No manager configured on the department means there is no manager to
+  // tell. Deliberately NOT falling back to every admin — that fallback is
+  // exactly the org-wide noise this exists to stop, and a department with
+  // nobody managing it is a Department Master problem, not a reason to
+  // notify people who are not involved.
+  const ids = [...new Set([...(department?.managerIds ?? []), assignedPersonId].filter(Boolean))];
+  if (!ids.length) return [];
   const rows = await db.User.findAll({
-    include: [{ model: db.Role, as: 'role', where: { key: ['technical-manager', 'team-lead', 'admin', 'superadmin'] } as never, attributes: ['key'] }],
-    where: { status: 'active' } as never,
-    attributes: ['id', 'username', 'name', 'departmentId']
+    where: { id: ids, status: 'active' } as never,
+    attributes: ['id', 'username', 'name']
   });
-  return rows
-    .filter((r) => {
-      const roleKey = (r.get('role') as { key?: string } | null)?.key;
-      if (roleKey === 'admin' || roleKey === 'superadmin') return true;
-      return r.get('departmentId') === departmentId;
-    })
-    .map((r) => ({ id: r.get('id') as string, username: r.get('username') as string, name: r.get('name') as string }));
+  return rows.map((r) => ({ id: r.get('id') as string, username: r.get('username') as string, name: r.get('name') as string }));
 }
 
 // Who reviews/approves BOM Requests + gets notified of new submissions —

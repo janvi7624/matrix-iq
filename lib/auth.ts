@@ -104,13 +104,16 @@ export interface SessionPayload {
    * against the LIVE column value on every request; a mismatch means some
    * later action re-stamped it, so this token is deliberately dead.
    *
-   * Only two actions touch that column after the initial login that creates
-   * it: logout and password change (see lib/userStore.ts's touchSessionEpoch)
-   * — both re-stamp it to invalidate every token issued before that moment,
-   * which also means logging out on one device signs the account out
-   * everywhere. That's an accepted simplification, not an oversight: this
-   * app has no concept of distinguishing one active session from another to
-   * revoke individually.
+   * Three actions touch that column after the initial login that creates
+   * it: logout, password change (see lib/userStore.ts's touchSessionEpoch),
+   * AND, as an unintended side effect, any later ordinary login too — since
+   * recordLogin() re-stamps the same column every time. So right now,
+   * logging in from a second device silently kills the first device's
+   * session, same as an explicit logout would. A dedicated sessionEpoch
+   * column that fixes this (bumped only by logout/password change, never
+   * by login) is written and ready — see the 20261105100000 migration and
+   * the TODO on touchSessionEpoch — but not yet wired in, because the
+   * column doesn't exist in the live DB until that migration runs.
    */
   sessionEpoch: number;
 }

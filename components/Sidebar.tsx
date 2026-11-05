@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -54,6 +54,8 @@ export default function Sidebar() {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [navHasMoreBelow, setNavHasMoreBelow] = useState(false);
+  const navRef = useRef<HTMLElement | null>(null);
   const [pinnedKeys, setPinnedKeys] = useState<string[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -153,6 +155,33 @@ export default function Sidebar() {
   const primarySection = primarySectionForDepartment(viewer?.department);
   const sectionLabels = useMemo(() => sections.map((s) => s.label), [sections]);
   const { isExpanded, toggle } = useCollapsibleSections(primarySection, { accordion: true, allLabels: sectionLabels });
+
+  // Signals whether the nav list has content below the fold — the accordion
+  // can expand a section (e.g. a long Administration list) to exactly fill
+  // the visible area with no visual cue that other sections still exist
+  // below it. Re-checked on resize/section-toggle, not just on scroll, since
+  // expanding a section changes scrollHeight without firing a scroll event.
+  const updateNavFade = useCallback(() => {
+    const el = navRef.current;
+    if (!el) return;
+    setNavHasMoreBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+  }, []);
+
+  useEffect(() => {
+    updateNavFade();
+  }, [sections, isExpanded, collapsed, searchQuery, updateNavFade]);
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(updateNavFade);
+    observer.observe(el);
+    window.addEventListener('resize', updateNavFade);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateNavFade);
+    };
+  }, [updateNavFade]);
 
   const quickActions = useMemo(() => {
     const byKey = new Map((modules || []).map((m) => [m.key, m]));
@@ -273,7 +302,7 @@ export default function Sidebar() {
           </div>
         )}
 
-        <nav className={styles.nav}>
+        <nav className={styles.nav} ref={navRef} onScroll={updateNavFade}>
           {/* Main Dashboard Link */}
           {!searchQuery && (
             <Link href={homeHref} className={`${styles.link} ${isActive(homeHref) ? styles.linkActive : ''}`} data-tooltip="Dashboard">
@@ -403,6 +432,7 @@ export default function Sidebar() {
             })
           )}
         </nav>
+        {navHasMoreBelow && !collapsed && <div className={styles.navFade} aria-hidden="true" />}
 
         {/* Quick Actions (only when not collapsed and not searching) */}
         {!searchQuery && quickActions.length > 0 && (

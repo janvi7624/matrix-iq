@@ -272,6 +272,18 @@ export async function recordLogin(id: string): Promise<Date | undefined> {
 // this call. Called on logout and on password change; NOT on an ordinary
 // login (recordLogin already does that) or on any unrelated profile edit,
 // which must never kill a user's own other valid sessions.
+//
+// TODO(pending migration 20261105100000): this still reuses lastLoginAt,
+// which login ALSO re-stamps — so a second login currently kills the
+// first one's session too, not just logout/password-change. A dedicated
+// sessionEpoch column + model field is written and ready in that
+// migration/db/models/user.js, but is deliberately NOT wired in yet: since
+// that column doesn't exist in the live DB until the migration runs, adding
+// it to the User model would break every unscoped User query app-wide the
+// moment this file reloads, not just login. Run `npx sequelize-cli
+// db:migrate`, then flip findUserStatusById/this function over to the new
+// column (see git history / the migration file's own comment for the
+// exact diff this undoes).
 export async function touchSessionEpoch(id: string): Promise<Date | undefined> {
   return recordLogin(id);
 }

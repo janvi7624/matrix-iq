@@ -42,6 +42,10 @@ export async function POST(request: NextRequest) {
     // UserRecord deliberately has no partner field: the binding is an access
     // -control fact, not profile data, and keeping it off the widely-passed
     // user shape means no screen can accidentally render or edit it.
+    // partnerBinding is read here rather than taken from `user` because
+    // UserRecord deliberately has no partner field: the binding is an access
+    // -control fact, not profile data, and keeping it off the widely-passed
+    // user shape means no screen can accidentally render or edit it.
     const [loginTimestamp, , isPrivileged, partnerBinding, partnerCreator] = await Promise.all([
       recordLogin(user.id),
       logLoginAttempt({ username, success: true, ip }),
@@ -62,6 +66,11 @@ export async function POST(request: NextRequest) {
       // The exact value recordLogin just wrote — see SessionPayload.sessionEpoch.
       // The fallback is unreachable in practice (verifyLogin just confirmed
       // this user row exists), kept only so the type stays a plain number.
+      //
+      // TODO(pending migration 20261105100000): this means a second login
+      // currently invalidates the first login's session too — see the TODO
+      // on lib/userStore.ts's touchSessionEpoch for why, and what to change
+      // here once that migration is applied.
       sessionEpoch: loginTimestamp?.getTime() ?? Date.now()
     });
     const response = NextResponse.json({

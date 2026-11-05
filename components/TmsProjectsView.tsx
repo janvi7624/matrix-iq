@@ -105,6 +105,10 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
   // A user id, matched against the project manager OR the team members —
   // see the filter itself for why both.
   const [fEmployee, setFEmployee] = useState('');
+  // Completed projects pile up and crowd out the active ones (same reasoning
+  // as Sales Projects' Won/Lost hiding) — hidden by default, but still fully
+  // reachable either by this toggle or by filtering Status to Completed.
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const tmsDepartments = useMemo(() => departments.filter((d) => (TMS_DEPARTMENTS as readonly string[]).includes(d.name)), [departments]);
 
@@ -186,9 +190,15 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     return users.filter((u) => onProjects.has(u.id)).sort((a, b) => (a.name || a.username).localeCompare(b.name || b.username));
   }, [projects, users]);
 
+  // Completed is hidden unless explicitly asked for — either by this filter
+  // directly, or by the Status dropdown itself being set to Completed, which
+  // makes hiding it again (via the other condition) a no-op.
+  const hideCompleted = !showCompleted && fStatus !== 'completed';
+
   const filtered = useMemo(() => {
     const q = fSearch.trim().toLowerCase();
     return projects.filter((p) => {
+      if (hideCompleted && p.status === 'completed') return false;
       if (fDepartment && !(p.department_names.length ? p.department_names : [p.department_name]).includes(fDepartment)) return false;
       if (fStatus && p.status !== fStatus) return false;
       if (fPriority && p.priority !== fPriority) return false;
@@ -200,7 +210,12 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       if (q && ![p.project_code, p.name, p.client_name].some((v) => (v || '').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [projects, fDepartment, fStatus, fPriority, fProjectType, fEmployee, fSearch]);
+  }, [projects, hideCompleted, fDepartment, fStatus, fPriority, fProjectType, fEmployee, fSearch]);
+
+  const hiddenCompletedCount = useMemo(
+    () => (hideCompleted ? projects.filter((p) => p.status === 'completed').length : 0),
+    [projects, hideCompleted]
+  );
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -628,6 +643,21 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
         </Select>
       </FilterBar>
       {!loading && !loadFailed && <div className={historyStyles.status}>{status}</div>}
+      {!loading && !loadFailed && hiddenCompletedCount > 0 && (
+        <div className={historyStyles.status}>
+          {hiddenCompletedCount} completed project{hiddenCompletedCount === 1 ? '' : 's'} {hiddenCompletedCount === 1 ? 'is' : 'are'} hidden.{' '}
+          <button type="button" className={historyStyles.linkBtn} onClick={() => setShowCompleted(true)}>
+            Show {hiddenCompletedCount === 1 ? 'it' : 'them'}
+          </button>
+          {' '}— or filter Status to Completed.
+        </div>
+      )}
+      {!loading && !loadFailed && showCompleted && (
+        <div className={historyStyles.status}>
+          Completed projects are shown.{' '}
+          <button type="button" className={historyStyles.linkBtn} onClick={() => setShowCompleted(false)}>Hide them again</button>
+        </div>
+      )}
 
       {loading ? (
         <div className={historyStyles.tableWrap}><SkeletonRows rows={8} columns={8} /></div>

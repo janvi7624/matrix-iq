@@ -99,10 +99,11 @@ export async function syncTmsProjectForAssignment(project: ProjectRecord, assign
   // "Needs Setup" visibility — a dashboard tile nobody is guaranteed to
   // check). At one or two handoffs a day that's fine; at the volume this
   // pipeline actually runs, silence here is how a project sits untouched for
-  // weeks. So the department's manager-tier people and admins hear about it
-  // the moment it's created, not only once someone happens to notice.
+  // weeks. So the department's manager and the assigned person hear about it
+  // the moment it's created, not only once someone happens to notice — and
+  // only those two, since they are the only ones who act on it.
   try {
-    const targets = await findTmsProjectSetupNotifyTargets(departmentId);
+    const targets = await findTmsProjectSetupNotifyTargets(departmentId, assignedPerson.id);
     const usernames = targets.map((t) => t.username).filter((u) => u !== actorUsername);
     await notifyUsers(usernames, {
       title: 'New project from Sales needs setup',
