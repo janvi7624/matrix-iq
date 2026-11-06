@@ -1,0 +1,97 @@
+Route,Status,Method,Evidence
+/,PASS,Live browser + API,E2E regression sweep (Admin/HR/Accounts/Operations cluster) + QA full-sweep baseline
+/accounts/payments,PASS,Live browser + API + adversarial attack,Dedicated Accounts module break-test (found/fixed BUG-002) + E2E regression
+/admin,PARTIAL/FLAGGED,Live browser,"Loads without error but renders Quotation History content instead of an admin landing page - BUG-042, unreachable via nav, awaiting user decision"
+/admin-expenses,PASS,Live browser + API + role-boundary + malformed input,Admin Expenses QA sweep - clean 400 on negative/missing fields
+/admin-expenses/[batchId]/edit,PASS,Live browser (bad-id handling),Admin Expenses QA sweep - graceful handling of all-zeros id
+/admin-expenses/new,PASS,Live browser + malformed input test,Admin Expenses QA sweep
+/admin/audit-log,PASS,Live browser + role-boundary,Admin config deep-surfaces sweep
+/admin/custom-modules,PASS,Live browser + role-boundary,Admin config deep-surfaces sweep
+/admin/daily-report-config,PASS,Live browser,Admin config deep-surfaces sweep
+/admin/departments,PASS,Live browser,Admin config deep-surfaces sweep
+/admin/meta-integration,PASS,Live browser,Admin config deep-surfaces sweep
+/admin/modules,PASS,Live browser,Admin config deep-surfaces sweep
+/admin/partners,PASS,Live browser,Admin Expenses/Billing/Analytics cluster - confirmed genuinely distinct page from /partners
+/admin/partners/[id],PASS,Live browser + adversarial attack,Partner Admin module break-test (found/fixed BUG-033/034/035) + confirmed sweep
+/admin/partners/analytics,PASS,Live browser,Admin Expenses/Billing/Analytics cluster
+/admin/performance-review,PASS,Live browser,Admin Expenses/Billing/Analytics cluster
+/admin/product-catalog,PASS,Live browser,Admin config deep-surfaces sweep
+/admin/products,PASS,Live browser,Admin config deep-surfaces sweep
+/admin/roles,PASS,Live browser + API,E2E regression sweep (Admin cluster)
+/admin/settings,PASS,Live browser,Admin config deep-surfaces sweep
+/admin/task-assignment,PASS,Live browser,Admin config deep-surfaces sweep
+/admin/task-planner,PASS,Live browser,Admin config deep-surfaces sweep
+/admin/users,PASS,Live browser + API + adversarial attack,Administration module break-test (found/fixed BUG-003) + E2E regression
+/admin/users/[id],PASS,Live browser,Admin config deep-surfaces sweep
+/admin/users/import,PASS,Live browser + role-boundary,Admin config deep-surfaces sweep
+/analytics,PASS,Live browser,Admin Expenses/Billing/Analytics cluster
+/backoffice,PASS,Live browser,Admin Expenses/Billing/Analytics cluster
+/billing,PASS,Live browser,Admin Expenses/Billing/Analytics cluster
+/change-password,PASS,Live browser + end-to-end exercised,HR extras QA sweep
+/clients,PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster
+/customer-response,PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster
+/daily-reports,PASS,Live browser + API,HR module break-test (found/fixed BUG-004) + E2E regression
+/daily-reports/team,PASS,Live browser + role-boundary,HR extras QA sweep
+/demo-schedule,PASS (bug found+fixed),Live browser + adversarial attack,Clients/Demo Schedule cluster - found and fixed BUG-016 (TeamCheckboxes key collision) and BUG-041 (unguarded status PATCH)
+/employee-exit,PASS,Live browser + role-boundary,HR extras QA sweep
+/hr/attendance,PASS,Live browser + role-boundary (server-side confirmed),HR extras QA sweep
+/hr/daily-reports,PASS,Live browser + adversarial,HR module break-test
+/hr/employees,PASS,Live browser + role-boundary,HR extras QA sweep
+/hr/leave,PASS,Live browser + role-boundary,HR extras QA sweep
+/hr/reports,PASS,Live browser + role-boundary + malformed-date test,Reports module break-test + HR extras sweep
+/installation,PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster
+/leads,PASS,Live browser + API + full adversarial attack + perf,"Leads backend filtering/pagination rewrite - full QA (13/13 checks), BUG-031 found/fixed"
+/leave,PASS,Live browser + role-boundary,HR extras QA sweep
+/login,PASS,Live browser + full adversarial attack,Auth/session attack pass (BUG-017/018/019/020/023 all originate here)
+/marketing-requests,PASS,Live browser + full adversarial attack,Marketing module break-test (found/fixed BUG-005) + E2E regression
+/materials,PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster
+/modules/[key],PASS,Live browser (after fixing own test-fixture registration gap - not an app bug),Admin config deep-surfaces sweep
+/my-quotations,PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster
+/my-tasks,PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster
+/my-tasks/[id],PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster
+/negotiation,PASS,Live browser + adversarial attack,Targets/Negotiation module break-test + E2E regression
+/office-operation-expenses,PASS,Live browser + API,E2E regression sweep (Operations cluster)
+/office-operation-expenses/[id]/edit,PASS,Live browser,Operations cluster (via E2E)
+/office-operation-expenses/new,PASS,Live browser,Operations cluster (via E2E)
+/partner,PASS,Live browser + cross-tenant isolation test,Partner portal module break-test + E2E regression
+/partner/demos,PASS,Live browser,Partner portal break-test
+/partner/marketing-requests,PASS,Live browser + adversarial attack,Marketing module break-test (found/fixed BUG-005)
+/partner/materials,PASS,Live browser,Partner portal break-test
+/partner/onboarding,PASS,Live browser,Partner portal break-test
+/partner/profile,PASS,Live browser,Partner portal break-test
+/partner/projects,PASS,Live browser,Partner portal break-test
+/partner/projects/[id],PASS,Live browser,Partner portal break-test
+/partner/quotations,PASS,Live browser,Partner portal break-test
+/partner/support,PASS,Live browser (1 pre-existing console-noise item flagged not fixed),Partner/Marketing/Support E2E cluster
+/partners,PASS,Live browser + cross-tenant isolation + adversarial attack,Partner Admin module break-test + E2E regression
+/partners/[id],PASS,Live browser,Partner Admin break-test
+/partners/new,PASS,Live browser,E2E regression sweep (Sales cluster)
+/po,PASS,Live browser + API + adversarial attack,Sales-module completeness audit (found/fixed BUG-027) + E2E regression
+/profile,PASS,Live browser,HR extras QA sweep
+/projects,PASS,Live browser + API + full adversarial attack + break-test,"Sales Projects backend filtering/pagination - full QA, BUG-001/027/032 found/fixed"
+/projects/[id],PASS,Live browser,E2E regression sweep (Sales cluster)
+/quotation,PASS,Live browser + API + full adversarial attack,Quotation module break-test (found/fixed BUG-007/008/009) + E2E regression
+/quotation-history,PASS,Live browser,E2E regression sweep (Sales cluster)
+/quotation-requests,PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster
+/reimbursement,PASS,Live browser + API,HR module break-test (found/fixed BUG-004) + E2E regression
+/site-visits,PASS,Live browser + API + adversarial attack,Site Visits module break-test (found/fixed BUG-013) + E2E regression
+/support,PASS,Live browser + dedicated full adversarial attack,Support module dedicated break-test (found/fixed BUG-022)
+/support/[id],NOT TESTED,N/A,"No support ticket records existed in the QA database at time of testing - flagged as a gap, not a failure"
+/targets,PASS,Live browser + API + adversarial attack,Targets/Negotiation module break-test (found/fixed BUG-014/030) + E2E regression
+/team-tasks,PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster
+/tms,PASS,Live browser,E2E regression sweep (TMS cluster)
+/tms/bom-requests,PASS,Live browser + API + adversarial attack,Operations module break-test (found/fixed BUG-006)
+/tms/bom-requests/[id],PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster (detail routes)
+/tms/my-sold-projects,PASS,Live browser + API,E2E regression sweep (TMS cluster)
+/tms/my-sold-projects/[id],PASS,Live browser,TMS Layer-2 browser pass
+/tms/procurement,PASS,Live browser + API,E2E regression sweep (Admin/Operations cluster)
+/tms/procurement/[id],PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster (detail routes)
+/tms/projects,PASS,Live browser + API + full adversarial attack,"TMS module break-test (BUG-012/024/025/026 found/fixed), completed-project hide filter shipped and live-verified"
+/tms/projects/[id],PASS,Live browser,TMS Layer-2 browser pass
+/tms/tab-access,PASS,Live browser + adversarial attack,TMS module break-test (found/fixed BUG-025)
+/tms/tasks,PASS,Live browser + API + full adversarial attack,TMS Tasks break-test (found/fixed BUG-012) + Layer-2 browser confirmation
+/tms/tasks/[id],PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster (detail routes)
+/tms/team,PASS,Live browser,TMS Layer-2 browser pass
+/tms/users,PASS,Live browser + role-boundary (department/role-tier scoping confirmed),Clients/Demo Schedule/Materials/My Work cluster
+/travel-schedule,PASS,Live browser + API + full adversarial attack,Travel Schedule module break-test (found/fixed BUG-011) + E2E regression
+/travel-schedule/[id],PASS,Live browser,Clients/Demo Schedule/Materials/My Work cluster (detail routes)

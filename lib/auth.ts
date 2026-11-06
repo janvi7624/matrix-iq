@@ -96,24 +96,22 @@ export interface SessionPayload {
    * scheme is otherwise 100% stateless, so neither logout nor a password
    * change could ever kill an already-issued token before its own expiry.
    *
-   * Rather than adding a new column (this app's only datastore is Postgres,
-   * and a schema migration wasn't available when this was fixed), this reuses
-   * users.lastLoginAt — already written exactly once per login — as a
-   * "session epoch": the epoch-ms value of lastLoginAt at the moment this
-   * token was issued. lib/viewerContext.ts/app/api/auth/me re-check this
-   * against the LIVE column value on every request; a mismatch means some
-   * later action re-stamped it, so this token is deliberately dead.
+   * Backed by users.sessionEpoch — a dedicated column (20261105100000
+   * migration, confirmed applied), deliberately NOT a reuse of lastLoginAt:
+   * lastLoginAt is re-stamped on every ordinary login for display purposes,
+   * and an early version of this fix reused it as the epoch too, which
+   * meant logging in from a second device silently killed the first
+   * device's session. This column is bumped only by logout and password
+   * change (see lib/userStore.ts's touchSessionEpoch) — never by login,
+   * which only READS the current value to embed in the new token.
    *
-   * Three actions touch that column after the initial login that creates
-   * it: logout, password change (see lib/userStore.ts's touchSessionEpoch),
-   * AND, as an unintended side effect, any later ordinary login too — since
-   * recordLogin() re-stamps the same column every time. So right now,
-   * logging in from a second device silently kills the first device's
-   * session, same as an explicit logout would. A dedicated sessionEpoch
-   * column that fixes this (bumped only by logout/password change, never
-   * by login) is written and ready — see the 20261105100000 migration and
-   * the TODO on touchSessionEpoch — but not yet wired in, because the
-   * column doesn't exist in the live DB until that migration runs.
+   * lib/viewerContext.ts/app/api/auth/me re-check this claim against the
+   * LIVE column value on every request; a mismatch means a later logout or
+   * password change re-stamped it, so this token is deliberately dead. Both
+   * of those actions still invalidate every token for the account at once,
+   * not just the acting session — this app has no concept of distinguishing
+   * one active session from another to revoke individually — but a plain
+   * login from elsewhere no longer does.
    */
   sessionEpoch: number;
 }
@@ -146,10 +144,11 @@ export async function createSessionToken(user: {
   isPrivileged: boolean;
   partnerCreator?: boolean;
   partnerId?: string | null;
-  // The live users.lastLoginAt value (as epoch ms) at the moment of issuance
-  // — see SessionPayload.sessionEpoch. Every caller of this function must
-  // pass the value it just wrote/read from the DB, not a freshly-computed
-  // Date.now(), or the token will immediately fail its own revocation check.
+  // The live users.sessionEpoch value (as epoch ms) at the moment of
+  // issuance — see SessionPayload.sessionEpoch. Every caller of this
+  // function must pass the value it just wrote/read from the DB, not a
+  // freshly-computed Date.now(), or the token will immediately fail its own
+  // revocation check.
   sessionEpoch: number;
 }): Promise<string> {
   const secret = process.env.ADMIN_SESSION_SECRET;
@@ -205,7 +204,7 @@ export async function getSessionFromRequest(request: NextRequest): Promise<Sessi
 }
 
 // Pure comparison — no DB access, safe for proxy.ts too if it's ever needed
-// there — shared by every call site that resolves the LIVE lastLoginAt
+// there — shared by every call site that resolves the LIVE sessionEpoch
 // value (see SessionPayload.sessionEpoch) and needs to decide whether this
 // token is still the current one or was revoked by a later logout/password
 // change. `null`/`undefined` liveEpoch (an account that somehow has never

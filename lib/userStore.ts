@@ -170,15 +170,15 @@ export async function findUserStatusById(
   id: string
 ): Promise<{ id: string; status: string; name: string; partnerId: string; sessionEpoch: number | null } | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.User.findByPk(id, { attributes: ['id', 'status', 'name', 'partnerId', 'lastLoginAt'] });
+  const row = await db.User.findByPk(id, { attributes: ['id', 'status', 'name', 'partnerId', 'sessionEpoch'] });
   if (!row) return undefined;
-  const lastLoginAt = row.get('lastLoginAt') as Date | null;
+  const sessionEpoch = row.get('sessionEpoch') as Date | null;
   return {
     id: row.get('id') as string,
     status: row.get('status') as string,
     name: (row.get('name') as string) || '',
     partnerId: (row.get('partnerId') as string) || '',
-    sessionEpoch: lastLoginAt ? lastLoginAt.getTime() : null
+    sessionEpoch: sessionEpoch ? sessionEpoch.getTime() : null
   };
 }
 
@@ -267,25 +267,21 @@ export async function recordLogin(id: string): Promise<Date | undefined> {
   return now;
 }
 
-// Re-stamps lastLoginAt — reused as a session-revocation epoch (see
-// SessionPayload.sessionEpoch) — to invalidate every token issued before
-// this call. Called on logout and on password change; NOT on an ordinary
-// login (recordLogin already does that) or on any unrelated profile edit,
-// which must never kill a user's own other valid sessions.
-//
-// TODO(pending migration 20261105100000): this still reuses lastLoginAt,
-// which login ALSO re-stamps — so a second login currently kills the
-// first one's session too, not just logout/password-change. A dedicated
-// sessionEpoch column + model field is written and ready in that
-// migration/db/models/user.js, but is deliberately NOT wired in yet: since
-// that column doesn't exist in the live DB until the migration runs, adding
-// it to the User model would break every unscoped User query app-wide the
-// moment this file reloads, not just login. Run `npx sequelize-cli
-// db:migrate`, then flip findUserStatusById/this function over to the new
-// column (see git history / the migration file's own comment for the
-// exact diff this undoes).
+// Bumps the dedicated sessionEpoch column (see SessionPayload.sessionEpoch)
+// to invalidate every token issued before this call — a SEPARATE column
+// from lastLoginAt (login's own display stamp, re-written by recordLogin
+// on every ordinary login) precisely so that signing in from a second
+// device does not silently kill the first one's session. Called only on
+// logout and on password change; never on login, and never on any
+// unrelated profile edit, both of which must leave a user's other valid
+// sessions alone.
 export async function touchSessionEpoch(id: string): Promise<Date | undefined> {
-  return recordLogin(id);
+  if (!isUuid(id)) return undefined;
+  const row = await db.User.findByPk(id);
+  if (!row) return undefined;
+  const now = new Date();
+  await row.update({ sessionEpoch: now } as never);
+  return now;
 }
 
 export interface CreateUserInput {

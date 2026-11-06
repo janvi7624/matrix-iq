@@ -39,7 +39,13 @@
     outline-offset: 2px;
 }
 
-.infoRow { margin-top: 12px; }
+/* overflow-wrap, because these rows carry free text people paste links
+   into. A bare URL is one unbreakable word: without this it refuses to wrap,
+   stretches the row past the panel and gives the whole PAGE a horizontal
+   scrollbar — a pasted Amazon link in one BOM request was doing exactly that.
+   `anywhere` rather than `break-word` so the break is also allowed to shrink
+   the row's min-content width, which is what stops it forcing the layout. */
+.infoRow { margin-top: 12px; overflow-wrap: anywhere; }
 .salesHandoffRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .infoRowDanger { margin-top: 12px; color: var(--mx-danger); }
 .descriptionValue { margin-top: 4px; white-space: pre-line; }

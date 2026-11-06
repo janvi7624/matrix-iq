@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { poStore } from '@/lib/poStore';
-import { appendProjectTimeline, closeProjectAsWonOnce, findProjectById, projectStore } from '@/lib/projectStore';
+import { appendProjectTimeline, closeProjectAsWonOnce, findProjectById } from '@/lib/projectStore';
 import { findPendingTechnicalRequests } from '@/lib/projectTechnicalRequest';
 import { wonBriefFailure } from '@/lib/salesStageRules';
 import { apiErrorResponse } from '@/lib/apiError';

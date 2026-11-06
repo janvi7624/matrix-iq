@@ -272,6 +272,16 @@
    visible captions, but the search box still needs a label. */
 .srOnly {
     position: absolute;
+    /* left:0 is load-bearing, not cosmetic. Without it these sit at their
+       STATIC position, and one of them lives in the last column of a wide
+       table inside a horizontally-scrolled wrapper — roughly 1400px out. Its
+       containing block is the page, not the scroller, so the document grew to
+       reach it and every page carrying one got a horizontal scrollbar.
+       Pinning them to the left edge removes that contribution; they are
+       invisible either way and screen readers still read them in DOM order.
+       clip-path and dropping white-space were both tried first and neither
+       changed the page width. */
+    left: 0;
     width: 1px;
     height: 1px;
     padding: 0;

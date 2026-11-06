@@ -38,15 +38,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
 
-    // partnerBinding is read here rather than taken from `user` because
-    // UserRecord deliberately has no partner field: the binding is an access
-    // -control fact, not profile data, and keeping it off the widely-passed
-    // user shape means no screen can accidentally render or edit it.
-    // partnerBinding is read here rather than taken from `user` because
-    // UserRecord deliberately has no partner field: the binding is an access
-    // -control fact, not profile data, and keeping it off the widely-passed
-    // user shape means no screen can accidentally render or edit it.
-    const [loginTimestamp, , isPrivileged, partnerBinding, partnerCreator] = await Promise.all([
+    // recordLogin only stamps lastLoginAt (a display timestamp, not read back
+    // here) — sessionEpoch is deliberately just READ from findUserStatusById,
+    // never bumped by a login, or signing in from a second device would
+    // silently kill the first one's session. See lib/userStore.ts's
+    // touchSessionEpoch.
+    //
+    // viewerStatus (partnerId/sessionEpoch) is read via findUserStatusById
+    // rather than taken from `user` because UserRecord deliberately has no
+    // partner field: the binding is an access-control fact, not profile
+    // data, and keeping it off the widely-passed user shape means no screen
+    // can accidentally render or edit it.
+    const [, , isPrivileged, viewerStatus, partnerCreator] = await Promise.all([
       recordLogin(user.id),
       logLoginAttempt({ username, success: true, ip }),
       resolveIsPrivileged(user.role),
@@ -62,16 +65,12 @@ export async function POST(request: NextRequest) {
       mustChangePassword: user.mustChangePassword,
       isPrivileged,
       partnerCreator,
-      partnerId: partnerBinding?.partnerId,
-      // The exact value recordLogin just wrote — see SessionPayload.sessionEpoch.
-      // The fallback is unreachable in practice (verifyLogin just confirmed
-      // this user row exists), kept only so the type stays a plain number.
-      //
-      // TODO(pending migration 20261105100000): this means a second login
-      // currently invalidates the first login's session too — see the TODO
-      // on lib/userStore.ts's touchSessionEpoch for why, and what to change
-      // here once that migration is applied.
-      sessionEpoch: loginTimestamp?.getTime() ?? Date.now()
+      partnerId: viewerStatus?.partnerId,
+      // The live value this user's row holds right now — see
+      // SessionPayload.sessionEpoch. The fallback is unreachable in practice
+      // (verifyLogin just confirmed this user row exists), kept only so the
+      // type stays a plain number.
+      sessionEpoch: viewerStatus?.sessionEpoch ?? Date.now()
     });
     const response = NextResponse.json({
       ok: true,
@@ -80,7 +79,7 @@ export async function POST(request: NextRequest) {
       // of bouncing off `/` and through proxy.ts's redirect. Purely a
       // navigation hint — it grants nothing, and the real gate runs on every
       // subsequent request regardless of what the client does with it.
-      isPartner: !!partnerBinding?.partnerId
+      isPartner: !!viewerStatus?.partnerId
     });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
     return response;

@@ -19,6 +19,14 @@ module.exports = (sequelize, DataTypes) => {
     dateOfJoining: { type: DataTypes.DATEONLY },
     status: { type: DataTypes.ENUM('active', 'inactive'), allowNull: false, defaultValue: 'active' },
     lastLoginAt: { type: DataTypes.DATE },
+    // Session-revocation epoch (lib/auth.ts's SessionPayload.sessionEpoch) —
+    // its OWN column, not a reuse of lastLoginAt: lastLoginAt is re-stamped
+    // on every ordinary login (recordLogin), which would silently sign a
+    // user out of every OTHER device each time they logged in a new one.
+    // Bumped only by touchSessionEpoch (logout, password change) — never on
+    // login, which only READS the current value. See the 20261105100000
+    // migration, confirmed applied.
+    sessionEpoch: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     // Caps the "Today's Celebrations" popup at a few views per day per
     // viewer — see lib/celebrationStore.ts's shouldShowCelebrationsPopup.
     // Reset (implicitly, by date mismatch) rather than cleared at midnight,

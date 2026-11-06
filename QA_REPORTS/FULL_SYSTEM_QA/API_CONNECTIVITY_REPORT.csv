@@ -1,0 +1,34 @@
+API Group,Route Count (approx),Chain Verified (UI->Handler->Auth->DB->Response->UI),Status,Evidence
+Auth (/api/auth/*),7,Yes,PASS,"Full adversarial attack pass; login/logout/me/change-password/heartbeat all traced end-to-end; 4 real bugs found and fixed (BUG-017..020,023)"
+Leads (/api/leads/*),6,Yes,PASS,Full backend filtering/pagination rewrite this session + adversarial attack; BUG-031 found/fixed
+Sales Projects (/api/projects/*),9,Yes,PASS,Full backend filtering/pagination rewrite + facets/filter-options/client-directory new endpoints; BUG-001/027/032 found/fixed
+Quotation (/api/quotations/*; /api/quotation-requests/*),~10,Yes,PASS,Adversarial attack pass; BUG-007/008/009 found/fixed
+Negotiation (/api/negotiation/*),2,Yes,PASS,Adversarial attack pass - clean
+Targets (/api/targets/*),5,Yes,PASS,Adversarial attack pass; BUG-014/030 found/fixed
+PO (/api/po),1,Yes,PASS,Sales completeness audit; BUG-027 found/fixed
+Handover (/api/projects/[id]/handover/*),3,Yes,PASS,Sales completeness audit; BUG-028 found/fixed
+Partner Review (/api/projects/[id]/partner-review),1,Yes,PASS,Sales completeness audit; BUG-029 found/fixed
+TMS Tasks (/api/tms/tasks/*),~6,Yes,PASS,Full adversarial attack pass; BUG-012 found/fixed
+TMS Projects (/api/tms/projects/*),~5,Yes,PASS,Full adversarial attack + Layer-2 browser confirmation; BUG-024/026 found/fixed
+TMS BOM Requests (/api/tms/bom-requests/*),~9,Yes,PASS,Operations module break-test; BUG-006 found/fixed (most severe TMS finding - duplicate DB row risk)
+TMS Procurement (/api/tms/procurement/*),~3,Yes,PASS,Adversarial attack pass - clean
+TMS tab-access/users (/api/tms/tab-access; /api/tms/users),2,Yes,PASS,BUG-025 found/fixed
+HR Daily Reports (/api/daily-reports/*),~15,Yes,PASS,HR module break-test; BUG-004 found/fixed
+Reimbursement (/api/reimbursement/*),~10,Yes,PASS,Earlier-session visibility bug fixed + Accounts break-test BUG-002
+Accounts Payments (/api/accounts/payments/*),~8,Yes,PASS,Dedicated Accounts break-test; BUG-002 found/fixed (most severe Accounts finding)
+Admin Expenses (/api/admin-expenses/*),~4,Yes,PASS,Admin Expenses sweep - malformed-input validation confirmed
+Office Operation Expenses (/api/office-operation-expenses/*),~3,Yes,PASS,E2E regression - clean
+Administration (/api/admin/users/*; /api/admin/roles; /api/admin/partners/*; etc.),~20,Yes,PASS,Administration module break-test; BUG-003/033/034/035 found/fixed
+Marketing Requests (/api/marketing-requests/*),~10,Yes,PASS,Marketing module break-test; BUG-005 found/fixed
+Support Tickets (/api/support/tickets/*; /api/partner/support/*),~8,Yes,PASS,Dedicated full Support break-test; BUG-022 found/fixed
+Partner Admin (/api/admin/partners/*; /api/partners/*),~6,Yes,PASS,Partner Admin break-test; BUG-033/034/035 found/fixed
+Partner User (via lib/partnerUserStore.ts),N/A (store-level),Yes,PASS,Dedicated adversarial pass - genuinely clean, cross-tenant isolation confirmed live
+Partner Portal (/api/partner/*),~15,Yes,PASS,Partner portal break-test - cross-tenant isolation confirmed clean
+Site Visits (/api/site-visits/*),~4,Yes,PASS,Dedicated break-test; BUG-013 found/fixed (data-loss bug)
+Travel Schedule (/api/travel-schedule/*),~9,Yes,PASS,Dedicated break-test; BUG-011 found/fixed (access-control hole)
+Demo Schedule (/api/demo-schedule/*),~3,Yes,PASS,BUG-016/041 found/fixed
+Delivery Challans (/api/delivery-challans),1,Yes,PASS,BUG-040 found/fixed
+Dashboard (/api/dashboard/*),~6,Yes,PASS,Dedicated break-test - clean (zero-data/role-boundary/concurrent-request checks all passed)
+HR Expense Reports (/api/hr/reports/*),~3,Yes,PASS,Dedicated break-test - clean (date validation already correct)
+Uploads/File Storage (/api/uploads/*; /api/site-visits/image/*),~4,Yes,PASS,BUG-017 found/fixed (critical XSS)
+Remaining ~170 routes (client-master, products, departments, modules, audit-log, notifications, sidebar, celebrations, etc.),~170,Partial,PASS (page-level; not all individually API-attacked),Confirmed reachable and functioning via the 96-page Route Coverage sweep (every page that calls these routes loaded with real data and zero console errors); not every one of these received a dedicated standalone adversarial attack pass the way the ~155 routes above did

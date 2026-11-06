@@ -1,0 +1,27 @@
+Module,Navigation,Forms (valid+invalid),Buttons/Actions,Filters/Search/Sort,Pagination,Modals,File Upload/Download,Status,Notes
+Leads,PASS,PASS,PASS,PASS,PASS,PASS,PASS (business-card capture),PASS,Full backend pagination rewrite this session - 13/13 functional checks
+Sales Projects,PASS,PASS,PASS,PASS,PASS,PASS,PASS (Export PDF confirmed),PASS,Full backend pagination rewrite - pagination control added where none existed before
+Quotation,PASS,PASS,PASS,PASS,N/A,PASS,PASS (CSV export - injection-fixed),PASS,Searchable Project field confirmed working
+Negotiation,PASS,PASS,PASS,N/A,N/A,N/A,N/A,PASS,
+Targets,PASS,PASS,PASS,PASS,N/A,N/A,N/A,PASS,
+PO,PASS,PASS,PASS,N/A,N/A,N/A,N/A,PASS,Race condition fixed (BUG-027)
+TMS Tasks,PASS,PASS,PASS,PASS,N/A,PASS,N/A,PASS,
+TMS Projects,PASS,PASS,PASS,PASS,PASS,PASS,N/A,PASS,"New ""hide completed by default"" filter shipped and live-verified both directions (Show them / Hide them again)"
+TMS BOM Requests,PASS,PASS,PASS,N/A,N/A,PASS,PASS,PASS,5-stage approval chain race-fixed
+HR Daily Reports,PASS,PASS,PASS,PASS,N/A,PASS,N/A,PASS,
+Reimbursement,PASS,PASS,PASS,PASS,N/A,PASS,PASS (bill upload),PASS,Pending-approval visibility fixed earlier this session
+Accounts Payments,PASS,N/A,PASS,PASS,N/A,PASS,PASS (export.csv),PASS,Double-pay race fixed on 3/5 payment sources
+Administration (Users/Roles),PASS,PASS,PASS,PASS,N/A,PASS,PASS (bulk import),PASS,Duplicate-username race fixed
+Marketing Requests,PASS,PASS,PASS,PASS,N/A,PASS,PASS,PASS,4-action race fixed
+Support,PASS,PASS,PASS,PASS,N/A,PASS,N/A,PASS,Scoping gap fixed (BUG-022)
+Partner Admin,PASS,PASS,PASS,N/A,N/A,PASS,PASS (document review),PASS,
+Partner Portal,PASS,PASS,PASS,N/A,N/A,PASS,PASS,PASS,Cross-tenant isolation confirmed
+Site Visits,PASS,PASS,PASS,N/A,N/A,PASS,PASS (images),PASS,Data-loss bug fixed (BUG-013) - most severe non-security functional finding
+Travel Schedule,PASS,PASS,PASS,N/A,N/A,PASS,PASS (documents),PASS,Access-control hole + 6 transitions fixed (BUG-011)
+Demo Schedule,PASS,PASS,PASS,N/A,N/A,PASS,N/A,PASS,2 bugs found/fixed (BUG-016/041)
+Dashboard,PASS,N/A,PASS,N/A,N/A,PASS,N/A,PASS,Zero-data/role-boundary checks clean
+Sidebar/Navigation (app chrome),PASS,N/A,PASS,PASS (search),N/A,N/A,N/A,PASS,"New scroll-fade affordance shipped, live-verified"
+Admin config deep surfaces (13 pages),PASS,PASS,PASS,N/A,N/A,PASS,N/A,PASS,Role-boundary confirmed server-side on 6 sampled API routes
+Admin Expenses/Billing/Analytics/Backoffice,PASS,PASS,PASS,N/A,N/A,N/A,N/A,PASS,Malformed-input validation confirmed clean
+HR extras (Attendance/Employees/Leave/Reports/Exit),PASS,PASS,N/A,N/A,N/A,N/A,N/A,PASS,Role-boundary confirmed server-side with zero exceptions
+Clients/Demo/Materials/My Work/Team Tasks + detail routes,PASS,PASS,PASS,N/A,N/A,N/A,N/A,PASS,15 previously-untouched pages checked this round

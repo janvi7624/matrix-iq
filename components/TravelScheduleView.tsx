@@ -224,6 +224,10 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
 
       <div className={historyStyles.status}>{status}</div>
       {loaded && (
+        // Wrapped so a table wider than the window scrolls inside its own
+        // box instead of giving the whole PAGE a horizontal scrollbar — the
+        // convention every other table in the app already follows.
+        <div className={historyStyles.tableWrap}>
         <table className={historyStyles.table}>
           <thead>
             <tr>
@@ -290,6 +294,7 @@ export default function TravelScheduleView({ currentUser }: TravelScheduleViewPr
             )}
           </tbody>
         </table>
+        </div>
       )}
     </AppShell>
   );
