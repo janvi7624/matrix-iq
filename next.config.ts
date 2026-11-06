@@ -32,7 +32,48 @@ function buildWorkerCount(): number {
   return Math.max(1, Math.min(os.cpus().length, DEFAULT_BUILD_WORKERS));
 }
 
+// Security headers applied to EVERY response (pages and API routes alike).
+// Deliberately NOT including Content-Security-Policy here: a wrong CSP
+// silently breaks real functionality (a blocked inline script/style/font
+// just fails quietly in the console) on a live app real staff depend on,
+// and building one correctly means auditing every actual source this app
+// loads from first — that's a dedicated follow-up, not a guess bundled into
+// a general security-header pass. Everything below is the subset that is
+// essentially risk-free: none of it can break working functionality, it can
+// only remove things an attacker could otherwise do.
+const SECURITY_HEADERS = [
+  // Stops the browser from MIME-sniffing a response into executing as a
+  // different content-type than declared — the same class of protection
+  // already added to the file-upload-serving routes earlier, applied here
+  // app-wide as defense in depth.
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  // This app has no legitimate reason to be framed by another site —
+  // blocks clickjacking via an invisible iframe.
+  { key: 'X-Frame-Options', value: 'DENY' },
+  // Sends the full referrer on same-origin navigation (useful for this
+  // app's own analytics/navigation) but only the origin, not the full path
+  // (which could leak an internal id/query string), to a different site.
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  // Tells browsers to only ever reach this host over HTTPS for the next
+  // year, including subdomains — a no-op over plain HTTP locally/in a
+  // container, but load-bearing once this is served behind HTTPS in
+  // production. preload omitted deliberately: that requires submission to
+  // browsers' hardcoded preload list and is not reversible quickly if ever
+  // needed.
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+  // Explicitly denies browser features this app never uses, rather than
+  // leaving them at the browser's permissive default.
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' }
+];
+
 const nextConfig: NextConfig = {
+  // Removes the `X-Powered-By: Next.js` response header — gratuitous
+  // framework-fingerprinting information an attacker doesn't need handed
+  // to them for free.
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: '/:path*', headers: SECURITY_HEADERS }];
+  },
   // Sequelize does its own dynamic require() to load the pg dialect module at
   // runtime — bundling it breaks that (`Please install pg package manually`
   // even though pg is installed). serverExternalPackages stops Next from
