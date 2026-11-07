@@ -58,7 +58,6 @@ const RESOLVERS: Record<string, EntityResolver> = {
   // (admin- or hr-assigned) — authorization inside the page decides what the
   // viewer (assignee, reviewer, creator, or manager) may see/do.
   general_task: { href: (id) => `/my-tasks/${id}`, exists: (id) => existsIn('GeneralTask', id) },
-  leave_request: { href: () => '/hr/leave', exists: (id) => existsIn('LeaveRequest', id) },
   // Partner Portal. A partner-submitted project is an ordinary Project row,
   // so the INTERNAL destination is the normal project page — it is the
   // PARTNER-side href that differs, which is why these also appear in

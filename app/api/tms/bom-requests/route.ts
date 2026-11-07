@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    const created = await tmsBomRequestStore.create(record);
+    const created = await tmsBomRequestStore.create(record, viewer.userId);
 
     if (submitNow) {
       await logAudit({

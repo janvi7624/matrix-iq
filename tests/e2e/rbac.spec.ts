@@ -51,3 +51,33 @@ test('deleting a user requires superadmin specifically — an admin is rejected'
   const res = await page.request.delete(`/api/admin/users/${salesUser.id}`);
   expect(res.status()).toBe(403);
 });
+
+// OPSQA-DEF-005: /support used to fire a guaranteed-403 fetch to
+// /api/support/tickets on every load for a role that can never work the
+// queue (Sales has no queue role — see lib/supportTicketAccess.ts). The
+// page now computes the same canWorkSupportQueue() check server-side and
+// skips the client-side fetch entirely when it's false. The API's own
+// check is untouched — this only confirms the wasted call is gone, not
+// that the API's authorization changed.
+test('Support page does not call the tickets API for a role with no queue access', async ({ page }) => {
+  await loginAsFixture(page, salesUser);
+  let ticketsRequests = 0;
+  page.on('request', (req) => {
+    if (req.url().includes('/api/support/tickets')) ticketsRequests += 1;
+  });
+  await page.goto('/support');
+  await page.waitForLoadState('networkidle');
+  expect(ticketsRequests).toBe(0);
+  await expect(page.getByText('You do not have access to the support queue.')).toBeVisible();
+});
+
+test('Support page DOES call the tickets API for a role with queue access', async ({ page }) => {
+  await loginAsFixture(page, adminUser);
+  let ticketsRequests = 0;
+  page.on('request', (req) => {
+    if (req.url().includes('/api/support/tickets')) ticketsRequests += 1;
+  });
+  await page.goto('/support');
+  await page.waitForLoadState('networkidle');
+  expect(ticketsRequests).toBeGreaterThan(0);
+});

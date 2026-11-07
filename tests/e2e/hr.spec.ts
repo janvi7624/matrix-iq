@@ -29,7 +29,10 @@ test.afterAll(async () => {
 
 test('a non-HR role is blocked from every HR review page, no exceptions', async ({ page }) => {
   await loginAsFixture(page, salesUser);
-  for (const path of ['/hr/attendance', '/hr/employees', '/hr/leave', '/hr/reports']) {
+  // '/hr/leave' was removed (OPSQA-DEF-002) — it was retired/unreachable
+  // dead code for every role including HR itself, not a page any role can
+  // legitimately be "blocked" from; it no longer exists to redirect at all.
+  for (const path of ['/hr/attendance', '/hr/employees', '/hr/reports']) {
     // maxRedirects: 0 is load-bearing — Playwright's APIRequestContext
     // follows redirects by default, same as fetch(), which silently turns
     // the real 307 into the 200 of wherever it lands and made this

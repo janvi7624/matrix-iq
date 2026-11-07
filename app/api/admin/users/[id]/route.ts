@@ -86,6 +86,18 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await deleteUser(id);
     return NextResponse.json({ ok: true });
   } catch (error) {
+    // general_tasks.assignee_id is deliberately ON DELETE RESTRICT (a task
+    // must always have a real assignee — task history/audit trail is meant
+    // to be preserved, not silently orphaned or cascade-deleted) — see
+    // db/migrations/20260909120000-create-general-tasks.js. Without this,
+    // the admin saw a raw SequelizeForeignKeyConstraintError (OPSQA-DEF-003)
+    // instead of being told what to actually do about it.
+    if (error instanceof Error && error.name === 'SequelizeForeignKeyConstraintError' && (error as { table?: string }).table === 'general_tasks') {
+      return NextResponse.json(
+        { error: 'This user cannot be deleted because they still have a task assigned to them. Reassign or complete their task(s) first.' },
+        { status: 409 }
+      );
+    }
     return apiErrorResponse(error);
   }
 }

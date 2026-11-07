@@ -17,5 +17,19 @@ export function apiErrorResponse(error: unknown): NextResponse {
   if (error instanceof Error && error.name === 'StorageUnavailableError') {
     return NextResponse.json({ error: message }, { status: 503 });
   }
+  // A delete/update blocked by a foreign-key constraint (e.g. deleting a
+  // user who still has a RESTRICT-protected row pointing at them, such as an
+  // assigned general task — see OPSQA-DEF-003) is a real, expected business
+  // rule outcome, not a server bug. Left unhandled it surfaced as a raw
+  // Postgres constraint message in a bare 500. 409 Conflict says "this is
+  // blocked by current state, fix that first" rather than "something broke";
+  // matched by name for the same reason as StorageUnavailableError above —
+  // this file stays free of a direct Sequelize import.
+  if (error instanceof Error && error.name === 'SequelizeForeignKeyConstraintError') {
+    return NextResponse.json(
+      { error: 'This cannot be deleted because other records still depend on it. Resolve those first.' },
+      { status: 409 }
+    );
+  }
   return NextResponse.json({ error: message }, { status: 500 });
 }

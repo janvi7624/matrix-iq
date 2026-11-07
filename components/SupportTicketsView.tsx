@@ -59,10 +59,20 @@ function slaText(sla: SlaAssessment | null): string {
   return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
 }
 
-export default function SupportTicketsView() {
+interface SupportTicketsViewProps {
+  // Computed server-side (app/support/page.tsx) from the SAME
+  // canWorkSupportQueue() the API itself enforces — purely a courtesy to
+  // skip a fetch that's guaranteed to 403 (OPSQA-DEF-005). The API's own
+  // check is unchanged and still authoritative: if this prop and the API
+  // ever disagree, the API's 403 still wins and still shows the refusal
+  // message below, exactly as before.
+  canWorkQueue: boolean;
+}
+
+export default function SupportTicketsView({ canWorkQueue }: SupportTicketsViewProps) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [queue, setQueue] = useState('open');
-  const [status, setStatus] = useState('Loading...');
+  const [status, setStatus] = useState(canWorkQueue ? 'Loading...' : 'You do not have access to the support queue.');
   const [search, setSearch] = useState('');
 
   const load = useCallback(async () => {
@@ -82,8 +92,9 @@ export default function SupportTicketsView() {
   }, [queue]);
 
   useEffect(() => {
+    if (!canWorkQueue) return;
     load();
-  }, [load]);
+  }, [load, canWorkQueue]);
 
   const visible = tickets.filter((t) => {
     const needle = search.trim().toLowerCase();

@@ -676,10 +676,10 @@ export default function ReimbursementView({ currentUser }: Props) {
       )}
       {/* Toolbar */}
       <div className={historyStyles.toolbar}>
-        <select className={`${calcStyles.formControl} ${styles.selectMonth}`} value={month} onChange={(e) => { setMonth(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); setShowForm(false); setShowBulkForm(false); cancelForm(); }}>
+        <select aria-label="Month" className={`${calcStyles.formControl} ${styles.selectMonth}`} value={month} onChange={(e) => { setMonth(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); setShowForm(false); setShowBulkForm(false); cancelForm(); }}>
           {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
         </select>
-        <select className={`${calcStyles.formControl} ${styles.selectYear}`} value={year} onChange={(e) => { setYear(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); setShowForm(false); setShowBulkForm(false); cancelForm(); }}>
+        <select aria-label="Year" className={`${calcStyles.formControl} ${styles.selectYear}`} value={year} onChange={(e) => { setYear(Number(e.target.value)); setForm((f) => ({ ...f, date: '' })); setShowForm(false); setShowBulkForm(false); cancelForm(); }}>
           {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
         {canAddNewEntries && (
@@ -908,8 +908,8 @@ export default function ReimbursementView({ currentUser }: Props) {
                 <input type="date" className={calcStyles.formControl} required min={dateMin} max={dateMax} value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
               </div>
               <div className={calcStyles.field}>
-                <label className={calcStyles.label}>Description *</label>
-                <select className={calcStyles.formControl} required value={form.descriptionType} onChange={(e) => {
+                <label className={calcStyles.label} htmlFor="reimbursement-description-type">Description *</label>
+                <select id="reimbursement-description-type" aria-label="Description" className={calcStyles.formControl} required value={form.descriptionType} onChange={(e) => {
                   const val = e.target.value;
                   setForm((f) => ({
                     ...f, descriptionType: val, description: '', vehicleType: '',

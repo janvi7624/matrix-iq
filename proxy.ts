@@ -35,6 +35,12 @@ import { mayReachAdminArea } from '@/lib/adminAreaAccess';
 // of the DAILY_REPORT_CRON_SECRET shared secret instead. With that variable
 // unset the route refuses every request, so this exemption cannot leave an
 // open trigger on a deployment that hasn't configured it.
+//
+// /api/health (REL-DEPLOY-004) is listed for a different reason: it's an
+// infra liveness/readiness probe meant to be hit with no session at all (a
+// load balancer, uptime monitor, deploy script), and it needs no secondary
+// secret-check like the cron routes above because it reveals nothing beyond
+// a boolean + a timestamp — never business data.
 const PUBLIC_PATHS = new Set([
   '/login',
   '/api/auth/login',
@@ -43,7 +49,8 @@ const PUBLIC_PATHS = new Set([
   '/api/integrations/meta/webhook',
   '/api/cron/daily-report-sweep',
   '/api/cron/backoffice-monthly-summary',
-  '/api/cron/daily-report-monthly-summary'
+  '/api/cron/daily-report-monthly-summary',
+  '/api/health'
 ]);
 // Reachable even while a bulk-imported account is force-locked to changing
 // its temporary password — see the mustChangePassword gate below.

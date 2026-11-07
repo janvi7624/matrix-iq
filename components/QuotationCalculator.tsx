@@ -788,6 +788,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                 <div className={styles.field}>
                   <label className={styles.label} htmlFor="projectSelect">Project</label>
                   <ProjectSelect
+                    id="projectSelect"
                     value={projectId}
                     placeholder="-- No project (client details below stay independent) --"
                     onChange={(next, project) => {

@@ -11,7 +11,15 @@ import { defineConfig } from '@playwright/test';
 // racing each other.
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 30_000,
+  // REL-TEST-001: raised from 30_000. db/config/config.js's Sequelize pool
+  // has its own `acquire: 30000` (how long it waits for a free connection
+  // under load before giving up) — a test's `beforeAll` doing DB-heavy
+  // fixture creation while something else (another test run, a manual QA
+  // script) is hammering the same pool could still be legitimately waiting
+  // on a connection at almost exactly the moment this timeout used to fire,
+  // turning real-but-slow success into an apparent test failure. 60s gives
+  // that wait room to resolve instead of racing it.
+  timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,

@@ -139,12 +139,30 @@ async function findById(id: string): Promise<TmsBomRequestRecord | undefined> {
   return row ? toRecord(row) : undefined;
 }
 
-async function create(record: TmsBomRequestRecord): Promise<TmsBomRequestRecord> {
+// createdById: the caller's already-verified user id (from getTmsViewer),
+// preferred over re-deriving it from record.created_by's username here. That
+// second, independent username lookup was the actual cause of OPSQA-DEF-001
+// (BOM requests silently recorded with created_by/requested_by_id both NULL
+// right after login) — a transient miss on this lookup used to fall back to
+// `null` instead of failing loudly. Falling back to the username lookup only
+// covers callers that genuinely have no id in hand yet; it still throws
+// rather than silently writing an unattributed row if that also can't
+// resolve, since a BOM request with no recorded requester is an audit gap,
+// not a recoverable condition.
+async function create(record: TmsBomRequestRecord, createdById?: string): Promise<TmsBomRequestRecord> {
   const attrs: Record<string, unknown> = {};
   for (const { name, kind = 'string' } of FIELDS) attrs[name] = toAttr((record as unknown as Record<string, unknown>)[name], kind);
-  const creator = await db.User.findOne({ where: { username: record.created_by } as never });
 
-  const row = await db.TmsBomRequest.create({ ...attrs, created_by: creator ? creator.get('id') : null } as never);
+  let resolvedCreatorId = createdById || '';
+  if (!resolvedCreatorId) {
+    const creator = await db.User.findOne({ where: { username: record.created_by } as never });
+    resolvedCreatorId = creator ? (creator.get('id') as string) : '';
+  }
+  if (!resolvedCreatorId) {
+    throw new Error('Could not establish the authenticated requester\'s identity — refusing to create an unattributed BOM request.');
+  }
+
+  const row = await db.TmsBomRequest.create({ ...attrs, created_by: resolvedCreatorId } as never);
   const withAssoc = await db.TmsBomRequest.findByPk(row.get('id') as string, { include: ALL_INCLUDES });
   return toRecord(withAssoc as Model);
 }

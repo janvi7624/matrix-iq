@@ -17,6 +17,10 @@ interface ProjectSelectProps {
   required?: boolean;
   placeholder?: string;
   className?: string;
+  // Lets a caller's <label htmlFor="..."> actually associate with the real
+  // visible input (see REL-UX-003) — optional so every other existing call
+  // site's behavior is unchanged.
+  id?: string;
 }
 
 function projectLabel(p: ProjectRecord): string {
@@ -35,7 +39,7 @@ function projectLabel(p: ProjectRecord): string {
 // `value` so a caller passing `required` still gets normal native form
 // validation regardless of whatever text happens to be typed in the visible
 // search box at submit time.
-export default function ProjectSelect({ value, onChange, required, placeholder = '— Select project —', className }: ProjectSelectProps) {
+export default function ProjectSelect({ value, onChange, required, placeholder = '— Select project —', className, id }: ProjectSelectProps) {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -81,9 +85,11 @@ export default function ProjectSelect({ value, onChange, required, placeholder =
   return (
     <div ref={containerRef} className={calcStyles.teamMemberSelect}>
       <input
+        id={id}
         type="text"
         className={className || calcStyles.formControl}
         placeholder={placeholder}
+        aria-label={!id ? 'Project' : undefined}
         value={open ? query : (selected ? projectLabel(selected) : '')}
         onFocus={() => { setOpen(true); setQuery(''); }}
         onChange={(e) => setQuery(e.target.value)}

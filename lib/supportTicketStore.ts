@@ -70,10 +70,7 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
 }
 
-async function policyFor(priority: string): Promise<SlaPolicy | null> {
-  const row = await db.SupportSlaPolicy.findOne({ where: { priority, status: 'active' } as never });
-  if (!row) return null;
-  const plain = row.get({ plain: true }) as Record<string, unknown>;
+function mapPolicyRow(plain: Record<string, unknown>): SlaPolicy {
   return {
     priority: plain.priority as string,
     firstResponseMinutes: Number(plain.first_response_minutes) || 0,
@@ -82,6 +79,25 @@ async function policyFor(priority: string): Promise<SlaPolicy | null> {
     businessHoursOnly: plain.business_hours_only === true,
     escalateAfterMinutes: plain.escalate_after_minutes === null || plain.escalate_after_minutes === undefined ? null : Number(plain.escalate_after_minutes)
   };
+}
+
+async function policyFor(priority: string): Promise<SlaPolicy | null> {
+  const row = await db.SupportSlaPolicy.findOne({ where: { priority, status: 'active' } as never });
+  return row ? mapPolicyRow(row.get({ plain: true }) as Record<string, unknown>) : null;
+}
+
+// Batched counterpart of policyFor — the number of distinct priorities is
+// small and fixed (low/medium/high/critical), so one query covers every
+// ticket in a list instead of one query per ticket (see REL-DB-002 / the
+// identically-shaped history batching below).
+async function policiesByPriority(): Promise<Map<string, SlaPolicy>> {
+  const rows = await db.SupportSlaPolicy.findAll({ where: { status: 'active' } as never });
+  const map = new Map<string, SlaPolicy>();
+  for (const row of rows) {
+    const policy = mapPolicyRow(row.get({ plain: true }) as Record<string, unknown>);
+    map.set(policy.priority, policy);
+  }
+  return map;
 }
 
 const ticketIncludes = [
@@ -137,23 +153,45 @@ function toView(plain: Record<string, unknown>, sla: SlaAssessment | null, forPa
   };
 }
 
-async function historyFor(ticketId: string): Promise<{ from_status: string | null; to_status: string; at: string }[]> {
+type HistoryEntry = { from_status: string | null; to_status: string; at: string };
+
+function mapHistoryRow(plain: Record<string, unknown>): HistoryEntry {
+  return {
+    from_status: (plain.from_status as string) ?? null,
+    to_status: plain.to_status as string,
+    at: isoOrEmpty(plain.at)
+  };
+}
+
+async function historyFor(ticketId: string): Promise<HistoryEntry[]> {
   const rows = await db.SupportTicketStatusHistory.findAll({
     where: { ticket_id: ticketId } as never,
     order: [['at', 'ASC']]
   });
-  return rows.map((r) => {
-    const plain = r.get({ plain: true }) as Record<string, unknown>;
-    return {
-      from_status: (plain.from_status as string) ?? null,
-      to_status: plain.to_status as string,
-      at: isoOrEmpty(plain.at)
-    };
-  });
+  return rows.map((r) => mapHistoryRow(r.get({ plain: true }) as Record<string, unknown>));
 }
 
-async function slaFor(plain: Record<string, unknown>): Promise<SlaAssessment | null> {
-  const policy = await policyFor((plain.priority as string) ?? 'medium');
+// Batched counterpart of historyFor — one query for every ticket in a list
+// instead of one per ticket (see REL-DB-002). Grouped in memory since
+// status-history has no FK-based eager-load association on SupportTicket.
+async function historiesByTicketIds(ticketIds: string[]): Promise<Map<string, HistoryEntry[]>> {
+  const map = new Map<string, HistoryEntry[]>();
+  if (!ticketIds.length) return map;
+  const rows = await db.SupportTicketStatusHistory.findAll({
+    where: { ticket_id: ticketIds } as never,
+    order: [['at', 'ASC']]
+  });
+  for (const row of rows) {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    const ticketId = plain.ticket_id as string;
+    const list = map.get(ticketId) ?? [];
+    list.push(mapHistoryRow(plain));
+    map.set(ticketId, list);
+  }
+  return map;
+}
+
+function assessSlaFor(plain: Record<string, unknown>, policy: SlaPolicy | null, history: HistoryEntry[]): SlaAssessment | null {
   if (!policy) return null;
   return assessSla({
     createdAt: isoOrEmpty(plain.createdAt),
@@ -163,9 +201,14 @@ async function slaFor(plain: Record<string, unknown>): Promise<SlaAssessment | n
     resolvedAt: isoOrEmpty(plain.resolved_at),
     closedAt: isoOrEmpty(plain.closed_at),
     status: (plain.status as string) ?? 'new',
-    history: await historyFor(plain.id as string),
+    history,
     policy
   });
+}
+
+async function slaFor(plain: Record<string, unknown>): Promise<SlaAssessment | null> {
+  const policy = await policyFor((plain.priority as string) ?? 'medium');
+  return assessSlaFor(plain, policy, await historyFor(plain.id as string));
 }
 
 /**
@@ -369,11 +412,15 @@ export async function listInternalTickets(filters: InternalTicketFilters, viewer
   if (filters.assigneeId) where.assigned_to_id = filters.assigneeId;
 
   const rows = await db.SupportTicket.findAll({ where: where as never, include: ticketIncludes, order: [['created_at', 'DESC']] });
-  return Promise.all(
-    rows.map(async (r) => {
-      const plain = r.get({ plain: true }) as Record<string, unknown>;
-      return toView(plain, await slaFor(plain), false);
-    })
+  const plains = rows.map((r) => r.get({ plain: true }) as Record<string, unknown>);
+  // Was one SLA-policy query + one status-history query PER ticket (2N+1
+  // total) — batched to 2 queries total regardless of list size (REL-DB-002).
+  const [policies, histories] = await Promise.all([
+    policiesByPriority(),
+    historiesByTicketIds(plains.map((p) => p.id as string))
+  ]);
+  return plains.map((plain) =>
+    toView(plain, assessSlaFor(plain, policies.get((plain.priority as string) ?? 'medium') ?? null, histories.get(plain.id as string) ?? []), false)
   );
 }
 

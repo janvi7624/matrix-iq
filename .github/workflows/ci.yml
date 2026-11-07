@@ -1,0 +1,73 @@
+name: CI
+
+# REL-DEPLOY-001: a minimal CI pipeline — this repo had none at all. Runs
+# typecheck, the Vitest suite, a production build, and the Playwright E2E
+# suite against a real Postgres service container on every push/PR to dev
+# and main. Lint is run informationally (not a gate): this project's own
+# QA_REPORTS note a large pre-existing lint baseline (~252 errors) that
+# predates this workflow and isn't something a new CI pipeline should start
+# failing builds over — see QA_REPORTS/FULL_SYSTEM_QA for that baseline.
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: matrixiq
+          POSTGRES_PASSWORD: matrixiq
+          POSTGRES_DB: matrixiq_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U matrixiq"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://matrixiq:matrixiq@localhost:5432/matrixiq_ci
+      ADMIN_USERNAME: ci-admin
+      ADMIN_PASSWORD: CiAdminPassword1234!
+      ADMIN_SESSION_SECRET: ${{ secrets.CI_ADMIN_SESSION_SECRET || 'ci-only-session-secret-do-not-use-in-prod' }}
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run database migrations
+        run: npm run db:migrate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint (informational — not a gate; see note above)
+        run: npm run lint || true
+
+      - name: Unit tests (Vitest)
+        run: npm test
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests (Playwright)
+        run: npx playwright test
+
+      - name: Production build
+        run: npm run build

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { listActiveDepartments } from './departmentStore';
 import { getViewerContext, ViewerContext } from './viewerContext';
-import { findUserByUsername } from './userStore';
+import { findUserById } from './userStore';
 import { isModuleAccessAllowed } from './moduleConfigStore';
 import { isModuleActionAllowed } from './permissions';
 import { ModulePermissionAction } from './types';
@@ -40,9 +40,18 @@ export interface TmsViewer extends ViewerContext {
 export async function getTmsViewer(request: NextRequest): Promise<TmsViewer | null> {
   const viewer = await getViewerContext(request);
   if (!viewer) return null;
-  const user = await findUserByUsername(viewer.username);
+  // Primary-key lookup on the id getViewerContext already verified from the
+  // session — NOT a second username-based lookup. A username match
+  // (case-insensitive, via findUserByUsername) is a separate, independently
+  // fallible read; under load it was occasionally coming back empty for a
+  // split second right after a user's row changed, which silently blanked
+  // viewer.userId and made every TMS write that stamps "who did this"
+  // (e.g. BOM requests' requested_by_id) record NULL instead of a real
+  // actor. viewer.userId is session.sub, already authenticated — reuse it
+  // outright rather than re-deriving it from something that can fail.
+  const user = await findUserById(viewer.userId);
   const deptRow = user?.department ? await db.Department.findOne({ where: { name: user.department } as never, attributes: ['id'] }) : null;
-  return { ...viewer, department: user?.department ?? '', departmentId: deptRow ? (deptRow.get('id') as string) : '', userId: user?.id ?? '' };
+  return { ...viewer, department: user?.department ?? '', departmentId: deptRow ? (deptRow.get('id') as string) : '', userId: viewer.userId };
 }
 
 // Manager-tier TMS roles — sees their department's whole project pool, not

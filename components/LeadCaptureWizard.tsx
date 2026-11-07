@@ -317,8 +317,8 @@ export default function LeadCaptureWizard({ creating, onSubmit, onViewAllLeads }
               </div>
             ) : (
               <div className={historyStyles.captureChoices}>
-                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className={styles.hiddenInput} onChange={(e) => handleImageSelected(e.target.files?.[0])} />
-                <input ref={galleryInputRef} type="file" accept="image/*" className={styles.hiddenInput} onChange={(e) => handleImageSelected(e.target.files?.[0])} />
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" aria-label="Scan business card with camera" className={styles.hiddenInput} onChange={(e) => handleImageSelected(e.target.files?.[0])} />
+                <input ref={galleryInputRef} type="file" accept="image/*" aria-label="Choose business card photo from gallery" className={styles.hiddenInput} onChange={(e) => handleImageSelected(e.target.files?.[0])} />
 
                 <button type="button" className={historyStyles.captureCard} onClick={() => cameraInputRef.current?.click()}>
                   <div className={historyStyles.captureCardIcon}><Camera size={26} /></div>
