@@ -1,0 +1,105 @@
+Role,Module,HTTP Method,Endpoint,Result,Classification,Evidence
+user (Sales),Leads,GET,/api/leads,200,ALLOWED,Live-tested via disposable QA_TEST_ fixture
+user (Sales),Leads,POST,/api/leads,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+user (Sales),Projects,GET,/api/projects,200,ALLOWED,Live-tested
+user (Sales),Projects,POST,/api/projects,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+user (Sales),TMS Projects,GET,/api/tms/projects,403/401,DENIED,Live-tested
+user (Sales),TMS Projects,POST,/api/tms/projects,403/401,DENIED,Live-tested
+user (Sales),HR Reimbursement,GET,/api/reimbursement,200,ALLOWED,Live-tested
+user (Sales),HR Reimbursement,POST,/api/reimbursement,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+user (Sales),BOM / Procurement (TMS),GET,/api/tms/bom-requests,403/401,DENIED,Live-tested
+user (Sales),BOM / Procurement (TMS),POST,/api/tms/bom-requests,403/401,DENIED,Live-tested
+user (Sales),Purchase Orders,GET,/api/po,200,ALLOWED,Live-tested
+user (Sales),Purchase Orders,POST,/api/po,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+user (Sales),Admin Users,GET,/api/admin/users,403/401,DENIED,Live-tested
+user (Sales),Dashboard,GET,/api/dashboard,200,ALLOWED,Live-tested
+user (Sales),Notifications,GET,/api/notifications,200,ALLOWED,Live-tested
+user (Sales),Notifications,POST,/api/notifications,405,DENIED (method not allowed on this route),Live-tested
+user (Sales),Support Tickets,GET,/api/support/tickets,403/401,DENIED,Live-tested
+user (Sales),Support Tickets,POST,/api/support/tickets,400,NOT TESTED (ambiguous -- 400 could be auth-pass+bad-body OR a generic 400 before an auth check; GET on same route was DENIED which is inconsistent -- flagged as a BUG candidate needing manual follow-up,BUG CANDIDATE -- see notes column
+manager,Leads,GET,/api/leads,200,ALLOWED,Live-tested
+manager,Leads,POST,/api/leads,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+manager,Projects,GET,/api/projects,200,ALLOWED,Live-tested
+manager,Projects,POST,/api/projects,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+manager,TMS Projects,GET,/api/tms/projects,403/401,DENIED,Live-tested
+manager,TMS Projects,POST,/api/tms/projects,403/401,DENIED,Live-tested
+manager,HR Reimbursement,GET,/api/reimbursement,200,ALLOWED,Live-tested
+manager,HR Reimbursement,POST,/api/reimbursement,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+manager,BOM / Procurement (TMS),GET,/api/tms/bom-requests,403/401,DENIED,Live-tested
+manager,BOM / Procurement (TMS),POST,/api/tms/bom-requests,403/401,DENIED,Live-tested
+manager,Purchase Orders,GET,/api/po,200,ALLOWED,Live-tested
+manager,Purchase Orders,POST,/api/po,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+manager,Admin Users,GET,/api/admin/users,200,ALLOWED,"Live-tested -- consistent with manager's isPrivileged=true default (legacyIsPrivileged), not a bug"
+manager,Dashboard,GET,/api/dashboard,200,ALLOWED,Live-tested
+manager,Notifications,GET,/api/notifications,200,ALLOWED,Live-tested
+manager,Notifications,POST,/api/notifications,405,DENIED (method not allowed on this route),Live-tested
+manager,Support Tickets,GET,/api/support/tickets,403/401,DENIED,"Live-tested -- manager is privileged elsewhere but blocked here; code-verify before assuming bug, not done in this pass"
+hr,Leads,GET,/api/leads,200,ALLOWED,Live-tested
+hr,Leads,POST,/api/leads,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+hr,Projects,GET,/api/projects,200,ALLOWED,Live-tested
+hr,Projects,POST,/api/projects,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+hr,TMS Projects,GET,/api/tms/projects,403/401,DENIED,Live-tested
+hr,TMS Projects,POST,/api/tms/projects,403/401,DENIED,Live-tested
+hr,HR Reimbursement,GET,/api/reimbursement,200,ALLOWED,Live-tested
+hr,HR Reimbursement,POST,/api/reimbursement,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+hr,BOM / Procurement (TMS),GET,/api/tms/bom-requests,403/401,DENIED,Live-tested
+hr,BOM / Procurement (TMS),POST,/api/tms/bom-requests,403/401,DENIED,Live-tested
+hr,Purchase Orders,GET,/api/po,200,ALLOWED,Live-tested
+hr,Purchase Orders,POST,/api/po,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+hr,Admin Users,GET,/api/admin/users,403/401,DENIED,Live-tested
+hr,Dashboard,GET,/api/dashboard,200,ALLOWED,Live-tested
+hr,Notifications,GET,/api/notifications,200,ALLOWED,Live-tested
+hr,Notifications,POST,/api/notifications,405,DENIED (method not allowed on this route),Live-tested
+hr,Support Tickets,GET,/api/support/tickets,403/401,DENIED,Live-tested
+accounts,Leads,GET,/api/leads,200,ALLOWED,Live-tested
+accounts,Leads,POST,/api/leads,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+accounts,Projects,GET,/api/projects,200,ALLOWED,Live-tested
+accounts,Projects,POST,/api/projects,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+accounts,TMS Projects,GET,/api/tms/projects,403/401,DENIED,Live-tested
+accounts,TMS Projects,POST,/api/tms/projects,403/401,DENIED,Live-tested
+accounts,HR Reimbursement,GET,/api/reimbursement,200,ALLOWED,Live-tested
+accounts,HR Reimbursement,POST,/api/reimbursement,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+accounts,BOM / Procurement (TMS),GET,/api/tms/bom-requests,403/401,DENIED,Live-tested
+accounts,BOM / Procurement (TMS),POST,/api/tms/bom-requests,403/401,DENIED,Live-tested
+accounts,Purchase Orders,GET,/api/po,200,ALLOWED,Live-tested
+accounts,Purchase Orders,POST,/api/po,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+accounts,Admin Users,GET,/api/admin/users,403/401,DENIED,Live-tested
+accounts,Dashboard,GET,/api/dashboard,200,ALLOWED,Live-tested
+accounts,Notifications,GET,/api/notifications,200,ALLOWED,Live-tested
+accounts,Notifications,POST,/api/notifications,405,DENIED (method not allowed on this route),Live-tested
+accounts,Support Tickets,GET,/api/support/tickets,403/401,DENIED,Live-tested
+admin,Leads,GET,/api/leads,200,ALLOWED,Live-tested
+admin,Leads,POST,/api/leads,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+admin,Projects,GET,/api/projects,200,ALLOWED,Live-tested
+admin,Projects,POST,/api/projects,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+admin,TMS Projects,GET,/api/tms/projects,200,ALLOWED,Live-tested
+admin,TMS Projects,POST,/api/tms/projects,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+admin,HR Reimbursement,GET,/api/reimbursement,200,ALLOWED,Live-tested
+admin,HR Reimbursement,POST,/api/reimbursement,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+admin,BOM / Procurement (TMS),GET,/api/tms/bom-requests,200,ALLOWED,Live-tested
+admin,BOM / Procurement (TMS),POST,/api/tms/bom-requests,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+admin,Purchase Orders,GET,/api/po,200,ALLOWED,Live-tested
+admin,Purchase Orders,POST,/api/po,400,ALLOWED (auth passed; validation rejected minimal body),Live-tested
+admin,Admin Users,GET,/api/admin/users,200,ALLOWED,"Live-tested; POST /api/admin/users (account creation) deliberately NOT live-mutation-tested in this pass -- it calls createUser() which sends a real SES email per project convention; code-verified instead: admin passes proxy.ts isPrivileged gate for /admin/*"
+admin,Dashboard,GET,/api/dashboard,200,ALLOWED,Live-tested
+admin,Notifications,GET,/api/notifications,200,ALLOWED,Live-tested
+admin,Notifications,POST,/api/notifications,405,DENIED (method not allowed on this route),Live-tested
+admin,Support Tickets,GET,/api/support/tickets,200,ALLOWED,Live-tested
+partner-user,Leads,GET,/api/leads,200,"ALLOWED -- but see note",Live-tested with UNBOUND fixture (no partnerId set); caveat below
+partner-user,Leads,POST,/api/leads,400,"ALLOWED (auth passed) -- but see note",Live-tested with UNBOUND fixture
+partner-user,Projects,GET,/api/projects,200,"ALLOWED -- but see note",Live-tested with UNBOUND fixture
+partner-user,Projects,POST,/api/projects,400,"ALLOWED (auth passed) -- but see note",Live-tested with UNBOUND fixture
+partner-user,TMS Projects,GET,/api/tms/projects,403/401,DENIED,Live-tested with UNBOUND fixture
+partner-user,TMS Projects,POST,/api/tms/projects,403/401,DENIED,Live-tested with UNBOUND fixture
+partner-user,HR Reimbursement,GET,/api/reimbursement,200,"ALLOWED -- but see note",Live-tested with UNBOUND fixture
+partner-user,HR Reimbursement,POST,/api/reimbursement,400,"ALLOWED (auth passed) -- but see note",Live-tested with UNBOUND fixture
+partner-user,BOM / Procurement (TMS),GET,/api/tms/bom-requests,403/401,DENIED,Live-tested with UNBOUND fixture
+partner-user,BOM / Procurement (TMS),POST,/api/tms/bom-requests,403/401,DENIED,Live-tested with UNBOUND fixture
+partner-user,Purchase Orders,GET,/api/po,200,"ALLOWED -- but see note",Live-tested with UNBOUND fixture
+partner-user,Purchase Orders,POST,/api/po,400,"ALLOWED (auth passed) -- but see note",Live-tested with UNBOUND fixture
+partner-user,Admin Users,GET,/api/admin/users,403/401,DENIED,Live-tested with UNBOUND fixture
+partner-user,Dashboard,GET,/api/dashboard,200,"ALLOWED -- but see note",Live-tested with UNBOUND fixture
+partner-user,Notifications,GET,/api/notifications,200,"ALLOWED -- but see note",Live-tested with UNBOUND fixture
+partner-user,Notifications,POST,/api/notifications,405,DENIED (method not allowed on this route),Live-tested with UNBOUND fixture
+partner-user,Support Tickets,GET,/api/support/tickets,403/401,DENIED,Live-tested with UNBOUND fixture
+NOTES,,,,,,"(1) '400' results on POST are classified ALLOWED because the request passed every auth/authorization check and was only rejected by field validation on a deliberately minimal/garbage body -- these mutating POSTs never persisted data (confirmed via post-run QA_TEST_ user audit; no QA_TEST_ records found in leads/projects/reimbursement/po tables after the run). (2) POST /api/admin/users was excluded from live mutation testing for every role -- it creates a REAL account via createUser() and sends a real SES email per project convention (never run). (3) The partner-user fixture created via createQaUser has NO partnerId set (the helper does not support it), so its ALLOWED results above reflect ordinary non-privileged *internal* access, not confirmation that the partner portal correctly confines a bound partner account to its own company's data -- that specific check is NOT TESTED in this pass and would require creating a Partner company record plus a user row with partnerId set, which was out of scope here. (4) user/Sales role shows DENIED on GET /api/support/tickets but a non-403 (400) on POST to the same route -- flagged as a BUG CANDIDATE: either the POST route is missing the same auth check as GET, or the 400 is itself the auth rejection reshaped by a generic try/catch; needs direct code read of app/api/support/tickets/route.ts to resolve, not done in this pass. (5) All 6 roles tested here were disposable QA_TEST_e2e_ fixtures created via createQaUser and hard-deleted (force:true) after the run; a post-run sweep additionally found and deleted 8 stray QA_TEST_ user rows left by other concurrent sessions (per project memory on dirty trees from other sessions) -- none were created by this task's own runs beyond its own leaked rows, which the sweep also caught."

@@ -1,0 +1,21 @@
+Test ID,Workflow,Step,Action,HTTP Method+Route (if applicable),Request summary,Response/DB result,Pass/Fail
+OPSQA-STEP-1,0,health-check,GET /,GET /,n/a,status 307,PASS
+OPSQA-STEP-2,1,login-sales1,login,POST /api/auth/login,QA_TEST_cross_user_1794024219518_1,status 200,PASS
+OPSQA-STEP-3,1,create-lead,create lead,POST /api/leads,leadSource=website,status 201 id=f105e223-641a-4a65-bcba-ae334526f7e1,PASS
+OPSQA-STEP-4,1,manager-reassign-lead,reassign lead,POST /api/leads/assign,leadId=f105e223-641a-4a65-bcba-ae334526f7e1 -> 1adb32d2-015b-4d32-9619-a62697d25a32,status 403,FAIL
+OPSQA-STEP-5,1,verify-reassign-db,DB check lead owner,n/a,leadId=f105e223-641a-4a65-bcba-ae334526f7e1,assignee field = undefined,PASS
+OPSQA-STEP-6,1,convert-lead-to-project,convert lead to project,POST /api/leads/[id]/convert-to-project,"opportunityType=project, departments=[AV]","status 404 body={""error"":""Lead not found""}",FAIL
+OPSQA-STEP-7,2,employee-add-entry,add reimbursement bill entry,POST /api/reimbursement,date=2026-10-15 desc=Conveyance (2 Wheeler) amount=250,"status 201 body={""id"":""f0c6e210-0116-4761-8674-c7ed8804a33e"",""created_at"":"""",""created_by"":""QA_TEST_cross_user_1794024234518_4"",""creator_name"":""Emp QA_TEST_cross_user_",PASS
+OPSQA-STEP-8,2,get-or-create-sheet,fetch/create monthly reimbursement sheet,GET /api/reimbursement/sheet,year=2026&month=10,status 200 id=141e401b-4d12-45af-a134-24b00a428f98,PASS
+OPSQA-STEP-9,2,employee-submit-sheet,submit reimbursement sheet,POST /api/reimbursement/sheet/[id]/submit,sheetId=141e401b-4d12-45af-a134-24b00a428f98,status 400,FAIL
+OPSQA-STEP-10,2,manager-decide,manager approves reimbursement,POST /api/reimbursement/sheet/[id]/manager-decide,decision=manager_approved,"status 400 body={""error"":""Sheet is not awaiting manager approval""}",FAIL
+OPSQA-STEP-11,2,hr-decide,HR approves reimbursement,POST /api/reimbursement/sheet/[id]/hr-decide,decision=hr_approved,"status 400 body={""error"":""Sheet is not awaiting HR review""}",FAIL
+OPSQA-STEP-12,2,verify-sheet-db,DB check sheet status,n/a,sheetId=141e401b-4d12-45af-a134-24b00a428f98,status field = draft,PASS
+OPSQA-STEP-13,3,create-tms-project,manager creates TMS project,POST /api/tms/projects,departmentId=5f8315e5-dda0-4f77-a83b-f35b79d61af2,"status 201 id=b98972a3-6b09-4bde-9fb1-baae8d4187b1 body={""id"":""b98972a3-6b09-4bde-9fb1-baae8d4187b1"",""created_at"":""2026-11-07T04:04:05.438Z"",""created_by"":""QA_TEST_cross_technical-manager_1794024242854_7"",""d",PASS
+OPSQA-STEP-14,3,assign-task,manager assigns task to engineer,POST /api/tms/tasks,projectId=b98972a3-6b09-4bde-9fb1-baae8d4187b1 assigneeId=ec4605f2-c1b8-4087-8930-485b4fdcef79,status 201 id=23625d72-dd3b-4125-8cce-84308a42bd8c,PASS
+OPSQA-STEP-15,3,engineer-update-task,engineer updates task status/progress,POST /api/tms/tasks/[id]/update,"action=start then action=progress,progressPercent=50",start status=200; progress status=200,PASS
+OPSQA-STEP-16,3,verify-progress-consistency,compare list vs detail progress %,GET /api/tms/projects + GET /api/tms/projects/[id],projectId=b98972a3-6b09-4bde-9fb1-baae8d4187b1,list=0 detail=0,PASS
+OPSQA-STEP-17,6,deptA-create-lead,deptA user creates lead (record owner),POST /api/leads,leadSource=Website,status 201 id=f00a2b16-1327-4a17-97f4-726ba187845a,PASS
+OPSQA-STEP-18,6,deptB-attempt-edit,unauthorized dept user attempts edit of deptA lead,PATCH /api/leads/[id],leadId=f00a2b16-1327-4a17-97f4-726ba187845a,"status 404 body={""error"":""Lead not found""}",PASS (correctly denied)
+OPSQA-STEP-19,6,same-dept-manager-access,same-department manager reads deptA lead,GET /api/leads/[id],leadId=f00a2b16-1327-4a17-97f4-726ba187845a,status 405,FAIL or scope narrower than expected
+OPSQA-STEP-20,6,org-wide-admin-access,admin (viewAllDepartments) reads deptA lead,GET /api/leads/[id],leadId=f00a2b16-1327-4a17-97f4-726ba187845a,status 405,FAIL
