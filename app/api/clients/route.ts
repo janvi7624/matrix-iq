@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { isModuleAccessAllowed } from '@/lib/moduleConfigStore';
 import { clientMasterStore } from '@/lib/clientMasterStore';
+import { paginateClients, ClientSortKey } from '@/lib/clientMasterQuery';
 import { apiErrorResponse } from '@/lib/apiError';
 
 // Client Master's project-derived half is deliberately org-wide within its
@@ -22,7 +23,31 @@ export async function GET(request: NextRequest) {
 
   try {
     const clients = await clientMasterStore.list(viewer.username);
-    return NextResponse.json({ clients });
+
+    // `page` is the opt-in for the filtered/paginated answer, the same
+    // convention /api/projects and /api/leads already use: a caller that does
+    // not ask for a page (the CSV export, any older client) gets the exact
+    // previous response, the whole directory, unchanged.
+    const params = request.nextUrl.searchParams;
+    if (!params.has('page')) return NextResponse.json({ clients });
+
+    return NextResponse.json(paginateClients(clients, {
+      search: params.get('search') || undefined,
+      company: params.get('company') || undefined,
+      owner: params.get('owner') || undefined,
+      handlerName: params.get('handlerName') || undefined,
+      type: (params.get('type') as 'customer' | 'prospect' | '') || undefined,
+      outcome: params.get('outcome') || undefined,
+      active: params.get('active') || undefined,
+      handler: params.get('handler') || undefined,
+      dateFrom: params.get('dateFrom') || undefined,
+      dateTo: params.get('dateTo') || undefined,
+      sortKey: (params.get('sortKey') as ClientSortKey) || undefined,
+      sortDesc: params.get('sortDesc') !== '0',
+      page: Number(params.get('page')) || 1,
+      pageSize: Number(params.get('pageSize')) || 20,
+      withOptions: params.get('options') !== '0'
+    }));
   } catch (error) {
     return apiErrorResponse(error);
   }

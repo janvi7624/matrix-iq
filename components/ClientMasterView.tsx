@@ -1,12 +1,13 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { ClientProject, LeadCallOutcome, ProjectPriority, ProjectStatus, UserRole } from '@/lib/types';
 // Type-only import — erased at compile time, so the store's server-side
 // Sequelize imports never reach this client bundle.
 import type { ClientMasterRow } from '@/lib/clientMasterStore';
+import type { ClientMasterStats, ClientMasterOptions } from '@/lib/clientMasterQuery';
 import { STAGE_LABEL } from '@/lib/projectStages';
 import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
@@ -140,6 +141,17 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
   const [sortKey, setSortKey] = useState<SortKey>('updated');
   const [sortDesc, setSortDesc] = useState(true);
   const [page, setPage] = useState(1);
+  // `clients` now holds ONLY the current page. The totals, the KPI tiles and
+  // the filter dropdowns are answered by the server from the whole directory,
+  // because every one of them has to describe all 1343 rows, not the 20 on
+  // screen. Shipping the whole directory to do that in the browser cost
+  // 1.27MB on every load.
+  const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState<ClientMasterStats | null>(null);
+  const [options, setOptions] = useState<ClientMasterOptions | null>(null);
+  // A ref, not state: it must not be a dependency of load() or asking for
+  // the options would invalidate the very callback that fetched them.
+  const haveOptions = useRef(false);
   const [showOwnership, setShowOwnership] = useState(false);
   const [drawerKey, setDrawerKey] = useState<string | null>(null);
   const [showColumnMenu, setShowColumnMenu] = useState(false);
@@ -177,20 +189,48 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     });
   }
 
-  async function load() {
+  // Every filter, the search, the sort and the page go to the server, which
+  // answers with one page plus the directory-wide totals and option lists.
+  // The predicates live in lib/clientMasterQuery.ts and are a deliberate copy
+  // of what this component used to do in the browser.
+  const load = useCallback(async () => {
     setLoading(true);
     setLoadFailed(false);
     try {
-      const response = await fetch('/api/clients');
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (companyFilter) params.set('company', companyFilter);
+      if (ownerFilter) params.set('owner', ownerFilter);
+      if (handlerNameFilter) params.set('handlerName', handlerNameFilter);
+      if (typeFilter) params.set('type', typeFilter);
+      if (outcomeFilter) params.set('outcome', outcomeFilter);
+      if (activeFilter) params.set('active', activeFilter);
+      if (productHandlerFilter) params.set('handler', productHandlerFilter);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      params.set('sortKey', sortKey);
+      params.set('sortDesc', sortDesc ? '1' : '0');
+      params.set('page', String(page));
+      params.set('pageSize', String(PAGE_SIZE));
+      // Ask for the dropdown lists only until we have them.
+      if (haveOptions.current) params.set('options', '0');
+      const response = await fetch(`/api/clients?${params.toString()}`);
       if (!response.ok) throw new Error(String(response.status));
-      const data: { clients: ClientMasterRow[] } = await response.json();
+      const data: { clients: ClientMasterRow[]; total: number; stats: ClientMasterStats; options?: ClientMasterOptions } = await response.json();
       setClients(data.clients);
+      setTotal(data.total);
+      setStats(data.stats);
+      // Omitted on every request after the first — keep what we have.
+      if (data.options) {
+        setOptions(data.options);
+        haveOptions.current = true;
+      }
     } catch {
       setLoadFailed(true);
     } finally {
       setLoading(false);
     }
-  }
+  }, [search, companyFilter, ownerFilter, handlerNameFilter, typeFilter, outcomeFilter, activeFilter, productHandlerFilter, dateFrom, dateTo, sortKey, sortDesc, page]);
 
   // Client Master is a read-only directory derived from Project records and
   // from leads with no project (see lib/clientMasterStore.ts) — there's no
@@ -245,7 +285,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   // Reset to page 1 whenever the effective result set changes underneath the
   // current page.
@@ -253,31 +293,20 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     setPage(1);
   }, [search, companyFilter, ownerFilter, handlerNameFilter, activeFilter, typeFilter, outcomeFilter, productHandlerFilter, dateFrom, dateTo]);
 
-  const distinctCompanies = useMemo(() => Array.from(new Set(clients.map((c) => c.displayName))).sort(), [clients]);
-  const distinctOwners = useMemo(() => {
-    const map = new Map<string, string>();
-    clients.forEach((c) => c.owners.forEach((o) => map.set(o.username, o.name)));
-    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [clients]);
-  const distinctHandlers = useMemo(() => {
-    const set = new Set<string>();
-    clients.forEach((c) => c.productHandlers.forEach((h) => set.add(h.product)));
-    return Array.from(set).sort();
-  }, [clients]);
+  const distinctCompanies = useMemo(() => options?.companies ?? [], [options]);
+  // [username, name] pairs, the shape the dropdown already renders.
+  const distinctOwners = useMemo<[string, string][]>(
+    () => (options?.owners ?? []).map((o) => [o.username, o.name]),
+    [options]
+  );
+  const distinctHandlers = useMemo(() => options?.handlers ?? [], [options]);
 
-  const ownerCounts = useMemo(() => {
-    const map = new Map<string, { name: string; count: number }>();
-    clients.forEach((c) =>
-      c.owners.forEach((o) => {
-        const entry = map.get(o.username) || { name: o.name, count: 0 };
-        entry.count += 1;
-        map.set(o.username, entry);
-      })
-    );
-    return Array.from(map.entries())
-      .map(([username, v]) => ({ username, ...v }))
-      .sort((a, b) => b.count - a.count);
-  }, [clients]);
+  // Counted across the WHOLE directory by the server — counting the current
+  // page would turn "Prashant: 198" into "Prashant: 3".
+  const ownerCounts = useMemo(
+    () => [...(options?.owners ?? [])].sort((a, b) => b.count - a.count),
+    [options]
+  );
 
   // The two project-shaped tiles count CUSTOMERS only. With 600 expo cards in
   // the directory, "No Active Projects" counting prospects too would read as
@@ -285,76 +314,31 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
   // qualified yet — the prospects get their own tile instead. "Added This
   // Month" deliberately counts every row: a month's new prospects are real
   // directory growth.
+  // From the server, over the whole directory. These tiles describe the
+  // DIRECTORY, not the current page — counting `clients` now would report
+  // "20 clients" however many there really are.
   const kpis = useMemo(
     () => ({
-      total: clients.length,
-      withActive: clients.filter((c) => !isProspect(c) && hasActiveProject(c)).length,
-      withoutActive: clients.filter((c) => !isProspect(c) && !hasActiveProject(c)).length,
-      prospects: clients.filter(isProspect).length,
-      addedThisMonth: clients.filter((c) => isThisMonth(c.createdAt)).length
+      total: stats?.totalClients ?? 0,
+      withActive: stats?.withActiveProject ?? 0,
+      // Customers without an active project. Prospects are excluded from
+      // both project tiles, so this is customers minus those with one.
+      withoutActive: Math.max(0, (stats?.customers ?? 0) - (stats?.withActiveProject ?? 0)),
+      prospects: stats?.prospects ?? 0,
+      addedThisMonth: stats?.addedThisMonth ?? 0
     }),
-    [clients]
+    [stats]
   );
 
-  const filtered = useMemo(() => {
-    return clients.filter((c) => {
-      if (companyFilter && c.displayName !== companyFilter) return false;
-      if (ownerFilter && !c.owners.some((o) => o.username === ownerFilter)) return false;
-      if (handlerNameFilter && !c.productHandlers.some((h) => h.product === handlerNameFilter)) return false;
-      if (typeFilter && c.type !== typeFilter) return false;
-      if (outcomeFilter) {
-        if (c.leadCount === 0) return false;
-        if (outcomeFilter === 'not_called' ? c.callOutcome !== '' : c.callOutcome !== outcomeFilter) return false;
-      }
-      // Both project tiles are about customers — a prospect has no project to
-      // be active or inactive, so it belongs in neither bucket.
-      if (activeFilter === 'has' && (isProspect(c) || !hasActiveProject(c))) return false;
-      if (activeFilter === 'none' && (isProspect(c) || hasActiveProject(c))) return false;
-      if (productHandlerFilter === 'has' && c.productHandlers.length === 0) return false;
-      if (productHandlerFilter === 'none' && c.productHandlers.length > 0) return false;
-      if (dateFrom && (!c.createdAt || c.createdAt.slice(0, 10) < dateFrom)) return false;
-      if (dateTo && (!c.createdAt || c.createdAt.slice(0, 10) > dateTo)) return false;
-      if (search) {
-        const haystack = [
-          c.displayName,
-          typeLabel(c),
-          c.callOutcome ? CALL_OUTCOME_LABEL[c.callOutcome] : '',
-          ...c.contacts.flatMap((ct) => [ct.clientName, ct.phone, ct.email, ct.altContactName, ct.altContactPhone]),
-          ...c.productHandlers.flatMap((h) => [h.product, h.handledBy]),
-          ...c.owners.flatMap((o) => [o.name, o.username]),
-          ...c.projects.map((p) => STATUS_LABEL[p.status])
-        ];
-        if (!haystack.some((v) => (v || '').toLowerCase().includes(search))) return false;
-      }
-      return true;
-    });
-  }, [clients, companyFilter, ownerFilter, handlerNameFilter, activeFilter, typeFilter, outcomeFilter, productHandlerFilter, dateFrom, dateTo, search]);
+  // The filter/search/sort that used to live here now runs on the server
+  // (lib/clientMasterQuery.ts). It was moved rather than duplicated: two
+  // copies of this logic would drift, and a filter that quietly disagrees
+  // about which rows match is a data-visibility bug, not a cosmetic one.
 
-  const sorted = useMemo(() => {
-    const list = [...filtered];
-    const dir = sortDesc ? -1 : 1;
-    list.sort((a, b) => {
-      switch (sortKey) {
-        case 'name':
-          return dir * (a.contacts[0]?.clientName || '').localeCompare(b.contacts[0]?.clientName || '');
-        case 'company':
-          return dir * a.displayName.localeCompare(b.displayName);
-        case 'owner':
-          return dir * (a.owners[0]?.name || '').localeCompare(b.owners[0]?.name || '');
-        case 'projects':
-          return dir * (a.projectCount - b.projectCount);
-        case 'created':
-          return dir * (a.createdAt || '').localeCompare(b.createdAt || '');
-        case 'updated':
-        default:
-          return dir * (a.updatedAt || '').localeCompare(b.updatedAt || '');
-      }
-    });
-    return list;
-  }, [filtered, sortKey, sortDesc]);
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const pageRows = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Already the right page, already filtered and sorted, straight from the
+  // server — no slicing left to do here.
+  const pageRows = clients;
   const drawerClient = drawerKey ? clients.find((c) => c.key === drawerKey) : null;
 
   function clearAllFilters() {
@@ -381,7 +365,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
   }
 
   const allColumns: TableColumn<ClientMasterRow>[] = [
-    { key: 'srNo', header: 'Sr. No.', render: (c) => sorted.indexOf(c) + 1 },
+    { key: 'srNo', header: 'Sr. No.', render: (c) => (page - 1) * PAGE_SIZE + pageRows.indexOf(c) + 1 },
     {
       key: 'type',
       header: 'Type',
@@ -645,7 +629,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
 
       {!loading && !loadFailed && (
         <div className={historyStyles.status}>
-          {clients.length ? `${sorted.length} of ${clients.length} client${clients.length === 1 ? '' : 's'} shown.` : ''}
+          {(stats?.totalClients ?? 0) ? `${total} of ${stats?.totalClients} client${stats?.totalClients === 1 ? '' : 's'} shown.` : ''}
         </div>
       )}
 
@@ -664,9 +648,9 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
               empty={
                 <EmptyState
                   icon={Users}
-                  title={clients.length === 0 ? 'No clients yet' : 'No clients match your search'}
-                  message={clients.length === 0 ? 'Clients appear here automatically as leads are captured and projects are created — or add one manually below.' : 'Try a different search or filter.'}
-                  action={clients.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
+                  title={(stats?.totalClients ?? 0) === 0 ? 'No clients yet' : 'No clients match your search'}
+                  message={(stats?.totalClients ?? 0) === 0 ? 'Clients appear here automatically as leads are captured and projects are created — or add one manually below.' : 'Try a different search or filter.'}
+                  action={(stats?.totalClients ?? 0) === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
                 />
               }
             />
@@ -676,9 +660,9 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
             {pageRows.length === 0 ? (
               <EmptyState
                 icon={Users}
-                title={clients.length === 0 ? 'No clients yet' : 'No clients match your search'}
-                message={clients.length === 0 ? 'Clients appear here automatically as leads are captured and projects are created — or add one manually below.' : 'Try a different search or filter.'}
-                action={clients.length === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
+                title={(stats?.totalClients ?? 0) === 0 ? 'No clients yet' : 'No clients match your search'}
+                message={(stats?.totalClients ?? 0) === 0 ? 'Clients appear here automatically as leads are captured and projects are created — or add one manually below.' : 'Try a different search or filter.'}
+                action={(stats?.totalClients ?? 0) === 0 ? <button type="button" className={calcStyles.btn} onClick={() => setShowAddForm(true)}>+ Add Client</button> : undefined}
               />
             ) : (
               pageRows.map((c) => {
