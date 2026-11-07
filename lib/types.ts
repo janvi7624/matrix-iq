@@ -1892,6 +1892,14 @@ export interface TmsProjectRecord {
   status: TmsProjectStatus;
   priority: TmsPriority;
   progress_percent: number;
+  /**
+   * completed/total tasks, or null when the project has no tasks. Served
+   * by the LIST so its Progress column can show the same figure the
+   * detail page headlines — they used to disagree: the list showed the
+   * manual percentage while the detail page silently switched to this
+   * one the moment a project had any task (REL-WORKFLOW-001).
+   */
+  task_derived_progress?: number | null;
   remarks: string;
   attachments: string[];
   updated_at: string;

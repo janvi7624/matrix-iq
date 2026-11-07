@@ -293,9 +293,17 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       render: (p) => (
         <>
           <div className={historyStyles.progressTrack}>
-            <div className={historyStyles.progressFill} style={{ width: `${p.progress_percent}%` }} />
+            <div className={historyStyles.progressFill} style={{ width: `${p.task_derived_progress ?? p.progress_percent}%` }} />
           </div>
-          <div className={historyStyles.progressLabel}>{p.progress_percent}%</div>
+          {/* Prefers the task-derived figure exactly as the detail page does.
+              This column used to show the manual percentage only, so the same
+              project read 20% here and 50% one click later with no explanation
+              (REL-WORKFLOW-001). The manual number is still what shows for a
+              project with no tasks, which is the only case it is the best
+              answer available. */}
+          <div className={historyStyles.progressLabel}>
+            {p.task_derived_progress ?? p.progress_percent}%
+          </div>
         </>
       )
     },

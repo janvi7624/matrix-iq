@@ -1645,7 +1645,11 @@ function KpiRow({
       key: 'value',
       type: 'value',
       icon: IndianRupee,
-      label: 'Pipeline Value',
+      // 'Pipeline Value' read as the Sales Projects pipeline, but this is the
+      // sum of the viewer's visible QUOTATION totals and links to
+      // /my-quotations. Two different, individually-correct metrics were
+      // sharing one ambiguous label; the label now says which one this is.
+      label: 'Quotation Value',
       value: headlineKpis ? formatMoney(headlineKpis.totalQuotationValue) : '—',
       href: '/my-quotations'
     },

@@ -137,7 +137,39 @@ async function readAll(): Promise<TmsProjectRecord[]> {
 // Both reads go through hideUnwonSalesProjects, so the scoped list and the
 // unscoped scoring read can never disagree about what exists in TMS.
 async function list(viewer: TmsViewer): Promise<TmsProjectRecord[]> {
-  return hideUnwonSalesProjects(await listForViewer(viewer));
+  const records = await hideUnwonSalesProjects(await listForViewer(viewer));
+  return attachTaskDerivedProgress(records);
+}
+
+/**
+ * Fills in task_derived_progress for a whole list in ONE query.
+ *
+ * The per-project computeTaskDerivedProgress below is right for a detail
+ * page looking at one project; calling it per row would be a query per
+ * project. This groups the counts in a single pass instead, so the list can
+ * show the same number the detail page does without a round trip per row.
+ */
+async function attachTaskDerivedProgress(records: TmsProjectRecord[]): Promise<TmsProjectRecord[]> {
+  const ids = records.map((r) => r.id).filter(Boolean);
+  if (!ids.length) return records;
+  const rows = await db.TmsTask.findAll({
+    where: { project_id: ids } as never,
+    attributes: ['project_id', 'status']
+  });
+  const tally = new Map<string, { done: number; total: number }>();
+  for (const row of rows) {
+    const pid = row.get('project_id') as string;
+    const entry = tally.get(pid) || { done: 0, total: 0 };
+    entry.total += 1;
+    if (row.get('status') === 'completed') entry.done += 1;
+    tally.set(pid, entry);
+  }
+  // Same arithmetic as computeTaskDerivedProgress, including null for a
+  // project with no tasks — the two must not disagree.
+  return records.map((r) => {
+    const t = tally.get(r.id);
+    return { ...r, task_derived_progress: t && t.total ? Math.round((t.done / t.total) * 100) : null };
+  });
 }
 
 async function listForViewer(viewer: TmsViewer): Promise<TmsProjectRecord[]> {
