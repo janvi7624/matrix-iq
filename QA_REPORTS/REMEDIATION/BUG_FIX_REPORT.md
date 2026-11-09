@@ -92,3 +92,13 @@ Initially deferred in the first remediation pass as too risky to attempt blind (
 - **Regression**: full Vitest suite (2116/2116), `npx tsc --noEmit` (clean), lint (0 new errors/warnings — verified file-by-file against the pre-change baseline), and a full production build all re-run clean after this change.
 
 **Files changed**: `lib/leadStore.ts`, `lib/projectStore.ts`, `lib/quotationStore.ts`, `app/api/dashboard/route.ts`.
+
+## REL-WORKFLOW-NOTTESTED-001 — Daily Report vs. HR dashboard consistency — INVESTIGATED, RESOLVED AS PASS (not a code fix)
+
+Previously left as "not tested" after a prior pass couldn't locate the exact HR-facing aggregate function in its time budget. Investigated end-to-end this verification pass rather than left pending:
+
+1. **Searched for a separate comparison target**: checked `/hr/daily-reports` (`components/HrDailyReportReviewView.tsx` — confirmed it's a leave-claims/warnings review workflow with no submission-count figure at all), `/hr/reports` (`components/HrReportsView.tsx` → `/api/hr/reports` — confirmed it's an unrelated Reimbursement/Admin-Expense/Office-Operation spend report), and `/admin/daily-report-config` (confirmed configuration only — deadline/sweep settings, no compliance figures). **No separate "HR dashboard" daily-report compliance page exists in this app.**
+2. **Identified what actually exists**: the Dashboard's own two Daily-Report widgets — `buildMyDailyReportStatus` (individual viewer's "have I filed today", via `lib/dailyReportStore.ts`'s `findReportForDate`) and `buildDailyReportAdminBrief` (org-wide monthly compliance brief, via `loadReportStatuses`) — both read the exact same `db.DailyReport` table and `submission_status` column, with no intermediate cache, replica, or independently-maintained copy of the logic.
+3. **Live-verified** with a disposable employee fixture (role `user`, a department with an active configured daily-report template): called `buildMyDailyReportStatus` — read `MISSING` (no report yet). Created a real `DailyReport` row for today with `submission_status: 'SUBMITTED'`. Called `buildMyDailyReportStatus` again — read `SUBMITTED`. Called `loadReportStatuses` (the exact function `buildDailyReportAdminBrief` uses) for the same employee/day — also read `SUBMITTED`. Both agreed, both times. Fixture and report row hard-deleted after.
+
+**Conclusion**: **PASS**, not a defect. The originally-suspected inconsistency target doesn't exist as a separate feature, and the two real read paths that do carry Daily Report status are provably consistent by shared source of truth — now confirmed live, not just inferred from reading the code. No code change was needed or made.

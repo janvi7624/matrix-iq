@@ -127,4 +127,21 @@ Confirmed `/api/health` is genuinely public (no session required) via `proxy.ts`
 
 ## Distinguishing new regressions from pre-existing baseline issues
 
-No new regressions were found in any of the above. The only "failures" encountered during this phase were the already-known, already-documented `REL-TEST-001` pattern (transient Playwright failures under contention, not reproducing in isolation) — which this phase's own `playwright.config.ts` timeout change (30s → 60s) directly targets, and which did not recur in any of this phase's own re-runs (14/14 clean, run twice: once mid-phase, once in this final verification pass).
+No new regressions were found in any of the above. The only "failures" encountered during this phase were the already-known, already-documented `REL-TEST-001` pattern (transient Playwright failures under contention, not reproducing in isolation) — which this phase's own `playwright.config.ts` timeout change (30s → 60s) directly targets, and which did not recur in any of this phase's own re-runs.
+
+## Independent verification pass (post-REL-PERF-001) — full re-run, not just touched areas
+
+Run after the dashboard performance fix, as a complete independent check rather than a targeted re-run:
+
+```
+$ npx tsc --noEmit -p .          → clean
+$ npx vitest run tests/unit/modelRegistration.test.ts   → 5 passed (isolated re-run of a transient timeout, see below)
+$ npm test                       → Test Files 125 passed (125), Tests 2116 passed (2116)
+$ npx playwright test            → 36 passed (5.9m)  [full suite, not a subset]
+$ npm run build && npm run postbuild → ✓ Compiled successfully
+$ npx eslint .                   → 259 errors, 97 warnings (identical to baseline)
+```
+
+One transient Vitest failure occurred on the first full-suite run of this pass: `tests/unit/modelRegistration.test.ts > AppConfig declares every column of app_config` timed out at 5000ms. This test queries live Postgres schema directly and touches no file changed in this entire remediation phase. Re-run in isolation immediately after: 5/5 passed in 4.74s. Re-ran the full suite again afterward: 2116/2116 clean. Consistent with the same DB-connection-pool contention pattern as `REL-TEST-001`, not a regression.
+
+The production build also hit two transient failures on its first two attempts this pass — an `EBUSY` on `.next/standalone` and an `ENOENT` copying `.next/package.json` — both consistent with contention from the concurrently-running dev server (the same category of issue this app's own `scripts/postbuild.js` and `next.config.ts` comments already document from a real production incident). A stale, zero-byte `.next/lock` file left over from the first failed attempt was removed (confirmed stale by its timestamp and empty content; the live dev server's own separate `.next/dev/lock` was not touched) before the third attempt, which succeeded cleanly.

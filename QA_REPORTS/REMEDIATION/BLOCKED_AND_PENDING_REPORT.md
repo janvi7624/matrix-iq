@@ -34,13 +34,21 @@ Already resolved — see `MASTER_REMEDIATION_REGISTER.csv`: `REL-WORKFLOW-DECISI
 
 `OPSQA-DEF-004` was the only "under investigation" item carried into this phase — it has been fully investigated and resolved as a **FALSE POSITIVE** (see `SECURITY_REMEDIATION_REPORT.md`). Nothing remains under open investigation.
 
-## NOT TESTED (carried forward, not attempted this phase — out of this phase's scope)
+## RESOLVED — no longer pending (investigated this verification pass)
 
-- `REL-WORKFLOW-NOTTESTED-001` — Daily Report vs. HR dashboard consistency. Still not independently verified by any pass to date (the exact HR-facing aggregate function was not located within a prior pass's time budget). Needs a dedicated follow-up pass, not a code fix from this remediation phase specifically (this phase's scope was fixing confirmed/candidate defects, not performing new exploratory QA).
+### REL-WORKFLOW-NOTTESTED-001 — Daily Report vs. HR dashboard consistency
 
-## Resolved since the first pass
+Previously left as "not tested" rather than guessed at. Actually investigated end-to-end this pass, per the explicit instruction not to leave an application workflow pending without testing:
 
-**REL-PERF-001** (Dashboard performance) — originally deferred here as too risky to attempt blind. Revisited as a dedicated follow-up once every downstream consumer was individually inventoried; fixed via column/join projection (not a SQL-aggregate rewrite) with a live parity check proving byte-for-byte identical results against the old full-fetch functions. See `BUG_FIX_REPORT.md` for full detail. No longer pending.
+1. Searched for a separate HR-facing "completed today" compliance page distinct from the Dashboard's own widgets — checked `/hr/daily-reports` (confirmed: leave-claims/warnings review workflow only, no submission-count figure), `/hr/reports` (confirmed: an unrelated expense report), `/admin/daily-report-config` (confirmed: configuration only, no figures). **No such separate page exists.**
+2. The only two places a Daily Report submission figure appears are the Dashboard's own `buildMyDailyReportStatus` (the individual viewer's "have I filed today") and `buildDailyReportAdminBrief` (the org-wide monthly compliance brief) — both read from the exact same `db.DailyReport` table/columns (`lib/dailyReportStore.ts`'s `findReportForDate` and `loadReportStatuses` respectively), with no intermediate cache or replica between them.
+3. Live-verified with a disposable employee fixture: created a real `DailyReport` row for today, confirmed `buildMyDailyReportStatus` read `MISSING` before and `SUBMITTED` after, and the admin-brief-shaped `loadReportStatuses()` read agreed exactly (`SUBMITTED`) for the same employee/day, both before and after. Fixture hard-deleted after.
+
+**Resolved as PASS** — the originally-suspected separate "HR dashboard" aggregate doesn't exist as a distinct feature to disagree with, and the two real read paths that do exist are provably consistent by shared source of truth, now confirmed live rather than inferred.
+
+### REL-PERF-001 — Dashboard performance
+
+Originally deferred here as too risky to attempt blind. Revisited as a dedicated follow-up once every downstream consumer was individually inventoried; fixed via column/join projection (not a SQL-aggregate rewrite) with a live parity check proving byte-for-byte identical results against the old full-fetch functions. See `BUG_FIX_REPORT.md` for full detail.
 
 ## Summary
 
@@ -48,6 +56,5 @@ Already resolved — see `MASTER_REMEDIATION_REGISTER.csv`: `REL-WORKFLOW-DECISI
 |---|---|---|
 | BLOCKED — EXTERNAL DEPENDENCY | 2 | REL-DB-003, REL-DEPLOY-005 |
 | DEFERRED — APPROVAL REQUIRED | 3 | REL-DB-001, REL-DEP-012, BUG-042 |
-| NOT TESTED (carried forward) | 1 | REL-WORKFLOW-NOTTESTED-001 |
 
-None of these 6 remaining items were fixed, guessed at, or marked FIXED without evidence. All are documented in `MASTER_REMEDIATION_REGISTER.csv` with their exact current status.
+**5 items remain open**, all genuinely requiring input this environment cannot provide — either infrastructure access (2) or a business/product decision (3). None were fixed, guessed at, or marked FIXED without evidence. All are documented in `MASTER_REMEDIATION_REGISTER.csv` with their exact current status.
