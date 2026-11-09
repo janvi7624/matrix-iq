@@ -9,7 +9,7 @@ import { projectStore } from '@/lib/projectStore';
 import { siteVisitStore } from '@/lib/siteVisitStore';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
-import { countQuotationsForProjects, computeEffectiveStatus, searchQuotationsFiltered } from '@/lib/quotationStore';
+import { countQuotationsForProjects, computeEffectiveStatus, listQuotationsForDashboard } from '@/lib/quotationStore';
 import { leadStore } from '@/lib/leadStore';
 import { marketingRequestStore } from '@/lib/marketingRequestStore';
 import { hasCapability, isMarketingManager } from '@/lib/permissions';
@@ -111,7 +111,11 @@ export async function GET(request: NextRequest) {
       dailyReportBrief
     ] = await Promise.all([
       listVisibleModules(viewerForModules),
-      projectStore.listLight(viewer.username, viewer.isPrivileged),
+      // listLightForDashboard (REL-PERF-001), not listLight() — scoped to
+      // exactly the 8 columns and 1 join (of listLight's 4) this route's own
+      // KPI counts, buildDepartmentBreakdown, and buildSalesTeamSummary read.
+      // See its own comment in lib/projectStore.ts.
+      projectStore.listLightForDashboard(viewer.username),
       siteVisitStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, viewer.isPrivileged),
       demoScheduleStore.list(viewer.username, canSeeQueue),
@@ -120,9 +124,20 @@ export async function GET(request: NextRequest) {
       // queue, so the unattended count below has to be scoped to leads
       // assigned to THIS viewer — a department-wide total isn't something
       // they can act on, and the helper only offers the wider figure.
-      leadStore.list(viewer.username, viewer.isPrivileged),
+      //
+      // listForDashboard (REL-PERF-001), not the full list() every other
+      // caller needs — scoped to exactly the ~11 columns and 2 joins this
+      // route actually reads (see its own comment in lib/leadStore.ts),
+      // down from the full 36-column, 4-join read. Same visibility scope,
+      // same rows, just far less of each row.
+      leadStore.listForDashboard(viewer.username),
       listDepartmentManagers(),
-      searchQuotationsFiltered({ viewerUsername: viewer.username }),
+      // listQuotationsForDashboard (REL-PERF-001), not searchQuotationsFiltered
+      // — scoped to exactly the 10 columns this route's own consumers read,
+      // and skips 2 extra per-project-id queries (sales_person/partner-share
+      // resolution) that nothing here reads. See its own comment in
+      // lib/quotationStore.ts.
+      listQuotationsForDashboard(viewer.username),
       isBackOffice ? deliveryChallanStore.list(viewer.username, true) : Promise.resolve(null),
       (async () => {
         const isReviewer = await isMarketingManager(viewer);

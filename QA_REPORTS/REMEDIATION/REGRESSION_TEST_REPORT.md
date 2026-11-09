@@ -93,6 +93,29 @@ Covers: the modified `hr.spec.ts` (confirms removing `/hr/leave` from its loop d
 
 Not re-run this phase: `auth.spec.ts`, `forms.spec.ts`, `leads.spec.ts`, `navigation.spec.ts`, `projects.spec.ts` — none of these touch any file changed this phase; the prior Final Release Certification pass already confirmed the full 34-test suite passes clean. Re-running the full suite is recommended as a final check before merge, but was not independently re-executed in this specific phase given none of its files were touched.
 
+## REL-PERF-001 — live parity and timing verification
+
+Unlike the other fixes, this one couldn't be meaningfully regression-tested with a mocked-DB unit test — the whole point was verifying the new narrow-column queries return the same real-world results as the old full-column ones at scale. A one-off script (created, run, and deleted within this phase — not left in the repo) did the following, then cleaned up:
+
+1. Created disposable `QA_TEST_`-prefixed fixtures (a user, a project, a lead, a quotation) via direct Sequelize access.
+2. Called both the OLD function (`leadStore.list`, `projectStore.listLight`, `searchQuotationsFiltered`) and the NEW function (`listForDashboard`, `listLightForDashboard`, `listQuotationsForDashboard`) for the same viewer.
+3. Re-ran every downstream computation the Dashboard route performs (`isLeadUnattended` count, meta-leads-today count, all 6 project KPI filters, `buildDepartmentBreakdown`, quotation count/sum, `needsFollowUp` count, `computeEffectiveStatus` status breakdown) against BOTH the old and new results and asserted they matched exactly.
+
+Result: **all parity checks passed** — byte-for-byte identical results on every computation. Fixtures hard-deleted after.
+
+A second script measured timing directly against the real dev database using an admin/org-wide fixture (the heaviest real-world case — 1262 leads, 234 projects, 82 quotations), calling the old and new functions back-to-back in the same process (isolating DB/connection-load noise from the comparison):
+
+```
+old leadStore.list: 4240-14377ms (1262 rows)
+new leadStore.listForDashboard: 1193-1511ms (1262 rows)
+old projectStore.listLight: 767-1604ms (234 rows)
+new projectStore.listLightForDashboard: 441-488ms (234 rows)
+old searchQuotationsFiltered: 905-1755ms (82 rows)
+new listQuotationsForDashboard: 324-416ms (82 rows)
+```
+
+A separate full-HTTP-request timing test (hitting `/api/dashboard` directly) was noisy (1.9-8.9s across runs) due to general DB-connection-pool load variance from other activity on this shared dev database — the same contention pattern already diagnosed as `REL-TEST-001` — but the isolated, same-process comparison above cleanly isolates that noise out and shows the real, consistent improvement from this specific fix.
+
 ## Live manual verification
 
 ```

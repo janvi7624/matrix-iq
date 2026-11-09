@@ -2,7 +2,7 @@
 
 ## Final verdict: **CONDITIONAL PASS**
 
-No unresolved Critical or High-severity defect remains. 3 items remain genuinely blocked (need infrastructure access or an owner decision this environment cannot make), and 1 item (Dashboard performance) was deliberately deferred rather than risk a careless fix on live business-reporting numbers.
+No unresolved Critical or High-severity defect remains. 5 items remain genuinely blocked or deferred pending a decision only the infrastructure/business owner can make — see Section 6. Dashboard performance (REL-PERF-001), initially deferred over correctness risk, was revisited in a dedicated follow-up and fixed with a live parity check proving the fix is byte-for-byte correct.
 
 ## 1. Total findings reviewed
 
@@ -14,7 +14,7 @@ No unresolved Critical or High-severity defect remains. 3 items remain genuinely
 
 ## 3. Defects fixed and verified
 
-**13** — see `BUG_FIX_REPORT.md` for full detail on each:
+**14** — see `BUG_FIX_REPORT.md` for full detail on each:
 
 | ID | Summary |
 |---|---|
@@ -31,6 +31,7 @@ No unresolved Critical or High-severity defect remains. 3 items remain genuinely
 | REL-DEPLOY-004 | No infra health-check endpoint (Medium) |
 | REL-DEPLOY-006 | No rollback runbook (Low) |
 | REL-TEST-001 | Playwright transient-failure timeout tuning (Informational) |
+| REL-PERF-001 | Dashboard load time — column/join projection, 3-10x faster, parity-verified (Medium) |
 
 ## 4. Defects fixed but awaiting verification
 
@@ -42,10 +43,9 @@ No unresolved Critical or High-severity defect remains. 3 items remain genuinely
 
 ## 6. Pending and blocked issues
 
-**7** — see `BLOCKED_AND_PENDING_REPORT.md` for full detail:
+**6** — see `BLOCKED_AND_PENDING_REPORT.md` for full detail:
 - 2 `BLOCKED — EXTERNAL DEPENDENCY` (`REL-DB-003` backup/restore policy, `REL-DEPLOY-005` restart strategy)
 - 3 `DEFERRED — APPROVAL REQUIRED` (`REL-DB-001` unmatched migrations, `REL-DEP-012` dependency downgrade, `BUG-042` unreachable `/admin`)
-- 1 deliberately deferred by this phase's own risk judgment (`REL-PERF-001` Dashboard performance)
 - 1 `NOT TESTED`, carried forward (`REL-WORKFLOW-NOTTESTED-001` Daily Report vs. HR dashboard)
 
 ## 7. Security findings
@@ -78,7 +78,7 @@ No unresolved Critical or High-severity defect remains. 3 items remain genuinely
 
 **Removed**: `app/api/leave/route.ts`, `app/api/leave/[id]/route.ts`, `app/leave/page.tsx`, `components/LeaveView.tsx`, `app/hr/leave/page.tsx`, `app/api/hr/leave/route.ts`, `components/HrLeaveOversightView.tsx`, `lib/leaveRequestStore.ts`.
 
-**Modified**: `lib/tmsAccess.ts`, `lib/tmsBomRequestStore.ts`, `app/api/tms/bom-requests/route.ts`, `lib/apiError.ts`, `app/api/admin/users/[id]/route.ts`, `lib/supportTicketStore.ts`, `app/support/page.tsx`, `components/SupportTicketsView.tsx`, `lib/notificationResolver.ts`, `components/LeadCaptureWizard.tsx`, `components/ReimbursementView.tsx`, `components/ui/ProjectSelect.tsx`, `components/QuotationCalculator.tsx`, `playwright.config.ts`, `proxy.ts`, `.env.example`, `tests/e2e/hr.spec.ts`, `tests/e2e/rbac.spec.ts`.
+**Modified**: `lib/tmsAccess.ts`, `lib/tmsBomRequestStore.ts`, `app/api/tms/bom-requests/route.ts`, `lib/apiError.ts`, `app/api/admin/users/[id]/route.ts`, `lib/supportTicketStore.ts`, `app/support/page.tsx`, `components/SupportTicketsView.tsx`, `lib/notificationResolver.ts`, `components/LeadCaptureWizard.tsx`, `components/ReimbursementView.tsx`, `components/ui/ProjectSelect.tsx`, `components/QuotationCalculator.tsx`, `playwright.config.ts`, `proxy.ts`, `.env.example`, `tests/e2e/hr.spec.ts`, `tests/e2e/rbac.spec.ts`, `lib/leadStore.ts`, `lib/projectStore.ts`, `lib/quotationStore.ts`, `app/api/dashboard/route.ts`.
 
 ## 13. Concurrent-session conflicts
 

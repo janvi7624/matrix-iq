@@ -275,6 +275,42 @@ async function listLight(viewerUsername: string): Promise<ProjectRecord[]> {
   return rows.map(toRecord);
 }
 
+/** Exactly the columns app/api/dashboard/route.ts's own consumers read — see listLightForDashboard below. */
+const DASHBOARD_ATTRIBUTES = ['id', 'created_by', 'status', 'stage', 'lead_confirmation_status', 'approx_price', 'departments', 'department_amounts'];
+
+/**
+ * REL-PERF-001: the Dashboard's own project read, scoped to exactly what it
+ * consumes — every KPI count (won/lost/active/pendingResponses/negotiations/
+ * totalProjects/pendingConfirmation), buildDepartmentBreakdown's inputs, and
+ * (for a Sales-leadership viewer) buildSalesTeamSummary's `Pick<ProjectRecord,
+ * 'id'|'created_by'|'status'>`. None of those read assigned_technical_person_
+ * name, project_lead_name, partner_name/code, notes, timeline, or any of the
+ * ~40 other ProjectRecord fields listLight() fetches for callers that
+ * actually show a project row (the Projects list/detail screens).
+ *
+ * Drops assignedTechnicalPersonInclude/projectLeadInclude/partnerInclude —
+ * none of their resolved fields are read here — keeping only creatorInclude,
+ * which `created_by` needs. Measured at 1246ms of the Dashboard's ~3s load
+ * before this change.
+ *
+ * Deliberately NOT a set of SQL aggregates, for the same reason the sibling
+ * lib/leadStore.ts's listForDashboard isn't one: buildDepartmentBreakdown's
+ * per-department count/value loop and buildSalesTeamSummary's crediting
+ * logic are real business rules with their own files — reimplementing them
+ * in SQL risks drifting from what the Projects screen itself would compute.
+ * This keeps the exact same logic, over far fewer columns and joins.
+ */
+async function listLightForDashboard(viewerUsername: string): Promise<ProjectRecord[]> {
+  const where = await resolveOwnerWhere(viewerUsername);
+  const rows = await db.Project.findAll({
+    where: where as never,
+    include: [creatorInclude],
+    attributes: DASHBOARD_ATTRIBUTES,
+    order: [['created_at', 'DESC']]
+  });
+  return rows.map(toRecord);
+}
+
 export interface ProjectListQuery {
   search?: string;
   stage?: ProjectStage;
@@ -901,6 +937,7 @@ export async function resolveProjectDeadlineTier(viewer: { username: string; rol
 export const projectStore = {
   list: async (viewerUsername: string, _viewerIsPrivileged: boolean) => (await list(viewerUsername)).map(normalizeProject),
   listLight: async (viewerUsername: string, _viewerIsPrivileged: boolean) => (await listLight(viewerUsername)).map(normalizeProject),
+  listLightForDashboard: async (viewerUsername: string) => (await listLightForDashboard(viewerUsername)).map(normalizeProject),
   listFiltered: listProjectsFiltered,
   getFacets: getProjectFacets,
   listFilterOptions: listProjectFilterOptions,

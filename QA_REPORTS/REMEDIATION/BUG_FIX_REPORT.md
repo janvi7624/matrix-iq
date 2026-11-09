@@ -72,6 +72,23 @@ Every confirmed defect fixed this phase, with root cause, the actual code change
 
 See `DATABASE_REMEDIATION_REPORT.md` and `REGRESSION_TEST_REPORT.md` for `/api/health` and the Playwright timeout fix specifically; `DEPLOYMENT.md`, `ROLLBACK.md`, `.github/workflows/ci.yml`, and the 5 new `.env.example` entries close out the rest.
 
-## Deliberately NOT fixed this phase (with reasoning)
+## REL-PERF-001 — Dashboard performance (Medium) — FIXED (follow-up pass)
 
-**REL-PERF-001** (Dashboard performance): see `MASTER_REMEDIATION_REGISTER.csv`'s own entry — the 3 heavy calls feed 10+ other KPI computations on the same route that need real per-row data, not just a count. A correct fix means re-deriving each as its own SQL aggregate, a materially larger and riskier change than blind-fixing in this pass would allow verifying safely on a production system's real business-reporting numbers. Recommend a dedicated follow-up.
+Initially deferred in the first remediation pass as too risky to attempt blind (see git history of this file for that reasoning). Revisited as a dedicated follow-up once the full inventory of downstream consumers was mapped out.
+
+**Root cause**: `leadStore.list()`, `projectStore.listLight()`, and `searchQuotationsFiltered()` each fetched the viewer's entire visible row set with their FULL column/join shape (36+ columns, 2-4 joins each) — built for callers that display full records (the Leads/Projects/Quotations screens) — even though the Dashboard route only ever reads a small, fixed subset of fields from each: counts, sums, and a handful of specific fields consumed by `isLeadUnattended`, `buildSalesTeamSummary`, `buildDepartmentBreakdown`, `needsFollowUp`, and `computeEffectiveStatus`.
+
+**Fix** (column/join projection, NOT a SQL-aggregate rewrite — the actual business logic was never touched):
+- `lib/leadStore.ts`: new `listForDashboard()` — same visibility scope (`leadVisibilityWhere`), narrowed to 11 columns and 2 joins (`creator`, `assignee`) instead of 36+ columns and 4 joins. Mirrors the exact pattern this codebase already uses for `/api/sidebar`'s `listLeadsForBadges()`.
+- `lib/projectStore.ts`: new `listLightForDashboard()` — same visibility scope (`resolveOwnerWhere`), narrowed to 8 columns and 1 join (`creator`) instead of ~40 columns and 4 joins.
+- `lib/quotationStore.ts`: new `listQuotationsForDashboard()` — same visibility scope as `searchQuotationsFiltered({viewerUsername})`, narrowed to 10 columns and 1 join, and skips the `followUps` association entirely (`last_follow_up_at` is a raw column, not derived from it) plus 2 extra per-project-id queries (`attachSalesPersons`/`attachPartnerShareState`) that resolve display fields no Dashboard consumer reads.
+- `app/api/dashboard/route.ts` now calls all three new functions instead of the originals. No other route was touched — the original, full-shape functions remain exactly as they were for every other caller (the Leads/Projects/Quotations list screens).
+
+**Why this is safe** (unlike a SQL-aggregate rewrite): `isLeadUnattended`, `buildSalesTeamSummary`, `buildDepartmentBreakdown`, `needsFollowUp`, and `computeEffectiveStatus` are **unchanged** — same JavaScript functions, same business rules, just called with narrower-but-still-correct row objects (every field they actually read is still fetched; only unused fields were dropped).
+
+**Verification**:
+- **Correctness**: a live parity script created real disposable fixtures (a project, a lead, a quotation) and compared the OLD and NEW functions' outputs for the same viewer, re-running every downstream computation (`unattendedLeads`, `metaLeadsToday`, all 6 project KPI filters, `buildDepartmentBreakdown`, quotation count/sum/`followUpCount`/status-breakdown) against both — **byte-for-byte identical results** in every case. Fixtures hard-deleted after.
+- **Performance**: isolated, same-process timing against a real 1262-lead/234-project/82-quotation dataset (an admin/org-wide viewer, the heaviest case) — leads ~3-10x faster (4.2-14.4s → 1.2-1.5s), projects ~2-3.5x faster (0.8-1.6s → 0.4-0.5s), quotations ~3-5x faster (0.9-1.8s → 0.3-0.4s).
+- **Regression**: full Vitest suite (2116/2116), `npx tsc --noEmit` (clean), lint (0 new errors/warnings — verified file-by-file against the pre-change baseline), and a full production build all re-run clean after this change.
+
+**Files changed**: `lib/leadStore.ts`, `lib/projectStore.ts`, `lib/quotationStore.ts`, `app/api/dashboard/route.ts`.

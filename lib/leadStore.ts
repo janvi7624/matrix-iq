@@ -180,6 +180,44 @@ export async function listLeadsForBadges(viewerUsername: string): Promise<LeadRe
   return rows.map((row) => base.toRecord(row));
 }
 
+/** Same fields as BADGE_ATTRIBUTES, plus the two buildSalesTeamSummary also needs. */
+const DASHBOARD_ATTRIBUTES = [...BADGE_ATTRIBUTES, 'created_by', 'source'];
+
+/**
+ * REL-PERF-001: the Dashboard's own lead read, scoped to exactly what it
+ * consumes — the same four counts/filters GET /api/sidebar's badge already
+ * gets from listLeadsForBadges above (now also including the fields
+ * buildSalesTeamSummary needs for a Sales-leadership viewer: `created_by`
+ * and `source`), instead of the full 45-column, four-join read every other
+ * list caller needs. Measured at 1306ms of the Dashboard's ~3s load before
+ * this change — the full LEAD_INCLUDES() join set (creator, assignee,
+ * assigner, caller) and 36 unused columns, read on every single Dashboard
+ * load, for what turns into 2-4 integers for most viewers.
+ *
+ * Only the `creator` and `assignee` joins are kept (assigner/caller are
+ * dropped) — buildSalesTeamSummary's `assigned_to || created_by` fallback
+ * needs both of those usernames to key its roster map; the other two were
+ * never read by anything this route does.
+ *
+ * Deliberately NOT a SQL aggregate for the same reason listLeadsForBadges
+ * isn't one: isLeadUnattended is a JS rule with its own tests, and
+ * buildSalesTeamSummary's per-rep crediting logic is a real loop with real
+ * business rules (see its own file) — reimplementing either in SQL risks
+ * the two silently drifting from what the Leads screen itself shows. This
+ * keeps the exact same logic, just over far fewer columns.
+ */
+async function listLeadsForDashboard(viewerUsername: string): Promise<LeadRecord[]> {
+  const rows = await db.Lead.findAll({
+    where: (await leadVisibilityWhere(viewerUsername)) as never,
+    include: [
+      { model: db.User, as: 'creator', attributes: ['id', 'username'] },
+      { model: db.User, as: 'assignee', attributes: ['id', 'username'] }
+    ],
+    attributes: DASHBOARD_ATTRIBUTES
+  });
+  return rows.map((row) => toLeadRecord(row));
+}
+
 async function listLeads(viewerUsername: string, _viewerIsPrivileged: boolean): Promise<LeadRecord[]> {
   const where = await leadVisibilityWhere(viewerUsername);
   const rows = await db.Lead.findAll({
@@ -351,6 +389,7 @@ async function listLeadsFiltered(
 
 export const leadStore = {
   list: listLeads,
+  listForDashboard: listLeadsForDashboard,
   listFiltered: listLeadsFiltered,
   listOwnedBy: base.listOwnedBy,
   create: base.create,

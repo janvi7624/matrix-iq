@@ -38,11 +38,9 @@ Already resolved — see `MASTER_REMEDIATION_REGISTER.csv`: `REL-WORKFLOW-DECISI
 
 - `REL-WORKFLOW-NOTTESTED-001` — Daily Report vs. HR dashboard consistency. Still not independently verified by any pass to date (the exact HR-facing aggregate function was not located within a prior pass's time budget). Needs a dedicated follow-up pass, not a code fix from this remediation phase specifically (this phase's scope was fixing confirmed/candidate defects, not performing new exploratory QA).
 
-## Deliberately deferred by this phase's own judgment call (not externally blocked)
+## Resolved since the first pass
 
-### REL-PERF-001 — Dashboard performance (3 full-row-fetch store calls)
-
-Not blocked by missing access or a pending decision from someone else — deferred because attempting it correctly requires re-deriving 10+ downstream KPI computations as independent SQL aggregates, a materially larger and riskier change than a quick "switch to COUNT" fix, with real risk of silently corrupting business-reporting numbers on a production system if done without careful, dedicated verification. See `BUG_FIX_REPORT.md`'s "Deliberately NOT fixed" section and `MASTER_REMEDIATION_REGISTER.csv`'s own entry for full reasoning. **Recommendation**: a dedicated follow-up pass scoped to this one finding, with enough time to validate each new aggregate against the existing full-fetch result for a known dataset before shipping.
+**REL-PERF-001** (Dashboard performance) — originally deferred here as too risky to attempt blind. Revisited as a dedicated follow-up once every downstream consumer was individually inventoried; fixed via column/join projection (not a SQL-aggregate rewrite) with a live parity check proving byte-for-byte identical results against the old full-fetch functions. See `BUG_FIX_REPORT.md` for full detail. No longer pending.
 
 ## Summary
 
@@ -50,7 +48,6 @@ Not blocked by missing access or a pending decision from someone else — deferr
 |---|---|---|
 | BLOCKED — EXTERNAL DEPENDENCY | 2 | REL-DB-003, REL-DEPLOY-005 |
 | DEFERRED — APPROVAL REQUIRED | 3 | REL-DB-001, REL-DEP-012, BUG-042 |
-| DEFERRED — this phase's own risk judgment | 1 | REL-PERF-001 |
 | NOT TESTED (carried forward) | 1 | REL-WORKFLOW-NOTTESTED-001 |
 
-None of these 7 items were fixed, guessed at, or marked FIXED without evidence. All are documented in `MASTER_REMEDIATION_REGISTER.csv` with their exact current status.
+None of these 6 remaining items were fixed, guessed at, or marked FIXED without evidence. All are documented in `MASTER_REMEDIATION_REGISTER.csv` with their exact current status.

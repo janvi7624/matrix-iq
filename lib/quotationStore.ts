@@ -376,6 +376,45 @@ export interface QuotationFilters {
   dateTo?: string;
 }
 
+/** Exactly the columns app/api/dashboard/route.ts's own consumers read — see listQuotationsForDashboard below. */
+const DASHBOARD_ATTRIBUTES = ['id', 'created_by', 'status', 'project_id', 'total', 'prepared_by', 'prepared_by_user_id', 'created_at', 'last_follow_up_at', 'validity_days'];
+
+/**
+ * REL-PERF-001: the Dashboard's own quotation read — the viewer-scoped case
+ * of searchQuotationsFiltered above with no other filter, but scoped to
+ * exactly the columns its own consumers read: headlineKpis' count/sum,
+ * needsFollowUp (created_at/last_follow_up_at), computeEffectiveStatus
+ * (status/created_at/validity_days) for a manager-tier viewer's
+ * quotationStats, and (for a Sales-leadership viewer) buildSalesTeamSummary's
+ * `Pick<QuotationRecord, 'created_by'|'status'|'project_id'|'total'|
+ * 'prepared_by'|'prepared_by_user_id'>`.
+ *
+ * Drops the `followUps` association entirely — `last_follow_up_at` is a raw
+ * column on the row itself, not derived from it, so nothing here needed
+ * that extra query — and skips attachSalesPersons/attachPartnerShareState,
+ * which only resolve `sales_person`/partner-share display fields that no
+ * Dashboard consumer reads. Measured at 726ms of the Dashboard's ~3s load
+ * before this change.
+ */
+export async function listQuotationsForDashboard(viewerUsername: string): Promise<QuotationRecord[]> {
+  const scope = await resolveVisibilityScope(viewerUsername);
+  const where: Record<string | symbol, unknown> = scope.seesOrgWide
+    ? {}
+    : {
+        [Op.or]: [
+          { created_by: { [Op.in]: scope.scopedUserIds ?? [] } },
+          { prepared_by_user_id: { [Op.in]: scope.scopedUserIds ?? [] } }
+        ]
+      };
+  const rows = await db.Quotation.findAll({
+    where: where as never,
+    include: [{ model: db.User, as: 'creator', attributes: ['id', 'username'] }],
+    attributes: DASHBOARD_ATTRIBUTES,
+    order: [['created_at', 'DESC']]
+  });
+  return rows.map(toRecord);
+}
+
 export async function searchQuotationsFiltered(filters: QuotationFilters): Promise<QuotationRecord[]> {
   const andConditions: Record<string | symbol, unknown>[] = [];
 
