@@ -27,6 +27,7 @@ const modelDefiners = [
   require('./partnerQuotationRequest.js'),
   require('./materialAccessLog.js'),
   require('./supportSlaPolicy.js'),
+  require('./festival.js'),
   require('./supportTicket.js'),
   require('./supportTicketComment.js'),
   require('./supportTicketStatusHistory.js'),

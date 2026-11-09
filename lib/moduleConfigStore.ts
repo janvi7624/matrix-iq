@@ -59,7 +59,7 @@ const TMS_DEPARTMENT_LIST: string[] = [...TMS_DEPARTMENTS];
 // the list. Listing the key here routes it through HR_MODULE_ROLES instead of
 // viewer.isPrivileged.
 const HR_MODULE_ROLES: UserRole[] = ['hr', 'superadmin', 'admin'];
-const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-employees', 'hr-reports', 'hr-daily-reports']);
+const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-employees', 'hr-reports', 'hr-daily-reports', 'hr-festivals']);
 
 // Accounts, for exactly the same reason. The payment queue is the Accounts
 // team's and the admins' — it previously listed 'manager' in visibleToRoles
@@ -165,6 +165,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // Super Admin only (not every department's generic 'manager' role).
   { key: 'hr-employees', label: 'Employees', desc: 'Active employee directory.', icon: 'users', href: '/hr/employees', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   { key: 'hr-reports', label: 'HR Expense Report', desc: 'Reimbursement, admin expense, and office operation spend by period, employee, or department.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 5, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  { key: 'hr-festivals', label: 'Festival Greetings', desc: 'Manage the Indian festival calendar used for company-wide greeting emails and notifications.', icon: 'party-popper', href: '/hr/festivals', section: 'HR', order: 8, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
   // SALES_ROLES_WITH_TMS, not ALL_ROLES: a technical-manager/team-lead/
   // technician can be assigned tasks like anyone else, and with ALL_ROLES

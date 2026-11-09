@@ -56,6 +56,7 @@ import {
   CheckSquare,
   Library,
   Truck,
+  PartyPopper,
   type LucideIcon
 } from 'lucide-react';
 
@@ -205,7 +206,11 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   handshake: Handshake,
   'log-out': LogOut,
   'kanban-square': KanbanSquare,
-  library: Library
+  library: Library,
+  // The HR Festival Greetings module's tile (lib/moduleConfigStore.ts) —
+  // same "must exist here or it silently renders as text" rule as every
+  // other entry above.
+  'party-popper': PartyPopper
 };
 
 export const MODULE_ICON_OPTIONS = Object.keys(MODULE_ICON_REGISTRY);

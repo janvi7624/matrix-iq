@@ -4,9 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // guard, active-user filtering, and that email + notification are only
 // fired once per festival per day, never against real recipients.
 
-const { notificationCountMock, userFindAllMock, notifyUsersMock, sendFestivalEmailMock } = vi.hoisted(() => ({
+const { notificationCountMock, festivalFindOneMock, notifyUsersMock, sendFestivalEmailMock } = vi.hoisted(() => ({
   notificationCountMock: vi.fn(),
-  userFindAllMock: vi.fn(),
+  festivalFindOneMock: vi.fn(),
   notifyUsersMock: vi.fn(),
   sendFestivalEmailMock: vi.fn()
 }));
@@ -14,25 +14,30 @@ const { notificationCountMock, userFindAllMock, notifyUsersMock, sendFestivalEma
 vi.mock('../../lib/db', () => ({
   db: {
     Notification: { count: notificationCountMock },
+    Festival: { findOne: festivalFindOneMock },
     Sequelize: { Op: { gte: Symbol('gte') } }
   }
 }));
 vi.mock('../../lib/userStore', () => ({ listUsers: vi.fn() }));
 vi.mock('../../lib/notificationStore', () => ({ notifyUsers: notifyUsersMock }));
 vi.mock('../../lib/email/notifications', () => ({ sendFestivalEmail: sendFestivalEmailMock }));
-vi.mock('../../lib/festivalCalendar', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../lib/festivalCalendar')>();
-  return { ...actual, getTodaysFestival: vi.fn() };
-});
 
 import { listUsers } from '../../lib/userStore';
-import { getTodaysFestival } from '../../lib/festivalCalendar';
-import { processTodaysFestival } from '../../lib/festivalStore';
+import { processTodaysFestival, getTodaysFestival } from '../../lib/festivalStore';
 
 const listUsersMock = vi.mocked(listUsers);
-const getTodaysFestivalMock = vi.mocked(getTodaysFestival);
 
-const FESTIVAL = { key: 'diwali', name: 'Diwali', date: '2027-10-29', greeting: 'Happy Diwali!' };
+const FESTIVAL_ROW = {
+  id: 'f1',
+  key: 'diwali',
+  name: 'Diwali',
+  date: '2027-10-29',
+  greeting: 'Happy Diwali!',
+  provisional: false,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z')
+};
+const festivalRow = (plain: Record<string, unknown> = FESTIVAL_ROW) => ({ get: () => plain });
 
 const activeUser = (over: Partial<{ id: string; username: string; name: string; email: string; status: string }> = {}) => ({
   id: 'u1', username: 'QA_TEST_user1', name: 'QA Test User', email: 'qa-test@example.com', status: 'active', ...over
@@ -40,16 +45,29 @@ const activeUser = (over: Partial<{ id: string; username: string; name: string; 
 
 beforeEach(() => {
   notificationCountMock.mockReset();
+  festivalFindOneMock.mockReset();
   listUsersMock.mockReset();
   notifyUsersMock.mockReset();
   sendFestivalEmailMock.mockReset();
-  userFindAllMock.mockReset();
-  getTodaysFestivalMock.mockReset();
+});
+
+describe('getTodaysFestival', () => {
+  it('queries by the IST calendar day, not the raw UTC date', async () => {
+    festivalFindOneMock.mockResolvedValue(null);
+    // 2026-12-24T19:00:00Z is 2026-12-25T00:30 IST — already the next day in IST.
+    await getTodaysFestival(new Date('2026-12-24T19:00:00.000Z'));
+    expect(festivalFindOneMock).toHaveBeenCalledWith({ where: { date: '2026-12-25' } });
+  });
+
+  it('returns null when no festival matches today', async () => {
+    festivalFindOneMock.mockResolvedValue(null);
+    expect(await getTodaysFestival(new Date('2027-02-15T06:00:00.000Z'))).toBeNull();
+  });
 });
 
 describe('processTodaysFestival', () => {
   it('returns null and does nothing when today is not a festival', async () => {
-    getTodaysFestivalMock.mockReturnValue(null);
+    festivalFindOneMock.mockResolvedValue(null);
     const result = await processTodaysFestival();
     expect(result).toBeNull();
     expect(sendFestivalEmailMock).not.toHaveBeenCalled();
@@ -57,7 +75,7 @@ describe('processTodaysFestival', () => {
   });
 
   it('sends the greeting to every ACTIVE user only, excluding suspended/exited accounts', async () => {
-    getTodaysFestivalMock.mockReturnValue(FESTIVAL as never);
+    festivalFindOneMock.mockResolvedValue(festivalRow());
     notificationCountMock.mockResolvedValue(0);
     listUsersMock.mockResolvedValue([
       activeUser({ id: 'u1', username: 'QA_TEST_active1' }),
@@ -73,7 +91,7 @@ describe('processTodaysFestival', () => {
   });
 
   it('does NOT re-send when the dedup marker already exists for today — idempotent per festival per day', async () => {
-    getTodaysFestivalMock.mockReturnValue(FESTIVAL as never);
+    festivalFindOneMock.mockResolvedValue(festivalRow());
     notificationCountMock.mockResolvedValue(1); // marker already present
     listUsersMock.mockResolvedValue([activeUser()] as never);
 
@@ -85,7 +103,7 @@ describe('processTodaysFestival', () => {
   });
 
   it('skips users with no email address rather than calling sendFestivalEmail with an empty address', async () => {
-    getTodaysFestivalMock.mockReturnValue(FESTIVAL as never);
+    festivalFindOneMock.mockResolvedValue(festivalRow());
     notificationCountMock.mockResolvedValue(0);
     listUsersMock.mockResolvedValue([activeUser({ id: 'u1', email: '' }), activeUser({ id: 'u2', username: 'QA_TEST_hasEmail' })] as never);
 

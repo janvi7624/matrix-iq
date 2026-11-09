@@ -54,6 +54,16 @@ jobs:
       - name: Run database migrations
         run: npm run db:migrate
 
+      # next-env.d.ts is generated, not committed (.gitignore), and it is what
+      # supplies the ambient `*.module.css` declaration. A fresh checkout does
+      # not have it, and only `next build`/`next dev` write it — which on this
+      # workflow run AFTER the typecheck. The result was that every run failed
+      # on "Cannot find module '../quotationHistory.module.css'" from the two
+      # ui/ badges that lib/*Labels.ts pull into the typecheck graph.
+      # `typegen` writes those definitions without paying for a full build.
+      - name: Generate Next types (writes next-env.d.ts)
+        run: npx next typegen
+
       - name: Typecheck
         run: npm run typecheck
 
