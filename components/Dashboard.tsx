@@ -321,6 +321,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   );
 
   const [celebrations, setCelebrations] = useState<{ userId: string; name: string; type: 'birthday' | 'anniversary'; years?: number }[]>([]);
+  const [festival, setFestival] = useState<{ key: string; name: string; greeting: string } | null>(null);
   const [celebrationsDismissed, setCelebrationsDismissed] = useState(false);
   const [celebrationsAlreadySeen] = useState<boolean | null>(() =>
     typeof window === 'undefined' ? null : hasSeenCelebrationPopup(currentUser.username)
@@ -328,11 +329,17 @@ export default function Dashboard({ currentUser }: DashboardProps) {
   useEffect(() => {
     fetch('/api/dashboard/celebrations')
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setCelebrations(data?.celebrations ?? []))
-      .catch(() => setCelebrations([]));
+      .then((data) => {
+        setCelebrations(data?.celebrations ?? []);
+        setFestival(data?.festival ?? null);
+      })
+      .catch(() => {
+        setCelebrations([]);
+        setFestival(null);
+      });
   }, []);
 
-  const showCelebrations = celebrations.length > 0 && celebrationsAlreadySeen === false && !celebrationsDismissed;
+  const showCelebrations = (celebrations.length > 0 || !!festival) && celebrationsAlreadySeen === false && !celebrationsDismissed;
 
   useEffect(() => {
     if (showCelebrations) markCelebrationPopupSeen(currentUser.username);
@@ -681,7 +688,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
               </button>
             </div>
           }
-          ariaLabel="Today's birthdays and work anniversaries"
+          ariaLabel="Today's birthdays, work anniversaries, and festival greetings"
           onClose={() => setCelebrationsDismissed(true)}
           footer={
             <button type="button" className={styles.celebrationOkBtn} onClick={() => setCelebrationsDismissed(true)}>
@@ -690,6 +697,15 @@ export default function Dashboard({ currentUser }: DashboardProps) {
           }
         >
           <div className={styles.celebrationList}>
+            {festival && (
+              <div className={`${styles.celebrationCard} ${styles.celebrationCardAnniversary}`}>
+                <span className={styles.celebrationBadge}>🎉</span>
+                <div className={styles.celebrationText}>
+                  <div className={styles.celebrationName}>{festival.name}</div>
+                  <div className={styles.celebrationSub}>{festival.greeting}</div>
+                </div>
+              </div>
+            )}
             {celebrations.map((c) => (
               <div
                 key={`${c.userId}-${c.type}`}

@@ -16,6 +16,7 @@ import { renderMarketingRequestLifecycleEmail, MarketingRequestLifecycleEmailDat
 import { renderFieldOpsLifecycleEmail, FieldOpsLifecycleEmailData } from './templates/fieldOpsLifecycle';
 import { renderReimbursementLifecycleEmail, ReimbursementLifecycleEmailData } from './templates/reimbursementLifecycle';
 import { renderCelebrationEmail, CelebrationEmailData } from './templates/celebration';
+import { renderFestivalEmail, FestivalEmailData } from './templates/festival';
 import { renderMissingBillsEmail, MissingBillsEmailData } from './templates/missingBills';
 import { renderAdminExpenseNoticeEmail, AdminExpenseNoticeEmailData } from './templates/adminExpenseNotice';
 import { renderAccountsPaymentDoneEmail, AccountsPaymentDoneEmailData } from './templates/accountsPaymentDone';
@@ -291,6 +292,17 @@ export async function sendCelebrationEmail(data: { email: string } & Celebration
       `[email] Celebration (${data.type}/${data.audience}) for "${data.celebrantName}" could not be sent to ${data.email}:`,
       error instanceof Error ? error.message : error
     );
+  }
+}
+
+export async function sendFestivalEmail(data: { email: string } & FestivalEmailData): Promise<void> {
+  if (!data.email) return;
+
+  try {
+    const { subject, html, text } = renderFestivalEmail(data);
+    await sendEmail({ to: data.email, subject, html, text });
+  } catch (error) {
+    console.error(`[email] Festival greeting (${data.festivalName}) could not be sent to ${data.email}:`, error instanceof Error ? error.message : error);
   }
 }
 
