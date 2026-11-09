@@ -47,8 +47,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { department: rawDepartment } = await params;
     const departmentName = decodeURIComponent(rawDepartment);
 
-    const scope = await resolveVisibilityScope(viewer.username);
-    const departments = await listActiveDepartments();
+    // Independent reads — the viewer's scope and the department list have no
+    // bearing on each other. Awaited together, then used in the same order as
+    // before, so the authorization decision below is unchanged.
+    const [scope, departments] = await Promise.all([
+      resolveVisibilityScope(viewer.username),
+      listActiveDepartments()
+    ]);
     const match = departments.find((d) => d.name === departmentName);
     if (!match) return NextResponse.json({ error: 'Department not found' }, { status: 404 });
 
@@ -77,8 +82,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    const result = await computeDepartmentScore(departmentName, team);
-    const managersByDepartment = await listDepartmentManagers();
+    // Also independent: the manager map is joined on after the fact, so it can
+    // load while the (much slower) scoring runs instead of queueing behind it.
+    const [result, managersByDepartment] = await Promise.all([
+      computeDepartmentScore(departmentName, team),
+      listDepartmentManagers()
+    ]);
 
     // Attach display names to each scored member. computeDepartmentScore sorts
     // its members, so join by id rather than assuming positional order.

@@ -24,6 +24,15 @@ Migrations run via `sequelize-cli` (`npm run db:migrate`), reading `DATABASE_URL
 
 **Run migrations BEFORE restarting the app process on a schema-adding deploy.** See the restart-strategy note below for why this matters more than it would on a stateless app.
 
+### 4 historical migration names with no file (confirmed harmless — `REL-DB-001`)
+
+`SequelizeMeta` lists 4 applied migrations with no corresponding file in `db/migrations/`: `marketing-request-technical-workflow`, `create-daily-task-entries`, `daily-task-pipeline`, `daily-task-submit`. Investigated and confirmed safe:
+
+- **`marketing-request-technical-workflow`** was an early draft, superseded 30 minutes later by `20260820150000-marketing-request-workflow-v1.js` ("Marketing Request Workflow — Final V1"), which idempotently adds every column the draft would have (`technical_assigned_to`, `technical_assigned_to_id`, `technical_instructions`, `technical_remarks`, `technical_review_decision`, `technical_reviewed_at`, `technical_reviewed_by`) — confirmed live on `marketing_requests` right now.
+- **`create-daily-task-entries`**, **`daily-task-pipeline`**, **`daily-task-submit`** created the old "daily task" system (tables `daily_task_entries`, `daily_task_leave_requests`, `daily_task_reminders`, `daily_task_warnings`, confirmed still present in the live database), fully superseded by the current "daily report" system (`20261014090000-create-daily-report-module.js` onward — `daily_reports`, `daily_report_entries`, etc.). Confirmed via a repo-wide code search that **no model, store, or route references the old `daily_task_*` tables anymore** — they are orphaned, unused, and carry no functional risk.
+
+**Not reconstructed** — rebuilding migration files for tables nothing uses would be pure busywork. **Not dropped either** (out of scope for a deployment doc; a drop of 4 live tables is its own, separate, deliberate decision with real data in them, not something to bundle into a documentation fix). If a future cleanup wants to drop the 4 orphaned `daily_task_*` tables, confirm no analytics/reporting job outside this codebase still reads them first.
+
 ## Restart strategy — read this before changing the deploy process
 
 This app's Node process **caches Sequelize model definitions for its entire lifetime**. A real incident during this engagement (the session-epoch migration) required a manual process restart (`taskkill` + relaunch) before a newly-added database column was recognized — the running process kept using its stale, pre-migration model definition until restarted.

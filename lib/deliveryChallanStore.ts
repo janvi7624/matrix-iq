@@ -203,7 +203,7 @@ async function remove(id: string, viewerUsername: string, viewerIsPrivileged: bo
   return true;
 }
 
-export const deliveryChallanStore = { list, listOwnedBy, create, update, remove };
+export const deliveryChallanStore = { list, listOwnedBy, readAll, create, update, remove };
 
 export async function findDeliveryChallanById(id: string): Promise<DeliveryChallanRecord | undefined> {
   if (!isUuid(id)) return undefined;

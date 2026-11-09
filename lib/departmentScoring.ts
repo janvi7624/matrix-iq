@@ -26,8 +26,7 @@ import {
   TmsBomRequestRecord,
   TmsProcurementRecord,
   TmsProjectRecord,
-  TmsTaskRecord
-} from './types';
+  TmsTaskRecord, DeliveryChallanRecord } from './types';
 
 // Several department scorers below need the same org-wide dataset (e.g.
 // every department mapped to scoreSalesTeam/scoreTechTeam runs once per
@@ -52,6 +51,7 @@ export interface ScoringDataCache {
   adminExpenseEntries?: Promise<HrAdminEntryRow[]>;
   hrTasks?: Promise<GeneralTaskRecord[]>;
   paymentItems?: Promise<PaymentQueueItem[]>;
+  deliveryChallans?: Promise<DeliveryChallanRecord[]>;
 }
 
 function getProjects(cache: ScoringDataCache): Promise<ProjectRecord[]> {
@@ -138,6 +138,16 @@ function getHrTasks(cache: ScoringDataCache): Promise<GeneralTaskRecord[]> {
 function getPaymentItems(cache: ScoringDataCache): Promise<PaymentQueueItem[]> {
   if (!cache.paymentItems) cache.paymentItems = getAllPaymentItems();
   return cache.paymentItems;
+}
+
+// Back Office used to call deliveryChallanStore.listOwnedBy(username) once
+// per team member — and that is TWO queries each (resolve the username to an
+// id, then fetch their DCs), so an eight-person team cost sixteen round
+// trips to answer one score. Read the set once and group it in memory, the
+// same way every other dataset in this file is already handled.
+function getDeliveryChallans(cache: ScoringDataCache): Promise<DeliveryChallanRecord[]> {
+  if (!cache.deliveryChallans) cache.deliveryChallans = deliveryChallanStore.readAll();
+  return cache.deliveryChallans;
 }
 
 export type ScoreBand = 'red' | 'yellow' | 'green' | 'na';
@@ -566,13 +576,26 @@ async function scoreMarketingTeam(team: TeamMember[], cache: ScoringDataCache): 
 const BACKOFFICE_FORMULA =
   'The share of each member’s Delivery Challans that have moved beyond "prepared" — dispatched, returned or closed — averaged across the team.';
 
-async function scoreBackOfficeTeam(team: TeamMember[], _cache: ScoringDataCache): Promise<ScoreResult> {
+async function scoreBackOfficeTeam(team: TeamMember[], cache: ScoringDataCache): Promise<ScoreResult> {
   if (!team.length) return naResult(team, BACKOFFICE_FORMULA);
   let totalMoved = 0, totalDcs = 0;
 
+  // One read, grouped by owner. toRecord resolves created_by to the
+  // creator's USERNAME (not the id), which is the same key listOwnedBy
+  // matched on after resolving it — so the per-member sets are identical.
+  const allDcs = await getDeliveryChallans(cache);
+  const dcsByOwner = new Map<string, DeliveryChallanRecord[]>();
+  for (const dc of allDcs) {
+    const owner = dc.created_by;
+    if (!owner) continue;
+    const bucket = dcsByOwner.get(owner);
+    if (bucket) bucket.push(dc);
+    else dcsByOwner.set(owner, [dc]);
+  }
+
   const members: MemberScore[] = await Promise.all(
     team.map(async (m) => {
-      const dcs = await deliveryChallanStore.listOwnedBy(m.username);
+      const dcs = dcsByOwner.get(m.username) ?? [];
       const movedDcs = dcs.filter((d) => d.status !== 'prepared');
       const awaitingDcs = dcs.filter((d) => d.status === 'prepared');
       const moved = movedDcs.length;
