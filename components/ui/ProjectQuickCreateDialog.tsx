@@ -10,8 +10,10 @@ import ProjectSourceField from './ProjectSourceField';
 import ProjectIntakeFields, { EMPTY_PROJECT_INTAKE, ProjectIntakeValues, ProjectLocationFields } from './ProjectIntakeFields';
 import ProjectLeadField from './ProjectLeadField';
 import OpportunityTypeField from './OpportunityTypeField';
+import ProjectDepartmentField from './ProjectDepartmentField';
 import { useProjectLeads } from './useProjectLeads';
 import { OpportunityType, nextLeadOnTypeChange } from '@/lib/projectLeadOptions';
+import { DepartmentAmounts, ProjectDepartment, sumDepartmentAmounts } from '@/lib/projectDepartmentOptions';
 import { useToast } from './ToastProvider';
 import PersonPicker, { PersonPickerOption } from './PersonPicker';
 import notifyStyles from './notify.module.css';
@@ -40,6 +42,10 @@ interface ProjectCreateForm {
   expectedClosingDate: string;
   remarks: string;
   approxPrice: string;
+  // Which team delivers the deal. POST /api/projects requires it on every
+  // new project, so a dialog without it could not create one at all.
+  departments: ProjectDepartment[];
+  departmentAmounts: DepartmentAmounts;
 }
 
 // The intake fields are part of this form too, not just the Projects page
@@ -51,10 +57,11 @@ type QuickCreateForm = ProjectCreateForm & ProjectIntakeValues;
 const EMPTY_FORM: QuickCreateForm = {
   clientName: '', company: '', contactPerson: '', altContactPhone: '', phone: '', email: '', address: '',
   salesPersonId: '', technicalPersonIds: [], projectLeadId: '', opportunityType: '', source: '', priority: 'medium', expectedClosingDate: '', remarks: '', approxPrice: '',
+  departments: [], departmentAmounts: {},
   ...EMPTY_PROJECT_INTAKE
 };
 
-// Opportunity Type + Project Lead / Mentor. A component of its own (rather than
+// Opportunity Type + Department + Project Lead / Mentor. A component of its own (rather than
 // inline in the provider) so the leads list is only fetched when the dialog is
 // actually open — the provider itself is mounted on every page.
 function LeadFields({ form, setForm }: { form: QuickCreateForm; setForm: React.Dispatch<React.SetStateAction<QuickCreateForm>> }) {
@@ -72,6 +79,27 @@ function LeadFields({ form, setForm }: { form: QuickCreateForm; setForm: React.D
           value={form.opportunityType}
           onChange={(type) => setForm((f) => ({ ...f, opportunityType: type, projectLeadId: nextLeadOnTypeChange(f.projectLeadId, leadTouched, type, leads || []) }))}
         />
+      </div>
+      <div className={calcStyles.field}>
+        <label className={calcStyles.label}>Department *</label>
+        <ProjectDepartmentField
+          departments={form.departments}
+          amounts={form.departmentAmounts}
+          onChange={(departments, departmentAmounts) =>
+            setForm((f) => ({
+              ...f,
+              departments,
+              departmentAmounts,
+              // With a split entered, the project's Approx. Price IS the sum of
+              // the parts — written straight back so the two can never be saved
+              // as different numbers. Same rule as the Projects page form.
+              approxPrice: departments.length > 1 ? String(sumDepartmentAmounts(departmentAmounts) || '') : f.approxPrice
+            }))
+          }
+        />
+        <span className={calcStyles.lockedHint}>
+          Tick every team working this deal. Pick more than one and you can split the value between them.
+        </span>
       </div>
       <div className={calcStyles.field}>
         <label className={calcStyles.label}>Project Lead / Mentor *</label>
@@ -195,6 +223,14 @@ export function ProjectQuickCreateProvider({ children }: { children: React.React
     }
     if (!form.projectLeadId) {
       toast.error('Project Lead / Mentor is required.');
+      return;
+    }
+    if (form.departments.length > 1 && form.departments.some((d) => !form.departmentAmounts[d])) {
+      toast.error('Enter an approx. value for each department on a multi-department project.');
+      return;
+    }
+    if (!form.departments.length) {
+      toast.error('Department is required — AI, AV, Robotics, or a combination.');
       return;
     }
     if (!isTechnicalCreator && !form.technicalPersonIds.length) {
