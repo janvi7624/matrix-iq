@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
-import { createProduct, listProducts, ProductInput } from '@/lib/productStore';
+import { assignProductManager, createProduct, listProducts, ProductInput } from '@/lib/productStore';
+import { isUuid } from '@/lib/db';
 import { apiErrorResponse } from '@/lib/apiError';
 
 // Base auth + admin/superadmin/manager gating happens in proxy.ts (matcher: /api/admin/:path*).
@@ -46,7 +47,13 @@ export async function POST(request: NextRequest) {
       status: body.status === 'inactive' ? 'inactive' : 'active',
       type: body.type === 'custom' || body.type === 'project_based' ? body.type : 'standard'
     };
-    const product = await createProduct(input, session.username);
+    let product = await createProduct(input, session.username);
+    // Optional explicit manager at creation time — "+ Add Product" lets the
+    // creator hand it straight to a different Product Manager instead of
+    // defaulting to themselves.
+    if (typeof body.managerId === 'string' && isUuid(body.managerId)) {
+      product = (await assignProductManager(product.id, body.managerId)) ?? product;
+    }
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);

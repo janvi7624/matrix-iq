@@ -1463,6 +1463,11 @@ export interface ProductRecord {
   created_at: string;
   created_by: string;
   created_by_id: string;
+  // The reassignable Product Manager (Product.managerId) — falls back to
+  // the creator when no explicit assignment has been made, see
+  // lib/productStore.ts's toRecord.
+  manager_id: string;
+  manager_name: string;
   updated_at: string;
   name: string;
   sku: string;

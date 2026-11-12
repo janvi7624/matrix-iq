@@ -7,6 +7,7 @@
 // silently overriding it here would make that admin control look broken.
 import {
   LayoutDashboard,
+  MessageSquare,
   Briefcase,
   Megaphone,
   Package,
@@ -210,7 +211,11 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   // The HR Festival Greetings module's tile (lib/moduleConfigStore.ts) —
   // same "must exist here or it silently renders as text" rule as every
   // other entry above.
-  'party-popper': PartyPopper
+  'party-popper': PartyPopper,
+  // The staff Feedback module's tile ('feedback' + 'admin-feedback' in
+  // lib/moduleConfigStore.ts) — same rule. Missing here is exactly why its
+  // sidebar icon kept disappearing.
+  'message-square': MessageSquare
 };
 
 export const MODULE_ICON_OPTIONS = Object.keys(MODULE_ICON_REGISTRY);

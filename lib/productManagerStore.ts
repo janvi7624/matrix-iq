@@ -1,4 +1,4 @@
-import { Model, Op } from 'sequelize';
+import { Model } from 'sequelize';
 import { db, isUuid } from './db';
 import { LineItem, ProductManagerNoteRecord, ProductManagerNoteType, ProductManagerRollup, ProductRecord } from './types';
 import { listProducts } from './productStore';
@@ -62,10 +62,10 @@ async function sumAmountsByProductId(): Promise<Map<string, ProductManagerAmount
   return totals;
 }
 
-/** Every product this user created — their own catalog, not anyone else's. */
+/** Every product this user manages — explicit Product.managerId assignment, falling back to the creator when none was ever set. */
 export async function listMyProducts(userId: string): Promise<ProductRecord[]> {
   const all = await listProducts();
-  return all.filter((p) => p.created_by_id === userId);
+  return all.filter((p) => p.manager_id === userId);
 }
 
 export async function getProductManagerRollup(userId: string): Promise<ProductManagerRollup | null> {
@@ -99,15 +99,12 @@ export async function getProductManagerRollup(userId: string): Promise<ProductMa
   };
 }
 
-/** Admin/Superadmin overview — one rollup row per person who has created at least one product. */
+/** Admin/Superadmin overview — one rollup row per person who manages at least one product (explicit assignment, or by having created one). */
 export async function listAllProductManagerRollups(): Promise<ProductManagerRollup[]> {
-  const creatorIds = (await db.Product.findAll({
-    attributes: [[db.Sequelize.fn('DISTINCT', db.Sequelize.col('createdBy')), 'createdBy']],
-    where: { createdBy: { [Op.ne]: null } } as never,
-    raw: true
-  })) as unknown as { createdBy: string }[];
+  const products = await listProducts();
+  const managerIds = Array.from(new Set(products.map((p) => p.manager_id).filter((id): id is string => Boolean(id))));
 
-  const rollups = await Promise.all(creatorIds.map((row) => getProductManagerRollup(row.createdBy)));
+  const rollups = await Promise.all(managerIds.map((id) => getProductManagerRollup(id)));
   return rollups.filter((r): r is ProductManagerRollup => Boolean(r)).sort((a, b) => b.pending_value + b.won_value - (a.pending_value + a.won_value));
 }
 

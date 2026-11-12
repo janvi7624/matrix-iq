@@ -32,6 +32,12 @@ const BLANK_FORM: ProductForm = {
   defaultQty: 1, basePrice: 0, sellingPrice: 0, taxPercent: 0, hsnSac: '', discountPercent: 0, status: 'active', type: 'standard'
 };
 
+interface ManagerOption {
+  id: string;
+  username: string;
+  name: string;
+}
+
 const PRODUCT_TYPE_LABEL: Record<ProductType, string> = { standard: 'Standard', custom: 'Custom', project_based: 'Project-based' };
 
 interface ProductMasterViewProps {
@@ -60,6 +66,17 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
   const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [managers, setManagers] = useState<ManagerOption[]>([]);
+  const [managerId, setManagerId] = useState('');
+  const [reassigningId, setReassigningId] = useState<string | null>(null);
+  const [reassignValue, setReassignValue] = useState('');
+
+  useEffect(() => {
+    fetch('/api/admin/products/managers')
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setManagers)
+      .catch(() => setManagers([]));
+  }, []);
 
   async function load() {
     setStatus('Loading...');
@@ -93,7 +110,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
       const response = await fetch('/api/admin/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, managerId: managerId || undefined })
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
@@ -101,6 +118,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
         return;
       }
       setForm(BLANK_FORM);
+      setManagerId('');
       await load();
     } catch {
       setCreateError('Could not reach the server.');
@@ -131,6 +149,22 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
     }
     setEditingId(null);
     setEditState(null);
+    await load();
+  }
+
+  async function saveReassign(id: string) {
+    if (!reassignValue) return;
+    const response = await fetch(`/api/admin/products/${id}/manager`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerId: reassignValue })
+    });
+    if (!response.ok) {
+      toast.error('Could not reassign the Product Manager.');
+      return;
+    }
+    setReassigningId(null);
+    setReassignValue('');
     await load();
   }
 
@@ -242,6 +276,13 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                 <option value="project_based">Project-based</option>
               </select>
             </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Product Manager (optional — defaults to you)</label>
+              <select className={calcStyles.formControl} value={managerId} onChange={(e) => setManagerId(e.target.value)}>
+                <option value="">— Myself —</option>
+                {managers.map((m) => <option key={m.id} value={m.id}>{m.name || m.username}</option>)}
+              </select>
+            </div>
           </div>
           <div className={calcStyles.field}>
             <label className={calcStyles.label}>Description</label>
@@ -338,6 +379,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                 <th>Selling Price</th>
                 <th>Tax %</th>
                 <th>Type</th>
+                <th>Manager</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -365,6 +407,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                             <option value="project_based">Project-based</option>
                           </select>
                         </td>
+                        <td>{p.manager_name || '-'}</td>
                         <td>
                           <select className={calcStyles.formControl} value={editState.status} onChange={(e) => setEditState({ ...editState, status: e.target.value as ProductStatus })}>
                             <option value="active">Active</option>
@@ -389,6 +432,23 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                         <td className={historyStyles.amount}>{p.sellingPrice.toFixed(2)}</td>
                         <td>{p.taxPercent}%</td>
                         <td>{PRODUCT_TYPE_LABEL[p.type] ?? 'Standard'}</td>
+                        <td>
+                          {reassigningId === p.id ? (
+                            <div className={historyStyles.rowActionsInline}>
+                              <select className={calcStyles.formControl} value={reassignValue} onChange={(e) => setReassignValue(e.target.value)}>
+                                <option value="">Select...</option>
+                                {managers.map((m) => <option key={m.id} value={m.id}>{m.name || m.username}</option>)}
+                              </select>
+                              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveReassign(p.id)}>Save</button>
+                              <button type="button" className={historyStyles.button} onClick={() => { setReassigningId(null); setReassignValue(''); }}>Cancel</button>
+                            </div>
+                          ) : (
+                            <>
+                              {p.manager_name || '-'}{' '}
+                              <button type="button" className={historyStyles.button} onClick={() => { setReassigningId(p.id); setReassignValue(p.manager_id); }}>Reassign</button>
+                            </>
+                          )}
+                        </td>
                         <td>
                           <span className={`${historyStyles.statusPill} ${p.status === 'active' ? historyStyles.statusPillActive : historyStyles.statusPillInactive}`}>
                             {p.status === 'active' ? 'Active' : 'Inactive'}
