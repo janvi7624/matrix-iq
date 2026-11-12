@@ -17,6 +17,10 @@ module.exports = (sequelize, DataTypes) => {
     discountPercent: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0 },
     imageUrl: { type: DataTypes.STRING },
     status: { type: DataTypes.ENUM('active', 'inactive'), allowNull: false, defaultValue: 'active' },
+    // Fixed per product, not re-chosen per quotation — see
+    // lib/productManagerStore.ts for how this feeds the Product Manager
+    // dashboard's rollup.
+    type: { type: DataTypes.ENUM('standard', 'custom', 'project_based'), allowNull: false, defaultValue: 'standard' },
     createdBy: { type: DataTypes.UUID }
   }, {
     tableName: 'products',

@@ -28,6 +28,7 @@ const modelDefiners = [
   require('./materialAccessLog.js'),
   require('./supportSlaPolicy.js'),
   require('./festival.js'),
+  require('./productManagerNote.js'),
   require('./feedbackResponse.js'),
   require('./supportTicket.js'),
   require('./supportTicketComment.js'),

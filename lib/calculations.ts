@@ -55,7 +55,8 @@ export function composeQuote(params: {
         qty,
         rate: price,
         amount,
-        unit: item.unit && item.unit.trim() ? item.unit.trim() : 'Nos'
+        unit: item.unit && item.unit.trim() ? item.unit.trim() : 'Nos',
+        productId: item.productId
       });
     });
     productGroups.push({ label: 'Custom products', start, end: lineItems.length });

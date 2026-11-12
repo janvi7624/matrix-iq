@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
       hsnSac: typeof body.hsnSac === 'string' ? body.hsnSac.trim() : '',
       discountPercent: Number(body.discountPercent) || 0,
       imageUrl: typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '',
-      status: body.status === 'inactive' ? 'inactive' : 'active'
+      status: body.status === 'inactive' ? 'inactive' : 'active',
+      type: body.type === 'custom' || body.type === 'project_based' ? body.type : 'standard'
     };
     const product = await createProduct(input, session.username);
     return NextResponse.json(product, { status: 201 });

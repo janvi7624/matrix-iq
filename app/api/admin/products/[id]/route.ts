@@ -23,6 +23,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (body[field] !== undefined) patch[field] = Number(body[field]) || 0;
     });
     if (body.status === 'active' || body.status === 'inactive') patch.status = body.status;
+    if (body.type === 'standard' || body.type === 'custom' || body.type === 'project_based') patch.type = body.type;
 
     const updated = await updateProduct(id, patch);
     return NextResponse.json(updated);

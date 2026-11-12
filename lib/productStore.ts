@@ -1,9 +1,9 @@
 import { Model, Op } from 'sequelize';
-import { ProductRecord, ProductStatus } from './types';
+import { ProductRecord, ProductStatus, ProductType } from './types';
 import { toCsv, csvRowsToObjects, parseCsv } from './csv';
 import { db, isUuid } from './db';
 
-const FIELDS = ['name', 'sku', 'category', 'brand', 'description', 'unit', 'hsnSac', 'imageUrl', 'status'] as const;
+const FIELDS = ['name', 'sku', 'category', 'brand', 'description', 'unit', 'hsnSac', 'imageUrl', 'status', 'type'] as const;
 const NUMBER_FIELDS = ['defaultQty', 'basePrice', 'sellingPrice', 'taxPercent', 'discountPercent'] as const;
 
 function isoOrEmpty(value: unknown): string {
@@ -19,6 +19,7 @@ function toRecord(row: Model): ProductRecord {
     id: plain.id,
     created_at: isoOrEmpty(plain.createdAt),
     created_by: (plain.creator as { username?: string } | null)?.username ?? '',
+    created_by_id: (plain.creator as { id?: string } | null)?.id ?? '',
     updated_at: isoOrEmpty(plain.updatedAt)
   };
   for (const f of FIELDS) record[f] = plain[f] ?? '';
@@ -73,6 +74,7 @@ export interface ProductInput {
   discountPercent: number;
   imageUrl: string;
   status: ProductStatus;
+  type: ProductType;
 }
 
 export async function createProduct(input: ProductInput, createdBy: string): Promise<ProductRecord> {
@@ -118,6 +120,7 @@ export async function duplicateProduct(id: string, createdBy: string): Promise<P
     hsnSac: originalPlain.hsnSac,
     discountPercent: originalPlain.discountPercent,
     imageUrl: originalPlain.imageUrl,
+    type: originalPlain.type,
     status: 'inactive',
     createdBy: creator ? creator.get('id') : null
   } as never);
@@ -204,7 +207,8 @@ export async function importProductRows(rows: Record<string, string>[], createdB
       hsnSac: row['HSN/SAC'] || row['hsnSac'] || '',
       discountPercent: Number(row['Discount %'] || row['discountPercent']) || 0,
       imageUrl: row['Image URL'] || row['imageUrl'] || '',
-      status: (row['Status'] || row['status'] || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active'
+      status: (row['Status'] || row['status'] || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active',
+      type: 'standard'
     };
 
     const existing = sku ? await db.Product.findOne({ where: { sku: { [Op.iLike]: sku } } as never }) : null;

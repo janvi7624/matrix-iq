@@ -34,6 +34,11 @@ export interface LineItem {
   rate: number;
   amount: number;
   unit: string;
+  // Carried through from CustomProduct.productId when this line came from
+  // "+ Add from catalog" — see lib/calculations.ts's composeQuote and
+  // lib/productManagerStore.ts, which reads it back out of the persisted
+  // quotation to attribute value to the product's creator.
+  productId?: string;
 }
 
 export interface ProductGroup {
@@ -75,6 +80,12 @@ export interface CustomProduct {
   qty: number;
   price: number;
   remarks: string;
+  // Set only when this line item was added via "+ Add from catalog"
+  // (CustomProductsList's onAddFromCatalog) — lets the Product Manager
+  // rollup (lib/productManagerStore.ts) trace a quotation line back to the
+  // catalog Product, and from there to who created it. Absent for a freely
+  // typed custom line item, which has no catalog product to link to.
+  productId?: string;
 }
 
 export interface SiItem {
@@ -1445,11 +1456,13 @@ export interface AppConfig {
 export type PublicAppConfig = Omit<AppConfig, 'bankAccountName' | 'bankAccountNumber' | 'bankIfsc' | 'bankName' | 'bankBranch' | 'notificationTemplates' | 'marketingOwnerId' | 'marketingOwnerUsername' | 'bomFinanceApproverId' | 'bomFinanceApproverUsername' | 'updated_at' | 'updated_by'>;
 
 export type ProductStatus = 'active' | 'inactive';
+export type ProductType = 'standard' | 'custom' | 'project_based';
 
 export interface ProductRecord {
   id: string;
   created_at: string;
   created_by: string;
+  created_by_id: string;
   updated_at: string;
   name: string;
   sku: string;
@@ -1465,6 +1478,31 @@ export interface ProductRecord {
   discountPercent: number;
   imageUrl: string;
   status: ProductStatus;
+  type: ProductType;
+}
+
+// One pending/action/plan/feedback note on a Product Manager's own timeline
+// — see lib/productManagerStore.ts. Scoped to the PM (every product they
+// created), not to one individual product.
+export type ProductManagerNoteType = 'feedback' | 'action' | 'plan';
+
+export interface ProductManagerNoteRecord {
+  id: string;
+  product_manager_id: string;
+  type: ProductManagerNoteType;
+  text: string;
+  created_at: string;
+  created_by: string;
+}
+
+export interface ProductManagerRollup {
+  pm_id: string;
+  pm_username: string;
+  pm_name: string;
+  product_count: number;
+  pending_value: number;
+  won_value: number;
+  lost_value: number;
 }
 
 // Drives the Dashboard tiles / sidebar for both built-in routes and enabled
