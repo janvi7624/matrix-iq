@@ -64,6 +64,14 @@ jobs:
       - name: Generate Next types (writes next-env.d.ts)
         run: npx next typegen
 
+      # A fresh CI database's roles table is empty — migrations create
+      # schema only. The app normally seeds built-in roles lazily on first
+      # access, but nothing else in this workflow triggers that before
+      # Playwright's fixtures look roles up directly by key, so every
+      # fixture-creating E2E test failed with "No role with key ... exists".
+      - name: Seed built-in roles
+        run: npx tsx scripts/ci-seed-roles.ts
+
       - name: Typecheck
         run: npm run typecheck
 
