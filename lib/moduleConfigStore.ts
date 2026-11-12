@@ -1,4 +1,5 @@
 import { Model } from 'sequelize';
+import { FEEDBACK_MODULE_KEY, isFeedbackWindowOpen } from './feedbackWindow';
 import { ModuleConfigRecord, UserRole } from './types';
 import { db, isUuid } from './db';
 import { cached, invalidateCache } from './memoCache';
@@ -124,6 +125,15 @@ const SALES_ROLES_WITH_TMS: UserRole[] = [...ALL_ROLES, ...TMS_ROLE_KEYS];
 // added later without a matching seed) simply won't appear until an admin
 // adds it via Module Manager.
 const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
+  // Temporary: a short feedback drive that closes on its own (see
+  // lib/feedbackWindow.ts). Listed here so the reconciliation below adds it
+  // to an existing database, and visible to EVERY role because the point is
+  // to hear from everyone — what each person is asked about is scoped to
+  // their own modules inside the form, not by hiding the tile.
+  { key: 'feedback', label: 'Your Feedback', desc: 'Tell us how MatrixIQ is working for your role — open for a short period only.', icon: 'message-square', href: '/feedback', section: 'Workspace', order: 99, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  // The admin side of the same drive. Stays available after the window
+  // closes — collecting stops, reading does not.
+  { key: 'admin-feedback', label: 'Staff Feedback', desc: 'What the team said about MatrixIQ, by person and by feature.', icon: 'message-square', href: '/admin/feedback', section: 'Administration', order: 98, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
   { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: 'folder-kanban', href: '/projects', section: 'Sales', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   // my-quotations absorbed as a second tab on this same page — see
   // ABSORBED_INTO_MERGED_PAGE; key/visibleToRoles unchanged so each tab's own
@@ -808,6 +818,12 @@ export async function listVisibleModules(viewer: {
     // cannot express it — the people who do this sit on the generic 'user'
     // role alongside a dozen others.
     if (isPartnerWorkspaceModule(m.key)) return canSeePartnerWorkspace(viewer);
+    // The feedback drive removes ITSELF. No cron job to fail and no flag
+    // for anyone to remember to switch off: once the window has passed the
+    // tile simply stops being returned, and the page and the submit
+    // endpoint close on the same date (lib/feedbackWindow.ts). The admin
+    // tile is deliberately NOT gated — the responses still need reading.
+    if (m.key === FEEDBACK_MODULE_KEY && !isFeedbackWindowOpen()) return false;
     return m.visibleToRoles.includes(viewer.role) && departmentAllowsModule(m, viewer.department, viewer.isPrivileged);
   });
 }
