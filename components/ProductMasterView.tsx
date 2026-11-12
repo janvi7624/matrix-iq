@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ProductRecord, ProductStatus, ProductType } from '@/lib/types';
+import { ProductRecord, ProductStatus } from '@/lib/types';
 import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import AppShell from '@/components/AppShell';
 import historyStyles from '@/components/quotationHistory.module.css';
@@ -24,12 +24,11 @@ interface ProductForm {
   hsnSac: string;
   discountPercent: number;
   status: ProductStatus;
-  type: ProductType;
 }
 
 const BLANK_FORM: ProductForm = {
   name: '', sku: '', category: '', brand: '', description: '', unit: 'Nos',
-  defaultQty: 1, basePrice: 0, sellingPrice: 0, taxPercent: 0, hsnSac: '', discountPercent: 0, status: 'active', type: 'standard'
+  defaultQty: 1, basePrice: 0, sellingPrice: 0, taxPercent: 0, hsnSac: '', discountPercent: 0, status: 'active'
 };
 
 interface ManagerOption {
@@ -37,8 +36,6 @@ interface ManagerOption {
   username: string;
   name: string;
 }
-
-const PRODUCT_TYPE_LABEL: Record<ProductType, string> = { standard: 'Standard', custom: 'Custom', project_based: 'Project-based' };
 
 interface ProductMasterViewProps {
   /** Renders without its own AppShell/Sidebar — for hosting inside a tabbed
@@ -132,7 +129,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
     setEditState({
       name: p.name, sku: p.sku, category: p.category, brand: p.brand, description: p.description, unit: p.unit,
       defaultQty: p.defaultQty, basePrice: p.basePrice, sellingPrice: p.sellingPrice, taxPercent: p.taxPercent,
-      hsnSac: p.hsnSac, discountPercent: p.discountPercent, status: p.status, type: p.type
+      hsnSac: p.hsnSac, discountPercent: p.discountPercent, status: p.status
     });
   }
 
@@ -269,14 +266,6 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
               <input className={calcStyles.formControl} value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} />
             </div>
             <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Type</label>
-              <select className={calcStyles.formControl} value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ProductType }))}>
-                <option value="standard">Standard</option>
-                <option value="custom">Custom</option>
-                <option value="project_based">Project-based</option>
-              </select>
-            </div>
-            <div className={calcStyles.field}>
               <label className={calcStyles.label}>Product Manager (optional — defaults to you)</label>
               <select className={calcStyles.formControl} value={managerId} onChange={(e) => setManagerId(e.target.value)}>
                 <option value="">— Myself —</option>
@@ -378,7 +367,6 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                 <th>Base Price</th>
                 <th>Selling Price</th>
                 <th>Tax %</th>
-                <th>Type</th>
                 <th>Manager</th>
                 <th>Status</th>
                 <th></th>
@@ -400,13 +388,6 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                         <td><input className={calcStyles.formControl} type="number" value={editState.basePrice} onChange={(e) => setEditState({ ...editState, basePrice: parseFloat(e.target.value) || 0 })} /></td>
                         <td><input className={calcStyles.formControl} type="number" value={editState.sellingPrice} onChange={(e) => setEditState({ ...editState, sellingPrice: parseFloat(e.target.value) || 0 })} /></td>
                         <td><input className={calcStyles.formControl} type="number" value={editState.taxPercent} onChange={(e) => setEditState({ ...editState, taxPercent: parseFloat(e.target.value) || 0 })} /></td>
-                        <td>
-                          <select className={calcStyles.formControl} value={editState.type} onChange={(e) => setEditState({ ...editState, type: e.target.value as ProductType })}>
-                            <option value="standard">Standard</option>
-                            <option value="custom">Custom</option>
-                            <option value="project_based">Project-based</option>
-                          </select>
-                        </td>
                         <td>{p.manager_name || '-'}</td>
                         <td>
                           <select className={calcStyles.formControl} value={editState.status} onChange={(e) => setEditState({ ...editState, status: e.target.value as ProductStatus })}>
@@ -431,7 +412,6 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                         <td className={historyStyles.amount}>{p.basePrice.toFixed(2)}</td>
                         <td className={historyStyles.amount}>{p.sellingPrice.toFixed(2)}</td>
                         <td>{p.taxPercent}%</td>
-                        <td>{PRODUCT_TYPE_LABEL[p.type] ?? 'Standard'}</td>
                         <td>
                           {reassigningId === p.id ? (
                             <div className={historyStyles.rowActionsInline}>
@@ -468,7 +448,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                 );
               })}
               {products.length === 0 && (
-                <tr><td colSpan={11} className={historyStyles.empty}>No products match.</td></tr>
+                <tr><td colSpan={10} className={historyStyles.empty}>No products match.</td></tr>
               )}
             </tbody>
           </table>

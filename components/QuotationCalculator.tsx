@@ -149,6 +149,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
   const [conferencePreset, setConferencePreset] = useState<ModelPreset | null>(null);
   const [cablesPreset, setCablesPreset] = useState<ModelPreset | null>(null);
   const [ledPreset, setLedPreset] = useState<LedModelPreset | null>(null);
+  const [productCatalog, setProductCatalog] = useState<{ id: string; name: string }[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [projectId, setProjectId] = useState(searchParams.get('projectId') || '');
   const [savedQuotation, setSavedQuotation] = useState<{ id: string; quotation_number: string } | null>(null);
@@ -292,6 +293,12 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
   }, []);
 
   useEffect(() => {
+    fetchCached('/api/products')
+      .then((data: { id: string; name: string }[]) => setProductCatalog(data.map((p) => ({ id: p.id, name: p.name }))))
+      .catch(() => setProductCatalog([]));
+  }, []);
+
+  useEffect(() => {
     fetch('/api/product-overrides')
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: CatalogOverrideRow[]) => setOverrides(buildOverrideMap(rows)))
@@ -400,8 +407,8 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
   }
 
   const composition = useMemo(
-    () => composeQuote({ activeResult, cartItems, customProducts, discounts, markupPercent: costInputs.markupPercent }),
-    [activeResult, cartItems, customProducts, discounts, costInputs.markupPercent]
+    () => composeQuote({ activeResult, cartItems, customProducts, discounts, markupPercent: costInputs.markupPercent, catalog: productCatalog }),
+    [activeResult, cartItems, customProducts, discounts, costInputs.markupPercent, productCatalog]
   );
 
   const cartTotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);

@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { db } from './db';
 
 // Per-person reporting lines.
@@ -73,4 +74,87 @@ export async function directReportIdsForUsername(username: string): Promise<stri
 export async function isDirectReportOf(managerId: string, employeeId: string): Promise<boolean> {
   if (!managerId || !employeeId) return false;
   return (await reportingManagerIdFor(employeeId)) === managerId;
+}
+
+export interface ManagerRef {
+  id: string;
+  username: string;
+  name: string;
+}
+
+/**
+ * Who may approve this person's requests, and who gets notified about them.
+ *
+ * THE ONE EXCEPTION to the additive rule documented at the top of this file,
+ * and it is deliberate. For request/approval workflows (travel, reimbursement,
+ * demo schedule, deadline extension, marketing, BOM) a named reporting
+ * manager REPLACES the department managers rather than joining them, because
+ * the requirement here is accountability: exactly one person owns Ajay's
+ * requests, and a shared queue is what that was meant to end.
+ *
+ * Visibility is unaffected — resolveVisibilityScope stays additive, so the
+ * department manager can still SEE everything they could before. This changes
+ * only who the request is routed to and who may decide it.
+ *
+ * Deliberately NOT a dead end: every call site keeps its existing
+ * admin/superadmin override, so a request can still be unblocked if the named
+ * manager is unavailable. An inactive reporting manager falls back to the
+ * department managers for the same reason — the override must never be able to
+ * strand a request with nobody at all able to act on it.
+ *
+ * Takes the already-fetched listDepartmentManagers() map so a call site that
+ * needs it for other reasons (HR stage, cross-department routing) does not pay
+ * for a second query.
+ */
+export async function approversFor(opts: {
+  employeeId?: string | null;
+  departmentName?: string | null;
+  allManagers: Record<string, ManagerRef[]>;
+}): Promise<ManagerRef[]> {
+  const departmentManagers = opts.departmentName ? opts.allManagers[opts.departmentName] || [] : [];
+  if (!opts.employeeId) return departmentManagers;
+
+  const managerId = await reportingManagerIdFor(opts.employeeId);
+  if (!managerId) return departmentManagers;
+
+  // Resolve the override against the live users table rather than the
+  // department map: the whole point is that this person need not be any
+  // department's manager (Mahendra Singh Chauhan holds the plain 'user' role),
+  // so looking them up in allManagers would find nothing and silently fall
+  // back — reintroducing exactly the routing this replaces.
+  const row = await db.User.findByPk(managerId, { attributes: ['id', 'username', 'name', 'status'] });
+  if (!row || (row.get('status') as string) !== 'active') return departmentManagers;
+
+  return [{
+    id: row.get('id') as string,
+    username: row.get('username') as string,
+    name: row.get('name') as string
+  }];
+}
+
+/** True when this viewer may act on that employee's requests. */
+export async function canApproveFor(opts: {
+  viewerUsername: string;
+  employeeId?: string | null;
+  departmentName?: string | null;
+  allManagers: Record<string, ManagerRef[]>;
+}): Promise<boolean> {
+  const approvers = await approversFor(opts);
+  return approvers.some((m) => m.username === opts.viewerUsername);
+}
+
+/**
+ * Ids of every active person who has a reporting manager set.
+ *
+ * For list/queue filtering: a caller deciding which of N pending items a
+ * department manager may still see needs "does this person have an override"
+ * for each one, and this answers it in a single query instead of N. Today the
+ * set is tiny (one person), so a Set lookup is effectively free.
+ */
+export async function usersWithAReportingManager(): Promise<string[]> {
+  const rows = await db.User.findAll({
+    where: { reportingManagerId: { [Op.ne]: null }, status: 'active' } as never,
+    attributes: ['id']
+  });
+  return rows.map((r) => r.get('id') as string);
 }

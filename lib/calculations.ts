@@ -7,14 +7,34 @@ export interface QuoteComposition {
   totals: Totals;
 }
 
+// Matches a domain calculator's line-item description (e.g. "LED Display -
+// 55in x 4") against the Product Master catalog by name, so AV/Robotics/
+// AI/VisitIQ line items count toward that Product's manager rollup the same
+// way a Custom Products catalog pick already does — without touching how
+// any calculator prices or labels its own output. Longest-name-wins avoids a
+// short catalog name (e.g. "AV Cables") falsely matching inside an unrelated
+// longer description.
+function matchCatalogProductId(description: string, catalog: { id: string; name: string }[]): string | undefined {
+  if (!catalog.length) return undefined;
+  const haystack = description.toLowerCase();
+  let best: { id: string; length: number } | undefined;
+  for (const product of catalog) {
+    const name = product.name.trim().toLowerCase();
+    if (!name || !haystack.includes(name)) continue;
+    if (!best || name.length > best.length) best = { id: product.id, length: name.length };
+  }
+  return best?.id;
+}
+
 export function composeQuote(params: {
   activeResult: DomainResult | null;
   cartItems: CartItem[];
   customProducts: CustomProduct[];
   discounts: Discount[];
   markupPercent: number;
+  catalog?: { id: string; name: string }[];
 }): QuoteComposition {
-  const { activeResult, cartItems, customProducts, discounts, markupPercent } = params;
+  const { activeResult, cartItems, customProducts, discounts, markupPercent, catalog = [] } = params;
   const lineItems: LineItem[] = [];
   const productGroups: ProductGroup[] = [];
 
@@ -27,14 +47,14 @@ export function composeQuote(params: {
   const includeActiveResult = Boolean(activeResult) && cartItems.length === 0;
 
   if (includeActiveResult && activeResult) {
-    lineItems.push(...activeResult.lineItems);
+    lineItems.push(...activeResult.lineItems.map((li) => ({ ...li, productId: li.productId ?? matchCatalogProductId(li.description, catalog) })));
     productGroups.push({ label: activeResult.label, start: 0, end: lineItems.length });
   }
 
   let cartTotal = 0;
   cartItems.forEach((item) => {
     const start = lineItems.length;
-    lineItems.push(...item.lineItems);
+    lineItems.push(...item.lineItems.map((li) => ({ ...li, productId: li.productId ?? matchCatalogProductId(li.description, catalog) })));
     productGroups.push({ label: item.label, start, end: lineItems.length, remark: item.remark });
     cartTotal += item.subtotal;
   });

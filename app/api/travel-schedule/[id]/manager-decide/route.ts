@@ -6,6 +6,7 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { listDepartmentManagers } from '@/lib/departmentStore';
+import { approversFor } from '@/lib/reportingManagers';
 import { findUserByUsername } from '@/lib/userStore';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -28,14 +29,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'This request is not awaiting manager approval' }, { status: 400 });
     }
 
-    // Authorization: creator's department manager or admin/superadmin override
+    // Authorization: the creator's APPROVER — their named reporting manager
+    // when they have one, otherwise their department managers. approversFor is
+    // exclusive: a named manager REPLACES the department managers here, so one
+    // person owns this request rather than a shared queue.
+    //
+    // The admin/superadmin override is kept deliberately — an exclusive
+    // approver must never be able to strand a request if they are unavailable.
     const isOverride = viewer.role === 'admin' || viewer.role === 'superadmin';
     const creator = await findUserByUsername(existing.created_by);
     if (creator?.department) {
-      const managers = (await listDepartmentManagers())[creator.department] || [];
+      const managers = await approversFor({
+        employeeId: creator.id,
+        departmentName: creator.department,
+        allManagers: await listDepartmentManagers()
+      });
       const isManager = managers.some((m) => m.username === viewer.username);
       if (!isManager && !isOverride) {
-        return NextResponse.json({ error: 'Only the department manager can approve this request' }, { status: 403 });
+        return NextResponse.json({ error: 'Only your reporting manager can approve this request' }, { status: 403 });
       }
     } else if (!viewer.isPrivileged) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

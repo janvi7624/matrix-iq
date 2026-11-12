@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { canAccessProject, findProjectById, resolveProjectDeadlineTier } from '@/lib/projectStore';
 import { requestExtension, InvalidDeadlineExtensionError } from '@/lib/projectDeadlineExtensionStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
+import { approversFor } from '@/lib/reportingManagers';
 import { findAdminUsers, findUserByUsername } from '@/lib/userStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
@@ -92,7 +93,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // no manager configured for their department -> fall back to Admins,
       // same safety net lib/tmsAccess.ts's isAdministrationManager/
       // isAccountsManager already use, so a request can never get stuck.
-      const departmentManagers = actor.department ? (await listDepartmentManagers())[actor.department] || [] : [];
+      const departmentManagers = actor.department
+        ? await approversFor({
+            employeeId: actor.id,
+            departmentName: actor.department,
+            allManagers: await listDepartmentManagers()
+          })
+        : [];
       const approvers = departmentManagers.length ? departmentManagers : await findAdminUsers();
       const usernames = approvers.map((a) => a.username).filter((u) => u !== viewer.username);
       await notifyUsers(usernames, {
