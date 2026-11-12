@@ -133,7 +133,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   { key: 'feedback', label: 'Your Feedback', desc: 'Tell us how MatrixIQ is working for your role — open for a short period only.', icon: 'message-square', href: '/feedback', section: 'Workspace', order: 99, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   // The admin side of the same drive. Stays available after the window
   // closes — collecting stops, reading does not.
-  { key: 'admin-feedback', label: 'Staff Feedback', desc: 'What the team said about MatrixIQ, by person and by feature.', icon: 'message-square', href: '/admin/feedback', section: 'Administration', order: 98, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'admin-feedback', label: 'Staff Feedback', desc: 'What the team said about MatrixIQ, by person and by feature.', icon: 'message-square', href: '/admin/feedback', section: 'Administration', order: 98, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
   { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: 'folder-kanban', href: '/projects', section: 'Sales', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   // my-quotations absorbed as a second tab on this same page — see
   // ABSORBED_INTO_MERGED_PAGE; key/visibleToRoles unchanged so each tab's own
@@ -823,7 +823,14 @@ export async function listVisibleModules(viewer: {
     // tile simply stops being returned, and the page and the submit
     // endpoint close on the same date (lib/feedbackWindow.ts). The admin
     // tile is deliberately NOT gated — the responses still need reading.
-    if (m.key === FEEDBACK_MODULE_KEY && !isFeedbackWindowOpen()) return false;
+    // Visible to EVERY internal person while the window is open, whatever
+    // their role — the point of the drive is to hear from all of them. A
+    // static visibleToRoles list cannot express that: roles are
+    // admin-editable strings (UserRole = string), and ALL_ROLES already
+    // omits technical-manager, team-lead and technician, so three technical
+    // managers would simply never have been asked. Partners are excluded by
+    // the portal branch above, which runs first.
+    if (m.key === FEEDBACK_MODULE_KEY) return isFeedbackWindowOpen();
     return m.visibleToRoles.includes(viewer.role) && departmentAllowsModule(m, viewer.department, viewer.isPrivileged);
   });
 }

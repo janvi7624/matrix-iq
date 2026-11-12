@@ -5,6 +5,7 @@ import { isFeedbackWindowOpen, feedbackWindowLastDayLabel, feedbackDaysRemaining
 import { listUsers } from '@/lib/userStore';
 import { listPartnerUserIds } from '@/lib/partnerUserStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { FEEDBACK_ADMIN_ROLES } from '@/lib/feedbackWindow';
 
 // Every staff feedback response — ADMIN ONLY, as asked.
 //
@@ -21,7 +22,18 @@ import { apiErrorResponse } from '@/lib/apiError';
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!viewer.isPrivileged) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  // STRICTLY admin — not isPrivileged.
+  //
+  // isPrivileged is a flag on the ROLE, editable from Role Management, and
+  // it is currently true for `manager` and `technical` as well as the admin
+  // tier. Gating on it would hand three managers (and anyone a future admin
+  // flips the flag for) every colleague's candid, named opinion of the
+  // software and of their own work. An explicit role list is the right
+  // shape here precisely BECAUSE it cannot be widened by a settings change
+  // nobody connected to this screen.
+  if (!FEEDBACK_ADMIN_ROLES.includes(viewer.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   try {
     const responses = await listAllFeedback();

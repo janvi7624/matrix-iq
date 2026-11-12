@@ -20,6 +20,18 @@ import { istDate } from './dailyReportTime';
  */
 export const FEEDBACK_WINDOW_LAST_DAY = '2026-11-18';
 
+/**
+ * Who may read the responses: the admin tier and nobody else.
+ *
+ * Deliberately NOT `isPrivileged`, which is a Role Management flag and is
+ * currently also true for `manager` and `technical`. People answer this
+ * form candidly about their own work and their own tools, under their own
+ * name; the audience for that has to be a fixed, named list rather than
+ * whatever a role flag happens to mean next month. HR is excluded for the
+ * same reason — this is not an HR instrument.
+ */
+export const FEEDBACK_ADMIN_ROLES: string[] = ['superadmin', 'admin'];
+
 /** Module key, shared by the registry entry and the visibility gate. */
 export const FEEDBACK_MODULE_KEY = 'feedback';
 
