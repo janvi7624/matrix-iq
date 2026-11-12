@@ -57,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // without anything being re-saved — the same resolution /submit uses to
     // decide who hears about a filing.
     const assignment = await findAssignmentByDepartmentId(report.department_id);
-    const managers = await resolveReportManagers(report.department_name, assignment?.extraManagerIds ?? []);
+    const managers = await resolveReportManagers(report.department_name, assignment?.extraManagerIds ?? [], report.employee_id);
     await notifyEditRequestRaised({
       requestId: created.id,
       employeeId: report.employee_id,

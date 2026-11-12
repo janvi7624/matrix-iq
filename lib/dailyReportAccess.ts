@@ -3,6 +3,7 @@ import { isModuleAccessAllowed } from './moduleConfigStore';
 import { hasCapability } from './permissions';
 import { findRoleByKey } from './roleStore';
 import { departmentsManagedBy, findHrManagers, listDepartmentManagers } from './departmentStore';
+import { directReportIdsForUsername, reportingManagerIdFor } from './reportingManagers';
 import { isHrManager } from './hrAccess';
 import { db } from './db';
 
@@ -52,6 +53,18 @@ export interface DailyReportScope {
    * leave this one alone.
    */
   manageDepartmentIds: string[];
+  /**
+   * Individual employees this viewer may read and act on REGARDLESS of
+   * department — the people who report to them personally
+   * (users.reportingManagerId, see lib/reportingManagers.ts).
+   *
+   * A separate list rather than folded into departmentIds because it is a
+   * different kind of grant: a department id widens access to everyone in
+   * that department, now and in future, while this names exactly the people
+   * concerned and nobody else. Someone can have reports without managing any
+   * department, which is the case this exists for.
+   */
+  manageUserIds: string[];
   departments: { id: string; name: string }[];
   /** Whether "File for Them" is available to this viewer. */
   canFileForOthers: boolean;
@@ -66,10 +79,11 @@ export interface DailyReportScope {
  * Daily Report page, they just have no team to look at.
  */
 export async function resolveDailyReportScope(viewer: ViewerContext): Promise<DailyReportScope> {
-  const [orgWide, managed, hr] = await Promise.all([
+  const [orgWide, managed, hr, directReportIds] = await Promise.all([
     hasCapability(viewer.role, 'viewAllDepartments'),
     departmentsManagedBy(viewer.username),
-    isHrManager(viewer)
+    isHrManager(viewer),
+    directReportIdsForUsername(viewer.username)
   ]);
 
   // Admin and superadmin only.
@@ -93,7 +107,7 @@ export async function resolveDailyReportScope(viewer: ViewerContext): Promise<Da
   if (seesOrgWide) {
     const departments = await listActiveDepartments();
     const ids = departments.map((d) => d.id);
-    return { seesOrgWide: true, departmentIds: ids, manageDepartmentIds: ids, departments, canFileForOthers: true, isHr: hr };
+    return { seesOrgWide: true, departmentIds: ids, manageDepartmentIds: ids, manageUserIds: [], departments, canFileForOthers: true, isHr: hr };
   }
 
   // HR gets no special reach here. It used to read every department's
@@ -111,10 +125,12 @@ export async function resolveDailyReportScope(viewer: ViewerContext): Promise<Da
     seesOrgWide: false,
     departmentIds: managed.map((d) => d.id),
     manageDepartmentIds: managed.map((d) => d.id),
+    manageUserIds: directReportIds,
     departments: managed,
-    // Filing on someone's behalf is a manager action; a team member with no
-    // managed department can never do it, whatever the module matrix says.
-    canFileForOthers: managed.length > 0,
+    // Filing on someone's behalf is a manager action; someone with neither a
+    // managed department nor a direct report can never do it, whatever the
+    // module matrix says.
+    canFileForOthers: managed.length > 0 || directReportIds.length > 0,
     isHr: hr
   };
 }
@@ -127,8 +143,12 @@ async function listActiveDepartments(): Promise<{ id: string; name: string }[]> 
 /** Can this viewer open the team dashboard at all? */
 export async function canAccessTeamDashboard(viewer: ViewerContext): Promise<boolean> {
   const scope = await resolveDailyReportScope(viewer);
-  if (!scope.seesOrgWide && !scope.departmentIds.length) return false;
-  return isModuleAccessAllowed('team-daily-reports', { ...viewer, isDepartmentManager: scope.departmentIds.length > 0 });
+  // Having direct reports is a reason to open the team dashboard even with no
+  // managed department — otherwise a reporting manager would be notified of
+  // their own reportee's filing and have nowhere to go and read it.
+  const hasTeam = scope.departmentIds.length > 0 || scope.manageUserIds.length > 0;
+  if (!scope.seesOrgWide && !hasTeam) return false;
+  return isModuleAccessAllowed('team-daily-reports', { ...viewer, isDepartmentManager: hasTeam });
 }
 
 /** Can this viewer open the HR review screens? */
@@ -187,6 +207,12 @@ export async function resolveEmployeeAccess(viewer: ViewerContext, employeeId: s
   if (scope.seesOrgWide) {
     return { canView: true, canEdit: true, canFileForThem: true, isSelf: false };
   }
+  // Reports to this viewer personally: allowed whatever department they are
+  // in, and checked BEFORE the department lists, since a reporting manager
+  // need not manage any department at all.
+  if (scope.manageUserIds.includes(employeeId)) {
+    return { canView: true, canEdit: true, canFileForThem: true, isSelf: false };
+  }
   if (!scope.departmentIds.length) {
     return { canView: false, canEdit: false, canFileForThem: false, isSelf: false };
   }
@@ -221,14 +247,55 @@ async function withEmails(people: { id: string; username: string; name: string }
 }
 
 /**
- * Who is told when a report is submitted: the employee's department
- * managers, plus any extra recipients configured for that department's
- * template. Resolved from Department Master rather than a stored list, so a
- * change of manager takes effect without re-saving anything here.
+ * Who is told when a report is submitted: the employee's own reporting
+ * manager if they have one, then their department managers, plus any extra
+ * recipients configured for that department's template. Resolved live rather
+ * than from a stored list, so a change of manager takes effect without
+ * re-saving anything here.
+ *
+ * The personal reporting manager comes FIRST and the department managers are
+ * still included — see lib/reportingManagers.ts for why this is additive. The
+ * order is what matters in the UI: the first name is the one the report is
+ * 'for', the rest are the people who can also act on it.
+ *
+ * `employeeId` is optional only so a caller without the employee to hand
+ * still gets the department behaviour it got before; every current caller
+ * passes it.
  */
-export async function resolveReportManagers(departmentName: string, extraManagerIds: string[]): Promise<NotificationRecipient[]> {
+export async function resolveReportManagers(
+  departmentName: string,
+  extraManagerIds: string[],
+  employeeId?: string
+): Promise<NotificationRecipient[]> {
   const byDepartment = await listDepartmentManagers();
-  const managers = [...(byDepartment[departmentName] || [])];
+  const departmentManagers = byDepartment[departmentName] || [];
+  const managers: { id: string; username: string; name: string }[] = [];
+
+  const reportingManagerId = employeeId ? await reportingManagerIdFor(employeeId) : null;
+  if (reportingManagerId) {
+    // Taken from the department list when they are also a manager of it, so
+    // the one person is not listed twice; otherwise looked up, since a
+    // reporting manager need not manage any department at all.
+    const already = departmentManagers.find((m) => m.id === reportingManagerId);
+    if (already) {
+      managers.push(already);
+    } else {
+      const row = await db.User.findOne({
+        where: { id: reportingManagerId, status: 'active' } as never,
+        attributes: ['id', 'username', 'name']
+      });
+      // Skipped when deactivated: the department managers below are then the
+      // whole list, which is the pre-override behaviour and never empty by
+      // this route alone.
+      if (row) {
+        managers.push({ id: row.get('id') as string, username: row.get('username') as string, name: row.get('name') as string });
+      }
+    }
+  }
+
+  for (const m of departmentManagers) {
+    if (!managers.some((x) => x.id === m.id)) managers.push(m);
+  }
   if (extraManagerIds.length) {
     const extra = await db.User.findAll({ where: { id: extraManagerIds, status: 'active' } as never, attributes: ['id', 'username', 'name'] });
     for (const row of extra) {

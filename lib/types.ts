@@ -249,6 +249,13 @@ export interface UserRecord {
   employeeId: string;
   department: string;
   designation: string;
+  /**
+   * Who this person reports to, overriding their DEPARTMENT manager for
+   * request routing and manager visibility. '' — the normal case — means
+   * the department manager, which is how it worked before this existed.
+   * See lib/reportingManagers.ts.
+   */
+  reportingManagerId: string;
   location: string;
   birthday: string;
   dateOfJoining: string;

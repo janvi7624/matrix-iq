@@ -340,7 +340,9 @@ export default function ManageUsersPage() {
         role: next.role,
         employeeId: next.employeeId,
         department: next.department,
-        designation: next.designation
+        designation: next.designation,
+        // Always sent, including as '' — that is how the override is cleared.
+        reportingManagerId: next.reportingManagerId
       };
       if (next.password) payload.password = next.password;
 
@@ -679,6 +681,7 @@ export default function ManageUsersPage() {
           user={editingUser}
           roles={roles}
           departments={departments}
+          allUsers={users}
           includeSuperadmin={isSuperadmin}
           error={editError}
           saving={savingEdit}

@@ -58,17 +58,29 @@ interface EmployeeRow {
  *
  * `departmentIds` narrows it to a manager's own scope; omitted means every
  * eligible employee (the scheduler, and an org-wide viewer).
+ *
+ * `extraUserIds` adds named individuals from OUTSIDE those departments — the
+ * people who report to the viewer personally (DailyReportScope.manageUserIds).
+ * They still have to owe a report: somebody whose own department has no
+ * configured template is dropped, exactly as they would be if their manager
+ * reached them by department.
  */
-export async function listEligibleEmployees(departmentIds?: string[]): Promise<EligibleEmployee[]> {
+export async function listEligibleEmployees(departmentIds?: string[], extraUserIds?: string[]): Promise<EligibleEmployee[]> {
   const [assignments, config] = await Promise.all([listTemplateAssignments(), getDailyReportConfig()]);
   const excused = new Set(config.exempt_employee_ids);
   const configured = assignments.filter((a) => a.status === 'active' && a.templateKey !== 'not_configured');
   if (!configured.length) return [];
 
   const allowed = departmentIds && departmentIds.length ? configured.filter((a) => departmentIds.includes(a.departmentId)) : configured;
-  if (!allowed.length) return [];
+  const extraIds = extraUserIds ?? [];
+  if (!allowed.length && !extraIds.length) return [];
 
-  const byId = new Map(allowed.map((a) => [a.departmentId, a]));
+  // Keyed on every CONFIGURED department, not just the allowed ones: an extra
+  // user reached by id can be in a department this viewer does not manage, and
+  // their template still has to be found. The department filter below is what
+  // keeps the scope narrow; this map is only the lookup.
+  const byId = new Map(configured.map((a) => [a.departmentId, a]));
+  const allowedDepartmentIds = allowed.map((a) => a.departmentId);
 
   // Raw SQL rather than db.User.findAll because the users table is
   // `underscored: false` for most columns but the migration-added
@@ -80,16 +92,18 @@ export async function listEligibleEmployees(departmentIds?: string[]): Promise<E
        FROM users u
       WHERE u."deletedAt" IS NULL
         AND u.status = 'active'
-        AND u."departmentId" = ANY($departmentIds)
+        AND (u."departmentId" = ANY($departmentIds) OR u.id = ANY($extraUserIds))
       ORDER BY u.name NULLS LAST, u.username`,
-    { bind: { departmentIds: [...byId.keys()] }, type: QueryTypes.SELECT }
+    { bind: { departmentIds: allowedDepartmentIds, extraUserIds: extraIds }, type: QueryTypes.SELECT }
   );
 
   // Filtered here, at the single source of "who owes a report", so the
   // employee page, the manager dashboard, the scheduler and analytics all
   // agree. Excusing someone in only one of those would leave them nagged by
   // the scheduler while invisible on the dashboard.
-  return rows.filter((row) => !excused.has(row.id)).map((row) => {
+  // byId.has(...) drops anyone — an extra user, in practice — whose own
+  // department has no configured template, since they owe no report at all.
+  return rows.filter((row) => !excused.has(row.id) && byId.has(row.department_id as string)).map((row) => {
     const assignment = byId.get(row.department_id as string);
     return {
       id: row.id,

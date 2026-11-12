@@ -39,6 +39,7 @@ function toUserRecord(row: Model): UserRecord {
     employeeId: (plain.employeeId as string) ?? '',
     department: (plain.departmentRef as { name?: string } | null)?.name ?? (plain.department as string) ?? '',
     designation: (plain.designation as string) ?? '',
+    reportingManagerId: (plain.reportingManagerId as string) ?? '',
     location: (plain.location as string) ?? '',
     birthday: (plain.birthday as string) ?? '',
     dateOfJoining: (plain.dateOfJoining as string) ?? '',
@@ -80,6 +81,7 @@ async function ensureSeedAdmin(): Promise<void> {
     employeeId: '',
     department: '',
     designation: '',
+    reportingManagerId: '',
     status: 'active'
   } as never);
 }
@@ -294,6 +296,8 @@ export interface CreateUserInput {
   employeeId?: string;
   department?: string;
   designation?: string;
+  // '' clears it back to 'use the department manager'; undefined leaves it.
+  reportingManagerId?: string;
   location?: string;
   birthday?: string;
   dateOfJoining?: string;
@@ -334,6 +338,7 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
     department: input.department || '',
     departmentId,
     designation: input.designation || '',
+    reportingManagerId: input.reportingManagerId || null,
     location: input.location || '',
     birthday: input.birthday || null,
     dateOfJoining: input.dateOfJoining || null,
@@ -371,6 +376,9 @@ export interface UpdateUserInput {
   employeeId?: string;
   department?: string;
   designation?: string;
+  // '' clears the override back to 'use the department manager';
+  // undefined leaves whatever is stored alone.
+  reportingManagerId?: string;
   location?: string;
   birthday?: string;
   dateOfJoining?: string;
@@ -426,6 +434,22 @@ export async function updateUser(id: string, patch: UpdateUserInput): Promise<Pu
     dateOfJoining: patch.dateOfJoining,
     status: patch.status
   };
+  // Normalised here rather than at the route, so every caller gets the same
+  // rule: a blank means 'no override' and must be stored as NULL, not as an
+  // empty string the FK would reject.
+  if (patch.reportingManagerId !== undefined) {
+    const next = patch.reportingManagerId.trim();
+    // Reporting to yourself would make you your own approver, which is never
+    // what was meant and would quietly defeat the approval step.
+    if (next && next === id) throw new Error('A user cannot report to themselves');
+    if (next && !isUuid(next)) throw new Error('Unknown reporting manager');
+    if (next) {
+      const manager = await db.User.findByPk(next, { attributes: ['id', 'status'], transaction: t });
+      if (!manager) throw new Error('Unknown reporting manager');
+      if ((manager.get('status') as string) !== 'active') throw new Error('That reporting manager is not an active account');
+    }
+    attrs.reportingManagerId = next || null;
+  }
   let newRoleLabel: string | undefined;
   if (patch.role !== undefined) {
     const role = await db.Role.findOne({ where: { key: patch.role } as never });

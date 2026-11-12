@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     // worse than none.
     if (justSubmitted) {
       const assignment = await findAssignmentByDepartmentId(employee.departmentId);
-      const managers = await resolveReportManagers(employee.departmentName, assignment?.extraManagerIds ?? []);
+      const managers = await resolveReportManagers(employee.departmentName, assignment?.extraManagerIds ?? [], employee.id);
       await notifyReportSubmitted({
         reportId: report.id,
         employeeId: employee.id,

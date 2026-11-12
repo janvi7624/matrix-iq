@@ -1,6 +1,7 @@
 import { db } from './db';
 import { hasCapability } from './permissions';
 import { departmentsManagedBy } from './departmentStore';
+import { directReportIdsForUsername } from './reportingManagers';
 
 export interface VisibilityScope {
   // true: no filtering needed, the caller sees every record (Admin/Super
@@ -10,8 +11,10 @@ export interface VisibilityScope {
   // null only when seesOrgWide is true. Otherwise the full set of user ids
   // whose records this viewer may see: their own id, plus — if they manage
   // one or more departments (Department.managerIds) — every active user in
-  // those department(s) too. A viewer who manages no department gets back
-  // exactly [ownId], identical to the app's original own-records-only rule.
+  // those department(s) too, plus anyone who reports to them personally
+  // (users.reportingManagerId, see lib/reportingManagers.ts). A viewer who
+  // manages no department and has no direct reports gets back exactly
+  // [ownId], identical to the app's original own-records-only rule.
   scopedUserIds: string[] | null;
 }
 
@@ -36,16 +39,25 @@ export async function resolveVisibilityScope(viewerUsername: string): Promise<Vi
     return { seesOrgWide: true, scopedUserIds: null };
   }
 
-  const managed = await departmentsManagedBy(viewerUsername);
-  if (!managed.length) {
+  // Two independent ways to be somebody's manager, unioned: managing their
+  // DEPARTMENT, or being named as their personal reporting manager. Someone
+  // can have one, both or neither — a person with direct reports but no
+  // department to manage is exactly the case this was added for, so the
+  // early return below has to consider both before giving up.
+  const [managed, directReportIds] = await Promise.all([
+    departmentsManagedBy(viewerUsername),
+    directReportIdsForUsername(viewerUsername)
+  ]);
+  if (!managed.length && !directReportIds.length) {
     return { seesOrgWide: false, scopedUserIds: [ownUserId] };
   }
 
-  const members = await db.User.findAll({
-    where: { departmentId: managed.map((d) => d.id) } as never,
-    attributes: ['id']
-  });
-  const scopedUserIds = Array.from(new Set([ownUserId, ...members.map((m) => m.get('id') as string)]));
+  const members = managed.length
+    ? await db.User.findAll({ where: { departmentId: managed.map((d) => d.id) } as never, attributes: ['id'] })
+    : [];
+  const scopedUserIds = Array.from(
+    new Set([ownUserId, ...members.map((m) => m.get('id') as string), ...directReportIds])
+  );
   return { seesOrgWide: false, scopedUserIds };
 }
 

@@ -61,6 +61,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       employeeId: typeof body.employeeId === 'string' ? body.employeeId.trim() : undefined,
       department: typeof body.department === 'string' ? body.department.trim() : undefined,
       designation: typeof body.designation === 'string' ? body.designation.trim() : undefined,
+      // '' is meaningful here — it clears the override back to the department
+      // manager — so an empty string is passed through rather than treated as
+      // 'not supplied'. updateUser validates and stores NULL for it.
+      reportingManagerId: typeof body.reportingManagerId === 'string' ? body.reportingManagerId.trim() : undefined,
       role,
       status,
       password: typeof body.password === 'string' && body.password ? body.password : undefined,
