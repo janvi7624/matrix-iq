@@ -32,6 +32,19 @@ export async function createQaUser(opts: QaFixtureOptions): Promise<QaFixture> {
   const username = `QA_TEST_e2e_${opts.roleKey}_${Date.now()}_${counter}`;
   const role = await db.Role.findOne({ where: { key: opts.roleKey } as never });
   if (!role) throw new Error(`No role with key "${opts.roleKey}" exists — cannot create fixture`);
+
+  // Department gating (e.g. TMS's requireTmsPage) resolves the viewer's
+  // department via the departmentId FK (lib/userStore.ts's
+  // findUserNameAndDeptByUsername reads departmentRef.name, not the plain
+  // `department` string column) — so a fixture needs a real Department row,
+  // not just the string. Find-or-create it rather than relying on seed data,
+  // since a fresh CI database has none.
+  const departmentName = opts.department || 'Sales';
+  let departmentRow = await db.Department.findOne({ where: { name: departmentName } as never });
+  if (!departmentRow) {
+    departmentRow = await db.Department.create({ name: departmentName, status: 'active' } as never);
+  }
+
   const passwordHash = await hashPassword(QA_PASSWORD);
   const user = await db.User.create(
     {
@@ -40,7 +53,8 @@ export async function createQaUser(opts: QaFixtureOptions): Promise<QaFixture> {
       name: opts.namePrefix ? `${opts.namePrefix} ${username}` : `QA E2E ${opts.roleKey}`,
       roleId: role.get('id'),
       status: 'active',
-      department: opts.department || 'Sales'
+      department: departmentName,
+      departmentId: departmentRow.get('id')
     } as never
   );
   return { id: user.get('id') as string, username, password: QA_PASSWORD };
