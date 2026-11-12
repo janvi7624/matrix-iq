@@ -10,7 +10,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 
-// The internal side of partner onboarding: read the three documents, and
+// The internal side of partner onboarding: read the documents, and
 // approve or reject one.
 //
 // Gated on canReviewPartnerDocuments — the person who CREATED the account or

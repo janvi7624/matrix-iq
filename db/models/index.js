@@ -18,7 +18,7 @@ const modelDefiners = [
   // belongsTo it; every definer runs before any associate() does (see the
   // two loops below), so the order here is for readability, not correctness.
   require('./partner.js'),
-  // Onboarding documents (Agreement, NDA, Payment Agreement). Must be listed
+  // Onboarding documents (Agreement, NDA, GST, PAN). Must be listed
   // here: this index uses STATIC requires, not a directory scan, so a model
   // file that is not named here simply does not exist at runtime — db.X is
   // undefined and every call through it throws.

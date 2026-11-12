@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { PartnerRecord, PartnerStatus } from '@/lib/types';
 import { PROJECT_DEPARTMENTS, PROJECT_DEPARTMENT_LABEL } from '@/lib/projectDepartmentOptions';
 import AppShell from '@/components/AppShell';
+import StateCitySelect from '@/components/ui/StateCitySelect';
+import PartnerGuideModal, { usePartnerGuideAutoShow } from '@/components/PartnerGuideModal';
+import guideStyles from '@/components/partnerGuideModal.module.css';
 import historyStyles from '@/components/quotationHistory.module.css';
 import calcStyles from '@/components/calculator.module.css';
 import pageStyles from './partnersPage.module.css';
@@ -33,6 +36,10 @@ export default function PartnerManagementPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  // Shows once per browser, and stays reachable afterwards from the link
+  // below — same arrangement as TMS.
+  const [autoShowGuide, dismissAutoGuide] = usePartnerGuideAutoShow('internal');
+  const [showGuide, setShowGuide] = useState(false);
 
   const [form, setForm] = useState({
     company_name: '',
@@ -117,6 +124,20 @@ export default function PartnerManagementPage() {
 
   return (
     <AppShell title="Partner Management" subtitle="Sales › channel partners, distributors and dealers who collaborate with us through MatrixIQ.">
+      <div className={guideStyles.guideLinkRow}>
+        <button type="button" onClick={() => setShowGuide(true)} className={guideStyles.guideLink}>
+          How Partner Management Works
+        </button>
+      </div>
+      {(autoShowGuide || showGuide) && (
+        <PartnerGuideModal
+          audience="internal"
+          onClose={() => {
+            dismissAutoGuide();
+            setShowGuide(false);
+          }}
+        />
+      )}
       <h2 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Add partner</h2>
       {!showForm ? (
         <div className={calcStyles.sectionPanel}>
@@ -150,14 +171,12 @@ export default function PartnerManagementPage() {
             </div>
           </div>
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="partnerCity">City</label>
-              <input id="partnerCity" className={calcStyles.formControl} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="partnerState">State</label>
-              <input id="partnerState" className={calcStyles.formControl} value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
-            </div>
+            <StateCitySelect
+              state={form.state}
+              city={form.city}
+              onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+              idPrefix="partner"
+            />
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="partnerGst">GST number</label>
               <input id="partnerGst" className={calcStyles.formControl} value={form.gst_number} onChange={(e) => setForm({ ...form, gst_number: e.target.value })} />

@@ -1,7 +1,7 @@
 'use client';
 
 import calcStyles from '../calculator.module.css';
-import { INDIA_STATES, OTHER_LOCATION, citiesForState } from '@/lib/indiaLocations';
+import StateCitySelect from './StateCitySelect';
 import { REFERRAL_SOURCE, TENDER_SOURCE } from '@/lib/projectIntake';
 
 // The intake half of the New Project form: what the deal is called, where the
@@ -63,11 +63,6 @@ interface LocationProps {
 // naturally. Split out from the source-conditional fields below (Referral /
 // Tender), which stay next to the Source field they depend on instead.
 export function ProjectLocationFields({ values, onChange }: LocationProps) {
-  // "Other" state means nowhere in the list — including outside India — so the
-  // city becomes free text rather than a dropdown with nothing useful in it.
-  const cityOptions = citiesForState(values.state);
-  const cityIsFreeText = values.state === OTHER_LOCATION || values.city === OTHER_LOCATION;
-
   return (
     <div className={`${calcStyles.row} ${calcStyles.columns}`}>
       <Labelled label="Project Name" hint="e.g. MeetIQ - Adani">
@@ -79,43 +74,12 @@ export function ProjectLocationFields({ values, onChange }: LocationProps) {
         />
       </Labelled>
 
-      <Labelled label="State">
-        <select
-          className={calcStyles.formControl}
-          value={values.state}
-          // Changing state clears the city: a city from the previous state
-          // would otherwise stay selected and be quietly wrong.
-          onChange={(e) => onChange({ state: e.target.value, city: '' })}
-        >
-          <option value="">— Select state —</option>
-          {INDIA_STATES.map((s) => (
-            <option key={s} value={s}>{s === OTHER_LOCATION ? 'Other / Outside India' : s}</option>
-          ))}
-        </select>
-      </Labelled>
-
-      <Labelled label="City" hint={cityIsFreeText ? 'Type the city — anywhere, including outside India.' : undefined}>
-        {cityIsFreeText ? (
-          <input
-            className={calcStyles.formControl}
-            placeholder="City"
-            value={values.city === OTHER_LOCATION ? '' : values.city}
-            onChange={(e) => onChange({ city: e.target.value })}
-          />
-        ) : (
-          <select
-            className={calcStyles.formControl}
-            value={values.city}
-            disabled={!values.state}
-            onChange={(e) => onChange({ city: e.target.value })}
-          >
-            <option value="">{values.state ? '— Select city —' : 'Pick a state first'}</option>
-            {cityOptions.map((c) => (
-              <option key={c} value={c}>{c === OTHER_LOCATION ? 'Other (type it)' : c}</option>
-            ))}
-          </select>
-        )}
-      </Labelled>
+      <StateCitySelect
+        state={values.state}
+        city={values.city}
+        onChange={onChange}
+        idPrefix="project"
+      />
     </div>
   );
 }

@@ -1,0 +1,44 @@
+/* components/PartnerGuideModal.tsx — intentionally identical to
+   tmsGuideModal.module.css so the two guides are visually the same control.
+   Copied rather than shared: making TMS import a renamed common stylesheet
+   would mean editing a working module for a cosmetic win, and these are ~15
+   lines. If a third guide appears, that is the point to lift all three into
+   one shared sheet rather than copy it again.
+
+   Modal chrome itself comes from components/ui/notify.module.css. */
+
+.intro { font-size: 13.5px; color: var(--mx-ink-muted); margin-top: 6px; }
+
+.stepsGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 16px 0; }
+.stepCard { display: flex; gap: 10px; padding: 12px; border-radius: var(--mx-radius-md); background: var(--mx-surface-sunken); }
+.stepIcon { flex-shrink: 0; margin-top: 1px; }
+.stepTitle { font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
+.stepBody { font-size: 12.5px; color: var(--mx-ink-muted); }
+
+/* Modifier applied alongside calculator.module.css's .h2 (kept for its
+   border-left accent, font-weight, colour and top margin) — only overrides
+   size and bottom spacing for this smaller in-modal heading. */
+.sectionHeadingCompact { font-size: 13px; margin-bottom: 8px; }
+.stepsList { margin: 0; padding-left: 20px; font-size: 13px; color: var(--mx-ink-muted); display: flex; flex-direction: column; gap: 4px; }
+
+.dontShowLabel { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 16px; }
+.actionsSpaced { margin-top: 14px; }
+
+/* The trigger button. Same treatment as TMS's .guideLink so the affordance
+   reads the same wherever it appears. */
+.guideLink {
+    background: none;
+    border: none;
+    color: var(--mx-brand);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+/* Right-aligned above the page content, matching where TMS puts its link. */
+.guideLinkRow {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}

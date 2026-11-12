@@ -132,7 +132,7 @@ export default function PartnerWorkspaceView() {
             <div className={calcStyles.sectionPanel}>
               <p className={calcStyles.small}>
                 {canCreate
-                  ? 'No partners yet. Create one, then issue their portal login — they upload their Agreement, NDA and Payment Agreement, and you approve them here.'
+                  ? 'No partners yet. Create one, then issue their portal login — they upload their Agreement, NDA, GST and PAN, and you approve them here.'
                   : 'No partners are assigned to you yet. You will see a partner here once you are named as its relationship manager.'}
               </p>
             </div>

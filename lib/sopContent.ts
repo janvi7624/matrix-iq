@@ -170,8 +170,8 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
   partners: {
     steps: [
       'Open Partner Management to create a partner organisation and name its relationship manager.',
-      'Obtain the three onboarding documents: Agreement, NDA and Payment Agreement. They are uploaded either by the partner or by the relationship manager on the partner\'s behalf.',
-      'Review each document. The partner gets full portal access only once all three are approved by the account creator.'
+      'Obtain the onboarding documents: the Agreement and NDA, plus the listing documents (GST and PAN). They are uploaded either by the partner or by the relationship manager on the partner\'s behalf.',
+      'Review each document. The partner gets full portal access only once all of them are approved by the account creator.'
     ],
     rules: [
       'Who may create a partner is set in Application Settings → Partner Settings. A newly ticked person has to sign in once for it to take effect.',
@@ -460,9 +460,9 @@ export const MODULE_SOP: Record<string, ModuleSop> = {
   'partner-profile': {
     steps: [
       'Open Company Profile and keep the organisation\'s details and GST registration current.',
-      'Upload the Agreement, NDA and Payment Agreement here where the relationship manager has not already done so.'
+      'Upload the Agreement, NDA, GST and PAN here where the relationship manager has not already done so.'
     ],
-    rules: ['Full portal access begins once all three documents are approved by the user who created the account.']
+    rules: ['Full portal access begins once every document is approved by the user who created the account.']
   },
   'partner-projects': {
     steps: ['Open My Leads / Projects to register a lead and follow it as it becomes a project.']

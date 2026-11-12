@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       if (usernames.length) {
         await notifyUsers(usernames, {
           title: `${viewer.partner.company_name} uploaded their ${PARTNER_DOCUMENT_LABEL[kind]}`,
-          body: 'Review it in Partner Management — the partner stays limited to the onboarding screen until all three documents are approved.',
+          body: 'Review it in Partner Management — the partner stays limited to the onboarding screen until every document is approved.',
           type: 'partner_document_submitted',
           entityType: 'partner',
           entityId: viewer.partnerId

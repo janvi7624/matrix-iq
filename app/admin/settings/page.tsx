@@ -303,7 +303,7 @@ export default function ApplicationSettingsPage() {
               </div>
               <div className={styles.status}>
                 These people get the <strong>Partner</strong> module and can create partner accounts, without being made admins.
-                Each one they create is theirs: they approve its Agreement, NDA and Payment Agreement, and see only their own
+                Each one they create is theirs: they approve its Agreement, NDA, GST and PAN, and see only their own
                 partners. Anyone named as a partner&apos;s relationship manager gets the module too, without being listed here.
                 A person added or removed sees the change from their next sign-in.
               </div>

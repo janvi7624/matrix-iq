@@ -46,7 +46,7 @@ export async function requirePartnerPage(
   const partner = await findPartnerById(user.partnerId);
   if (!partner || !isPartnerUsable(partner.status)) redirect('/login');
 
-  // Until all three onboarding documents are approved, every portal page
+  // Until every onboarding document is approved, every portal page
   // leads to the onboarding screen. A redirect rather than a refusal: they
   // are a legitimate partner with something to do, not an intruder.
   if (!options.allowDuringOnboarding && !partnerOnboardingComplete(partner)) {

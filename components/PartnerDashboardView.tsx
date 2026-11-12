@@ -6,6 +6,8 @@ import { FolderKanban, FileText, Monitor, Inbox, Library } from 'lucide-react';
 import { PartnerRecord } from '@/lib/types';
 import type { PartnerKpis } from '@/lib/partnerAnalyticsCompute';
 import PartnerShell from './PartnerShell';
+import PartnerGuideModal, { usePartnerGuideAutoShow } from './PartnerGuideModal';
+import guideStyles from './partnerGuideModal.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
 
@@ -41,6 +43,10 @@ function pct(value: number | null): string {
 export default function PartnerDashboardView({ viewerName, partner }: PartnerDashboardViewProps) {
   const firstName = viewerName.trim().split(/\s+/)[0] || viewerName;
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  // First-visit orientation for the partner, who may use this a few times
+  // a year and will not remember where anything is.
+  const [autoShowGuide, dismissAutoGuide] = usePartnerGuideAutoShow('partner');
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +71,20 @@ export default function PartnerDashboardView({ viewerName, partner }: PartnerDas
       partnerName={partner.company_name}
       partnerCode={partner.partner_code}
     >
+      <div className={guideStyles.guideLinkRow}>
+        <button type="button" onClick={() => setShowGuide(true)} className={guideStyles.guideLink}>
+          How the Partner Portal Works
+        </button>
+      </div>
+      {(autoShowGuide || showGuide) && (
+        <PartnerGuideModal
+          audience="partner"
+          onClose={() => {
+            dismissAutoGuide();
+            setShowGuide(false);
+          }}
+        />
+      )}
       <section className={styles.intro}>
         <h2 className={styles.introTitle}>Welcome back, {firstName}</h2>
         <p className={styles.introSub}>

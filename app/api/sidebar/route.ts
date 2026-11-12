@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
         ? [{
             key: 'partner-onboarding',
             label: 'Onboarding',
-            desc: 'Upload your Agreement, NDA and Payment Agreement.',
+            desc: 'Upload your Agreement, NDA, GST and PAN.',
             icon: 'file-text',
             href: '/partner/onboarding',
             section: 'Partner Portal',

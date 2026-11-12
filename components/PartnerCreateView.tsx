@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
+import StateCitySelect from './ui/StateCitySelect';
 import { useToast } from './ui/ToastProvider';
 import { PROJECT_DEPARTMENTS, PROJECT_DEPARTMENT_LABEL, ProjectDepartment } from '@/lib/projectDepartmentOptions';
 import { partnerCodePrefix } from '@/lib/partnerCode';
@@ -87,7 +88,7 @@ export default function PartnerCreateView() {
       <form className={calcStyles.sectionPanel} onSubmit={submit}>
         <p className={calcStyles.small}>
           You will be recorded as this partner&apos;s relationship manager, so it appears in your Partner list and you approve its
-          Agreement, NDA and Payment Agreement. The partner cannot use the portal until all three are approved.
+          Agreement, NDA, GST and PAN. The partner cannot use the portal until all of them are approved.
         </p>
 
         <div className={calcStyles.field}>
@@ -117,14 +118,12 @@ export default function PartnerCreateView() {
         </div>
 
         <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label} htmlFor="city">City</label>
-            <input id="city" className={calcStyles.formControl} value={form.city} onChange={(e) => set('city', e.target.value)} />
-          </div>
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label} htmlFor="state">State</label>
-            <input id="state" className={calcStyles.formControl} value={form.state} onChange={(e) => set('state', e.target.value)} />
-          </div>
+          <StateCitySelect
+            state={form.state}
+            city={form.city}
+            onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+            idPrefix="partnerCreate"
+          />
           <div className={calcStyles.field}>
             <label className={calcStyles.label} htmlFor="gst_number">GST number</label>
             <input id="gst_number" className={calcStyles.formControl} value={form.gst_number} onChange={(e) => set('gst_number', e.target.value)} />
@@ -171,7 +170,7 @@ export default function PartnerCreateView() {
           </span>
         </div>
 
-        {/* Who provides the Agreement, NDA and Payment Agreement.
+        {/* Who provides the Agreement, NDA, GST and PAN.
             Asked here because the answer changes what happens next, and
             because a signed agreement often already exists — reaching us by
             email long before the partner logs in. */}
@@ -188,7 +187,7 @@ export default function PartnerCreateView() {
               <span>
                 <strong>The partner uploads them</strong>
                 <span className={calcStyles.small}>
-                  They sign in, upload all three, and you approve each one. They cannot use the rest of the portal until you do.
+                  They sign in, upload them all, and you approve each one. They cannot use the rest of the portal until you do.
                 </span>
               </span>
             </label>

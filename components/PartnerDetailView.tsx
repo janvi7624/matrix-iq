@@ -6,8 +6,9 @@ import { usePathname } from 'next/navigation';
 import { PartnerRecord, PartnerStatus } from '@/lib/types';
 import { PROJECT_DEPARTMENTS, PROJECT_DEPARTMENT_LABEL } from '@/lib/projectDepartmentOptions';
 import { PARTNER_ROLE_KEYS, PARTNER_ROLE_LABEL } from '@/lib/partnerRoles';
-import { PARTNER_DOCUMENT_KINDS, PARTNER_DOCUMENT_LABEL } from '@/lib/partnerOnboarding';
+import { PARTNER_DOCUMENT_GROUPS, PARTNER_DOCUMENT_KINDS, PARTNER_DOCUMENT_LABEL } from '@/lib/partnerOnboarding';
 import AppShell from './AppShell';
+import StateCitySelect from './ui/StateCitySelect';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import pageStyles from './partnerDetail.module.css';
@@ -321,14 +322,12 @@ export default function PartnerDetailView({ id }: { id: string }) {
               </div>
             </div>
             <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>City</label>
-                <input className={calcStyles.formControl} value={edit.city ?? ''} onChange={(e) => setEdit({ ...edit, city: e.target.value })} />
-              </div>
-              <div className={calcStyles.field}>
-                <label className={calcStyles.label}>State</label>
-                <input className={calcStyles.formControl} value={edit.state ?? ''} onChange={(e) => setEdit({ ...edit, state: e.target.value })} />
-              </div>
+              <StateCitySelect
+                state={edit.state ?? ''}
+                city={edit.city ?? ''}
+                onChange={(patch) => setEdit((prev) => ({ ...prev, ...patch }))}
+                idPrefix="partnerEdit"
+              />
               <div className={calcStyles.field}>
                 <label className={calcStyles.label}>Relationship manager</label>
                 <select className={calcStyles.formControl} value={edit.relationship_manager_id ?? ''} onChange={(e) => setEdit({ ...edit, relationship_manager_id: e.target.value })}>
@@ -501,7 +500,7 @@ export default function PartnerDetailView({ id }: { id: string }) {
         )}
       </div>
 
-      {/* Onboarding documents. Until all three are approved the partner can
+      {/* Onboarding documents. Until all of them are approved the partner can
           sign in but reaches only the onboarding screen — so this panel is
           what actually opens their portal, and it says so. */}
       <h2 className={calcStyles.h2}>Onboarding documents</h2>
@@ -509,97 +508,102 @@ export default function PartnerDetailView({ id }: { id: string }) {
         <p className={calcStyles.small}>
           {partner.onboarded_at
             ? `Onboarding completed on ${new Date(partner.onboarded_at).toLocaleDateString('en-IN')} — this partner has the full portal.`
-            : 'This partner can sign in but reaches only the onboarding screen until all three documents are approved.'}
+            : 'This partner can sign in but reaches only the onboarding screen until every document is approved.'}
         </p>
 
-        {PARTNER_DOCUMENT_KINDS.map((kind) => {
-          const doc = documents.find((d) => d.kind === kind);
-          const busy = reviewing === kind;
-          return (
-            <div key={kind} className={pageStyles.documentRow}>
-              <div>
-                <strong>{PARTNER_DOCUMENT_LABEL[kind]}</strong>
-                <div className={calcStyles.small}>
-                  {!doc ? (
-                    'Not uploaded yet.'
-                  ) : (
-                    <>
-                      {doc.status === 'approved' && `Approved${doc.reviewed_by_name ? ` by ${doc.reviewed_by_name}` : ''}.`}
-                      {doc.status === 'rejected' && `Rejected — ${doc.review_remarks}`}
-                      {doc.status === 'pending' && 'Uploaded, awaiting your review.'}
-                      {doc.files.map((f) => (
-                        <span key={f.path}>
-                          {' '}
-                          <a href={`/api/uploads/file/${f.path}`} target="_blank" rel="noopener noreferrer">{f.name}</a>
-                        </span>
-                      ))}
-                    </>
+        {PARTNER_DOCUMENT_GROUPS.map((group) => (
+          <div key={group.title}>
+            <div className={pageStyles.documentGroupTitle}>{group.title}</div>
+            {group.kinds.map((kind) => {
+              const doc = documents.find((d) => d.kind === kind);
+              const busy = reviewing === kind;
+              return (
+                <div key={kind} className={pageStyles.documentRow}>
+                  <div>
+                    <strong>{PARTNER_DOCUMENT_LABEL[kind]}</strong>
+                    <div className={calcStyles.small}>
+                      {!doc ? (
+                        'Not uploaded yet.'
+                      ) : (
+                        <>
+                          {doc.status === 'approved' && `Approved${doc.reviewed_by_name ? ` by ${doc.reviewed_by_name}` : ''}.`}
+                          {doc.status === 'rejected' && `Rejected — ${doc.review_remarks}`}
+                          {doc.status === 'pending' && 'Uploaded, awaiting your review.'}
+                          {doc.files.map((f) => (
+                            <span key={f.path}>
+                              {' '}
+                              <a href={`/api/uploads/file/${f.path}`} target="_blank" rel="noopener noreferrer">{f.name}</a>
+                            </span>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={pageStyles.documentActions}>
+                    {doc && doc.status !== 'approved' && (
+                      <>
+                        <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => review(kind, 'approved', '')}>
+                          {busy ? 'Saving…' : 'Approve'}
+                        </button>
+                        <button
+                          type="button"
+                          className={historyStyles.button}
+                          disabled={busy}
+                          onClick={() => { setRejectFor(kind); setRejectNote(''); }}
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+
+                    {/* Upload it ourselves. A signed agreement often arrives by
+                        email before the partner ever logs in, and making them
+                        re-upload it through the portal is busywork. Counts as
+                        approved, because only somebody who could approve this
+                        document may supply it (see the PUT route). */}
+                    <label className={pageStyles.documentUpload}>
+                      {uploading === kind ? 'Uploading…' : doc ? 'Replace with our copy' : 'Upload on their behalf'}
+                      <input
+                        type="file"
+                        multiple
+                        hidden
+                        disabled={uploading === kind}
+                        onChange={(e) => uploadForPartner(kind, e.target.files)}
+                      />
+                    </label>
+                  </div>
+
+                  {rejectFor === kind && (
+                    <div className={pageStyles.documentReject}>
+                      <label className={calcStyles.label} htmlFor={`reject-${kind}`}>
+                        What needs correcting? <span className={calcStyles.small}>(required — the partner sees this)</span>
+                      </label>
+                      <textarea
+                        id={`reject-${kind}`}
+                        className={calcStyles.formControl}
+                        rows={2}
+                        value={rejectNote}
+                        onChange={(e) => setRejectNote(e.target.value)}
+                      />
+                      <div className={pageStyles.documentActions}>
+                        <button
+                          type="button"
+                          className={calcStyles.btn}
+                          disabled={busy || !rejectNote.trim()}
+                          onClick={() => review(kind, 'rejected', rejectNote)}
+                        >
+                          Send back
+                        </button>
+                        <button type="button" className={historyStyles.button} onClick={() => setRejectFor(null)}>Cancel</button>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-
-              <div className={pageStyles.documentActions}>
-                {doc && doc.status !== 'approved' && (
-                  <>
-                    <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => review(kind, 'approved', '')}>
-                      {busy ? 'Saving…' : 'Approve'}
-                    </button>
-                    <button
-                      type="button"
-                      className={historyStyles.button}
-                      disabled={busy}
-                      onClick={() => { setRejectFor(kind); setRejectNote(''); }}
-                    >
-                      Reject
-                    </button>
-                  </>
-                )}
-
-                {/* Upload it ourselves. A signed agreement often arrives by
-                    email before the partner ever logs in, and making them
-                    re-upload it through the portal is busywork. Counts as
-                    approved, because only somebody who could approve this
-                    document may supply it (see the PUT route). */}
-                <label className={pageStyles.documentUpload}>
-                  {uploading === kind ? 'Uploading…' : doc ? 'Replace with our copy' : 'Upload on their behalf'}
-                  <input
-                    type="file"
-                    multiple
-                    hidden
-                    disabled={uploading === kind}
-                    onChange={(e) => uploadForPartner(kind, e.target.files)}
-                  />
-                </label>
-              </div>
-
-              {rejectFor === kind && (
-                <div className={pageStyles.documentReject}>
-                  <label className={calcStyles.label} htmlFor={`reject-${kind}`}>
-                    What needs correcting? <span className={calcStyles.small}>(required — the partner sees this)</span>
-                  </label>
-                  <textarea
-                    id={`reject-${kind}`}
-                    className={calcStyles.formControl}
-                    rows={2}
-                    value={rejectNote}
-                    onChange={(e) => setRejectNote(e.target.value)}
-                  />
-                  <div className={pageStyles.documentActions}>
-                    <button
-                      type="button"
-                      className={calcStyles.btn}
-                      disabled={busy || !rejectNote.trim()}
-                      onClick={() => review(kind, 'rejected', rejectNote)}
-                    >
-                      Send back
-                    </button>
-                    <button type="button" className={historyStyles.button} onClick={() => setRejectFor(null)}>Cancel</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        ))}
 
         {docProgress && !docProgress.allApproved && (
           <p className={calcStyles.small}>Approving the last outstanding document opens the full portal for this partner.</p>

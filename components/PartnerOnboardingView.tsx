@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Clock, FileText, Upload, XCircle } from 'lucide-react';
 import {
   OnboardingProgress,
+  PARTNER_DOCUMENT_GROUPS,
   PARTNER_DOCUMENT_HINT,
   PARTNER_DOCUMENT_LABEL,
   PartnerDocumentKind,
@@ -16,10 +17,10 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './partnerPortal.module.css';
 
-// What a new partner sees instead of the portal: the three documents they
+// What a new partner sees instead of the portal: the documents they
 // owe, the state of each, and why one came back.
 //
-// Every other portal page redirects here until all three are approved
+// Every other portal page redirects here until all of them are approved
 // (lib/partnerPageGuard.ts), so this screen has to be self-explanatory with
 // no navigation to fall back on — hence the named account manager and the
 // per-document reason rather than a generic "pending approval".
@@ -144,88 +145,96 @@ export default function PartnerOnboardingView({
             <p className={calcStyles.small}>
               {data.complete
                 ? 'You have full access to the portal. You can still replace a document here if it is renewed or expires — doing so does not affect your access.'
-                : 'Until all three are approved you can sign in, but the rest of the portal stays closed.'}
+                : 'Until all of them are approved you can sign in, but the rest of the portal stays closed.'}
               {data.accountManagerName && ` Your account manager is ${data.accountManagerName}.`}
             </p>
           </div>
 
-          {data.progress.steps.map((step) => {
-            const doc = data.documents.find((d) => d.kind === step.kind);
-            const busy = uploading === step.kind;
-            return (
-              <div key={step.kind} className={`${calcStyles.sectionPanel} ${styles.onboardingCard}`}>
-                <div className={styles.onboardingHead}>
-                  <span className={styles.onboardingTitle}>{step.label}</span>
-                  <span className={`${styles.onboardingState} ${styles[`onboardingState_${step.state}`]}`}>
-                    {STATE_ICON[step.state]} {STATE_LABEL[step.state]}
-                  </span>
-                </div>
+          {/* Grouped under their headings rather than one flat list: the
+              agreement and NDA set the terms, while the listing documents are
+              what finance needs on file. All of them are mandatory either way. */}
+          {PARTNER_DOCUMENT_GROUPS.map((group) => (
+            <div key={group.title}>
+              <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>{group.title}</div>
+              {data.progress.steps.filter((s) => group.kinds.includes(s.kind)).map((step) => {
+                const doc = data.documents.find((d) => d.kind === step.kind);
+                const busy = uploading === step.kind;
+                return (
+                  <div key={step.kind} className={`${calcStyles.sectionPanel} ${styles.onboardingCard}`}>
+                    <div className={styles.onboardingHead}>
+                      <span className={styles.onboardingTitle}>{step.label}</span>
+                      <span className={`${styles.onboardingState} ${styles[`onboardingState_${step.state}`]}`}>
+                        {STATE_ICON[step.state]} {STATE_LABEL[step.state]}
+                      </span>
+                    </div>
 
-                <p className={calcStyles.small}>{PARTNER_DOCUMENT_HINT[step.kind]}</p>
+                    <p className={calcStyles.small}>{PARTNER_DOCUMENT_HINT[step.kind]}</p>
 
-                {/* A rejection without its reason would have them re-sending
-                    the same file. */}
-                {step.state === 'rejected' && step.remarks && (
-                  <div className={styles.onboardingRejection}>
-                    <strong>Not accepted:</strong> {step.remarks}
-                    {doc?.reviewed_by_name && <> — {doc.reviewed_by_name}</>}
+                    {/* A rejection without its reason would have them re-sending
+                        the same file. */}
+                    {step.state === 'rejected' && step.remarks && (
+                      <div className={styles.onboardingRejection}>
+                        <strong>Not accepted:</strong> {step.remarks}
+                        {doc?.reviewed_by_name && <> — {doc.reviewed_by_name}</>}
+                      </div>
+                    )}
+
+                    {step.state === 'approved' && doc?.reviewed_by_name && (
+                      <p className={calcStyles.small}>Approved by {doc.reviewed_by_name}.</p>
+                    )}
+
+                    {doc && doc.files.length > 0 && (
+                      <ul className={styles.onboardingFiles}>
+                        {doc.files.map((f) => (
+                          <li key={f.path}>
+                            <a href={`/api/uploads/file/${f.path}`} target="_blank" rel="noopener noreferrer">{f.name}</a>
+                          </li>
+                        ))}
+                        {doc.submitted_at && <li className={calcStyles.small}>Uploaded {formatWhen(doc.submitted_at)}</li>}
+                      </ul>
+                    )}
+
+                    {/* A drop zone rather than a bare file button: these are
+                        scans and PDFs that are usually already sitting in an
+                        email or a folder, and dragging one in is fewer steps
+                        than a file dialog. It is still a <label> wrapping a real
+                        file input, so clicking and the keyboard both work — the
+                        drag handlers are an addition, not a replacement. */}
+                    <label
+                      className={`${styles.onboardingUpload} ${dragOver === step.kind ? styles.onboardingUploadOver : ''} ${busy ? styles.onboardingUploadBusy : ''}`}
+                      onDragOver={(e) => { e.preventDefault(); setDragOver(step.kind); }}
+                      onDragLeave={() => setDragOver(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOver(null);
+                        void uploadFor(step.kind, e.dataTransfer.files);
+                      }}
+                    >
+                      <Upload size={16} />
+                      <span className={styles.onboardingUploadText}>
+                        <strong>
+                          {busy
+                            ? 'Uploading…'
+                            : step.state === 'not_started'
+                              ? 'Drop the file here, or click to choose'
+                              : 'Replace — drop a file here, or click to choose'}
+                        </strong>
+                        <span className={calcStyles.small}>PDF, JPG or PNG. Several files are fine if it is scanned page by page.</span>
+                      </span>
+                      <input
+                        type="file"
+                        multiple
+                        hidden
+                        accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                        disabled={busy}
+                        onChange={(e) => uploadFor(step.kind, e.target.files)}
+                      />
+                    </label>
                   </div>
-                )}
-
-                {step.state === 'approved' && doc?.reviewed_by_name && (
-                  <p className={calcStyles.small}>Approved by {doc.reviewed_by_name}.</p>
-                )}
-
-                {doc && doc.files.length > 0 && (
-                  <ul className={styles.onboardingFiles}>
-                    {doc.files.map((f) => (
-                      <li key={f.path}>
-                        <a href={`/api/uploads/file/${f.path}`} target="_blank" rel="noopener noreferrer">{f.name}</a>
-                      </li>
-                    ))}
-                    {doc.submitted_at && <li className={calcStyles.small}>Uploaded {formatWhen(doc.submitted_at)}</li>}
-                  </ul>
-                )}
-
-                {/* A drop zone rather than a bare file button: these are
-                    scans and PDFs that are usually already sitting in an
-                    email or a folder, and dragging one in is fewer steps
-                    than a file dialog. It is still a <label> wrapping a real
-                    file input, so clicking and the keyboard both work — the
-                    drag handlers are an addition, not a replacement. */}
-                <label
-                  className={`${styles.onboardingUpload} ${dragOver === step.kind ? styles.onboardingUploadOver : ''} ${busy ? styles.onboardingUploadBusy : ''}`}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(step.kind); }}
-                  onDragLeave={() => setDragOver(null)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragOver(null);
-                    void uploadFor(step.kind, e.dataTransfer.files);
-                  }}
-                >
-                  <Upload size={16} />
-                  <span className={styles.onboardingUploadText}>
-                    <strong>
-                      {busy
-                        ? 'Uploading…'
-                        : step.state === 'not_started'
-                          ? 'Drop the file here, or click to choose'
-                          : 'Replace — drop a file here, or click to choose'}
-                    </strong>
-                    <span className={calcStyles.small}>PDF, JPG or PNG. Several files are fine if it is scanned page by page.</span>
-                  </span>
-                  <input
-                    type="file"
-                    multiple
-                    hidden
-                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                    disabled={busy}
-                    onChange={(e) => uploadFor(step.kind, e.target.files)}
-                  />
-                </label>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          ))}
         </>
       )}
     </PartnerShell>

@@ -146,7 +146,7 @@ export async function submitPartnerDocument(input: SubmitDocumentInput): Promise
   }
 
   // A staff upload can be the thing that completes onboarding, so the gate
-  // is stamped here too — otherwise a partner whose three documents were all
+  // is stamped here too — otherwise a partner whose documents were all
   // supplied by our own team would stay locked out of the portal with
   // nothing left for anyone to approve.
   if (staffProvided) await stampOnboardedIfComplete(input.partnerId);
