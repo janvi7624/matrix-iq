@@ -84,6 +84,12 @@ export default function FeedbackView() {
   }, []);
 
   useEffect(() => {
+    // load() is async and every setState in it happens after an await, so
+    // this is not the cascading-render case the rule guards against — it
+    // cannot distinguish "calls a function that eventually sets state"
+    // from "sets state synchronously". Same fetch-on-mount shape used
+    // across this codebase.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
