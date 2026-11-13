@@ -6,7 +6,6 @@ import { SkeletonRows } from './ui/Skeleton';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
 import { ProductFeedbackFormRecord, ProductFeedbackQuestion, ProductFeedbackQuestionType, ProductFeedbackResponseRecord, ProductManagerNoteRecord, ProductManagerNoteType, ProductManagerRollup, ProductRecord } from '@/lib/types';
-import { suggestFeedbackQuestions } from '@/lib/productFeedbackSuggestions';
 
 interface MyData {
   rollup: ProductManagerRollup | null;
@@ -39,6 +38,8 @@ export default function ProductManagerView() {
   const [formDescription, setFormDescription] = useState('');
   const [questions, setQuestions] = useState<ProductFeedbackQuestion[]>([BLANK_QUESTION()]);
   const [suggestFor, setSuggestFor] = useState('');
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestSource, setSuggestSource] = useState<'ai' | 'rules' | null>(null);
   const [creatingForm, setCreatingForm] = useState(false);
   const [openResponsesFor, setOpenResponsesFor] = useState<string | null>(null);
   const [responses, setResponses] = useState<ProductFeedbackResponseRecord[]>([]);
@@ -75,22 +76,37 @@ export default function ProductManagerView() {
     setQuestions((qs) => qs.filter((q) => q.id !== id));
   }
 
-  function applySuggestions() {
+  async function applySuggestions() {
     const product = data?.products.find((p) => p.id === suggestFor);
-    const suggestions = suggestFeedbackQuestions(product?.category || '', {
-      pending_value: data?.rollup?.pending_value || 0,
-      won_value: data?.rollup?.won_value || 0,
-      lost_value: data?.rollup?.lost_value || 0
-    });
-    const existingLabels = new Set(questions.map((q) => q.label.trim().toLowerCase()));
-    const fresh = suggestions
-      .filter((s) => !existingLabels.has(s.label.trim().toLowerCase()))
-      .map((s) => ({ ...s, id: newQuestionId() }));
-    setQuestions((qs) => {
-      const blankRemoved = qs.filter((q) => q.label.trim());
-      return [...blankRemoved, ...fresh];
-    });
-    if (product) setFormTitle((t) => t || `${product.name} — feedback from the team`);
+    setSuggesting(true);
+    setSuggestSource(null);
+    try {
+      const response = await fetch('/api/product-manager/feedback-forms/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: product?.name || '',
+          category: product?.category || '',
+          pendingValue: data?.rollup?.pending_value || 0,
+          wonValue: data?.rollup?.won_value || 0,
+          lostValue: data?.rollup?.lost_value || 0
+        })
+      });
+      if (!response.ok) return;
+      const { questions: suggestions, source } = await response.json();
+      setSuggestSource(source);
+      const existingLabels = new Set(questions.map((q) => q.label.trim().toLowerCase()));
+      const fresh = (suggestions as ProductFeedbackQuestion[])
+        .filter((s) => !existingLabels.has(s.label.trim().toLowerCase()))
+        .map((s) => ({ ...s, id: newQuestionId() }));
+      setQuestions((qs) => {
+        const blankRemoved = qs.filter((q) => q.label.trim());
+        return [...blankRemoved, ...fresh];
+      });
+      if (product) setFormTitle((t) => t || `${product.name} — feedback from the team`);
+    } finally {
+      setSuggesting(false);
+    }
   }
 
   async function handleCreateForm(e: FormEvent) {
@@ -261,8 +277,15 @@ export default function ProductManagerView() {
                   {(data?.products || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
-              <button type="button" className={historyStyles.button} disabled={!suggestFor} onClick={applySuggestions}>✨ Suggest Questions</button>
+              <button type="button" className={historyStyles.button} disabled={!suggestFor || suggesting} onClick={applySuggestions}>
+                {suggesting ? 'Thinking...' : '✨ Suggest Questions'}
+              </button>
             </div>
+            {suggestSource && (
+              <div className={historyStyles.status}>
+                {suggestSource === 'ai' ? 'Suggested by AI based on this product and its usage data.' : 'Suggested from the built-in question bank (AI suggestions unavailable right now).'}
+              </div>
+            )}
 
             {questions.map((q, i) => (
               <div key={q.id} className={`${calcStyles.row} ${calcStyles.columns}`}>

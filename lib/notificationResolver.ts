@@ -17,7 +17,7 @@ interface EntityResolver {
   exists: (entityId: string) => Promise<boolean>;
 }
 
-const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportEditRequest', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation', 'SupportTicket', 'PartnerQuotationRequest'] as const;
+const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportEditRequest', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation', 'SupportTicket', 'PartnerQuotationRequest', 'FestivalCampaign'] as const;
 
 async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: string): Promise<boolean> {
   if (!isUuid(entityId)) return false;
@@ -33,6 +33,8 @@ async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: strin
 const RESOLVERS: Record<string, EntityResolver> = {
   demo: { href: () => '/demo-schedule', exists: (id) => existsIn('DemoSchedule', id) },
   marketing_request: { href: () => '/marketing-requests', exists: (id) => existsIn('MarketingRequest', id) },
+  // Client festival greeting campaign awaiting approval / sent / skipped (lib/festivalCampaignStore.ts).
+  festival_campaign: { href: () => '/festival-campaigns', exists: (id) => existsIn('FestivalCampaign', id) },
   project: { href: (id) => `/projects/${id}`, exists: (id) => existsIn('Project', id) },
   reimbursement_sheet: { href: () => '/reimbursement', exists: (id) => existsIn('ReimbursementSheet', id) },
   // "Please upload your bills again" (lib/missingBills.ts) — entity_id is one of

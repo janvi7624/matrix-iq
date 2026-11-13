@@ -243,3 +243,27 @@ export async function setFolderPublication(folderId: string, partnerVisible: boo
   await row.update({ partner_visible: partnerVisible, updated_by: actorId } as never);
   return true;
 }
+
+/**
+ * The Marketing Material served at this upload path, or null.
+ *
+ * Exists so the upload proxy can tell a marketing document apart from every
+ * other attachment it serves — a PO scan, a bill, an installation photo. Only
+ * marketing materials get the confidentiality footer stamped into them;
+ * stamping a supplier's invoice would be wrong and confusing.
+ *
+ * Matches on web_view_link exactly, the same mapping partnerMayReadMaterialFile
+ * uses, so the two can never disagree about which row a path belongs to.
+ */
+export async function findMaterialByUploadPath(pathname: string): Promise<{ id: string; title: string; partnerVisible: boolean } | null> {
+  if (!pathname || pathname.includes('..')) return null;
+  const url = `/api/uploads/file/${pathname.split('/').map(encodeURIComponent).join('/')}`;
+  const row = await db.Material.findOne({ where: { web_view_link: url } as never, attributes: ['id', 'title', 'partner_visible'] });
+  if (!row) return null;
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  return {
+    id: plain.id as string,
+    title: (plain.title as string) ?? '',
+    partnerVisible: plain.partner_visible === true
+  };
+}
