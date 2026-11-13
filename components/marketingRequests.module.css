@@ -12,7 +12,8 @@
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   border-style: solid;
   border-width: 1px;
 }
@@ -66,7 +67,7 @@
 
 /* Row — collapsed table row */
 .clickableRow { cursor: pointer; }
-.titleCell { font-weight: 600; }
+.titleCell { font-weight: 600; overflow-wrap: anywhere; }
 .descriptionPreview {
   font-size: 12px;
   color: var(--mx-slate-500);
@@ -74,18 +75,38 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 280px;
+  max-width: 100%;
 }
 .overdueInline { margin-left: 6px; display: inline-flex; align-items: center; gap: 4px; }
-.creatorName { font-weight: 600; color: var(--mx-slate-900); }
-.assignedToText { color: var(--mx-blue-600); font-weight: 500; }
+.creatorName { font-weight: 600; color: var(--mx-slate-900); overflow-wrap: anywhere; }
+.assignedToText { color: var(--mx-blue-600); font-weight: 500; overflow-wrap: anywhere; }
 .unassignedLabel { opacity: 0.5; }
-.technicalMemberText { color: var(--mx-teal-700); font-weight: 500; }
+.technicalMemberText { color: var(--mx-teal-700); font-weight: 500; overflow-wrap: anywhere; }
 .noTechAssigned { opacity: 0.4; }
-.deadlineCell { font-size: 12.5px; white-space: nowrap; }
+.deadlineCell { font-size: 12.5px; }
 
-/* Expanded detail wrapper */
+/* Fixed layout so the 9-column board always fits the viewport width instead
+   of growing past it and forcing a horizontal scrollbar (table-layout:auto
+   sized every column by its widest content — a long reviewer name alone
+   could push the whole table past the page). The eight content columns sum
+   to 99% and the chevron takes a fixed 36px, so the row adds up without
+   over-committing; each person/name column wraps onto a second line via
+   overflow-wrap above instead of widening its column. */
+.board { table-layout: fixed; width: 100%; }
+.colTitle { width: 24%; }
+.colCategory { width: 13%; }
+.colPriority { width: 8%; }
+.colStatus { width: 12%; }
+.colPerson { width: 11%; }
+.colDeadline { width: 9%; }
+.colChevron { width: 36px; }
+
+/* Expanded detail wrapper — now a Modal instead of an inline table row, so
+   expanding a request no longer balloons the whole page's scroll height
+   (same pattern as ProjectsView/LeadsView's row-detail modals). */
 .detailWrap { padding: 8px 4px; width: 100%; }
+
+.modalTitleRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 /* Assignment acceptance gate */
 .acceptanceGate {
