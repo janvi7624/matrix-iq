@@ -3,6 +3,7 @@ import { sequelize } from './db';
 import { listTemplateAssignments } from './dailyReportTemplateStore';
 import { getDailyReportConfig } from './dailyReportConfigStore';
 import { DailyReportTemplateKey } from './dailyReportTemplates';
+import { addDays, istClock, istDate } from './dailyReportTime';
 
 // Who owes a daily report, and who deliberately does not.
 //
@@ -42,6 +43,39 @@ export interface EligibleEmployee {
   templateKey: DailyReportTemplateKey;
   /** DATEONLY 'YYYY-MM-DD', or '' — see the dateOfJoining note below. */
   dateOfJoining: string;
+  /**
+   * 'YYYY-MM-DD' the account was created — the fallback start date when
+   * dateOfJoining is blank. Nobody can file a report before they have a
+   * login, so this is always a safe floor, and unlike dateOfJoining it can
+   * never be missing. See employeeOwesDate.
+   */
+  accountCreatedOn: string;
+}
+
+/**
+ * The first date an account could realistically have filed a report.
+ *
+ * Two corrections over the raw timestamp, both found from real data:
+ *
+ *   * IST, not UTC. An account created at 19:00 UTC was created the NEXT day
+ *     in Asia/Kolkata, and slicing the ISO string would bill it for a day it
+ *     did not exist in the only timezone this module reasons in.
+ *   * If the account was created after that day's submission deadline, it
+ *     starts the following working day. Being warned for a deadline that had
+ *     already passed when the login was created is not non-compliance, there
+ *     was no opportunity at all. (Two accounts created at 17:28 and 17:30 IST
+ *     against an 11:30 deadline are what prompted this.)
+ *
+ * Returns '' when the timestamp is missing, which employeeOwesDate reads as
+ * "no floor known".
+ */
+export function effectiveStartFromAccount(createdAt: string | Date | null, deadlineTime: string): string {
+  if (!createdAt) return '';
+  const instant = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  if (Number.isNaN(instant.getTime())) return '';
+  const createdDate = istDate(instant);
+  // String compare is safe and intended: both are zero-padded 'HH:MM'.
+  return istClock(instant) > deadlineTime ? addDays(createdDate, 1) : createdDate;
 }
 
 interface EmployeeRow {
@@ -51,6 +85,7 @@ interface EmployeeRow {
   email: string | null;
   department_id: string | null;
   date_of_joining: string | null;
+  account_created_on: string | null;
 }
 
 /**
@@ -88,7 +123,8 @@ export async function listEligibleEmployees(departmentIds?: string[], extraUserI
   // the database; one explicit projection is clearer than fighting that, and
   // this is the query the scheduler runs once per sweep.
   const rows = await sequelize.query<EmployeeRow>(
-    `SELECT u.id, u.username, u.name, u.email, u."departmentId" AS department_id, u."dateOfJoining" AS date_of_joining
+    `SELECT u.id, u.username, u.name, u.email, u."departmentId" AS department_id, u."dateOfJoining" AS date_of_joining,
+            u."createdAt" AS account_created_on
        FROM users u
       WHERE u."deletedAt" IS NULL
         AND u.status = 'active'
@@ -113,7 +149,8 @@ export async function listEligibleEmployees(departmentIds?: string[], extraUserI
       departmentId: row.department_id as string,
       departmentName: assignment?.departmentName ?? '',
       templateKey: (assignment?.templateKey ?? 'not_configured') as DailyReportTemplateKey,
-      dateOfJoining: row.date_of_joining ? String(row.date_of_joining).slice(0, 10) : ''
+      dateOfJoining: row.date_of_joining ? String(row.date_of_joining).slice(0, 10) : '',
+      accountCreatedOn: effectiveStartFromAccount(row.account_created_on, config.deadline_time)
     };
   });
 }
@@ -128,8 +165,24 @@ export async function listEligibleEmployees(departmentIds?: string[], extraUserI
  * destroys trust in a compliance tool on day one.
  */
 export function employeeOwesDate(employee: EligibleEmployee, reportDate: string): boolean {
-  if (!employee.dateOfJoining) return true;
-  return reportDate >= employee.dateOfJoining;
+  // The start date this person can first owe a report for. dateOfJoining is
+  // the real answer when HR has filled it in, but it is nullable and in
+  // practice often blank on a freshly created account — so a missing one used
+  // to mean "owes every date since the module launched".
+  //
+  // That fail-OPEN default is what warned two accounts created on 2026-11-12
+  // for missing 2026-11-05, a week before they had a login at all. Falling
+  // back to the account's creation date fixes it at the root and needs no HR
+  // data to be complete: nobody can file a report before their account
+  // exists, so it is always a safe floor, and it is never null.
+  //
+  // Deliberately NOT "owes nothing when the joining date is blank" — that
+  // would silently excuse the 12 active accounts currently missing one, and a
+  // compliance tool that quietly stops counting is worse than one that counts
+  // from slightly the wrong day.
+  const startDate = employee.dateOfJoining || employee.accountCreatedOn;
+  if (!startDate) return true;
+  return reportDate >= startDate;
 }
 
 /** The subject list a sweep plans against: every eligible employee × date. */

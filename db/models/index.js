@@ -29,6 +29,8 @@ const modelDefiners = [
   require('./supportSlaPolicy.js'),
   require('./festival.js'),
   require('./productManagerNote.js'),
+  require('./productFeedbackForm.js'),
+  require('./productFeedbackResponse.js'),
   require('./feedbackResponse.js'),
   require('./supportTicket.js'),
   require('./supportTicketComment.js'),

@@ -1517,6 +1517,42 @@ export interface ProductManagerRollup {
   lost_value: number;
 }
 
+// A Product Manager's own Google-Forms-style survey asking the internal
+// team for feedback on their product — distinct from ProductManagerNoteType
+// 'feedback', which is the PM's own log entry summarizing what they heard.
+export type ProductFeedbackQuestionType = 'text' | 'rating' | 'choice';
+
+export interface ProductFeedbackQuestion {
+  id: string;
+  label: string;
+  type: ProductFeedbackQuestionType;
+  /** Only meaningful when type === 'choice'. */
+  options?: string[];
+}
+
+export type ProductFeedbackAnswer = string | number;
+
+export interface ProductFeedbackFormRecord {
+  id: string;
+  product_manager_id: string;
+  pm_name: string;
+  title: string;
+  description: string;
+  questions: ProductFeedbackQuestion[];
+  status: 'open' | 'closed';
+  response_count: number;
+  created_at: string;
+}
+
+export interface ProductFeedbackResponseRecord {
+  id: string;
+  form_id: string;
+  respondent_id: string | null;
+  respondent_name: string;
+  answers: Record<string, ProductFeedbackAnswer>;
+  submitted_at: string;
+}
+
 // Drives the Dashboard tiles / sidebar for both built-in routes and enabled
 // custom modules — Admin manages this from Module Manager instead of it
 // being hardcoded per component. `key` for a built-in module matches the
