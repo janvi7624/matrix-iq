@@ -8,6 +8,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { DemoManagerApproval, DemoScheduleRecord } from '@/lib/types';
 import { findUserById, listUsers } from '@/lib/userStore';
 import { listDepartmentManagers } from '@/lib/departmentStore';
+import { approversFor } from '@/lib/reportingManagers';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendDemoLifecycleEmail } from '@/lib/email/notifications';
 
@@ -37,7 +38,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const isOverride = viewer.role === 'admin' || viewer.role === 'superadmin';
     const assignedPerson = existing.assigned_technical_person_id ? await findUserById(existing.assigned_technical_person_id) : undefined;
-    const domainManagers = assignedPerson?.department ? (await listDepartmentManagers())[assignedPerson.department] || [] : [];
+    // The assigned engineer's approver: their named reporting manager when
+    // they have one (exclusive), else their department's managers.
+    const domainManagers = assignedPerson?.department
+      ? await approversFor({
+          employeeId: assignedPerson.id,
+          departmentName: assignedPerson.department,
+          allManagers: await listDepartmentManagers()
+        })
+      : [];
     if (domainManagers.length) {
       const isDomainManager = domainManagers.some((m) => m.username === viewer.username);
       if (!isDomainManager && !isOverride) {

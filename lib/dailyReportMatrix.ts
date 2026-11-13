@@ -89,7 +89,11 @@ export async function buildTeamMatrix(viewer: ViewerContext, filters: MatrixFilt
   const departmentIds =
     filters.departmentId && scope.departmentIds.includes(filters.departmentId) ? [filters.departmentId] : scope.departmentIds;
 
-  const employees = departmentIds.length ? await listEligibleEmployees(departmentIds) : [];
+  // Direct reports are added only when the viewer has NOT narrowed to one
+  // department: with a department picked, the list must mean that department
+  // and nothing else, and a reportee in it is already included by it.
+  const extraUserIds = filters.departmentId ? [] : scope.manageUserIds;
+  const employees = departmentIds.length || extraUserIds.length ? await listEligibleEmployees(departmentIds, extraUserIds) : [];
 
   const search = (filters.search ?? '').trim().toLowerCase();
   const visible = search

@@ -6,6 +6,7 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { listDepartmentManagers, findHrManagers } from '@/lib/departmentStore';
+import { approversFor } from '@/lib/reportingManagers';
 import { findUserByUsername, findUsersByUsernames } from '@/lib/userStore';
 import { sendReimbursementLifecycleEmail } from '@/lib/email/notifications';
 
@@ -33,12 +34,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!creator) return NextResponse.json({ error: 'Creator not found' }, { status: 404 });
 
     const allManagers = await listDepartmentManagers();
-    const deptManagers = creator.department ? (allManagers[creator.department] || []) : [];
+    // Exclusive: a named reporting manager REPLACES the department managers,
+    // so exactly one person owns this sheet. The admin/superadmin override
+    // below is kept so an absent approver can never strand it.
+    const deptManagers = await approversFor({
+      employeeId: creator.id,
+      departmentName: creator.department,
+      allManagers
+    });
     const isManager = deptManagers.some((m) => m.username === viewer.username);
     const isSuperRole = viewer.role === 'admin' || viewer.role === 'superadmin';
 
     if (!isManager && !isSuperRole) {
-      return NextResponse.json({ error: 'Not authorized — only the department manager can approve' }, { status: 403 });
+      return NextResponse.json({ error: 'Not authorized — only your reporting manager can approve' }, { status: 403 });
     }
 
     const actorUser = await findUserByUsername(viewer.username);

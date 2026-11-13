@@ -679,3 +679,20 @@
     border-color: var(--mx-info);
     color: var(--mx-ink);
 }
+
+/* The confidentiality terms, stated in the library before anything is opened.
+   Deliberately not a dismissible banner: there is nothing for the reader to
+   act on, and a notice people can close is a notice that is closed. Low-key
+   by design — it has to be legible and permanent, not alarming. */
+.confidentialNotice {
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid #9e1717;
+  border-radius: 6px;
+  background: color-mix(in srgb, #9e1717 5%, transparent);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}

@@ -34,6 +34,11 @@ export interface LineItem {
   rate: number;
   amount: number;
   unit: string;
+  // Carried through from CustomProduct.productId when this line came from
+  // "+ Add from catalog" — see lib/calculations.ts's composeQuote and
+  // lib/productManagerStore.ts, which reads it back out of the persisted
+  // quotation to attribute value to the product's creator.
+  productId?: string;
 }
 
 export interface ProductGroup {
@@ -75,6 +80,12 @@ export interface CustomProduct {
   qty: number;
   price: number;
   remarks: string;
+  // Set only when this line item was added via "+ Add from catalog"
+  // (CustomProductsList's onAddFromCatalog) — lets the Product Manager
+  // rollup (lib/productManagerStore.ts) trace a quotation line back to the
+  // catalog Product, and from there to who created it. Absent for a freely
+  // typed custom line item, which has no catalog product to link to.
+  productId?: string;
 }
 
 export interface SiItem {
@@ -238,6 +249,13 @@ export interface UserRecord {
   employeeId: string;
   department: string;
   designation: string;
+  /**
+   * Who this person reports to, overriding their DEPARTMENT manager for
+   * request routing and manager visibility. '' — the normal case — means
+   * the department manager, which is how it worked before this existed.
+   * See lib/reportingManagers.ts.
+   */
+  reportingManagerId: string;
   location: string;
   birthday: string;
   dateOfJoining: string;
@@ -1244,7 +1262,7 @@ export interface AuditLogEntry {
   at: string;
   by: string;
   role: UserRole;
-  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request' | 'office_operation_expense' | 'daily_report' | 'daily_report_leave_claim' | 'daily_report_edit_request' | 'daily_report_warning' | 'daily_report_config' | 'back_office_monthly_summary' | 'partner' | 'partner_user' | 'material' | 'support_ticket' | 'partner_quotation_request';
+  entity_type: 'demo' | 'delivery_challan' | 'custom_module' | 'lead' | 'quotation' | 'marketing_request' | 'user_import' | 'bulk_lead_import' | 'project' | 'department' | 'tms_project' | 'tms_task' | 'tms_bom_request' | 'tms_procurement' | 'travel_schedule' | 'reimbursement' | 'reimbursement_sheet' | 'meta_lead' | 'meta_integration' | 'employee_exit' | 'general_task' | 'attendance' | 'leave_request' | 'office_operation_expense' | 'daily_report' | 'daily_report_leave_claim' | 'daily_report_edit_request' | 'daily_report_warning' | 'daily_report_config' | 'back_office_monthly_summary' | 'partner' | 'partner_user' | 'material' | 'support_ticket' | 'partner_quotation_request' | 'festival_campaign';
   entity_id: string;
   action: string;
   previous_status: string;
@@ -1445,11 +1463,18 @@ export interface AppConfig {
 export type PublicAppConfig = Omit<AppConfig, 'bankAccountName' | 'bankAccountNumber' | 'bankIfsc' | 'bankName' | 'bankBranch' | 'notificationTemplates' | 'marketingOwnerId' | 'marketingOwnerUsername' | 'bomFinanceApproverId' | 'bomFinanceApproverUsername' | 'updated_at' | 'updated_by'>;
 
 export type ProductStatus = 'active' | 'inactive';
+export type ProductType = 'standard' | 'custom' | 'project_based';
 
 export interface ProductRecord {
   id: string;
   created_at: string;
   created_by: string;
+  created_by_id: string;
+  // The reassignable Product Manager (Product.managerId) — falls back to
+  // the creator when no explicit assignment has been made, see
+  // lib/productStore.ts's toRecord.
+  manager_id: string;
+  manager_name: string;
   updated_at: string;
   name: string;
   sku: string;
@@ -1465,6 +1490,67 @@ export interface ProductRecord {
   discountPercent: number;
   imageUrl: string;
   status: ProductStatus;
+  type: ProductType;
+}
+
+// One pending/action/plan/feedback note on a Product Manager's own timeline
+// — see lib/productManagerStore.ts. Scoped to the PM (every product they
+// created), not to one individual product.
+export type ProductManagerNoteType = 'feedback' | 'action' | 'plan';
+
+export interface ProductManagerNoteRecord {
+  id: string;
+  product_manager_id: string;
+  type: ProductManagerNoteType;
+  text: string;
+  created_at: string;
+  created_by: string;
+}
+
+export interface ProductManagerRollup {
+  pm_id: string;
+  pm_username: string;
+  pm_name: string;
+  product_count: number;
+  pending_value: number;
+  won_value: number;
+  lost_value: number;
+}
+
+// A Product Manager's own Google-Forms-style survey asking the internal
+// team for feedback on their product — distinct from ProductManagerNoteType
+// 'feedback', which is the PM's own log entry summarizing what they heard.
+export type ProductFeedbackQuestionType = 'text' | 'rating' | 'choice';
+
+export interface ProductFeedbackQuestion {
+  id: string;
+  label: string;
+  type: ProductFeedbackQuestionType;
+  /** Only meaningful when type === 'choice'. */
+  options?: string[];
+}
+
+export type ProductFeedbackAnswer = string | number;
+
+export interface ProductFeedbackFormRecord {
+  id: string;
+  product_manager_id: string;
+  pm_name: string;
+  title: string;
+  description: string;
+  questions: ProductFeedbackQuestion[];
+  status: 'open' | 'closed';
+  response_count: number;
+  created_at: string;
+}
+
+export interface ProductFeedbackResponseRecord {
+  id: string;
+  form_id: string;
+  respondent_id: string | null;
+  respondent_name: string;
+  answers: Record<string, ProductFeedbackAnswer>;
+  submitted_at: string;
 }
 
 // Drives the Dashboard tiles / sidebar for both built-in routes and enabled

@@ -40,6 +40,7 @@ import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import styles from './marketingRequests.module.css';
 import Button from './ui/Button';
+import Modal from './ui/Modal';
 import SharedStatusBadge, { StatusTone } from './ui/StatusBadge';
 import SharedPriorityBadge, { PriorityTone } from './ui/PriorityBadge';
 import { fetchCached } from '@/lib/fetchCached';
@@ -47,6 +48,8 @@ import { fetchCached } from '@/lib/fetchCached';
 interface MarketingRequestsViewProps {
   currentUser: { id?: string; username: string; role: UserRole; isPrivileged: boolean };
   isReviewer: boolean;
+  /** Ordinary Marketing department member (e.g. Divya/Shivam) — may self-claim an unassigned request and hand it off to a teammate, without the approval authority isReviewer carries. */
+  isMarketingTeamMember?: boolean;
 }
 
 const STATUS_TONE: Record<MarketingRequestStatus, StatusTone> = {
@@ -255,6 +258,7 @@ interface RowProps {
   record: MarketingRequestRecord;
   currentUser: { id?: string; username: string; role: UserRole; isPrivileged: boolean };
   isReviewer: boolean;
+  isMarketingTeamMember?: boolean;
   technicalRoster: TechnicalRosterEntry[];
   marketingRoster: MarketingRosterEntry[];
   users: { id: string; username: string; name: string }[];
@@ -263,6 +267,7 @@ interface RowProps {
   onFinalSubmission: (id: string, payload: { finalSubmissionNotes: string; finalSubmissionFiles: string[]; marketingPreparedContent: string }) => Promise<void>;
   onStatusAction: (id: string, action: string, extra?: Record<string, unknown>) => Promise<void>;
   onAssign: (id: string, patch: { assigneeId?: string; technicalMemberId?: string }) => Promise<void>;
+  onExchange: (id: string, targetId: string) => Promise<void>;
   onAcceptAssignment: (id: string) => Promise<void>;
   onDeclineAssignment: (id: string, reason: string) => Promise<void>;
   onComment: (id: string, text: string) => Promise<void>;
@@ -273,6 +278,7 @@ function MarketingRequestRow({
   record: r,
   currentUser,
   isReviewer,
+  isMarketingTeamMember = false,
   technicalRoster,
   marketingRoster,
   users,
@@ -281,6 +287,7 @@ function MarketingRequestRow({
   onFinalSubmission,
   onStatusAction,
   onAssign,
+  onExchange,
   onAcceptAssignment,
   onDeclineAssignment,
   onComment,
@@ -348,8 +355,21 @@ function MarketingRequestRow({
   );
   const isUnassignedMarketing = !r.assigned_to && !r.assigned_to_id;
   const isSuperadmin = currentUser.role === 'superadmin' || currentUser.role === 'admin';
-  const canAccessMarketingWorkspace = isAssignedMarketing || (isUnassignedMarketing && isReviewer) || isSuperadmin;
+  // Any Marketing department member may pick up an unassigned request, not
+  // just the reviewer/manager — this is what makes a new request usable by
+  // whichever of the team (e.g. Divya/Shivam) gets to it first, instead of
+  // sitting locked until a manager manually assigns it.
+  const canClaimUnassigned = isReviewer || isMarketingTeamMember;
+  const canAccessMarketingWorkspace = isAssignedMarketing || (isUnassignedMarketing && canClaimUnassigned) || isSuperadmin;
   const isMarketingAssignedToOther = !isAssignedMarketing && !isUnassignedMarketing && !isSuperadmin;
+
+  // The other Marketing teammate to hand this off to — self-service, no
+  // manager needed. Only offered when there's exactly one other roster
+  // member to hand off to; with 3+, use the manager's assignee dropdown below.
+  const otherTeammate = isAssignedMarketing
+    ? marketingRoster.find((m) => m.id !== (r.assigned_to_id || currentUser.id) && m.username !== currentUser.username)
+    : undefined;
+  const canExchange = isAssignedMarketing && marketingRoster.length === 2 && Boolean(otherTeammate);
 
   const isAssignedTechnical = r.technical_member_username === currentUser.username || (currentUser.role === 'engineer' && r.status === 'pending_technical_review');
   const overdue = isMarketingRequestOverdue(r);
@@ -401,6 +421,11 @@ function MarketingRequestRow({
     } finally {
       setUploadingFinalFiles(false);
     }
+  }
+
+  function handleExchangeClick() {
+    if (!otherTeammate) return;
+    run(() => onExchange(r.id, otherTeammate.id));
   }
 
   function handleSendToTechnical() {
@@ -512,623 +537,638 @@ function MarketingRequestRow({
       </tr>
 
       {expanded && (
-        <tr className={historyStyles.detailsRow}>
-          <td colSpan={9}>
-            <div className={`${historyStyles.wideCellPin} ${styles.detailWrap}`}>
-              {/* Visual Workflow Stepper */}
-              <WorkflowStepper record={r} />
+        <Modal
+          title={
+            <div className={styles.modalTitleRow}>
+              <span>{r.title}</span>
+              <button type="button" className={historyStyles.toggleBtn} onClick={() => setExpanded(false)} aria-label="Close">
+                <ChevronUp size={16} />
+              </button>
+            </div>
+          }
+          ariaLabel={`Marketing request details: ${r.title}`}
+          onClose={() => setExpanded(false)}
+          size="full"
+        >
+          <div className={styles.detailWrap}>
+            {/* Visual Workflow Stepper */}
+            <WorkflowStepper record={r} />
 
-              {/* Assignment acceptance gate — the assigned member must confirm
-                  availability before they can do any work on this request. */}
-              {r.assignment_status === 'pending' && r.assigned_to === currentUser.username && (
-                <div className={styles.acceptanceGate}>
-                  <div>
-                    <div className={styles.gateTitle}>
-                      <AlertTriangle size={18} /> This request was assigned to you
-                    </div>
-                    <div className={styles.gateBody}>Confirm your availability before you start working on it.</div>
+            {/* Assignment acceptance gate — the assigned member must confirm
+                availability before they can do any work on this request. */}
+            {r.assignment_status === 'pending' && r.assigned_to === currentUser.username && (
+              <div className={styles.acceptanceGate}>
+                <div>
+                  <div className={styles.gateTitle}>
+                    <AlertTriangle size={18} /> This request was assigned to you
                   </div>
-                  <div className={styles.gateActions}>
-                    <Button variant="primary" compact loading={busy} onClick={handleAcceptAssignment}>Accept</Button>
-                    <Button variant="danger" compact loading={busy} onClick={handleDeclineAssignment}>Decline</Button>
-                  </div>
+                  <div className={styles.gateBody}>Confirm your availability before you start working on it.</div>
+                </div>
+                <div className={styles.gateActions}>
+                  <Button variant="primary" compact loading={busy} onClick={handleAcceptAssignment}>Accept</Button>
+                  <Button variant="danger" compact loading={busy} onClick={handleDeclineAssignment}>Decline</Button>
+                </div>
+              </div>
+            )}
+
+            {/* 3-Way Context Summary Bar — uses the shared, already-responsive
+                summaryCardGrid container (2 columns at <=640px) instead of a
+                bare inline auto-fit/minmax grid with no mobile override;
+                each card keeps its own distinct inline background/border. */}
+            <div className={`${historyStyles.summaryCardGrid} ${styles.contextGrid}`}>
+              <div className={styles.contextCardRequester}>
+                <div className={styles.contextLabelSlate}>Original Requester</div>
+                <div className={styles.contextValueSlate}>
+                  {r.creator_name || r.created_by}
+                  <PartnerOriginBadge request={r} />
+                </div>
+                <div className={styles.contextMetaSlate}>
+                  {r.partner_id
+                    ? `Raised through the Partner Portal on ${formatDate(r.created_at)}`
+                    : `Created on ${formatDate(r.created_at)}`}
+                </div>
+              </div>
+
+              <div className={styles.contextCardMarketing}>
+                <div className={styles.contextLabelGreen}>Marketing Member</div>
+                <div className={styles.contextValueGreen}>{r.assigned_to_name || r.assigned_to || 'Unassigned'}</div>
+                <div className={styles.contextMetaGreen}>{r.status === 'submitted' ? 'Awaiting assignment/action' : 'Managing Request'}</div>
+              </div>
+
+              <div className={styles.contextCardTechnical}>
+                <div className={styles.contextLabelTeal}>Technical Reviewer</div>
+                <div className={styles.contextValueTeal}>{r.technical_member_name || r.technical_member_username || 'Not assigned yet'}</div>
+                <div className={styles.contextMetaTeal}>{r.technical_review_decision ? `Decision: ${r.technical_review_decision}` : 'Technical validation'}</div>
+              </div>
+
+              {marketingReminderBand(r) !== 'none' && (
+                <div className={styles.contextCardReminder}>
+                  <div className={styles.contextLabelOrange}>Reminder Status</div>
+                  <div className={calcStyles.mt4}><ReminderBadge record={r} /></div>
+                  {marketingReminderBand(r) === 'overdue' && (
+                    <div className={styles.contextMetaOrange}>Overdue by {daysOverdue(r)} day{daysOverdue(r) === 1 ? '' : 's'}</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 1: Original Request Details */}
+            <div className={`${calcStyles.sectionPanel} ${calcStyles.mb14}`}>
+              <div className={styles.rowHeaderBetween}>
+                <div className={calcStyles.inlineFlexGap8}>
+                  <Megaphone size={16} className={styles.iconBlue} />
+                  <span className={styles.sectionTitle14}>Original Requirement</span>
+                </div>
+                <ProductCategoryBadge category={r.product_category} />
+              </div>
+
+              <div className={styles.originalReqBody}>
+                {r.description}
+              </div>
+
+              {r.additional_info && (
+                <div className={styles.additionalInfoBox}>
+                  <strong>Additional Information:</strong> {r.additional_info}
                 </div>
               )}
 
-              {/* 3-Way Context Summary Bar — uses the shared, already-responsive
-                  summaryCardGrid container (2 columns at <=640px) instead of a
-                  bare inline auto-fit/minmax grid with no mobile override;
-                  each card keeps its own distinct inline background/border. */}
-              <div className={`${historyStyles.summaryCardGrid} ${styles.contextGrid}`}>
-                <div className={styles.contextCardRequester}>
-                  <div className={styles.contextLabelSlate}>Original Requester</div>
-                  <div className={styles.contextValueSlate}>
-                    {r.creator_name || r.created_by}
-                    <PartnerOriginBadge request={r} />
-                  </div>
-                  <div className={styles.contextMetaSlate}>
-                    {r.partner_id
-                      ? `Raised through the Partner Portal on ${formatDate(r.created_at)}`
-                      : `Created on ${formatDate(r.created_at)}`}
+              {r.project_id && (
+                <div className={styles.linkedProjectLine}>
+                  <strong>Linked Sales Project:</strong> <Link href={`/projects/${r.project_id}`}>{r.project_id}</Link>
+                </div>
+              )}
+
+              {r.attachments && r.attachments.length > 0 && (
+                <div className={calcStyles.mt8}>
+                  <div className={styles.attachmentsLabel}>Requester Attachments:</div>
+                  <div className={historyStyles.imageStrip}>
+                    {r.attachments.map((url) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <a key={url} href={url} target="_blank" rel="noreferrer" title="Click to open file">
+                        <img src={url} alt="Requester Attachment" />
+                      </a>
+                    ))}
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className={styles.contextCardMarketing}>
-                  <div className={styles.contextLabelGreen}>Marketing Member</div>
-                  <div className={styles.contextValueGreen}>{r.assigned_to_name || r.assigned_to || 'Unassigned'}</div>
-                  <div className={styles.contextMetaGreen}>{r.status === 'submitted' ? 'Awaiting assignment/action' : 'Managing Request'}</div>
+            {/* SECTION 2: Technical Review Banner / Feedback (if changes requested or approved) */}
+            {r.status === 'tech_changes_requested' && (
+              <div className={`${styles.warningBanner} ${calcStyles.mb14}`}>
+                <div className={styles.warningBannerTitle}>
+                  <AlertTriangle size={18} /> Technical Feedback: Changes Requested
                 </div>
-
-                <div className={styles.contextCardTechnical}>
-                  <div className={styles.contextLabelTeal}>Technical Reviewer</div>
-                  <div className={styles.contextValueTeal}>{r.technical_member_name || r.technical_member_username || 'Not assigned yet'}</div>
-                  <div className={styles.contextMetaTeal}>{r.technical_review_decision ? `Decision: ${r.technical_review_decision}` : 'Technical validation'}</div>
+                <div className={styles.warningBannerBody}>
+                  {r.technical_remarks || 'Please review and update the content per technical requirements.'}
                 </div>
-
-                {marketingReminderBand(r) !== 'none' && (
-                  <div className={styles.contextCardReminder}>
-                    <div className={styles.contextLabelOrange}>Reminder Status</div>
-                    <div className={calcStyles.mt4}><ReminderBadge record={r} /></div>
-                    {marketingReminderBand(r) === 'overdue' && (
-                      <div className={styles.contextMetaOrange}>Overdue by {daysOverdue(r)} day{daysOverdue(r) === 1 ? '' : 's'}</div>
-                    )}
-                  </div>
-                )}
+                <div className={styles.warningBannerFooter}>
+                  Feedback provided by <strong>{r.technical_reviewed_by || r.technical_member_username}</strong> on {formatDateTime(r.technical_reviewed_at)}. Marketing member will apply changes and deliver the final result.
+                </div>
               </div>
+            )}
 
-              {/* SECTION 1: Original Request Details */}
+            {r.status === 'technical_approved' && (
+              <div className={`${styles.successBanner} ${calcStyles.mb14}`}>
+                <div className={styles.successBannerTitle}>
+                  <CheckCircle2 size={18} /> Technical Review Approved!
+                </div>
+                <div className={styles.successBannerBody}>
+                  {r.technical_remarks ? `Technical notes: "${r.technical_remarks}"` : 'The technical specification and materials have been approved.'}
+                </div>
+                <div className={styles.successBannerFooter}>
+                  Approved by <strong>{r.technical_reviewed_by || r.technical_member_username}</strong> on {formatDateTime(r.technical_reviewed_at)}. Marketing member can now complete final delivery to {r.created_by}.
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 3: Marketing Workspace (Step 2 & 3: Prepare content, remarks, & send to Technical) */}
+            {(r.status === 'submitted' || r.status === 'marketing_in_progress' || r.status === 'tech_changes_requested') && (
+              <>
+                {canAccessMarketingWorkspace && (
+                  <div className={`${calcStyles.sectionPanel} ${calcStyles.mb14} ${styles.workspaceAccent}`}>
+                    <div className={styles.workspaceHeaderRow}>
+                      <div className={calcStyles.inlineFlexGap8}>
+                        <Wrench size={16} className={styles.iconBlue} />
+                        <span className={styles.sectionTitle14}>Marketing Workspace — Prepare &amp; Coordinate</span>
+                      </div>
+                      {r.status === 'submitted' && isUnassignedMarketing && (
+                        <Button
+                          variant="secondary"
+                          compact
+                          loading={busy}
+                          onClick={() => run(() => onStatusAction(r.id, 'claim'))}
+                        >
+                          Claim &amp; Start Working
+                        </Button>
+                      )}
+                      {canExchange && (
+                        <Button variant="ghost" compact loading={busy} onClick={handleExchangeClick}>
+                          ⇄ Hand off to {otherTeammate?.name || otherTeammate?.username}
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className={calcStyles.field}>
+                      <label className={calcStyles.label}>Prepared Marketing Content / Draft</label>
+                      <textarea
+                        className={calcStyles.formControl}
+                        rows={4}
+                        placeholder="Write or paste the prepared copy, brochure draft text, headlines, product specs, or creative summary here..."
+                        value={marketingContent}
+                        onChange={(e) => setMarketingContent(e.target.value)}
+                      />
+                    </div>
+
+                    <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+                      <div className={calcStyles.field}>
+                        <label className={calcStyles.label}>Marketing Remarks</label>
+                        <input
+                          className={calcStyles.formControl}
+                          placeholder="e.g. Focused on retail clients; customized highlights"
+                          value={marketingRemarks}
+                          onChange={(e) => setMarketingRemarks(e.target.value)}
+                        />
+                      </div>
+                      <div className={calcStyles.field}>
+                        <label className={calcStyles.label}>Technical Instructions for Reviewer</label>
+                        <input
+                          className={calcStyles.formControl}
+                          placeholder="e.g. Please verify AI camera specs and PoE requirements"
+                          value={technicalInstructions}
+                          onChange={(e) => setTechnicalInstructions(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Marketing Attachments */}
+                    <div className={styles.workspaceFieldSpacer}>
+                      <label className={calcStyles.label}>Marketing Prepared Attachments / Collateral</label>
+                      <input
+                        ref={mktFileInputRef}
+                        type="file"
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                        multiple
+                        className={calcStyles.hidden}
+                        onChange={(e) => handleMarketingFileUpload(e.target.files)}
+                      />
+                      <div className={calcStyles.inlineFlexGap8}>
+                        <button
+                          type="button"
+                          className={calcStyles.secondaryButton}
+                          disabled={uploadingMarketingFiles}
+                          onClick={() => mktFileInputRef.current?.click()}
+                        >
+                          {uploadingMarketingFiles ? 'Uploading…' : '+ Attach Prepared File / Design'}
+                        </button>
+                      </div>
+
+                      {marketingFiles.length > 0 && (
+                        <div className={`${historyStyles.imageStrip} ${calcStyles.mt8}`}>
+                          {marketingFiles.map((url) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <div key={url} className={styles.attachmentThumbWrap}>
+                              <img
+                                src={url}
+                                alt="Marketing Attachment"
+                                title="Click to remove"
+                                onClick={() => setMarketingFiles((prev) => prev.filter((u) => u !== url))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Marketing Workspace Action Bar */}
+                    <div className={styles.workspaceActionBar}>
+                      <div>
+                        {r.technical_member_name || r.technical_member_username ? (
+                          <div className={styles.techVerifierAssigned}>
+                            <CheckCircle2 size={16} /> Technical Verifier: <strong>{r.technical_member_name || r.technical_member_username}</strong>
+                          </div>
+                        ) : (
+                          <div className={styles.techVerifierPending}>
+                            <Clock size={15} /> Awaiting Manager to assign Technical Verifier below
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        variant="primary"
+                        icon={<Send size={14} />}
+                        loading={busy}
+                        loadingLabel="Sending…"
+                        disabled={!r.technical_member_id && !r.technical_member_username}
+                        onClick={handleSendToTechnical}
+                      >
+                        Send for Technical Verification
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {isMarketingAssignedToOther && (
+                  <div className={`${styles.lockedPanel} ${calcStyles.mb14}`}>
+                    <div className={styles.lockedPanelTitle}>
+                      <Lock size={16} className={styles.lockIconColor} /> Assigned to Marketing Member: {r.assigned_to_name || r.assigned_to}
+                    </div>
+                    <div className={styles.lockedPanelBody}>
+                      This workspace is currently being handled by <strong>{r.assigned_to_name || r.assigned_to}</strong>, who will coordinate directly with the Technical Team.
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Display Marketing Prepared Content (Read Only when in later stages) */}
+            {r.status !== 'submitted' && r.status !== 'marketing_in_progress' && r.marketing_prepared_content && (
               <div className={`${calcStyles.sectionPanel} ${calcStyles.mb14}`}>
-                <div className={styles.rowHeaderBetween}>
-                  <div className={calcStyles.inlineFlexGap8}>
-                    <Megaphone size={16} className={styles.iconBlue} />
-                    <span className={styles.sectionTitle14}>Original Requirement</span>
-                  </div>
-                  <ProductCategoryBadge category={r.product_category} />
+                <div className={styles.readOnlyContentTitle}>
+                  Prepared Content by Marketing ({r.assigned_to_name || r.assigned_to || 'Marketing'})
                 </div>
-
-                <div className={styles.originalReqBody}>
-                  {r.description}
+                <div className={styles.readOnlyContentBody}>
+                  {r.marketing_prepared_content}
                 </div>
-
-                {r.additional_info && (
-                  <div className={styles.additionalInfoBox}>
-                    <strong>Additional Information:</strong> {r.additional_info}
+                {r.marketing_remarks && (
+                  <div className={styles.readOnlyRemark}>
+                    <strong>Marketing Remarks:</strong> {r.marketing_remarks}
                   </div>
                 )}
-
-                {r.project_id && (
-                  <div className={styles.linkedProjectLine}>
-                    <strong>Linked Sales Project:</strong> <Link href={`/projects/${r.project_id}`}>{r.project_id}</Link>
+                {r.technical_instructions && (
+                  <div className={styles.readOnlyInstructions}>
+                    <strong>Instructions for Technical:</strong> {r.technical_instructions}
                   </div>
                 )}
-
-                {r.attachments && r.attachments.length > 0 && (
+                {r.marketing_attachments && r.marketing_attachments.length > 0 && (
                   <div className={calcStyles.mt8}>
-                    <div className={styles.attachmentsLabel}>Requester Attachments:</div>
+                    <div className={styles.attachmentsLabel}>Marketing Collateral / Attachments:</div>
                     <div className={historyStyles.imageStrip}>
-                      {r.attachments.map((url) => (
+                      {r.marketing_attachments.map((url) => (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <a key={url} href={url} target="_blank" rel="noreferrer" title="Click to open file">
-                          <img src={url} alt="Requester Attachment" />
+                        <a key={url} href={url} target="_blank" rel="noreferrer">
+                          <img src={url} alt="Marketing Material" />
                         </a>
                       ))}
                     </div>
                   </div>
                 )}
               </div>
+            )}
 
-              {/* SECTION 2: Technical Review Banner / Feedback (if changes requested or approved) */}
-              {r.status === 'tech_changes_requested' && (
-                <div className={`${styles.warningBanner} ${calcStyles.mb14}`}>
-                  <div className={styles.warningBannerTitle}>
-                    <AlertTriangle size={18} /> Technical Feedback: Changes Requested
+            {/* SECTION 4: Technical Team Member Action Box (Step 4 & 5) */}
+            {r.status === 'pending_technical_review' && (
+              <div className={`${styles.techReviewBox} ${calcStyles.mb14}`}>
+                <div className={styles.rowHeaderBetween}>
+                  <div className={styles.techReviewHeaderLeft}>
+                    <UserCheck size={18} /> Step 4 — Technical Team Review
                   </div>
-                  <div className={styles.warningBannerBody}>
-                    {r.technical_remarks || 'Please review and update the content per technical requirements.'}
-                  </div>
-                  <div className={styles.warningBannerFooter}>
-                    Feedback provided by <strong>{r.technical_reviewed_by || r.technical_member_username}</strong> on {formatDateTime(r.technical_reviewed_at)}. Marketing member will apply changes and deliver the final result.
-                  </div>
-                </div>
-              )}
-
-              {r.status === 'technical_approved' && (
-                <div className={`${styles.successBanner} ${calcStyles.mb14}`}>
-                  <div className={styles.successBannerTitle}>
-                    <CheckCircle2 size={18} /> Technical Review Approved!
-                  </div>
-                  <div className={styles.successBannerBody}>
-                    {r.technical_remarks ? `Technical notes: "${r.technical_remarks}"` : 'The technical specification and materials have been approved.'}
-                  </div>
-                  <div className={styles.successBannerFooter}>
-                    Approved by <strong>{r.technical_reviewed_by || r.technical_member_username}</strong> on {formatDateTime(r.technical_reviewed_at)}. Marketing member can now complete final delivery to {r.created_by}.
+                  <div className={styles.techReviewAssignedTo}>
+                    Assigned To: {r.technical_member_name || r.technical_member_username}
                   </div>
                 </div>
-              )}
 
-              {/* SECTION 3: Marketing Workspace (Step 2 & 3: Prepare content, remarks, & send to Technical) */}
-              {(r.status === 'submitted' || r.status === 'marketing_in_progress' || r.status === 'tech_changes_requested') && (
-                <>
-                  {canAccessMarketingWorkspace && (
-                    <div className={`${calcStyles.sectionPanel} ${calcStyles.mb14} ${styles.workspaceAccent}`}>
-                      <div className={styles.workspaceHeaderRow}>
-                        <div className={calcStyles.inlineFlexGap8}>
-                          <Wrench size={16} className={styles.iconBlue} />
-                          <span className={styles.sectionTitle14}>Marketing Workspace — Prepare &amp; Coordinate</span>
-                        </div>
-                        {r.status === 'submitted' && isUnassignedMarketing && (
-                          <Button
-                            variant="secondary"
-                            compact
-                            loading={busy}
-                            onClick={() => run(() => onStatusAction(r.id, 'claim'))}
-                          >
-                            Claim &amp; Start Working
-                          </Button>
-                        )}
-                      </div>
+                <p className={styles.techReviewIntro}>
+                  Review the product specification and marketing draft. You can either approve the request or send remarks back if changes are needed.
+                </p>
 
-                      <div className={calcStyles.field}>
-                        <label className={calcStyles.label}>Prepared Marketing Content / Draft</label>
-                        <textarea
-                          className={calcStyles.formControl}
-                          rows={4}
-                          placeholder="Write or paste the prepared copy, brochure draft text, headlines, product specs, or creative summary here..."
-                          value={marketingContent}
-                          onChange={(e) => setMarketingContent(e.target.value)}
-                        />
-                      </div>
-
-                      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-                        <div className={calcStyles.field}>
-                          <label className={calcStyles.label}>Marketing Remarks</label>
-                          <input
-                            className={calcStyles.formControl}
-                            placeholder="e.g. Focused on retail clients; customized highlights"
-                            value={marketingRemarks}
-                            onChange={(e) => setMarketingRemarks(e.target.value)}
-                          />
-                        </div>
-                        <div className={calcStyles.field}>
-                          <label className={calcStyles.label}>Technical Instructions for Reviewer</label>
-                          <input
-                            className={calcStyles.formControl}
-                            placeholder="e.g. Please verify AI camera specs and PoE requirements"
-                            value={technicalInstructions}
-                            onChange={(e) => setTechnicalInstructions(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Marketing Attachments */}
-                      <div className={styles.workspaceFieldSpacer}>
-                        <label className={calcStyles.label}>Marketing Prepared Attachments / Collateral</label>
-                        <input
-                          ref={mktFileInputRef}
-                          type="file"
-                          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                          multiple
-                          className={calcStyles.hidden}
-                          onChange={(e) => handleMarketingFileUpload(e.target.files)}
-                        />
-                        <div className={calcStyles.inlineFlexGap8}>
-                          <button
-                            type="button"
-                            className={calcStyles.secondaryButton}
-                            disabled={uploadingMarketingFiles}
-                            onClick={() => mktFileInputRef.current?.click()}
-                          >
-                            {uploadingMarketingFiles ? 'Uploading…' : '+ Attach Prepared File / Design'}
-                          </button>
-                        </div>
-
-                        {marketingFiles.length > 0 && (
-                          <div className={`${historyStyles.imageStrip} ${calcStyles.mt8}`}>
-                            {marketingFiles.map((url) => (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <div key={url} className={styles.attachmentThumbWrap}>
-                                <img
-                                  src={url}
-                                  alt="Marketing Attachment"
-                                  title="Click to remove"
-                                  onClick={() => setMarketingFiles((prev) => prev.filter((u) => u !== url))}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Marketing Workspace Action Bar */}
-                      <div className={styles.workspaceActionBar}>
-                        <div>
-                          {r.technical_member_name || r.technical_member_username ? (
-                            <div className={styles.techVerifierAssigned}>
-                              <CheckCircle2 size={16} /> Technical Verifier: <strong>{r.technical_member_name || r.technical_member_username}</strong>
-                            </div>
-                          ) : (
-                            <div className={styles.techVerifierPending}>
-                              <Clock size={15} /> Awaiting Manager to assign Technical Verifier below
-                            </div>
-                          )}
-                        </div>
-                        <Button
-                          variant="primary"
-                          icon={<Send size={14} />}
-                          loading={busy}
-                          loadingLabel="Sending…"
-                          disabled={!r.technical_member_id && !r.technical_member_username}
-                          onClick={handleSendToTechnical}
-                        >
-                          Send for Technical Verification
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {isMarketingAssignedToOther && (
-                    <div className={`${styles.lockedPanel} ${calcStyles.mb14}`}>
-                      <div className={styles.lockedPanelTitle}>
-                        <Lock size={16} className={styles.lockIconColor} /> Assigned to Marketing Member: {r.assigned_to_name || r.assigned_to}
-                      </div>
-                      <div className={styles.lockedPanelBody}>
-                        This workspace is currently being handled by <strong>{r.assigned_to_name || r.assigned_to}</strong>, who will coordinate directly with the Technical Team.
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Display Marketing Prepared Content (Read Only when in later stages) */}
-              {r.status !== 'submitted' && r.status !== 'marketing_in_progress' && r.marketing_prepared_content && (
-                <div className={`${calcStyles.sectionPanel} ${calcStyles.mb14}`}>
-                  <div className={styles.readOnlyContentTitle}>
-                    Prepared Content by Marketing ({r.assigned_to_name || r.assigned_to || 'Marketing'})
+                {(isAssignedTechnical || currentUser.role === 'engineer' || isReviewer) && !showTechChangesDialog && (
+                  <div className={historyStyles.actionGroupButtons}>
+                    <Button
+                      variant="success"
+                      icon={<Check size={14} />}
+                      loading={busy}
+                      loadingLabel="Approving…"
+                      onClick={handleApproveTechnical}
+                    >
+                      Approve Request
+                    </Button>
+                    <Button
+                      variant="danger"
+                      icon={<AlertTriangle size={14} />}
+                      onClick={() => setShowTechChangesDialog(true)}
+                    >
+                      Request Changes
+                    </Button>
                   </div>
-                  <div className={styles.readOnlyContentBody}>
-                    {r.marketing_prepared_content}
-                  </div>
-                  {r.marketing_remarks && (
-                    <div className={styles.readOnlyRemark}>
-                      <strong>Marketing Remarks:</strong> {r.marketing_remarks}
-                    </div>
-                  )}
-                  {r.technical_instructions && (
-                    <div className={styles.readOnlyInstructions}>
-                      <strong>Instructions for Technical:</strong> {r.technical_instructions}
-                    </div>
-                  )}
-                  {r.marketing_attachments && r.marketing_attachments.length > 0 && (
-                    <div className={calcStyles.mt8}>
-                      <div className={styles.attachmentsLabel}>Marketing Collateral / Attachments:</div>
-                      <div className={historyStyles.imageStrip}>
-                        {r.marketing_attachments.map((url) => (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <a key={url} href={url} target="_blank" rel="noreferrer">
-                            <img src={url} alt="Marketing Material" />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
 
-              {/* SECTION 4: Technical Team Member Action Box (Step 4 & 5) */}
-              {r.status === 'pending_technical_review' && (
-                <div className={`${styles.techReviewBox} ${calcStyles.mb14}`}>
-                  <div className={styles.rowHeaderBetween}>
-                    <div className={styles.techReviewHeaderLeft}>
-                      <UserCheck size={18} /> Step 4 — Technical Team Review
-                    </div>
-                    <div className={styles.techReviewAssignedTo}>
-                      Assigned To: {r.technical_member_name || r.technical_member_username}
-                    </div>
-                  </div>
-
-                  <p className={styles.techReviewIntro}>
-                    Review the product specification and marketing draft. You can either approve the request or send remarks back if changes are needed.
-                  </p>
-
-                  {(isAssignedTechnical || currentUser.role === 'engineer' || isReviewer) && !showTechChangesDialog && (
-                    <div className={historyStyles.actionGroupButtons}>
-                      <Button
-                        variant="success"
-                        icon={<Check size={14} />}
-                        loading={busy}
-                        loadingLabel="Approving…"
-                        onClick={handleApproveTechnical}
-                      >
-                        Approve Request
-                      </Button>
+                {showTechChangesDialog && (
+                  <div className={styles.changesDialogBox}>
+                    <label className={`${calcStyles.label} ${styles.changesDialogLabel}`}>
+                      Technical Remarks / Changes Needed *
+                    </label>
+                    <textarea
+                      className={calcStyles.formControl}
+                      rows={3}
+                      placeholder="e.g. Please correct the product specification in the second paragraph and update the attached product data sheet."
+                      value={techRemarksInput}
+                      onChange={(e) => setTechRemarksInput(e.target.value)}
+                      autoFocus
+                    />
+                    <div className={`${historyStyles.actionGroupButtons} ${calcStyles.mt10}`}>
                       <Button
                         variant="danger"
-                        icon={<AlertTriangle size={14} />}
-                        onClick={() => setShowTechChangesDialog(true)}
+                        icon={<Send size={14} />}
+                        loading={busy}
+                        loadingLabel="Sending feedback…"
+                        disabled={!techRemarksInput.trim()}
+                        onClick={handleRequestChangesTechnical}
                       >
-                        Request Changes
+                        Submit Change Request to Marketing
+                      </Button>
+                      <Button variant="ghost" onClick={() => setShowTechChangesDialog(false)}>
+                        Cancel
                       </Button>
                     </div>
-                  )}
+                  </div>
+                )}
+              </div>
+            )}
 
-                  {showTechChangesDialog && (
-                    <div className={styles.changesDialogBox}>
-                      <label className={`${calcStyles.label} ${styles.changesDialogLabel}`}>
-                        Technical Remarks / Changes Needed *
-                      </label>
+            {/* SECTION 5: Final Submission to Original Requester (Step 6 & 7) */}
+            {(r.status === 'technical_approved' || r.status === 'marketing_final_review' || r.status === 'tech_changes_requested') && (
+              <>
+                {canAccessMarketingWorkspace && (
+                  <div className={`${styles.finalSubmissionBox} ${calcStyles.mb14}`}>
+                    <div className={styles.finalSubmissionHeader}>
+                      <Sparkles size={18} /> Step 7 — Final Submission to Original Requester ({r.creator_name || r.created_by})
+                    </div>
+                    <p className={styles.finalSubmissionIntro}>
+                      Deliver the finalized marketing collateral directly to <strong>{r.creator_name || r.created_by}</strong> to complete this request.
+                    </p>
+
+                    <div className={calcStyles.field}>
+                      <label className={calcStyles.label}>Final Delivery Notes / Message to Requester</label>
                       <textarea
                         className={calcStyles.formControl}
-                        rows={3}
-                        placeholder="e.g. Please correct the product specification in the second paragraph and update the attached product data sheet."
-                        value={techRemarksInput}
-                        onChange={(e) => setTechRemarksInput(e.target.value)}
-                        autoFocus
+                        rows={2}
+                        placeholder="e.g. Here is your final approved brochure and high-resolution print files. Let us know if you need further adjustments."
+                        value={finalNotes}
+                        onChange={(e) => setFinalNotes(e.target.value)}
                       />
-                      <div className={`${historyStyles.actionGroupButtons} ${calcStyles.mt10}`}>
-                        <Button
-                          variant="danger"
-                          icon={<Send size={14} />}
-                          loading={busy}
-                          loadingLabel="Sending feedback…"
-                          disabled={!techRemarksInput.trim()}
-                          onClick={handleRequestChangesTechnical}
-                        >
-                          Submit Change Request to Marketing
-                        </Button>
-                        <Button variant="ghost" onClick={() => setShowTechChangesDialog(false)}>
-                          Cancel
-                        </Button>
-                      </div>
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* SECTION 5: Final Submission to Original Requester (Step 6 & 7) */}
-              {(r.status === 'technical_approved' || r.status === 'marketing_final_review' || r.status === 'tech_changes_requested') && (
-                <>
-                  {canAccessMarketingWorkspace && (
-                    <div className={`${styles.finalSubmissionBox} ${calcStyles.mb14}`}>
-                      <div className={styles.finalSubmissionHeader}>
-                        <Sparkles size={18} /> Step 7 — Final Submission to Original Requester ({r.creator_name || r.created_by})
-                      </div>
-                      <p className={styles.finalSubmissionIntro}>
-                        Deliver the finalized marketing collateral directly to <strong>{r.creator_name || r.created_by}</strong> to complete this request.
-                      </p>
-
-                      <div className={calcStyles.field}>
-                        <label className={calcStyles.label}>Final Delivery Notes / Message to Requester</label>
-                        <textarea
-                          className={calcStyles.formControl}
-                          rows={2}
-                          placeholder="e.g. Here is your final approved brochure and high-resolution print files. Let us know if you need further adjustments."
-                          value={finalNotes}
-                          onChange={(e) => setFinalNotes(e.target.value)}
-                        />
-                      </div>
-
-                      <div className={calcStyles.mb12}>
-                        <label className={calcStyles.label}>Final Deliverable Files / Assets</label>
-                        <input
-                          ref={finalFileInputRef}
-                          type="file"
-                          accept="image/*,.pdf,.zip,.doc,.docx"
-                          multiple
-                          className={calcStyles.hidden}
-                          onChange={(e) => handleFinalFileUpload(e.target.files)}
-                        />
-                        <button
-                          type="button"
-                          className={calcStyles.secondaryButton}
-                          disabled={uploadingFinalFiles}
-                          onClick={() => finalFileInputRef.current?.click()}
-                        >
-                          {uploadingFinalFiles ? 'Uploading…' : '+ Add Final Deliverable File(s)'}
-                        </button>
-
-                        {finalFiles.length > 0 && (
-                          <div className={`${historyStyles.imageStrip} ${calcStyles.mt8}`}>
-                            {finalFiles.map((url) => (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <div key={url} className={styles.attachmentThumbWrap}>
-                                <img
-                                  src={url}
-                                  alt="Final File"
-                                  title="Click to remove"
-                                  onClick={() => setFinalFiles((prev) => prev.filter((u) => u !== url))}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <Button
-                        variant="success"
-                        icon={<CheckCircle2 size={15} />}
-                        loading={busy}
-                        loadingLabel="Delivering…"
-                        onClick={handleDeliverToRequester}
+                    <div className={calcStyles.mb12}>
+                      <label className={calcStyles.label}>Final Deliverable Files / Assets</label>
+                      <input
+                        ref={finalFileInputRef}
+                        type="file"
+                        accept="image/*,.pdf,.zip,.doc,.docx"
+                        multiple
+                        className={calcStyles.hidden}
+                        onChange={(e) => handleFinalFileUpload(e.target.files)}
+                      />
+                      <button
+                        type="button"
+                        className={calcStyles.secondaryButton}
+                        disabled={uploadingFinalFiles}
+                        onClick={() => finalFileInputRef.current?.click()}
                       >
-                        Complete &amp; Deliver to {r.creator_name || r.created_by}
-                      </Button>
-                    </div>
-                  )}
+                        {uploadingFinalFiles ? 'Uploading…' : '+ Add Final Deliverable File(s)'}
+                      </button>
 
-                  {isMarketingAssignedToOther && (
-                    <div className={`${styles.finalAwaitingBox} ${calcStyles.mb14}`}>
-                      <div className={styles.finalAwaitingTitle}>
-                        <Sparkles size={16} /> Awaiting Final Delivery by {r.assigned_to_name || r.assigned_to}
-                      </div>
-                      <div className={styles.finalAwaitingBody}>
-                        Assigned marketing member <strong>{r.assigned_to_name || r.assigned_to}</strong> will deliver the final collateral directly to {r.creator_name || r.created_by}.
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* SECTION 6: Completed Deliverables Display (For Requester & all) */}
-              {r.status === 'completed' && (
-                <div className={`${styles.completedBox} ${calcStyles.mb14}`}>
-                  <div className={styles.successBannerTitle}>
-                    <CheckCircle2 size={18} /> Request Completed &amp; Delivered to {r.creator_name || r.created_by}
-                  </div>
-                  {r.final_submission_notes && (
-                    <div className={styles.completedDeliveryMsg}>
-                      <strong>Delivery Message:</strong> {r.final_submission_notes}
-                    </div>
-                  )}
-                  {r.final_submission_files && r.final_submission_files.length > 0 && (
-                    <div className={calcStyles.mt10}>
-                      <div className={styles.completedDeliverablesLabel}>Final Deliverables:</div>
-                      <div className={historyStyles.imageStrip}>
-                        {r.final_submission_files.map((url) => (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <a key={url} href={url} target="_blank" rel="noreferrer" title="Open deliverable">
-                            <img src={url} alt="Deliverable" />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Assignment Controls for Marketing Manager / Reviewer */}
-              {isReviewer && (
-                <div className={`${calcStyles.sectionPanel} ${calcStyles.mt14} ${calcStyles.mb14} ${styles.managerPanelAccent}`}>
-                  <div className={styles.managerPanelTitle}>
-                    <UserCheck size={16} className={styles.iconBlue} /> Manager Team Assignments
-                  </div>
-                  <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb0}`}>
-                    <div className={calcStyles.field}>
-                      <label className={calcStyles.label}>Marketing Assignee</label>
-                      <select
-                        className={calcStyles.formControl}
-                        disabled={busy}
-                        value={r.assigned_to_id || marketingRoster.find((u) => u.username === r.assigned_to)?.id || users.find((u) => u.username === r.assigned_to)?.id || ''}
-                        onChange={(e) => run(() => onAssign(r.id, { assigneeId: e.target.value }))}
-                      >
-                        <option value="">— Unassigned in Marketing —</option>
-                        {marketingRoster.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name || u.username} ({u.username})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className={calcStyles.field}>
-                      <label className={calcStyles.label}>
-                        Technical Member for Verification ({r.product_category ? `${r.product_category} Specialist` : 'Technical'})
-                      </label>
-                      <select
-                        className={calcStyles.formControl}
-                        disabled={busy}
-                        value={r.technical_member_id || technicalRoster.find((t) => t.username === r.technical_member_username)?.id || ''}
-                        onChange={(e) => run(() => onAssign(r.id, { technicalMemberId: e.target.value }))}
-                      >
-                        <option value="">— Select Technical Verifier —</option>
-                        {categoryMatchedList.length > 0 && (
-                          <optgroup label={`🌟 ${r.product_category} Specialists (Recommended)`}>
-                            {categoryMatchedList.map((t) => {
-                              const tasks = t.pendingTasksCount ?? 0;
-                              const taskLabel = tasks === 0 ? '0 pending tasks' : `${tasks} pending task${tasks === 1 ? '' : 's'}`;
-                              const recLabel = t.isRecommended ? ' ★ Lowest Workload' : '';
-                              return (
-                                <option key={t.id} value={t.id}>
-                                  {t.name} ({t.department || 'Technical'}) • {taskLabel}{recLabel}
-                                </option>
-                              );
-                            })}
-                          </optgroup>
-                        )}
-                        {otherTechList.length > 0 && (
-                          <optgroup label={categoryMatchedList.length > 0 ? 'Other Technical Team Members' : 'All Technical Members'}>
-                            {otherTechList.map((t) => {
-                              const tasks = t.pendingTasksCount ?? 0;
-                              const taskLabel = tasks === 0 ? '0 pending tasks' : `${tasks} pending task${tasks === 1 ? '' : 's'}`;
-                              return (
-                                <option key={t.id} value={t.id}>
-                                  {t.name} ({t.department || 'Technical'}) • {taskLabel}
-                                </option>
-                              );
-                            })}
-                          </optgroup>
-                        )}
-                        {categoryMatchedList.length === 0 && otherTechList.length === 0 && (
-                          technicalRoster.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} ({t.department || 'Technical'})
-                            </option>
-                          ))
-                        )}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SECTION 7: Comments & Collaboration Timeline */}
-              <div className={styles.commentsSection}>
-                <div className={styles.commentsHeader}>
-                  <MessageSquare size={15} /> Discussion &amp; Remarks Timeline ({r.comments?.length || 0})
-                </div>
-                {(!r.comments || r.comments.length === 0) && (
-                  <div className={`${calcStyles.small} ${styles.noCommentsNote}`}>
-                    No comments yet. Anyone involved can leave a message.
-                  </div>
-                )}
-                {r.comments && r.comments.length > 0 && (
-                  <div className={historyStyles.timeline}>
-                    {r.comments.map((c) => (
-                      <div key={c.id} className={historyStyles.timelineEntry}>
-                        <div className={historyStyles.timelineMeta}>
-                          <strong>{c.by}</strong> · {formatDateTime(c.at)}
+                      {finalFiles.length > 0 && (
+                        <div className={`${historyStyles.imageStrip} ${calcStyles.mt8}`}>
+                          {finalFiles.map((url) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <div key={url} className={styles.attachmentThumbWrap}>
+                              <img
+                                src={url}
+                                alt="Final File"
+                                title="Click to remove"
+                                onClick={() => setFinalFiles((prev) => prev.filter((u) => u !== url))}
+                              />
+                            </div>
+                          ))}
                         </div>
-                        <div className={styles.commentBody}>{c.text}</div>
-                      </div>
-                    ))}
+                      )}
+                    </div>
+
+                    <Button
+                      variant="success"
+                      icon={<CheckCircle2 size={15} />}
+                      loading={busy}
+                      loadingLabel="Delivering…"
+                      onClick={handleDeliverToRequester}
+                    >
+                      Complete &amp; Deliver to {r.creator_name || r.created_by}
+                    </Button>
                   </div>
                 )}
-                <div className={styles.commentInputRow}>
-                  <input
-                    className={`${calcStyles.formControl} ${styles.commentInputFlex}`}
-                    placeholder="Add a remark or question…"
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && commentText.trim()) {
-                        onComment(r.id, commentText);
-                        setCommentText('');
-                      }
-                    }}
-                  />
-                  <Button
-                    variant="secondary"
-                    compact
-                    disabled={!commentText.trim()}
-                    onClick={() => {
-                      onComment(r.id, commentText);
-                      setCommentText('');
-                    }}
-                  >
-                    Post Comment
-                  </Button>
+
+                {isMarketingAssignedToOther && (
+                  <div className={`${styles.finalAwaitingBox} ${calcStyles.mb14}`}>
+                    <div className={styles.finalAwaitingTitle}>
+                      <Sparkles size={16} /> Awaiting Final Delivery by {r.assigned_to_name || r.assigned_to}
+                    </div>
+                    <div className={styles.finalAwaitingBody}>
+                      Assigned marketing member <strong>{r.assigned_to_name || r.assigned_to}</strong> will deliver the final collateral directly to {r.creator_name || r.created_by}.
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* SECTION 6: Completed Deliverables Display (For Requester & all) */}
+            {r.status === 'completed' && (
+              <div className={`${styles.completedBox} ${calcStyles.mb14}`}>
+                <div className={styles.successBannerTitle}>
+                  <CheckCircle2 size={18} /> Request Completed &amp; Delivered to {r.creator_name || r.created_by}
+                </div>
+                {r.final_submission_notes && (
+                  <div className={styles.completedDeliveryMsg}>
+                    <strong>Delivery Message:</strong> {r.final_submission_notes}
+                  </div>
+                )}
+                {r.final_submission_files && r.final_submission_files.length > 0 && (
+                  <div className={calcStyles.mt10}>
+                    <div className={styles.completedDeliverablesLabel}>Final Deliverables:</div>
+                    <div className={historyStyles.imageStrip}>
+                      {r.final_submission_files.map((url) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <a key={url} href={url} target="_blank" rel="noreferrer" title="Open deliverable">
+                          <img src={url} alt="Deliverable" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Assignment Controls for Marketing Manager / Reviewer */}
+            {isReviewer && (
+              <div className={`${calcStyles.sectionPanel} ${calcStyles.mt14} ${calcStyles.mb14} ${styles.managerPanelAccent}`}>
+                <div className={styles.managerPanelTitle}>
+                  <UserCheck size={16} className={styles.iconBlue} /> Manager Team Assignments
+                </div>
+                <div className={`${calcStyles.row} ${calcStyles.columns} ${calcStyles.mb0}`}>
+                  <div className={calcStyles.field}>
+                    <label className={calcStyles.label}>Marketing Assignee</label>
+                    <select
+                      className={calcStyles.formControl}
+                      disabled={busy}
+                      value={r.assigned_to_id || marketingRoster.find((u) => u.username === r.assigned_to)?.id || users.find((u) => u.username === r.assigned_to)?.id || ''}
+                      onChange={(e) => run(() => onAssign(r.id, { assigneeId: e.target.value }))}
+                    >
+                      <option value="">— Unassigned in Marketing —</option>
+                      {marketingRoster.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name || u.username} ({u.username})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={calcStyles.field}>
+                    <label className={calcStyles.label}>
+                      Technical Member for Verification ({r.product_category ? `${r.product_category} Specialist` : 'Technical'})
+                    </label>
+                    <select
+                      className={calcStyles.formControl}
+                      disabled={busy}
+                      value={r.technical_member_id || technicalRoster.find((t) => t.username === r.technical_member_username)?.id || ''}
+                      onChange={(e) => run(() => onAssign(r.id, { technicalMemberId: e.target.value }))}
+                    >
+                      <option value="">— Select Technical Verifier —</option>
+                      {categoryMatchedList.length > 0 && (
+                        <optgroup label={`🌟 ${r.product_category} Specialists (Recommended)`}>
+                          {categoryMatchedList.map((t) => {
+                            const tasks = t.pendingTasksCount ?? 0;
+                            const taskLabel = tasks === 0 ? '0 pending tasks' : `${tasks} pending task${tasks === 1 ? '' : 's'}`;
+                            const recLabel = t.isRecommended ? ' ★ Lowest Workload' : '';
+                            return (
+                              <option key={t.id} value={t.id}>
+                                {t.name} ({t.department || 'Technical'}) • {taskLabel}{recLabel}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                      {otherTechList.length > 0 && (
+                        <optgroup label={categoryMatchedList.length > 0 ? 'Other Technical Team Members' : 'All Technical Members'}>
+                          {otherTechList.map((t) => {
+                            const tasks = t.pendingTasksCount ?? 0;
+                            const taskLabel = tasks === 0 ? '0 pending tasks' : `${tasks} pending task${tasks === 1 ? '' : 's'}`;
+                            return (
+                              <option key={t.id} value={t.id}>
+                                {t.name} ({t.department || 'Technical'}) • {taskLabel}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                      {categoryMatchedList.length === 0 && otherTechList.length === 0 && (
+                        technicalRoster.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.department || 'Technical'})
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
                 </div>
               </div>
+            )}
 
-              {canDelete && (
-                <div className={styles.deleteSection}>
-                  <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => onDelete(r)}>
-                    Delete Request
-                  </Button>
+            {/* SECTION 7: Comments & Collaboration Timeline */}
+            <div className={styles.commentsSection}>
+              <div className={styles.commentsHeader}>
+                <MessageSquare size={15} /> Discussion &amp; Remarks Timeline ({r.comments?.length || 0})
+              </div>
+              {(!r.comments || r.comments.length === 0) && (
+                <div className={`${calcStyles.small} ${styles.noCommentsNote}`}>
+                  No comments yet. Anyone involved can leave a message.
                 </div>
               )}
+              {r.comments && r.comments.length > 0 && (
+                <div className={historyStyles.timeline}>
+                  {r.comments.map((c) => (
+                    <div key={c.id} className={historyStyles.timelineEntry}>
+                      <div className={historyStyles.timelineMeta}>
+                        <strong>{c.by}</strong> · {formatDateTime(c.at)}
+                      </div>
+                      <div className={styles.commentBody}>{c.text}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className={styles.commentInputRow}>
+                <input
+                  className={`${calcStyles.formControl} ${styles.commentInputFlex}`}
+                  placeholder="Add a remark or question…"
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && commentText.trim()) {
+                      onComment(r.id, commentText);
+                      setCommentText('');
+                    }
+                  }}
+                />
+                <Button
+                  variant="secondary"
+                  compact
+                  disabled={!commentText.trim()}
+                  onClick={() => {
+                    onComment(r.id, commentText);
+                    setCommentText('');
+                  }}
+                >
+                  Post Comment
+                </Button>
+              </div>
             </div>
-          </td>
-        </tr>
+
+            {canDelete && (
+              <div className={styles.deleteSection}>
+                <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => onDelete(r)}>
+                  Delete Request
+                </Button>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
     </>
   );
@@ -1140,7 +1180,7 @@ function MarketingRequestRow({
 
 type FilterTab = 'all' | 'marketing_queue' | 'technical_review' | 'ready_delivery' | 'completed' | 'my_requests';
 
-function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequestsViewProps) {
+function MarketingRequestsViewContent({ currentUser, isReviewer, isMarketingTeamMember = false }: MarketingRequestsViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const searchParams = useSearchParams();
@@ -1322,6 +1362,10 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
 
   async function handleAssign(id: string, patch: { assigneeId?: string; technicalMemberId?: string }) {
     await postAction(`/api/marketing-requests/${id}/assign`, patch, 'Assignments updated.');
+  }
+
+  async function handleExchange(id: string, targetId: string) {
+    await postAction(`/api/marketing-requests/${id}/exchange`, { targetId }, 'Handed off to your teammate.');
   }
 
   async function handleAcceptAssignment(id: string) {
@@ -1516,7 +1560,18 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
             />
           ) : (
             <div className={historyStyles.tableWrap}>
-              <table className={historyStyles.table}>
+              <table className={`${historyStyles.table} ${styles.board}`}>
+                <colgroup>
+                  <col className={styles.colTitle} />
+                  <col className={styles.colCategory} />
+                  <col className={styles.colPriority} />
+                  <col className={styles.colStatus} />
+                  <col className={styles.colPerson} />
+                  <col className={styles.colPerson} />
+                  <col className={styles.colPerson} />
+                  <col className={styles.colDeadline} />
+                  <col className={styles.colChevron} />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Request Title &amp; Details</th>
@@ -1537,6 +1592,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                       record={r}
                       currentUser={currentUser}
                       isReviewer={isReviewer}
+                      isMarketingTeamMember={isMarketingTeamMember}
                       technicalRoster={technicalRoster}
                       marketingRoster={marketingRoster}
                       users={users}
@@ -1545,6 +1601,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                       onFinalSubmission={handleFinalSubmission}
                       onStatusAction={handleStatusAction}
                       onAssign={handleAssign}
+                      onExchange={handleExchange}
                       onAcceptAssignment={handleAcceptAssignment}
                       onDeclineAssignment={handleDeclineAssignment}
                       onComment={handleComment}

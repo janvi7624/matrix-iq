@@ -44,6 +44,7 @@ import {
 } from '@/lib/materialCategories';
 import calcStyles from './calculator.module.css';
 import styles from './materials.module.css';
+import { MATERIAL_CONFIDENTIALITY_NOTICE } from '@/lib/materialConfidentiality';
 
 // Kept in lockstep with lib/materialStore.ts's MaterialSource — a duplicate
 // of it rather than an import, as the rest of this file's payload types are.
@@ -348,6 +349,14 @@ export default function MaterialsView({ canManage: canManageInitial }: { canMana
       title="Materials"
       subtitle="Datasheets, case studies and company documents — find what you need and open it."
     >
+      {/* Shown to staff as well as partners, on purpose: the people most
+          likely to forward a datasheet to a customer are internal, and this
+          is the line they need to have read before they do. Every PDF served
+          from the library carries the same wording stamped on each page. */}
+      <p className={styles.confidentialNotice} role="note">
+        {MATERIAL_CONFIDENTIALITY_NOTICE}
+      </p>
+
       <div className={styles.toolbar}>
         <div className={styles.searchWrap}>
           <Search size={16} className={styles.searchIcon} aria-hidden />

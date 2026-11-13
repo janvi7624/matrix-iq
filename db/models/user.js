@@ -41,7 +41,13 @@ module.exports = (sequelize, DataTypes) => {
     // Portal is built on (`partnerId IS NULL` === internal staff). Never
     // defaulted: an account's partner binding is always an explicit decision
     // at creation time. See the 20261020091000 migration.
-    partnerId: { type: DataTypes.UUID }
+    partnerId: { type: DataTypes.UUID },
+    // Personal reporting line, overriding this person's DEPARTMENT manager
+    // for request routing and manager visibility. NULL — the normal case —
+    // means 'use the department manager', so the two mechanisms are the
+    // same thing until somebody is given a different manager on purpose.
+    // See lib/reportingManagers.ts and the 20261112140000 migration.
+    reportingManagerId: { type: DataTypes.UUID }
   }, {
     tableName: 'users',
     underscored: false,
@@ -52,6 +58,10 @@ module.exports = (sequelize, DataTypes) => {
     User.belongsTo(models.Role, { foreignKey: 'roleId', as: 'role' });
     User.belongsTo(models.Department, { foreignKey: 'departmentId', as: 'departmentRef' });
     User.belongsTo(models.Partner, { foreignKey: 'partnerId', as: 'partner' });
+    // Self-reference, both directions: 'who is my manager' and 'who reports
+    // to me' are both asked, the second on every manager-scope check.
+    User.belongsTo(models.User, { foreignKey: 'reportingManagerId', as: 'reportingManager' });
+    User.hasMany(models.User, { foreignKey: 'reportingManagerId', as: 'directReports' });
   };
 
   return User;

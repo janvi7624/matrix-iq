@@ -116,6 +116,9 @@ export default function HrFestivalsView() {
         <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={startAdd}>
           <Plus size={16} /> Add Festival
         </button>
+        <a href="/festival-campaigns" className={historyStyles.button} style={{ marginLeft: 8 }}>
+          Client festival emails →
+        </a>
       </div>
 
       {showForm && (

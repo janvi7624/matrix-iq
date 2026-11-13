@@ -36,11 +36,14 @@ export async function listMarketingRoster(): Promise<MarketingRosterEntry[]> {
     };
   });
 
-  // Filter for users who are in Marketing department, role 'marketing', or configured Marketing Owner
+  // Department is the real signal — a user's role key can read 'marketing'
+  // while they actually sit in a different department (e.g. someone moved
+  // from Marketing into HR & Admin but was never given a new role), which
+  // previously leaked them into this roster by role alone. Department,
+  // or an explicitly configured Marketing Owner override, are authoritative.
   const marketingUsers = allUsers.filter(
     (u) =>
-      u.department.toLowerCase().includes('marketing') ||
-      (u.role && u.role.toLowerCase().includes('marketing')) ||
+      u.department.toLowerCase().startsWith('marketing') ||
       (marketingOwner && u.username.toLowerCase() === marketingOwner)
   );
 

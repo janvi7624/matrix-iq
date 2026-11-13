@@ -17,7 +17,19 @@ module.exports = (sequelize, DataTypes) => {
     discountPercent: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0 },
     imageUrl: { type: DataTypes.STRING },
     status: { type: DataTypes.ENUM('active', 'inactive'), allowNull: false, defaultValue: 'active' },
-    createdBy: { type: DataTypes.UUID }
+    // Fixed per product, not re-chosen per quotation — see
+    // lib/productManagerStore.ts for how this feeds the Product Manager
+    // dashboard's rollup.
+    type: { type: DataTypes.ENUM('standard', 'custom', 'project_based'), allowNull: false, defaultValue: 'standard' },
+    createdBy: { type: DataTypes.UUID },
+    // Who the Product Manager dashboard (lib/productManagerStore.ts)
+    // attributes this product to. Separate from createdBy on purpose:
+    // createdBy is an audit fact (who actually clicked Add Product) and
+    // never changes; managerId is a reassignable business assignment — an
+    // admin can hand a product to a different Product Manager later
+    // without rewriting who created it. Falls back to createdBy when unset
+    // (every product that existed before this field was added).
+    managerId: { type: DataTypes.UUID }
   }, {
     tableName: 'products',
     underscored: false,
@@ -27,6 +39,7 @@ module.exports = (sequelize, DataTypes) => {
   Product.associate = (models) => {
     Product.belongsTo(models.ProductCategory, { foreignKey: 'categoryId', as: 'productCategory' });
     Product.belongsTo(models.User, { foreignKey: 'createdBy', as: 'creator' });
+    Product.belongsTo(models.User, { foreignKey: 'managerId', as: 'manager' });
     Product.hasMany(models.ProductPricing, { foreignKey: 'productId', as: 'pricingHistory' });
   };
 

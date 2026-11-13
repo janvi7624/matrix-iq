@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewerContext';
 import { reimbursementSheetStore } from '@/lib/reimbursementSheetStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { listDepartmentManagers, isHrDepartmentName } from '@/lib/departmentStore';
+import { canApproveFor, directReportIdsForUsername } from '@/lib/reportingManagers';
 import { findUserByUsername } from '@/lib/userStore';
 import { ReimbursementSheetRecord } from '@/lib/types';
 
@@ -20,7 +21,13 @@ export async function GET(request: NextRequest) {
 
     const isHrManager = managedDepts.some(isHrDepartmentName);
     const isAccountsManager = managedDepts.includes('Accounts') || managedDepts.includes('Finance');
-    const isDeptManager = managedDepts.length > 0;
+    // Managing a department is no longer the only way to have an approval
+    // queue: someone named as a person's reporting manager has one too, even
+    // with no department of their own (Mahendra Singh Chauhan holds the plain
+    // 'user' role). Gating the branch below on managedDepts alone would have
+    // left their queue permanently empty.
+    const directReportIds = await directReportIdsForUsername(viewer.username);
+    const isDeptManager = managedDepts.length > 0 || directReportIds.length > 0;
 
     const sheets: ReimbursementSheetRecord[] = [];
     const seen = new Set<string>();
@@ -43,7 +50,20 @@ export async function GET(request: NextRequest) {
         if (s.status !== 'submitted' && s.status !== 'manager_change_requested') continue;
         if (!isSuperRole) {
           const creator = await findUserByUsername(s.created_by);
-          if (!creator || !managedDepts.includes(creator.department)) continue;
+          if (!creator) continue;
+          // Ask the same question manager-decide asks, rather than re-deriving
+          // it from managedDepts: whoever cannot decide this sheet should not
+          // be shown it queued for their approval. This is also what makes the
+          // routing EXCLUSIVE — a department manager no longer sees the sheet
+          // of someone whose reporting manager is somebody else, because
+          // approversFor no longer returns them for that person.
+          const mayDecide = await canApproveFor({
+            viewerUsername: viewer.username,
+            employeeId: creator.id,
+            departmentName: creator.department,
+            allManagers
+          });
+          if (!mayDecide) continue;
         }
         if (!seen.has(s.id)) { seen.add(s.id); sheets.push(s); }
       }

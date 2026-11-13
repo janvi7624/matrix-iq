@@ -74,6 +74,12 @@ const HR_RESTRICTED_KEYS = new Set(['office-operation-expenses', 'hr-employees',
 const ACCOUNTS_MODULE_ROLES: UserRole[] = ['accounts', 'superadmin', 'admin'];
 const ACCOUNTS_RESTRICTED_KEYS = new Set(['accounts-payments']);
 
+// Product Manager admin overview — "visible to admin and super admin only",
+// not the generic isPrivileged bypass (true for every 'manager' account too,
+// same reasoning as TMS/HR/Accounts above).
+const PRODUCT_MANAGER_ADMIN_ROLES: UserRole[] = ['superadmin', 'admin'];
+const PRODUCT_MANAGER_ADMIN_RESTRICTED_KEYS = new Set(['admin-product-managers']);
+
 // Partner Portal, for the same structural reason as TMS/HR/Accounts above,
 // but stricter — and this is the one set where the generic isPrivileged
 // bypass must be refused in BOTH directions:
@@ -134,6 +140,15 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // The admin side of the same drive. Stays available after the window
   // closes — collecting stops, reading does not.
   { key: 'admin-feedback', label: 'Staff Feedback', desc: 'What the team said about MatrixIQ, by person and by feature.', icon: 'message-square', href: '/admin/feedback', section: 'Administration', order: 98, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
+  // Ownership is just Product.createdBy — anyone who has created a catalog
+  // product sees their own rollup here; visible to everyone the same way
+  // 'feedback' is, since there's no separate "Product Manager" role to gate
+  // on (see lib/productManagerStore.ts). Someone who has created nothing
+  // just sees an empty state.
+  { key: 'product-manager', label: 'My Products', desc: 'Products you created, their Pending/Won/Lost value across every quotation, and your own feedback/action/plan log.', icon: 'package', href: '/product-manager', section: 'Workspace', order: 97, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  // The admin side — every Product Manager's rollup in one place. Strictly
+  // admin/superadmin, see PRODUCT_MANAGER_ADMIN_RESTRICTED_KEYS below.
+  { key: 'admin-product-managers', label: 'Product Managers', desc: "Every Product Manager's Pending/Won/Lost rollup, by person.", icon: 'package', href: '/admin/product-managers', section: 'Administration', order: 96, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
   { key: 'projects', label: 'Project Dashboard', desc: 'Every sales project — site visit to close — with a full pipeline timeline.', icon: 'folder-kanban', href: '/projects', section: 'Sales', order: 1, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   // my-quotations absorbed as a second tab on this same page — see
   // ABSORBED_INTO_MERGED_PAGE; key/visibleToRoles unchanged so each tab's own
@@ -891,7 +906,9 @@ export async function isModuleAccessAllowed(
       ? HR_MODULE_ROLES.includes(viewer.role)
       : ACCOUNTS_RESTRICTED_KEYS.has(key)
         ? ACCOUNTS_MODULE_ROLES.includes(viewer.role)
-        : viewer.isPrivileged;
+        : PRODUCT_MANAGER_ADMIN_RESTRICTED_KEYS.has(key)
+          ? PRODUCT_MANAGER_ADMIN_ROLES.includes(viewer.role)
+          : viewer.isPrivileged;
 
   if (!departmentAllowsModule(config, viewer.department, isPrivilegedHere)) return false;
   if (isPrivilegedHere) return true;

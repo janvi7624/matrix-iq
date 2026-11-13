@@ -3,6 +3,7 @@ import { db, isUuid } from './db';
 import { appendProjectTimeline, findProjectById, listAssignedTechnicalPeople, projectStore } from './projectStore';
 import { findUserById } from './userStore';
 import { listDepartmentManagers } from './departmentStore';
+import { approversFor, directReportIdsForUsername, usersWithAReportingManager } from './reportingManagers';
 import { logAudit } from './auditLogStore';
 import { notifyUsers } from './notificationStore';
 import { sendProjectLifecycleEmail } from './email/notifications';
@@ -40,23 +41,31 @@ export class TechnicalRequestError extends Error {
 const ADMIN_ROLES = ['admin', 'superadmin'];
 const isAdmin = (role: string) => ADMIN_ROLES.includes(role);
 
-async function managesDepartment(username: string, department: string): Promise<boolean> {
-  if (!department) return false;
-  const managers = (await listDepartmentManagers())[department] || [];
-  return managers.some((m) => m.username === username);
+// "Is this person's approver" rather than "manages this department": a named
+// reporting manager replaces the department's managers for that one person
+// (lib/reportingManagers.ts approversFor), so an engineer with an override is
+// approved by their own manager and not by whoever runs their department.
+// Needs the person's id, not just their department name, for that reason.
+async function managesDepartment(username: string, person: Pick<UserRecord, 'id' | 'department'>): Promise<boolean> {
+  if (!person.department) return false;
+  return approversFor({
+    employeeId: person.id,
+    departmentName: person.department,
+    allManagers: await listDepartmentManagers()
+  }).then((managers) => managers.some((m) => m.username === username));
 }
 
 // May this actor commit this person's time — i.e. approve a request for
 // them, or assign them without one?
 export async function canApproveFor(actor: Actor, person: Pick<UserRecord, 'id' | 'department'>): Promise<boolean> {
-  return actor.userId === person.id || isAdmin(actor.role) || managesDepartment(actor.username, person.department);
+  return actor.userId === person.id || isAdmin(actor.role) || managesDepartment(actor.username, person);
 }
 
 // May this actor send someone else in their place? Only a manager of that
 // person's department (their own team) or an admin — an engineer approving
 // their own request can only say yes or no for themselves.
-async function canAllocateFrom(actor: Actor, person: Pick<UserRecord, 'department'>): Promise<boolean> {
-  return isAdmin(actor.role) || managesDepartment(actor.username, person.department);
+async function canAllocateFrom(actor: Actor, person: Pick<UserRecord, 'id' | 'department'>): Promise<boolean> {
+  return isAdmin(actor.role) || managesDepartment(actor.username, person);
 }
 
 function isoOrEmpty(value: unknown): string {
@@ -310,7 +319,17 @@ export async function requestTechnicalPerson(
     return { mode: 'assigned', project: updated };
   }
 
-  const approvers = [person.username, ...((await listDepartmentManagers())[person.department] || []).map((m) => m.username)];
+  // The engineer themselves, plus whoever may approve on their behalf — their
+  // named reporting manager when set, else their department's managers. Must
+  // match canApproveFor above, or we notify someone the API would refuse.
+  const approvers = [
+    person.username,
+    ...(await approversFor({
+      employeeId: person.id,
+      departmentName: person.department,
+      allManagers: await listDepartmentManagers()
+    })).map((m) => m.username)
+  ];
   let requestId = '';
   try {
     await db.sequelize.transaction(async (transaction) => {
@@ -517,13 +536,29 @@ export async function listTechnicalRequestsAwaiting(viewer: Actor): Promise<{ pr
   const managed = Object.entries(await listDepartmentManagers())
     .filter(([, managers]) => managers.some((m) => m.username === viewer.username))
     .map(([department]) => department);
+  // Direct reportees are a second, independent reason a request can be
+  // awaiting this viewer — someone may be named as a person's reporting
+  // manager while managing no department at all, so filtering on `managed`
+  // alone would leave their "Needs your attention" list empty.
+  const reportIds = new Set(await directReportIdsForUsername(viewer.username));
   const rows = await db.ProjectTechnicalRequest.findAll({
     where: { status: 'pending' } as never,
     include: [...INCLUDES(), { model: db.Project, as: 'project', attributes: ['id', 'project_name', 'client_name', 'company'] }],
     order: [['created_at', 'ASC']]
   });
+  // Everyone with a reporting manager of their own, in one query rather than
+  // one per pending request.
+  const overridden = new Set(await usersWithAReportingManager());
   return rows
     .map((row) => ({ record: toRecord(row), project: (row.get({ plain: true }) as { project?: { client_name?: string; company?: string } }).project }))
-    .filter(({ record }) => record.requested_user_id === viewer.userId || managed.includes(record.requested_department))
+    .filter(({ record }) => {
+      if (record.requested_user_id === viewer.userId) return true;
+      // Named reporting manager: theirs to answer.
+      if (reportIds.has(record.requested_user_id)) return true;
+      // Department manager: theirs only while that person has no reporting
+      // manager of their own. Once they do, the routing is exclusive and this
+      // request is no longer in the department manager's queue.
+      return managed.includes(record.requested_department) && !overridden.has(record.requested_user_id);
+    })
     .map(({ record, project }) => ({ project_id: record.project_id, project_label: projectLabel(project), requested_name: record.requested_name }));
 }

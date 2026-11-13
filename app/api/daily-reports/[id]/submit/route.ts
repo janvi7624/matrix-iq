@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (justSubmitted) {
       const assignment = await findAssignmentByDepartmentId(report.department_id);
-      const managers = await resolveReportManagers(report.department_name, assignment?.extraManagerIds ?? []);
+      const managers = await resolveReportManagers(report.department_name, assignment?.extraManagerIds ?? [], report.employee_id);
       await notifyReportSubmitted({
         reportId: report.id,
         employeeId: report.employee_id,

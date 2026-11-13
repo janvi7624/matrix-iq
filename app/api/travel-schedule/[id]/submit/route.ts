@@ -6,6 +6,7 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { listDepartmentManagers } from '@/lib/departmentStore';
+import { approversFor } from '@/lib/reportingManagers';
 import { findUserByUsername } from '@/lib/userStore';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -88,9 +89,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         });
       }
     } else {
-      // Normal flow: notify creator's department manager
+      // Normal flow: notify whoever may actually approve this — the creator's
+      // named reporting manager when they have one, else their department
+      // managers. Must stay in step with manager-decide's authz check, or the
+      // notification goes to someone the API would then refuse.
       if (creatorDept) {
-        const managers = allManagers[creatorDept] || [];
+        const managers = await approversFor({
+          employeeId: user?.id,
+          departmentName: creatorDept,
+          allManagers
+        });
         if (managers.length) {
           await notifyUsers(managers.map((m) => m.username), {
             title: 'Travel request needs your approval',

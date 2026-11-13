@@ -11,6 +11,7 @@ import {
   MaterialFileKind
 } from '@/lib/materialCategories';
 import { groupByCategory } from '@/lib/materialGrouping';
+import { MATERIAL_CONFIDENTIALITY_NOTICE } from '@/lib/materialConfidentiality';
 import { CATEGORY_ICON, KIND_ICON, formatWhen } from './materialIcons';
 import PartnerShell from './PartnerShell';
 import historyStyles from './quotationHistory.module.css';
@@ -163,6 +164,15 @@ export default function PartnerMaterialsView({ partner }: { partner: PartnerReco
       partnerName={partner.company_name}
       partnerCode={partner.partner_code}
     >
+      {/* Stated before anything is opened, not only inside the file. Every
+          PDF served from here is stamped with the same line on every page
+          (lib/materialPdfStamp.ts), but a document added as an external link
+          lives on someone else's server and cannot be stamped — so the terms
+          have to be visible in the library itself too. */}
+      <p className={styles.confidentialNotice} role="note">
+        {MATERIAL_CONFIDENTIALITY_NOTICE}
+      </p>
+
       <div className={styles.toolbar}>
         <div className={styles.searchWrap}>
           <input

@@ -50,8 +50,17 @@ const PUBLIC_PATHS = new Set([
   '/api/cron/daily-report-sweep',
   '/api/cron/backoffice-monthly-summary',
   '/api/cron/daily-report-monthly-summary',
+  '/api/cron/festival-campaigns',
   '/api/health'
 ]);
+// Prefix-matched public routes, opened by people who will never have a
+// MatrixIQ session — clients reading a festival greeting email:
+//   /api/public/festival-banner/<campaignId>  serves only an APPROVED
+//     campaign's banner, looked up by id (never by file path);
+//   /api/public/unsubscribe  verifies an HMAC of the address itself.
+// Each route does its own check; nothing else may be placed under this prefix
+// without one.
+const PUBLIC_PREFIXES = ['/api/public/'];
 // Reachable even while a bulk-imported account is force-locked to changing
 // its temporary password — see the mustChangePassword gate below.
 const CHANGE_PASSWORD_ALLOWED_PATHS = new Set(['/change-password', '/api/auth/change-password', '/api/auth/me', '/api/auth/heartbeat']);
@@ -59,7 +68,7 @@ const CHANGE_PASSWORD_ALLOWED_PATHS = new Set(['/change-password', '/api/auth/ch
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (PUBLIC_PATHS.has(pathname)) {
+  if (PUBLIC_PATHS.has(pathname) || PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.next();
   }
 

@@ -6,6 +6,7 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { listDepartmentManagers, findHrManagers } from '@/lib/departmentStore';
+import { approversFor } from '@/lib/reportingManagers';
 import { findUserByUsername, findUsersByUsernames } from '@/lib/userStore';
 import { sendReimbursementLifecycleEmail } from '@/lib/email/notifications';
 import { getEffectiveDeadline } from '@/lib/reimbursementDeadlineStore';
@@ -103,7 +104,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const user = await findUserByUsername(viewer.username);
     const creatorDept = user?.department || '';
-    const managers = creatorDept ? (allManagers[creatorDept] || []) : [];
+    // Whoever may actually approve this sheet — named reporting manager when
+    // set, else the department managers. Kept in step with manager-decide.
+    const managers = creatorDept
+      ? await approversFor({ employeeId: user?.id, departmentName: creatorDept, allManagers })
+      : [];
 
     if (managers.length) {
       await notifyUsers(managers.map((m) => m.username), {

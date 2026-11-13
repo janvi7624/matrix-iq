@@ -31,6 +31,12 @@ const BLANK_FORM: ProductForm = {
   defaultQty: 1, basePrice: 0, sellingPrice: 0, taxPercent: 0, hsnSac: '', discountPercent: 0, status: 'active'
 };
 
+interface ManagerOption {
+  id: string;
+  username: string;
+  name: string;
+}
+
 interface ProductMasterViewProps {
   /** Renders without its own AppShell/Sidebar — for hosting inside a tabbed
       parent page (see components/ProductsAdminView.tsx) instead of as its own route. */
@@ -57,6 +63,17 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
   const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [managers, setManagers] = useState<ManagerOption[]>([]);
+  const [managerId, setManagerId] = useState('');
+  const [reassigningId, setReassigningId] = useState<string | null>(null);
+  const [reassignValue, setReassignValue] = useState('');
+
+  useEffect(() => {
+    fetch('/api/admin/products/managers')
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setManagers)
+      .catch(() => setManagers([]));
+  }, []);
 
   async function load() {
     setStatus('Loading...');
@@ -90,7 +107,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
       const response = await fetch('/api/admin/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, managerId: managerId || undefined })
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
@@ -98,6 +115,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
         return;
       }
       setForm(BLANK_FORM);
+      setManagerId('');
       await load();
     } catch {
       setCreateError('Could not reach the server.');
@@ -128,6 +146,22 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
     }
     setEditingId(null);
     setEditState(null);
+    await load();
+  }
+
+  async function saveReassign(id: string) {
+    if (!reassignValue) return;
+    const response = await fetch(`/api/admin/products/${id}/manager`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerId: reassignValue })
+    });
+    if (!response.ok) {
+      toast.error('Could not reassign the Product Manager.');
+      return;
+    }
+    setReassigningId(null);
+    setReassignValue('');
     await load();
   }
 
@@ -231,6 +265,13 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
               <label className={calcStyles.label}>Unit</label>
               <input className={calcStyles.formControl} value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} />
             </div>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label}>Product Manager (optional — defaults to you)</label>
+              <select className={calcStyles.formControl} value={managerId} onChange={(e) => setManagerId(e.target.value)}>
+                <option value="">— Myself —</option>
+                {managers.map((m) => <option key={m.id} value={m.id}>{m.name || m.username}</option>)}
+              </select>
+            </div>
           </div>
           <div className={calcStyles.field}>
             <label className={calcStyles.label}>Description</label>
@@ -326,6 +367,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                 <th>Base Price</th>
                 <th>Selling Price</th>
                 <th>Tax %</th>
+                <th>Manager</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -346,6 +388,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                         <td><input className={calcStyles.formControl} type="number" value={editState.basePrice} onChange={(e) => setEditState({ ...editState, basePrice: parseFloat(e.target.value) || 0 })} /></td>
                         <td><input className={calcStyles.formControl} type="number" value={editState.sellingPrice} onChange={(e) => setEditState({ ...editState, sellingPrice: parseFloat(e.target.value) || 0 })} /></td>
                         <td><input className={calcStyles.formControl} type="number" value={editState.taxPercent} onChange={(e) => setEditState({ ...editState, taxPercent: parseFloat(e.target.value) || 0 })} /></td>
+                        <td>{p.manager_name || '-'}</td>
                         <td>
                           <select className={calcStyles.formControl} value={editState.status} onChange={(e) => setEditState({ ...editState, status: e.target.value as ProductStatus })}>
                             <option value="active">Active</option>
@@ -370,6 +413,23 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                         <td className={historyStyles.amount}>{p.sellingPrice.toFixed(2)}</td>
                         <td>{p.taxPercent}%</td>
                         <td>
+                          {reassigningId === p.id ? (
+                            <div className={historyStyles.rowActionsInline}>
+                              <select className={calcStyles.formControl} value={reassignValue} onChange={(e) => setReassignValue(e.target.value)}>
+                                <option value="">Select...</option>
+                                {managers.map((m) => <option key={m.id} value={m.id}>{m.name || m.username}</option>)}
+                              </select>
+                              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={() => saveReassign(p.id)}>Save</button>
+                              <button type="button" className={historyStyles.button} onClick={() => { setReassigningId(null); setReassignValue(''); }}>Cancel</button>
+                            </div>
+                          ) : (
+                            <>
+                              {p.manager_name || '-'}{' '}
+                              <button type="button" className={historyStyles.button} onClick={() => { setReassigningId(p.id); setReassignValue(p.manager_id); }}>Reassign</button>
+                            </>
+                          )}
+                        </td>
+                        <td>
                           <span className={`${historyStyles.statusPill} ${p.status === 'active' ? historyStyles.statusPillActive : historyStyles.statusPillInactive}`}>
                             {p.status === 'active' ? 'Active' : 'Inactive'}
                           </span>
@@ -388,7 +448,7 @@ export default function ProductMasterView({ embedded }: ProductMasterViewProps =
                 );
               })}
               {products.length === 0 && (
-                <tr><td colSpan={11} className={historyStyles.empty}>No products match.</td></tr>
+                <tr><td colSpan={10} className={historyStyles.empty}>No products match.</td></tr>
               )}
             </tbody>
           </table>

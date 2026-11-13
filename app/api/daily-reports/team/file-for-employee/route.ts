@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     if (justSubmitted) {
       const assignment = await findAssignmentByDepartmentId(employee.departmentId);
-      const managers = (await resolveReportManagers(employee.departmentName, assignment?.extraManagerIds ?? []))
+      const managers = (await resolveReportManagers(employee.departmentName, assignment?.extraManagerIds ?? [], employee.id))
         // The manager who just filed it does not need telling about it.
         .filter((m) => m.id !== viewer.userId);
       await notifyReportSubmitted({

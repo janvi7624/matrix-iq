@@ -18,6 +18,13 @@ vi.mock('../../lib/departmentStore', () => ({
   findHrManagers: vi.fn()
 }));
 vi.mock('../../lib/hrAccess', () => ({ isHrManager: vi.fn() }));
+// Mocked rather than driven through the db mock: who reports to whom is its
+// own unit with its own tests, and stubbing it here keeps every assertion
+// below about the DEPARTMENT rules it was written for.
+vi.mock('../../lib/reportingManagers', () => ({
+  directReportIdsForUsername: vi.fn(),
+  reportingManagerIdFor: vi.fn()
+}));
 vi.mock('../../lib/db', () => ({
   db: { Department: { findAll: vi.fn() }, User: { findByPk: vi.fn(), findAll: vi.fn() } },
   isUuid: (v: string) => /^[0-9a-f-]{36}$/i.test(v)
@@ -28,6 +35,7 @@ import { hasCapability } from '../../lib/permissions';
 import { findRoleByKey } from '../../lib/roleStore';
 import { departmentsManagedBy } from '../../lib/departmentStore';
 import { isHrManager } from '../../lib/hrAccess';
+import { directReportIdsForUsername } from '../../lib/reportingManagers';
 import { db } from '../../lib/db';
 import {
   canAccessDailyReportConfig,
@@ -42,6 +50,7 @@ const capability = vi.mocked(hasCapability);
 const role = vi.mocked(findRoleByKey);
 const managed = vi.mocked(departmentsManagedBy);
 const hrManager = vi.mocked(isHrManager);
+const directReports = vi.mocked(directReportIdsForUsername);
 
 const SELF = '11111111-1111-1111-1111-111111111111';
 const OTHER = '22222222-2222-2222-2222-222222222222';
@@ -75,6 +84,8 @@ beforeEach(() => {
   managed.mockResolvedValue([]);
   hrManager.mockResolvedValue(false);
   role.mockResolvedValue(undefined);
+  // Nobody reports to anybody unless a test says so.
+  directReports.mockResolvedValue([]);
   vi.mocked(db.Department.findAll).mockResolvedValue([] as never);
   vi.mocked(db.User.findByPk).mockResolvedValue(null as never);
 });
@@ -352,5 +363,69 @@ describe('an ordinary department manager is unaffected', () => {
     const access = await resolveEmployeeAccess(viewer({ role: 'technical-manager' }), OTHER);
     expect(access.canView).toBe(false);
     expect(access.canEdit).toBe(false);
+  });
+});
+
+// Per-person reporting lines (users.reportingManagerId, lib/reportingManagers.ts).
+//
+// The case this exists for: Ajay Shankar BP is in Sales but reports to
+// Mahendra Singh Chauhan, who is NOT a manager of the Sales department —
+// Manoj Menon is. So "manages a department" and "has people reporting to
+// them" have to be two independent grants, and the second one has to work
+// on its own or the reporting line means nothing.
+describe('direct reports', () => {
+  const REPORTEE = '33333333-3333-3333-3333-333333333333';
+
+  it('gives someone with reports but no department a team of exactly those people', async () => {
+    managed.mockResolvedValue([]);
+    directReports.mockResolvedValue([REPORTEE]);
+    const scope = await resolveDailyReportScope(viewer());
+    expect(scope.seesOrgWide).toBe(false);
+    // No department is widened — this is the whole point of a named list.
+    expect(scope.departmentIds).toEqual([]);
+    expect(scope.manageUserIds).toEqual([REPORTEE]);
+    // Filing on their behalf is a manager action, and they are a manager of
+    // this person even though they manage no department.
+    expect(scope.canFileForOthers).toBe(true);
+  });
+
+  it('adds reports alongside a managed department rather than replacing it', async () => {
+    managed.mockResolvedValue([{ id: 'dept-1', name: 'Marketing' }]);
+    directReports.mockResolvedValue([REPORTEE]);
+    const scope = await resolveDailyReportScope(viewer());
+    expect(scope.departmentIds).toEqual(['dept-1']);
+    expect(scope.manageUserIds).toEqual([REPORTEE]);
+  });
+
+  it('lets a reporting manager open a reportee in a department they do not manage', async () => {
+    managed.mockResolvedValue([]);
+    directReports.mockResolvedValue([REPORTEE]);
+    const access = await resolveEmployeeAccess(viewer(), REPORTEE);
+    expect(access.canView).toBe(true);
+    expect(access.canEdit).toBe(true);
+    expect(access.canFileForThem).toBe(true);
+    expect(access.isSelf).toBe(false);
+  });
+
+  // The grant is per named person, not "everyone near them".
+  it('does not leak anyone else from the reportee\'s department', async () => {
+    managed.mockResolvedValue([]);
+    directReports.mockResolvedValue([REPORTEE]);
+    const access = await resolveEmployeeAccess(viewer(), OTHER);
+    expect(access.canView).toBe(false);
+    expect(access.canEdit).toBe(false);
+  });
+
+  it('opens the team dashboard for someone whose only team is their reports', async () => {
+    managed.mockResolvedValue([]);
+    directReports.mockResolvedValue([REPORTEE]);
+    expect(await canAccessTeamDashboard(viewer())).toBe(true);
+  });
+
+  // An employee with neither must stay exactly as locked out as before.
+  it('still closes the dashboard to someone with no department and no reports', async () => {
+    managed.mockResolvedValue([]);
+    directReports.mockResolvedValue([]);
+    expect(await canAccessTeamDashboard(viewer())).toBe(false);
   });
 });

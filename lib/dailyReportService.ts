@@ -275,7 +275,11 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
   // scope — a department id in the query string can't widen it.
   const departmentIds = filters.departmentId && scope.departmentIds.includes(filters.departmentId) ? [filters.departmentId] : scope.departmentIds;
 
-  const employees = departmentIds.length ? await listEligibleEmployees(departmentIds) : [];
+  // Direct reports are added only when the viewer has NOT narrowed to one
+  // department: with a department picked, the list must mean that department
+  // and nothing else, and a reportee in it is already included by it.
+  const extraUserIds = filters.departmentId ? [] : scope.manageUserIds;
+  const employees = departmentIds.length || extraUserIds.length ? await listEligibleEmployees(departmentIds, extraUserIds) : [];
   const owed = employees.filter((e) => employeeOwesDate(e, reportDate));
   const employeeIds = owed.map((e) => e.id);
 
@@ -378,6 +382,12 @@ export async function buildTeamDailyReports(viewer: ViewerContext, filters: Team
 export interface RangeSummaryOptions {
   label?: string;
   search?: string;
+  /**
+   * Named employees to include on top of `departmentIds` — a viewer's direct
+   * reports (DailyReportScope.manageUserIds). Left out by the scheduler and
+   * the monthly job, which are already department-complete.
+   */
+  extraUserIds?: string[];
 }
 
 /**
@@ -400,7 +410,9 @@ export async function computeDailyReportRangeSummary(
   options: RangeSummaryOptions = {}
 ): Promise<TeamDailyReportRangeResponse> {
   const policy = await getDeadlinePolicy();
-  const employees = departmentIds.length ? await listEligibleEmployees(departmentIds) : [];
+  const extraUserIds = options.extraUserIds ?? [];
+  const employees =
+    departmentIds.length || extraUserIds.length ? await listEligibleEmployees(departmentIds, extraUserIds) : [];
   const employeeIds = employees.map((e) => e.id);
   const dates = workingDaysBetween(from, to, policy);
 
@@ -502,7 +514,12 @@ export interface TeamRangeFilters {
 export async function buildTeamDailyReportsRange(viewer: ViewerContext, filters: TeamRangeFilters): Promise<TeamDailyReportRangeResponse> {
   const scope = await resolveDailyReportScope(viewer);
   const departmentIds = filters.departmentId && scope.departmentIds.includes(filters.departmentId) ? [filters.departmentId] : scope.departmentIds;
-  return computeDailyReportRangeSummary(departmentIds, filters.from, filters.to, { label: filters.label, search: filters.search });
+  return computeDailyReportRangeSummary(departmentIds, filters.from, filters.to, {
+    label: filters.label,
+    search: filters.search,
+    // Same rule as the day view: only when no single department was picked.
+    extraUserIds: filters.departmentId ? [] : scope.manageUserIds
+  });
 }
 
 export interface DepartmentRollupRow {

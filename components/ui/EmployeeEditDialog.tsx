@@ -17,6 +17,8 @@ export interface EmployeeEditPayload {
   employeeId: string;
   department: string;
   designation: string;
+  /** '' means 'use the department manager' — see lib/reportingManagers.ts. */
+  reportingManagerId: string;
   password: string;
   isDepartmentManager: boolean;
 }
@@ -25,6 +27,8 @@ interface EmployeeEditDialogProps {
   user: PublicUser;
   roles: RoleRecord[];
   departments: DepartmentRecord[];
+  /** Candidates for 'Reports to' — the active staff list the page already has. */
+  allUsers: PublicUser[];
   includeSuperadmin: boolean;
   error?: string;
   saving: boolean;
@@ -42,6 +46,7 @@ export default function EmployeeEditDialog({
   user,
   roles,
   departments,
+  allUsers,
   includeSuperadmin,
   error,
   saving,
@@ -56,6 +61,7 @@ export default function EmployeeEditDialog({
     employeeId: user.employeeId || '',
     department: user.department || '',
     designation: user.designation || '',
+    reportingManagerId: user.reportingManagerId || '',
     password: '',
     isDepartmentManager: departments.find((d) => d.name === user.department)?.managerIds.includes(user.id) ?? false
   }));
@@ -76,6 +82,14 @@ export default function EmployeeEditDialog({
 
   const set = <K extends keyof EmployeeEditPayload>(key: K, value: EmployeeEditPayload[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  // Anyone active may be named, not just people holding a 'manager' role:
+  // the person this requirement came from (Mahendra Singh Chauhan) has the
+  // plain 'user' role, and filtering by role would have hidden exactly the
+  // case this field exists for. Self is excluded — the server refuses it too.
+  const managerOptions = allUsers
+    .filter((u) => u.id !== user.id && u.status === 'active')
+    .sort((a, b) => (a.name || a.username).localeCompare(b.name || b.username));
 
   return (
     <div className={notifyStyles.overlay} role="presentation" onClick={onClose}>
@@ -149,6 +163,28 @@ export default function EmployeeEditDialog({
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="editDesignation">Designation</label>
               <input id="editDesignation" className={calcStyles.formControl} placeholder="e.g. Sales Executive" value={form.designation} onChange={(e) => set('designation', e.target.value)} />
+            </div>
+          </div>
+
+          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+            <div className={calcStyles.field}>
+              <label className={calcStyles.label} htmlFor="editReportingManager">Reports to</label>
+              <select
+                id="editReportingManager"
+                className={calcStyles.formControl}
+                value={form.reportingManagerId}
+                onChange={(e) => set('reportingManagerId', e.target.value)}
+              >
+                <option value="">Their department manager (default)</option>
+                {managerOptions.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name || m.username}</option>
+                ))}
+              </select>
+              <span className={calcStyles.small}>
+                Leave as the default unless this person reports to someone other than their
+                department&apos;s manager. Their requests go to the person named here; the
+                department manager still sees them.
+              </span>
             </div>
           </div>
 

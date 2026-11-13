@@ -1,9 +1,9 @@
 import { Model, Op } from 'sequelize';
-import { ProductRecord, ProductStatus } from './types';
+import { ProductRecord, ProductStatus, ProductType } from './types';
 import { toCsv, csvRowsToObjects, parseCsv } from './csv';
 import { db, isUuid } from './db';
 
-const FIELDS = ['name', 'sku', 'category', 'brand', 'description', 'unit', 'hsnSac', 'imageUrl', 'status'] as const;
+const FIELDS = ['name', 'sku', 'category', 'brand', 'description', 'unit', 'hsnSac', 'imageUrl', 'status', 'type'] as const;
 const NUMBER_FIELDS = ['defaultQty', 'basePrice', 'sellingPrice', 'taxPercent', 'discountPercent'] as const;
 
 function isoOrEmpty(value: unknown): string {
@@ -12,13 +12,21 @@ function isoOrEmpty(value: unknown): string {
 }
 
 const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
+const managerInclude = { model: db.User, as: 'manager', attributes: ['id', 'username', 'name'] };
 
 function toRecord(row: Model): ProductRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
+  const creator = plain.creator as { id?: string; username?: string } | null;
+  const manager = plain.manager as { id?: string; username?: string; name?: string } | null;
   const record: Record<string, unknown> = {
     id: plain.id,
     created_at: isoOrEmpty(plain.createdAt),
-    created_by: (plain.creator as { username?: string } | null)?.username ?? '',
+    created_by: creator?.username ?? '',
+    created_by_id: creator?.id ?? '',
+    // No explicit assignment yet -> the creator is the manager, same rule
+    // lib/productManagerStore.ts's rollup uses.
+    manager_id: manager?.id ?? creator?.id ?? '',
+    manager_name: (manager?.name || manager?.username) ?? (creator?.username ?? ''),
     updated_at: isoOrEmpty(plain.updatedAt)
   };
   for (const f of FIELDS) record[f] = plain[f] ?? '';
@@ -42,7 +50,7 @@ export async function listProducts(filters: ProductFilters = {}): Promise<Produc
     const q = `%${filters.q.trim()}%`;
     where[Op.or as never] = [{ name: { [Op.iLike]: q } }, { sku: { [Op.iLike]: q } }, { category: { [Op.iLike]: q } }, { brand: { [Op.iLike]: q } }, { description: { [Op.iLike]: q } }];
   }
-  const rows = await db.Product.findAll({ where: where as never, include: [creatorInclude], order: [['name', 'ASC']] });
+  const rows = await db.Product.findAll({ where: where as never, include: [creatorInclude, managerInclude], order: [['name', 'ASC']] });
   return rows.map(toRecord);
 }
 
@@ -54,7 +62,7 @@ export async function listActiveProducts(): Promise<ProductRecord[]> {
 
 export async function findProductById(id: string): Promise<ProductRecord | undefined> {
   if (!isUuid(id)) return undefined;
-  const row = await db.Product.findByPk(id, { include: [creatorInclude] });
+  const row = await db.Product.findByPk(id, { include: [creatorInclude, managerInclude] });
   return row ? toRecord(row) : undefined;
 }
 
@@ -73,6 +81,7 @@ export interface ProductInput {
   discountPercent: number;
   imageUrl: string;
   status: ProductStatus;
+  type: ProductType;
 }
 
 export async function createProduct(input: ProductInput, createdBy: string): Promise<ProductRecord> {
@@ -86,6 +95,16 @@ export async function updateProduct(id: string, patch: Partial<ProductInput>): P
   const row = await db.Product.findByPk(id);
   if (!row) return null;
   await row.update(patch as never);
+  return (await findProductById(id)) ?? null;
+}
+
+/** Assigns (or clears, with `managerId: null`) this product's Product Manager — independent of who created it. */
+export async function assignProductManager(id: string, managerId: string | null): Promise<ProductRecord | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.Product.findByPk(id);
+  if (!row) return null;
+  if (managerId && !isUuid(managerId)) return null;
+  await row.update({ managerId } as never);
   return (await findProductById(id)) ?? null;
 }
 
@@ -118,6 +137,7 @@ export async function duplicateProduct(id: string, createdBy: string): Promise<P
     hsnSac: originalPlain.hsnSac,
     discountPercent: originalPlain.discountPercent,
     imageUrl: originalPlain.imageUrl,
+    type: originalPlain.type,
     status: 'inactive',
     createdBy: creator ? creator.get('id') : null
   } as never);
@@ -204,7 +224,8 @@ export async function importProductRows(rows: Record<string, string>[], createdB
       hsnSac: row['HSN/SAC'] || row['hsnSac'] || '',
       discountPercent: Number(row['Discount %'] || row['discountPercent']) || 0,
       imageUrl: row['Image URL'] || row['imageUrl'] || '',
-      status: (row['Status'] || row['status'] || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active'
+      status: (row['Status'] || row['status'] || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active',
+      type: 'standard'
     };
 
     const existing = sku ? await db.Product.findOne({ where: { sku: { [Op.iLike]: sku } } as never }) : null;
