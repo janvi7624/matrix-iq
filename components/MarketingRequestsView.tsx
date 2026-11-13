@@ -47,6 +47,8 @@ import { fetchCached } from '@/lib/fetchCached';
 interface MarketingRequestsViewProps {
   currentUser: { id?: string; username: string; role: UserRole; isPrivileged: boolean };
   isReviewer: boolean;
+  /** Ordinary Marketing department member (e.g. Divya/Shivam) — may self-claim an unassigned request and hand it off to a teammate, without the approval authority isReviewer carries. */
+  isMarketingTeamMember?: boolean;
 }
 
 const STATUS_TONE: Record<MarketingRequestStatus, StatusTone> = {
@@ -255,6 +257,7 @@ interface RowProps {
   record: MarketingRequestRecord;
   currentUser: { id?: string; username: string; role: UserRole; isPrivileged: boolean };
   isReviewer: boolean;
+  isMarketingTeamMember?: boolean;
   technicalRoster: TechnicalRosterEntry[];
   marketingRoster: MarketingRosterEntry[];
   users: { id: string; username: string; name: string }[];
@@ -263,6 +266,7 @@ interface RowProps {
   onFinalSubmission: (id: string, payload: { finalSubmissionNotes: string; finalSubmissionFiles: string[]; marketingPreparedContent: string }) => Promise<void>;
   onStatusAction: (id: string, action: string, extra?: Record<string, unknown>) => Promise<void>;
   onAssign: (id: string, patch: { assigneeId?: string; technicalMemberId?: string }) => Promise<void>;
+  onExchange: (id: string, targetId: string) => Promise<void>;
   onAcceptAssignment: (id: string) => Promise<void>;
   onDeclineAssignment: (id: string, reason: string) => Promise<void>;
   onComment: (id: string, text: string) => Promise<void>;
@@ -273,6 +277,7 @@ function MarketingRequestRow({
   record: r,
   currentUser,
   isReviewer,
+  isMarketingTeamMember = false,
   technicalRoster,
   marketingRoster,
   users,
@@ -281,6 +286,7 @@ function MarketingRequestRow({
   onFinalSubmission,
   onStatusAction,
   onAssign,
+  onExchange,
   onAcceptAssignment,
   onDeclineAssignment,
   onComment,
@@ -348,8 +354,21 @@ function MarketingRequestRow({
   );
   const isUnassignedMarketing = !r.assigned_to && !r.assigned_to_id;
   const isSuperadmin = currentUser.role === 'superadmin' || currentUser.role === 'admin';
-  const canAccessMarketingWorkspace = isAssignedMarketing || (isUnassignedMarketing && isReviewer) || isSuperadmin;
+  // Any Marketing department member may pick up an unassigned request, not
+  // just the reviewer/manager — this is what makes a new request usable by
+  // whichever of the team (e.g. Divya/Shivam) gets to it first, instead of
+  // sitting locked until a manager manually assigns it.
+  const canClaimUnassigned = isReviewer || isMarketingTeamMember;
+  const canAccessMarketingWorkspace = isAssignedMarketing || (isUnassignedMarketing && canClaimUnassigned) || isSuperadmin;
   const isMarketingAssignedToOther = !isAssignedMarketing && !isUnassignedMarketing && !isSuperadmin;
+
+  // The other Marketing teammate to hand this off to — self-service, no
+  // manager needed. Only offered when there's exactly one other roster
+  // member to hand off to; with 3+, use the manager's assignee dropdown below.
+  const otherTeammate = isAssignedMarketing
+    ? marketingRoster.find((m) => m.id !== (r.assigned_to_id || currentUser.id) && m.username !== currentUser.username)
+    : undefined;
+  const canExchange = isAssignedMarketing && marketingRoster.length === 2 && Boolean(otherTeammate);
 
   const isAssignedTechnical = r.technical_member_username === currentUser.username || (currentUser.role === 'engineer' && r.status === 'pending_technical_review');
   const overdue = isMarketingRequestOverdue(r);
@@ -401,6 +420,11 @@ function MarketingRequestRow({
     } finally {
       setUploadingFinalFiles(false);
     }
+  }
+
+  function handleExchangeClick() {
+    if (!otherTeammate) return;
+    run(() => onExchange(r.id, otherTeammate.id));
   }
 
   function handleSendToTechnical() {
@@ -664,6 +688,11 @@ function MarketingRequestRow({
                             onClick={() => run(() => onStatusAction(r.id, 'claim'))}
                           >
                             Claim &amp; Start Working
+                          </Button>
+                        )}
+                        {canExchange && (
+                          <Button variant="ghost" compact loading={busy} onClick={handleExchangeClick}>
+                            ⇄ Hand off to {otherTeammate?.name || otherTeammate?.username}
                           </Button>
                         )}
                       </div>
@@ -1140,7 +1169,7 @@ function MarketingRequestRow({
 
 type FilterTab = 'all' | 'marketing_queue' | 'technical_review' | 'ready_delivery' | 'completed' | 'my_requests';
 
-function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequestsViewProps) {
+function MarketingRequestsViewContent({ currentUser, isReviewer, isMarketingTeamMember = false }: MarketingRequestsViewProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const searchParams = useSearchParams();
@@ -1322,6 +1351,10 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
 
   async function handleAssign(id: string, patch: { assigneeId?: string; technicalMemberId?: string }) {
     await postAction(`/api/marketing-requests/${id}/assign`, patch, 'Assignments updated.');
+  }
+
+  async function handleExchange(id: string, targetId: string) {
+    await postAction(`/api/marketing-requests/${id}/exchange`, { targetId }, 'Handed off to your teammate.');
   }
 
   async function handleAcceptAssignment(id: string) {
@@ -1537,6 +1570,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                       record={r}
                       currentUser={currentUser}
                       isReviewer={isReviewer}
+                      isMarketingTeamMember={isMarketingTeamMember}
                       technicalRoster={technicalRoster}
                       marketingRoster={marketingRoster}
                       users={users}
@@ -1545,6 +1579,7 @@ function MarketingRequestsViewContent({ currentUser, isReviewer }: MarketingRequ
                       onFinalSubmission={handleFinalSubmission}
                       onStatusAction={handleStatusAction}
                       onAssign={handleAssign}
+                      onExchange={handleExchange}
                       onAcceptAssignment={handleAcceptAssignment}
                       onDeclineAssignment={handleDeclineAssignment}
                       onComment={handleComment}

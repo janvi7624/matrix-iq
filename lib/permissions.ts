@@ -167,6 +167,20 @@ export async function canManageMaterials(viewer: { username: string; role: strin
   return !!user && MARKETING_DEPARTMENT_RE.test((user.department || '').trim());
 }
 
+/**
+ * Is this viewer an ordinary member of the Marketing department (not
+ * necessarily its manager)? Lets a regular marketing team member — e.g.
+ * Divya or Shivam — self-claim an unassigned Marketing Request and hand it
+ * off to a teammate, without granting the approval/assignment authority
+ * isMarketingManager carries. Deliberately the same department-only check
+ * as canManageMaterials, kept separate because the two grants must not
+ * silently merge.
+ */
+export async function isMarketingTeamMember(viewer: { username: string }): Promise<boolean> {
+  const user = await findUserNameAndDeptByUsername(viewer.username);
+  return !!user && MARKETING_DEPARTMENT_RE.test((user.department || '').trim());
+}
+
 export async function isMarketingManager(viewer: { username: string; role: string; isPrivileged: boolean }): Promise<boolean> {
   if (await hasCapability(viewer.role, 'viewAllDepartments')) return true;
   const managers = (await listDepartmentManagers())['Marketing'];

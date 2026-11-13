@@ -1,7 +1,7 @@
 import { db } from './db';
 import { hasCapability } from './permissions';
 import { departmentsManagedBy } from './departmentStore';
-import { directReportIdsForUsername } from './reportingManagers';
+import { directReportIdsFor } from './reportingManagers';
 
 export interface VisibilityScope {
   // true: no filtering needed, the caller sees every record (Admin/Super
@@ -46,7 +46,12 @@ export async function resolveVisibilityScope(viewerUsername: string): Promise<Vi
   // early return below has to consider both before giving up.
   const [managed, directReportIds] = await Promise.all([
     departmentsManagedBy(viewerUsername),
-    directReportIdsForUsername(viewerUsername)
+    // directReportIdsFor, not ...ForUsername: we already resolved this
+    // viewer's row above, and the username variant would re-query the users
+    // table just to turn the name back into the id we are holding. One
+    // wasted round trip per call, and this function runs ~7 times per
+    // dashboard load (every store resolves its own scope).
+    directReportIdsFor(ownUserId)
   ]);
   if (!managed.length && !directReportIds.length) {
     return { seesOrgWide: false, scopedUserIds: [ownUserId] };

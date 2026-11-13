@@ -10,6 +10,7 @@ import { apiErrorResponse } from '@/lib/apiError';
 import { notifyUsers } from '@/lib/notificationStore';
 import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
 import { findUserByUsername } from '@/lib/userStore';
+import { listMarketingRoster } from '@/lib/marketingRoster';
 import { MARKETING_PRODUCT_CATEGORIES, MarketingProductCategory, MarketingRequestPriority, MarketingRequestRecord, MarketingRequestType } from '@/lib/types';
 
 const VALID_TYPES: MarketingRequestType[] = [
@@ -119,6 +120,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (created.assigned_to && created.assigned_to !== viewer.username) {
+      // An explicit Marketing Owner is still honoured when configured —
+      // single-owner notification, same as before.
       await notifyUsers([created.assigned_to], {
         title: 'New marketing request',
         body: `${viewer.username} submitted "${title}" (${productCategory})`,
@@ -135,6 +138,35 @@ export async function POST(request: NextRequest) {
           title,
           detail: `Submitted by ${viewer.username} (${productCategory})`
         });
+      }
+    } else {
+      // No single owner configured — every new request goes out to the
+      // WHOLE Marketing team at once (e.g. both Divya and Shivam), so
+      // whoever's free picks it up first instead of waiting for a manual
+      // assignment. They can hand it to each other afterward (see
+      // /api/marketing-requests/[id]/exchange).
+      const roster = await listMarketingRoster();
+      const targets = roster.filter((m) => m.username.toLowerCase() !== viewer.username.toLowerCase());
+      if (targets.length) {
+        await notifyUsers(targets.map((m) => m.username), {
+          title: 'New marketing request',
+          body: `${viewer.username} submitted "${title}" (${productCategory}) — first to claim it owns it.`,
+          type: 'marketing_request_created',
+          entityType: 'marketing_request',
+          entityId: created.id
+        });
+        for (const member of targets) {
+          const fullUser = await findUserByUsername(member.username);
+          if (fullUser?.email) {
+            void sendMarketingRequestLifecycleEmail({
+              name: fullUser.name,
+              email: fullUser.email,
+              event: 'created',
+              title,
+              detail: `Submitted by ${viewer.username} (${productCategory})`
+            });
+          }
+        }
       }
     }
 
