@@ -814,3 +814,58 @@ export async function countReportsByStatus(employeeIds: string[], from: string, 
 
 /** Re-exported so callers don't each re-derive the policy shape. */
 export type { DeadlinePolicy };
+
+/**
+ * Filed reports (SUBMITTED / SUBMITTED_LATE) in a date range, fully hydrated,
+ * for the PDF export. Drafts are left out on purpose: a draft is not a filed
+ * report (see lib/dailyReportPeriodSummary.ts).
+ *
+ * The caller has already resolved WHO the viewer may read; this only takes
+ * the resulting filter. A report matches if its employee is in employeeIds OR
+ * its department is in departmentIds. Both empty and !all = nothing.
+ */
+export async function listFiledReportsForExport(filter: {
+  from: string;
+  to: string;
+  all?: boolean;
+  employeeIds?: string[];
+  departmentIds?: string[];
+  limit: number;
+}): Promise<{ reports: DailyReportRecord[]; truncated: boolean; templates: Map<string, TemplateDefinition> }> {
+  const employeeIds = (filter.employeeIds ?? []).filter(isUuid);
+  const departmentIds = (filter.departmentIds ?? []).filter(isUuid);
+  if (!filter.all && !employeeIds.length && !departmentIds.length) return { reports: [], truncated: false, templates: new Map() };
+
+  const who: Record<string, unknown>[] = [];
+  if (employeeIds.length) who.push({ employee_id: { [Op.in]: employeeIds } });
+  if (departmentIds.length) who.push({ department_id: { [Op.in]: departmentIds } });
+
+  const where: Record<string | symbol, unknown> = {
+    report_date: { [Op.between]: [filter.from, filter.to] },
+    submission_status: { [Op.in]: SUBMITTED_STATUSES }
+  };
+  if (!filter.all) where[Op.or] = who;
+
+  const rows = await db.DailyReport.findAll({
+    where: where as never,
+    include: REPORT_INCLUDES as never,
+    order: [['report_date', 'ASC']],
+    limit: filter.limit + 1
+  });
+  const truncated = rows.length > filter.limit;
+  const kept = truncated ? rows.slice(0, filter.limit) : rows;
+
+  const templateCache = new Map<string, TemplateDefinition>();
+  const reports: DailyReportRecord[] = [];
+  for (const row of kept) {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    const cacheKey = `${plain.department_id}|${plain.template_key}`;
+    let template = templateCache.get(cacheKey);
+    if (!template) {
+      template = await resolveTemplateForStoredReport(plain.department_id as string, plain.template_key as DailyReportTemplateKey);
+      templateCache.set(cacheKey, template);
+    }
+    reports.push(toRecord(row, template));
+  }
+  return { reports, truncated, templates: templateCache };
+}

@@ -48,7 +48,7 @@ const PRIORITY_TONE: Record<ProjectPriority, PriorityTone> = { low: 'cool', medi
 // imported for real here (it pulls in Sequelize), so the four labels are
 // repeated rather than dragging the server layer into the client bundle.
 const CALL_OUTCOME_LABEL: Record<LeadCallOutcome, string> = {
-  '': 'Not called yet', suitable: 'Suitable', not_suitable: 'Not suitable', completed: 'Completed', callback: 'Call back'
+  '': 'Not called yet', suitable: 'Suitable', not_suitable: 'Not suitable', completed: 'Not interested', callback: 'Call back'
 };
 const CALL_OUTCOME_TONE: Record<Exclude<LeadCallOutcome, ''>, StatusTone> = {
   suitable: 'won', not_suitable: 'lost', completed: 'done', callback: 'pending'
@@ -250,32 +250,25 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
     }
     setAdding(true);
     try {
-      const response = await fetch('/api/leads', {
+      const response = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: addForm.clientName,
+          clientName: addForm.clientName,
           company: addForm.company,
-          mobile: addForm.phone,
+          phone: addForm.phone,
           email: addForm.email,
-          // A lead has no address column; keeping it as a note is better than
-          // dropping what the user typed.
-          notes: addForm.address.trim() ? `Address: ${addForm.address.trim()}` : ''
+          address: addForm.address
         })
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         throw new Error(body?.error || String(response.status));
       }
-      const created: { duplicate?: boolean; duplicateCapturedBy?: string } = await response.json().catch(() => ({}));
       setAddForm(EMPTY_ADD_FORM);
       setShowAddForm(false);
       await load();
-      toast.success(
-        created.duplicate
-          ? `Already in the system${created.duplicateCapturedBy ? ` (captured by ${created.duplicateCapturedBy})` : ''} — merged into that contact.`
-          : 'Added as a prospect.'
-      );
+      toast.success('Client added.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not add this client.');
     } finally {
@@ -614,7 +607,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
           <option value="not_called">Not called yet</option>
           <option value="suitable">Suitable</option>
           <option value="not_suitable">Not suitable</option>
-          <option value="completed">Completed</option>
+          <option value="completed">Not interested</option>
           <option value="callback">Call back</option>
         </Select>
         <Input auto type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="Created from" />
@@ -722,7 +715,7 @@ export default function ClientMasterView({ currentUser }: ClientMasterViewProps)
               <Input value={addForm.address} onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))} />
             </Field>
             <div className={calcStyles.small} style={{ marginBottom: 12 }}>
-              This adds the contact as a lead captured by you ({currentUser.username}), exactly as Lead Capture would. It appears here straight away as a Prospect; it only becomes a project once someone calls and marks it suitable. If this phone or email is already on file, the details are merged into that contact instead of creating a duplicate.
+              This just stores the contact's details here in Client Master — it does not create a Lead or enter the Lead Capture pipeline. It appears straight away as a Prospect, and merges into this same client if it later gets a project through Leads/Projects.
             </div>
             <SubmitButton disabled={adding}>{adding ? 'Adding…' : 'Add Client'}</SubmitButton>
           </form>

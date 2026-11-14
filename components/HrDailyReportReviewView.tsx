@@ -13,6 +13,7 @@ import Input from './ui/Input';
 import Select from './ui/Select';
 import Textarea from './ui/Textarea';
 import FilterBar from './ui/FilterBar';
+import DailyReportPdfExport from './DailyReportPdfExport';
 import StatTile from './ui/StatTile';
 import Modal, { ModalCancelButton, ModalOkButton } from './ui/Modal';
 import EmptyState from './ui/EmptyState';
@@ -224,6 +225,10 @@ export default function HrDailyReportReviewView({ initialTab }: { initialTab?: s
         <SegmentedButton active={tab === 'warnings'} onClick={() => setTab('warnings')} role="tab" aria-selected={tab === 'warnings'}>
           Warnings
         </SegmentedButton>
+        <span style={{ marginLeft: 'auto' }}>
+          {/* Server decides scope: HR manager / admin get every employee. */}
+          <DailyReportPdfExport mode="team" label="All Employees Reports PDF" />
+        </span>
       </div>
 
       {loadFailed ? (

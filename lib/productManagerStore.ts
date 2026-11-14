@@ -62,6 +62,21 @@ async function sumAmountsByProductId(): Promise<Map<string, ProductManagerAmount
   return totals;
 }
 
+/**
+ * Is this user a Product Manager — i.e. manages at least one live product?
+ * Same rule as listMyProducts / productStore's manager_id: an explicit
+ * Product.managerId, or the creator when no manager was ever assigned.
+ * Gates the "My Products" module (sidebar tile, page and API).
+ */
+export async function isProductManager(userId: string): Promise<boolean> {
+  if (!isUuid(userId)) return false;
+  const { Op } = db.Sequelize as unknown as { Op: Record<string, symbol> };
+  const count = await db.Product.count({
+    where: { [Op.or]: [{ managerId: userId }, { managerId: null, createdBy: userId }] } as never
+  });
+  return count > 0;
+}
+
 /** Every product this user manages — explicit Product.managerId assignment, falling back to the creator when none was ever set. */
 export async function listMyProducts(userId: string): Promise<ProductRecord[]> {
   const all = await listProducts();

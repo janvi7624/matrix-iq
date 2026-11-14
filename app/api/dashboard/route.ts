@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
 import { listVisibleModules, isModuleAccessAllowed } from '@/lib/moduleConfigStore';
+import { isProductManager } from '@/lib/productManagerStore';
 import { buildMyDailyReportStatus, buildDailyReportAdminBrief } from '@/lib/dailyReportService';
 import { buildMyTargetSummary } from '@/lib/myTargetSummary';
 import { getUpcomingCelebrations } from '@/lib/celebrationStore';
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
       hasCapability(viewer.role, 'viewAllDepartments')
     ]);
     const canSeeQueue = viewer.isPrivileged || viewer.role === 'engineer' || viewer.role === 'backoffice' || isDeptManager;
-    const viewerForModules = { role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager };
+    const viewerForModules = { role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager, isProductManager: await isProductManager(viewer.userId) };
     // Reads the already-cached module list resolved by listVisibleModules
     // below — gates dailyReportStatus the same way the standalone
     // app/api/daily-reports/me/status route's guardDailyReport does, just

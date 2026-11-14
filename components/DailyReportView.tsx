@@ -30,7 +30,8 @@ import { SkeletonRows } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import { useConfirm } from './ui/ConfirmDialog';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
-import { formatIstDate, formatIstDateTime, formatIstDayShort, formatIstWeekday } from '@/lib/dailyReportTime';
+import { formatIstDate, formatIstDateTime, formatIstDayShort, formatIstMonth, formatIstWeekday } from '@/lib/dailyReportTime';
+import { dailyReportDayState, DailyReportDayState } from '@/lib/dailyReportDayState';
 
 // The employee's own Daily Report page.
 //
@@ -116,23 +117,20 @@ function payloadFromResponse(data: MyDailyReportResponse): DailyReportPayloadInp
   };
 }
 
-/** The dot colour and label one history day gets in the strip. */
+/** Dot colour per day state; the precedence lives in lib/dailyReportDayState.ts. */
+const DAY_STATE_DOT: Record<DailyReportDayState, string> = {
+  warned: styles.dotWarned,
+  leave: styles.dotLeave,
+  "on-time": styles.dotSubmitted,
+  late: styles.dotLate,
+  draft: styles.dotDraft,
+  pending: styles.dotPending,
+  missing: styles.dotMissing
+};
+
 function dayState(item: DailyReportHistoryItem): { dot: string; label: string } {
-  if (item.leave_status === 'APPROVED') return { dot: styles.dotLeave, label: 'On leave' };
-  switch (item.submission_status) {
-    case 'SUBMITTED':
-      return { dot: styles.dotSubmitted, label: 'Filed' };
-    case 'SUBMITTED_LATE':
-      return { dot: styles.dotLate, label: 'Late' };
-    case 'DRAFT':
-      return { dot: styles.dotDraft, label: 'Draft' };
-    case 'PENDING':
-      // Today, still open. Not filed, but not late either — the deadline for a
-      // day's report is 11:30 the NEXT morning, so "due today" would overstate it.
-      return { dot: styles.dotPending, label: 'Not due yet' };
-    default:
-      return { dot: styles.dotMissing, label: item.warning_status === 'ACTIVE' ? 'Warned' : 'Missing' };
-  }
+  const { state, label } = dailyReportDayState(item);
+  return { dot: DAY_STATE_DOT[state], label };
 }
 
 export default function DailyReportView({
@@ -225,9 +223,11 @@ export default function DailyReportView({
   const today = data?.today || istToday();
 
   // Derived from the history the response already carries — no extra request.
-  // Labelled "last 14 working days" rather than "this month" because that is
-  // honestly what the window is; the month-scoped warning count stays in the
-  // banner, where it is already accurate.
+  // That history is now the selected date's CALENDAR MONTH (see
+  // buildMyDailyReport), so these counts and the month-scoped warning count
+  // beside them finally describe the same period. They used to be a rolling
+  // fortnight sitting next to a "this month" warning total, which is why the
+  // label had to disclaim what the window really was.
   const tally = useMemo(() => {
     const history = data?.history ?? [];
     return {
@@ -514,7 +514,7 @@ export default function DailyReportView({
 
       {/* --------------------------------------------------- day strip */}
       {data.history.length > 0 && (
-        <div className={styles.dayStrip} role="group" aria-label="Recent reporting days">
+        <div className={styles.dayStrip} role="group" aria-label={`Reporting days in ${formatIstMonth(data.report_date)}`}>
           {/* Oldest on the left, so it reads like a calendar rather than
               backwards — the response is newest-first. */}
           {[...data.history].reverse().map((item) => {
@@ -536,6 +536,27 @@ export default function DailyReportView({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Five dot colours are not self-explanatory, and the tooltip only
+          helps someone who already suspects there is something to hover.
+          aria-hidden because each day button already announces its own state
+          in words — a screen reader gains nothing from the swatches. */}
+      {data.history.length > 0 && (
+        <div className={styles.dayLegend} aria-hidden="true">
+          {[
+            [styles.dotSubmitted, 'On time'],
+            [styles.dotLate, 'Late'],
+            [styles.dotMissing, 'Missing'],
+            [styles.dotLeave, 'On leave'],
+            [styles.dotWarned, 'Warning']
+          ].map(([dot, label]) => (
+            <span key={label} className={styles.dayLegendItem}>
+              <span className={`${styles.dayCellDot} ${dot}`} />
+              {label}
+            </span>
+          ))}
         </div>
       )}
 
@@ -623,8 +644,9 @@ export default function DailyReportView({
             </Button>
           </div>
           <p className={styles.sectionHint}>
-            {data.template.description} The last {tally.total} working days are shown above — {tally.onTime} on time, {tally.late} late,{' '}
-            {tally.missing} missing{tally.pending > 0 ? `, ${tally.pending} not due yet` : ''}.
+            {data.template.description} {formatIstMonth(data.report_date)} is shown above — {tally.total} working days so far,{' '}
+            {tally.onTime} on time, {tally.late} late, {tally.missing} missing
+            {tally.pending > 0 ? `, ${tally.pending} not due yet` : ''}.
           </p>
 
           <div className={`${calcStyles.sectionPanel} ${calcStyles.sectionPanelSpaced}`}>

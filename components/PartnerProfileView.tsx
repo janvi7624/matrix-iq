@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import PartnerShell from './PartnerShell';
 import { useToast } from './ui/ToastProvider';
 import calcStyles from './calculator.module.css';
+import styles from './partnerProfile.module.css';
 
 interface ProfilePayload {
   company_name: string;
@@ -91,11 +92,36 @@ export default function PartnerProfileView({ companyName, partnerCode }: { compa
       {!data ? (
         <div className={calcStyles.sectionPanel}><p className={calcStyles.small}>Loading…</p></div>
       ) : data.financial_details_scope !== 'partner' ? (
+        // Read-only, NOT hidden. This branch used to render the sentence
+        // alone, so a partner whose details are maintained internally — the
+        // default scope, and most partners — opened "Company Profile" and saw
+        // no profile: not even the company name or PAN already on file. That
+        // reads as a broken page rather than a locked one. Only WRITING is
+        // restricted here (the PUT refuses it too, independently), so
+        // everything the GET already returns is shown, just not editable.
         <div className={calcStyles.sectionPanel}>
           <p className={calcStyles.small}>
-            Your PAN number, bank details and website are maintained by your account manager, not here —
-            contact them for any change.
+            These details are maintained by your account manager — contact them for any change.
           </p>
+          <dl className={styles.readOnlyFacts}>
+            {[
+              ['Company name', data.company_name],
+              ['Partner code', data.partner_code],
+              ['Website', data.website],
+              ['PAN number', data.pan_number],
+              ['Bank name', data.bank_name],
+              ['Account holder name', data.bank_account_name],
+              ['Account number', data.bank_account_number],
+              ['IFSC code', data.bank_ifsc_code]
+            ].map(([label, value]) => (
+              <div key={label} className={styles.readOnlyFact}>
+                <dt className={styles.readOnlyLabel}>{label}</dt>
+                {/* An em dash rather than an empty cell: "nothing on file" and
+                    "failed to load" must not look the same. */}
+                <dd className={styles.readOnlyValue}>{value || '—'}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       ) : (
         <form className={calcStyles.sectionPanel} onSubmit={submit}>

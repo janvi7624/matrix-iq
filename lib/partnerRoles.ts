@@ -112,7 +112,12 @@ export const PARTNER_PORTAL_MODULE_KEYS = [
   'partner-demos',
   'partner-support',
   'partner-materials',
-  'partner-marketing-requests'
+  'partner-marketing-requests',
+  // Partner Admin only — see its visibleToRoles in the seed. Listed here so
+  // PARTNER_RESTRICTED_KEYS covers it, which is what keeps it out of the
+  // internal sidebar and routes it through the partner branch of
+  // isModuleAccessAllowed.
+  'partner-team'
 ] as const;
 
 /** Nav section the partner-facing tiles live under. */

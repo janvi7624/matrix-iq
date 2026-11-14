@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { findUserById } from '@/lib/userStore';
-import { addProductManagerNote, getProductManagerRollup, listMyProducts, listProductManagerNotes } from '@/lib/productManagerStore';
+import { addProductManagerNote, getProductManagerRollup, isProductManager, listMyProducts, listProductManagerNotes } from '@/lib/productManagerStore';
 import { apiErrorResponse } from '@/lib/apiError';
 
 // Every logged-in user's own Product Manager view: the products THEY
@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await findUserById(session.sub);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!(await isProductManager(user.id))) return NextResponse.json({ error: 'Forbidden — My Products is only for Product Managers' }, { status: 403 });
 
     const [rollup, products, notes] = await Promise.all([
       getProductManagerRollup(user.id),
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await findUserById(session.sub);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!(await isProductManager(user.id))) return NextResponse.json({ error: 'Forbidden — My Products is only for Product Managers' }, { status: 403 });
 
     const note = await addProductManagerNote(user.id, type, text.slice(0, 4000), user.id);
     return NextResponse.json(note, { status: 201 });

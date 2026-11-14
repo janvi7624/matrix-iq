@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { listVisibleModules } from '@/lib/moduleConfigStore';
+import { isProductManager } from '@/lib/productManagerStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const user = await findUserNameAndDeptByUsername(viewer.username);
-    const modules = await listVisibleModules({ role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department });
+    const modules = await listVisibleModules({ role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isProductManager: await isProductManager(viewer.userId) });
     return NextResponse.json(modules);
   } catch (error) {
     return apiErrorResponse(error);

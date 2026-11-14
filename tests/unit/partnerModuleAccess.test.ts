@@ -120,3 +120,64 @@ describe('partner module gate — Module Manager still wins', () => {
     expect(await isModuleAccessAllowed('partner-dashboard', PARTNER)).toBe(false);
   });
 });
+
+describe('portal tiles that are Partner Admin only', () => {
+  // 'partner-team' (Team Logins) is the first portal tile not meant for every
+  // partner role. The partner branch used to decide visibility from the KEY
+  // alone and ignore visibleToRoles, so a Partner User saw the tile and was
+  // bounced by the page guard — the "controls that 403 when clicked" problem
+  // PartnerShell's own comment warns against.
+  const ADMIN_ONLY = 'partner-team';
+  const PARTNER_USER = { role: 'partner-user', isPrivileged: false, partnerId: 'partner-1', username: 'colleague' };
+
+  beforeEach(() => {
+    currentModules = [...MODULES, mod(ADMIN_ONLY, { section: 'Partner Portal', visibleToRoles: ['partner-admin'] })];
+  });
+
+  it('grants it to a Partner Admin', async () => {
+    expect(await isModuleAccessAllowed(ADMIN_ONLY, PARTNER)).toBe(true);
+    const tiles = await listVisibleModules(PARTNER);
+    expect(tiles.map((m) => m.key)).toContain(ADMIN_ONLY);
+  });
+
+  it('denies it to a Partner User, in the nav AND at the gate', async () => {
+    expect(await isModuleAccessAllowed(ADMIN_ONLY, PARTNER_USER)).toBe(false);
+    const tiles = await listVisibleModules(PARTNER_USER);
+    expect(tiles.map((m) => m.key)).not.toContain(ADMIN_ONLY);
+  });
+
+  it('still gives a Partner User every tile meant for both roles', async () => {
+    // The role check must narrow this one tile, not the whole portal.
+    const tiles = await listVisibleModules(PARTNER_USER);
+    expect(tiles.map((m) => m.key).sort()).toEqual(['partner-dashboard', 'partner-projects', 'partner-support']);
+    expect(await isModuleAccessAllowed('partner-dashboard', PARTNER_USER)).toBe(true);
+  });
+
+  it('keeps it away from internal staff, superadmin included', async () => {
+    expect(await isModuleAccessAllowed(ADMIN_ONLY, SUPERADMIN)).toBe(false);
+    const tiles = await listVisibleModules(SUPERADMIN);
+    expect(tiles.map((m) => m.key)).not.toContain(ADMIN_ONLY);
+  });
+});
+
+describe('a partner account holding an internal role by mistake', () => {
+  // Pairs with the "denies internal modules even when the partner somehow
+  // holds a privileged role" case above. partnerId wins, so such an account is
+  // confined to the portal — which means the role check must not also deny it
+  // every portal tile, or it is locked out of the product completely.
+  const CONFUSED = { role: 'superadmin', isPrivileged: true, partnerId: 'partner-1', username: 'oops' };
+
+  beforeEach(() => {
+    currentModules = [...MODULES, mod('partner-team', { section: 'Partner Portal', visibleToRoles: ['partner-admin'] })];
+  });
+
+  it('still reaches the tiles meant for every partner', async () => {
+    expect(await isModuleAccessAllowed('partner-dashboard', CONFUSED)).toBe(true);
+    expect((await listVisibleModules(CONFUSED)).map((m) => m.key)).toContain('partner-support');
+  });
+
+  it('is treated as the least-privileged partner, so admin-only stays hidden', async () => {
+    expect(await isModuleAccessAllowed('partner-team', CONFUSED)).toBe(false);
+    expect((await listVisibleModules(CONFUSED)).map((m) => m.key)).not.toContain('partner-team');
+  });
+});

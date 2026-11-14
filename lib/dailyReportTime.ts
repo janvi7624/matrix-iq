@@ -405,3 +405,30 @@ export function formatIstDayShort(date: string): string {
 export function formatIstWeekday(date: string): string {
   return DATE_RE.test(date ?? '') ? WEEKDAY_SHORT[dayOfWeek(date)] : '';
 }
+
+/** First calendar day of the month a date falls in, as 'YYYY-MM-DD'. */
+export function monthStart(date: string): string {
+  return `${monthKey(date)}-01`;
+}
+
+/**
+ * Last calendar day of that month, as 'YYYY-MM-DD'.
+ *
+ * Day 0 of the FOLLOWING month is the last day of this one, which gets leap
+ * years right without a table of month lengths. Built in UTC deliberately:
+ * these are plain calendar strings, never instants, so a local timezone
+ * would be the only thing that could shift the answer by a day.
+ */
+export function monthEnd(date: string): string {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+}
+
+/** "Nov 2026" — the month a stored IST date falls in, for headings. */
+export function formatIstMonth(date: string): string {
+  const match = DATE_RE.exec(date ?? '');
+  if (!match) return '';
+  const month = MONTH_SHORT[Number(match[2]) - 1];
+  return month ? `${month} ${match[1]}` : '';
+}

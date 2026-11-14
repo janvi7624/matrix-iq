@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { travelScheduleStore, sanitizeCoTravellers, sanitizeHotelAccommodation, sanitizeAdvanceRequest } from '@/lib/travelScheduleStore';
+import { travelScheduleStore, sanitizeCoTravellers, sanitizeHotelAccommodation } from '@/lib/travelScheduleStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { TravelScheduleRecord } from '@/lib/types';
 
@@ -65,7 +65,8 @@ export async function POST(request: NextRequest) {
     companion_names: [],
     co_travellers: sanitizeCoTravellers(body.coTravellers),
     hotel_accommodation: sanitizeHotelAccommodation(body.hotelAccommodation),
-    advance_request: sanitizeAdvanceRequest(body.advanceRequest),
+    // No Advance Policy (2026-11-14): advance requests are no longer accepted.
+    advance_request: null,
     change_request_remarks: '', change_requested_by: ''
   };
 

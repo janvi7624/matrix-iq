@@ -13,7 +13,10 @@ import {
   istDate,
   istInstant,
   matchesNthWeekdayRule,
+  formatIstMonth,
+  monthEnd,
   monthKey,
+  monthStart,
   navigableWorkingDays,
   nthWeekdayOfMonth,
   nextWorkingDay,
@@ -456,5 +459,46 @@ describe('when an unfiled report starts reading as missing', () => {
     // 2026-10-26T19:30:00Z is 2026-10-27 01:00 IST.
     expect(missingIsVisibleYet('2026-10-27', at('2026-10-26T19:30:00Z'))).toBe(false);
     expect(missingIsVisibleYet('2026-10-26', at('2026-10-26T19:30:00Z'))).toBe(true);
+  });
+});
+
+describe('calendar month bounds', () => {
+  // The day strip shows ONE calendar month (lib/dailyReportService.ts's
+  // buildMyDailyReport). It used to be a rolling 14 working days, which put
+  // 24 Oct next to 12 Nov in the same row and made the strip unreadable as a
+  // month while every figure beside it was month-scoped.
+  it('finds the first and last day of an ordinary month', () => {
+    expect(monthStart('2026-11-12')).toBe('2026-11-01');
+    expect(monthEnd('2026-11-12')).toBe('2026-11-30');
+  });
+
+  it('handles 31-day months and the year boundary', () => {
+    expect(monthEnd('2026-12-31')).toBe('2026-12-31');
+    expect(monthStart('2026-01-31')).toBe('2026-01-01');
+    expect(monthEnd('2026-01-01')).toBe('2026-01-31');
+  });
+
+  it('gets February right in a common year and a leap year', () => {
+    expect(monthEnd('2026-02-05')).toBe('2026-02-28');
+    expect(monthEnd('2024-02-05')).toBe('2024-02-29');
+  });
+
+  it('is stable whichever day of the month it is given', () => {
+    for (const day of ['01', '09', '17', '28']) {
+      expect(monthStart(`2026-07-${day}`)).toBe('2026-07-01');
+      expect(monthEnd(`2026-07-${day}`)).toBe('2026-07-31');
+    }
+  });
+});
+
+describe('formatIstMonth', () => {
+  it('names the month and year', () => {
+    expect(formatIstMonth('2026-11-12')).toBe('Nov 2026');
+    expect(formatIstMonth('2026-01-01')).toBe('Jan 2026');
+  });
+
+  it('returns empty for a non-date rather than a half-formed label', () => {
+    expect(formatIstMonth('')).toBe('');
+    expect(formatIstMonth('not-a-date')).toBe('');
   });
 });
