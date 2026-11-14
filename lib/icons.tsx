@@ -58,7 +58,6 @@ import {
   Library,
   Truck,
   PartyPopper,
-  MessageSquare,
   type LucideIcon
 } from 'lucide-react';
 
@@ -169,10 +168,6 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   // sidebar fell back to printing the key as text in a 16px icon slot, i.e.
   // no icon. Every key any seeded module uses must exist in this registry.
   'check-square': CheckSquare,
-  // Your Feedback / Staff Feedback (lib/moduleConfigStore.ts) both ship with
-  // 'message-square' — same omission as check-square above, same symptom:
-  // no icon in the sidebar.
-  'message-square': MessageSquare,
   'map-pin': MapPin,
   contact: Contact,
   monitor: Monitor,
