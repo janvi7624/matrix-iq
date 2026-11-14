@@ -1278,7 +1278,37 @@
   width: 7px;
   height: 7px;
   border-radius: var(--mx-radius-full);
+}
+/* The fallback colour sits in :where() (zero specificity) on purpose. As a
+   plain .dayCellDot background it came later in this file than .dotSubmitted,
+   .dotLate etc. at equal specificity, so it silently won and painted every
+   day — and every legend swatch — grey. */
+:where(.dayCellDot) {
   background: var(--mx-border-strong);
+}
+
+/* The day's state also tints its weekday and date, so the strip reads at a
+   glance without hunting for 7px dots. Draft / pending stay neutral. */
+.dayCell[data-state='on-time'] .dayCellNum,
+.dayCell[data-state='on-time'] .dayCellDow {
+  color: var(--mx-success);
+}
+.dayCell[data-state='late'] .dayCellNum,
+.dayCell[data-state='late'] .dayCellDow {
+  color: var(--mx-danger);
+}
+.dayCell[data-state='missing'] .dayCellNum,
+.dayCell[data-state='missing'] .dayCellDow {
+  color: var(--mx-slate-500);
+}
+.dayCell[data-state='leave'] .dayCellNum,
+.dayCell[data-state='leave'] .dayCellDow {
+  color: var(--mx-info);
+}
+.dayCell[data-state='warned'] .dayCellNum,
+.dayCell[data-state='warned'] .dayCellDow {
+  color: #7f1d1d;
+  font-weight: var(--mx-weight-bold, 700);
 }
 
 /* ---------------------------------------------------------- mini stats */

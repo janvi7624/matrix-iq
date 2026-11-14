@@ -128,9 +128,9 @@ const DAY_STATE_DOT: Record<DailyReportDayState, string> = {
   missing: styles.dotMissing
 };
 
-function dayState(item: DailyReportHistoryItem): { dot: string; label: string } {
+function dayState(item: DailyReportHistoryItem): { state: DailyReportDayState; dot: string; label: string } {
   const { state, label } = dailyReportDayState(item);
-  return { dot: DAY_STATE_DOT[state], label };
+  return { state, dot: DAY_STATE_DOT[state], label };
 }
 
 export default function DailyReportView({
@@ -525,6 +525,7 @@ export default function DailyReportView({
                 key={item.report_date}
                 type="button"
                 className={`${styles.dayCell} ${active ? styles.dayCellActive : ''}`}
+                data-state={state.state}
                 onClick={() => goToDate(item.report_date)}
                 aria-pressed={active}
                 aria-label={`${formatDate(item.report_date)} — ${state.label}`}
