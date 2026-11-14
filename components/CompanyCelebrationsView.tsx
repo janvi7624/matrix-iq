@@ -1,0 +1,444 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  Award,
+  Cake,
+  CalendarHeart,
+  CirclePlay,
+  FileText,
+  Megaphone,
+  Plus,
+  Presentation,
+  Sparkles,
+  Trash2,
+  Upload,
+  Users,
+  X,
+  type LucideIcon
+} from 'lucide-react';
+import AppShell from './AppShell';
+import historyStyles from './quotationHistory.module.css';
+import calcStyles from './calculator.module.css';
+
+type CelebrationCategory =
+  | 'birthday'
+  | 'anniversary'
+  | 'event_expo'
+  | 'festival'
+  | 'engagement_activities'
+  | 'company_announcements'
+  | 'employee_appreciation';
+
+const CATEGORY_LABEL: Record<CelebrationCategory, string> = {
+  birthday: 'Birthday',
+  anniversary: 'Anniversary',
+  event_expo: 'Event / Expo',
+  festival: 'Festival',
+  engagement_activities: 'Engagement Activities',
+  company_announcements: 'Company Announcements',
+  employee_appreciation: 'Employee Appreciation'
+};
+
+// One icon + tint per category so the tiles are recognisable at a glance
+// rather than seven identical text cards.
+const CATEGORY_ICON: Record<CelebrationCategory, { Icon: LucideIcon; color: string; bg: string }> = {
+  birthday: { Icon: Cake, color: '#db2777', bg: '#fce7f3' },
+  anniversary: { Icon: CalendarHeart, color: '#e11d48', bg: '#ffe4e6' },
+  event_expo: { Icon: Presentation, color: '#2563eb', bg: '#dbeafe' },
+  festival: { Icon: Sparkles, color: '#d97706', bg: '#fef3c7' },
+  engagement_activities: { Icon: Users, color: '#059669', bg: '#d1fae5' },
+  company_announcements: { Icon: Megaphone, color: '#7c3aed', bg: '#ede9fe' },
+  employee_appreciation: { Icon: Award, color: '#b45309', bg: '#ffedd5' }
+};
+
+function CategoryIcon({ category, size = 20 }: { category: CelebrationCategory; size?: number }) {
+  const { Icon, color, bg } = CATEGORY_ICON[category];
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: size + 16,
+        height: size + 16,
+        borderRadius: 10,
+        background: bg,
+        color,
+        flexShrink: 0
+      }}
+    >
+      <Icon size={size} strokeWidth={2} />
+    </span>
+  );
+}
+
+const CATEGORY_ORDER: CelebrationCategory[] = [
+  'birthday',
+  'anniversary',
+  'event_expo',
+  'festival',
+  'engagement_activities',
+  'company_announcements',
+  'employee_appreciation'
+];
+
+interface SubfolderSummary {
+  name: string;
+  itemCount: number;
+  coverUrl: string;
+  coverKind: 'image' | 'video' | 'file';
+  updatedAt: string;
+}
+
+interface CelebrationItem {
+  id: string;
+  category: CelebrationCategory;
+  subfolder: string;
+  title: string;
+  description: string;
+  fileUrl: string;
+  mimeType: string;
+  kind: 'image' | 'video' | 'file';
+  addedBy: string;
+  createdAt: string;
+}
+
+// Three levels: pick a category (fixed, HR never adds one) → pick/create a
+// named album inside it (an employee's name, an event's title — whatever the
+// category calls for) → see the photos/videos in that album. Only the HR
+// Manager can create an album or add/remove media; every signed-in employee
+// can browse all three levels — enforced server-side (app/api/hr/celebrations)
+// and mirrored here only to decide whether to show the write controls at all.
+export default function CompanyCelebrationsView({ canManage }: { canManage: boolean }) {
+  const [category, setCategory] = useState<CelebrationCategory | null>(null);
+  const [subfolder, setSubfolder] = useState<string | null>(null);
+
+  const [countByCategory, setCountByCategory] = useState<Record<string, number>>({});
+  const [subfolders, setSubfolders] = useState<SubfolderSummary[]>([]);
+  const [items, setItems] = useState<CelebrationItem[]>([]);
+  const [status, setStatus] = useState('Loading…');
+
+  const [showNewAlbum, setShowNewAlbum] = useState(false);
+  const [newAlbumName, setNewAlbumName] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingAlbumName = useRef('');
+
+  const loadTop = useCallback(async () => {
+    setStatus('Loading…');
+    const res = await fetch('/api/hr/celebrations');
+    if (!res.ok) {
+      setStatus('Could not load the celebration wall.');
+      return;
+    }
+    const data = await res.json();
+    setCountByCategory(data.countByCategory ?? {});
+    setStatus('');
+  }, []);
+
+  const loadSubfolders = useCallback(async (cat: CelebrationCategory) => {
+    setStatus('Loading…');
+    const res = await fetch(`/api/hr/celebrations?category=${encodeURIComponent(cat)}`);
+    if (!res.ok) {
+      setStatus('Could not load albums for this category.');
+      return;
+    }
+    const data = await res.json();
+    setSubfolders(data.subfolders ?? []);
+    setStatus(data.subfolders?.length ? '' : 'No albums here yet.');
+  }, []);
+
+  const loadItems = useCallback(async (cat: CelebrationCategory, sub: string) => {
+    setStatus('Loading…');
+    const res = await fetch(`/api/hr/celebrations?category=${encodeURIComponent(cat)}&subfolder=${encodeURIComponent(sub)}`);
+    if (!res.ok) {
+      setStatus('Could not load this album.');
+      return;
+    }
+    const data = await res.json();
+    setItems(data.items ?? []);
+    setStatus(data.items?.length ? '' : 'No photos or videos here yet.');
+  }, []);
+
+  useEffect(() => {
+    if (!category) {
+      loadTop();
+    } else if (!subfolder) {
+      loadSubfolders(category);
+    } else {
+      loadItems(category, subfolder);
+    }
+  }, [category, subfolder, loadTop, loadSubfolders, loadItems]);
+
+  function openCategory(cat: CelebrationCategory) {
+    setCategory(cat);
+    setSubfolder(null);
+    setError('');
+  }
+
+  function openSubfolder(name: string) {
+    setSubfolder(name);
+    setError('');
+  }
+
+  function goBack() {
+    setError('');
+    if (subfolder) {
+      setSubfolder(null);
+    } else {
+      setCategory(null);
+    }
+  }
+
+  function startNewAlbum() {
+    setNewAlbumName('');
+    setError('');
+    setShowNewAlbum(true);
+  }
+
+  // Creating an album and adding the first photo are one step from the HR
+  // Manager's side: there is no bare "empty folder" concept in the store —
+  // a subfolder exists the moment its first item does — so this just opens
+  // the file picker with the typed name remembered for the upload handler.
+  function confirmNewAlbum() {
+    const name = newAlbumName.trim();
+    if (!name) {
+      setError('Give this album a name.');
+      return;
+    }
+    pendingAlbumName.current = name;
+    setShowNewAlbum(false);
+    fileInputRef.current?.click();
+  }
+
+  function triggerUploadIntoCurrentAlbum() {
+    pendingAlbumName.current = subfolder || '';
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !category) return;
+    const albumName = pendingAlbumName.current;
+    if (!albumName) return;
+
+    setUploading(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('folder', 'celebrations');
+      formData.append('files', file);
+      const uploadRes = await fetch('/api/uploads', { method: 'POST', body: formData });
+      const uploadBody = await uploadRes.json().catch(() => ({}));
+      if (!uploadRes.ok || !uploadBody.urls?.[0]) {
+        setError(uploadBody.error || 'Could not upload the file.');
+        return;
+      }
+
+      const createRes = await fetch('/api/hr/celebrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category,
+          subfolder: albumName,
+          fileUrl: uploadBody.urls[0],
+          mimeType: file.type
+        })
+      });
+      const createBody = await createRes.json().catch(() => ({}));
+      if (!createRes.ok) {
+        setError(createBody.error || 'Could not save this to the celebration wall.');
+        return;
+      }
+
+      setSubfolder(albumName);
+      await loadItems(category, albumName);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDeleteItem(id: string) {
+    if (!confirm('Remove this from the celebration wall? This cannot be undone.')) return;
+    const res = await fetch(`/api/hr/celebrations/${id}`, { method: 'DELETE' });
+    if (res.ok && category && subfolder) await loadItems(category, subfolder);
+  }
+
+  return (
+    <AppShell title="Company Celebration" subtitle="HR › Birthdays, anniversaries, events, festivals and company moments">
+      <input ref={fileInputRef} type="file" accept="image/*,video/*" hidden onChange={handleFileChosen} />
+
+      {(category || subfolder) && (
+        <div className={historyStyles.toolbar}>
+          <button type="button" className={historyStyles.button} onClick={goBack}>
+            <ArrowLeft size={14} /> Back
+          </button>
+          <span style={{ marginLeft: 8, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            {category && <CategoryIcon category={category} size={14} />}
+            {category ? CATEGORY_LABEL[category] : ''}
+            {subfolder ? ` / ${subfolder}` : ''}
+          </span>
+        </div>
+      )}
+
+      {error && <p style={{ color: 'var(--mx-danger)', marginTop: 8 }}>{error}</p>}
+      {uploading && <p className={calcStyles.small}>Uploading…</p>}
+
+      {!category && (
+        <div className={calcStyles.row} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginTop: 12 }}>
+          {CATEGORY_ORDER.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              className={calcStyles.sectionPanel}
+              style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
+              onClick={() => openCategory(cat)}
+            >
+              <CategoryIcon category={cat} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>{CATEGORY_LABEL[cat]}</div>
+                <div className={calcStyles.small}>{countByCategory[cat] ?? 0} item{(countByCategory[cat] ?? 0) === 1 ? '' : 's'}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {category && !subfolder && (
+        <>
+          {canManage && (
+            <div className={historyStyles.toolbar} style={{ marginTop: 8 }}>
+              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={startNewAlbum}>
+                <Plus size={16} /> New Album
+              </button>
+            </div>
+          )}
+
+          {showNewAlbum && (
+            <div className={calcStyles.sectionPanel} style={{ marginTop: 12, marginBottom: 16 }}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label} htmlFor="celebration-album-name">
+                  {category === 'birthday' || category === 'anniversary' || category === 'employee_appreciation'
+                    ? 'Employee name *'
+                    : 'Event / title *'}
+                </label>
+                <input
+                  id="celebration-album-name"
+                  type="text"
+                  className={calcStyles.formControl}
+                  value={newAlbumName}
+                  onChange={(e) => setNewAlbumName(e.target.value)}
+                  placeholder={
+                    category === 'birthday' || category === 'anniversary' || category === 'employee_appreciation'
+                      ? 'e.g. Janvi Thummar'
+                      : 'e.g. Dev Deepawali 2026'
+                  }
+                />
+              </div>
+              <div className={`${calcStyles.inlineFlexGap8} ${calcStyles.mt8}`}>
+                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={confirmNewAlbum}>
+                  <Upload size={14} /> Choose Photo/Video
+                </button>
+                <button type="button" className={historyStyles.button} onClick={() => setShowNewAlbum(false)}>
+                  <X size={14} /> Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {status && <p className={calcStyles.small}>{status}</p>}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginTop: 12 }}>
+            {subfolders.map((sf) => (
+              <button
+                key={sf.name}
+                type="button"
+                className={calcStyles.sectionPanel}
+                style={{ textAlign: 'left', cursor: 'pointer', padding: 0, overflow: 'hidden' }}
+                onClick={() => openSubfolder(sf.name)}
+              >
+                <div style={{ height: 120, background: 'var(--mx-surface-2, #f3f3f3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {sf.coverKind === 'image' ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={sf.coverUrl} alt={sf.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : sf.coverKind === 'video' ? (
+                    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                      <video src={sf.coverUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+                      <CirclePlay
+                        size={32}
+                        aria-hidden="true"
+                        style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#fff', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }}
+                      />
+                    </div>
+                  ) : (
+                    <FileText size={32} aria-label="File" style={{ color: 'var(--mx-ink-faint, #94a3b8)' }} />
+                  )}
+                </div>
+                <div style={{ padding: 10 }}>
+                  <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {category && (() => {
+                      const { Icon, color } = CATEGORY_ICON[category];
+                      return <Icon size={14} style={{ color, flexShrink: 0 }} aria-hidden="true" />;
+                    })()}
+                    {sf.name}
+                  </div>
+                  <div className={calcStyles.small}>{sf.itemCount} item{sf.itemCount === 1 ? '' : 's'}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {category && subfolder && (
+        <>
+          {canManage && (
+            <div className={historyStyles.toolbar} style={{ marginTop: 8 }}>
+              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={triggerUploadIntoCurrentAlbum}>
+                <Upload size={16} /> Add Photo/Video
+              </button>
+            </div>
+          )}
+
+          {status && <p className={calcStyles.small}>{status}</p>}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginTop: 12 }}>
+            {items.map((item) => (
+              <div key={item.id} className={calcStyles.sectionPanel} style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
+                {canManage && (
+                  <button
+                    type="button"
+                    className={`${historyStyles.actionBtn} ${historyStyles.actionBtnDanger}`}
+                    style={{ position: 'absolute', top: 6, right: 6, zIndex: 1 }}
+                    aria-label="Remove"
+                    onClick={() => handleDeleteItem(item.id)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+                {item.kind === 'image' ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.fileUrl} alt={item.title || subfolder} style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+                ) : item.kind === 'video' ? (
+                  <video src={item.fileUrl} controls style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+                ) : (
+                  <a href={item.fileUrl} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 16 }}>
+                    <FileText size={18} aria-hidden="true" /> Open file
+                  </a>
+                )}
+                <div style={{ padding: 8 }} className={calcStyles.small}>
+                  {item.addedBy && <>Added by {item.addedBy}</>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </AppShell>
+  );
+}

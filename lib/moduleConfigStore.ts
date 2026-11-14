@@ -136,7 +136,11 @@ const PARTNER_INTERNAL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 // may see a team's daily reports is "manager of some department"
 // (Department.managerIds), which no static visibleToRoles list can express —
 // a department's manager may hold any role at all.
-const MANAGER_GATED_KEYS = new Set(['team-tasks', 'team-daily-reports']);
+// hr-appreciation joins for the same reason: managers / department heads
+// submit appreciations for their team, whatever role they hold. The HR
+// Manager (a department manager too) reviews them; admins are privileged.
+// The page and API apply the exact rule (lib/appreciationAccess.ts).
+const MANAGER_GATED_KEYS = new Set(['team-tasks', 'team-daily-reports', 'hr-appreciation']);
 // "My Products" — shown only to Product Managers (anyone managing at least one
 // product). The caller resolves isProductManager and passes it in.
 const PRODUCT_MANAGER_KEY = 'product-manager';
@@ -149,6 +153,14 @@ const PRODUCT_MANAGER_KEY = 'product-manager';
 // app/api/demo-schedule/route.ts POST and components/DemoScheduleView.tsx)
 // — they can see the queue, not submit new requests.
 const SALES_ROLES_WITH_TMS: UserRole[] = [...ALL_ROLES, ...TMS_ROLE_KEYS];
+
+// 'my-sold-projects' and 'analytics' specifically, carved out of HR: HR
+// never sells and never needs pipeline analytics, unlike Marketing/Accounts/
+// Back Office/Engineer, who stay on the shared ALL_ROLES/SALES_ROLES_WITH_TMS
+// baseline above. Not a role-capability change — HR keeps every other
+// ALL_ROLES/SALES_ROLES_WITH_TMS module; only these two tiles are narrowed.
+const ALL_ROLES_NO_HR: UserRole[] = ALL_ROLES.filter((r) => r !== 'hr');
+const SALES_ROLES_WITH_TMS_NO_HR: UserRole[] = SALES_ROLES_WITH_TMS.filter((r) => r !== 'hr');
 
 // Seeded from the tiles that used to be hardcoded in components/Dashboard.tsx
 // — first read produces the exact same dashboard as before Module Manager
@@ -216,7 +228,18 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // Super Admin only (not every department's generic 'manager' role).
   { key: 'hr-employees', label: 'Employees', desc: 'Active employee directory.', icon: 'users', href: '/hr/employees', section: 'HR', order: 1, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
   { key: 'hr-reports', label: 'HR Expense Report', desc: 'Reimbursement, admin expense, and office operation spend by period, employee, or department.', icon: 'file-text', href: '/hr/reports', section: 'HR', order: 5, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  // Managers / department heads / admins nominate; the HR Manager approves.
+  // ALL_ROLES because the real gate is MANAGER_GATED_KEYS (a department head
+  // may hold any role) — see lib/appreciationAccess.ts for the exact rule.
+  { key: 'hr-appreciation', label: 'Employee Appreciation', desc: 'Managers recognise great work in their team; HR reviews and approves before it is announced.', icon: 'award', href: '/hr/appreciation', section: 'HR', order: 7, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'hr-festivals', label: 'Festival Greetings', desc: 'Manage the Indian festival calendar used for company-wide greeting emails and notifications.', icon: 'party-popper', href: '/hr/festivals', section: 'HR', order: 8, enabled: true, isCustom: false, visibleToRoles: HR_MODULE_ROLES },
+  // Everyone may browse the celebration wall — write access (add a
+  // subfolder, upload a photo/video, delete) is gated separately in the API
+  // routes themselves by isHrManager (lib/hrAccess.ts), same "HR Manager
+  // only" definition Reimbursement's HR-decide routes already use. ALL_ROLES
+  // here, deliberately NOT HR_MODULE_ROLES/HR_RESTRICTED_KEYS — this is the
+  // one HR module meant for the whole company to view, not just HR/Admin.
+  { key: 'hr-celebrations', label: 'Company Celebration', desc: 'Birthdays, anniversaries, events, festivals and company moments — photos and videos curated by HR.', icon: 'party-popper', href: '/hr/celebrations', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
   // SALES_ROLES_WITH_TMS, not ALL_ROLES: a technical-manager/team-lead/
   // technician can be assigned tasks like anyone else, and with ALL_ROLES
@@ -316,7 +339,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // department X" predicate) — same known gap as performance-review/
   // user-management above, not silently different here.
   { key: 'targets', label: 'Target Details', desc: 'Sales targets vs achievement, by employee and period.', icon: 'target', href: '/targets', section: 'Reports', order: 3, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
-  { key: 'analytics', label: 'Analytics', desc: 'Quotation, project, and pipeline performance at a glance.', icon: 'trending-up', href: '/analytics', section: 'Reports', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'analytics', label: 'Analytics', desc: 'Quotation, project, and pipeline performance at a glance.', icon: 'trending-up', href: '/analytics', section: 'Reports', order: 2, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES_NO_HR },
   { key: 'audit-log', label: 'Audit Log', desc: 'Every status-changing action across the Back Office workflow.', icon: 'clock', href: '/admin/audit-log', section: 'Administration', order: 4, enabled: true, isCustom: false, visibleToRoles: ['superadmin'] },
   // product-catalog-overrides absorbed as a second tab on this same page —
   // see ABSORBED_INTO_MERGED_PAGE; key/visibleToRoles unchanged so each tab's
@@ -372,7 +395,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // decided by lib/tmsSalesVisibility.ts's resolveVisibilityScope-based
   // scoping, same "role here is just who CAN open the page" shape as
   // 'billing' above.
-  { key: 'my-sold-projects', label: 'My Sold Projects', desc: 'Read-only TMS status for projects you sold — or your team’s, if you manage Sales.', icon: 'layout-dashboard', href: '/tms/my-sold-projects', section: 'TMS', order: 8, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS }
+  { key: 'my-sold-projects', label: 'My Sold Projects', desc: 'Read-only TMS status for projects you sold — or your team’s, if you manage Sales.', icon: 'layout-dashboard', href: '/tms/my-sold-projects', section: 'TMS', order: 8, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS_NO_HR }
 ];
 
 // Icon values above changed from free-typed emoji to curated icon keys
@@ -765,6 +788,12 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (key === HR_REPORTS_KEY && plain.desc === OLD_HR_REPORTS_DESC) attrs.desc = 'Reimbursement, admin expense, and office operation spend by period, employee, or department.';
     if (key === 'admin-expenses' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ADMIN_EXPENSES_ROLES)) attrs.visibleToRoles = NEW_ADMIN_EXPENSES_ROLES;
     if (ACCOUNTS_RESTRICTED_KEYS.has(key) && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], OLD_ACCOUNTS_PAYMENTS_ROLES)) attrs.visibleToRoles = ACCOUNTS_MODULE_ROLES;
+    // HR never sells and never needs pipeline analytics — narrowed off the
+    // shared ALL_ROLES/SALES_ROLES_WITH_TMS baseline. Guarded on the exact
+    // previous value, like every reconciliation here, so an admin who
+    // already customised either tile's visibility keeps their own choice.
+    if (key === 'analytics' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], ALL_ROLES)) attrs.visibleToRoles = ALL_ROLES_NO_HR;
+    if (key === 'my-sold-projects' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], SALES_ROLES_WITH_TMS)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS_NO_HR;
     if (Object.keys(attrs).length) await row.update(attrs as never);
   }
 

@@ -1,6 +1,7 @@
 import type { Model, ModelStatic } from 'sequelize';
 import { NotificationRecord } from './types';
 import { db, isUuid } from './db';
+import { findAppreciation } from './appreciationStore';
 
 // Every entity_type ever passed to notifyUsers() (lib/notificationStore.ts),
 // paired with (a) the route a notification of that type should open and (b)
@@ -26,6 +27,16 @@ async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: strin
   return !!row;
 }
 
+// employee_appreciations has no Sequelize model (raw SQL — lib/appreciationStore.ts).
+async function appreciationExists(entityId: string): Promise<boolean> {
+  if (!isUuid(entityId)) return false;
+  try {
+    return !!(await findAppreciation(entityId));
+  } catch {
+    return false;
+  }
+}
+
 // Some entity types have no per-record detail route (see the modules
 // listed in each case) — their notification still opens a real, useful
 // page (the record's own list view), so it's a valid destination per "a
@@ -35,6 +46,12 @@ const RESOLVERS: Record<string, EntityResolver> = {
   marketing_request: { href: () => '/marketing-requests', exists: (id) => existsIn('MarketingRequest', id) },
   // Client festival greeting campaign awaiting approval / sent / skipped (lib/festivalCampaignStore.ts).
   festival_campaign: { href: () => '/festival-campaigns', exists: (id) => existsIn('FestivalCampaign', id) },
+  // Employee Appreciation (app/api/hr/appreciations). Submitted / decided
+  // notices go to the HR Manager and the nominating manager → the review page;
+  // the appreciated employee cannot open that page, so theirs uses its own
+  // type and opens their profile, where approved appreciations are listed.
+  employee_appreciation: { href: () => '/hr/appreciation', exists: appreciationExists },
+  employee_appreciation_received: { href: () => '/profile', exists: appreciationExists },
   project: { href: (id) => `/projects/${id}`, exists: (id) => existsIn('Project', id) },
   reimbursement_sheet: { href: () => '/reimbursement', exists: (id) => existsIn('ReimbursementSheet', id) },
   // "Please upload your bills again" (lib/missingBills.ts) — entity_id is one of
