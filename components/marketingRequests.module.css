@@ -93,13 +93,18 @@
    over-committing; each person/name column wraps onto a second line via
    overflow-wrap above instead of widening its column. */
 .board { table-layout: fixed; width: 100%; }
-.colTitle { width: 24%; }
+.colTitle { width: 20%; }
 .colCategory { width: 13%; }
 .colPriority { width: 8%; }
-.colStatus { width: 12%; }
-.colPerson { width: 11%; }
+/* Wide enough for the longest status label ("Pending Technical Review",
+   "Submitted / Awaiting Marketing") without wrapping or bleeding into the
+   Requester column next to it — that overlap was the actual bug reported. */
+.colStatus { width: 20%; }
+.colPerson { width: 10%; }
 .colDeadline { width: 9%; }
 .colChevron { width: 36px; }
+
+.statusCell { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 
 /* Expanded detail wrapper — now a Modal instead of an inline table row, so
    expanding a request no longer balloons the whole page's scroll height

@@ -21,6 +21,7 @@ import {
 import {
   MARKETING_PRIORITY_META,
   MARKETING_REQUEST_TYPE_LABEL,
+  MARKETING_INTERNAL_STATUS_LABEL,
   MARKETING_STATUS_LABEL,
   getProductCategoryStyle,
   isMarketingRequestOverdue,
@@ -142,8 +143,25 @@ function ReminderBadge({ record }: { record: Pick<MarketingRequestRecord, 'timel
   return <SharedPriorityBadge tone={REMINDER_TONE[band]} label={REMINDER_LABEL[band]} />;
 }
 
-function StatusBadge({ status }: { status: MarketingRequestStatus }) {
-  return <SharedStatusBadge tone={STATUS_TONE[status] || 'pending'} label={MARKETING_STATUS_LABEL[status] || status} />;
+/**
+ * Six stages for everyone; the precise internal status for the people doing
+ * the work.
+ *
+ * A requester reading "Marketing Final Review" learns about our handoffs, not
+ * about their request. Marketing's own members genuinely need to know which
+ * handoff it is sitting in, so they keep the full vocabulary — and the title
+ * attribute carries it for everyone else, so nothing is actually hidden.
+ */
+function StatusBadge({ status, detailed }: { status: MarketingRequestStatus; detailed?: boolean }) {
+  const precise = MARKETING_INTERNAL_STATUS_LABEL[status] || status;
+  return (
+    <span title={precise}>
+      <SharedStatusBadge
+        tone={STATUS_TONE[status] || 'pending'}
+        label={detailed ? precise : MARKETING_STATUS_LABEL[status] || status}
+      />
+    </span>
+  );
 }
 
 function ProductCategoryBadge({ category }: { category: MarketingProductCategory }) {
@@ -506,12 +524,14 @@ function MarketingRequestRow({
           <PriorityBadge priority={r.priority} />
         </td>
         <td>
-          <StatusBadge status={r.status} />
-          {overdue && (
-            <span className={`${historyStyles.reminderBadge} ${styles.overdueInline}`}>
-              <AlertTriangle size={12} /> Overdue
-            </span>
-          )}
+          <div className={styles.statusCell}>
+            <StatusBadge status={r.status} detailed={isReviewer || isMarketingTeamMember} />
+            {overdue && (
+              <span className={`${historyStyles.reminderBadge} ${styles.overdueInline}`}>
+                <AlertTriangle size={12} /> Overdue
+              </span>
+            )}
+          </div>
         </td>
         <td>
           <span className={styles.creatorName}>{r.creator_name || r.created_by}</span>
