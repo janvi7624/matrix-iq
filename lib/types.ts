@@ -773,7 +773,12 @@ export const MARKETING_PRODUCT_CATEGORIES = [
   'Robotics',
   'AI Video Analytics (Video Management System)',
   'System Integration',
-  'VisitIQ VMS (Visitor Management System)'
+  'VisitIQ VMS (Visitor Management System)',
+  // Non-technical collateral — festival banners, generic social posts, event
+  // collateral with no product spec behind it. See
+  // lib/marketingRequestHelpers.ts's isTechnicalMarketingCategory: a request
+  // tagged 'Other' skips the mandatory Technical Review step entirely.
+  'Other'
 ] as const;
 export type MarketingProductCategory = (typeof MARKETING_PRODUCT_CATEGORIES)[number] | string;
 

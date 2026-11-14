@@ -6,6 +6,7 @@ import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import DailyReportView from './DailyReportView';
 import TeamDailyReportsView from './TeamDailyReportsView';
+import DailyReportPdfExport from './DailyReportPdfExport';
 
 // Merges what used to be two sidebar entries — Daily Report and Team Daily
 // Reports — into one module, with the team view as a second tab that only
@@ -110,7 +111,12 @@ export default function DailyReportsPageView({ canViewTeam, initialDate, initial
           onDateChange={handleDateChange}
         />
       ) : (
-        <DailyReportView embedded initialDate={initialDateOnce} onDateChange={handleDateChange} />
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <DailyReportPdfExport mode="mine" />
+          </div>
+          <DailyReportView embedded initialDate={initialDateOnce} onDateChange={handleDateChange} />
+        </>
       )}
     </AppShell>
   );

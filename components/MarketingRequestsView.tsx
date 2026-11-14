@@ -23,7 +23,8 @@ import {
   MARKETING_REQUEST_TYPE_LABEL,
   MARKETING_STATUS_LABEL,
   getProductCategoryStyle,
-  isMarketingRequestOverdue
+  isMarketingRequestOverdue,
+  isTechnicalMarketingCategory
 } from '@/lib/marketingRequestHelpers';
 import { MarketingReminderBand, marketingReminderBand, daysOverdue } from '@/lib/marketingRequestReminder';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
@@ -187,7 +188,7 @@ function WorkflowStepper({ record: r }: { record: MarketingRequestRecord }) {
     },
     {
       label: 'Technical Review',
-      sub: r.technical_member_name || r.technical_member_username || 'Tech Member',
+      sub: r.technical_member_name || r.technical_member_username || (isTechnicalMarketingCategory(r.product_category) ? 'Tech Member' : 'Not required'),
       active: r.status === 'pending_technical_review',
       done: isTechnicalDone,
       warning: isChangesRequested
@@ -371,6 +372,11 @@ function MarketingRequestRow({
     : undefined;
   const canExchange = isAssignedMarketing && marketingRoster.length === 2 && Boolean(otherTeammate);
 
+  // A Festival banner / other 'Other'-category request has no product spec
+  // to verify, so it skips Technical Review entirely — see
+  // lib/marketingRequestHelpers.ts and send-to-technical/route.ts.
+  const needsTechnicalReview = isTechnicalMarketingCategory(r.product_category);
+
   const isAssignedTechnical = r.technical_member_username === currentUser.username || (currentUser.role === 'engineer' && r.status === 'pending_technical_review');
   const overdue = isMarketingRequestOverdue(r);
   // Role Management's isPrivileged flag, resolved server-side — NOT
@@ -429,8 +435,8 @@ function MarketingRequestRow({
   }
 
   function handleSendToTechnical() {
-    const techId = r.technical_member_id || (r.technical_member_username ? technicalRoster.find((t) => t.username === r.technical_member_username)?.id : '');
-    if (!techId) {
+    const techId = r.technical_member_id || (r.technical_member_username ? technicalRoster.find((t) => t.username === r.technical_member_username)?.id : '') || '';
+    if (needsTechnicalReview && !techId) {
       toast.error('Technical Team member has not been assigned yet by the Marketing Manager.');
       return;
     }
@@ -783,7 +789,11 @@ function MarketingRequestRow({
                     {/* Marketing Workspace Action Bar */}
                     <div className={styles.workspaceActionBar}>
                       <div>
-                        {r.technical_member_name || r.technical_member_username ? (
+                        {!needsTechnicalReview ? (
+                          <div className={styles.techVerifierAssigned}>
+                            <CheckCircle2 size={16} /> No technical review needed — non-technical category
+                          </div>
+                        ) : r.technical_member_name || r.technical_member_username ? (
                           <div className={styles.techVerifierAssigned}>
                             <CheckCircle2 size={16} /> Technical Verifier: <strong>{r.technical_member_name || r.technical_member_username}</strong>
                           </div>
@@ -798,10 +808,10 @@ function MarketingRequestRow({
                         icon={<Send size={14} />}
                         loading={busy}
                         loadingLabel="Sending…"
-                        disabled={!r.technical_member_id && !r.technical_member_username}
+                        disabled={needsTechnicalReview && !r.technical_member_id && !r.technical_member_username}
                         onClick={handleSendToTechnical}
                       >
-                        Send for Technical Verification
+                        {needsTechnicalReview ? 'Send for Technical Verification' : 'Submit for Final Delivery'}
                       </Button>
                     </div>
                   </div>
@@ -1060,53 +1070,55 @@ function MarketingRequestRow({
                     </select>
                   </div>
 
-                  <div className={calcStyles.field}>
-                    <label className={calcStyles.label}>
-                      Technical Member for Verification ({r.product_category ? `${r.product_category} Specialist` : 'Technical'})
-                    </label>
-                    <select
-                      className={calcStyles.formControl}
-                      disabled={busy}
-                      value={r.technical_member_id || technicalRoster.find((t) => t.username === r.technical_member_username)?.id || ''}
-                      onChange={(e) => run(() => onAssign(r.id, { technicalMemberId: e.target.value }))}
-                    >
-                      <option value="">— Select Technical Verifier —</option>
-                      {categoryMatchedList.length > 0 && (
-                        <optgroup label={`🌟 ${r.product_category} Specialists (Recommended)`}>
-                          {categoryMatchedList.map((t) => {
-                            const tasks = t.pendingTasksCount ?? 0;
-                            const taskLabel = tasks === 0 ? '0 pending tasks' : `${tasks} pending task${tasks === 1 ? '' : 's'}`;
-                            const recLabel = t.isRecommended ? ' ★ Lowest Workload' : '';
-                            return (
-                              <option key={t.id} value={t.id}>
-                                {t.name} ({t.department || 'Technical'}) • {taskLabel}{recLabel}
-                              </option>
-                            );
-                          })}
-                        </optgroup>
-                      )}
-                      {otherTechList.length > 0 && (
-                        <optgroup label={categoryMatchedList.length > 0 ? 'Other Technical Team Members' : 'All Technical Members'}>
-                          {otherTechList.map((t) => {
-                            const tasks = t.pendingTasksCount ?? 0;
-                            const taskLabel = tasks === 0 ? '0 pending tasks' : `${tasks} pending task${tasks === 1 ? '' : 's'}`;
-                            return (
-                              <option key={t.id} value={t.id}>
-                                {t.name} ({t.department || 'Technical'}) • {taskLabel}
-                              </option>
-                            );
-                          })}
-                        </optgroup>
-                      )}
-                      {categoryMatchedList.length === 0 && otherTechList.length === 0 && (
-                        technicalRoster.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} ({t.department || 'Technical'})
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </div>
+                  {needsTechnicalReview && (
+                    <div className={calcStyles.field}>
+                      <label className={calcStyles.label}>
+                        Technical Member for Verification ({r.product_category ? `${r.product_category} Specialist` : 'Technical'})
+                      </label>
+                      <select
+                        className={calcStyles.formControl}
+                        disabled={busy}
+                        value={r.technical_member_id || technicalRoster.find((t) => t.username === r.technical_member_username)?.id || ''}
+                        onChange={(e) => run(() => onAssign(r.id, { technicalMemberId: e.target.value }))}
+                      >
+                        <option value="">— Select Technical Verifier —</option>
+                        {categoryMatchedList.length > 0 && (
+                          <optgroup label={`🌟 ${r.product_category} Specialists (Recommended)`}>
+                            {categoryMatchedList.map((t) => {
+                              const tasks = t.pendingTasksCount ?? 0;
+                              const taskLabel = tasks === 0 ? '0 pending tasks' : `${tasks} pending task${tasks === 1 ? '' : 's'}`;
+                              const recLabel = t.isRecommended ? ' ★ Lowest Workload' : '';
+                              return (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} ({t.department || 'Technical'}) • {taskLabel}{recLabel}
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                        )}
+                        {otherTechList.length > 0 && (
+                          <optgroup label={categoryMatchedList.length > 0 ? 'Other Technical Team Members' : 'All Technical Members'}>
+                            {otherTechList.map((t) => {
+                              const tasks = t.pendingTasksCount ?? 0;
+                              const taskLabel = tasks === 0 ? '0 pending tasks' : `${tasks} pending task${tasks === 1 ? '' : 's'}`;
+                              return (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} ({t.department || 'Technical'}) • {taskLabel}
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                        )}
+                        {categoryMatchedList.length === 0 && otherTechList.length === 0 && (
+                          technicalRoster.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} ({t.department || 'Technical'})
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

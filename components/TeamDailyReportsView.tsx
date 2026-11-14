@@ -32,6 +32,7 @@ import ErrorState from './ui/ErrorState';
 import { SkeletonRows } from './ui/Skeleton';
 import { useToast } from './ui/ToastProvider';
 import TeamDailyReportsSheet from './TeamDailyReportsSheet';
+import DailyReportPdfExport from './DailyReportPdfExport';
 import TaskCategoryEditor from './TaskCategoryEditor';
 import sheetStyles from './teamSheet.module.css';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
@@ -592,8 +593,16 @@ export default function TeamDailyReportsView({
         )}
         <input type="text" value={search} placeholder="Search employee or department…" onChange={(e) => setSearch(e.target.value)} aria-label="Search" />
         {period !== 'day' && rangeData && rangeData.rows.length > 0 && (
-          <Button variant="secondary" compact icon={<Download size={14} />} onClick={exportRangePdf}>Download PDF</Button>
+          <Button variant="secondary" compact icon={<Download size={14} />} onClick={exportRangePdf}>Summary PDF</Button>
         )}
+        <DailyReportPdfExport
+          mode="team"
+          departments={(period === 'day' ? data?.departments : rangeData?.departments) ?? []}
+          employees={Array.from(
+            new Map(((period === 'day' ? data?.rows : rangeData?.rows) ?? []).map((r) => [r.employee_id, { id: r.employee_id, name: r.employee_name }])).values()
+          )}
+          label="Full Reports PDF"
+        />
       </FilterBar>
 
       {period === 'day' ? (

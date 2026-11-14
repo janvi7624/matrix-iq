@@ -56,6 +56,14 @@ export const PRODUCT_CATEGORY_COLORS: Record<string, { bg: string; text: string;
   Other: { bg: 'rgba(107, 114, 128, 0.12)', text: '#4b5563', border: 'rgba(107, 114, 128, 0.3)' }
 };
 
+// Only a request tagged with an actual technical product category needs
+// engineering sign-off — a Festival banner or other generic collateral
+// tagged 'Other' has no technical spec to verify, so it skips Technical
+// Review entirely (see send-to-technical/route.ts).
+export function isTechnicalMarketingCategory(category: MarketingProductCategory): boolean {
+  return Boolean(category) && category !== 'Other';
+}
+
 export function getProductCategoryStyle(category: MarketingProductCategory) {
   return PRODUCT_CATEGORY_COLORS[category] || PRODUCT_CATEGORY_COLORS.Other;
 }

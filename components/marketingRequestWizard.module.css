@@ -18,3 +18,56 @@
 .attachmentThumbWrap { position: relative; display: inline-block; }
 
 .categoryPill { padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+
+/* The optional extras — project link, files, notes. A native <details> so
+   open/closed state, keyboard and screen-reader behaviour come for free.
+   Most requests never need any of this; the few that do should not make
+   everyone else pay for the fields. */
+.moreDetails {
+  margin-top: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 14px;
+  background: var(--mx-surface-subtle, transparent);
+}
+
+.moreSummary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  list-style: revert;
+}
+
+.moreSummary:hover {
+  color: var(--foreground);
+}
+
+.moreDetails[open] .moreSummary {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+/* How many optional things are filled in — so closing the section never
+   hides the fact that a file or a note was added. */
+.moreBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--mx-radius-full);
+  background: var(--mx-blue-600, #2563eb);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.moreDetails > *:last-child {
+  padding-bottom: 14px;
+}

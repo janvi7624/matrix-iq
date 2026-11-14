@@ -9,6 +9,7 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { sendMarketingRequestLifecycleEmail } from '@/lib/email/notifications';
 import { findUserById } from '@/lib/userStore';
 import { MarketingRequestRecord } from '@/lib/types';
+import { isTechnicalMarketingCategory } from '@/lib/marketingRequestHelpers';
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -53,33 +54,42 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'You must accept this assignment before you can act on it' }, { status: 403 });
     }
 
-    const technicalMemberId =
-      typeof body.technicalMemberId === 'string' && body.technicalMemberId.trim()
-        ? body.technicalMemberId.trim()
-        : existing.technical_member_id;
-
-    if (!technicalMemberId) {
-      return NextResponse.json(
-        { error: 'Technical team member has not been selected yet by the Marketing Manager. Please ask Manager to assign a Technical verifier.' },
-        { status: 400 }
-      );
-    }
-
-    const technicalUser = await findUserById(technicalMemberId);
-    if (!technicalUser) {
-      return NextResponse.json({ error: 'Selected Technical Team member not found' }, { status: 400 });
-    }
-
     const marketingPreparedContent = typeof body.marketingPreparedContent === 'string' ? body.marketingPreparedContent.trim() : existing.marketing_prepared_content || '';
     const marketingRemarks = typeof body.marketingRemarks === 'string' ? body.marketingRemarks.trim() : existing.marketing_remarks || '';
     const technicalInstructions = typeof body.technicalInstructions === 'string' ? body.technicalInstructions.trim() : existing.technical_instructions || '';
     const marketingAttachments = Array.isArray(body.marketingAttachments) ? toStringArray(body.marketingAttachments) : existing.marketing_attachments || [];
 
+    // A Festival banner / generic collateral ('Other' category) has no
+    // technical spec to verify — skip the review step entirely and go
+    // straight to 'technical_approved', which is what unlocks Final
+    // Submission. Every actual product category still requires a reviewer.
+    const needsTechnicalReview = isTechnicalMarketingCategory(existing.product_category);
+
+    let technicalUser: Awaited<ReturnType<typeof findUserById>> = undefined;
+    if (needsTechnicalReview) {
+      const technicalMemberId =
+        typeof body.technicalMemberId === 'string' && body.technicalMemberId.trim()
+          ? body.technicalMemberId.trim()
+          : existing.technical_member_id;
+
+      if (!technicalMemberId) {
+        return NextResponse.json(
+          { error: 'Technical team member has not been selected yet by the Marketing Manager. Please ask Manager to assign a Technical verifier.' },
+          { status: 400 }
+        );
+      }
+
+      technicalUser = await findUserById(technicalMemberId);
+      if (!technicalUser) {
+        return NextResponse.json({ error: 'Selected Technical Team member not found' }, { status: 400 });
+      }
+    }
+
     const patch: Partial<MarketingRequestRecord> = {
-      status: 'pending_technical_review',
-      technical_member_id: technicalUser.id,
-      technical_member_username: technicalUser.username,
-      technical_member_name: technicalUser.name || technicalUser.username,
+      status: needsTechnicalReview ? 'pending_technical_review' : 'technical_approved',
+      technical_member_id: technicalUser?.id || '',
+      technical_member_username: technicalUser?.username || '',
+      technical_member_name: technicalUser ? technicalUser.name || technicalUser.username : '',
       marketing_prepared_content: marketingPreparedContent,
       marketing_attachments: marketingAttachments,
       marketing_remarks: marketingRemarks,
@@ -96,14 +106,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       role: viewer.role,
       entityType: 'marketing_request',
       entityId: id,
-      action: `Marketing request sent to Technical (${technicalUser.name || technicalUser.username}) for verification`,
+      action: needsTechnicalReview
+        ? `Marketing request sent to Technical (${technicalUser?.name || technicalUser?.username}) for verification`
+        : 'Marketing request submitted for final delivery — no technical review required (non-technical category)',
       previousStatus: existing.status,
-      newStatus: 'pending_technical_review',
-      remarks: marketingRemarks || technicalInstructions || `Assigned to ${technicalUser.username}`,
+      newStatus: patch.status as string,
+      remarks: marketingRemarks || technicalInstructions || (technicalUser ? `Assigned to ${technicalUser.username}` : ''),
       ip: getClientIp(request)
     });
 
-    if (technicalUser.username && technicalUser.username !== viewer.username) {
+    if (technicalUser?.username && technicalUser.username !== viewer.username) {
       await notifyUsers([technicalUser.username], {
         title: 'Marketing request awaiting technical verification',
         body: `${viewer.username} submitted "${existing.title}" for your technical review and verification.`,

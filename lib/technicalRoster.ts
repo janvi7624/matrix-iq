@@ -1,5 +1,8 @@
 import { Op } from 'sequelize';
 import { db } from './db';
+import { listProducts } from './productStore';
+import { findUserById } from './userStore';
+import { listDepartmentManagers } from './departmentStore';
 
 export const TECHNICAL_DOMAIN_DEPARTMENTS = [
   'Technical',
@@ -50,6 +53,69 @@ export function isExactDepartmentMatch(userDept: string, category: string): bool
     return d.includes('visitiq') || d.includes('visitor') || d.includes('vms') || d.includes('software') || d === 'ai' || dWords.includes('ai') || d === 'technical';
   }
   return false;
+}
+
+// Maps a Marketing Request's product category to the Product Master
+// category it's backed by, so a technical reviewer can be suggested from
+// whoever actually owns that product line. Loose/substring match, same
+// style as isExactDepartmentMatch above — the catalog's own category
+// strings ('AI Analytics', 'Delivery Robot', 'VisitIQ', ...) don't exactly
+// match the marketing dropdown's labels.
+function productCategoryMatchesMarketingCategory(productCategory: string, marketingCategory: string): boolean {
+  const p = (productCategory || '').toLowerCase();
+  if (marketingCategory === 'AV') return p === 'av';
+  if (marketingCategory === 'Robotics') return p.includes('robot');
+  if (marketingCategory.startsWith('AI Video Analytics')) return p.includes('ai');
+  if (marketingCategory.startsWith('VisitIQ')) return p.includes('visitiq');
+  // System Integration / Other have no catalog category behind them today.
+  return false;
+}
+
+// Matches by display name OR username, case-insensitively — the live data
+// has two distinct "test" accounts (username 'test'/name 'Test', and
+// username 'main'/name 'test'), both of which are testing/admin stand-ins
+// rather than real reviewers.
+function isTestAccount(user: { username?: string; name?: string }): boolean {
+  return (user.username || '').trim().toLowerCase() === 'test' || (user.name || '').trim().toLowerCase() === 'test';
+}
+
+/**
+ * First choice for a marketing request's technical reviewer: whoever is the
+ * Product Manager of a catalog product in this category, rather than just a
+ * department/role guess. When that Product Manager is a testing/admin
+ * stand-in account (see isTestAccount) rather than a real reviewer, this
+ * falls back to their own reporting manager, then to their department's
+ * configured manager. Returns null when nobody real can be resolved, and
+ * the caller falls back to the department/role matching below.
+ */
+export async function resolveProductManagerTechReviewer(category: string): Promise<TechnicalRosterEntry | null> {
+  if (!category) return null;
+  const products = await listProducts({ status: 'active' });
+  const match = products.find((p) => p.manager_id && productCategoryMatchesMarketingCategory(p.category, category));
+  if (!match?.manager_id) return null;
+
+  let reviewer = await findUserById(match.manager_id);
+  if (reviewer && isTestAccount(reviewer)) {
+    if (reviewer.reportingManagerId) {
+      reviewer = (await findUserById(reviewer.reportingManagerId)) || reviewer;
+    }
+    if (reviewer && isTestAccount(reviewer) && reviewer.department) {
+      const managers = (await listDepartmentManagers())[reviewer.department];
+      if (managers?.length) {
+        reviewer = (await findUserById(managers[0].id)) || reviewer;
+      }
+    }
+  }
+  if (!reviewer || isTestAccount(reviewer)) return null;
+
+  return {
+    id: reviewer.id,
+    username: reviewer.username,
+    name: reviewer.name || reviewer.username,
+    department: reviewer.department || '',
+    categoryMatched: true,
+    isRecommended: true
+  };
 }
 
 export async function listTechnicalRoster(options?: { category?: string }): Promise<TechnicalRosterEntry[]> {
@@ -207,6 +273,21 @@ export async function listTechnicalRoster(options?: { category?: string }): Prom
       ...u,
       isRecommended: (u.pendingTasksCount || 0) === minMatchedTasks
     }));
+
+    // First choice: this category's Product Manager (see
+    // resolveProductManagerTechReviewer) — ahead of the department/role
+    // match above, which stays as the fallback when no product/manager
+    // resolves to a real reviewer. Deduped: if that person is already in
+    // the matched list, just promote them to the top and mark recommended
+    // rather than listing them twice.
+    const pmReviewer = await resolveProductManagerTechReviewer(category);
+    if (pmReviewer) {
+      const already = matchedEnriched.find((u) => u.id === pmReviewer.id) || others.find((u) => u.id === pmReviewer.id);
+      const restMatched = matchedEnriched.filter((u) => u.id !== pmReviewer.id);
+      const restOthers = others.filter((u) => u.id !== pmReviewer.id);
+      const promoted = already ? { ...already, categoryMatched: true, isRecommended: true } : { ...pmReviewer, pendingTasksCount: 0 };
+      return [promoted, ...restMatched, ...restOthers];
+    }
 
     return [...matchedEnriched, ...others];
   }
