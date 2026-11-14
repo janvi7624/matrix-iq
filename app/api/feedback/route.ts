@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { listVisibleModules } from '@/lib/moduleConfigStore';
+import { isProductManager } from '@/lib/productManagerStore';
 import { resolveVisibilityScope } from '@/lib/departmentScope';
 import { findUserNameAndDeptByUsername } from '@/lib/userStore';
 import { submitFeedback, findMyFeedback, ModuleFeedbackEntry } from '@/lib/feedbackStore';
@@ -53,7 +54,8 @@ export async function GET(request: NextRequest) {
       department,
       isDepartmentManager: !scope.seesOrgWide && !!scope.scopedUserIds && scope.scopedUserIds.length > 1,
       username: viewer.username,
-      partnerId: viewer.partnerId ?? ''
+      partnerId: viewer.partnerId ?? '',
+      isProductManager: await isProductManager(viewer.userId)
     });
 
     const mine = await findMyFeedback(viewer.username);

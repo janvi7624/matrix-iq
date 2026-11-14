@@ -21,9 +21,11 @@ import { LeadCallOutcome, LeadRecord, UserRole, LEAD_CALL_OUTCOMES } from './typ
 //     'suitable'      -> a project is created (the only path that makes one)
 //     'not_suitable'  -> no project, ever. The contact stays in the Leads list
 //                        and in Client Master, and stops being chased.
-//     'completed'     -> no project either, same as 'not_suitable' — but for a
-//                        call that resolved the matter without being a
-//                        rejection (handled outside the project pipeline).
+//     'completed'     -> shown to users as "Not interested" — no project
+//                        either, same as 'not_suitable', but for a call that
+//                        resolved the matter without being a flat rejection
+//                        (handled outside the project pipeline). The stored
+//                        value stays 'completed'; only the label changed.
 //     'callback'      -> nothing yet; ring back on callback_at.
 // A lead can be called again — a 'callback', 'not_suitable' or 'completed' can
 // later become 'suitable'; only the project creation is one-way.
@@ -95,21 +97,22 @@ function validate(input: LeadCallInput): { outcome: LeadCallOutcome; remark: str
   }
   const remark = (input.remark || '').trim();
   const callbackAt = (input.callbackAt || '').trim();
-  if (input.outcome === 'callback') {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(callbackAt)) throw new LeadCallError('Pick the date to call back on.', 400);
-    // The shape alone isn't enough: '2026-02-31' matches it and would reach
-    // the date column as nonsense, failing as a 500 with no call recorded.
-    const parsed = new Date(`${callbackAt}T00:00:00Z`);
-    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== callbackAt) {
-      throw new LeadCallError('Pick a real date to call back on.', 400);
-    }
+  // A next follow-up date is mandatory on every outcome, not only "Call back
+  // later" — whatever happened on this call, someone still needs to know
+  // when to check back on this lead next.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(callbackAt)) throw new LeadCallError('Pick the next follow-up date.', 400);
+  // The shape alone isn't enough: '2026-02-31' matches it and would reach
+  // the date column as nonsense, failing as a 500 with no call recorded.
+  const parsed = new Date(`${callbackAt}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== callbackAt) {
+    throw new LeadCallError('Pick a real date for the next follow-up.', 400);
   }
   // A "not suitable" verdict takes the contact out of the pipeline for good,
   // so the reason has to be written down — it's the only record of why.
   if (input.outcome === 'not_suitable' && !remark) {
     throw new LeadCallError('Say why this lead is not suitable, so the next person knows.', 400);
   }
-  return { outcome: input.outcome, remark, callbackAt: input.outcome === 'callback' ? callbackAt : '' };
+  return { outcome: input.outcome, remark, callbackAt };
 }
 
 export async function logLeadCall(leadId: string, actor: LeadCallActor, input: LeadCallInput, ip: string): Promise<LeadCallResult> {
@@ -200,7 +203,7 @@ export async function logLeadCall(leadId: string, actor: LeadCallActor, input: L
     action: `Call logged (${outcome.replace('_', ' ')}): ${label}`,
     previousStatus: lead.call_outcome || 'not called',
     newStatus: outcome,
-    remarks: [remark, callbackAt ? `Call back on ${callbackAt}` : '', projectCreated ? 'Converted to a project' : ''].filter(Boolean).join(' · '),
+    remarks: [remark, callbackAt ? `Next follow-up: ${callbackAt}` : '', projectCreated ? 'Converted to a project' : ''].filter(Boolean).join(' · '),
     ip
   });
 
@@ -210,7 +213,7 @@ export async function logLeadCall(leadId: string, actor: LeadCallActor, input: L
     const capturer = await findUserByUsername(lead.created_by);
     if (capturer) {
       await notifyUsers([capturer.username], {
-        title: outcome === 'suitable' ? 'Lead you captured was qualified' : outcome === 'not_suitable' ? 'Lead you captured was closed' : outcome === 'completed' ? 'Lead you captured was completed' : 'Lead you captured needs a call back',
+        title: outcome === 'suitable' ? 'Lead you captured was qualified' : outcome === 'not_suitable' ? 'Lead you captured was closed' : outcome === 'completed' ? 'Lead you captured was marked not interested' : 'Lead you captured needs a call back',
         body: `${actor.name} called ${label}: ${outcome.replace('_', ' ')}${remark ? ` — ${remark}` : ''}`,
         type: 'lead_call_logged',
         entityType: 'lead',

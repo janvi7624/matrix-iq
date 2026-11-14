@@ -110,23 +110,26 @@ export async function resolveDailyReportScope(viewer: ViewerContext): Promise<Da
     return { seesOrgWide: true, departmentIds: ids, manageDepartmentIds: ids, manageUserIds: [], departments, canFileForOthers: true, isHr: hr };
   }
 
-  // HR gets no special reach here. It used to read every department's
-  // reports; that was removed deliberately — the rule is that a manager sees
-  // the departments they manage and only an admin sees all of them, and HR is
-  // a department manager like any other.
+  // The HR MANAGER reads every team's daily reports (business decision,
+  // 2026-11-14 — HR needs to see each and every team's reports). READ only:
+  // manageDepartmentIds / manageUserIds / canFileForOthers below still come
+  // from what they actually manage, so HR cannot edit, file for, or decide
+  // edit requests in another team's reports — every write path checks
+  // manageDepartmentIds, never departmentIds.
   //
-  // HR's actual compliance job is unaffected, because it never ran through
-  // this function: the warnings queue, leave claims and waiving are gated by
-  // canAccessHrReview further down, which is granted separately and stays
-  // company-wide. So an HR manager still sees who has missed reports
-  // everywhere and can still act on it — they just cannot open the CONTENTS
-  // of another department's report, which is the manager's business.
+  // "HR manager" is resolved strictly from Department Master (manager of the
+  // /^hr\b/i department) — NOT isHrManager(), whose isPrivileged shortcut is
+  // true for every 'manager'-role account and would hand company-wide reading
+  // to every department manager.
+  const isHrDepartmentManager = findHrManagers(await listDepartmentManagers()).some((m) => m.username === viewer.username);
+  const readable = isHrDepartmentManager ? await listActiveDepartments() : managed;
+
   return {
     seesOrgWide: false,
-    departmentIds: managed.map((d) => d.id),
+    departmentIds: readable.map((d) => d.id),
     manageDepartmentIds: managed.map((d) => d.id),
     manageUserIds: directReportIds,
-    departments: managed,
+    departments: readable,
     // Filing on someone's behalf is a manager action; someone with neither a
     // managed department nor a direct report can never do it, whatever the
     // module matrix says.

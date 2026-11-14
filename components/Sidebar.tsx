@@ -11,7 +11,7 @@ import { useCollapsibleSections } from '@/lib/useCollapsibleSections';
 import { primarySectionForDepartment } from '@/lib/departmentCategoryMap';
 import { sectionIconFor, resolveModuleIcon, QUICK_ACTION_ICON, CHROME_ICON } from '@/lib/icons';
 import { TMS_ROLE_LABEL } from '@/lib/tmsLabels';
-import { PARTNER_ROLE_LABEL, PARTNER_HOME } from '@/lib/partnerRoles';
+import { PARTNER_ROLE_LABEL, PARTNER_HOME, PARTNER_SECTION } from '@/lib/partnerRoles';
 import { Search, Star, X, Sparkles, ChevronRight, Pin } from 'lucide-react';
 import styles from './sidebar.module.css';
 import { forgetCelebrationPopups } from '@/lib/celebrationPopupSeen';
@@ -151,10 +151,33 @@ export default function Sidebar() {
     [modules, homeHref]
   );
 
-  const sections = useModuleSections(navModules);
+  const isPartner = !!viewer?.isPartner;
+
+  const ungroupedSections = useModuleSections(navModules);
+  // Partners first see their own section. Section order is otherwise just the
+  // order modules arrive in, which is alphabetical by section — so a partner
+  // got Marketing at the top and their own Partner Portal group third.
+  const sections = useMemo(() => {
+    if (!isPartner) return ungroupedSections;
+    return [...ungroupedSections].sort((a, b) => {
+      if (a.label === PARTNER_SECTION) return -1;
+      if (b.label === PARTNER_SECTION) return 1;
+      return 0;
+    });
+  }, [isPartner, ungroupedSections]);
+
   const primarySection = primarySectionForDepartment(viewer?.department);
   const sectionLabels = useMemo(() => sections.map((s) => s.label), [sections]);
-  const { isExpanded, toggle } = useCollapsibleSections(primarySection, { accordion: true, allLabels: sectionLabels });
+  const { isExpanded, toggle } = useCollapsibleSections(primarySection, {
+    // A partner has no department, so primarySection is null and NOTHING
+    // matched the pre-expand check — their sidebar rendered as four collapsed
+    // headers with no nav link visible at all. Their whole nav is 7 items, so
+    // it is shown open; the accordion is there to tame the internal app's
+    // eleven sections and only gets in the way here.
+    accordion: !isPartner,
+    allLabels: sectionLabels,
+    defaultExpanded: isPartner
+  });
 
   // Signals whether the nav list has content below the fold — the accordion
   // can expand a section (e.g. a long Administration list) to exactly fill

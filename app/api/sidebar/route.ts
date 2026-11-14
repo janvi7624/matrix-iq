@@ -9,6 +9,7 @@ import { isMarketingManager, canAssignLeads } from '@/lib/permissions';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
 import { deliveryChallanStore } from '@/lib/deliveryChallanStore';
 import { listVisibleModules } from '@/lib/moduleConfigStore';
+import { isProductManager } from '@/lib/productManagerStore';
 import { resolvePartnerStakeholder } from '@/lib/partnerWorkspaceAccess';
 import { findPartnerById } from '@/lib/partnerStore';
 import { partnerOnboardingComplete } from '@/lib/partnerOnboarding';
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
     const isDeptManager = Object.values(deptManagers).some((list) => list.some((m) => m.username === viewer.username));
 
     const [modules, leads, canAssign, isMarketingReviewer, demosForBadge, backOfficeCounts] = await Promise.all([
-      listVisibleModules({ role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager, isPartnerStakeholder }),
+      listVisibleModules({ role: viewer.role, username: viewer.username, isPrivileged: viewer.isPrivileged, department: user?.department, isDepartmentManager: isDeptManager, isPartnerStakeholder, isProductManager: await isProductManager(viewer.userId) }),
       // The lead list itself rather than computeLeadStats, because the badge
       // below needs two counts that helper doesn't expose (this viewer's OWN
       // unattended leads, not their whole department's). Narrowed to the nine

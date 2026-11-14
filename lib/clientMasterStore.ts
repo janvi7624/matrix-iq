@@ -19,7 +19,7 @@ export const CALL_OUTCOME_LABEL: Record<LeadCallOutcome, string> = {
   '': 'Not called yet',
   suitable: 'Suitable',
   not_suitable: 'Not suitable',
-  completed: 'Completed',
+  completed: 'Not interested',
   callback: 'Call back'
 };
 
@@ -318,6 +318,51 @@ async function list(viewerUsername: string): Promise<ClientMasterRow[]> {
     if (notes && !group.remarks.includes(notes)) group.remarks.push(notes);
   }
 
+  // Third source: contacts added directly on this screen ("+ Add Client") —
+  // pure storage, no lead/call workflow attached. Org-wide like project
+  // rows, since this isn't part of the department-scoped lead pipeline.
+  const manualClients = await db.ManualClient.findAll({
+    include: [{ model: db.User, as: 'creator', attributes: ['id', 'username', 'name'] }],
+    order: [['created_at', 'DESC']]
+  });
+
+  for (const row of manualClients as Model[]) {
+    const m = row.get({ plain: true }) as Record<string, unknown>;
+    const company = String(m.company || '').trim();
+    const clientName = String(m.client_name || '').trim();
+    const group = groupFor(company, clientName);
+    if (!group) continue;
+
+    const createdAt = isoOrEmpty(m.created_at);
+    if (group.projectCount > 0) {
+      noteDates(group, '', isoOrEmpty(m.updated_at));
+    } else {
+      noteDates(group, createdAt, isoOrEmpty(m.updated_at));
+    }
+
+    addContact(group, {
+      clientName,
+      phone: String(m.phone || '').trim(),
+      email: String(m.email || '').trim(),
+      altContactName: '',
+      altContactPhone: '',
+      projectId: ''
+    });
+
+    const creator = m.creator as { id?: string; username?: string; name?: string } | null;
+    if (creator?.id) {
+      addOwner(group, { id: creator.id, username: creator.username || '', name: creator.name || creator.username || '' });
+    }
+
+    const address = String(m.address || '').trim();
+    if (address) {
+      const labelled = `Address: ${address}`;
+      if (!group.remarks.includes(labelled)) group.remarks.push(labelled);
+    }
+    const notesText = String(m.notes || '').trim();
+    if (notesText && !group.remarks.includes(notesText)) group.remarks.push(notesText);
+  }
+
   const rows = Array.from(groups.values());
   for (const row of rows) {
     row.type = row.projectCount > 0 ? 'customer' : 'prospect';
@@ -352,4 +397,32 @@ async function list(viewerUsername: string): Promise<ClientMasterRow[]> {
   return rows.sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
-export const clientMasterStore = { list };
+export interface ManualClientInput {
+  clientName: string;
+  company: string;
+  phone: string;
+  email: string;
+  address: string;
+  notes?: string;
+}
+
+/**
+ * "+ Add Client" on this screen — a plain contact record with no lead/call
+ * workflow attached (previously this silently created a Lead instead, which
+ * required a mandatory leadSource the form never sent, so it always failed
+ * with "Pick where this lead came from."). Pure storage; list() above folds
+ * it into the directory as a prospect with zero leads.
+ */
+export async function createManualClient(input: ManualClientInput, createdByUserId: string): Promise<void> {
+  await db.ManualClient.create({
+    client_name: input.clientName.trim(),
+    company: input.company.trim(),
+    phone: input.phone.trim(),
+    email: input.email.trim(),
+    address: input.address.trim(),
+    notes: (input.notes || '').trim(),
+    created_by: createdByUserId || null
+  } as never);
+}
+
+export const clientMasterStore = { list, createManualClient };

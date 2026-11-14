@@ -708,7 +708,7 @@ export default function TravelScheduleDetailView({ requestId, currentUser }: Tra
 
               {(record.hotel_accommodation?.required || record.advance_request?.required) && (
                 <div className={`${calcStyles.sectionPanel} ${styles.panelTop16}`}>
-                  <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Hotel & Advance Requests</h3>
+                  <h3 className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>{record.advance_request?.required ? "Hotel & Advance Requests" : "Hotel Accommodation"}</h3>
                   {record.hotel_accommodation?.required && (
                     <div className={record.advance_request?.required ? styles.hotelBlockSpaced : undefined}>
                       <strong>Hotel Accommodation</strong>

@@ -22,9 +22,38 @@ const EMPTY_LABELS: string[] = [];
 // ones already toggled once — gets marked collapsed; otherwise a label with
 // no explicit entry yet would fall through to the initiallyExpandedLabel
 // default and reappear "open" alongside the newly clicked section.
-export function useCollapsibleSections(initiallyExpandedLabel?: string | null, options?: { accordion?: boolean; allLabels?: string[] }) {
+/**
+ * Whether a section starts open, before anyone has toggled anything.
+ *
+ * A pure function, and exported, because the hook itself needs a DOM to run
+ * and this suite has none (same split as lib/useAutoRefresh.ts's
+ * shouldRefresh) — this is the part with the actual logic in it, and the part
+ * that was wrong: with no `defaultExpanded` and a null `initiallyExpandedLabel`
+ * every section answered false, which is how the Partner Portal's sidebar
+ * came to render four collapsed headers and no nav links.
+ */
+export function sectionDefaultExpanded(
+  label: string,
+  options: { defaultExpanded?: boolean; initiallyExpandedLabel?: string | null }
+): boolean {
+  return Boolean(options.defaultExpanded) || label === options.initiallyExpandedLabel;
+}
+
+export function useCollapsibleSections(
+  initiallyExpandedLabel?: string | null,
+  options?: { accordion?: boolean; allLabels?: string[]; defaultExpanded?: boolean }
+) {
   const accordion = options?.accordion ?? false;
   const allLabels = options?.allLabels ?? EMPTY_LABELS;
+  // Start every section open instead of relying on initiallyExpandedLabel.
+  //
+  // For the Partner Portal, which has no department to match a section
+  // against: primarySectionForDepartment(undefined) returns null, so nothing
+  // equalled initiallyExpandedLabel and a partner's sidebar rendered four
+  // collapsed headers and not one nav link. Picking a section to pre-expand
+  // for them would be a guess; a partner's whole nav is 7 items across 4
+  // sections, which fits on screen at once, so there is nothing to tame.
+  const defaultExpanded = options?.defaultExpanded ?? false;
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -36,12 +65,17 @@ export function useCollapsibleSections(initiallyExpandedLabel?: string | null, o
     }
   }, []);
 
-  const isExpanded = useCallback((label: string) => expanded[label] ?? label === initiallyExpandedLabel, [expanded, initiallyExpandedLabel]);
+  const defaultFor = useCallback(
+    (label: string) => sectionDefaultExpanded(label, { defaultExpanded, initiallyExpandedLabel }),
+    [defaultExpanded, initiallyExpandedLabel]
+  );
+
+  const isExpanded = useCallback((label: string) => expanded[label] ?? defaultFor(label), [expanded, defaultFor]);
 
   const toggle = useCallback(
     (label: string) => {
       setExpanded((prev) => {
-        const current = prev[label] ?? label === initiallyExpandedLabel;
+        const current = prev[label] ?? defaultFor(label);
         const opening = !current;
         const next =
           accordion && opening
@@ -51,7 +85,7 @@ export function useCollapsibleSections(initiallyExpandedLabel?: string | null, o
         return next;
       });
     },
-    [initiallyExpandedLabel, accordion, allLabels]
+    [defaultFor, accordion, allLabels]
   );
 
   return { isExpanded, toggle };

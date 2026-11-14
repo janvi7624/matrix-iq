@@ -114,9 +114,12 @@ describe('portal constants', () => {
     expect(isPartnerPath(PARTNER_HOME)).toBe(true);
   });
 
-  it('names two partner roles and eight portal modules', () => {
+  it('names two partner roles and nine portal modules', () => {
     expect([...PARTNER_ROLE_KEYS]).toEqual(['partner-admin', 'partner-user']);
-    expect(PARTNER_PORTAL_MODULE_KEYS).toHaveLength(8);
+    expect(PARTNER_PORTAL_MODULE_KEYS).toHaveLength(9);
+    // 'partner-team' (Team Logins) is the ninth and the first that is not
+    // visible to both partner roles — see partnerModuleAccess.test.ts.
+    expect(PARTNER_PORTAL_MODULE_KEYS).toContain('partner-team');
     // Every portal module key must be partner-prefixed: the gate in
     // moduleConfigStore is keyed on membership of this list, and a key that
     // collided with an internal module would hand partners that module.

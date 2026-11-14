@@ -91,7 +91,7 @@ type LoggedCallOutcome = Exclude<LeadCallOutcome, ''>;
 const CALL_OUTCOME_META: Record<LoggedCallOutcome, { label: string; hint: string; tone: StatusTone }> = {
   suitable: { label: 'Suitable', hint: 'Converts this lead into a Sales project.', tone: 'confirmed' },
   not_suitable: { label: 'Not suitable', hint: 'Stays a contact — a reason is required.', tone: 'cancelled' },
-  completed: { label: 'Completed', hint: 'Resolved, no project needed — stays a contact.', tone: 'done' },
+  completed: { label: 'Not interested', hint: 'Resolved, no project needed — stays a contact.', tone: 'done' },
   callback: { label: 'Call back later', hint: 'Stays in the queue with a date.', tone: 'done' }
 };
 
@@ -691,8 +691,8 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
       setCallError('Say why this lead is not suitable, so the next person knows.');
       return;
     }
-    if (outcome === 'callback' && !callForm.callbackAt) {
-      setCallError('Pick the date to call back on.');
+    if (!callForm.callbackAt) {
+      setCallError(outcome === 'callback' ? 'Pick the date to call back on.' : 'Pick the next follow-up date.');
       return;
     }
     // "Suitable" is what creates the project, and every project carries an
@@ -718,7 +718,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          outcome, remark, callbackAt: outcome === 'callback' ? callForm.callbackAt : '',
+          outcome, remark, callbackAt: callForm.callbackAt,
           ...(createsProject ? { opportunityType: callForm.opportunityType, projectLeadId: callForm.projectLeadId, departments: callForm.departments } : {})
         })
       });
@@ -745,7 +745,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
           : outcome === 'not_suitable'
             ? 'Marked not suitable — kept as a contact.'
             : outcome === 'completed'
-              ? 'Marked completed.'
+              ? 'Marked not interested.'
               : `Call back on ${formatDay(callForm.callbackAt)}.`
       );
       loadLeads({ silent: true });
@@ -1070,7 +1070,7 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
             />
             <StatTile
               value={callStats.completed}
-              label="Completed"
+              label="Not Interested"
               tone="success"
               icon={<CheckCircle2 size={18} />}
               onClick={() => toggleCallFilter('completed')}
@@ -1511,6 +1511,16 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                 onChange={(e) => setCallForm((f) => ({ ...f, remark: e.target.value }))}
               />
             </Field>
+            <Field label={callForm.outcome === 'callback' ? 'Call back on (required)' : 'Next follow-up date (required)'} htmlFor="lead-callback-at">
+              <Input
+                id="lead-callback-at"
+                type="date"
+                min={todayDateInputValue()}
+                value={callForm.callbackAt}
+                disabled={savingCall}
+                onChange={(e) => setCallForm((f) => ({ ...f, callbackAt: e.target.value }))}
+              />
+            </Field>
             {callForm.outcome === 'suitable' && !callLead.project_id && (
               <>
                 <Field label="Opportunity Type *">
@@ -1538,18 +1548,6 @@ function LeadsViewContent({ currentUser }: LeadsViewProps) {
                   />
                 </Field>
               </>
-            )}
-            {callForm.outcome === 'callback' && (
-              <Field label="Call back on (required)" htmlFor="lead-callback-at">
-                <Input
-                  id="lead-callback-at"
-                  type="date"
-                  min={todayDateInputValue()}
-                  value={callForm.callbackAt}
-                  disabled={savingCall}
-                  onChange={(e) => setCallForm((f) => ({ ...f, callbackAt: e.target.value }))}
-                />
-              </Field>
             )}
             {callError && <div className={leadStyles.callError} role="alert">{callError}</div>}
           </Modal>

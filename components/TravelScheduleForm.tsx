@@ -230,26 +230,8 @@ export default function TravelScheduleForm({ value, onChange, requesterOrigin, r
           </>
         )}
       </div>
-
-      <div className={`${calcStyles.sectionPanel} ${styles.subPanel}`}>
-        <h4 className={`${calcStyles.label} ${styles.subPanelHeading}`}>Advance Request</h4>
-        <label className={styles.checkboxLabelMb8}>
-          <input type="checkbox" checked={value.advanceRequired} onChange={(e) => onChange({ advanceRequired: e.target.checked })} />
-          Advance Required
-        </label>
-        {value.advanceRequired && (
-          <>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Requested Amount (₹) *</label>
-              <input type="number" min={0} className={calcStyles.formControl} value={value.advanceAmount} onChange={(e) => onChange({ advanceAmount: e.target.value })} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label}>Reason / Remark</label>
-              <textarea className={calcStyles.formControl} rows={2} value={value.advanceRemark} onChange={(e) => onChange({ advanceRemark: e.target.value })} />
-            </div>
-          </>
-        )}
-      </div>
+      {/* Advance Request removed (2026-11-14): the company has no Advance
+          Policy. The API no longer stores one either (lib/travelScheduleStore.ts). */}
     </>
   );
 }

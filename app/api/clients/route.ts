@@ -52,3 +52,38 @@ export async function GET(request: NextRequest) {
     return apiErrorResponse(error);
   }
 }
+
+// "+ Add Client" — a plain contact record with no lead/call workflow
+// attached. This used to silently POST to /api/leads instead (and always
+// failed, since that route requires a leadSource this form never sent) —
+// see lib/clientMasterStore.ts's createManualClient for the full story.
+export async function POST(request: NextRequest) {
+  const viewer = await getViewerContext(request);
+  if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isModuleAccessAllowed('client-master', viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const body = await request.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+
+  const clientName = typeof body.clientName === 'string' ? body.clientName.trim() : '';
+  const company = typeof body.company === 'string' ? body.company.trim() : '';
+  if (!clientName && !company) {
+    return NextResponse.json({ error: 'Client name or company is required' }, { status: 400 });
+  }
+
+  try {
+    await clientMasterStore.createManualClient(
+      {
+        clientName,
+        company,
+        phone: typeof body.phone === 'string' ? body.phone : '',
+        email: typeof body.email === 'string' ? body.email : '',
+        address: typeof body.address === 'string' ? body.address : ''
+      },
+      viewer.userId
+    );
+    return NextResponse.json({ ok: true }, { status: 201 });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}

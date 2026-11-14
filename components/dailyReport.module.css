@@ -792,11 +792,29 @@
 .dotSubmitted {
   background: var(--mx-success);
 }
+/* Late is RED and missing is GREY, which is the opposite way round from the
+   obvious reading — and it is deliberate, from the people who use this.
+   A late report is a fact about the person: they filed, but past the
+   deadline, and that is the thing to notice. A missing day is most often
+   nothing of the kind (not yet swept, leave not yet approved, a holiday the
+   calendar did not know about), so it stays quiet until it hardens into a
+   warning, which gets .dotWarned below. */
 .dotLate {
-  background: var(--mx-warning);
+  background: var(--mx-danger);
 }
 .dotMissing {
-  background: var(--mx-danger);
+  /* A mid grey, not .dotDraft's slate-300: "missing" and "draft" must stay
+     tellable apart at 7px. */
+  background: var(--mx-slate-500);
+}
+/* A missed day that has hardened into a recorded warning. Dark, bold red and
+   slightly larger with a halo — it has to be findable by scanning a month of
+   7px dots, which a colour change alone does not achieve. */
+.dotWarned {
+  background: #7f1d1d;
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #7f1d1d 28%, transparent);
 }
 .dotDraft {
   background: var(--mx-slate-300);
@@ -1713,4 +1731,24 @@
     font-size: 11px;
     font-family: var(--mx-font-mono, ui-monospace, monospace);
     color: var(--mx-ink-muted);
+}
+
+/* Key for the day strip's dots. Sits directly under the strip and wraps on a
+   narrow screen rather than scrolling with it — it is reference, not
+   navigation, so it must stay readable when the strip is scrolled away. */
+.dayLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mx-space-2) var(--mx-space-4);
+  padding: 0 2px var(--mx-space-3);
+  margin-top: calc(var(--mx-space-2) * -1);
+  font-size: 11.5px;
+  color: var(--mx-slate-500);
+}
+
+.dayLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }

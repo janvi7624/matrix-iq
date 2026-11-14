@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { travelScheduleStore, sanitizeCoTravellers, sanitizeHotelAccommodation, sanitizeAdvanceRequest } from '@/lib/travelScheduleStore';
+import { travelScheduleStore, sanitizeCoTravellers, sanitizeHotelAccommodation } from '@/lib/travelScheduleStore';
 import { listAuditLog } from '@/lib/auditLogStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { listDepartmentManagers } from '@/lib/departmentStore';
@@ -91,7 +91,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (Array.isArray(body.companionIds)) patch.companion_ids = body.companionIds.filter((v: unknown) => typeof v === 'string');
     if (body.coTravellers !== undefined) patch.co_travellers = sanitizeCoTravellers(body.coTravellers);
     if (body.hotelAccommodation !== undefined) patch.hotel_accommodation = sanitizeHotelAccommodation(body.hotelAccommodation);
-    if (body.advanceRequest !== undefined) patch.advance_request = sanitizeAdvanceRequest(body.advanceRequest);
+    // advanceRequest is ignored — no Advance Policy (2026-11-14). Existing records keep their history.
 
     const updated = await travelScheduleStore.update(id, patch as never);
     return NextResponse.json(updated);

@@ -33,7 +33,7 @@ vi.mock('../../lib/db', () => ({
 import { isModuleAccessAllowed } from '../../lib/moduleConfigStore';
 import { hasCapability } from '../../lib/permissions';
 import { findRoleByKey } from '../../lib/roleStore';
-import { departmentsManagedBy } from '../../lib/departmentStore';
+import { departmentsManagedBy, findHrManagers, listDepartmentManagers } from '../../lib/departmentStore';
 import { isHrManager } from '../../lib/hrAccess';
 import { directReportIdsForUsername } from '../../lib/reportingManagers';
 import { db } from '../../lib/db';
@@ -83,6 +83,9 @@ beforeEach(() => {
   capability.mockResolvedValue(false);
   managed.mockResolvedValue([]);
   hrManager.mockResolvedValue(false);
+  // Nobody manages the HR department unless a test says so.
+  vi.mocked(listDepartmentManagers).mockResolvedValue({} as never);
+  vi.mocked(findHrManagers).mockReturnValue([]);
   role.mockResolvedValue(undefined);
   // Nobody reports to anybody unless a test says so.
   directReports.mockResolvedValue([]);
@@ -150,8 +153,9 @@ describe('scope', () => {
     }
   });
 
-  // HR gets no wider reach than the department it manages.
-  it('gives HR its own department and nothing more', async () => {
+  // An hr-ROLE account that is not the manager of the HR department gets no
+  // wider reach — the company-wide read belongs to the HR manager only.
+  it('gives an hr-role user who is not the HR manager only what they manage', async () => {
     capability.mockResolvedValue(false);
     hrManager.mockResolvedValue(true);
     managed.mockResolvedValue([{ id: 'dept-hr', name: 'HR & Admin' }]);
@@ -278,15 +282,11 @@ describe('per-employee access', () => {
 });
 
 
-describe('HR is scoped to its own department, like any other manager', () => {
-  // HR used to read every department's reports. That was removed: a manager
-  // sees what they manage, and only an admin sees all of them.
-  //
-  // HR's compliance job is untouched, because it never came through this
-  // function — the warnings queue, leave claims and waiving are gated by
-  // canAccessHrReview, which is granted separately and stays company-wide.
-  // So HR still sees WHO has missed reports everywhere; it just cannot open
-  // the CONTENTS of another department's report.
+describe('the HR manager reads every team, but manages only its own', () => {
+  // Business decision (2026-11-14): the HR manager — whoever Department
+  // Master lists as manager of the HR department — must be able to read each
+  // and every team's daily reports. READ only: edit, file-for-them and
+  // edit-request decisions still come from manageDepartmentIds.
 
   const DEPTS = [
     { id: 'd-hr', name: 'HR & Admin' },
@@ -294,58 +294,70 @@ describe('HR is scoped to its own department, like any other manager', () => {
     { id: 'd-av', name: 'AV' }
   ];
 
-  function asHr() {
+  function asHrManager() {
     hrManager.mockResolvedValue(true);
-    // HR manages its own department and nothing else.
     managed.mockResolvedValue([DEPTS[0]] as never);
+    vi.mocked(findHrManagers).mockReturnValue([{ id: SELF, username: 'priya', name: 'Priya' }]);
     vi.mocked(db.Department.findAll).mockResolvedValue(
       DEPTS.map((d) => ({ get: (k: string) => (d as Record<string, string>)[k] })) as never
     );
   }
 
-  it('reads only the department it manages', async () => {
-    asHr();
+  it('reads every active department', async () => {
+    asHrManager();
     const scope = await resolveDailyReportScope(viewer({ role: 'hr' }));
-    expect(scope.departmentIds).toEqual(['d-hr']);
-    expect(scope.departments).toHaveLength(1);
+    expect(scope.departmentIds).toEqual(['d-hr', 'd-ai', 'd-av']);
+    expect(scope.departments).toHaveLength(3);
   });
 
   it('manages only the department it actually manages', async () => {
-    asHr();
+    asHrManager();
     const scope = await resolveDailyReportScope(viewer({ role: 'hr' }));
     expect(scope.manageDepartmentIds).toEqual(['d-hr']);
   });
 
   it('is NOT marked as seeing org-wide', async () => {
-    // seesOrgWide is the "may do anything to anyone" tier — it grants edit
-    // and file rights unconditionally in resolveEmployeeAccess. HR must not
-    // reach the data through that door.
-    asHr();
+    // seesOrgWide grants edit and file rights unconditionally in
+    // resolveEmployeeAccess; HR must not get those through that door.
+    asHrManager();
     const scope = await resolveDailyReportScope(viewer({ role: 'hr' }));
     expect(scope.seesOrgWide).toBe(false);
   });
 
   it('can open the team dashboard', async () => {
-    asHr();
+    asHrManager();
     await expect(canAccessTeamDashboard(viewer({ role: 'hr' }))).resolves.toBe(true);
   });
 
-  it('cannot reach an employee outside its department at all', async () => {
-    asHr();
+  it('can VIEW an employee in another department, but not edit or file for them', async () => {
+    asHrManager();
     vi.mocked(db.User.findByPk).mockResolvedValue({ get: (k: string) => (k === 'departmentId' ? 'd-ai' : OTHER) } as never);
     const access = await resolveEmployeeAccess(viewer({ role: 'hr' }), OTHER);
-    expect(access.canView).toBe(false);
+    expect(access.canView).toBe(true);
     expect(access.canEdit).toBe(false);
     expect(access.canFileForThem).toBe(false);
   });
 
   it('may still edit and file within its own department', async () => {
-    asHr();
+    asHrManager();
     vi.mocked(db.User.findByPk).mockResolvedValue({ get: (k: string) => (k === 'departmentId' ? 'd-hr' : OTHER) } as never);
     const access = await resolveEmployeeAccess(viewer({ role: 'hr' }), OTHER);
     expect(access.canView).toBe(true);
     expect(access.canEdit).toBe(true);
     expect(access.canFileForThem).toBe(true);
+  });
+
+  it('does not widen a privileged department manager just because isHrManager says yes', async () => {
+    // isHrManager() is true for every isPrivileged account; the widening must
+    // key off Department Master's HR manager only.
+    hrManager.mockResolvedValue(true);
+    managed.mockResolvedValue([DEPTS[1]] as never);
+    vi.mocked(findHrManagers).mockReturnValue([{ id: OTHER, username: 'hardik', name: 'Hardik' }]);
+    vi.mocked(db.Department.findAll).mockResolvedValue(
+      DEPTS.map((d) => ({ get: (k: string) => (d as Record<string, string>)[k] })) as never
+    );
+    const scope = await resolveDailyReportScope(viewer({ role: 'manager', isPrivileged: true }));
+    expect(scope.departmentIds).toEqual(['d-ai']);
   });
 });
 

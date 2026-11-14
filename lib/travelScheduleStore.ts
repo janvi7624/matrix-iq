@@ -1,5 +1,5 @@
 import { Model } from 'sequelize';
-import { TravelScheduleRecord, TravelScheduleStatus, TravelCoTraveller, TravelHotelRequest, TravelAdvanceRequest } from './types';
+import { TravelScheduleRecord, TravelScheduleStatus, TravelCoTraveller, TravelHotelRequest } from './types';
 import { db, isUuid } from './db';
 
 // Shared shape-sanitizers for the 3 new structured fields — used by both
@@ -32,17 +32,6 @@ export function sanitizeHotelAccommodation(input: unknown): TravelHotelRequest |
     checkOutDate: typeof o.checkOutDate === 'string' ? o.checkOutDate : '',
     numberOfGuests: Number(o.numberOfGuests) || 0,
     additionalRequirement: typeof o.additionalRequirement === 'string' ? o.additionalRequirement.trim() : ''
-  };
-}
-
-export function sanitizeAdvanceRequest(input: unknown): TravelAdvanceRequest | null {
-  if (!input || typeof input !== 'object') return null;
-  const o = input as Record<string, unknown>;
-  if (!o.required) return { required: false, requestedAmount: 0, remark: '' };
-  return {
-    required: true,
-    requestedAmount: Number(o.requestedAmount) || 0,
-    remark: typeof o.remark === 'string' ? o.remark.trim() : ''
   };
 }
 

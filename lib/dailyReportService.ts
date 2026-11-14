@@ -21,7 +21,7 @@ import { findLiveEditRequest } from './dailyReportEditRequestStore';
 import { buildWarningSummary, loadWarningStatusByDate, loadWarningKeys } from './dailyReportWarningStore';
 import { EligibleEmployee, employeeOwesDate, listEligibleEmployees } from './dailyReportEligibility';
 import { resolveDailyReportScope } from './dailyReportAccess';
-import { addDays, isWorkingDay, istDate, missingIsVisibleYet, monthKey, navigableWorkingDays, scheduleFor, workingDaysBetween } from './dailyReportTime';
+import { addDays, isWorkingDay, istDate, missingIsVisibleYet, monthEnd, monthKey, monthStart, navigableWorkingDays, scheduleFor, workingDaysBetween } from './dailyReportTime';
 import { computeSalesAutoMatrix, mergeAutoMatrix } from './salesDailyAutoFetch';
 import { computeGemProposalEntries, mergeAutoGemEntries } from './gemProposalAutoFetch';
 import { computeDerivedValues, isEntryOverdue } from './dailyReportTemplates';
@@ -33,7 +33,11 @@ import { computeDerivedValues, isEntryOverdue } from './dailyReportTemplates';
 // chances for the page and the endpoint to disagree about, say, whether a
 // draft counts as filed.
 
-/** How many recent reporting days the history strip shows. */
+/**
+ * How many recent reporting days a MANAGER's per-employee history shows
+ * (buildEmployeeHistory). The employee's own strip is one calendar month —
+ * see buildMyDailyReport.
+ */
 const HISTORY_WORKING_DAYS = 14;
 
 export interface EmployeeIdentity {
@@ -94,10 +98,25 @@ export async function buildMyDailyReport(employee: EmployeeIdentity, date?: stri
   // makes the tally built from it mean "your recent working days" rather
   // than "the fourteen days before whatever you clicked".
   //
-  // Still WORKING days, so it shows fourteen days somebody could actually
-  // have filed rather than fourteen calendar days of which two are Sundays.
-  const historyFrom = addDays(today, -Math.ceil(HISTORY_WORKING_DAYS * 1.5) - 7);
-  const historyDates = workingDaysBetween(historyFrom, today, policy).slice(-HISTORY_WORKING_DAYS);
+  // Still WORKING days, so it shows days somebody could actually have filed
+  // rather than calendar days of which some are Sundays and holidays.
+  //
+  // ONE CALENDAR MONTH — the month of the date being viewed, not a rolling
+  // fortnight. A 14-day window spanned two months (24 Oct next to 12 Nov in
+  // the same row), which made the strip impossible to read as a month and
+  // put it at odds with everything around it: the warning count, the "missed
+  // this month" line and the KPI tally are all month-scoped.
+  //
+  // Anchoring to the SELECTION rather than to today is safe now, though it
+  // was not when this was written: the arrows used to be derived from this
+  // array, so a selection-anchored strip left no later day to step to. They
+  // come from prev_working_day/next_working_day below, which the server
+  // resolves independently, so the strip is free to follow the month.
+  const monthFrom = monthStart(reportDate);
+  // Never past today: the remaining days of the current month are not
+  // missing, they have not happened. A past month is shown in full.
+  const monthTo = monthEnd(reportDate) > today ? today : monthEnd(reportDate);
+  const historyDates = monthTo >= monthFrom ? workingDaysBetween(monthFrom, monthTo, policy) : [];
   // The selected date can sit outside that window (someone jumped back a
   // month with the picker), and the claim/warning lookups below must still
   // cover it — otherwise its own leave and warning state would read as absent.

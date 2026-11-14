@@ -97,6 +97,29 @@ const PRODUCT_MANAGER_ADMIN_RESTRICTED_KEYS = new Set(['admin-product-managers']
 // than by role, which is also what keeps a mis-assigned partner role from
 // being enough on its own to reach the portal.
 const PARTNER_RESTRICTED_KEYS = new Set<string>(PARTNER_PORTAL_MODULE_KEYS);
+
+/**
+ * Whether a portal tile is meant for this partner account's role.
+ *
+ * The partner branches used to decide from the KEY alone, which was fine
+ * while every portal tile was for both partner roles. 'partner-team' (Team
+ * Logins) is Partner Admin only, and without a role check a Partner User saw
+ * the tile and was then bounced by the page guard — the "controls that 403
+ * when clicked" problem PartnerShell's own comment warns against.
+ *
+ * The fallback matters as much as the rule. A partner-bound account that
+ * somehow holds an INTERNAL role is a data error, not a privilege — and
+ * requiring visibleToRoles.includes(role) outright would leave it confined to
+ * the portal (partnerId wins, as it must) while seeing no portal tile at all:
+ * locked out of the product entirely. Such an account is instead treated as
+ * the least-privileged partner, so the portal still works and admin-only
+ * tiles still stay hidden. The page and the API each re-check 'partner-admin'
+ * themselves, so nothing rests on this being the only guard.
+ */
+function partnerTileAllowsRole(module: { visibleToRoles: readonly string[] }, role: string): boolean {
+  const isPartnerRole = (PARTNER_ROLE_KEYS as readonly string[]).includes(role);
+  return module.visibleToRoles.includes(isPartnerRole ? role : 'partner-user');
+}
 // The internal half of the feature: managing partners, and the support desk.
 // Ordinary internal modules — nothing special, listed only for readability.
 const PARTNER_INTERNAL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
@@ -114,6 +137,9 @@ const PARTNER_INTERNAL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 // (Department.managerIds), which no static visibleToRoles list can express —
 // a department's manager may hold any role at all.
 const MANAGER_GATED_KEYS = new Set(['team-tasks', 'team-daily-reports']);
+// "My Products" — shown only to Product Managers (anyone managing at least one
+// product). The caller resolves isProductManager and passes it in.
+const PRODUCT_MANAGER_KEY = 'product-manager';
 
 // TMS accounts also need a handful of Sales-section modules (their project
 // dashboard is tied to Project.assigned_technical_person_id, and they work
@@ -269,6 +295,10 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // Manager can switch any tile off.
   { key: 'partner-dashboard', label: 'Dashboard', desc: 'Your submissions, demos, quotations and support at a glance.', icon: 'layout-dashboard', href: '/partner', section: PARTNER_SECTION, order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
   { key: 'partner-profile', label: 'Company Profile', desc: 'PAN number, bank details and website on file for your company.', icon: 'building', href: '/partner/profile', section: PARTNER_SECTION, order: 2, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
+  // Partner Admin only, so a Partner User never sees a tile that would 403.
+  // Icon 'user' rather than 'users': only keys present in
+  // MODULE_ICON_REGISTRY render, and 'users' is not one of them.
+  { key: 'partner-team', label: 'Team Logins', desc: 'Create and manage portal logins for your own colleagues.', icon: 'user', href: '/partner/team', section: PARTNER_SECTION, order: 3, enabled: true, isCustom: false, visibleToRoles: ['partner-admin'] },
   { key: 'partner-projects', label: 'My Leads / Projects', desc: 'Submit a new opportunity and track every one you have sent us.', icon: 'folder-kanban', href: '/partner/projects', section: PARTNER_SALES_SECTION, order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
   { key: 'partner-quotations', label: 'Quotations', desc: 'Quotations shared with you, with their versions and validity.', icon: 'file-text', href: '/partner/quotations', section: PARTNER_SALES_SECTION, order: 2, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
   { key: 'partner-demos', label: 'Demo Requests', desc: 'Request a product demonstration for your customer and follow it to completion.', icon: 'monitor', href: '/partner/demos', section: PARTNER_SALES_SECTION, order: 3, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_ROLE_KEYS] },
@@ -805,6 +835,9 @@ export async function listVisibleModules(viewer: {
   // — the same arrangement isDepartmentManager uses. See
   // lib/partnerWorkspaceAccess.ts.
   isPartnerStakeholder?: boolean;
+  // Manages at least one product (lib/productManagerStore.ts's
+  // isProductManager) — resolved by the caller, same as isDepartmentManager.
+  isProductManager?: boolean;
 }): Promise<ModuleConfigRecord[]> {
   const all = await listModuleConfigs();
   const isPartner = !!viewer.partnerId;
@@ -814,7 +847,7 @@ export async function listVisibleModules(viewer: {
     // A partner's nav is the portal and nothing else — checked before every
     // other rule so no later branch (isPrivileged bypasses, department
     // grants, named-individual grants) can widen it.
-    if (isPartner) return PARTNER_RESTRICTED_KEYS.has(m.key);
+    if (isPartner) return PARTNER_RESTRICTED_KEYS.has(m.key) && partnerTileAllowsRole(m, viewer.role);
     if (PARTNER_RESTRICTED_KEYS.has(m.key)) return false;
     // MANAGER_GATED_KEYS bypasses the role-list check entirely — a
     // department manager can hold ANY role (technical-manager, engineer,
@@ -824,6 +857,9 @@ export async function listVisibleModules(viewer: {
     // real manager whose role just isn't in the generic ALL_ROLES set —
     // exactly the 'technical-manager' gap this module exists to fix.
     if (MANAGER_GATED_KEYS.has(m.key)) return (viewer.isPrivileged || !!viewer.isDepartmentManager) && departmentAllowsModule(m, viewer.department, true);
+    // "My Products" is for Product Managers only — people who manage at
+    // least one product — whatever their role, and with no isPrivileged bypass.
+    if (m.key === PRODUCT_MANAGER_KEY) return !!viewer.isProductManager;
     // Granted to named individuals, not to a role — so visibleToRoles can't
     // express it and is bypassed for these three keys. `enabled` above still
     // applies, so Module Manager can still switch them off entirely.
@@ -861,7 +897,7 @@ export async function listVisibleModules(viewer: {
 // data by hitting the API directly even if they know the URL.
 export async function isModuleAccessAllowed(
   key: string,
-  viewer: { role: UserRole; isPrivileged: boolean; department?: string | null; isDepartmentManager?: boolean; username?: string; partnerId?: string | null; isPartnerStakeholder?: boolean }
+  viewer: { role: UserRole; isPrivileged: boolean; department?: string | null; isDepartmentManager?: boolean; username?: string; partnerId?: string | null; isPartnerStakeholder?: boolean; isProductManager?: boolean }
 ): Promise<boolean> {
   const all = await listModuleConfigs();
   const config = all.find((m) => m.key === key);
@@ -871,7 +907,10 @@ export async function isModuleAccessAllowed(
   // to a later bypass — mirrors listVisibleModules above, and must stay in
   // step with it so "can't see the tile" and "can't call the API" cannot
   // drift apart. Keyed on partnerId (the real binding), never on role.
-  if (viewer.partnerId) return PARTNER_RESTRICTED_KEYS.has(key);
+  // Kept in step with listVisibleModules' partner branch above, including the
+  // role check — otherwise a Partner User could reach a Partner Admin-only
+  // page by typing its URL, since this is what the page guard asks.
+  if (viewer.partnerId) return PARTNER_RESTRICTED_KEYS.has(key) && partnerTileAllowsRole(config, viewer.role);
   if (PARTNER_RESTRICTED_KEYS.has(key)) return false;
 
   // Named-individual grants (lib/hrExpenseAccess.ts). Checked before every
@@ -892,6 +931,9 @@ export async function isModuleAccessAllowed(
     if (!(viewer.isPrivileged || viewer.isDepartmentManager)) return false;
     return departmentAllowsModule(config, viewer.department, true);
   }
+
+  // Same Product-Manager-only rule as the tile list.
+  if (key === PRODUCT_MANAGER_KEY) return !!viewer.isProductManager;
 
   // TMS and HR-restricted keys don't get the generic isPrivileged bypass —
   // that flag is true for every 'manager' account (Sales, HR, Accounts, ...),

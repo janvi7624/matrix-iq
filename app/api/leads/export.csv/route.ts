@@ -19,6 +19,7 @@ const HEADERS = ['Source', 'Name', 'Company', 'Designation', 'Mobile', 'Email', 
 const CALL_OUTCOME_LABEL: Record<string, string> = {
   suitable: 'Suitable',
   not_suitable: 'Not suitable',
+  completed: 'Not interested',
   callback: 'Call back later'
 };
 
