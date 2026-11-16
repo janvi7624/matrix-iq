@@ -5,14 +5,25 @@ import AppShell from './AppShell';
 import { useToast } from './ui/ToastProvider';
 import styles from './hrAppreciation.module.css';
 
+interface Savings {
+  costSavingsPerMonth: string;
+  timeSavingsValue: string;
+  timeSavingsUnit: 'days' | 'hours' | 'mins' | '';
+  energySavings: string;
+  teamCostSavings: string;
+  miscellaneous: string;
+}
+
 interface Row {
   id: string;
   employee_name: string;
   employee_department: string;
   nominated_by: string | null;
   nominated_by_name: string;
-  category: string;
-  achievement_date: string;
+  task_given_date: string;
+  task_deadline_date: string;
+  task_completion_date: string;
+  savings: Savings;
   description: string;
   attachment_url: string;
   reward_type: 'none' | 'certificate' | 'gift_voucher' | 'cash';
@@ -45,12 +56,34 @@ const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString('en-IN
 const fmtReward = (r: Row) =>
   r.reward_type === 'none' ? 'None' : `${REWARD_LABEL[r.reward_type]}${r.reward_amount ? ` · ₹${r.reward_amount.toLocaleString('en-IN')}` : ''}`;
 
-const EMPTY_FORM = { employeeId: '', category: '', achievementDate: today(), description: '', rewardType: 'none', rewardAmount: '', attachmentUrl: '' };
+const EMPTY_SAVINGS: Savings = { costSavingsPerMonth: '', timeSavingsValue: '', timeSavingsUnit: '', energySavings: '', teamCostSavings: '', miscellaneous: '' };
+const EMPTY_FORM = {
+  employeeId: '',
+  taskGivenDate: today(),
+  taskDeadlineDate: '',
+  taskCompletionDate: today(),
+  savings: EMPTY_SAVINGS,
+  description: '',
+  attachmentUrl: ''
+};
+
+// A one-line summary of whichever Savings fields the manager actually
+// filled in — the form never requires any of them, so a row with none at
+// all should take up no space in the list.
+function savingsSummary(s: Savings | undefined | null): string {
+  if (!s) return '';
+  const parts: string[] = [];
+  if (s.costSavingsPerMonth) parts.push(`Cost: ₹${s.costSavingsPerMonth}/mo`);
+  if (s.timeSavingsValue) parts.push(`Time: ${s.timeSavingsValue}${s.timeSavingsUnit ? ` ${s.timeSavingsUnit}` : ''}`);
+  if (s.energySavings) parts.push(`Energy: ${s.energySavings}`);
+  if (s.teamCostSavings) parts.push(`Team cost: ₹${s.teamCostSavings}`);
+  if (s.miscellaneous) parts.push(s.miscellaneous);
+  return parts.join(' · ');
+}
 
 export default function HrAppreciationView() {
   const toast = useToast();
   const [rows, setRows] = useState<Row[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
   const [isDecider, setIsDecider] = useState(false);
   const [canSubmit, setCanSubmit] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -72,7 +105,6 @@ export default function HrAppreciationView() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Could not load appreciations');
       setRows(data.rows || []);
-      setCategories(data.categories || []);
       setIsDecider(!!data.isDecider);
       setCanSubmit(!!data.canSubmit);
       if (data.canSubmit) {
@@ -133,7 +165,7 @@ export default function HrAppreciationView() {
         return;
       }
       toast.success('Appreciation sent to HR for approval');
-      setForm({ ...EMPTY_FORM, achievementDate: today() });
+      setForm({ ...EMPTY_FORM, taskGivenDate: today(), taskCompletionDate: today() });
       setShowForm(false);
       setTab('pending');
       load();
@@ -167,7 +199,9 @@ export default function HrAppreciationView() {
     }
   }
 
-  const needsAmount = form.rewardType === 'gift_voucher' || form.rewardType === 'cash';
+  function setSavings(patch: Partial<Savings>) {
+    setForm((f) => ({ ...f, savings: { ...f.savings, ...patch } }));
+  }
 
   return (
     <AppShell
@@ -206,36 +240,36 @@ export default function HrAppreciationView() {
               </select>
             </label>
             <label className={styles.field}>
-              <span>Category *</span>
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required>
-                <option value="">Select category…</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+              <span>Task given date *</span>
+              <input
+                type="date"
+                max={today()}
+                value={form.taskGivenDate}
+                onChange={(e) => setForm({ ...form, taskGivenDate: e.target.value })}
+                required
+              />
             </label>
             <label className={styles.field}>
-              <span>Achievement date *</span>
-              <input type="date" max={today()} value={form.achievementDate} onChange={(e) => setForm({ ...form, achievementDate: e.target.value })} required />
+              <span>Task deadline date *</span>
+              <input
+                type="date"
+                min={form.taskGivenDate || undefined}
+                value={form.taskDeadlineDate}
+                onChange={(e) => setForm({ ...form, taskDeadlineDate: e.target.value })}
+                required
+              />
             </label>
             <label className={styles.field}>
-              <span>Recommended reward</span>
-              <select value={form.rewardType} onChange={(e) => setForm({ ...form, rewardType: e.target.value, rewardAmount: '' })}>
-                {Object.entries(REWARD_LABEL).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
+              <span>Task completion date *</span>
+              <input
+                type="date"
+                min={form.taskGivenDate || undefined}
+                max={today()}
+                value={form.taskCompletionDate}
+                onChange={(e) => setForm({ ...form, taskCompletionDate: e.target.value })}
+                required
+              />
             </label>
-            {needsAmount && (
-              <label className={styles.field}>
-                <span>Amount (₹) *</span>
-                <input type="number" min="1" step="1" value={form.rewardAmount} onChange={(e) => setForm({ ...form, rewardAmount: e.target.value })} required />
-              </label>
-            )}
             <label className={styles.field}>
               <span>Attachment (optional)</span>
               <input type="file" onChange={(e) => e.target.files?.[0] && uploadAttachment(e.target.files[0])} disabled={uploading} />
@@ -243,6 +277,66 @@ export default function HrAppreciationView() {
               {form.attachmentUrl && !uploading && <small>Attached ✓</small>}
             </label>
           </div>
+
+          <div className={styles.savingsPanel}>
+            <div className={styles.savingsTitle}>Savings (optional)</div>
+            <div className={styles.grid}>
+              <label className={styles.field}>
+                <span>Cost Savings</span>
+                <div className={styles.inlineUnit}>
+                  <span className={styles.inlineUnitPrefix}>₹</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={form.savings.costSavingsPerMonth}
+                    onChange={(e) => setSavings({ costSavingsPerMonth: e.target.value })}
+                    placeholder="e.g. 5000"
+                  />
+                  <span className={styles.inlineUnitSuffix}>pm</span>
+                </div>
+              </label>
+              <label className={styles.field}>
+                <span>Time Savings</span>
+                <div className={styles.inlineUnit}>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={form.savings.timeSavingsValue}
+                    onChange={(e) => setSavings({ timeSavingsValue: e.target.value })}
+                    placeholder="e.g. 3"
+                  />
+                  <select value={form.savings.timeSavingsUnit} onChange={(e) => setSavings({ timeSavingsUnit: e.target.value as Savings['timeSavingsUnit'] })}>
+                    <option value="">unit…</option>
+                    <option value="days">days</option>
+                    <option value="hours">hours</option>
+                    <option value="mins">mins</option>
+                  </select>
+                </div>
+              </label>
+              <label className={styles.field}>
+                <span>Energy Savings</span>
+                <input type="text" value={form.savings.energySavings} onChange={(e) => setSavings({ energySavings: e.target.value })} placeholder="e.g. 12 units/day" />
+              </label>
+              <label className={styles.field}>
+                <span>Team Cost Savings</span>
+                <div className={styles.inlineUnit}>
+                  <span className={styles.inlineUnitPrefix}>₹</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={form.savings.teamCostSavings}
+                    onChange={(e) => setSavings({ teamCostSavings: e.target.value })}
+                    placeholder="e.g. 15000"
+                  />
+                </div>
+              </label>
+              <label className={`${styles.field} ${styles.full}`}>
+                <span>Miscellaneous</span>
+                <input type="text" value={form.savings.miscellaneous} onChange={(e) => setSavings({ miscellaneous: e.target.value })} placeholder="Any other saving worth noting…" />
+              </label>
+            </div>
+          </div>
+
           <label className={`${styles.field} ${styles.full}`}>
             <span>What did they do? *</span>
             <textarea rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the achievement and its impact…" required minLength={10} />
@@ -277,12 +371,13 @@ export default function HrAppreciationView() {
                 <div>
                   <div className={styles.name}>{r.employee_name}</div>
                   <div className={styles.meta}>
-                    {r.employee_department || '—'} · {r.category} · {fmtDate(r.achievement_date)}
+                    {r.employee_department || '—'} · Task: {fmtDate(r.task_given_date)} → {fmtDate(r.task_deadline_date)} · Completed {fmtDate(r.task_completion_date)}
                   </div>
                 </div>
                 <span className={`${styles.badge} ${styles[`badge_${r.status}`]}`}>{STATUS_LABEL[r.status]}</span>
               </div>
               <p className={styles.desc}>{r.description}</p>
+              {savingsSummary(r.savings) && <div className={styles.meta}>Savings: {savingsSummary(r.savings)}</div>}
               <div className={styles.meta}>
                 Nominated by {r.nominated_by_name} on {fmtDate(r.created_at)} · Reward: {fmtReward(r)}
                 {r.attachment_url && (

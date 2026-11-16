@@ -6,6 +6,10 @@ import { sequelize } from './db';
 // nothing else in the app loads this table, and so a deploy that lands before
 // the migration only breaks this feature (with a clear message), not others.
 
+// Retired as form inputs (the nomination form now asks for the task dates
+// below instead) but kept as read models: existing rows, and the reward a
+// decided appreciation may still carry (set by HR, never by the nominating
+// manager), still need to read back correctly.
 export const APPRECIATION_CATEGORIES = [
   'Outstanding Performance',
   'Teamwork',
@@ -20,6 +24,31 @@ export const REWARD_TYPES = ['none', 'certificate', 'gift_voucher', 'cash'] as c
 export type RewardType = (typeof REWARD_TYPES)[number];
 export type AppreciationStatus = 'pending' | 'approved' | 'rejected';
 
+export const TIME_SAVINGS_UNITS = ['days', 'hours', 'mins'] as const;
+export type TimeSavingsUnit = (typeof TIME_SAVINGS_UNITS)[number];
+
+// The "Savings" block — every field optional, entered free-form by the
+// nominating manager. Plain strings throughout (not numbers): a manager
+// writing "~2" or "varies by site" is real data this shouldn't reject, and
+// nothing downstream does arithmetic on these.
+export interface AppreciationSavings {
+  costSavingsPerMonth: string;
+  timeSavingsValue: string;
+  timeSavingsUnit: TimeSavingsUnit | '';
+  energySavings: string;
+  teamCostSavings: string;
+  miscellaneous: string;
+}
+
+export const EMPTY_SAVINGS: AppreciationSavings = {
+  costSavingsPerMonth: '',
+  timeSavingsValue: '',
+  timeSavingsUnit: '',
+  energySavings: '',
+  teamCostSavings: '',
+  miscellaneous: ''
+};
+
 export interface AppreciationRecord {
   id: string;
   employee_id: string;
@@ -28,8 +57,15 @@ export interface AppreciationRecord {
   employee_designation: string;
   nominated_by: string | null;
   nominated_by_name: string;
+  // Retired input — see the comment above APPRECIATION_CATEGORIES. Empty on
+  // every appreciation submitted since the task-dates redesign.
   category: string;
-  achievement_date: string;
+  // Retired input, same reasoning — superseded by task_completion_date.
+  achievement_date: string | null;
+  task_given_date: string;
+  task_deadline_date: string;
+  task_completion_date: string;
+  savings: AppreciationSavings;
   description: string;
   attachment_url: string;
   reward_type: RewardType;
@@ -63,7 +99,11 @@ async function run<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 const COLUMNS = `id, employee_id, employee_name, employee_department, employee_designation, nominated_by,
-  nominated_by_name, category, to_char(achievement_date, 'YYYY-MM-DD') AS achievement_date, description,
+  nominated_by_name, category, to_char(achievement_date, 'YYYY-MM-DD') AS achievement_date,
+  to_char(task_given_date, 'YYYY-MM-DD') AS task_given_date,
+  to_char(task_deadline_date, 'YYYY-MM-DD') AS task_deadline_date,
+  to_char(task_completion_date, 'YYYY-MM-DD') AS task_completion_date,
+  savings, description,
   attachment_url, reward_type, reward_amount::float AS reward_amount, status, hr_reviewer_id, hr_reviewer_name,
   hr_remarks, decided_at, created_at`;
 
@@ -74,23 +114,30 @@ export interface CreateAppreciationInput {
   employeeDesignation: string;
   nominatedBy: string;
   nominatedByName: string;
-  category: string;
-  achievementDate: string;
+  taskGivenDate: string;
+  taskDeadlineDate: string;
+  taskCompletionDate: string;
+  savings: AppreciationSavings;
   description: string;
   attachmentUrl: string;
-  rewardType: RewardType;
-  rewardAmount: number | null;
 }
 
 export async function createAppreciation(input: CreateAppreciationInput): Promise<AppreciationRecord> {
   return run(async () => {
     const rows = await sequelize.query<AppreciationRecord>(
       `INSERT INTO employee_appreciations (employee_id, employee_name, employee_department, employee_designation,
-         nominated_by, nominated_by_name, category, achievement_date, description, attachment_url, reward_type, reward_amount)
+         nominated_by, nominated_by_name, task_given_date, task_deadline_date, task_completion_date, savings,
+         description, attachment_url)
        VALUES ($employeeId, $employeeName, $employeeDepartment, $employeeDesignation, $nominatedBy, $nominatedByName,
-         $category, $achievementDate, $description, $attachmentUrl, $rewardType, $rewardAmount)
+         $taskGivenDate, $taskDeadlineDate, $taskCompletionDate, $savings::jsonb, $description, $attachmentUrl)
        RETURNING ${COLUMNS}`,
-      { bind: { ...input }, type: QueryTypes.SELECT }
+      {
+        bind: {
+          ...input,
+          savings: JSON.stringify(input.savings)
+        },
+        type: QueryTypes.SELECT
+      }
     );
     return rows[0];
   });

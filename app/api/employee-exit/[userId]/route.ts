@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { resolveVisibilityScope } from '@/lib/departmentScope';
+import { resolveDepartmentOnlyScope } from '@/lib/departmentScope';
 import { countSuperAdmins, deleteUser, findUserById } from '@/lib/userStore';
 import { getAssignedWorkSummary } from '@/lib/employeeExitStore';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -14,7 +14,7 @@ import { getClientIp } from '@/lib/requestIp';
 // users. Rather than widen it — which would quietly hand managers the ability
 // to delete roles, departments, modules and everything else under that prefix
 // — this lives in the employee-exit module, which is already scoped to the
-// viewer's own departments (resolveVisibilityScope, same check the exit
+// viewer's own departments (resolveDepartmentOnlyScope, same check the exit
 // summary and commit routes use).
 //
 // "Delete" is a SOFT delete: db/models/user.js is paranoid, so destroy() sets
@@ -32,7 +32,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     // Same department gate as the rest of this module: an org-wide viewer
     // (admin/superadmin) may act on anyone, a department manager only on the
     // people inside their own scope.
-    const scope = await resolveVisibilityScope(viewer.username);
+    const scope = await resolveDepartmentOnlyScope(viewer.username);
     if (!scope.seesOrgWide && !(scope.scopedUserIds ?? []).includes(userId)) {
       return NextResponse.json({ error: 'Forbidden — outside your department' }, { status: 403 });
     }

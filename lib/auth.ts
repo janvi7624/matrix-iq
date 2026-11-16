@@ -114,6 +114,18 @@ export interface SessionPayload {
    * login from elsewhere no longer does.
    */
   sessionEpoch: number;
+  /**
+   * Does this account manage at least one department (Department.managerIds)?
+   *
+   * Opens exactly the User Management screen (lib/adminAreaAccess.ts) for
+   * department heads who hold a non-privileged role — technical-manager, hr,
+   * marketing… — without making them admins. Same reason and same staleness
+   * trade-off as partnerCreator: proxy.ts cannot load Sequelize, so it is
+   * resolved at login and baked in; someone newly made a department manager
+   * gets it from their next login. It only opens the route area — the user
+   * routes re-check the live department scope (lib/userAdminScope.ts).
+   */
+  departmentHead?: boolean;
 }
 
 function toBase64Url(bytes: ArrayBuffer): string {
@@ -143,6 +155,7 @@ export async function createSessionToken(user: {
   mustChangePassword?: boolean;
   isPrivileged: boolean;
   partnerCreator?: boolean;
+  departmentHead?: boolean;
   partnerId?: string | null;
   // The live users.sessionEpoch value (as epoch ms) at the moment of
   // issuance — see SessionPayload.sessionEpoch. Every caller of this
@@ -164,6 +177,7 @@ export async function createSessionToken(user: {
     // Omitted entirely when false, so an ordinary token keeps the exact shape
     // this app already issued.
     partnerCreator: user.partnerCreator || undefined,
+    departmentHead: user.departmentHead || undefined,
     // `|| undefined` so an internal account's token carries no partner key at
     // all, rather than an explicit null — keeps existing tokens and internal
     // ones byte-identical in shape to what this app already issued.

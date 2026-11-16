@@ -5,6 +5,7 @@ import { verifyPassword } from '@/lib/passwords';
 import { apiErrorResponse } from '@/lib/apiError';
 import { resolveIsPrivileged } from '@/lib/permissions';
 import { isConfiguredPartnerCreator } from '@/lib/partnerAccess';
+import { isUserADepartmentManager } from '@/lib/departmentStore';
 
 // Self-service — works for any logged-in account, not only ones force-locked
 // by mustChangePassword (see proxy.ts), so it doubles as a normal "change my
@@ -45,10 +46,11 @@ export async function POST(request: NextRequest) {
     // The reissued token must carry every claim the original did —
     // partnerId included, or a partner changing their password would be
     // handed an internal-shaped session.
-    const [isPrivileged, partnerBinding, partnerCreator] = await Promise.all([
+    const [isPrivileged, partnerBinding, partnerCreator, departmentHead] = await Promise.all([
       resolveIsPrivileged(user.role),
       findUserStatusById(user.id),
-      isConfiguredPartnerCreator(user.id)
+      isConfiguredPartnerCreator(user.id),
+      isUserADepartmentManager(user.username)
     ]);
     const token = await createSessionToken({
       id: user.id,
@@ -57,6 +59,7 @@ export async function POST(request: NextRequest) {
       mustChangePassword: false,
       isPrivileged,
       partnerCreator,
+      departmentHead,
       partnerId: partnerBinding?.partnerId,
       sessionEpoch: sessionEpochDate?.getTime() ?? Date.now()
     });

@@ -8,13 +8,14 @@ interface Item {
   employee_name: string;
   employee_department: string;
   nominated_by_name: string;
-  category: string;
-  achievement_date: string;
+  task_completion_date: string;
   description: string;
   decided_at: string | null;
   reward_type?: string;
   reward_amount?: number | null;
 }
+
+const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 
 const REWARD_LABEL: Record<string, string> = { certificate: 'Certificate', gift_voucher: 'Gift voucher', cash: 'Cash' };
 
@@ -48,7 +49,7 @@ export default function AppreciationWall({ mode }: { mode: 'company' | 'mine' })
       <div className={styles.wallGrid}>
         {items.map((a) => (
           <article key={a.id} className={styles.wallCard}>
-            <div className={styles.wallCategory}>{a.category}</div>
+            {a.task_completion_date && <div className={styles.wallCategory}>Completed {fmtDate(a.task_completion_date)}</div>}
             {mode === 'company' && (
               <div className={styles.name}>
                 {a.employee_name}

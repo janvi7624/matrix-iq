@@ -23,8 +23,7 @@ export async function GET(request: NextRequest) {
         employee_department: r.employee_department,
         employee_designation: r.employee_designation,
         nominated_by_name: r.nominated_by_name,
-        category: r.category,
-        achievement_date: r.achievement_date,
+        task_completion_date: r.task_completion_date,
         description: r.description,
         decided_at: r.decided_at,
         ...(mine ? { reward_type: r.reward_type, reward_amount: r.reward_amount } : {})

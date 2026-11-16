@@ -28,8 +28,104 @@ export const CELEBRATION_CATEGORY_LABEL: Record<CelebrationCategory, string> = {
   employee_appreciation: 'Employee Appreciation'
 };
 
-export function isCelebrationCategory(value: unknown): value is CelebrationCategory {
+export function isFixedCelebrationCategory(value: unknown): value is CelebrationCategory {
   return typeof value === 'string' && (CELEBRATION_CATEGORIES as readonly string[]).includes(value);
+}
+
+// Kept for existing callers — the fixed-list check alone. Custom categories
+// (below) widen what's actually ACCEPTED when creating an item; this stays
+// the "is one of the seven built-in ones" check used for icon/placeholder
+// lookups, where a custom category has no special-cased entry anyway.
+export const isCelebrationCategory = isFixedCelebrationCategory;
+
+export interface CelebrationCategoryInfo {
+  key: string;
+  label: string;
+  isCustom: boolean;
+  /** A single emoji HR picked for a custom folder. Empty for the fixed seven, which use their own built-in icon instead. */
+  icon?: string;
+}
+
+function slugifyCategory(label: string): string {
+  return (
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 48) || 'folder'
+  );
+}
+
+/** The fixed seven, in order, as {key,label}. */
+export function listFixedCategories(): CelebrationCategoryInfo[] {
+  return CELEBRATION_CATEGORIES.map((key) => ({ key, label: CELEBRATION_CATEGORY_LABEL[key], isCustom: false }));
+}
+
+/** Extra top-level folders HR added beyond the fixed seven. */
+export async function listCustomCategories(): Promise<CelebrationCategoryInfo[]> {
+  const rows = await db.CompanyCelebrationCategory.findAll({ order: [['created_at', 'ASC']] });
+  return rows.map((row) => {
+    const plain = row.get({ plain: true }) as Record<string, unknown>;
+    return { key: plain.key as string, label: (plain.label as string) ?? '', isCustom: true, icon: (plain.icon as string) || '' };
+  });
+}
+
+/** Every category this wall currently has, fixed ones first. */
+export async function listAllCategories(): Promise<CelebrationCategoryInfo[]> {
+  return [...listFixedCategories(), ...(await listCustomCategories())];
+}
+
+/** Whether `key` is either a fixed category or an existing custom one — what createCelebrationItem must accept. */
+export async function isKnownCelebrationCategory(key: unknown): Promise<boolean> {
+  if (typeof key !== 'string' || !key) return false;
+  if (isFixedCelebrationCategory(key)) return true;
+  const row = await db.CompanyCelebrationCategory.findOne({ where: { key } as never });
+  return !!row;
+}
+
+export interface CreateCustomCategoryInput {
+  label: string;
+  /** A single emoji, e.g. '🎉' — optional; falls back to the generic folder icon when empty. */
+  icon?: string;
+  actorId: string;
+}
+
+// A generous but finite cap, not a strict "exactly one emoji" validator —
+// real emoji can be multiple UTF-16 code units (skin tone modifiers, ZWJ
+// sequences like family/flag emoji), and rejecting those would punish
+// perfectly normal picks. This only guards against someone pasting a whole
+// sentence into the field; the column itself is STRING(8).
+const MAX_ICON_LENGTH = 8;
+
+export async function createCustomCategory(input: CreateCustomCategoryInput): Promise<CelebrationCategoryInfo> {
+  const label = input.label.trim();
+  if (!label) throw new Error('Give this folder a name.');
+  const icon = (input.icon || '').trim().slice(0, MAX_ICON_LENGTH);
+
+  const base = slugifyCategory(label);
+  // Never collide with a fixed category's own key, and never with another
+  // custom one — appending a numeric suffix the same way material folders'
+  // sibling-name check does, just against a flat key list instead of a tree.
+  const existingKeys = new Set([
+    ...(CELEBRATION_CATEGORIES as readonly string[]),
+    ...(await listCustomCategories()).map((c) => c.key)
+  ]);
+  let key = base;
+  let suffix = 2;
+  while (existingKeys.has(key)) {
+    key = `${base}_${suffix}`;
+    suffix += 1;
+  }
+
+  const row = await db.CompanyCelebrationCategory.create({
+    key,
+    label,
+    icon: icon || null,
+    created_by: input.actorId || null
+  } as never);
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  return { key: plain.key as string, label: plain.label as string, isCustom: true, icon: (plain.icon as string) || '' };
 }
 
 export type CelebrationMediaKind = 'image' | 'video' | 'file';
@@ -43,7 +139,9 @@ export function celebrationMediaKind(mimeType: string): CelebrationMediaKind {
 
 export interface CelebrationItemRecord {
   id: string;
-  category: CelebrationCategory;
+  // A fixed key, or a custom one from CompanyCelebrationCategory — plain
+  // string now that folders aren't limited to the built-in seven.
+  category: string;
   subfolder: string;
   title: string;
   description: string;
@@ -64,11 +162,10 @@ function isoOrEmpty(value: unknown): string {
 function toRecord(row: Model): CelebrationItemRecord {
   const plain = row.get({ plain: true }) as Record<string, unknown>;
   const creator = plain.creator as { name?: string; username?: string } | null;
-  const rawCategory = plain.category as string;
   const mimeType = (plain.mime_type as string) ?? '';
   return {
     id: plain.id as string,
-    category: isCelebrationCategory(rawCategory) ? rawCategory : 'event_expo',
+    category: (plain.category as string) ?? '',
     subfolder: (plain.subfolder as string) ?? '',
     title: (plain.title as string) ?? '',
     description: (plain.description as string) ?? '',
@@ -81,7 +178,7 @@ function toRecord(row: Model): CelebrationItemRecord {
 }
 
 export interface ListCelebrationFilters {
-  category?: CelebrationCategory;
+  category?: string;
   subfolder?: string;
 }
 
@@ -110,7 +207,7 @@ export interface SubfolderSummary {
 // than SQL GROUP BY, because the "cover" (most recent item) needs the whole
 // row, not just a count, and this table stays small (a company's celebration
 // wall is tens to low hundreds of rows, not millions).
-export async function listSubfolders(category: CelebrationCategory): Promise<SubfolderSummary[]> {
+export async function listSubfolders(category: string): Promise<SubfolderSummary[]> {
   const items = await listCelebrationItems({ category });
   const bySubfolder = new Map<string, CelebrationItemRecord[]>();
   for (const item of items) {
@@ -135,7 +232,7 @@ export async function listSubfolders(category: CelebrationCategory): Promise<Sub
 }
 
 export interface CreateCelebrationItemInput {
-  category: CelebrationCategory;
+  category: string;
   subfolder: string;
   title: string;
   description: string;

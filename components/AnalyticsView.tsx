@@ -197,7 +197,6 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
   // overseeing everything, same "privileged sees every department's numbers"
   // convention the rest of this page already follows for Sales/Back Office.
   const isTechnical = (TMS_ROLE_KEYS as readonly string[]).includes(currentUser.role) || isPrivileged;
-  const isMarketing = currentUser.role === 'marketing' || isPrivileged;
 
   // Sales & Back Office analytics are unchanged from before — same three
   // fetches, same endpoints, same shapes. The only addition is the Closing
@@ -245,13 +244,19 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
   }, [isTechnical]);
 
   // Marketing — reuses the existing marketing-requests stats endpoint.
+  // Fetched for every role, not just Marketing/privileged: the endpoint
+  // itself already scopes non-reviewer/non-technical viewers to only the
+  // requests they raised or are assigned to (lib/marketingRequestStore.ts's
+  // list()), so a Sales rep's or HR's own pending marketing request (e.g. a
+  // festival banner) was previously invisible here purely because of their
+  // role, even though the data was already theirs to see. The section below
+  // still only renders when there's something of theirs to show.
   useEffect(() => {
-    if (!isMarketing) return;
     fetch('/api/marketing-requests/stats')
       .then((r) => (r.ok ? r.json() : null))
       .then((data: MarketingStats | null) => setMarketingStats(data))
       .catch(() => setMarketingStats(null));
-  }, [isMarketing]);
+  }, []);
 
   // Meta Lead Ads — everyone who can already see leads (every role reaches
   // /leads) gets this breakdown; it's just a summarized view of records
@@ -355,7 +360,13 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
         </>
       )}
 
-      {marketingStats && (
+      {marketingStats &&
+        (marketingStats.isReviewer ||
+          marketingStats.isTechnical ||
+          marketingStats.myOpenCount > 0 ||
+          marketingStats.readyForDelivery > 0 ||
+          marketingStats.pendingTechnical > 0 ||
+          marketingStats.myPendingTechnical > 0) && (
         <>
           <h2 className={calcStyles.h2}>Marketing</h2>
           <div className={styles.kpiGrid}>

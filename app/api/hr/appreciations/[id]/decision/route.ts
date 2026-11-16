@@ -65,7 +65,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (decision === 'approved' && employee) {
       await notifyUsers([employee.username], {
         title: '🎉 You have been appreciated!',
-        body: `${updated.nominated_by_name} appreciated you for ${updated.category}.`,
+        body: `${updated.nominated_by_name} appreciated you.`,
         type: 'appreciation_received',
         entityType: 'employee_appreciation_received',
         entityId: id
@@ -74,13 +74,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         // Fire-and-forget: a mail failure must not undo an approval already saved.
         sendEmail({
           to: employee.email,
-          subject: `You have been appreciated — ${updated.category}`,
+          subject: 'You have been appreciated!',
           html: `<p>Dear ${escapeHtml(employee.name || employee.username)},</p>
-<p>Congratulations! <strong>${escapeHtml(updated.nominated_by_name)}</strong> has appreciated you for
-<strong>${escapeHtml(updated.category)}</strong>.</p>
+<p>Congratulations! <strong>${escapeHtml(updated.nominated_by_name)}</strong> has appreciated you.</p>
 <blockquote style="border-left:3px solid #dc2626;margin:12px 0;padding:4px 12px;color:#334155">${escapeHtml(updated.description).replace(/\n/g, '<br>')}</blockquote>
 <p>Keep up the great work!</p><p>— HR Team</p>`,
-          text: `Congratulations! ${updated.nominated_by_name} has appreciated you for ${updated.category}.\n\n${updated.description}\n\n— HR Team`
+          text: `Congratulations! ${updated.nominated_by_name} has appreciated you.\n\n${updated.description}\n\n— HR Team`
         }).catch((error) => console.error('[appreciation] email failed:', error instanceof Error ? error.message : error));
       }
     }

@@ -4,7 +4,7 @@ import { countSuperAdmins, deleteUser, findUserById, updateUser } from '@/lib/us
 import { listActiveRoles } from '@/lib/roleStore';
 import { UserRole, UserStatus } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
-import { resolveVisibilityScope } from '@/lib/departmentScope';
+import { resolveUserAdminAuthority, canActOnRole } from '@/lib/userAdminScope';
 import { canViewRole } from '@/lib/permissions';
 
 // Base auth + admin/superadmin gating happens in proxy.ts (matcher: /api/admin/:path*),
@@ -28,8 +28,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const scope = await resolveVisibilityScope(session.username);
-    if (!scope.seesOrgWide && !scope.scopedUserIds!.includes(id)) {
+    // Department-only below admin (lib/userAdminScope.ts): the departments
+    // this person manages, never a personal direct report elsewhere.
+    const authority = await resolveUserAdminAuthority(session);
+    if (!authority.seesOrgWide && !authority.scopedUserIds!.includes(id)) {
       return NextResponse.json({ error: 'Forbidden — outside your department' }, { status: 403 });
     }
 
@@ -37,6 +39,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const role: UserRole | undefined = activeRoles.some((r) => r.key === body.role) ? body.role : undefined;
     const VALID_STATUSES: UserStatus[] = ['active', 'inactive'];
     const status: UserStatus | undefined = VALID_STATUSES.includes(body.status) ? body.status : undefined;
+
+    if (!authority.adminTier) {
+      if (existing.id === session.sub) {
+        return NextResponse.json({ error: 'Ask an Admin to change your own account' }, { status: 403 });
+      }
+      // Peers and seniors (Admin / Manager / any admin-panel role) are an
+      // Admin's to edit, not a department head's.
+      if (!canActOnRole(authority, existing.role)) {
+        return NextResponse.json({ error: 'Only an Admin can edit an Admin or Manager account' }, { status: 403 });
+      }
+      if (role && role !== existing.role && !authority.assignableRoleKeys.includes(role)) {
+        return NextResponse.json({ error: 'Only an Admin can grant Admin, Manager or other admin-panel roles' }, { status: 403 });
+      }
+      const nextDepartment = typeof body.department === 'string' ? body.department.trim() : undefined;
+      if (nextDepartment !== undefined && nextDepartment !== existing.department && !authority.managedDepartmentNames.includes(nextDepartment)) {
+        return NextResponse.json({ error: 'You can only move people into a department you manage' }, { status: 403 });
+      }
+    }
 
     // An "admin" (non-superadmin) must not be able to grant superadmin to
     // anyone — existing.role === 'superadmin' is already handled above.

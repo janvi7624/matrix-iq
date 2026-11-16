@@ -124,6 +124,50 @@
   margin-top: 12px;
 }
 
+.savingsPanel {
+  margin-top: 16px;
+  padding: 14px 14px 2px;
+  border: 1px dashed var(--mx-border, #e2e8f0);
+  border-radius: 10px;
+  background: var(--mx-surface-2, #f8fafc);
+}
+
+.savingsTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mx-ink-muted, #475569);
+  margin-bottom: 10px;
+}
+
+.inlineUnit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inlineUnit input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.inlineUnit select {
+  flex: 0 0 auto;
+  padding: 8px 8px;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--mx-surface, #fff);
+  color: var(--mx-ink, #0f172a);
+}
+
+.inlineUnitPrefix,
+.inlineUnitSuffix {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mx-ink-faint, #64748b);
+}
+
 .formActions {
   display: flex;
   justify-content: flex-end;

@@ -26,6 +26,25 @@ export function isPartnerAdminArea(pathname: string): boolean {
   );
 }
 
+const USER_ID_PATH = /^\/api\/admin\/users\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The slice of User Management a department head (departmentHead claim, any
+ * role) may reach: the Users screen, listing/creating users, editing one user,
+ * and READING the role list for the dropdown. Nothing else under /admin —
+ * not bulk import, not resend-welcome-email, not roles/departments writes.
+ * The user routes themselves confine every action to the departments the
+ * person manages and to non-admin roles (lib/userAdminScope.ts).
+ */
+export function isDepartmentHeadUserArea(pathname: string, method: string): boolean {
+  const m = method.toUpperCase();
+  if (pathname === '/admin/users') return m === 'GET' || m === 'HEAD';
+  if (pathname === '/api/admin/users') return m === 'GET' || m === 'POST';
+  if (USER_ID_PATH.test(pathname)) return m === 'PATCH';
+  if (pathname === '/api/admin/roles') return m === 'GET';
+  return false;
+}
+
 export function isAdminOnlyPath(pathname: string): boolean {
   return ADMIN_ONLY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
@@ -41,9 +60,11 @@ export function isAdminOnlyPath(pathname: string): boolean {
  */
 export function mayReachAdminArea(
   pathname: string,
-  session: { isPrivileged?: boolean; partnerCreator?: boolean }
+  session: { isPrivileged?: boolean; partnerCreator?: boolean; departmentHead?: boolean },
+  method = 'GET'
 ): boolean {
   if (!isAdminOnlyPath(pathname)) return true;
   if (session.isPrivileged) return true;
-  return !!session.partnerCreator && isPartnerAdminArea(pathname);
+  if (session.partnerCreator && isPartnerAdminArea(pathname)) return true;
+  return !!session.departmentHead && isDepartmentHeadUserArea(pathname, method);
 }

@@ -140,7 +140,13 @@ const PARTNER_INTERNAL_ROLES: UserRole[] = ['superadmin', 'admin', 'manager'];
 // submit appreciations for their team, whatever role they hold. The HR
 // Manager (a department manager too) reviews them; admins are privileged.
 // The page and API apply the exact rule (lib/appreciationAccess.ts).
-const MANAGER_GATED_KEYS = new Set(['team-tasks', 'team-daily-reports', 'hr-appreciation']);
+// user-management and employee-exit join so every department head — whatever
+// role they hold (technical-manager, hr, marketing, engineer…) — can add and
+// edit people in their own department and exit them. The routes enforce the
+// department boundary and the non-admin role list (lib/userAdminScope.ts,
+// resolveDepartmentOnlyScope); proxy.ts lets department heads into exactly
+// the User Management screen via the departmentHead session claim.
+const MANAGER_GATED_KEYS = new Set(['team-tasks', 'team-daily-reports', 'hr-appreciation', 'user-management', 'employee-exit']);
 // "My Products" — shown only to Product Managers (anyone managing at least one
 // product). The caller resolves isProductManager and passes it in.
 const PRODUCT_MANAGER_KEY = 'product-manager';
@@ -239,7 +245,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // only" definition Reimbursement's HR-decide routes already use. ALL_ROLES
   // here, deliberately NOT HR_MODULE_ROLES/HR_RESTRICTED_KEYS — this is the
   // one HR module meant for the whole company to view, not just HR/Admin.
-  { key: 'hr-celebrations', label: 'Company Celebration', desc: 'Birthdays, anniversaries, events, festivals and company moments — photos and videos curated by HR.', icon: 'party-popper', href: '/hr/celebrations', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
+  { key: 'hr-celebrations', label: 'Company Celebration', desc: 'Birthdays, anniversaries, events, festivals and company moments — photos and videos curated by HR.', icon: 'cake', href: '/hr/celebrations', section: 'HR', order: 9, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   // Everyone's unified task inbox — admin- and HR-assigned tasks alike.
   // SALES_ROLES_WITH_TMS, not ALL_ROLES: a technical-manager/team-lead/
   // technician can be assigned tasks like anyone else, and with ALL_ROLES
@@ -792,6 +798,10 @@ async function ensureSeededAndReconciled(): Promise<void> {
     // shared ALL_ROLES/SALES_ROLES_WITH_TMS baseline. Guarded on the exact
     // previous value, like every reconciliation here, so an admin who
     // already customised either tile's visibility keeps their own choice.
+    // Company Celebration was seeded with the same icon as Festival
+    // Greetings (both 'party-popper') — indistinguishable in the nav.
+    // Guarded on the exact old value so an admin's own icon pick survives.
+    if (key === 'hr-celebrations' && plain.icon === 'party-popper') attrs.icon = 'cake';
     if (key === 'analytics' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], ALL_ROLES)) attrs.visibleToRoles = ALL_ROLES_NO_HR;
     if (key === 'my-sold-projects' && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], SALES_ROLES_WITH_TMS)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS_NO_HR;
     if (Object.keys(attrs).length) await row.update(attrs as never);

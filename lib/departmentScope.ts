@@ -66,6 +66,43 @@ export async function resolveVisibilityScope(viewerUsername: string): Promise<Vi
   return { seesOrgWide: false, scopedUserIds };
 }
 
+/**
+ * Department-only variant of resolveVisibilityScope, for actions that must
+ * stay inside the departments a person MANAGES (Department.managerIds) —
+ * Employee Exit and department-head User Management. Personal direct reports
+ * in OTHER departments are deliberately not included: those people belong to
+ * another department head for these purposes.
+ *
+ * Also returns the managed department names, so callers can validate a
+ * department field (e.g. "create a user in my department").
+ */
+export interface DepartmentOnlyScope extends VisibilityScope {
+  managedDepartmentNames: string[];
+}
+
+export async function resolveDepartmentOnlyScope(viewerUsername: string): Promise<DepartmentOnlyScope> {
+  const user = await db.User.findOne({ where: { username: viewerUsername } as never, include: [{ model: db.Role, as: 'role', attributes: ['key'] }] });
+  if (!user) return { seesOrgWide: false, scopedUserIds: [UNKNOWN_USER_ID], managedDepartmentNames: [] };
+
+  const plain = user.get({ plain: true }) as Record<string, unknown>;
+  const ownUserId = plain.id as string;
+  const roleKey = (plain.role as { key?: string } | null)?.key ?? '';
+
+  if (await hasCapability(roleKey, 'viewAllDepartments')) {
+    return { seesOrgWide: true, scopedUserIds: null, managedDepartmentNames: [] };
+  }
+
+  const managed = await departmentsManagedBy(viewerUsername);
+  if (!managed.length) return { seesOrgWide: false, scopedUserIds: [ownUserId], managedDepartmentNames: [] };
+
+  const members = await db.User.findAll({ where: { departmentId: managed.map((d) => d.id) } as never, attributes: ['id'] });
+  return {
+    seesOrgWide: false,
+    scopedUserIds: Array.from(new Set([ownUserId, ...members.map((m) => m.get('id') as string)])),
+    managedDepartmentNames: managed.map((d) => d.name)
+  };
+}
+
 // Single-record access check for the simple "record has one created_by
 // username" shape (Quotations, Site Visits, Leads, Delivery Challans) —
 // mirrors the department-scoped list() rule those stores now use, so a

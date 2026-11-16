@@ -8,6 +8,7 @@ import {
   CalendarHeart,
   CirclePlay,
   FileText,
+  FolderPlus,
   Megaphone,
   Plus,
   Presentation,
@@ -22,16 +23,25 @@ import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
-type CelebrationCategory =
-  | 'birthday'
-  | 'anniversary'
-  | 'event_expo'
-  | 'festival'
-  | 'engagement_activities'
-  | 'company_announcements'
-  | 'employee_appreciation';
+// A fixed key from the built-in seven, or a custom one HR added on top
+// (lib/companyCelebrationStore.ts's company_celebration_categories table) —
+// plain string, since folders are no longer limited to the built-in set.
+type CelebrationCategory = string;
 
-const CATEGORY_LABEL: Record<CelebrationCategory, string> = {
+interface CategoryInfo {
+  key: string;
+  label: string;
+  isCustom: boolean;
+  /** A single emoji HR picked for a custom folder — empty for the built-in seven. */
+  icon?: string;
+}
+
+// A short, varied set to pick from when adding a folder — not exhaustive,
+// just enough that HR isn't stuck typing/pasting an emoji by hand. The free
+// text field next to it still accepts anything.
+const FOLDER_EMOJI_CHOICES = ['🎉', '🏆', '⚽', '🎯', '🎗️', '🌟', '🤝', '🎓', '🧧', '🎄', '🏝️', '📢'];
+
+const CATEGORY_LABEL: Record<string, string> = {
   birthday: 'Birthday',
   anniversary: 'Anniversary',
   event_expo: 'Event / Expo',
@@ -41,9 +51,11 @@ const CATEGORY_LABEL: Record<CelebrationCategory, string> = {
   employee_appreciation: 'Employee Appreciation'
 };
 
-// One icon + tint per category so the tiles are recognisable at a glance
-// rather than seven identical text cards.
-const CATEGORY_ICON: Record<CelebrationCategory, { Icon: LucideIcon; color: string; bg: string }> = {
+// One icon + tint per BUILT-IN category so those tiles are recognisable at a
+// glance; a custom folder HR added gets a generic folder icon instead
+// (CategoryIcon's fallback below) since there is no sensible per-folder
+// icon to assign automatically.
+const CATEGORY_ICON: Record<string, { Icon: LucideIcon; color: string; bg: string }> = {
   birthday: { Icon: Cake, color: '#db2777', bg: '#fce7f3' },
   anniversary: { Icon: CalendarHeart, color: '#e11d48', bg: '#ffe4e6' },
   event_expo: { Icon: Presentation, color: '#2563eb', bg: '#dbeafe' },
@@ -52,9 +64,40 @@ const CATEGORY_ICON: Record<CelebrationCategory, { Icon: LucideIcon; color: stri
   company_announcements: { Icon: Megaphone, color: '#7c3aed', bg: '#ede9fe' },
   employee_appreciation: { Icon: Award, color: '#b45309', bg: '#ffedd5' }
 };
+const CUSTOM_CATEGORY_ICON = { Icon: FolderPlus, color: '#0f766e', bg: '#ccfbf1' };
 
-function CategoryIcon({ category, size = 20 }: { category: CelebrationCategory; size?: number }) {
-  const { Icon, color, bg } = CATEGORY_ICON[category];
+function categoryIconFor(category: string) {
+  return CATEGORY_ICON[category] ?? CUSTOM_CATEGORY_ICON;
+}
+
+function categoryLabelFor(category: string, categories: CategoryInfo[]): string {
+  return categories.find((c) => c.key === category)?.label || CATEGORY_LABEL[category] || category;
+}
+
+function CategoryIcon({ category, categories, size = 20 }: { category: CelebrationCategory; categories: CategoryInfo[]; size?: number }) {
+  const emoji = categories.find((c) => c.key === category)?.icon;
+  if (emoji) {
+    return (
+      <span
+        aria-hidden="true"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: size + 16,
+          height: size + 16,
+          borderRadius: 10,
+          background: 'var(--mx-surface-2, #f3f3f3)',
+          fontSize: size,
+          lineHeight: 1,
+          flexShrink: 0
+        }}
+      >
+        {emoji}
+      </span>
+    );
+  }
+  const { Icon, color, bg } = categoryIconFor(category);
   return (
     <span
       aria-hidden="true"
@@ -74,16 +117,6 @@ function CategoryIcon({ category, size = 20 }: { category: CelebrationCategory; 
     </span>
   );
 }
-
-const CATEGORY_ORDER: CelebrationCategory[] = [
-  'birthday',
-  'anniversary',
-  'event_expo',
-  'festival',
-  'engagement_activities',
-  'company_announcements',
-  'employee_appreciation'
-];
 
 interface SubfolderSummary {
   name: string;
@@ -116,6 +149,7 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
   const [category, setCategory] = useState<CelebrationCategory | null>(null);
   const [subfolder, setSubfolder] = useState<string | null>(null);
 
+  const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [countByCategory, setCountByCategory] = useState<Record<string, number>>({});
   const [subfolders, setSubfolders] = useState<SubfolderSummary[]>([]);
   const [items, setItems] = useState<CelebrationItem[]>([]);
@@ -123,6 +157,10 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
 
   const [showNewAlbum, setShowNewAlbum] = useState(false);
   const [newAlbumName, setNewAlbumName] = useState('');
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderIcon, setNewFolderIcon] = useState('');
+  const [savingFolder, setSavingFolder] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -136,6 +174,7 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
       return;
     }
     const data = await res.json();
+    setCategories(data.categories ?? []);
     setCountByCategory(data.countByCategory ?? {});
     setStatus('');
   }, []);
@@ -198,6 +237,42 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
     setNewAlbumName('');
     setError('');
     setShowNewAlbum(true);
+  }
+
+  function startNewFolder() {
+    setNewFolderName('');
+    setNewFolderIcon('');
+    setError('');
+    setShowNewFolder(true);
+  }
+
+  // Unlike an album (which only exists once its first photo does), a
+  // top-level folder is a real row the moment it's created — it's meant to
+  // sit in the grid empty until HR starts filling it.
+  async function confirmNewFolder() {
+    const label = newFolderName.trim();
+    if (!label) {
+      setError('Give this folder a name.');
+      return;
+    }
+    setSavingFolder(true);
+    setError('');
+    try {
+      const res = await fetch('/api/hr/celebrations/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, icon: newFolderIcon.trim() })
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.error || 'Could not add this folder.');
+        return;
+      }
+      setShowNewFolder(false);
+      await loadTop();
+    } finally {
+      setSavingFolder(false);
+    }
   }
 
   // Creating an album and adding the first photo are one step from the HR
@@ -279,8 +354,8 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
             <ArrowLeft size={14} /> Back
           </button>
           <span style={{ marginLeft: 8, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            {category && <CategoryIcon category={category} size={14} />}
-            {category ? CATEGORY_LABEL[category] : ''}
+            {category && <CategoryIcon category={category} categories={categories} size={14} />}
+            {category ? categoryLabelFor(category, categories) : ''}
             {subfolder ? ` / ${subfolder}` : ''}
           </span>
         </div>
@@ -290,23 +365,98 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
       {uploading && <p className={calcStyles.small}>Uploading…</p>}
 
       {!category && (
-        <div className={calcStyles.row} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginTop: 12 }}>
-          {CATEGORY_ORDER.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              className={calcStyles.sectionPanel}
-              style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
-              onClick={() => openCategory(cat)}
-            >
-              <CategoryIcon category={cat} />
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>{CATEGORY_LABEL[cat]}</div>
-                <div className={calcStyles.small}>{countByCategory[cat] ?? 0} item{(countByCategory[cat] ?? 0) === 1 ? '' : 's'}</div>
+        <>
+          {canManage && !showNewFolder && (
+            <div className={historyStyles.toolbar}>
+              <button type="button" className={historyStyles.button} onClick={startNewFolder}>
+                <FolderPlus size={16} /> Add Folder
+              </button>
+            </div>
+          )}
+
+          {showNewFolder && (
+            <div className={calcStyles.sectionPanel} style={{ marginTop: 12, marginBottom: 4 }}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label} htmlFor="celebration-folder-name">
+                  Folder name *
+                </label>
+                <input
+                  id="celebration-folder-name"
+                  type="text"
+                  className={calcStyles.formControl}
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="e.g. Sports Day"
+                  autoFocus
+                />
               </div>
-            </button>
-          ))}
-        </div>
+              <div className={calcStyles.field} style={{ marginTop: 8 }}>
+                <label className={calcStyles.label} htmlFor="celebration-folder-icon">
+                  Icon (optional — pick one, or type/paste any emoji)
+                </label>
+                <div className={calcStyles.inlineFlexGap8} style={{ flexWrap: 'wrap', marginBottom: 8 }}>
+                  {FOLDER_EMOJI_CHOICES.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => setNewFolderIcon(emoji)}
+                      aria-label={`Use ${emoji}`}
+                      aria-pressed={newFolderIcon === emoji}
+                      style={{
+                        fontSize: 20,
+                        lineHeight: 1,
+                        width: 36,
+                        height: 36,
+                        borderRadius: 8,
+                        border: newFolderIcon === emoji ? '2px solid var(--mx-primary, #2563eb)' : '1px solid var(--mx-border, #e2e8f0)',
+                        background: 'var(--mx-surface-2, #f8fafc)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  id="celebration-folder-icon"
+                  type="text"
+                  className={calcStyles.formControl}
+                  style={{ maxWidth: 120 }}
+                  value={newFolderIcon}
+                  onChange={(e) => setNewFolderIcon(e.target.value)}
+                  placeholder="🎉"
+                  maxLength={8}
+                />
+              </div>
+              <div className={`${calcStyles.inlineFlexGap8} ${calcStyles.mt8}`}>
+                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={confirmNewFolder} disabled={savingFolder}>
+                  {savingFolder ? 'Adding…' : 'Add Folder'}
+                </button>
+                <button type="button" className={historyStyles.button} onClick={() => setShowNewFolder(false)}>
+                  <X size={14} /> Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className={calcStyles.row} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginTop: 12 }}>
+            {categories.map((cat) => (
+              <button
+                key={cat.key}
+                type="button"
+                className={calcStyles.sectionPanel}
+                style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
+                onClick={() => openCategory(cat.key)}
+              >
+                <CategoryIcon category={cat.key} categories={categories} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{cat.label}</div>
+                  <div className={calcStyles.small}>{countByCategory[cat.key] ?? 0} item{(countByCategory[cat.key] ?? 0) === 1 ? '' : 's'}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       {category && !subfolder && (
@@ -335,8 +485,8 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
                   onChange={(e) => setNewAlbumName(e.target.value)}
                   placeholder={
                     category === 'birthday' || category === 'anniversary' || category === 'employee_appreciation'
-                      ? 'e.g. Janvi Thummar'
-                      : 'e.g. Dev Deepawali 2026'
+                      ? 'e.g. Employee Name'
+                      : 'e.g. Title'
                   }
                 />
               </div>
@@ -381,10 +531,7 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
                 </div>
                 <div style={{ padding: 10 }}>
                   <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {category && (() => {
-                      const { Icon, color } = CATEGORY_ICON[category];
-                      return <Icon size={14} style={{ color, flexShrink: 0 }} aria-hidden="true" />;
-                    })()}
+                    {category && <CategoryIcon category={category} categories={categories} size={14} />}
                     {sf.name}
                   </div>
                   <div className={calcStyles.small}>{sf.itemCount} item{sf.itemCount === 1 ? '' : 's'}</div>

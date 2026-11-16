@@ -36,6 +36,7 @@ const modelDefiners = [
   require('./productFeedbackResponse.js'),
   require('./manualClient.js'),
   require('./companyCelebration.js'),
+  require('./companyCelebrationCategory.js'),
   require('./feedbackResponse.js'),
   require('./supportTicket.js'),
   require('./supportTicketComment.js'),
@@ -45,16 +46,6 @@ const modelDefiners = [
   require('./projectTimelineEvent.js'),
   require('./projectDeadlineExtension.js'),
   require('./lead.js'),
-  // AI Sales Agent (Phase 1). Listed here because this index uses STATIC
-  // requires, not a directory scan — a model file not named here does not
-  // exist at runtime and every db.X call through it throws. aiRun is listed
-  // before leadAiAssessment for readability only; every definer runs before
-  // any associate() does.
-  require('./leadInteraction.js'),
-  require('./knowledgeEntry.js'),
-  require('./aiRun.js'),
-  require('./leadAiAssessment.js'),
-  require('./leadScoreRule.js'),
   require('./siteVisit.js'),
   require('./siteVisitUpdate.js'),
   require('./quotation.js'),
