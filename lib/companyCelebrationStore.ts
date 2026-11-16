@@ -149,6 +149,10 @@ export interface CelebrationItemRecord {
   mimeType: string;
   kind: CelebrationMediaKind;
   addedBy: string;
+  // The uploader's user id — not just their display name — so the API can
+  // tell a contributor's OWN items apart from everyone else's for the
+  // edit/delete ownership check (see isCelebrationContributor's comment).
+  createdById: string;
   createdAt: string;
 }
 
@@ -173,8 +177,15 @@ function toRecord(row: Model): CelebrationItemRecord {
     mimeType,
     kind: celebrationMediaKind(mimeType),
     addedBy: creator?.name || creator?.username || '',
+    createdById: (plain.created_by as string) ?? '',
     createdAt: isoOrEmpty(plain.created_at ?? plain.createdAt)
   };
+}
+
+export async function findCelebrationItem(id: string): Promise<CelebrationItemRecord | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.CompanyCelebration.findByPk(id, { include: INCLUDE_CREATOR as never });
+  return row ? toRecord(row) : null;
 }
 
 export interface ListCelebrationFilters {

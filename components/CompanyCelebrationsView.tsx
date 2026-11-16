@@ -138,15 +138,22 @@ interface CelebrationItem {
   kind: 'image' | 'video' | 'file';
   addedBy: string;
   createdAt: string;
+  // Server-computed (app/api/hr/celebrations's GET): true for HR on any
+  // item, true for any other manager only on an item they personally added.
+  canEdit: boolean;
 }
 
 // Three levels: pick a category (fixed, HR never adds one) → pick/create a
 // named album inside it (an employee's name, an event's title — whatever the
-// category calls for) → see the photos/videos in that album. Only the HR
-// Manager can create an album or add/remove media; every signed-in employee
-// can browse all three levels — enforced server-side (app/api/hr/celebrations)
-// and mirrored here only to decide whether to show the write controls at all.
-export default function CompanyCelebrationsView({ canManage }: { canManage: boolean }) {
+// category calls for) → see the photos/videos in that album. Every
+// signed-in employee can browse all three levels. Writing splits in two:
+// `canManage` (HR Manager only) controls the wall's STRUCTURE — folders,
+// renaming/deleting a whole album; `canContribute` (any department manager)
+// controls adding a photo/video and creating a new album for it, with
+// editing/deleting a specific item gated per-item by that item's own
+// `canEdit` (HR can touch anything; another manager only their own upload)
+// — enforced server-side either way, this is only which controls to show.
+export default function CompanyCelebrationsView({ canManage, canContribute }: { canManage: boolean; canContribute: boolean }) {
   const [category, setCategory] = useState<CelebrationCategory | null>(null);
   const [subfolder, setSubfolder] = useState<string | null>(null);
 
@@ -529,7 +536,7 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
 
       {category && !subfolder && (
         <>
-          {canManage && (
+          {canContribute && (
             <div className={historyStyles.toolbar} style={{ marginTop: 8 }}>
               <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={startNewAlbum}>
                 <Plus size={16} /> New Album
@@ -614,17 +621,23 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
 
       {category && subfolder && (
         <>
-          {canManage && (
+          {(canContribute || canManage) && (
             <div className={historyStyles.toolbar} style={{ marginTop: 8 }}>
-              <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={triggerUploadIntoCurrentAlbum}>
-                <Upload size={16} /> Add Photo/Video
-              </button>
-              <button type="button" className={historyStyles.button} onClick={() => handleRenameAlbum(subfolder)}>
-                <Pencil size={14} /> Rename Album
-              </button>
-              <button type="button" className={historyStyles.button} style={{ color: 'var(--mx-danger, #b91c1c)' }} onClick={() => handleDeleteAlbum(subfolder, items.length)}>
-                <Trash2 size={14} /> Delete Album
-              </button>
+              {canContribute && (
+                <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={triggerUploadIntoCurrentAlbum}>
+                  <Upload size={16} /> Add Photo/Video
+                </button>
+              )}
+              {canManage && (
+                <>
+                  <button type="button" className={historyStyles.button} onClick={() => handleRenameAlbum(subfolder)}>
+                    <Pencil size={14} /> Rename Album
+                  </button>
+                  <button type="button" className={historyStyles.button} style={{ color: 'var(--mx-danger, #b91c1c)' }} onClick={() => handleDeleteAlbum(subfolder, items.length)}>
+                    <Trash2 size={14} /> Delete Album
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -633,7 +646,7 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginTop: 12 }}>
             {items.map((item) => (
               <div key={item.id} className={calcStyles.sectionPanel} style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
-                {canManage && tileActions(() => handleEditItem(item), () => handleDeleteItem(item.id), 'photo/video')}
+                {item.canEdit && tileActions(() => handleEditItem(item), () => handleDeleteItem(item.id), 'photo/video')}
                 {item.kind === 'image' ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={item.fileUrl} alt={item.title || subfolder} style={{ width: '100%', height: 200, objectFit: 'cover' }} />

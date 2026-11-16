@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
-import { isHrManager } from '@/lib/hrAccess';
+import { isCelebrationContributor, isHrManager } from '@/lib/hrAccess';
 import {
   createCelebrationItem,
   isKnownCelebrationCategory,
@@ -11,7 +11,13 @@ import {
 } from '@/lib/companyCelebrationStore';
 
 // Readable by every signed-in employee — this is the company's own
-// celebration wall. Writing (POST here, DELETE on [id]) is HR Manager only.
+// celebration wall.
+//   POST here: any department manager (isCelebrationContributor), not just
+//     HR — they may upload a photo/video and create a new album for it.
+//   PATCH/DELETE on [id]: HR may act on any item; a non-HR contributor only
+//     on items they personally added (see that route's canActOn).
+//   Folders and whole-album rename/delete stay HR-only (categories/ and
+//   albums/ routes) — a manager can add content, not restructure the wall.
 export async function GET(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -21,7 +27,12 @@ export async function GET(request: NextRequest) {
   const subfolder = url.searchParams.get('subfolder') || undefined;
 
   try {
-    const canManage = await isHrManager(viewer);
+    // canManage: may manage the wall's STRUCTURE (folders, renaming/deleting
+    // whole albums) — HR Manager only, unchanged.
+    // canContribute: may upload a photo/video and create a new album — any
+    // department manager, which is what makes per-item edit/delete below
+    // meaningful for someone other than HR in the first place.
+    const [canManage, canContribute] = await Promise.all([isHrManager(viewer), isCelebrationContributor(viewer)]);
 
     if (!categoryParam) {
       // Top level: the fixed seven plus whatever HR has added on top, each
@@ -32,7 +43,7 @@ export async function GET(request: NextRequest) {
       for (const category of categories) {
         counts[category.key] = (await listCelebrationItems({ category: category.key })).length;
       }
-      return NextResponse.json({ categories, countByCategory: counts, canManage });
+      return NextResponse.json({ categories, countByCategory: counts, canManage, canContribute });
     }
 
     if (!(await isKnownCelebrationCategory(categoryParam))) {
@@ -41,23 +52,28 @@ export async function GET(request: NextRequest) {
 
     if (!subfolder) {
       const subfolders = await listSubfolders(categoryParam);
-      return NextResponse.json({ category: categoryParam, subfolders, canManage });
+      return NextResponse.json({ category: categoryParam, subfolders, canManage, canContribute });
     }
 
     const items = await listCelebrationItems({ category: categoryParam, subfolder });
-    return NextResponse.json({ category: categoryParam, subfolder, items, canManage });
+    // Per-item edit/delete right, computed here rather than left to the
+    // client: HR may act on anything; a contributor only on their own
+    // upload (createdById === viewer.userId) — same pattern Employee
+    // Appreciation's GET uses for its own can_edit flag.
+    const withEditFlag = items.map((item) => ({ ...item, canEdit: canManage || (canContribute && item.createdById === viewer.userId) }));
+    return NextResponse.json({ category: categoryParam, subfolder, items: withEditFlag, canManage, canContribute });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
 
-// Add a photo/video to a (possibly brand-new) subfolder. HR Manager only —
-// the celebration wall is HR-curated; nobody else may post to it.
+// Add a photo/video to a (possibly brand-new) subfolder. Any department
+// manager, not just HR — see this file's header comment.
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await isHrManager(viewer))) {
-    return NextResponse.json({ error: 'Only the HR Manager can add to the Company Celebration wall.' }, { status: 403 });
+  if (!(await isCelebrationContributor(viewer))) {
+    return NextResponse.json({ error: 'Only a manager or the HR Manager can add to the Company Celebration wall.' }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);
@@ -84,7 +100,7 @@ export async function POST(request: NextRequest) {
       mimeType,
       actorId: viewer.userId
     });
-    return NextResponse.json({ item }, { status: 201 });
+    return NextResponse.json({ item: { ...item, canEdit: true } }, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);
   }
