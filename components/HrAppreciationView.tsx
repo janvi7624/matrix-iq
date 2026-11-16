@@ -292,7 +292,7 @@ export default function HrAppreciationView() {
                     onChange={(e) => setSavings({ costSavingsPerMonth: e.target.value })}
                     placeholder="e.g. 5000"
                   />
-                  <span className={styles.inlineUnitSuffix}>pm</span>
+                  <span className={styles.inlineUnitSuffix}>per month</span>
                 </div>
               </label>
               <label className={styles.field}>
@@ -302,15 +302,28 @@ export default function HrAppreciationView() {
                     type="text"
                     inputMode="decimal"
                     value={form.savings.timeSavingsValue}
-                    onChange={(e) => setSavings({ timeSavingsValue: e.target.value })}
+                    onChange={(e) =>
+                      setSavings({
+                        timeSavingsValue: e.target.value,
+                        timeSavingsUnit: e.target.value ? form.savings.timeSavingsUnit || 'hours' : ''
+                      })
+                    }
                     placeholder="e.g. 3"
                   />
-                  <select value={form.savings.timeSavingsUnit} onChange={(e) => setSavings({ timeSavingsUnit: e.target.value as Savings['timeSavingsUnit'] })}>
-                    <option value="">unit…</option>
-                    <option value="days">days</option>
-                    <option value="hours">hours</option>
-                    <option value="mins">mins</option>
-                  </select>
+                  <div className={styles.unitToggle} role="radiogroup" aria-label="Time unit">
+                    {(['mins', 'hours', 'days'] as const).map((u) => (
+                      <button
+                        key={u}
+                        type="button"
+                        role="radio"
+                        aria-checked={(form.savings.timeSavingsUnit || 'hours') === u}
+                        className={`${styles.unitBtn} ${(form.savings.timeSavingsUnit || 'hours') === u ? styles.unitBtnActive : ''}`}
+                        onClick={() => setSavings({ timeSavingsUnit: u })}
+                      >
+                        {u === 'mins' ? 'Minutes' : u === 'hours' ? 'Hours' : 'Days'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </label>
               <label className={styles.field}>

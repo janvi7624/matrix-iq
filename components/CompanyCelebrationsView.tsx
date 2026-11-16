@@ -10,6 +10,7 @@ import {
   FileText,
   FolderPlus,
   Megaphone,
+  Pencil,
   Plus,
   Presentation,
   Sparkles,
@@ -344,6 +345,71 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
     if (res.ok && category && subfolder) await loadItems(category, subfolder);
   }
 
+  // ---- Edit / delete (HR Manager, admin, superadmin) ----
+
+  async function send(url: string, method: 'PATCH' | 'DELETE', body?: unknown): Promise<boolean> {
+    setError('');
+    const res = await fetch(url, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || 'Could not save the change.');
+      return false;
+    }
+    return true;
+  }
+
+  async function handleEditItem(item: CelebrationItem) {
+    const title = prompt('Caption for this photo/video:', item.title);
+    if (title === null) return;
+    if (await send(`/api/hr/celebrations/${item.id}`, 'PATCH', { title }) && category && subfolder) await loadItems(category, subfolder);
+  }
+
+  async function handleRenameAlbum(name: string) {
+    if (!category) return;
+    const next = prompt('Rename album:', name)?.trim();
+    if (!next || next === name) return;
+    if (!(await send('/api/hr/celebrations/albums', 'PATCH', { category, subfolder: name, name: next }))) return;
+    if (subfolder === name) setSubfolder(next);
+    else await loadSubfolders(category);
+  }
+
+  async function handleDeleteAlbum(name: string, count: number) {
+    if (!category) return;
+    if (!confirm(`Delete the album "${name}" and all ${count} photo/video${count === 1 ? '' : 's'} in it? This cannot be undone.`)) return;
+    if (!(await send('/api/hr/celebrations/albums', 'DELETE', { category, subfolder: name }))) return;
+    if (subfolder === name) setSubfolder(null);
+    else await loadSubfolders(category);
+  }
+
+  async function handleEditFolder(cat: CategoryInfo) {
+    const label = prompt('Folder name:', cat.label)?.trim();
+    if (!label) return;
+    const icon = prompt('Folder icon (one emoji, leave blank for none):', cat.icon || '');
+    if (icon === null) return;
+    if (await send(`/api/hr/celebrations/categories/${encodeURIComponent(cat.key)}`, 'PATCH', { label, icon })) await loadTop();
+  }
+
+  async function handleDeleteFolder(cat: CategoryInfo) {
+    const count = countByCategory[cat.key] ?? 0;
+    if (!confirm(`Delete the folder "${cat.label}"${count ? ` and all ${count} item${count === 1 ? '' : 's'} in it` : ''}? This cannot be undone.`)) return;
+    if (await send(`/api/hr/celebrations/categories/${encodeURIComponent(cat.key)}`, 'DELETE')) await loadTop();
+  }
+
+  const tileActions = (onEdit: () => void, onDelete: () => void, what: string) => (
+    <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 1, display: 'flex', gap: 4 }}>
+      <button type="button" className={historyStyles.actionBtn} aria-label={`Edit ${what}`} title={`Edit ${what}`} onClick={onEdit}>
+        <Pencil size={14} />
+      </button>
+      <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnDanger}`} aria-label={`Delete ${what}`} title={`Delete ${what}`} onClick={onDelete}>
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+
   return (
     <AppShell title="Company Celebration" subtitle="HR › Birthdays, anniversaries, events, festivals and company moments">
       <input ref={fileInputRef} type="file" accept="image/*,video/*" hidden onChange={handleFileChosen} />
@@ -441,19 +507,21 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
 
           <div className={calcStyles.row} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginTop: 12 }}>
             {categories.map((cat) => (
-              <button
-                key={cat.key}
-                type="button"
-                className={calcStyles.sectionPanel}
-                style={{ textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
-                onClick={() => openCategory(cat.key)}
-              >
-                <CategoryIcon category={cat.key} categories={categories} />
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 16 }}>{cat.label}</div>
-                  <div className={calcStyles.small}>{countByCategory[cat.key] ?? 0} item{(countByCategory[cat.key] ?? 0) === 1 ? '' : 's'}</div>
-                </div>
-              </button>
+              <div key={cat.key} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  className={calcStyles.sectionPanel}
+                  style={{ width: '100%', height: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
+                  onClick={() => openCategory(cat.key)}
+                >
+                  <CategoryIcon category={cat.key} categories={categories} />
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 16 }}>{cat.label}</div>
+                    <div className={calcStyles.small}>{countByCategory[cat.key] ?? 0} item{(countByCategory[cat.key] ?? 0) === 1 ? '' : 's'}</div>
+                  </div>
+                </button>
+                {canManage && cat.isCustom && tileActions(() => handleEditFolder(cat), () => handleDeleteFolder(cat), 'folder')}
+              </div>
             ))}
           </div>
         </>
@@ -505,11 +573,12 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginTop: 12 }}>
             {subfolders.map((sf) => (
+              <div key={sf.name} style={{ position: 'relative' }}>
+              {canManage && tileActions(() => handleRenameAlbum(sf.name), () => handleDeleteAlbum(sf.name, sf.itemCount), 'album')}
               <button
-                key={sf.name}
                 type="button"
                 className={calcStyles.sectionPanel}
-                style={{ textAlign: 'left', cursor: 'pointer', padding: 0, overflow: 'hidden' }}
+                style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: 0, overflow: 'hidden' }}
                 onClick={() => openSubfolder(sf.name)}
               >
                 <div style={{ height: 120, background: 'var(--mx-surface-2, #f3f3f3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -537,6 +606,7 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
                   <div className={calcStyles.small}>{sf.itemCount} item{sf.itemCount === 1 ? '' : 's'}</div>
                 </div>
               </button>
+              </div>
             ))}
           </div>
         </>
@@ -549,6 +619,12 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
               <button type="button" className={`${historyStyles.button} ${historyStyles.primary}`} onClick={triggerUploadIntoCurrentAlbum}>
                 <Upload size={16} /> Add Photo/Video
               </button>
+              <button type="button" className={historyStyles.button} onClick={() => handleRenameAlbum(subfolder)}>
+                <Pencil size={14} /> Rename Album
+              </button>
+              <button type="button" className={historyStyles.button} style={{ color: 'var(--mx-danger, #b91c1c)' }} onClick={() => handleDeleteAlbum(subfolder, items.length)}>
+                <Trash2 size={14} /> Delete Album
+              </button>
             </div>
           )}
 
@@ -557,17 +633,7 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginTop: 12 }}>
             {items.map((item) => (
               <div key={item.id} className={calcStyles.sectionPanel} style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
-                {canManage && (
-                  <button
-                    type="button"
-                    className={`${historyStyles.actionBtn} ${historyStyles.actionBtnDanger}`}
-                    style={{ position: 'absolute', top: 6, right: 6, zIndex: 1 }}
-                    aria-label="Remove"
-                    onClick={() => handleDeleteItem(item.id)}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
+                {canManage && tileActions(() => handleEditItem(item), () => handleDeleteItem(item.id), 'photo/video')}
                 {item.kind === 'image' ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={item.fileUrl} alt={item.title || subfolder} style={{ width: '100%', height: 200, objectFit: 'cover' }} />
@@ -578,6 +644,7 @@ export default function CompanyCelebrationsView({ canManage }: { canManage: bool
                     <FileText size={18} aria-hidden="true" /> Open file
                   </a>
                 )}
+                {item.title && <div style={{ padding: '8px 8px 0', fontWeight: 600, fontSize: 14 }}>{item.title}</div>}
                 <div style={{ padding: 8 }} className={calcStyles.small}>
                   {item.addedBy && <>Added by {item.addedBy}</>}
                 </div>

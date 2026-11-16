@@ -262,3 +262,59 @@ export async function deleteCelebrationItem(id: string): Promise<boolean> {
   await row.destroy();
   return true;
 }
+
+// ---------- Edit / delete (HR Manager, admin, superadmin — gated by the routes) ----------
+
+export async function updateCelebrationItem(id: string, patch: { title?: string; description?: string }): Promise<CelebrationItemRecord | null> {
+  if (!isUuid(id)) return null;
+  const row = await db.CompanyCelebration.findByPk(id);
+  if (!row) return null;
+  const changes: Record<string, string> = {};
+  if (typeof patch.title === 'string') changes.title = patch.title.trim().slice(0, 200);
+  if (typeof patch.description === 'string') changes.description = patch.description.trim().slice(0, 2000);
+  await row.update(changes as never);
+  const withAssoc = await db.CompanyCelebration.findByPk(id, { include: INCLUDE_CREATOR as never });
+  return toRecord(withAssoc as Model);
+}
+
+/** Rename an album. Merges into the target if an album with that name already exists. Returns rows moved. */
+export async function renameSubfolder(category: string, from: string, to: string): Promise<number> {
+  const name = to.trim();
+  if (!name) throw new Error('Give this album a name.');
+  const [count] = await db.CompanyCelebration.update({ subfolder: name } as never, { where: { category, subfolder: from } as never });
+  return count;
+}
+
+/** Delete an album and every photo/video in it. Returns rows removed. */
+export async function deleteSubfolder(category: string, subfolder: string): Promise<number> {
+  return db.CompanyCelebration.destroy({ where: { category, subfolder } as never });
+}
+
+/** Rename / re-icon a custom folder. The fixed seven are not editable. */
+export async function updateCustomCategory(key: string, patch: { label?: string; icon?: string }): Promise<CelebrationCategoryInfo | null> {
+  if (isFixedCelebrationCategory(key)) throw new Error('Built-in folders cannot be edited.');
+  const row = await db.CompanyCelebrationCategory.findOne({ where: { key } as never });
+  if (!row) return null;
+  const changes: Record<string, unknown> = {};
+  if (typeof patch.label === 'string') {
+    const label = patch.label.trim();
+    if (!label) throw new Error('Give this folder a name.');
+    changes.label = label;
+  }
+  if (typeof patch.icon === 'string') changes.icon = patch.icon.trim().slice(0, MAX_ICON_LENGTH) || null;
+  await row.update(changes as never);
+  const plain = row.get({ plain: true }) as Record<string, unknown>;
+  return { key: plain.key as string, label: plain.label as string, isCustom: true, icon: (plain.icon as string) || '' };
+}
+
+/** Delete a custom folder together with all of its albums and media. */
+export async function deleteCustomCategory(key: string): Promise<boolean> {
+  if (isFixedCelebrationCategory(key)) throw new Error('Built-in folders cannot be deleted.');
+  const row = await db.CompanyCelebrationCategory.findOne({ where: { key } as never });
+  if (!row) return false;
+  await db.sequelize.transaction(async (transaction) => {
+    await db.CompanyCelebration.destroy({ where: { category: key } as never, transaction });
+    await row.destroy({ transaction });
+  });
+  return true;
+}
