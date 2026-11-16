@@ -8,13 +8,11 @@ import { findUserById } from '@/lib/userStore';
 import { listDepartmentManagers, findHrManagers } from '@/lib/departmentStore';
 import { isAppreciationDecider, pickableEmployees } from '@/lib/appreciationAccess';
 import {
-  AppreciationSavings,
-  EMPTY_SAVINGS,
-  TIME_SAVINGS_UNITS,
   AppreciationsUnavailableError,
   createAppreciation,
   listAllAppreciations,
-  listAppreciationsByNominator
+  listAppreciationsByNominator,
+  validateTaskFields
 } from '@/lib/appreciationStore';
 
 // Employee Appreciation — list + submit.
@@ -22,21 +20,6 @@ import {
 //   POST managers / department heads / admin: nominate an employee in scope.
 
 const str = (v: unknown, max = 4000) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
-function parseSavings(raw: unknown): AppreciationSavings {
-  const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const timeSavingsUnit = str(body.timeSavingsUnit, 10);
-  return {
-    costSavingsPerMonth: str(body.costSavingsPerMonth, 60),
-    timeSavingsValue: str(body.timeSavingsValue, 60),
-    timeSavingsUnit: (TIME_SAVINGS_UNITS as readonly string[]).includes(timeSavingsUnit) ? (timeSavingsUnit as AppreciationSavings['timeSavingsUnit']) : '',
-    energySavings: str(body.energySavings, 200),
-    teamCostSavings: str(body.teamCostSavings, 60),
-    miscellaneous: str(body.miscellaneous, 500)
-  };
-}
 
 function unavailable(error: unknown) {
   return error instanceof AppreciationsUnavailableError
@@ -52,7 +35,14 @@ export async function GET(request: NextRequest) {
     const canSubmit = pickable.length > 0;
     if (!isDecider && !canSubmit) return NextResponse.json({ error: 'Only managers, department heads and HR can use Employee Appreciation' }, { status: 403 });
     const rows = isDecider ? await listAllAppreciations() : await listAppreciationsByNominator(viewer.userId);
-    return NextResponse.json({ rows, isDecider, canSubmit });
+    // The nominating manager may edit/delete their own submission ONLY while
+    // it is still awaiting HR — once decided, the record is HR's history to
+    // keep, not the manager's to rewrite. Computed here (not re-derived by
+    // the client from nominated_by, which the client has no reliable
+    // identity to compare against anyway) so the UI and the enforcement in
+    // [id]/route.ts can never disagree about who sees edit controls.
+    const withEditFlag = rows.map((r) => ({ ...r, can_edit: r.nominated_by === viewer.userId && r.status === 'pending' }));
+    return NextResponse.json({ rows: withEditFlag, isDecider, canSubmit });
   } catch (error) {
     return unavailable(error) ?? apiErrorResponse(error);
   }
@@ -64,27 +54,11 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   const employeeId = str(body?.employeeId, 64);
-  const taskGivenDate = str(body?.taskGivenDate, 10);
-  const taskDeadlineDate = str(body?.taskDeadlineDate, 10);
-  const taskCompletionDate = str(body?.taskCompletionDate, 10);
-  const savings = parseSavings(body?.savings ?? EMPTY_SAVINGS);
-  const description = str(body?.description);
-  const attachmentUrl = str(body?.attachmentUrl, 2000);
+  const validated = validateTaskFields(body);
+  if (!validated.ok) return NextResponse.json({ error: validated.error }, { status: 400 });
+  const { taskGivenDate, taskDeadlineDate, taskCompletionDate, savings, description, attachmentUrl } = validated.value;
 
   if (!employeeId) return NextResponse.json({ error: 'Pick the employee you are appreciating' }, { status: 400 });
-  if (!DATE_RE.test(taskGivenDate) || Number.isNaN(Date.parse(taskGivenDate))) {
-    return NextResponse.json({ error: 'Task given date is required' }, { status: 400 });
-  }
-  if (!DATE_RE.test(taskDeadlineDate) || Number.isNaN(Date.parse(taskDeadlineDate))) {
-    return NextResponse.json({ error: 'Task deadline date is required' }, { status: 400 });
-  }
-  if (!DATE_RE.test(taskCompletionDate) || Number.isNaN(Date.parse(taskCompletionDate))) {
-    return NextResponse.json({ error: 'Task completion date is required' }, { status: 400 });
-  }
-  if (taskDeadlineDate < taskGivenDate) return NextResponse.json({ error: 'Task deadline date cannot be before the task given date' }, { status: 400 });
-  if (taskCompletionDate < taskGivenDate) return NextResponse.json({ error: 'Task completion date cannot be before the task given date' }, { status: 400 });
-  if (taskCompletionDate > todayIso()) return NextResponse.json({ error: 'Task completion date cannot be in the future' }, { status: 400 });
-  if (description.length < 10) return NextResponse.json({ error: 'Describe what they did (at least 10 characters)' }, { status: 400 });
 
   try {
     const pickable = await pickableEmployees(viewer);

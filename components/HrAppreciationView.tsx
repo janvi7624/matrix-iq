@@ -33,6 +33,10 @@ interface Row {
   hr_remarks: string;
   decided_at: string | null;
   created_at: string;
+  // Server-computed: this is the viewer's own submission AND it's still
+  // pending — see app/api/hr/appreciations/route.ts's GET. Once HR decides
+  // it, this flips false and the edit/delete controls disappear.
+  can_edit: boolean;
 }
 
 interface Employee {
@@ -91,10 +95,12 @@ export default function HrAppreciationView() {
   const [loadError, setLoadError] = useState('');
   const [tab, setTab] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deciding, setDeciding] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [remarks, setRemarks] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
@@ -154,23 +160,62 @@ export default function HrAppreciationView() {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch('/api/hr/appreciations', {
-        method: 'POST',
+      const url = editingId ? `/api/hr/appreciations/${editingId}` : '/api/hr/appreciations';
+      const method = editingId ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(form)
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error(data?.error || 'Could not submit');
+        toast.error(data?.error || (editingId ? 'Could not save changes' : 'Could not submit'));
         return;
       }
-      toast.success('Appreciation sent to HR for approval');
+      toast.success(editingId ? 'Changes saved' : 'Appreciation sent to HR for approval');
       setForm({ ...EMPTY_FORM, taskGivenDate: today(), taskCompletionDate: today() });
       setShowForm(false);
+      setEditingId(null);
       setTab('pending');
       load();
     } finally {
       setSaving(false);
+    }
+  }
+
+  function cancelForm() {
+    setShowForm(false);
+    setEditingId(null);
+  }
+
+  function startEdit(row: Row) {
+    setEditingId(row.id);
+    setForm({
+      employeeId: '',
+      taskGivenDate: row.task_given_date,
+      taskDeadlineDate: row.task_deadline_date,
+      taskCompletionDate: row.task_completion_date,
+      savings: row.savings || EMPTY_SAVINGS,
+      description: row.description,
+      attachmentUrl: row.attachment_url
+    });
+    setShowForm(true);
+  }
+
+  async function handleDelete(row: Row) {
+    if (!confirm(`Delete this appreciation for ${row.employee_name}? This cannot be undone.`)) return;
+    setDeletingId(row.id);
+    try {
+      const res = await fetch(`/api/hr/appreciations/${row.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(data?.error || 'Could not delete');
+        return;
+      }
+      toast.success('Deleted');
+      load();
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -217,7 +262,15 @@ export default function HrAppreciationView() {
           ))}
         </div>
         {canSubmit && !showForm && (
-          <button type="button" className={styles.primary} onClick={() => setShowForm(true)}>
+          <button
+            type="button"
+            className={styles.primary}
+            onClick={() => {
+              setEditingId(null);
+              setForm({ ...EMPTY_FORM, taskGivenDate: today(), taskCompletionDate: today() });
+              setShowForm(true);
+            }}
+          >
             + Appreciate an employee
           </button>
         )}
@@ -225,20 +278,22 @@ export default function HrAppreciationView() {
 
       {showForm && (
         <form className={styles.card} onSubmit={submit}>
-          <h3 className={styles.cardTitle}>New appreciation</h3>
+          <h3 className={styles.cardTitle}>{editingId ? 'Edit appreciation' : 'New appreciation'}</h3>
           <div className={styles.grid}>
-            <label className={styles.field}>
-              <span>Employee *</span>
-              <select value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })} required>
-                <option value="">Select employee…</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.name}
-                    {emp.department ? ` — ${emp.department}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!editingId && (
+              <label className={styles.field}>
+                <span>Employee *</span>
+                <select value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })} required>
+                  <option value="">Select employee…</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.name}
+                      {emp.department ? ` — ${emp.department}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className={styles.field}>
               <span>Task given date *</span>
               <input
@@ -355,11 +410,11 @@ export default function HrAppreciationView() {
             <textarea rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the achievement and its impact…" required minLength={10} />
           </label>
           <div className={styles.formActions}>
-            <button type="button" className={styles.secondary} onClick={() => setShowForm(false)} disabled={saving}>
+            <button type="button" className={styles.secondary} onClick={cancelForm} disabled={saving}>
               Cancel
             </button>
             <button type="submit" className={styles.primary} disabled={saving || uploading}>
-              {saving ? 'Submitting…' : 'Submit to HR'}
+              {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Submit to HR'}
             </button>
           </div>
         </form>
@@ -406,6 +461,16 @@ export default function HrAppreciationView() {
                 <div className={styles.meta}>
                   {STATUS_LABEL[r.status]} by {r.hr_reviewer_name || 'HR'} on {fmtDate(r.decided_at)}
                   {r.hr_remarks ? ` — “${r.hr_remarks}”` : ''}
+                </div>
+              )}
+              {r.can_edit && (
+                <div className={styles.decide}>
+                  <button type="button" className={styles.secondary} onClick={() => startEdit(r)} disabled={deletingId === r.id}>
+                    Edit
+                  </button>
+                  <button type="button" className={styles.reject} disabled={deletingId === r.id} onClick={() => handleDelete(r)}>
+                    {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                  </button>
                 </div>
               )}
               {isDecider && r.status === 'pending' && (

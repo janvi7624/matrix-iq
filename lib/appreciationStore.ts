@@ -78,6 +78,58 @@ export interface AppreciationRecord {
   created_at: string;
 }
 
+// Shared by the POST (create) and PATCH (owner edit) routes — the task-dates
+// field set and its validation rules are identical for both, and having two
+// copies is exactly how they'd eventually drift (e.g. only one route gets a
+// future bugfix to the date-ordering check).
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const str = (v: unknown, max = 4000) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+export function parseSavingsInput(raw: unknown): AppreciationSavings {
+  const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const timeSavingsUnit = str(body.timeSavingsUnit, 10);
+  return {
+    costSavingsPerMonth: str(body.costSavingsPerMonth, 60),
+    timeSavingsValue: str(body.timeSavingsValue, 60),
+    timeSavingsUnit: (TIME_SAVINGS_UNITS as readonly string[]).includes(timeSavingsUnit) ? (timeSavingsUnit as TimeSavingsUnit) : '',
+    energySavings: str(body.energySavings, 200),
+    teamCostSavings: str(body.teamCostSavings, 60),
+    miscellaneous: str(body.miscellaneous, 500)
+  };
+}
+
+export interface ParsedTaskFields {
+  taskGivenDate: string;
+  taskDeadlineDate: string;
+  taskCompletionDate: string;
+  savings: AppreciationSavings;
+  description: string;
+  attachmentUrl: string;
+}
+
+export type ValidatedTaskFields = { ok: true; value: ParsedTaskFields; error: null } | { ok: false; value: null; error: string };
+
+/** Validates the shared task-dates/description fields; returns the first error message, or null if all valid. */
+export function validateTaskFields(body: Record<string, unknown> | null): ValidatedTaskFields {
+  const taskGivenDate = str(body?.taskGivenDate, 10);
+  const taskDeadlineDate = str(body?.taskDeadlineDate, 10);
+  const taskCompletionDate = str(body?.taskCompletionDate, 10);
+  const savings = parseSavingsInput(body?.savings ?? EMPTY_SAVINGS);
+  const description = str(body?.description);
+  const attachmentUrl = str(body?.attachmentUrl, 2000);
+
+  if (!DATE_RE.test(taskGivenDate) || Number.isNaN(Date.parse(taskGivenDate))) return { ok: false, value: null, error: 'Task given date is required' };
+  if (!DATE_RE.test(taskDeadlineDate) || Number.isNaN(Date.parse(taskDeadlineDate))) return { ok: false, value: null, error: 'Task deadline date is required' };
+  if (!DATE_RE.test(taskCompletionDate) || Number.isNaN(Date.parse(taskCompletionDate))) return { ok: false, value: null, error: 'Task completion date is required' };
+  if (taskDeadlineDate < taskGivenDate) return { ok: false, value: null, error: 'Task deadline date cannot be before the task given date' };
+  if (taskCompletionDate < taskGivenDate) return { ok: false, value: null, error: 'Task completion date cannot be before the task given date' };
+  if (taskCompletionDate > todayIso()) return { ok: false, value: null, error: 'Task completion date cannot be in the future' };
+  if (description.length < 10) return { ok: false, value: null, error: 'Describe what they did (at least 10 characters)' };
+
+  return { ok: true, value: { taskGivenDate, taskDeadlineDate, taskCompletionDate, savings, description, attachmentUrl }, error: null };
+}
+
 export class AppreciationsUnavailableError extends Error {
   constructor() {
     super('Employee Appreciation is not set up yet — the database update has not been applied.');
@@ -182,6 +234,52 @@ export async function listApprovedAppreciations(opts: { employeeId?: string; lim
       { bind: { ...(opts.employeeId ? { employeeId: opts.employeeId } : {}), limit: opts.limit ?? 20 }, type: QueryTypes.SELECT }
     )
   );
+}
+
+export interface UpdateAppreciationInput {
+  taskGivenDate: string;
+  taskDeadlineDate: string;
+  taskCompletionDate: string;
+  savings: AppreciationSavings;
+  description: string;
+  attachmentUrl: string;
+}
+
+/**
+ * The nominating manager edits their own submission — conditional on
+ * nominated_by matching AND status still 'pending', in one WHERE clause, so
+ * a manager can never touch someone else's nomination and can never edit it
+ * out from under HR once a decision has been made (HR may already be
+ * reading/deciding the row at that moment). Returns null for "not found,
+ * not yours, or already decided" — the route doesn't need to tell those
+ * apart any further than a generic refusal.
+ */
+export async function updateAppreciation(id: string, nominatedBy: string, input: UpdateAppreciationInput): Promise<AppreciationRecord | null> {
+  return run(async () => {
+    const rows = await sequelize.query<AppreciationRecord>(
+      `UPDATE employee_appreciations
+       SET task_given_date = $taskGivenDate, task_deadline_date = $taskDeadlineDate, task_completion_date = $taskCompletionDate,
+           savings = $savings::jsonb, description = $description, attachment_url = $attachmentUrl, updated_at = NOW()
+       WHERE id = $id AND nominated_by = $nominatedBy AND status = 'pending'
+       RETURNING ${COLUMNS}`,
+      {
+        bind: { id, nominatedBy, ...input, savings: JSON.stringify(input.savings) },
+        type: QueryTypes.SELECT
+      }
+    );
+    return rows[0] ?? null;
+  });
+}
+
+/** Same owner+pending guard as updateAppreciation. Returns whether a row was actually removed. */
+export async function deleteAppreciation(id: string, nominatedBy: string): Promise<boolean> {
+  return run(async () => {
+    const rows = await sequelize.query<{ id: string }>(
+      `DELETE FROM employee_appreciations WHERE id = $id AND nominated_by = $nominatedBy AND status = 'pending' RETURNING id`,
+      { bind: { id, nominatedBy }, type: QueryTypes.SELECT }
+    );
+    return rows.length > 0;
+  });
 }
 
 /**
