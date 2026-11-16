@@ -410,13 +410,30 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
     if (await send(`/api/hr/celebrations/categories/${encodeURIComponent(cat.key)}`, 'DELETE')) await loadTop();
   }
 
+  // Two identical small square icon buttons, pinned top-right. Sized and
+  // styled here rather than via historyStyles.actionBtn, whose padding made
+  // the pair uneven and large enough to sit on top of the tile's title.
+  const tileBtn = (danger: boolean): React.CSSProperties => ({
+    width: 28,
+    height: 28,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    border: `1px solid ${danger ? '#fecaca' : 'var(--mx-border, #e2e8f0)'}`,
+    background: '#ffffff',
+    color: danger ? '#b91c1c' : 'var(--mx-ink-muted, #475569)',
+    cursor: 'pointer',
+    padding: 0,
+    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)'
+  });
   const tileActions = (onEdit: () => void, onDelete: () => void, what: string) => (
-    <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 1, display: 'flex', gap: 4 }}>
-      <button type="button" className={historyStyles.actionBtn} aria-label={`Edit ${what}`} title={`Edit ${what}`} onClick={onEdit}>
-        <Pencil size={14} />
+    <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1, display: 'flex', gap: 6 }}>
+      <button type="button" style={tileBtn(false)} aria-label={`Edit ${what}`} title={`Edit ${what}`} onClick={onEdit}>
+        <Pencil size={13} />
       </button>
-      <button type="button" className={`${historyStyles.actionBtn} ${historyStyles.actionBtnDanger}`} aria-label={`Delete ${what}`} title={`Delete ${what}`} onClick={onDelete}>
-        <Trash2 size={14} />
+      <button type="button" style={tileBtn(true)} aria-label={`Delete ${what}`} title={`Delete ${what}`} onClick={onDelete}>
+        <Trash2 size={13} />
       </button>
     </div>
   );
@@ -522,7 +539,7 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
                 <button
                   type="button"
                   className={calcStyles.sectionPanel}
-                  style={{ width: '100%', height: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
+                  style={{ width: '100%', height: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, paddingRight: canManage ? 84 : undefined }}
                   onClick={() => openCategory(cat.key)}
                 >
                   <CategoryIcon category={cat.key} categories={categories} />
