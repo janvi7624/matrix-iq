@@ -18,7 +18,7 @@ interface EntityResolver {
   exists: (entityId: string) => Promise<boolean>;
 }
 
-const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportEditRequest', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation', 'SupportTicket', 'PartnerQuotationRequest', 'FestivalCampaign'] as const;
+const MODEL_NAMES = ['DemoSchedule', 'MarketingRequest', 'Project', 'ReimbursementSheet', 'TmsProject', 'TmsBomRequest', 'TmsProcurement', 'TmsTask', 'TravelSchedule', 'Lead', 'Quotation', 'GeneralTask', 'LeaveRequest', 'Reimbursement', 'OfficeOperationExpense', 'DailyReport', 'DailyReportLeaveClaim', 'DailyReportEditRequest', 'DailyReportWarning', 'DailyReportNotificationEvent', 'DailyReportEscalation', 'SupportTicket', 'PartnerQuotationRequest', 'FestivalCampaign', 'Partner'] as const;
 
 async function existsIn(modelName: (typeof MODEL_NAMES)[number], entityId: string): Promise<boolean> {
   if (!isUuid(entityId)) return false;
@@ -63,6 +63,9 @@ const RESOLVERS: Record<string, EntityResolver> = {
   tms_task: { href: (id) => `/tms/tasks/${id}`, exists: (id) => existsIn('TmsTask', id) },
   travel_schedule: { href: (id) => `/travel-schedule/${id}`, exists: (id) => existsIn('TravelSchedule', id) },
   lead: { href: () => '/leads', exists: (id) => existsIn('Lead', id) },
+  // Internal staff side of partner onboarding (approvers, creator/RM). The
+  // partner's own notifications keep entityType 'partner', which their portal handles.
+  partner_approval: { href: (id) => `/partners/${id}`, exists: (id) => existsIn('Partner', id) },
   // A batch of leads handed to a rep to call — opens their call queue rather
   // than one of the leads (lib/leadCall.ts, app/api/leads/assign).
   lead_assignment: { href: () => '/leads?filter=to-call', exists: (id) => existsIn('Lead', id) },

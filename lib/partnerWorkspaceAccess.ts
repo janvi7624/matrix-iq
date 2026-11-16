@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import { db } from './db';
 import { getAppConfig } from './appConfigStore';
+import { isPartnerChainApprover } from './partnerApprovalStore';
 
 // Who gets the "Partner" module, and what they see in it.
 //
@@ -52,7 +53,12 @@ export async function resolvePartnerStakeholder(userId: string): Promise<boolean
   const owned = await db.Partner.count({
     where: { [Op.or]: [{ relationship_manager_id: userId }, { created_by: userId }] } as never
   });
-  return owned > 0;
+  if (owned > 0) return true;
+
+  // The Sales / Accounts / Administration managers sign off every partner's
+  // onboarding (lib/partnerApprovalChain.ts), so they need the module even
+  // with no partner of their own.
+  return isPartnerChainApprover(userId);
 }
 
 /**

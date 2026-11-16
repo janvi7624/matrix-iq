@@ -234,6 +234,9 @@ export interface PartnerRecord {
    * Partners that predate onboarding were backfilled to their created_at.
    */
   onboarded_at: string;
+  /** Onboarding approval chain — see lib/partnerApprovalChain.ts. */
+  approval_stage: 'sales' | 'accounts' | 'admin' | 'approved' | null;
+  approval_trail: { stage: 'sales' | 'accounts' | 'admin'; decision: 'approved' | 'rejected'; by_id: string; by_name: string; at: string; remarks: string }[];
   created_at: string;
   updated_at: string;
 }

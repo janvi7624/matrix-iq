@@ -51,6 +51,8 @@ function toRecord(row: Model): PartnerRecord {
       ?? (plain.creator as { username?: string } | null)?.username
       ?? '',
     onboarded_at: isoOrEmpty(plain.onboarded_at),
+    approval_stage: ((plain.approval_stage as string) || null) as PartnerRecord['approval_stage'],
+    approval_trail: Array.isArray(plain.approval_trail) ? (plain.approval_trail as PartnerRecord['approval_trail']) : [],
     created_at: isoOrEmpty(plain.createdAt),
     updated_at: isoOrEmpty(plain.updatedAt)
   };

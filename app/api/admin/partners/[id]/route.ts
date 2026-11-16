@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isPartnerChainApprover } from '@/lib/partnerApprovalStore';
 import { getViewerContext } from '@/lib/viewerContext';
 import { canAccessPartnerRecord } from '@/lib/partnerAccess';
 import { findPartnerById, setPartnerStatus, updatePartner } from '@/lib/partnerStore';
@@ -22,7 +23,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Record-level, not just org-wide: the account's own creator/RM may open
     // it too, same rule as approving its documents (canReviewPartnerDocuments)
     // — see canAccessPartnerRecord's own comment for the bug this fixes.
-    if (!(await canAccessPartnerRecord(viewer, partner))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // Onboarding approvers (Sales / Accounts / Admin managers) may read the
+    // record they are signing off, but not edit it — PATCH keeps the narrower rule.
+    if (!(await canAccessPartnerRecord(viewer, partner)) && !(await isPartnerChainApprover(viewer.userId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     // The partner's logins come back with the profile — the detail screen
     // always shows both, and splitting them would cost a second round trip
     // for data that is never wanted separately.

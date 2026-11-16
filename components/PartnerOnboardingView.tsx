@@ -38,6 +38,8 @@ interface Payload {
   progress: OnboardingProgress;
   complete: boolean;
   accountManagerName: string;
+  approvalStage: 'sales' | 'accounts' | 'admin' | 'approved' | null;
+  approvalStatus: string;
 }
 
 const STATE_ICON = {
@@ -140,11 +142,15 @@ export default function PartnerOnboardingView({
       ) : (
         <>
           <div className={calcStyles.sectionPanel}>
-            <div className={calcStyles.h2}>{onboardingHeadline(data.progress)}</div>
+            <div className={calcStyles.h2}>
+              {/* Once everything is uploaded the partner is waiting on a named
+                  step of the Sales → Accounts → Admin approval, not a vague review. */}
+              {!data.complete && data.approvalStage ? data.approvalStatus : onboardingHeadline(data.progress)}
+            </div>
             <p className={calcStyles.small}>
               {data.complete
                 ? 'You have full access to the portal. You can still replace a document here if it is renewed or expires — doing so does not affect your access.'
-                : 'Until all three are approved you can sign in, but the rest of the portal stays closed.'}
+                : 'Your documents are approved in three steps — Sales Manager, then Accounts Manager, then Admin Manager. You can start work once all three approve.'}
               {data.accountManagerName && ` Your account manager is ${data.accountManagerName}.`}
             </p>
           </div>

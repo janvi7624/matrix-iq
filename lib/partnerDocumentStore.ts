@@ -1,14 +1,9 @@
 import { Model } from 'sequelize';
 import { db, isUuid } from './db';
-import {
-  PartnerDocumentKind,
-  approvalCompletesOnboarding,
-  isPartnerDocumentKind
-} from './partnerOnboarding';
+import { PartnerDocumentKind, isPartnerDocumentKind } from './partnerOnboarding';
 
-// Reading and writing a partner's onboarding documents, and the one
-// side-effect that matters: approving the last outstanding document stamps
-// partners.onboarded_at, which is what opens the rest of the portal.
+// Reading and writing a partner's onboarding documents. Approval of the set
+// (and stamping partners.onboarded_at) lives in lib/partnerApprovalStore.ts.
 
 export class PartnerDocumentError extends Error {}
 
@@ -74,36 +69,19 @@ export interface SubmitDocumentInput {
   kind: string;
   files: PartnerDocumentFile[];
   submittedById: string;
-  /**
-   * Set when a member of staff is uploading on the partner's behalf AND may
-   * approve this partner's documents — a signed agreement that arrived by
-   * email, say, rather than through the portal.
-   *
-   * It lands approved rather than pending because the person uploading is
-   * the same person who would approve it: asking them to click Approve on a
-   * file they just provided is theatre, not a control. The record still
-   * shows both facts — submitted_by and reviewed_by are both them, and the
-   * remark says it was provided by staff, so nobody later mistakes it for
-   * something the partner sent.
-   *
-   * Never set for an upload that came from the partner's own session.
-   */
-  approvedByUploader?: boolean;
 }
 
 /**
- * The partner uploads (or replaces) one document.
+ * Upload (or replace) one document — by the partner, or by our staff on the
+ * partner's behalf when a signed copy arrived by email.
+ *
+ * Always lands 'pending': approval is no longer a per-document click but the
+ * Sales -> Accounts -> Admin chain over the whole set (lib/partnerApprovalStore.ts),
+ * which the caller starts with startApprovalIfReady once this returns.
  *
  * Upserted on (partner, kind) rather than appended: "which agreement is
  * current" must have one answer. Re-uploading after a rejection reuses the
- * row and resets it to 'pending', which also clears the previous reviewer
- * and remark — leaving the old rejection note attached to a freshly uploaded
- * file would read as though the new one had already been refused.
- *
- * Replacing an APPROVED document is allowed and sends it back for review.
- * That does not revoke access: onboarded_at is already stamped and stays
- * stamped (see partnerOnboardingComplete), so a partner updating a document
- * a year later does not lose the portal mid-session.
+ * row and clears the previous reviewer and remark.
  */
 export async function submitPartnerDocument(input: SubmitDocumentInput): Promise<PartnerDocumentRecord> {
   if (!isUuid(input.partnerId)) throw new PartnerDocumentError('Unknown partner.');
@@ -117,27 +95,15 @@ export async function submitPartnerDocument(input: SubmitDocumentInput): Promise
     where: { partner_id: input.partnerId, kind: input.kind } as never
   });
 
-  const now = new Date();
-  const staffProvided = !!input.approvedByUploader;
-  const attrs = staffProvided
-    ? {
-        files,
-        status: 'approved',
-        submitted_at: now,
-        submitted_by: input.submittedById,
-        reviewed_by: input.submittedById,
-        reviewed_at: now,
-        review_remarks: 'Provided by our team on the partner’s behalf.'
-      }
-    : {
-        files,
-        status: 'pending',
-        submitted_at: now,
-        submitted_by: input.submittedById,
-        reviewed_by: null,
-        reviewed_at: null,
-        review_remarks: null
-      };
+  const attrs = {
+    files,
+    status: 'pending',
+    submitted_at: new Date(),
+    submitted_by: input.submittedById,
+    reviewed_by: null,
+    reviewed_at: null,
+    review_remarks: null
+  };
 
   if (existing) {
     await existing.update(attrs as never);
@@ -145,116 +111,9 @@ export async function submitPartnerDocument(input: SubmitDocumentInput): Promise
     await db.PartnerDocument.create({ partner_id: input.partnerId, kind: input.kind, ...attrs } as never);
   }
 
-  // A staff upload can be the thing that completes onboarding, so the gate
-  // is stamped here too — otherwise a partner whose three documents were all
-  // supplied by our own team would stay locked out of the portal with
-  // nothing left for anyone to approve.
-  if (staffProvided) await stampOnboardedIfComplete(input.partnerId);
-
   const row = await db.PartnerDocument.findOne({
     where: { partner_id: input.partnerId, kind: input.kind } as never,
     include: INCLUDES as never
   });
   return toRecord(row as Model);
-}
-
-/**
- * Sets partners.onboarded_at when every required document is approved.
- *
- * Shared by the two paths that can complete onboarding — a reviewer
- * approving the last one, and staff uploading the last one themselves — so
- * the gate cannot be opened by one and missed by the other. Stamped once
- * only: a document replaced and re-approved later keeps the original date.
- */
-async function stampOnboardedIfComplete(partnerId: string): Promise<boolean> {
-  const all = await db.PartnerDocument.findAll({
-    where: { partner_id: partnerId } as never,
-    attributes: ['kind', 'status']
-  });
-  const after = all.map((r) => ({ kind: r.get('kind') as string, status: r.get('status') as string }));
-  if (!approvalCompletesOnboarding(after)) return false;
-
-  const partner = await db.Partner.findByPk(partnerId);
-  if (!partner || partner.get('onboarded_at')) return false;
-  await partner.update({ onboarded_at: new Date() } as never);
-  return true;
-}
-
-export interface ReviewDocumentResult {
-  document: PartnerDocumentRecord;
-  /** True when this approval was the last one outstanding. */
-  onboardingCompleted: boolean;
-}
-
-/**
- * The account creator approves or rejects one document.
- *
- * A rejection REQUIRES a remark. The partner's only way to know what to fix
- * is this sentence, and a silent rejection would have them re-uploading the
- * same file.
- *
- * Approving the last outstanding document stamps partners.onboarded_at in
- * the same transaction as the approval — the gate and the evidence for it
- * cannot end up disagreeing because one write landed and the other did not.
- */
-export async function reviewPartnerDocument(
-  partnerId: string,
-  kind: string,
-  decision: 'approved' | 'rejected',
-  reviewerId: string,
-  remarks: string
-): Promise<ReviewDocumentResult> {
-  if (!isUuid(partnerId)) throw new PartnerDocumentError('Unknown partner.');
-  if (!isPartnerDocumentKind(kind)) throw new PartnerDocumentError('Unknown document type.');
-  const note = (remarks || '').trim();
-  if (decision === 'rejected' && !note) {
-    throw new PartnerDocumentError('Say what needs correcting — the partner sees this.');
-  }
-  if (note.length > 2000) throw new PartnerDocumentError('Keep the note under 2000 characters.');
-
-  const row = await db.PartnerDocument.findOne({ where: { partner_id: partnerId, kind } as never });
-  if (!row) throw new PartnerDocumentError('That document has not been uploaded yet.');
-  const from = row.get('status') as string;
-  if (from === decision) {
-    throw new PartnerDocumentError(`This document is already ${decision}.`);
-  }
-
-  let onboardingCompleted = false;
-
-  await db.sequelize.transaction(async (t) => {
-    // Re-checked against the same `from` read above: without this WHERE,
-    // two reviewers deciding the same document at once (one approving, one
-    // rejecting) would both pass the stale-status check and both write —
-    // the second silently overwrites the first's decision instead of
-    // failing.
-    const [affected] = await db.PartnerDocument.update(
-      { status: decision, reviewed_by: reviewerId, reviewed_at: new Date(), review_remarks: note || null } as never,
-      { where: { partner_id: partnerId, kind, status: from } as never, transaction: t }
-    );
-    if (!affected) throw new PartnerDocumentError('This document was just reviewed by someone else — refresh and try again.');
-
-    if (decision !== 'approved') return;
-
-    const all = await db.PartnerDocument.findAll({
-      where: { partner_id: partnerId } as never,
-      attributes: ['kind', 'status'],
-      transaction: t
-    });
-    const after = all.map((r) => ({ kind: r.get('kind') as string, status: r.get('status') as string }));
-    if (!approvalCompletesOnboarding(after)) return;
-
-    const partner = await db.Partner.findByPk(partnerId, { transaction: t });
-    // Only stamped once. A partner who replaces a document later and has it
-    // re-approved keeps their original onboarding date.
-    if (partner && !partner.get('onboarded_at')) {
-      await partner.update({ onboarded_at: new Date() } as never, { transaction: t });
-      onboardingCompleted = true;
-    }
-  });
-
-  const fresh = await db.PartnerDocument.findOne({
-    where: { partner_id: partnerId, kind } as never,
-    include: INCLUDES as never
-  });
-  return { document: toRecord(fresh as Model), onboardingCompleted };
 }
