@@ -226,11 +226,22 @@ export async function canAccessTask(
   return (await tmsTeamDepartmentIds(viewer)).includes(task.department_id);
 }
 
+// 'ready_for_review' used to stop here and wait for a manager to click
+// "Approve & Complete" (TmsTaskDetailView.tsx) before the task counted as
+// done anywhere — dashboards, analytics, the AI Daily Report status mirror
+// (lib/aiTmsStatusMapping.ts). In practice managers often never did that, so
+// finished work sat stuck at "Ready for Review" forever and under-counted
+// as not-completed on every graph that reads task status. The action now
+// completes the task directly — no manager approval gate on completion.
+// The action KEY stays 'ready_for_review' (unchanged wire format / history
+// rows / AI task-link mapping); only what it resolves to changed. Existing
+// tasks already sitting in 'ready_for_review' are a separate one-time data
+// fix, not something this mapping touches retroactively.
 const ACTION_STATUS: Record<EngineerTaskAction, TmsTaskStatus> = {
   start: 'in_progress',
   progress: 'in_progress',
   blocked: 'blocked',
-  ready_for_review: 'ready_for_review',
+  ready_for_review: 'completed',
   reopen: 'in_progress'
 };
 

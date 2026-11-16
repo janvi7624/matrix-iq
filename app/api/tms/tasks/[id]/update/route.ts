@@ -94,8 +94,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         byDept.forEach((m) => managerUsernames.add(m.username));
       }
       managerUsernames.delete(viewer.username);
+      // 'ready_for_review' now completes the task immediately (see
+      // lib/tmsTaskStore.ts's ACTION_STATUS) — this is an FYI to the
+      // manager, not an approval request; nothing is waiting on them.
       await notifyUsers([...managerUsernames], {
-        title: action === 'blocked' ? 'Task Blocked' : 'Task Ready for Review',
+        title: action === 'blocked' ? 'Task Blocked' : 'Task Completed',
         body: `"${task.name}"\nProject: ${task.project_name}\n${remark ? `Note: ${remark}` : ''}`,
         type: `tms_task_${action}`,
         entityType: 'tms_task',

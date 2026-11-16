@@ -162,7 +162,10 @@ export const TMS_TASK_ACTION_LABEL: Record<EngineerTaskAction, string> = {
   start: 'Start Task',
   progress: 'Log Progress',
   blocked: 'Mark Blocked',
-  ready_for_review: 'Submit for Review',
+  // Resolves straight to 'completed' now (lib/tmsTaskStore.ts's
+  // ACTION_STATUS) — no manager approval gate, so the button reads as what
+  // it actually does.
+  ready_for_review: 'Mark Complete',
   reopen: 'Resume'
 };
 
