@@ -21,6 +21,8 @@ import {
   type LucideIcon
 } from 'lucide-react';
 import AppShell from './AppShell';
+import { useConfirm } from './ui/ConfirmDialog';
+import { usePrompt } from './ui/PromptDialog';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 
@@ -173,6 +175,8 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingAlbumName = useRef('');
+  const confirmDialog = useConfirm();
+  const promptDialog = usePrompt();
 
   const loadTop = useCallback(async () => {
     setStatus('Loading…');
@@ -347,7 +351,7 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
   }
 
   async function handleDeleteItem(id: string) {
-    if (!confirm('Remove this from the celebration wall? This cannot be undone.')) return;
+    if (!(await confirmDialog({ title: 'Remove photo/video?', message: 'This will remove it from the celebration wall. This cannot be undone.', confirmLabel: 'Remove', danger: true }))) return;
     const res = await fetch(`/api/hr/celebrations/${id}`, { method: 'DELETE' });
     if (res.ok && category && subfolder) await loadItems(category, subfolder);
   }
@@ -370,14 +374,14 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
   }
 
   async function handleEditItem(item: CelebrationItem) {
-    const title = prompt('Caption for this photo/video:', item.title);
+    const title = await promptDialog({ title: 'Edit caption', message: 'Caption for this photo/video', defaultValue: item.title, placeholder: 'e.g. Cake cutting', confirmLabel: 'Save' });
     if (title === null) return;
     if (await send(`/api/hr/celebrations/${item.id}`, 'PATCH', { title }) && category && subfolder) await loadItems(category, subfolder);
   }
 
   async function handleRenameAlbum(name: string) {
     if (!category) return;
-    const next = prompt('Rename album:', name)?.trim();
+    const next = (await promptDialog({ title: 'Rename album', defaultValue: name, confirmLabel: 'Save', validate: (v) => (v.trim() ? null : 'Give this album a name.') }))?.trim();
     if (!next || next === name) return;
     if (!(await send('/api/hr/celebrations/albums', 'PATCH', { category, subfolder: name, name: next }))) return;
     if (subfolder === name) setSubfolder(next);
@@ -386,23 +390,23 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
 
   async function handleDeleteAlbum(name: string, count: number) {
     if (!category) return;
-    if (!confirm(`Delete the album "${name}" and all ${count} photo/video${count === 1 ? '' : 's'} in it? This cannot be undone.`)) return;
+    if (!(await confirmDialog({ title: 'Delete album?', message: `"${name}" and all ${count} photo/video${count === 1 ? '' : 's'} in it will be deleted. This cannot be undone.`, confirmLabel: 'Delete album', danger: true }))) return;
     if (!(await send('/api/hr/celebrations/albums', 'DELETE', { category, subfolder: name }))) return;
     if (subfolder === name) setSubfolder(null);
     else await loadSubfolders(category);
   }
 
   async function handleEditFolder(cat: CategoryInfo) {
-    const label = prompt('Folder name:', cat.label)?.trim();
+    const label = (await promptDialog({ title: 'Rename folder', defaultValue: cat.label, confirmLabel: 'Next', validate: (v) => (v.trim() ? null : 'Give this folder a name.') }))?.trim();
     if (!label) return;
-    const icon = prompt('Folder icon (one emoji, leave blank for none):', cat.icon || '');
+    const icon = await promptDialog({ title: 'Folder icon', message: 'One emoji — leave blank for the default icon', defaultValue: cat.icon || '', placeholder: '🎉', confirmLabel: 'Save' });
     if (icon === null) return;
     if (await send(`/api/hr/celebrations/categories/${encodeURIComponent(cat.key)}`, 'PATCH', { label, icon })) await loadTop();
   }
 
   async function handleDeleteFolder(cat: CategoryInfo) {
     const count = countByCategory[cat.key] ?? 0;
-    if (!confirm(`Delete the folder "${cat.label}"${count ? ` and all ${count} item${count === 1 ? '' : 's'} in it` : ''}? This cannot be undone.`)) return;
+    if (!(await confirmDialog({ title: 'Delete folder?', message: `"${cat.label}"${count ? ` and all ${count} item${count === 1 ? '' : 's'} in it` : ''} will be deleted. This cannot be undone.`, confirmLabel: 'Delete folder', danger: true }))) return;
     if (await send(`/api/hr/celebrations/categories/${encodeURIComponent(cat.key)}`, 'DELETE')) await loadTop();
   }
 
