@@ -62,25 +62,39 @@ export function listFixedCategories(): CelebrationCategoryInfo[] {
   return CELEBRATION_CATEGORIES.map((key) => ({ key, label: CELEBRATION_CATEGORY_LABEL[key], isCustom: false }));
 }
 
+// A row in company_celebration_categories whose key is one of the fixed
+// seven is not a custom folder — it is HR's override of that built-in one
+// (renamed label, chosen emoji, or hidden=true once HR deleted it).
+async function allCategoryRows(): Promise<Record<string, unknown>[]> {
+  const rows = await db.CompanyCelebrationCategory.findAll({ order: [['created_at', 'ASC']] });
+  return rows.map((row) => row.get({ plain: true }) as Record<string, unknown>);
+}
+
 /** Extra top-level folders HR added beyond the fixed seven. */
 export async function listCustomCategories(): Promise<CelebrationCategoryInfo[]> {
-  const rows = await db.CompanyCelebrationCategory.findAll({ order: [['created_at', 'ASC']] });
-  return rows.map((row) => {
-    const plain = row.get({ plain: true }) as Record<string, unknown>;
-    return { key: plain.key as string, label: (plain.label as string) ?? '', isCustom: true, icon: (plain.icon as string) || '' };
-  });
+  return (await allCategoryRows())
+    .filter((plain) => !isFixedCelebrationCategory(plain.key))
+    .map((plain) => ({ key: plain.key as string, label: (plain.label as string) ?? '', isCustom: true, icon: (plain.icon as string) || '' }));
 }
 
-/** Every category this wall currently has, fixed ones first. */
+/** Every category this wall currently has, fixed ones first (with HR's overrides applied, deleted ones left out). */
 export async function listAllCategories(): Promise<CelebrationCategoryInfo[]> {
-  return [...listFixedCategories(), ...(await listCustomCategories())];
+  const rows = await allCategoryRows();
+  const overrides = new Map(rows.filter((r) => isFixedCelebrationCategory(r.key)).map((r) => [r.key as string, r]));
+  const fixed = listFixedCategories()
+    .filter((c) => overrides.get(c.key)?.hidden !== true)
+    .map((c) => {
+      const o = overrides.get(c.key);
+      return o ? { ...c, label: (o.label as string) || c.label, icon: (o.icon as string) || '' } : c;
+    });
+  return [...fixed, ...(await listCustomCategories())];
 }
 
-/** Whether `key` is either a fixed category or an existing custom one — what createCelebrationItem must accept. */
+/** Whether `key` is a live (not deleted) fixed category or an existing custom one — what createCelebrationItem must accept. */
 export async function isKnownCelebrationCategory(key: unknown): Promise<boolean> {
   if (typeof key !== 'string' || !key) return false;
-  if (isFixedCelebrationCategory(key)) return true;
   const row = await db.CompanyCelebrationCategory.findOne({ where: { key } as never });
+  if (isFixedCelebrationCategory(key)) return (row?.get('hidden') as boolean | undefined) !== true;
   return !!row;
 }
 
@@ -301,11 +315,15 @@ export async function deleteSubfolder(category: string, subfolder: string): Prom
   return db.CompanyCelebration.destroy({ where: { category, subfolder } as never });
 }
 
-/** Rename / re-icon a custom folder. The fixed seven are not editable. */
+/** Rename / re-icon any folder. For a built-in one this creates (or updates) its override row. */
 export async function updateCustomCategory(key: string, patch: { label?: string; icon?: string }): Promise<CelebrationCategoryInfo | null> {
-  if (isFixedCelebrationCategory(key)) throw new Error('Built-in folders cannot be edited.');
-  const row = await db.CompanyCelebrationCategory.findOne({ where: { key } as never });
-  if (!row) return null;
+  let row = await db.CompanyCelebrationCategory.findOne({ where: { key } as never });
+  if (!row) {
+    if (!isFixedCelebrationCategory(key)) return null;
+    // findOne + create, never findOrCreate — this DB role has no TEMP privilege.
+    row = await db.CompanyCelebrationCategory.create({ key, label: CELEBRATION_CATEGORY_LABEL[key] } as never);
+  }
+  if (isFixedCelebrationCategory(key) && row.get('hidden') === true) return null;
   const changes: Record<string, unknown> = {};
   if (typeof patch.label === 'string') {
     const label = patch.label.trim();
@@ -315,13 +333,25 @@ export async function updateCustomCategory(key: string, patch: { label?: string;
   if (typeof patch.icon === 'string') changes.icon = patch.icon.trim().slice(0, MAX_ICON_LENGTH) || null;
   await row.update(changes as never);
   const plain = row.get({ plain: true }) as Record<string, unknown>;
-  return { key: plain.key as string, label: plain.label as string, isCustom: true, icon: (plain.icon as string) || '' };
+  return { key: plain.key as string, label: plain.label as string, isCustom: !isFixedCelebrationCategory(key), icon: (plain.icon as string) || '' };
 }
 
-/** Delete a custom folder together with all of its albums and media. */
+/**
+ * Delete a folder together with all of its albums and media. A built-in
+ * folder's name lives in code, so "deleting" it marks its override row
+ * hidden instead of removing a row that may not exist.
+ */
 export async function deleteCustomCategory(key: string): Promise<boolean> {
-  if (isFixedCelebrationCategory(key)) throw new Error('Built-in folders cannot be deleted.');
   const row = await db.CompanyCelebrationCategory.findOne({ where: { key } as never });
+  if (isFixedCelebrationCategory(key)) {
+    if (row?.get('hidden') === true) return false;
+    await db.sequelize.transaction(async (transaction) => {
+      await db.CompanyCelebration.destroy({ where: { category: key } as never, transaction });
+      if (row) await row.update({ hidden: true } as never, { transaction });
+      else await db.CompanyCelebrationCategory.create({ key, label: CELEBRATION_CATEGORY_LABEL[key], hidden: true } as never, { transaction });
+    });
+    return true;
+  }
   if (!row) return false;
   await db.sequelize.transaction(async (transaction) => {
     await db.CompanyCelebration.destroy({ where: { category: key } as never, transaction });

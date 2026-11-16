@@ -10,6 +10,9 @@ module.exports = (sequelize, DataTypes) => {
     // A single emoji HR picked when creating this folder — null means the
     // generic folder icon (CUSTOM_CATEGORY_ICON in CompanyCelebrationsView).
     icon: { type: DataTypes.STRING(8), allowNull: true },
+    // Only meaningful on an override row for a built-in folder: true once HR
+    // deleted it (see lib/companyCelebrationStore.ts's deleteCustomCategory).
+    hidden: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     created_by: { type: DataTypes.UUID, allowNull: true }
   }, {
     tableName: 'company_celebration_categories',

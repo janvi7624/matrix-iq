@@ -531,7 +531,7 @@ export default function CompanyCelebrationsView({ canManage, canContribute }: { 
                     <div className={calcStyles.small}>{countByCategory[cat.key] ?? 0} item{(countByCategory[cat.key] ?? 0) === 1 ? '' : 's'}</div>
                   </div>
                 </button>
-                {canManage && cat.isCustom && tileActions(() => handleEditFolder(cat), () => handleDeleteFolder(cat), 'folder')}
+                {canManage && tileActions(() => handleEditFolder(cat), () => handleDeleteFolder(cat), 'folder')}
               </div>
             ))}
           </div>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { apiErrorResponse } from '@/lib/apiError';
 import { isHrManager } from '@/lib/hrAccess';
-import { deleteCustomCategory, isFixedCelebrationCategory, updateCustomCategory } from '@/lib/companyCelebrationStore';
+import { deleteCustomCategory, updateCustomCategory } from '@/lib/companyCelebrationStore';
 
 // Rename / re-icon or delete a custom top-level folder (the built-in seven
 // are fixed). Deleting removes every album and photo inside it.
@@ -21,7 +21,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const denied = await gate(request);
   if (denied) return denied;
   const { key } = await params;
-  if (isFixedCelebrationCategory(key)) return NextResponse.json({ error: 'Built-in folders cannot be edited.' }, { status: 400 });
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   if (typeof body.label === 'string' && !body.label.trim()) return NextResponse.json({ error: 'Give this folder a name.' }, { status: 400 });
@@ -41,7 +40,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const denied = await gate(request);
   if (denied) return denied;
   const { key } = await params;
-  if (isFixedCelebrationCategory(key)) return NextResponse.json({ error: 'Built-in folders cannot be deleted.' }, { status: 400 });
   try {
     const deleted = await deleteCustomCategory(key);
     if (!deleted) return NextResponse.json({ error: 'Not found' }, { status: 404 });
