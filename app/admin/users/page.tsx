@@ -165,6 +165,12 @@ export default function ManageUsersPage() {
   const confirm = useConfirm();
   const promptText = usePrompt();
   const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  const [currentPrivileged, setCurrentPrivileged] = useState(false);
+  // What THIS viewer may assign (GET /api/user-admin/authority). Below admin —
+  // manager-role accounts and department heads — it is non-admin roles and the
+  // departments they manage. Only shapes the form; the routes enforce it.
+  const [authority, setAuthority] = useState<{ adminTier: boolean; managedDepartmentNames: string[]; assignableRoleKeys: string[] } | null>(null);
   const [users, setUsers] = useState<PublicUser[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
@@ -241,8 +247,16 @@ export default function ManageUsersPage() {
     loadUsers();
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
-      .then((me) => setCurrentRole(me?.role || null))
+      .then((me) => {
+        setCurrentRole(me?.role || null);
+        setCurrentUsername(me?.username || null);
+        setCurrentPrivileged(!!me?.isPrivileged);
+      })
       .catch(() => setCurrentRole(null));
+    fetch('/api/user-admin/authority')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((a) => setAuthority(a))
+      .catch(() => setAuthority(null));
     fetch('/api/admin/roles')
       .then((r) => (r.ok ? r.json() : []))
       .then((data: RoleRecord[]) => setRoles(data.filter((r) => r.status === 'active')))
@@ -252,6 +266,28 @@ export default function ManageUsersPage() {
 
   const isSuperadmin = currentRole === 'superadmin';
   const isAdminTier = isSuperadmin || currentRole === 'admin';
+  const managedDepartments = authority?.managedDepartmentNames ?? [];
+  // Every department manager may add people to their own department.
+  const canAddUsers = isAdminTier || managedDepartments.length > 0;
+  const roleOptions = isAdminTier
+    ? roles.filter((r) => r.key !== 'superadmin' || isSuperadmin)
+    : roles.filter((r) => authority?.assignableRoleKeys.includes(r.key));
+  const departmentOptions = isAdminTier ? departments : departments.filter((d) => managedDepartments.includes(d.name));
+  function canManageUser(user: PublicUser): boolean {
+    if (isAdminTier) return isSuperadmin || user.role !== 'superadmin';
+    // Below admin: only non-admin accounts in their department, never themself.
+    return user.username !== currentUsername && !!authority?.assignableRoleKeys.includes(user.role);
+  }
+
+  function openAddForm() {
+    setAddOpen((open) => {
+      // A department head with exactly one department gets it pre-filled.
+      if (!open && !isAdminTier && managedDepartments.length === 1) {
+        setForm((f) => ({ ...f, department: f.department || managedDepartments[0] }));
+      }
+      return !open;
+    });
+  }
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
@@ -539,19 +575,28 @@ export default function ManageUsersPage() {
   }
 
   function renderRowMenu(user: PublicUser) {
-    const canManage = isSuperadmin || user.role !== 'superadmin';
+    const canManage = canManageUser(user);
     const isActivityOpen = activityOpenId === user.id;
     return (
       <RowActionsMenu
         label={user.name || user.username}
         actions={[
-          { label: 'View profile', href: `/admin/users/${user.id}` },
-          { label: isActivityOpen ? 'Hide activity' : 'View activity', onClick: () => toggleActivity(user) },
+          // Profile and activity live on admin-panel routes a department head's
+          // session cannot reach (lib/adminAreaAccess.ts), so only offer them
+          // to admin-panel accounts rather than a link that bounces.
+          ...(currentPrivileged
+            ? [
+                { label: 'View profile', href: `/admin/users/${user.id}` },
+                { label: isActivityOpen ? 'Hide activity' : 'View activity', onClick: () => toggleActivity(user) }
+              ]
+            : []),
           ...(canManage
             ? [
                 { label: 'Edit details', onClick: () => { setEditError(''); setEditingUser(user); } },
                 { label: 'Reset password', onClick: () => resetPassword(user) },
-                { label: 'Resend welcome email', onClick: () => resendWelcomeEmail(user) },
+                // Admin-panel accounts only — a department head's session
+                // cannot reach that route (lib/adminAreaAccess.ts).
+                ...(currentPrivileged ? [{ label: 'Resend welcome email', onClick: () => resendWelcomeEmail(user) }] : []),
                 { label: user.status === 'active' ? 'Deactivate' : 'Activate', onClick: () => toggleStatus(user) },
                 ...(user.status === 'active' ? [{ label: 'Exit employee', onClick: () => setExitingUser(user) }] : [])
               ]
@@ -575,20 +620,23 @@ export default function ManageUsersPage() {
       {/* Page actions sit above everything so the two ways to add people are
           adjacent and discoverable, instead of one being a link at the top and
           the other the submit button of an always-expanded form. */}
-      {isAdminTier && (
+      {canAddUsers && (
         <div className={pageStyles.pageActionsRow}>
           <Button
             variant="primary"
             icon={<Plus size={16} />}
-            onClick={() => setAddOpen((v) => !v)}
+            onClick={openAddForm}
             aria-expanded={addOpen}
             aria-controls="addEmployeePanel"
           >
             Add employee
           </Button>
-          <Link className={historyStyles.button} href="/admin/users/import">
-            <Upload size={15} className={pageStyles.iconMr7} /> Import from Excel
-          </Link>
+          {/* Bulk import stays Admin / Super Admin only (its route enforces it too). */}
+          {isAdminTier && (
+            <Link className={historyStyles.button} href="/admin/users/import">
+              <Upload size={15} className={pageStyles.iconMr7} /> Import from Excel
+            </Link>
+          )}
         </div>
       )}
 
@@ -635,7 +683,7 @@ export default function ManageUsersPage() {
               <label className={calcStyles.label} htmlFor="newDepartment">Department</label>
               <select id="newDepartment" className={calcStyles.formControl} value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}>
                 <option value="">Select department…</option>
-                {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+                {departmentOptions.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
               </select>
             </div>
             <div className={calcStyles.field}>
@@ -647,9 +695,7 @@ export default function ManageUsersPage() {
             <div className={calcStyles.field}>
               <label className={calcStyles.label} htmlFor="newRole">Role</label>
               <select id="newRole" className={calcStyles.formControl} value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as UserRole }))}>
-                {roles
-                  .filter((r) => r.key !== 'superadmin' || isSuperadmin)
-                  .map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                {roleOptions.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
               </select>
             </div>
           </div>
@@ -679,8 +725,8 @@ export default function ManageUsersPage() {
       {editingUser && (
         <EmployeeEditDialog
           user={editingUser}
-          roles={roles}
-          departments={departments}
+          roles={isAdminTier ? roles : roles.filter((r) => r.key === editingUser.role || authority?.assignableRoleKeys.includes(r.key))}
+          departments={isAdminTier ? departments : departments.filter((d) => d.name === editingUser.department || managedDepartments.includes(d.name))}
           allUsers={users}
           includeSuperadmin={isSuperadmin}
           error={editError}

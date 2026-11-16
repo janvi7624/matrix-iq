@@ -1,5 +1,75 @@
 /* components/AnalyticsView.tsx — was inline style={{}} objects. */
 
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.filterBar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sectionIconBadge {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--mx-ink);
+  margin: 0;
+}
+
+.sectionNote {
+  font-size: 12.5px;
+  color: var(--mx-ink-faint);
+  margin: -4px 0 0;
+}
+
+/* Domain accent colors — one per analytics section, so the page reads as
+   distinct zones rather than one undifferentiated wall of identical gray
+   tiles. Kept local to this page; not reused elsewhere. */
+.accentSales { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
+.accentBackOffice { background: rgba(124, 58, 237, 0.1); color: #7c3aed; }
+.accentTechnical { background: rgba(13, 148, 136, 0.1); color: #0d9488; }
+.accentMarketing { background: rgba(219, 39, 119, 0.1); color: #db2777; }
+.accentMeta { background: rgba(217, 119, 6, 0.1); color: #d97706; }
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
+  gap: 14px;
+}
+
+.emptyState {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--mx-ink-faint);
+  font-size: 14px;
+}
+
 .breakdownWrap { display: flex; gap: 24px; flex-wrap: wrap; }
 .breakdownCol { min-width: 220px; flex: 1; }
 .breakdownTitle { font-size: 12px; font-weight: 700; color: var(--mx-ink-faint); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 8px; }

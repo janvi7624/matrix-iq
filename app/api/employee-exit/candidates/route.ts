@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { resolveVisibilityScope } from '@/lib/departmentScope';
+import { resolveDepartmentOnlyScope } from '@/lib/departmentScope';
 import { db } from '@/lib/db';
 import { apiErrorResponse } from '@/lib/apiError';
 
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const scope = await resolveVisibilityScope(viewer.username);
+    const scope = await resolveDepartmentOnlyScope(viewer.username);
     if (!scope.seesOrgWide && (scope.scopedUserIds ?? []).length <= 1) {
       // Manages nobody but themself — nothing to offer as an "exiting employee" pick.
       return NextResponse.json({ candidates: [] });

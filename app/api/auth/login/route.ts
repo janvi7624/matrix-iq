@@ -6,6 +6,7 @@ import { getClientIp } from '@/lib/requestIp';
 import { apiErrorResponse } from '@/lib/apiError';
 import { resolveIsPrivileged } from '@/lib/permissions';
 import { isConfiguredPartnerCreator } from '@/lib/partnerAccess';
+import { isUserADepartmentManager } from '@/lib/departmentStore';
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -49,14 +50,17 @@ export async function POST(request: NextRequest) {
     // partner field: the binding is an access-control fact, not profile
     // data, and keeping it off the widely-passed user shape means no screen
     // can accidentally render or edit it.
-    const [, , isPrivileged, viewerStatus, partnerCreator] = await Promise.all([
+    const [, , isPrivileged, viewerStatus, partnerCreator, departmentHead] = await Promise.all([
       recordLogin(user.id),
       logLoginAttempt({ username, success: true, ip }),
       resolveIsPrivileged(user.role),
       findUserStatusById(user.id),
       // Opens /admin/partners for the named sales staff who bring partners
       // in, without making them admins — see SessionPayload.partnerCreator.
-      isConfiguredPartnerCreator(user.id)
+      isConfiguredPartnerCreator(user.id),
+      // Opens User Management for department heads on a non-privileged role
+      // — see SessionPayload.departmentHead.
+      isUserADepartmentManager(user.username)
     ]);
     const token = await createSessionToken({
       id: user.id,
@@ -65,6 +69,7 @@ export async function POST(request: NextRequest) {
       mustChangePassword: user.mustChangePassword,
       isPrivileged,
       partnerCreator,
+      departmentHead,
       partnerId: viewerStatus?.partnerId,
       // The live value this user's row holds right now — see
       // SessionPayload.sessionEpoch. The fallback is unreachable in practice

@@ -35,6 +35,8 @@ const modelDefiners = [
   require('./productFeedbackForm.js'),
   require('./productFeedbackResponse.js'),
   require('./manualClient.js'),
+  require('./companyCelebration.js'),
+  require('./companyCelebrationCategory.js'),
   require('./feedbackResponse.js'),
   require('./supportTicket.js'),
   require('./supportTicketComment.js'),

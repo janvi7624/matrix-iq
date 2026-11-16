@@ -695,6 +695,123 @@
     padding-left: 2px;
 }
 
+.quickActionsHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.quickActionsHeader .quickActionsLabel {
+    margin-bottom: 6px;
+}
+
+.quickActionsEdit {
+    border: none;
+    background: none;
+    padding: 0 2px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #94a3b8;
+    cursor: pointer;
+}
+
+.quickActionsEdit:hover {
+    color: var(--mx-brand);
+}
+
+.quickActionsEmpty {
+    width: 100%;
+    padding: 8px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 9px;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.quickActionsEmpty:hover {
+    border-color: rgba(220, 38, 38, 0.4);
+    color: var(--mx-brand);
+}
+
+.quickPicker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.quickPickerHint {
+    font-size: 10.5px;
+    color: #64748b;
+}
+
+.quickPickerList {
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.quickPickerItem {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 4px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: #334155;
+    cursor: pointer;
+}
+
+.quickPickerItem:hover {
+    background: #f8fafc;
+}
+
+.quickPickerError {
+    font-size: 10.5px;
+    color: var(--mx-danger, #b91c1c);
+}
+
+.quickPickerActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.quickPickerCancel,
+.quickPickerSave {
+    padding: 4px 10px;
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.quickPickerCancel {
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #475569;
+}
+
+.quickPickerSave {
+    border: 1px solid var(--mx-brand);
+    background: var(--mx-brand);
+    color: #ffffff;
+}
+
+.quickPickerCancel:disabled,
+.quickPickerSave:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
 .quickActionsGrid {
     display: grid;
     grid-template-columns: 1fr 1fr;

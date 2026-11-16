@@ -44,6 +44,7 @@ import {
   List,
   Inbox,
   Star,
+  Award,
   Flag,
   Target,
   Globe,
@@ -189,6 +190,8 @@ export const MODULE_ICON_REGISTRY: Record<string, LucideIcon> = {
   list: List,
   inbox: Inbox,
   star: Star,
+  // Employee Appreciation (hr-appreciation in lib/moduleConfigStore.ts).
+  award: Award,
   flag: Flag,
   target: Target,
   briefcase: Briefcase,

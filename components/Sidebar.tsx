@@ -43,7 +43,10 @@ const ROLE_LABEL: Record<UserRole, string> = {
   ...PARTNER_ROLE_LABEL
 };
 
-const QUICK_ACTION_KEYS = ['quotation', 'site-visits', 'demo-schedule', 'projects'];
+// Quick Actions are each employee's own choice (GET/PUT
+// /api/profile/quick-actions) — there is no longer a fixed set that everyone
+// gets. Nothing is chosen until the person picks.
+const DEFAULT_MAX_QUICK_ACTIONS = 6;
 
 export default function Sidebar() {
   const router = useRouter();
@@ -67,6 +70,69 @@ export default function Sidebar() {
   });
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const [quickKeys, setQuickKeys] = useState<string[]>([]);
+  const [quickMax, setQuickMax] = useState(DEFAULT_MAX_QUICK_ACTIONS);
+  const [editingQuick, setEditingQuick] = useState(false);
+  const [quickDraft, setQuickDraft] = useState<string[]>([]);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickError, setQuickError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/profile/quick-actions')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setQuickKeys(Array.isArray(data.keys) ? data.keys : []);
+        if (typeof data.max === 'number') setQuickMax(data.max);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function startEditQuick() {
+    setQuickDraft(quickKeys);
+    setQuickError('');
+    setEditingQuick(true);
+  }
+
+  function toggleQuickDraft(key: string) {
+    setQuickError('');
+    setQuickDraft((prev) => {
+      if (prev.includes(key)) return prev.filter((k) => k !== key);
+      if (prev.length >= quickMax) {
+        setQuickError(`You can pick up to ${quickMax}.`);
+        return prev;
+      }
+      return [...prev, key];
+    });
+  }
+
+  async function saveQuick() {
+    setQuickSaving(true);
+    setQuickError('');
+    try {
+      const res = await fetch('/api/profile/quick-actions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ keys: quickDraft })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setQuickError(data?.error || 'Could not save — try again.');
+        return;
+      }
+      setQuickKeys(Array.isArray(data?.keys) ? data.keys : quickDraft);
+      setEditingQuick(false);
+    } catch {
+      setQuickError('Could not save — check your connection.');
+    } finally {
+      setQuickSaving(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -208,8 +274,15 @@ export default function Sidebar() {
 
   const quickActions = useMemo(() => {
     const byKey = new Map((modules || []).map((m) => [m.key, m]));
-    return QUICK_ACTION_KEYS.map((key) => byKey.get(key)).filter((m): m is ModuleConfigRecord => !!m);
-  }, [modules]);
+    return quickKeys.map((key) => byKey.get(key)).filter((m): m is ModuleConfigRecord => !!m);
+  }, [modules, quickKeys]);
+
+  // What the picker offers: every module this person can actually open,
+  // alphabetical so it is scannable.
+  const quickChoices = useMemo(
+    () => [...(modules || [])].sort((a, b) => a.label.localeCompare(b.label)),
+    [modules]
+  );
 
   // All tiles flat map
   const allTiles = useMemo(() => {
@@ -458,20 +531,61 @@ export default function Sidebar() {
         {navHasMoreBelow && !collapsed && <div className={styles.navFade} aria-hidden="true" />}
 
         {/* Quick Actions (only when not collapsed and not searching) */}
-        {!searchQuery && quickActions.length > 0 && (
+        {!searchQuery && modules && modules.length > 0 && (
           <div className={styles.quickActions}>
-            <div className={styles.quickActionsLabel}>Quick Actions</div>
-            <div className={styles.quickActionsGrid}>
-              {quickActions.map((m) => {
-                const QuickIcon = QUICK_ACTION_ICON[m.key] || resolveModuleIcon(m.icon);
-                return (
-                  <Link key={m.id} href={m.href} className={styles.quickActionBtn}>
-                    <span className={styles.quickActionIcon}>{QuickIcon ? <QuickIcon size={14} /> : m.icon}</span>
-                    <span>{m.label}</span>
-                  </Link>
-                );
-              })}
+            <div className={styles.quickActionsHeader}>
+              <div className={styles.quickActionsLabel}>Quick Actions</div>
+              {!editingQuick && quickActions.length > 0 && (
+                <button type="button" className={styles.quickActionsEdit} onClick={startEditQuick}>
+                  Edit
+                </button>
+              )}
             </div>
+
+            {editingQuick ? (
+              <div className={styles.quickPicker}>
+                <div className={styles.quickPickerHint}>
+                  Pick up to {quickMax} shortcuts — only you see these. ({quickDraft.length}/{quickMax})
+                </div>
+                <div className={styles.quickPickerList}>
+                  {quickChoices.map((m) => (
+                    <label key={m.key} className={styles.quickPickerItem}>
+                      <input
+                        type="checkbox"
+                        checked={quickDraft.includes(m.key)}
+                        onChange={() => toggleQuickDraft(m.key)}
+                      />
+                      <span>{m.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {quickError && <div className={styles.quickPickerError}>{quickError}</div>}
+                <div className={styles.quickPickerActions}>
+                  <button type="button" className={styles.quickPickerCancel} onClick={() => setEditingQuick(false)} disabled={quickSaving}>
+                    Cancel
+                  </button>
+                  <button type="button" className={styles.quickPickerSave} onClick={saveQuick} disabled={quickSaving}>
+                    {quickSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : quickActions.length > 0 ? (
+              <div className={styles.quickActionsGrid}>
+                {quickActions.map((m) => {
+                  const QuickIcon = QUICK_ACTION_ICON[m.key] || resolveModuleIcon(m.icon);
+                  return (
+                    <Link key={m.id} href={m.href} className={styles.quickActionBtn}>
+                      <span className={styles.quickActionIcon}>{QuickIcon ? <QuickIcon size={14} /> : m.icon}</span>
+                      <span>{m.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <button type="button" className={styles.quickActionsEmpty} onClick={startEditQuick}>
+                + Add your own shortcuts
+              </button>
+            )}
           </div>
         )}
 

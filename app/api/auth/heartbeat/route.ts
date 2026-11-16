@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       mustChangePassword: session.mustChangePassword,
       isPrivileged: session.isPrivileged,
       partnerCreator: session.partnerCreator,
+      departmentHead: session.departmentHead,
       partnerId: session.partnerId,
       // Carried forward unchanged, same as every other claim here — heartbeat
       // never re-reads the user, so it must not mint a fresh epoch of its own.

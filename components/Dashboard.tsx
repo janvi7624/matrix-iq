@@ -56,6 +56,7 @@ import Table from './ui/Table';
 import StatusBadge from './ui/StatusBadge';
 import EmptyState from './ui/EmptyState';
 import CelebrationsSection from './CelebrationsSection';
+import AppreciationWall from './AppreciationWall';
 import MyTargetPanel from './MyTargetPanel';
 import DailyReportAdminBriefWidget from './DailyReportAdminBriefWidget';
 import { useAutoRefresh, DEFAULT_REFRESH_MS } from '@/lib/useAutoRefresh';
@@ -1264,6 +1265,8 @@ export default function Dashboard({ currentUser }: DashboardProps) {
         <span>🎉 Company Celebrations</span>
       </div>
       <CelebrationsSection data={upcomingCelebrations} />
+
+      <AppreciationWall mode="company" />
 
       {/* 8. REDESIGNED WORKSPACE & OPERATIONAL MODULES DIRECTORY */}
       <section className={styles.modulesSection} aria-label="Workspace & System Modules">

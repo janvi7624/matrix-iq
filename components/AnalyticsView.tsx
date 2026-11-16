@@ -1,6 +1,37 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  Briefcase,
+  CalendarClock,
+  CalendarX,
+  CheckCircle2,
+  ClipboardCheck,
+  ClipboardList,
+  Clock,
+  Eye,
+  FileClock,
+  FileText,
+  Handshake,
+  IndianRupee,
+  Layers,
+  MapPin,
+  Megaphone,
+  PackageCheck,
+  PackageOpen,
+  PackageX,
+  Presentation,
+  ShoppingCart,
+  Target,
+  TrendingUp,
+  Trophy,
+  Truck,
+  Users,
+  Wrench,
+  XCircle,
+  type LucideIcon
+} from 'lucide-react';
 import { TmsBomRequestRecord, TmsProcurementRecord, TmsProjectRecord, TmsTaskRecord, UserRole } from '@/lib/types';
 import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 import { closingDatePresetRange, ClosingDatePreset } from '@/lib/dateHelpers';
@@ -14,6 +45,46 @@ interface AnalyticsViewProps {
   currentUser: { role: UserRole; isPrivileged: boolean };
 }
 
+type Tone = 'neutral' | 'success' | 'alert';
+
+// One small, reusable tile for every KPI on this page — replaces the old
+// bare number-over-label block with the same icon-badge card style the main
+// Dashboard already uses (dashboard.module.css's kpiCardNew), so Analytics
+// stops looking like an unstyled leftover of it.
+function KpiTile({ icon: Icon, value, label, tone = 'neutral' }: { icon: LucideIcon; value: string | number; label: string; tone?: Tone }) {
+  const toneClass = tone === 'alert' ? styles.kpiIconWrapperPending : tone === 'success' ? styles.kpiIconWrapperSuccess : '';
+  return (
+    <div className={styles.kpiCardNew}>
+      <div className={styles.kpiCardHead}>
+        <span className={`${styles.kpiIconWrapper} ${toneClass}`}>
+          <Icon size={16} strokeWidth={2.2} />
+        </span>
+      </div>
+      <div className={styles.kpiBody}>
+        <div className={`${styles.kpiValueNew} ${tone === 'alert' ? styles.kpiValueAlert : ''}`}>{value}</div>
+        <div className={styles.kpiLabelNew}>{label}</div>
+      </div>
+    </div>
+  );
+}
+
+// A colored icon badge + title ahead of each domain's tile grid, so the page
+// reads as distinct zones (Sales, Back Office, Technical, ...) instead of
+// one undifferentiated wall of gray cards.
+function SectionHeader({ icon: Icon, accentClass, title, note }: { icon: LucideIcon; accentClass: string; title: string; note?: string }) {
+  return (
+    <div className={analyticsStyles.sectionHeader}>
+      <span className={`${analyticsStyles.sectionIconBadge} ${accentClass}`}>
+        <Icon size={16} strokeWidth={2.2} />
+      </span>
+      <div>
+        <h2 className={analyticsStyles.sectionTitle}>{title}</h2>
+        {note && <p className={analyticsStyles.sectionNote}>{note}</p>}
+      </div>
+    </div>
+  );
+}
+
 interface QuotationStats {
   total: number;
   draft: number;
@@ -23,11 +94,11 @@ interface QuotationStats {
   expired: number;
 }
 
-const QUOTATION_STAT_LABELS: { key: keyof QuotationStats; label: string }[] = [
-  { key: 'total', label: 'Total Quotations' },
-  { key: 'approved', label: 'Approved Quotations' },
-  { key: 'rejected', label: 'Rejected Quotations' },
-  { key: 'expired', label: 'Expired Quotations' }
+const QUOTATION_STAT_LABELS: { key: keyof QuotationStats; label: string; icon: LucideIcon; tone?: Tone }[] = [
+  { key: 'total', label: 'Total Quotations', icon: FileText },
+  { key: 'approved', label: 'Approved Quotations', icon: CheckCircle2, tone: 'success' },
+  { key: 'rejected', label: 'Rejected Quotations', icon: XCircle, tone: 'alert' },
+  { key: 'expired', label: 'Expired Quotations', icon: CalendarX, tone: 'alert' }
 ];
 
 interface Kpis {
@@ -46,25 +117,25 @@ interface Kpis {
   totalApproxValue: number;
 }
 
-const KPI_LABELS: { key: keyof Kpis; label: string; suffix?: string }[] = [
-  { key: 'totalProjects', label: 'Total Projects' },
-  { key: 'siteVisitsToday', label: 'Site Visits Today' },
-  { key: 'quotationsSent', label: 'Quotations Sent' },
-  { key: 'upcomingDemos', label: 'Upcoming Demos' },
-  { key: 'pendingResponses', label: 'Pending Responses' },
-  { key: 'negotiations', label: 'Negotiations' },
-  { key: 'wonDeals', label: 'Won Deals' },
-  { key: 'lostDeals', label: 'Lost Deals' },
-  { key: 'conversionRate', label: 'Conversion Rate', suffix: '%' }
+const KPI_LABELS: { key: keyof Kpis; label: string; suffix?: string; icon: LucideIcon; tone?: Tone }[] = [
+  { key: 'totalProjects', label: 'Total Projects', icon: Briefcase },
+  { key: 'siteVisitsToday', label: 'Site Visits Today', icon: MapPin },
+  { key: 'quotationsSent', label: 'Quotations Sent', icon: FileText },
+  { key: 'upcomingDemos', label: 'Upcoming Demos', icon: Presentation },
+  { key: 'pendingResponses', label: 'Pending Responses', icon: Clock },
+  { key: 'negotiations', label: 'Negotiations', icon: Handshake },
+  { key: 'wonDeals', label: 'Won Deals', icon: Trophy, tone: 'success' },
+  { key: 'lostDeals', label: 'Lost Deals', icon: XCircle, tone: 'alert' },
+  { key: 'conversionRate', label: 'Conversion Rate', suffix: '%', icon: TrendingUp, tone: 'success' }
 ];
 
-const SALES_KPI_LABELS: { key: keyof Kpis; label: string }[] = [
-  { key: 'upcomingSiteVisits', label: 'Upcoming Site Visits' }
+const SALES_KPI_LABELS: { key: keyof Kpis; label: string; icon: LucideIcon }[] = [
+  { key: 'upcomingSiteVisits', label: 'Upcoming Site Visits', icon: CalendarClock }
 ];
 
-const MANAGER_KPI_LABELS: { key: keyof Kpis; label: string }[] = [
-  { key: 'pendingApprovals', label: 'Pending Approvals' },
-  { key: 'activeProjects', label: 'Active Projects' }
+const MANAGER_KPI_LABELS: { key: keyof Kpis; label: string; icon: LucideIcon }[] = [
+  { key: 'pendingApprovals', label: 'Pending Approvals', icon: ClipboardCheck },
+  { key: 'activeProjects', label: 'Active Projects', icon: Layers }
 ];
 
 interface BackOfficeKpis {
@@ -76,13 +147,13 @@ interface BackOfficeKpis {
   todaysDispatch: number;
 }
 
-const BACK_OFFICE_KPI_LABELS: { key: keyof BackOfficeKpis; label: string }[] = [
-  { key: 'pendingDc', label: 'Pending DC' },
-  { key: 'materialsOut', label: 'Materials Out' },
-  { key: 'materialsReturned', label: 'Materials Returned' },
-  { key: 'damagedMaterials', label: 'Damaged Materials' },
-  { key: 'pendingVerification', label: 'Pending Verification' },
-  { key: 'todaysDispatch', label: "Today's Dispatch" }
+const BACK_OFFICE_KPI_LABELS: { key: keyof BackOfficeKpis; label: string; icon: LucideIcon; tone?: Tone }[] = [
+  { key: 'pendingDc', label: 'Pending DC', icon: FileClock },
+  { key: 'materialsOut', label: 'Materials Out', icon: PackageOpen },
+  { key: 'materialsReturned', label: 'Materials Returned', icon: PackageCheck, tone: 'success' },
+  { key: 'damagedMaterials', label: 'Damaged Materials', icon: PackageX, tone: 'alert' },
+  { key: 'pendingVerification', label: 'Pending Verification', icon: ClipboardCheck },
+  { key: 'todaysDispatch', label: "Today's Dispatch", icon: Truck }
 ];
 
 // Raw lists from /api/tms/dashboard (same shape TmsDashboardView already
@@ -112,12 +183,12 @@ function summarizeTechnical(data: TmsDashboardResponse) {
 
 type TechnicalKpis = ReturnType<typeof summarizeTechnical>;
 
-const TECHNICAL_KPI_LABELS: { key: keyof TechnicalKpis; label: string }[] = [
-  { key: 'activeProjects', label: 'Active TMS Projects' },
-  { key: 'openTasks', label: 'Open Tasks' },
-  { key: 'overdueTasks', label: 'Overdue Tasks' },
-  { key: 'pendingBomApprovals', label: 'Pending BOM Approvals' },
-  { key: 'pendingProcurement', label: 'Pending Procurement' }
+const TECHNICAL_KPI_LABELS: { key: keyof TechnicalKpis; label: string; icon: LucideIcon; tone?: Tone }[] = [
+  { key: 'activeProjects', label: 'Active TMS Projects', icon: Layers },
+  { key: 'openTasks', label: 'Open Tasks', icon: ClipboardList },
+  { key: 'overdueTasks', label: 'Overdue Tasks', icon: AlertTriangle, tone: 'alert' },
+  { key: 'pendingBomApprovals', label: 'Pending BOM Approvals', icon: ClipboardCheck },
+  { key: 'pendingProcurement', label: 'Pending Procurement', icon: ShoppingCart }
 ];
 
 interface MetaLeadAnalyticsBucket {
@@ -164,15 +235,19 @@ interface MarketingStats {
   myOpenCount: number;
 }
 
+type MarketingCountKey = 'myOpenCount' | 'awaitingReview' | 'awaitingMarketing' | 'readyForDelivery' | 'myPendingTechnical' | 'pendingTechnical';
+
 // Which cards to show depends on the viewer's own relationship to the
 // pipeline (reviewer sees the review queue, everyone sees their own open
 // requests) — same distinction /api/marketing-requests/stats itself draws.
-function marketingKpiLabels(stats: MarketingStats): { key: keyof MarketingStats; label: string }[] {
-  const labels: { key: keyof MarketingStats; label: string }[] = [{ key: 'myOpenCount', label: 'My Open Requests' }];
-  if (stats.isReviewer) labels.push({ key: 'awaitingReview', label: 'Awaiting Review' }, { key: 'awaitingMarketing', label: 'In Marketing' });
-  labels.push({ key: 'readyForDelivery', label: 'Ready for Delivery' });
-  if (stats.isTechnical) labels.push({ key: 'myPendingTechnical', label: 'Awaiting My Technical Review' });
-  else labels.push({ key: 'pendingTechnical', label: 'Awaiting Technical Review' });
+// Keyed to the numeric fields only (MarketingCountKey) — isReviewer/
+// isTechnical are booleans and were never meant to be rendered as a count.
+function marketingKpiLabels(stats: MarketingStats): { key: MarketingCountKey; label: string; icon: LucideIcon }[] {
+  const labels: { key: MarketingCountKey; label: string; icon: LucideIcon }[] = [{ key: 'myOpenCount', label: 'My Open Requests', icon: FileText }];
+  if (stats.isReviewer) labels.push({ key: 'awaitingReview', label: 'Awaiting Review', icon: Eye }, { key: 'awaitingMarketing', label: 'In Marketing', icon: Megaphone });
+  labels.push({ key: 'readyForDelivery', label: 'Ready for Delivery', icon: PackageCheck });
+  if (stats.isTechnical) labels.push({ key: 'myPendingTechnical', label: 'Awaiting My Technical Review', icon: Wrench });
+  else labels.push({ key: 'pendingTechnical', label: 'Awaiting Technical Review', icon: Wrench });
   return labels;
 }
 
@@ -197,7 +272,6 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
   // overseeing everything, same "privileged sees every department's numbers"
   // convention the rest of this page already follows for Sales/Back Office.
   const isTechnical = (TMS_ROLE_KEYS as readonly string[]).includes(currentUser.role) || isPrivileged;
-  const isMarketing = currentUser.role === 'marketing' || isPrivileged;
 
   // Sales & Back Office analytics are unchanged from before — same three
   // fetches, same endpoints, same shapes. The only addition is the Closing
@@ -245,13 +319,19 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
   }, [isTechnical]);
 
   // Marketing — reuses the existing marketing-requests stats endpoint.
+  // Fetched for every role, not just Marketing/privileged: the endpoint
+  // itself already scopes non-reviewer/non-technical viewers to only the
+  // requests they raised or are assigned to (lib/marketingRequestStore.ts's
+  // list()), so a Sales rep's or HR's own pending marketing request (e.g. a
+  // festival banner) was previously invisible here purely because of their
+  // role, even though the data was already theirs to see. The section below
+  // still only renders when there's something of theirs to show.
   useEffect(() => {
-    if (!isMarketing) return;
     fetch('/api/marketing-requests/stats')
       .then((r) => (r.ok ? r.json() : null))
       .then((data: MarketingStats | null) => setMarketingStats(data))
       .catch(() => setMarketingStats(null));
-  }, [isMarketing]);
+  }, []);
 
   // Meta Lead Ads — everyone who can already see leads (every role reaches
   // /leads) gets this breakdown; it's just a summarized view of records
@@ -265,148 +345,125 @@ export default function AnalyticsView({ currentUser }: AnalyticsViewProps) {
 
   const technicalKpis = useMemo(() => (tmsData ? summarizeTechnical(tmsData) : null), [tmsData]);
 
+  const showMarketing =
+    marketingStats &&
+    (marketingStats.isReviewer ||
+      marketingStats.isTechnical ||
+      marketingStats.myOpenCount > 0 ||
+      marketingStats.readyForDelivery > 0 ||
+      marketingStats.pendingTechnical > 0 ||
+      marketingStats.myPendingTechnical > 0);
+
   const nothingLoadedYet = !quotationStats && !kpis && !backOfficeKpis && !technicalKpis && !marketingStats && !metaLeadAnalytics;
 
   return (
     <AppShell title="Analytics" subtitle="Quotation, project, and pipeline performance at a glance.">
-      {(quotationStats || kpis) && <h2 className={calcStyles.h2}>Sales &amp; Pipeline</h2>}
-      {kpis && (
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-          <Select auto value={closingPreset} onChange={(e) => setClosingPreset(e.target.value as ClosingDatePreset)}>
-            <option value="all">Closing Date: All</option>
-            <option value="today">Closing Today</option>
-            <option value="this_week">Closing This Week</option>
-            <option value="this_month">Closing This Month</option>
-            <option value="next_7">Closing Next 7 Days</option>
-            <option value="next_30">Closing Next 30 Days</option>
-            <option value="custom">Closing: Custom Range…</option>
-          </Select>
-          {closingPreset === 'custom' && (
-            <>
-              <input type="date" className={calcStyles.formControl} value={closingFrom} onChange={(e) => setClosingFrom(e.target.value)} />
-              <input type="date" className={calcStyles.formControl} value={closingTo} onChange={(e) => setClosingTo(e.target.value)} />
-            </>
-          )}
-        </div>
-      )}
-      {quotationStats && (
-        <div className={styles.kpiGrid}>
-          {QUOTATION_STAT_LABELS.map((s) => (
-            <div key={s.key} className={styles.kpiCard}>
-              <div className={styles.kpiValue}>{quotationStats[s.key]}</div>
-              <div className={styles.kpiLabel}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className={analyticsStyles.page}>
+        {(quotationStats || kpis) && (
+          <div className={analyticsStyles.section}>
+            <SectionHeader icon={TrendingUp} accentClass={analyticsStyles.accentSales} title="Sales & Pipeline" />
 
-      {kpis && (
-        <div className={styles.kpiGrid}>
-          <div className={styles.kpiCard}>
-            <div className={styles.kpiValue}>₹{kpis.totalApproxValue.toLocaleString('en-IN')}</div>
-            <div className={styles.kpiLabel}>Total Approx. Value</div>
-          </div>
-          {KPI_LABELS.map((k) => (
-            <div key={k.key} className={styles.kpiCard}>
-              <div className={styles.kpiValue}>{kpis[k.key]}{k.suffix || ''}</div>
-              <div className={styles.kpiLabel}>{k.label}</div>
-            </div>
-          ))}
-          {isSales && SALES_KPI_LABELS.map((k) => (
-            <div key={k.key} className={styles.kpiCard}>
-              <div className={styles.kpiValue}>{kpis[k.key]}</div>
-              <div className={styles.kpiLabel}>{k.label}</div>
-            </div>
-          ))}
-          {isPrivileged && MANAGER_KPI_LABELS.map((k) => (
-            <div key={k.key} className={styles.kpiCard}>
-              <div className={styles.kpiValue}>{kpis[k.key]}</div>
-              <div className={styles.kpiLabel}>{k.label}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {backOfficeKpis && (
-        <>
-          <h2 className={calcStyles.h2}>Back Office</h2>
-          <div className={styles.kpiGrid}>
-            {BACK_OFFICE_KPI_LABELS.map((k) => (
-              <div key={k.key} className={styles.kpiCard}>
-                <div className={styles.kpiValue}>{backOfficeKpis[k.key]}</div>
-                <div className={styles.kpiLabel}>{k.label}</div>
+            {kpis && (
+              <div className={analyticsStyles.filterBar}>
+                <Select auto value={closingPreset} onChange={(e) => setClosingPreset(e.target.value as ClosingDatePreset)}>
+                  <option value="all">Closing Date: All</option>
+                  <option value="today">Closing Today</option>
+                  <option value="this_week">Closing This Week</option>
+                  <option value="this_month">Closing This Month</option>
+                  <option value="next_7">Closing Next 7 Days</option>
+                  <option value="next_30">Closing Next 30 Days</option>
+                  <option value="custom">Closing: Custom Range…</option>
+                </Select>
+                {closingPreset === 'custom' && (
+                  <>
+                    <input type="date" className={calcStyles.formControl} value={closingFrom} onChange={(e) => setClosingFrom(e.target.value)} />
+                    <input type="date" className={calcStyles.formControl} value={closingTo} onChange={(e) => setClosingTo(e.target.value)} />
+                  </>
+                )}
               </div>
-            ))}
-          </div>
-        </>
-      )}
+            )}
 
-      {technicalKpis && (
-        <>
-          <h2 className={calcStyles.h2}>Technical</h2>
-          <div className={styles.kpiGrid}>
-            {TECHNICAL_KPI_LABELS.map((k) => (
-              <div key={k.key} className={styles.kpiCard}>
-                <div className={styles.kpiValue}>{technicalKpis[k.key]}</div>
-                <div className={styles.kpiLabel}>{k.label}</div>
+            {quotationStats && (
+              <div className={analyticsStyles.kpiGrid}>
+                {QUOTATION_STAT_LABELS.map((s) => (
+                  <KpiTile key={s.key} icon={s.icon} tone={s.tone} value={quotationStats[s.key]} label={s.label} />
+                ))}
               </div>
-            ))}
-          </div>
-        </>
-      )}
+            )}
 
-      {marketingStats && (
-        <>
-          <h2 className={calcStyles.h2}>Marketing</h2>
-          <div className={styles.kpiGrid}>
-            {marketingKpiLabels(marketingStats).map((k) => (
-              <div key={k.key} className={styles.kpiCard}>
-                <div className={styles.kpiValue}>{marketingStats[k.key]}</div>
-                <div className={styles.kpiLabel}>{k.label}</div>
+            {kpis && (
+              <div className={analyticsStyles.kpiGrid}>
+                <KpiTile icon={IndianRupee} value={`₹${kpis.totalApproxValue.toLocaleString('en-IN')}`} label="Total Approx. Value" />
+                {KPI_LABELS.map((k) => (
+                  <KpiTile key={k.key} icon={k.icon} tone={k.tone} value={`${kpis[k.key]}${k.suffix || ''}`} label={k.label} />
+                ))}
+                {isSales && SALES_KPI_LABELS.map((k) => <KpiTile key={k.key} icon={k.icon} value={kpis[k.key]} label={k.label} />)}
+                {isPrivileged && MANAGER_KPI_LABELS.map((k) => <KpiTile key={k.key} icon={k.icon} value={kpis[k.key]} label={k.label} />)}
               </div>
-            ))}
+            )}
           </div>
-        </>
-      )}
+        )}
 
-      {metaLeadAnalytics && metaLeadAnalytics.total > 0 && (
-        <>
-          <h2 className={calcStyles.h2}>Meta Lead Ads</h2>
-          {/* A lead only becomes a project once a rep has rung it and marked
-              it suitable (lib/leadCall.ts). Before that, assigning a lead
-              created a project by itself, so this number counted "was it
-              handed to anyone", not "was it any good" — it will read lower
-              from now on, and that drop is the junk leaving the pipeline,
-              not the campaigns getting worse. Spelled out here because this
-              panel is what marketing judges a campaign on. */}
-          <p className={calcStyles.small}>
-            A Meta lead becomes a project only after a sales rep calls it and marks it suitable, so &ldquo;Qualified on a call&rdquo; is a
-            quality figure, not a routing one. Counts before that change are not comparable with these.
-          </p>
-          <div className={styles.kpiGrid}>
-            <div className={styles.kpiCard}>
-              <div className={styles.kpiValue}>{metaLeadAnalytics.total}</div>
-              <div className={styles.kpiLabel}>Total Meta Leads</div>
-            </div>
-            <div className={styles.kpiCard} title="Meta leads a rep called and marked suitable, which is what creates the project. Leads not yet called, called back later, or ruled out are not counted here.">
-              <div className={styles.kpiValue}>{metaLeadAnalytics.convertedToProject}</div>
-              <div className={styles.kpiLabel}>Qualified on a call → Project</div>
+        {backOfficeKpis && (
+          <div className={analyticsStyles.section}>
+            <SectionHeader icon={PackageOpen} accentClass={analyticsStyles.accentBackOffice} title="Back Office" />
+            <div className={analyticsStyles.kpiGrid}>
+              {BACK_OFFICE_KPI_LABELS.map((k) => (
+                <KpiTile key={k.key} icon={k.icon} tone={k.tone} value={backOfficeKpis[k.key]} label={k.label} />
+              ))}
             </div>
           </div>
-          <div className={`${calcStyles.sectionPanel} ${analyticsStyles.breakdownWrap}`}>
-            <BreakdownList title="By Campaign" buckets={metaLeadAnalytics.byCampaign} />
-            <BreakdownList title="By Form" buckets={metaLeadAnalytics.byForm} />
-            <BreakdownList title="By Platform" buckets={metaLeadAnalytics.byPlatform} />
-            {/* Its buckets are "Converted to Project" / "New" — "New" now
-                covers everything a call hasn't qualified yet, including
-                leads called back or ruled out. */}
-            <BreakdownList title="By Status (project = qualified on a call)" buckets={metaLeadAnalytics.byStatus} />
-            <BreakdownList title="By Assigned Sales Person" buckets={metaLeadAnalytics.byAssignedUser} />
-          </div>
-        </>
-      )}
+        )}
 
-      {nothingLoadedYet && <div className={styles.greeting}>Loading analytics…</div>}
+        {technicalKpis && (
+          <div className={analyticsStyles.section}>
+            <SectionHeader icon={Wrench} accentClass={analyticsStyles.accentTechnical} title="Technical" />
+            <div className={analyticsStyles.kpiGrid}>
+              {TECHNICAL_KPI_LABELS.map((k) => (
+                <KpiTile key={k.key} icon={k.icon} tone={k.tone} value={technicalKpis[k.key]} label={k.label} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {showMarketing && marketingStats && (
+          <div className={analyticsStyles.section}>
+            <SectionHeader icon={Megaphone} accentClass={analyticsStyles.accentMarketing} title="Marketing" />
+            <div className={analyticsStyles.kpiGrid}>
+              {marketingKpiLabels(marketingStats).map((k) => (
+                <KpiTile key={k.key} icon={k.icon} value={marketingStats[k.key]} label={k.label} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {metaLeadAnalytics && metaLeadAnalytics.total > 0 && (
+          <div className={analyticsStyles.section}>
+            <SectionHeader
+              icon={Target}
+              accentClass={analyticsStyles.accentMeta}
+              title="Meta Lead Ads"
+              note="A Meta lead becomes a project only after a sales rep calls it and marks it suitable, so “Qualified on a call” is a quality figure, not a routing one. Counts before that change are not comparable with these."
+            />
+            <div className={analyticsStyles.kpiGrid}>
+              <KpiTile icon={Users} value={metaLeadAnalytics.total} label="Total Meta Leads" />
+              <KpiTile icon={TrendingUp} tone="success" value={metaLeadAnalytics.convertedToProject} label="Qualified on a call → Project" />
+            </div>
+            <div className={`${calcStyles.sectionPanel} ${analyticsStyles.breakdownWrap}`}>
+              <BreakdownList title="By Campaign" buckets={metaLeadAnalytics.byCampaign} />
+              <BreakdownList title="By Form" buckets={metaLeadAnalytics.byForm} />
+              <BreakdownList title="By Platform" buckets={metaLeadAnalytics.byPlatform} />
+              {/* Its buckets are "Converted to Project" / "New" — "New" now
+                  covers everything a call hasn't qualified yet, including
+                  leads called back or ruled out. */}
+              <BreakdownList title="By Status (project = qualified on a call)" buckets={metaLeadAnalytics.byStatus} />
+              <BreakdownList title="By Assigned Sales Person" buckets={metaLeadAnalytics.byAssignedUser} />
+            </div>
+          </div>
+        )}
+
+        {nothingLoadedYet && <div className={analyticsStyles.emptyState}>Loading analytics…</div>}
+      </div>
     </AppShell>
   );
 }

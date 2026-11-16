@@ -4,7 +4,7 @@ import { createUser, findUserByUsername, listUsers } from '@/lib/userStore';
 import { listActiveRoles } from '@/lib/roleStore';
 import { UserRole } from '@/lib/types';
 import { apiErrorResponse } from '@/lib/apiError';
-import { resolveVisibilityScope } from '@/lib/departmentScope';
+import { resolveUserAdminAuthority } from '@/lib/userAdminScope';
 import { canViewRole } from '@/lib/permissions';
 
 // Base auth + admin/superadmin gating happens in proxy.ts (matcher:
@@ -18,9 +18,10 @@ export async function GET(request: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const users = await listUsers();
-    const scope = await resolveVisibilityScope(session.username);
-    const visible = scope.seesOrgWide ? users : users.filter((u) => scope.scopedUserIds!.includes(u.id));
+    const [users, authority] = await Promise.all([listUsers(), resolveUserAdminAuthority(session)]);
+    // Department-only for everyone below admin: the departments they manage,
+    // not personal direct reports elsewhere (see resolveDepartmentOnlyScope).
+    const visible = authority.seesOrgWide ? users : users.filter((u) => authority.scopedUserIds!.includes(u.id));
     return NextResponse.json(visible.filter((u) => canViewRole(session.role, u.role)));
   } catch (error) {
     return apiErrorResponse(error);
@@ -38,7 +39,6 @@ export async function POST(request: NextRequest) {
   const phone = typeof body?.phone === 'string' ? body.phone.trim() : '';
   const email = typeof body?.email === 'string' ? body.email.trim() : '';
   const employeeId = typeof body?.employeeId === 'string' ? body.employeeId.trim() : '';
-  const department = typeof body?.department === 'string' ? body.department.trim() : '';
   const designation = typeof body?.designation === 'string' ? body.designation.trim() : '';
   const activeRoles = await listActiveRoles();
   const requestedRole: UserRole = activeRoles.some((r) => r.key === body?.role) ? body.role : 'user';
@@ -47,6 +47,23 @@ export async function POST(request: NextRequest) {
   // can create/edit users but must not be able to mint itself a superuser.
   if (requestedRole === 'superadmin' && session.role !== 'superadmin') {
     return NextResponse.json({ error: 'Only a superadmin can create a superadmin account' }, { status: 403 });
+  }
+
+  // Below admin (manager-role accounts and department heads): non-admin roles
+  // only, and only into a department they manage — lib/userAdminScope.ts.
+  const authority = await resolveUserAdminAuthority(session);
+  let department = typeof body?.department === 'string' ? body.department.trim() : '';
+  if (!authority.adminTier) {
+    if (!authority.managedDepartmentNames.length) {
+      return NextResponse.json({ error: 'Only department managers can add users' }, { status: 403 });
+    }
+    if (!authority.assignableRoleKeys.includes(requestedRole)) {
+      return NextResponse.json({ error: 'Only an Admin can create Admin, Manager or other admin-panel accounts' }, { status: 403 });
+    }
+    if (!department && authority.managedDepartmentNames.length === 1) department = authority.managedDepartmentNames[0];
+    if (!authority.managedDepartmentNames.includes(department)) {
+      return NextResponse.json({ error: `You can only add users to your own department (${authority.managedDepartmentNames.join(', ')})` }, { status: 403 });
+    }
   }
 
   if (!username || !password || !name) {

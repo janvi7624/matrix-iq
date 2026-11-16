@@ -128,7 +128,7 @@ export async function proxy(request: NextRequest) {
   // app/api/auth/change-password) from Role Management's live isPrivileged
   // flag and signed into the token — see the SessionPayload.isPrivileged
   // comment in lib/auth.ts for the staleness trade-off this accepts.
-  if (!mayReachAdminArea(pathname, session)) {
+  if (!mayReachAdminArea(pathname, session, request.method)) {
     if (isApi) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.redirect(new URL('/', request.url));
   }

@@ -98,3 +98,34 @@ describe('mayReachAdminArea', () => {
     expect(mayReachAdminArea('/admin/partners', { partnerCreator: false })).toBe(false);
   });
 });
+
+describe('mayReachAdminArea — department heads (departmentHead claim)', () => {
+  const HEAD = { isPrivileged: false, departmentHead: true };
+  const ID = '/api/admin/users/1ac6a5ab-dbc4-4b65-8154-4120d94713dc';
+
+  it('opens the Users screen and its list/create/edit calls', () => {
+    expect(mayReachAdminArea('/admin/users', HEAD, 'GET')).toBe(true);
+    expect(mayReachAdminArea('/api/admin/users', HEAD, 'GET')).toBe(true);
+    expect(mayReachAdminArea('/api/admin/users', HEAD, 'POST')).toBe(true);
+    expect(mayReachAdminArea(ID, HEAD, 'PATCH')).toBe(true);
+    expect(mayReachAdminArea('/api/admin/roles', HEAD, 'GET')).toBe(true);
+  });
+
+  it('keeps every other admin route and method closed', () => {
+    expect(mayReachAdminArea(ID, HEAD, 'DELETE')).toBe(false);
+    expect(mayReachAdminArea('/api/admin/roles', HEAD, 'POST')).toBe(false);
+    expect(mayReachAdminArea('/api/admin/departments', HEAD, 'GET')).toBe(false);
+    expect(mayReachAdminArea('/api/admin/departments/abc', HEAD, 'PATCH')).toBe(false);
+    expect(mayReachAdminArea('/admin/users/import', HEAD, 'GET')).toBe(false);
+    expect(mayReachAdminArea('/api/admin/users/import/commit', HEAD, 'POST')).toBe(false);
+    expect(mayReachAdminArea(`${ID}/resend-welcome-email`, HEAD, 'POST')).toBe(false);
+    expect(mayReachAdminArea(`${ID}/activity`, HEAD, 'GET')).toBe(false);
+    expect(mayReachAdminArea('/admin/roles', HEAD, 'GET')).toBe(false);
+    expect(mayReachAdminArea('/admin/settings', HEAD, 'GET')).toBe(false);
+  });
+
+  it('does not open the users area without the claim', () => {
+    expect(mayReachAdminArea('/admin/users', PLAIN, 'GET')).toBe(false);
+    expect(mayReachAdminArea('/api/admin/users', { departmentHead: false }, 'POST')).toBe(false);
+  });
+});

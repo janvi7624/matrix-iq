@@ -6,6 +6,7 @@ import {
   User, Building2, Briefcase, Phone, Mail, Cake, CalendarCheck, MapPin, Hash,
 } from 'lucide-react';
 import AppShell from './AppShell';
+import AppreciationWall from './AppreciationWall';
 import { SkeletonRows } from './ui/Skeleton';
 import historyStyles from './quotationHistory.module.css';
 import styles from './profileView.module.css';
@@ -152,6 +153,8 @@ export default function ProfileView() {
               ))}
             </div>
           </div>
+
+          <AppreciationWall mode="mine" />
         </>
       )}
     </AppShell>

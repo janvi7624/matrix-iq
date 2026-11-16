@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { resolveVisibilityScope } from '@/lib/departmentScope';
+import { resolveDepartmentOnlyScope } from '@/lib/departmentScope';
 import { findUserById } from '@/lib/userStore';
 import { listActiveEmployeesExcept, reassignEmployeeWork, ReassignmentValidationError, ReassignmentItem } from '@/lib/employeeExitStore';
 import { apiErrorResponse } from '@/lib/apiError';
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!body || typeof body.reassignments !== 'object') return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
   try {
-    const scope = await resolveVisibilityScope(viewer.username);
+    const scope = await resolveDepartmentOnlyScope(viewer.username);
     if (!scope.seesOrgWide && !(scope.scopedUserIds ?? []).includes(userId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
