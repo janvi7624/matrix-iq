@@ -366,7 +366,7 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // href and visibleToRoles are deliberately unchanged: the key is referenced
   // by isModuleActionAllowed call sites, and who may open it is a separate
   // question from where it is listed.
-  { key: 'admin-task-assignment', label: 'Task Planner', desc: 'Plan, assign and track work across departments and employees.', icon: 'kanban-square', href: '/admin/task-planner', section: 'Workspace', order: 2, enabled: true, isCustom: false, visibleToRoles: PRIVILEGED_ROLES },
+  { key: 'admin-task-assignment', label: 'Task Planner', desc: 'Plan, assign and track work across departments and employees.', icon: 'kanban-square', href: '/admin/task-planner', section: 'Workspace', order: 2, enabled: true, isCustom: false, visibleToRoles: SALES_ROLES_WITH_TMS },
   // Narrower than PRIVILEGED_ROLES (excludes 'manager') — Meta credentials
   // and lead-routing rules are Admin/Super Admin only, same restriction
   // 'audit-log' already uses. See lib/metaConfig.ts.
@@ -789,6 +789,10 @@ async function ensureSeededAndReconciled(): Promise<void> {
     if (key === TASK_PLANNER_KEY && plain.icon === OLD_TASK_PLANNER_ICON) attrs.icon = 'kanban-square';
     if (key === TASK_PLANNER_KEY && plain.desc === OLD_TASK_PLANNER_DESC) attrs.desc = 'Plan, assign and track work across departments and employees.';
     if (key === TASK_PLANNER_KEY && plain.section === OLD_TASK_PLANNER_SECTION) { attrs.section = NEW_TASK_PLANNER_SECTION; attrs.order = NEW_TASK_PLANNER_ORDER; }
+    // Task Planner is for inter-department work — any employee assigns to any
+    // other, so it opened up from the privileged roles to everyone. Guarded on
+    // the exact old value so an admin's own visibility choice survives.
+    if (key === TASK_PLANNER_KEY && sameRoles((plain.visibleToRoles as UserRole[]) ?? [], PRIVILEGED_ROLES)) attrs.visibleToRoles = SALES_ROLES_WITH_TMS;
     if (key === DAILY_REPORT_KEY && plain.desc === OLD_DAILY_REPORT_DESC) attrs.desc = NEW_DAILY_REPORT_DESC;
     if (key === HR_REPORTS_KEY && plain.label === OLD_HR_REPORTS_LABEL) attrs.label = 'HR Expense Report';
     if (key === HR_REPORTS_KEY && plain.desc === OLD_HR_REPORTS_DESC) attrs.desc = 'Reimbursement, admin expense, and office operation spend by period, employee, or department.';
