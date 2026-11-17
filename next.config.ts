@@ -136,7 +136,9 @@ const nextConfig: NextConfig = {
     //
     // The cost is wall-clock: roughly 70s against Turbopack's 21s here. A build
     // that finishes slowly beats one that is killed.
-    webpackMemoryOptimizations: true
+    webpackMemoryOptimizations: true,
+    // Lets Next's agent-driven upgrade flow apply security patch releases.
+    agentUpgrade: 'security'
   }
 };
 
