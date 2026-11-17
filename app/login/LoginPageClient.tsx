@@ -68,6 +68,12 @@ function LoginForm() {
   return (
     <div className={visualStyles.pageRoot}>
       <MatrixLoginVisual />
+      <a
+        href="/"
+        style={{ position: 'fixed', top: 18, left: 18, zIndex: 5, padding: '8px 14px', borderRadius: 999, background: 'rgba(17,24,39,0.55)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', backdropFilter: 'blur(8px)' }}
+      >
+        ← Back to home
+      </a>
       <div className={visualStyles.centerWrap}>
         <form className={visualStyles.formCard} onSubmit={handleSubmit} noValidate>
           <Image src={BRAND.logoWeb} alt={`${BRAND.companyName} logo`} width={96} height={96} className={visualStyles.formLogo} unoptimized />

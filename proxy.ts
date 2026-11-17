@@ -61,6 +61,9 @@ const PUBLIC_PATHS = new Set([
 // Each route does its own check; nothing else may be placed under this prefix
 // without one.
 const PUBLIC_PREFIXES = ['/api/public/'];
+// Reachable without a session, but still run through the normal gates for a
+// signed-in user (so '/' keeps the mustChangePassword / partner redirects).
+const LOGGED_OUT_PUBLIC_PATHS = new Set(['/', '/request-demo', '/sitemap.xml', '/robots.txt', '/opengraph-image']);
 // Reachable even while a bulk-imported account is force-locked to changing
 // its temporary password — see the mustChangePassword gate below.
 const CHANGE_PASSWORD_ALLOWED_PATHS = new Set(['/change-password', '/api/auth/change-password', '/api/auth/me', '/api/auth/heartbeat']);
@@ -76,6 +79,11 @@ export async function proxy(request: NextRequest) {
   const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
 
   if (!session) {
+    // The public marketing site: '/' renders the landing page for a visitor
+    // with no session (app/page.tsx decides — a signed-in user gets the
+    // dashboard there), plus the demo form and the SEO files. Its submit API
+    // sits under /api/public/ above.
+    if (LOGGED_OUT_PUBLIC_PATHS.has(pathname)) return NextResponse.next();
     if (isApi) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', pathname);
