@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, X, KanbanSquare, ChevronDown } from 'lucide-react';
+import { Plus, Search, X, KanbanSquare, ChevronDown, ListTodo, Circle, Loader, Eye, RotateCcw, AlertTriangle, CalendarClock, CheckCircle2, CalendarDays, type LucideIcon } from 'lucide-react';
 import { DepartmentRecord, GeneralTaskPriority, GeneralTaskRecord, GeneralTaskStatus, ProjectRecord, TmsProjectRecord, UserRole } from '@/lib/types';
 import { GENERAL_TASK_PRIORITY_LABEL, GENERAL_TASK_PRIORITY_TONE, GENERAL_TASK_STATUS_LABEL, GENERAL_TASK_STATUS_TONE, todayIso } from '@/lib/generalTaskLabels';
 import AppShell from './AppShell';
@@ -60,16 +60,36 @@ const EMPTY_FORM = {
   requiresReview: true
 };
 
-const KPI_DEFS: { key: string; label: string; danger?: boolean; warning?: boolean }[] = [
-  { key: 'total', label: 'Total Tasks' },
-  { key: 'pending', label: 'Not Started' },
-  { key: 'in_progress', label: 'In Progress' },
-  { key: 'rework_required', label: 'Rework Required', warning: true },
-  { key: 'under_review', label: 'Under Review' },
-  { key: 'done', label: 'Completed' },
-  { key: 'overdue', label: 'Overdue', danger: true },
-  { key: 'due_today', label: 'Due Today', warning: true }
+const KPI_DEFS: { key: string; label: string; icon: LucideIcon; tone: string; danger?: boolean; warning?: boolean }[] = [
+  { key: 'total', label: 'Open Tasks', icon: ListTodo, tone: 'slate' },
+  { key: 'pending', label: 'Not Started', icon: Circle, tone: 'slate' },
+  { key: 'in_progress', label: 'In Progress', icon: Loader, tone: 'blue' },
+  { key: 'under_review', label: 'Under Review', icon: Eye, tone: 'violet' },
+  { key: 'rework_required', label: 'Rework Required', icon: RotateCcw, tone: 'amber', warning: true },
+  { key: 'overdue', label: 'Overdue', icon: AlertTriangle, tone: 'red', danger: true },
+  { key: 'due_today', label: 'Due Today', icon: CalendarClock, tone: 'amber', warning: true },
+  { key: 'done', label: 'Completed', icon: CheckCircle2, tone: 'green' }
 ];
+
+// Finished work leaves the board automatically — a completed/approved task
+// (or one rejected/cancelled) is history, not something anyone has to act on.
+// The 'Show completed' toggle brings it back when someone needs to look.
+const FINISHED_STATUSES = new Set<GeneralTaskStatus>(['completed', 'approved', 'rejected', 'cancelled']);
+const FINISHED_COLUMN_KEYS = new Set(['done', 'closed']);
+
+const COLUMN_TONE: Record<string, string> = {
+  pending: 'slate', in_progress: 'blue', under_review: 'violet', rework_required: 'amber', declined: 'red', done: 'green', closed: 'slate'
+};
+
+const PRIORITY_TONE_CLASS: Record<GeneralTaskPriority, string> = { low: 'prioLow', medium: 'prioMedium', high: 'prioHigh', critical: 'prioCritical' };
+
+function initials(name: string): string {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+
+type Scope = 'all' | 'mine' | 'byme';
 
 // Board columns are the real GeneralTaskStatus values, grouped a little for
 // readability — there is no "Blocked" status on GeneralTask (see the plan's
@@ -150,6 +170,21 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
   const [transitionPrompt, setTransitionPrompt] = useState<{ taskId: string; kind: 'submit' | 'approve' | 'rework' | 'reject' | 'start' | 'reopen' } | null>(null);
   const [transitionText, setTransitionText] = useState('');
   const [transitionBusy, setTransitionBusy] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
+  // Inter-department use: the same person both receives tasks and hands them
+  // out, so the first cut is "what's on me" vs "what I gave others".
+  const [scope, setScope] = useState<Scope>('all');
+
+  const scopedTasks = useMemo(
+    () =>
+      tasks.filter((t) => {
+        if (scope === 'mine') return t.assignee_username === currentUser.username;
+        if (scope === 'byme') return t.created_by === currentUser.username;
+        return true;
+      }),
+    [tasks, scope, currentUser.username]
+  );
+  const visibleTasks = useMemo(() => (showCompleted ? scopedTasks : scopedTasks.filter((t) => !FINISHED_STATUSES.has(t.status))), [scopedTasks, showCompleted]);
 
   async function load() {
     setLoading(true);
@@ -179,8 +214,9 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
   }, []);
 
   const kpis = useMemo(() => {
-    const values: Record<string, number> = { total: tasks.length, pending: 0, in_progress: 0, rework_required: 0, under_review: 0, done: 0, overdue: 0, due_today: 0 };
-    for (const t of tasks) {
+    const values: Record<string, number> = { total: 0, pending: 0, in_progress: 0, rework_required: 0, under_review: 0, done: 0, overdue: 0, due_today: 0 };
+    for (const t of scopedTasks) {
+      if (!FINISHED_STATUSES.has(t.status)) values.total++;
       if (t.status === 'pending') values.pending++;
       else if (t.status === 'in_progress') values.in_progress++;
       else if (t.status === 'rework_required') values.rework_required++;
@@ -190,7 +226,7 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
       if (isDueToday(t, today)) values.due_today++;
     }
     return values;
-  }, [tasks, today]);
+  }, [scopedTasks, today]);
 
   const [activeKpi, setActiveKpi] = useState<string | null>(null);
   function toggleKpi(key: string) {
@@ -200,6 +236,7 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
       return;
     }
     setActiveKpi(key);
+    if (key === 'done') setShowCompleted(true);
     const base = { ...EMPTY_FILTERS };
     if (key === 'overdue') setFilters({ ...base, overdue: true });
     else if (key === 'due_today') setFilters({ ...base, dueToday: true });
@@ -209,7 +246,8 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
 
   const filteredTasks = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return tasks.filter((t) => {
+    return visibleTasks.filter((t) => {
+      if (activeKpi === 'done' && !(t.status === 'completed' || t.status === 'approved')) return false;
       if (filters.departmentId && t.department_id !== filters.departmentId) return false;
       if (filters.assigneeUsername && t.assignee_username !== filters.assigneeUsername) return false;
       if (filters.status && t.status !== filters.status) return false;
@@ -223,7 +261,7 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
       }
       return true;
     });
-  }, [tasks, filters, search, today]);
+  }, [visibleTasks, filters, search, today, activeKpi]);
 
   const activeChips = useMemo(() => {
     const chips: { key: string; label: string }[] = [];
@@ -293,7 +331,9 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
   // first instead of firing the request blind.
   function planDrop(task: GeneralTaskRecord, targetColumnKey: string): { kind: 'start' | 'reopen' | 'submit' | 'approve' | 'rework' | 'reject'; needsText: boolean } | null {
     const isMine = task.assignee_username === currentUser.username;
-    const isReviewerOrManager = task.reviewer_username === currentUser.username || currentUser.isPrivileged;
+    // The person who handed the task out reviews it — that's the inter-
+    // department flow; the review route already authorises the creator.
+    const isReviewerOrManager = task.reviewer_username === currentUser.username || task.created_by === currentUser.username || currentUser.isPrivileged;
     if (targetColumnKey === 'in_progress') {
       if (task.status === 'pending' && isMine) return { kind: 'start', needsText: false };
       if (task.status === 'rework_required' && isMine) return { kind: 'reopen', needsText: false };
@@ -500,21 +540,51 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
   return (
     <AppShell title="Task Planner" subtitle="Plan, assign and track work across departments and employees.">
       <div className={planner.kpiBar}>
-        {KPI_DEFS.map((k) => (
-          <button key={k.key} type="button" className={`${planner.kpiCard} ${activeKpi === k.key ? planner.kpiCardActive : ''}`} onClick={() => toggleKpi(k.key)}>
-            <div className={`${planner.kpiValue} ${k.danger ? planner.kpiValueDanger : k.warning ? planner.kpiValueWarning : ''}`}>{kpis[k.key] ?? 0}</div>
-            <div className={planner.kpiLabel}>{k.label}</div>
-          </button>
-        ))}
+        {KPI_DEFS.map((k) => {
+          const Icon = k.icon;
+          return (
+            <button key={k.key} type="button" className={`${planner.kpiCard} ${planner[`tone_${k.tone}`]} ${activeKpi === k.key ? planner.kpiCardActive : ''}`} onClick={() => toggleKpi(k.key)}>
+              <span className={planner.kpiIcon}><Icon size={15} strokeWidth={2.2} /></span>
+              <div>
+                <div className={`${planner.kpiValue} ${k.danger && kpis[k.key] ? planner.kpiValueDanger : k.warning && kpis[k.key] ? planner.kpiValueWarning : ''}`}>{kpis[k.key] ?? 0}</div>
+                <div className={planner.kpiLabel}>{k.label}</div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       <div className={planner.toolRow}>
-        <div className={planner.viewTabs}>
-          <ToolbarButton primary={view === 'board'} onClick={() => setView('board')}>Board</ToolbarButton>
-          <ToolbarButton primary={view === 'list'} onClick={() => setView('list')}>List</ToolbarButton>
+        <div className={planner.toolLeft}>
+          <div className={planner.segmented} role="tablist" aria-label="Whose tasks">
+            {([
+              ['all', 'All Tasks'],
+              ['mine', 'Assigned to Me'],
+              ['byme', 'Assigned by Me']
+            ] as [Scope, string][]).map(([key, label]) => (
+              <button key={key} type="button" role="tab" aria-selected={scope === key} className={`${planner.segmentBtn} ${scope === key ? planner.segmentBtnActive : ''}`} onClick={() => setScope(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className={planner.segmented} role="tablist" aria-label="View">
+            <button type="button" role="tab" aria-selected={view === 'board'} className={`${planner.segmentBtn} ${view === 'board' ? planner.segmentBtnActive : ''}`} onClick={() => setView('board')}>Board</button>
+            <button type="button" role="tab" aria-selected={view === 'list'} className={`${planner.segmentBtn} ${view === 'list' ? planner.segmentBtnActive : ''}`} onClick={() => setView('list')}>List</button>
+          </div>
+          <label className={planner.completedToggle}>
+            <input
+              type="checkbox"
+              checked={showCompleted}
+              onChange={(e) => {
+                setShowCompleted(e.target.checked);
+                if (!e.target.checked && activeKpi === 'done') setActiveKpi(null);
+              }}
+            />
+            Show completed {kpis.done ? `(${kpis.done})` : ''}
+          </label>
         </div>
-        <button type="button" className={calcStyles.btn} onClick={() => openCreate()}>
-          <Plus size={15} style={{ verticalAlign: -2, marginRight: 4 }} />New Task
+        <button type="button" className={planner.newTaskBtn} onClick={() => openCreate()}>
+          <Plus size={16} strokeWidth={2.4} /> New Task
         </button>
       </div>
 
@@ -543,15 +613,17 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
       )}
 
       {filteredTasks.length === 0 ? (
-        tasks.length === 0 ? (
-          <EmptyState icon={KanbanSquare} title="No tasks yet" message="Create your first task and start tracking work across departments and employees." />
+        visibleTasks.length === 0 ? (
+          <EmptyState icon={KanbanSquare} title="No tasks yet" message="Give a task to anyone in any department — click New Task to start." />
         ) : (
           <EmptyState icon={Search} title="No tasks match these filters" message="Try clearing a filter or changing your search." />
         )
       ) : view === 'board' ? (
         <div className={planner.board}>
-          {BOARD_COLUMNS.map((col) => {
+          {BOARD_COLUMNS.filter((col) => showCompleted || !FINISHED_COLUMN_KEYS.has(col.key)).map((col) => {
             const colTasks = filteredTasks.filter((t) => col.statuses.includes(t.status));
+            // "Declined" only matters when something is in it.
+            if (col.key === 'declined' && colTasks.length === 0) return null;
             return (
               <div
                 key={col.key}
@@ -561,7 +633,10 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
                 onDrop={(e) => { e.preventDefault(); handleDrop(col.key); }}
               >
                 <div className={planner.boardColumnHeader}>
-                  <span className={planner.boardColumnTitle}>{col.label}</span>
+                  <span className={planner.boardColumnTitle}>
+                    <span className={`${planner.columnDot} ${planner[`tone_${COLUMN_TONE[col.key]}`]}`} />
+                    {col.label}
+                  </span>
                   <span className={planner.boardColumnCount}>{colTasks.length}</span>
                 </div>
                 <div className={planner.boardCards}>
@@ -569,20 +644,30 @@ export default function TaskPlannerView({ currentUser }: TaskPlannerViewProps) {
                   {colTasks.map((t) => (
                     <div
                       key={t.id}
-                      className={`${planner.card} ${draggingId === t.id ? planner.cardDragging : ''}`}
+                      className={`${planner.card} ${planner[PRIORITY_TONE_CLASS[t.priority]]} ${draggingId === t.id ? planner.cardDragging : ''}`}
                       draggable
                       onDragStart={() => setDraggingId(t.id)}
                       onDragEnd={() => setDraggingId(null)}
                       onClick={() => setSelectedTaskId(t.id)}
                     >
-                      <div className={planner.cardTitle}>{t.title}</div>
-                      <div className={planner.cardMetaRow}>
+                      <div className={planner.cardTop}>
                         <PriorityBadge tone={GENERAL_TASK_PRIORITY_TONE[t.priority]} label={GENERAL_TASK_PRIORITY_LABEL[t.priority]} />
-                        <span>{t.assignee_name || 'Unassigned'}</span>
+                        {isOverdue(t, today) ? (
+                          <span className={planner.overduePill}>Overdue</span>
+                        ) : isDueToday(t, today) ? (
+                          <span className={planner.todayPill}>Due today</span>
+                        ) : null}
                       </div>
-                      <div className={planner.cardMetaRow}>
-                        <span>{t.department_name}</span>
-                        <span className={isOverdue(t, today) ? planner.cardOverdue : undefined}>Due {formatDate(t.deadline)}</span>
+                      <div className={planner.cardTitle}>{t.title}</div>
+                      {t.department_name && <div className={planner.cardDept}>{t.department_name}</div>}
+                      <div className={planner.cardFooter}>
+                        <span className={planner.assignee} title={t.assignee_name || 'Unassigned'}>
+                          <span className={planner.avatar}>{t.assignee_name ? initials(t.assignee_name) : '?'}</span>
+                          <span className={planner.assigneeName}>{t.assignee_name || 'Unassigned'}</span>
+                        </span>
+                        <span className={`${planner.cardDue} ${isOverdue(t, today) ? planner.cardOverdue : ''}`}>
+                          <CalendarDays size={12} /> {formatDate(t.deadline)}
+                        </span>
                       </div>
                       {t.labels.length > 0 && (
                         <div className={planner.cardLabels}>

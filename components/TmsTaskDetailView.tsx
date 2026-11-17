@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Paperclip } from 'lucide-react';
+import TaskAttachments from './TaskAttachments';
 import { AuditLogEntry, TmsPriority, TmsTaskRecord, TmsTaskStatus, TmsTaskUpdateRecord, UserRole } from '@/lib/types';
 import { EngineerTaskAction, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_TASK_ACTION_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE } from '@/lib/tmsLabels';
 import { ENGINEER_ACTIONS_BY_STATUS } from '@/lib/aiTmsStatusMapping';
@@ -536,24 +536,7 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
         </div>
       )}
 
-      <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
-        <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Attachments</div>
-        <input type="file" multiple disabled={uploading} onChange={(e) => handleUpload(e.target.files)} />
-        {uploading && <div className={historyStyles.status}>Uploading…</div>}
-        {task.attachments.length === 0 ? (
-          <div className={styles.emptyNoteRow}>
-            <Paperclip size={14} /> No attachments yet.
-          </div>
-        ) : (
-          <ul className={styles.attachmentList}>
-            {task.attachments.map((url) => (
-              <li key={url}>
-                <a href={url} target="_blank" rel="noreferrer">{url.split('/').pop()}</a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <TaskAttachments attachments={task.attachments} uploading={uploading} onUpload={handleUpload} />
 
       <div className={calcStyles.sectionPanel}>
         <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>Activity</div>

@@ -5,11 +5,51 @@ import { findUserById, findUserStatusById } from '@/lib/userStore';
 import { resolveIsPrivileged } from '@/lib/permissions';
 import Dashboard from '@/components/Dashboard';
 import { PARTNER_HOME } from '@/lib/partnerRoles';
+import type { Metadata } from 'next';
+import LandingPage from '@/components/landing/LandingPage';
+import { SITE } from '@/lib/landingContent';
+
+export const metadata: Metadata = {
+  title: { absolute: SITE.seoTitle },
+  description: SITE.seoDescription,
+  alternates: { canonical: '/' }
+};
+
+const organizationJsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      name: SITE.company,
+      url: SITE.url,
+      email: SITE.email,
+      telephone: SITE.phoneDisplay,
+      address: { '@type': 'PostalAddress', streetAddress: SITE.addressLines.slice(0, 2).join(', '), addressLocality: 'Ahmedabad', postalCode: '380015', addressRegion: 'Gujarat', addressCountry: 'IN' }
+    },
+    {
+      '@type': 'SoftwareApplication',
+      name: 'MatrixIQ',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web, Android, iOS, Windows, macOS',
+      description: SITE.seoDescription,
+      url: SITE.url,
+      publisher: { '@type': 'Organization', name: SITE.company }
+    }
+  ]
+};
 
 export default async function Home() {
   const cookieStore = await cookies();
   const session = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
-  if (!session) redirect('/login');
+  // Logged out: the public landing page (login lives at /login).
+  if (!session) {
+    return (
+      <>
+        <LandingPage />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
+      </>
+    );
+  }
 
   const user = await findUserById(session.sub);
   if (!user) redirect('/login');

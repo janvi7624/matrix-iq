@@ -34,6 +34,11 @@ module.exports = (sequelize, DataTypes) => {
     // never SELECTs the column, toRecord reads undefined, and every existing
     // partner reads as un-onboarded and loses the portal.
     onboarded_at: { type: DataTypes.DATE },
+    // Onboarding approval chain (lib/partnerApprovalChain.ts): 'sales' |
+    // 'accounts' | 'admin' while a sign-off is pending, 'approved' when all
+    // three are done, NULL while waiting on the partner's documents.
+    approval_stage: { type: DataTypes.STRING(16) },
+    approval_trail: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     notes: { type: DataTypes.TEXT },
     website: { type: DataTypes.STRING(255) },
     pan_number: { type: DataTypes.STRING(20) },

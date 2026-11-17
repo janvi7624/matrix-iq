@@ -3,12 +3,14 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { UserCheck, Wrench } from 'lucide-react';
+import approvalStyles from './demoApproval.module.css';
 import { DemoMode, DemoOutcome, DemoPriority, DemoProductLine, DemoRequestStatus, DemoScheduleRecord, DomainKey, QuotationRecord, UserRole } from '@/lib/types';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { useDomainLeadLabels } from '@/lib/domainLeads';
-import { getDomainProducts } from '@/lib/domainProducts';
+import DemoProductPicker from './DemoProductPicker';
 import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import AppShell from './AppShell';
 import TeamCheckboxes from './TeamCheckboxes';
@@ -23,8 +25,9 @@ import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { DEMO_STATUS_LABEL, stagesForMode } from '@/lib/demoStages';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
 import { fetchCached } from '@/lib/fetchCached';
+import DemoBrief from './DemoBrief';
+import briefStyles from './demoBrief.module.css';
 
-const ALL_DOMAINS = Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[];
 
 const EMPTY_FORM = {
   projectId: '',
@@ -128,34 +131,42 @@ function TechnicalApprovalForm({ demoId, onDone }: { demoId: string; onDone: (up
   }
 
   return (
-    <div className={`${historyStyles.detailPanel} ${calcStyles.mt10}`}>
-      <h3 className={historyStyles.h3Flush}>Technical availability</h3>
-      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-        <div className={calcStyles.field}>
-          <label className={calcStyles.label}>Availability</label>
-          <select className={calcStyles.formControl} value={availability} onChange={(e) => setAvailability(e.target.value as 'available' | 'not_available' | '')}>
-            <option value="">-- Select --</option>
-            <option value="available">Available</option>
-            <option value="not_available">Not available</option>
-          </select>
-        </div>
-        <div className={calcStyles.field}>
-          <label className={calcStyles.label}>Expected arrival time</label>
-          <input className={calcStyles.formControl} placeholder="e.g. 10:30 AM" value={expectedArrivalTime} onChange={(e) => setExpectedArrivalTime(e.target.value)} />
+    <div className={approvalStyles.panel}>
+      <div className={approvalStyles.header}>
+        <span className={approvalStyles.headerIcon}><Wrench size={16} /></span>
+        <div>
+          <h3 className={approvalStyles.title}>Technical availability</h3>
+          <p className={approvalStyles.subtitle}>Confirm whether you can attend this demo, then approve, reject or propose a new time.</p>
         </div>
       </div>
-      <div className={calcStyles.field}>
-        <label className={calcStyles.label}>Remarks</label>
-        <textarea className={calcStyles.formControl} rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+      <div className={approvalStyles.body}>
+        <div className={approvalStyles.grid}>
+          <div className={approvalStyles.field}>
+            <span className={approvalStyles.label}>Availability</span>
+            <div className={approvalStyles.choice} role="radiogroup" aria-label="Availability">
+              <button type="button" role="radio" aria-checked={availability === 'available'} className={`${approvalStyles.choiceBtn} ${availability === 'available' ? approvalStyles.choiceYes : ''}`} onClick={() => setAvailability('available')}>Available</button>
+              <button type="button" role="radio" aria-checked={availability === 'not_available'} className={`${approvalStyles.choiceBtn} ${availability === 'not_available' ? approvalStyles.choiceNo : ''}`} onClick={() => setAvailability('not_available')}>Not available</button>
+            </div>
+          </div>
+          <label className={approvalStyles.field}>
+            <span className={approvalStyles.label}>Expected arrival time</span>
+            <input className={approvalStyles.control} placeholder="e.g. 10:30 AM" value={expectedArrivalTime} onChange={(e) => setExpectedArrivalTime(e.target.value)} />
+          </label>
+          <label className={approvalStyles.field}>
+            <span className={approvalStyles.label}>Reschedule to <span className={approvalStyles.hint}>(only for Reschedule)</span></span>
+            <input type="datetime-local" className={approvalStyles.control} min={nowDatetimeInputValue()} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
+          </label>
+        </div>
+        <label className={approvalStyles.field}>
+          <span className={approvalStyles.label}>Remarks</span>
+          <textarea className={approvalStyles.control} rows={2} placeholder="Anything the sales team should know" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+        </label>
       </div>
-      <div className={calcStyles.field}>
-        <label className={calcStyles.label}>Reschedule to (only used for Reschedule)</label>
-        <input type="datetime-local" className={calcStyles.formControl} min={nowDatetimeInputValue()} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
-      </div>
-      <div className={historyStyles.actionGroupButtons}>
-        <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
-        <Button variant="danger" icon="✕" loading={busy} loadingLabel="Rejecting…" onClick={() => decide('rejected')}>Reject</Button>
+      <div className={approvalStyles.footer}>
+        <span className={approvalStyles.footerNote}>Pick a new date &amp; time above before choosing Reschedule.</span>
         <Button variant="secondary" loading={busy} onClick={() => decide('reschedule')}>Reschedule</Button>
+        <Button variant="danger" icon="✕" loading={busy} loadingLabel="Rejecting…" onClick={() => decide('rejected')}>Reject</Button>
+        <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
       </div>
     </div>
   );
@@ -186,35 +197,72 @@ function ManagerApprovalForm({ demoId, technicalRoster, onDone }: { demoId: stri
   }
 
   return (
-    <div className={`${historyStyles.detailPanel} ${calcStyles.mt10}`}>
-      <h3 className={historyStyles.h3Flush}>Manager review</h3>
-      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-        <div className={calcStyles.field}>
-          <label className={calcStyles.label}>Assign different engineer (optional)</label>
-          <select className={calcStyles.formControl} value={reassignedEngineerId} onChange={(e) => setReassignedEngineerId(e.target.value)}>
-            <option value="">-- Keep as assigned --</option>
-            {technicalRoster.map((person) => (
-              <option key={person.id} value={person.id}>{person.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className={calcStyles.field}>
-          <label className={calcStyles.label}>Modify schedule (optional)</label>
-          <input type="datetime-local" className={calcStyles.formControl} min={nowDatetimeInputValue()} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
+    <div className={approvalStyles.panel}>
+      <div className={approvalStyles.header}>
+        <span className={approvalStyles.headerIcon}><UserCheck size={16} /></span>
+        <div>
+          <h3 className={approvalStyles.title}>Manager review</h3>
+          <p className={approvalStyles.subtitle}>Approve as planned, or change the engineer or time first.</p>
         </div>
       </div>
-      <div className={calcStyles.field}>
-        <label className={calcStyles.label}>Remarks</label>
-        <textarea className={calcStyles.formControl} rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+      <div className={approvalStyles.body}>
+        <div className={approvalStyles.grid}>
+          <label className={approvalStyles.field}>
+            <span className={approvalStyles.label}>Assign different engineer <span className={approvalStyles.hint}>(optional)</span></span>
+            <select className={approvalStyles.control} value={reassignedEngineerId} onChange={(e) => setReassignedEngineerId(e.target.value)}>
+              <option value="">-- Keep as assigned --</option>
+              {technicalRoster.map((person) => (
+                <option key={person.id} value={person.id}>{person.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className={approvalStyles.field}>
+            <span className={approvalStyles.label}>Modify schedule <span className={approvalStyles.hint}>(optional)</span></span>
+            <input type="datetime-local" className={approvalStyles.control} min={nowDatetimeInputValue()} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
+          </label>
+        </div>
+        <label className={approvalStyles.field}>
+          <span className={approvalStyles.label}>Remarks</span>
+          <textarea className={approvalStyles.control} rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+        </label>
       </div>
-      <div className={historyStyles.actionGroupButtons}>
-        <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
-        <Button variant="danger" icon="✕" loading={busy} loadingLabel="Rejecting…" onClick={() => decide('rejected')}>Reject</Button>
+      <div className={approvalStyles.footer}>
         <Button variant="secondary" loading={busy} onClick={() => decide('modified')}>Save Changes (Modify)</Button>
+        <Button variant="danger" icon="✕" loading={busy} loadingLabel="Rejecting…" onClick={() => decide('rejected')}>Reject</Button>
+        <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
       </div>
     </div>
   );
 }
+
+type ManagersByDept = Record<string, { id: string; username: string; name: string }[]>;
+type DemoAction = 'technical' | 'manager' | 'complete' | 'submit' | null;
+
+// What (if anything) the current user must do on this demo. Drives the
+// "Needs my action" filter and the row highlight; mirrors the server gates.
+function pendingActionFor(
+  record: DemoScheduleRecord,
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean },
+  technicalRoster: TechnicalRosterEntry[],
+  managersByDepartment: ManagersByDept
+): DemoAction {
+  const isAdminOverride = currentUser.role === 'admin' || currentUser.role === 'superadmin';
+  const assigned = technicalRoster.find((p) => p.id === record.assigned_technical_person_id);
+  const isAssignedMe = !!assigned && assigned.username === currentUser.username;
+  if (record.status === 'pending_technical' && (record.assigned_technical_person_id ? isAssignedMe || isAdminOverride : isAdminOverride)) return 'technical';
+  const domainManagers = assigned?.department ? managersByDepartment[assigned.department] || [] : [];
+  if (record.status === 'pending_manager' && (domainManagers.length ? domainManagers.some((m) => m.username === currentUser.username) || isAdminOverride : currentUser.isPrivileged)) return 'manager';
+  if ((record.status === 'material_dispatched' || record.status === 'ready_for_demo') && isAssignedMe) return 'complete';
+  if (record.status === 'draft' && record.created_by === currentUser.username) return 'submit';
+  return null;
+}
+
+const ACTION_LABEL: Record<Exclude<DemoAction, null>, string> = {
+  technical: 'Your response needed',
+  manager: 'Your approval needed',
+  complete: 'Mark done after the demo',
+  submit: 'Draft — submit it'
+};
 
 function DemoRow({
   record,
@@ -309,14 +357,28 @@ function DemoRow({
     }
   }
 
+  const myAction = pendingActionFor(record, currentUser, technicalRoster, managersByDepartment);
+
   return (
     <>
-      <tr>
+      <tr style={myAction ? { boxShadow: 'inset 3px 0 0 var(--mx-brand, #dc2626)', background: 'var(--mx-brand-subtle, rgba(220,38,38,0.05))' } : undefined}>
         <td>
-          <button type="button" className={historyStyles.toggleBtn} onClick={() => setExpanded((v) => !v)}>{expanded ? '−' : '+'}</button>
+          <button type="button" title={expanded ? 'Hide details' : 'Show the full demo brief'} className={historyStyles.toggleBtn} onClick={() => setExpanded((v) => !v)}>{expanded ? '−' : '+'}</button>
         </td>
         <td>{formatDateTime(record.scheduled_at)}</td>
-        <td>{record.client_name}{record.company ? ` (${record.company})` : ''}</td>
+        <td>
+          <strong>{record.client_name}</strong>{record.company ? ` (${record.company})` : ''}
+          {record.demo_objective && (
+            <div className={calcStyles.small} title={record.demo_objective}>
+              🎯 {record.demo_objective.length > 70 ? record.demo_objective.slice(0, 70) + '…' : record.demo_objective}
+            </div>
+          )}
+          {myAction && (
+            <span className={briefStyles.tag} style={{ marginTop: 4, background: 'var(--mx-brand, #dc2626)', color: '#fff', textTransform: 'none' }}>
+              ● {ACTION_LABEL[myAction]}
+            </span>
+          )}
+        </td>
         <td>
           {record.product_domains.length ? record.product_domains.map((d) => DOMAIN_DISPLAY_NAME[d]).join(', ') : '-'}
           {record.products_required.length > 0 && (
@@ -338,7 +400,7 @@ function DemoRow({
           )}
           {record.outcome && <div className={calcStyles.small}>Outcome: {OUTCOME_LABEL[record.outcome]}</div>}
         </td>
-        <td>{record.created_by}</td>
+        <td>{record.created_by_name || record.created_by}</td>
         <td className={historyStyles.actionGroupButtons}>
           {record.status === 'draft' && isOwner && (
             <>
@@ -384,7 +446,10 @@ function DemoRow({
         <tr>
           <td colSpan={9}>
             <div className={historyStyles.wideCellPin}>
-              <TechnicalApprovalForm demoId={record.id} onDone={onApprovalDone} />
+              <div style={{ display: 'grid', gap: 12 }}>
+                <DemoBrief record={record} />
+                <TechnicalApprovalForm demoId={record.id} onDone={onApprovalDone} />
+              </div>
             </div>
           </td>
         </tr>
@@ -393,7 +458,10 @@ function DemoRow({
         <tr>
           <td colSpan={9}>
             <div className={historyStyles.wideCellPin}>
-              <ManagerApprovalForm demoId={record.id} technicalRoster={technicalRoster} onDone={onApprovalDone} />
+              <div style={{ display: 'grid', gap: 12 }}>
+                <DemoBrief record={record} compact />
+                <ManagerApprovalForm demoId={record.id} technicalRoster={technicalRoster} onDone={onApprovalDone} />
+              </div>
             </div>
           </td>
         </tr>
@@ -403,10 +471,10 @@ function DemoRow({
         <tr className={historyStyles.detailsRow}>
           <td colSpan={9}>
            <div className={historyStyles.wideCellPin}>
-            {record.demo_objective && (
-              <div className={`${calcStyles.field} ${calcStyles.mb8}`}>
-                <label className={calcStyles.label}>Demo objective</label>
-                <div className={calcStyles.small}>{record.demo_objective}</div>
+            {/* Already shown above the approval form when one is open. */}
+            {!(record.status === 'pending_technical' && canActTechnical) && !(record.status === 'pending_manager' && canActManager) && (
+              <div className={calcStyles.mb12}>
+                <DemoBrief record={record} />
               </div>
             )}
             {(() => {
@@ -523,6 +591,24 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   const [creating, setCreating] = useState(false);
   const toast = useToast();
   const confirm = useConfirm();
+  const [view, setView] = useState<'action' | 'upcoming' | 'done' | 'all'>('all');
+  const [viewChosen, setViewChosen] = useState(false);
+
+  const actionOf = (r: DemoScheduleRecord) => pendingActionFor(r, currentUser, technicalRoster, managersByDepartment);
+  const actionCount = records.filter((r) => actionOf(r)).length;
+  const DONE: string[] = ['demo_completed', 'material_returned', 'dc_closed', 'cancelled'];
+  const visible = records
+    .filter((r) =>
+      view === 'action' ? !!actionOf(r) : view === 'upcoming' ? !DONE.includes(r.status) && r.status !== 'draft' : view === 'done' ? DONE.includes(r.status) : true
+    )
+    // Anything waiting on me first, then the soonest demo.
+    .sort((a, b) => Number(!!actionOf(b)) - Number(!!actionOf(a)) || (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
+
+  // Open on "Needs my action" when something is waiting (once per visit).
+  if (!viewChosen && loaded && technicalRoster.length > 0 && actionCount > 0 && view !== 'action') {
+    setView('action');
+    setViewChosen(true);
+  }
 
   async function load() {
     setStatus('Loading...');
@@ -563,19 +649,6 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
       .catch(() => setProjectQuotations([]));
   }, [form.projectId]);
 
-  function toggleProduct(tag: string) {
-    setForm((f) => {
-      const exists = f.productsRequired.find((p) => p.product === tag);
-      return {
-        ...f,
-        productsRequired: exists ? f.productsRequired.filter((p) => p.product !== tag) : [...f.productsRequired, { product: tag, quantity: 1 }]
-      };
-    });
-  }
-
-  function setProductQty(tag: string, quantity: number) {
-    setForm((f) => ({ ...f, productsRequired: f.productsRequired.map((p) => (p.product === tag ? { ...p, quantity: Math.max(1, quantity) } : p)) }));
-  }
 
   async function handleCreate(e: FormEvent, submit: boolean) {
     e.preventDefault();
@@ -718,66 +791,12 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             </div>
           </div>
 
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Domain(s) demonstrated</label>
-            <div className={historyStyles.teamGrid}>
-              {ALL_DOMAINS.map((d) => (
-                <label key={d}>
-                  <input
-                    type="checkbox"
-                    checked={form.productDomains.includes(d)}
-                    onChange={() =>
-                      setForm((f) => {
-                        const has = f.productDomains.includes(d);
-                        const nextDomains = has ? f.productDomains.filter((x) => x !== d) : [...f.productDomains, d];
-                        const nextProducts = has ? f.productsRequired.filter((p) => !p.product.startsWith(`${DOMAIN_DISPLAY_NAME[d]}: `)) : f.productsRequired;
-                        return { ...f, productDomains: nextDomains, productsRequired: nextProducts };
-                      })
-                    }
-                  />
-                  {DOMAIN_DISPLAY_NAME[d]}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {form.productDomains.map((d) => {
-            const catalog = getDomainProducts(d);
-            if (!catalog.length) {
-              return (
-                <div key={d} className={`${calcStyles.small} ${calcStyles.mb8}`}>
-                  No fixed product catalog for {DOMAIN_DISPLAY_NAME[d]} — describe what's required in Notes below.
-                </div>
-              );
-            }
-            return (
-              <div key={d} className={calcStyles.field}>
-                <label className={calcStyles.label}>{DOMAIN_DISPLAY_NAME[d]} products required</label>
-                <div className={historyStyles.teamGrid}>
-                  {catalog.map((product) => {
-                    const tag = `${DOMAIN_DISPLAY_NAME[d]}: ${product}`;
-                    const line = form.productsRequired.find((p) => p.product === tag);
-                    return (
-                      <label key={tag} className={calcStyles.inlineFlexGap6}>
-                        <input type="checkbox" checked={!!line} onChange={() => toggleProduct(tag)} />
-                        {product}
-                        {line && (
-                          <input
-                            type="number"
-                            min={1}
-                            className={`${calcStyles.formControl} ${calcStyles.qtyInputMini}`}
-                            value={line.quantity}
-                            onClick={(e) => e.preventDefault()}
-                            onChange={(e) => setProductQty(tag, parseInt(e.target.value, 10) || 1)}
-                          />
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          <DemoProductPicker
+            domains={form.productDomains}
+            onDomainsChange={(next) => setForm((f) => ({ ...f, productDomains: next }))}
+            lines={form.productsRequired}
+            onChange={(next) => setForm((f) => ({ ...f, productsRequired: next }))}
+          />
 
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>
@@ -843,8 +862,38 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
         </>
       )}
 
-        <div className={`${historyStyles.toolbar} ${historyStyles.toolbarSpaced}`}>
-          <button type="button" className={historyStyles.button} onClick={load}>
+        <div className={`${historyStyles.toolbar} ${historyStyles.toolbarSpaced}`} style={{ flexWrap: 'wrap', gap: 8 }}>
+          {(
+            [
+              ['action', `Needs my action (${actionCount})`],
+              ['upcoming', 'Upcoming'],
+              ['done', 'Completed'],
+              ['all', `All (${records.length})`]
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={view === key}
+              onClick={() => {
+                setView(key);
+                setViewChosen(true);
+              }}
+              className={briefStyles.tag}
+              style={{
+                cursor: 'pointer',
+                border: '1px solid ' + (view === key ? 'var(--mx-brand, #dc2626)' : 'var(--mx-border-strong, #d1d5db)'),
+                background: view === key ? 'var(--mx-brand, #dc2626)' : 'transparent',
+                color: view === key ? '#fff' : undefined,
+                padding: '6px 14px',
+                fontSize: 13,
+                textTransform: 'none'
+              }}
+            >
+              {label}
+            </button>
+          ))}
+          <button type="button" className={historyStyles.button} onClick={load} style={{ marginLeft: 'auto' }}>
             Refresh
           </button>
         </div>
@@ -866,14 +915,14 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
               </tr>
             </thead>
             <tbody>
-              {records.length === 0 ? (
+              {visible.length === 0 ? (
                 <tr>
                   <td colSpan={9} className={historyStyles.empty}>
-                    No demo requests yet.
+                    {records.length === 0 ? 'No demo requests yet.' : view === 'action' ? 'Nothing is waiting on you right now. 🎉' : 'No demos in this view.'}
                   </td>
                 </tr>
               ) : (
-                records.map((r) => (
+                visible.map((r) => (
                   <DemoRow
                     key={r.id}
                     record={r}

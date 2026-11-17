@@ -234,6 +234,9 @@ export interface PartnerRecord {
    * Partners that predate onboarding were backfilled to their created_at.
    */
   onboarded_at: string;
+  /** Onboarding approval chain — see lib/partnerApprovalChain.ts. */
+  approval_stage: 'sales' | 'accounts' | 'admin' | 'approved' | null;
+  approval_trail: { stage: 'sales' | 'accounts' | 'admin'; decision: 'approved' | 'rejected'; by_id: string; by_name: string; at: string; remarks: string }[];
   created_at: string;
   updated_at: string;
 }
@@ -461,6 +464,8 @@ export interface DemoScheduleRecord {
   id: string;
   created_at: string;
   created_by: string;
+  /** Display name of the requester, resolved on read (optional: not stored). */
+  created_by_name?: string;
   project_id: string;
   quotation_id: string;
   client_name: string;

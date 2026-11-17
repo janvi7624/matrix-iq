@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
 import { listPartnerDocuments } from '@/lib/partnerDocumentStore';
 import { onboardingProgress } from '@/lib/partnerOnboarding';
+import { approverStagesFor } from '@/lib/partnerApprovalStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { db, isUuid } from '@/lib/db';
 
@@ -36,9 +37,17 @@ export async function GET(request: NextRequest) {
 
   try {
     const all = await listPartners();
+    // An onboarding approver (Sales / Accounts / Admin manager) also sees the
+    // partners currently waiting on their step — that is their queue.
+    const myStages: string[] = seesAll ? [] : await approverStagesFor(viewer.userId);
     const mine = seesAll
       ? all
-      : all.filter((p) => p.created_by === viewer.userId || p.relationship_manager_id === viewer.userId);
+      : all.filter(
+          (p) =>
+            p.created_by === viewer.userId ||
+            p.relationship_manager_id === viewer.userId ||
+            (!!p.approval_stage && myStages.includes(p.approval_stage))
+        );
 
     // Each row carries its onboarding state, because that is the thing the
     // owner has to act on — a partner waiting on their approval should be

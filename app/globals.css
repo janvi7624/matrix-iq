@@ -306,11 +306,16 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* The app has ONE light theme — every surface (cards, modals, tables,
+   pickers) is light. This file used to flip --background/--foreground to
+   dark/near-white under prefers-color-scheme: dark, which only changed the
+   DEFAULT text colour: anything without its own colour (a <button>'s label, a
+   picker row's name, ...) went near-white on a still-light card and became
+   unreadable for anyone whose OS is in dark mode. That flip is gone, and
+   color-scheme: light keeps native controls (inputs, selects, buttons,
+   scrollbars) in their light rendering too, rather than the OS dark ones. */
+:root {
+  color-scheme: light;
 }
 
 body {

@@ -36,8 +36,9 @@ describe('a partner can supply everything the internal form asks for', () => {
     // Imported from the shared libs, not re-listed — so a catalogue change
     // reaches both forms at once.
     expect(FORM).toContain("from '@/lib/domainLabels'");
-    expect(FORM).toContain("from '@/lib/domainProducts'");
-    expect(FORM).toContain('getDomainProducts(d)');
+    // Both forms render the same shared product → model picker.
+    expect(FORM).toContain("from './DemoProductPicker'");
+    expect(FORM).toContain('<DemoProductPicker');
   });
 });
 

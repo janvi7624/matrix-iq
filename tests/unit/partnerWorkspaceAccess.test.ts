@@ -8,7 +8,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // staff who bring partners in share the generic 'user' role with a dozen
 // other accounts.
 
-const state = vi.hoisted(() => ({ creatorIds: [] as string[], ownedCount: 0 }));
+const state = vi.hoisted(() => ({ creatorIds: [] as string[], ownedCount: 0, approver: false }));
+
+// Sales / Accounts / Admin managers sign off partner onboarding, so they get
+// the module too (lib/partnerApprovalStore.ts) — stubbed here so these tests
+// stay about the creator/ownership rules.
+vi.mock('../../lib/partnerApprovalStore', () => ({
+  isPartnerChainApprover: vi.fn(async () => state.approver)
+}));
 
 vi.mock('../../lib/appConfigStore', () => ({
   getAppConfig: vi.fn(async () => ({ partnerCreatorIds: state.creatorIds }))
@@ -32,6 +39,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.creatorIds = [];
   state.ownedCount = 0;
+  state.approver = false;
 });
 
 describe('isPartnerWorkspaceModule', () => {
@@ -83,6 +91,11 @@ describe('resolvePartnerStakeholder', () => {
 
   it('is false for somebody with neither', async () => {
     expect(await resolvePartnerStakeholder('emp-1')).toBe(false);
+  });
+
+  it('is true for an onboarding approver who owns no partner', async () => {
+    state.approver = true;
+    expect(await resolvePartnerStakeholder('emp-1')).toBe(true);
   });
 
   it('is false for a missing user id without querying', async () => {

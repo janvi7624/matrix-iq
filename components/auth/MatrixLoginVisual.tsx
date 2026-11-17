@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import Image from 'next/image';
-import { useReducedMotion } from 'framer-motion';
 import { BRAND } from '@/lib/branding';
+import { DEPARTMENTS } from '@/lib/landingContent';
 import styles from './matrixLoginVisual.module.css';
 
 // The real icon mark — a 315-path auto-traced SVG (not clean hand-authored
@@ -27,17 +27,23 @@ const BACKGROUND_MARKS = [
   { x: 34, y: 8, scale: 0.16, opacity: 0.18, rotate: -6, drift: 13 }
 ];
 
-// Department nodes radiating off the mark — the actual modules this
-// platform unifies (see BRAND.description), not generic placeholder words.
-const NETWORK_NODES = [
-  { x: 18, y: 22, label: 'Sales' },
-  { x: 82, y: 18, label: 'Projects' },
-  { x: 86, y: 76, label: 'Operations' },
-  { x: 15, y: 80, label: 'Analytics' },
-  { x: 50, y: 6, label: 'CRM' }
-];
-
 const CENTER = { x: 50, y: 50 };
+
+// The same departments the landing hero's IQ network shows (lib/landingContent
+// DEPARTMENTS), each radiating off the mark on its own spoke. Hand-placed in
+// viewport-% coordinates for a scattered, organic feel (not a ring), all clear
+// of the centered login card. Keyed by department so a renamed label follows.
+const NODE_POSITIONS: Record<(typeof DEPARTMENTS)[number]['key'], { x: number; y: number }> = {
+  sales: { x: 18, y: 22 },
+  ai: { x: 50, y: 11 },
+  tech: { x: 82, y: 18 },
+  partners: { x: 89, y: 48 },
+  hr: { x: 86, y: 78 },
+  accounts: { x: 52, y: 91 },
+  marketing: { x: 15, y: 80 },
+  leaders: { x: 9, y: 50 }
+};
+const NETWORK_NODES = DEPARTMENTS.map((d) => ({ label: d.label, ...NODE_POSITIONS[d.key] }));
 
 interface Bubble {
   x: number;
@@ -51,11 +57,11 @@ interface Bubble {
 }
 
 // Idle (unhovered) vs. peak (hovered) CSS-filter recipe for the real logo
-// image — sepia+desaturate+dim reads as "low-contrast dark/brown," fading to
+// image — desaturated and lightened reads as a faint watermark on white, fading to
 // full brightness/saturation plus a contour-hugging drop-shadow glow as
 // proximity rises. Interpolated by `p` every frame, same as everything else.
-const IDLE_FILTER = { brightness: 0.5, saturate: 0.5, sepia: 0.4, contrast: 0.9, shadowBlur: 4, shadowAlpha: 0.12, opacity: 0.55 };
-const PEAK_FILTER = { brightness: 1.08, saturate: 1.35, sepia: 0, contrast: 1.05, shadowBlur: 44, shadowAlpha: 0.85, opacity: 1 };
+const IDLE_FILTER = { brightness: 1.12, saturate: 0.55, sepia: 0.1, contrast: 0.9, shadowBlur: 4, shadowAlpha: 0.06, opacity: 0.4 };
+const PEAK_FILTER = { brightness: 1, saturate: 1.25, sepia: 0, contrast: 1.05, shadowBlur: 40, shadowAlpha: 0.45, opacity: 1 };
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -70,22 +76,30 @@ function markFilter(p: number): { filter: string; opacity: string } {
   const shadowAlpha = lerp(IDLE_FILTER.shadowAlpha, PEAK_FILTER.shadowAlpha, p);
   const opacity = lerp(IDLE_FILTER.opacity, PEAK_FILTER.opacity, p);
   return {
-    filter: `brightness(${brightness.toFixed(3)}) saturate(${saturate.toFixed(3)}) sepia(${sepia.toFixed(3)}) contrast(${contrast.toFixed(3)}) drop-shadow(0 0 ${shadowBlur.toFixed(1)}px rgba(255,0,0,${shadowAlpha.toFixed(3)}))`,
+    filter: `brightness(${brightness.toFixed(3)}) saturate(${saturate.toFixed(3)}) sepia(${sepia.toFixed(3)}) contrast(${contrast.toFixed(3)}) drop-shadow(0 0 ${shadowBlur.toFixed(1)}px rgba(220,38,38,${shadowAlpha.toFixed(3)}))`,
     opacity: opacity.toFixed(3)
   };
 }
 
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+function subscribeReducedMotion(onChange: () => void): () => void {
+  const mq = window.matchMedia(REDUCED_MOTION_QUERY);
+  mq.addEventListener('change', onChange);
+  return () => mq.removeEventListener('change', onChange);
+}
+
+function getReducedMotion(): boolean {
+  return window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
 export default function MatrixLoginVisual() {
-  // useReducedMotion() reads the client's matchMedia state, which the server
-  // can't know — gating it behind a post-mount flag keeps the very first
-  // client render identical to the server-rendered HTML (both "false") so
-  // React never hits a hydration mismatch here; the correct value then
-  // applies on the immediate next render, before the effect below would
-  // otherwise have started any animation loop.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const prefersReducedMotionRaw = useReducedMotion();
-  const prefersReducedMotion = mounted && !!prefersReducedMotionRaw;
+  // The server can't know the visitor's motion preference. useSyncExternalStore
+  // renders the server snapshot (false) on the server AND during hydration, so
+  // the first client render matches the HTML, then re-renders with the real
+  // matchMedia value — and follows later changes to the OS setting — without
+  // a setState-in-effect round trip.
+  const prefersReducedMotion = useSyncExternalStore(subscribeReducedMotion, getReducedMotion, () => false);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const markGroupRef = useRef<HTMLDivElement>(null);
@@ -101,7 +115,6 @@ export default function MatrixLoginVisual() {
   const targetRef = useRef({ proximity: 0, dx: 0, dy: 0, px: 50, py: 50 });
   const currentRef = useRef({ proximity: 0, dx: 0, dy: 0 });
   const idleSpinRef = useRef(0);
-  const meshPhaseRef = useRef(0);
   const bubblesRef = useRef<Bubble[]>([]);
   const lastBubbleAtRef = useRef(0);
   const rafRef = useRef<number | null>(null);
@@ -127,35 +140,6 @@ export default function MatrixLoginVisual() {
     resize();
     window.addEventListener('resize', resize);
 
-    // A handful of receding contour lines (closer together "far" at the
-    // top, spread out "near" at the bottom) with two summed sine waves per
-    // line for an organic, non-mechanical undulation — the "distorted
-    // topography" surface.
-    function drawMesh(t: number) {
-      if (!ctx || !width || !height) return;
-      const rows = 9;
-      ctx.lineWidth = 1;
-      for (let i = 0; i < rows; i++) {
-        const p = i / (rows - 1); // 0 (far/top) -> 1 (near/bottom)
-        const eased = p * p; // bunch rows toward the top
-        const baseY = height * (0.08 + eased * 0.86);
-        const amp = 6 + p * 20;
-        const freq1 = 0.006 + p * 0.002;
-        const freq2 = 0.013;
-        ctx.beginPath();
-        for (let x = 0; x <= width; x += 14) {
-          const y =
-            baseY +
-            Math.sin(x * freq1 + t * 0.0006 + i * 0.7) * amp +
-            Math.sin(x * freq2 - t * 0.0004 + i * 1.3) * amp * 0.35;
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = `rgba(120, 140, 190, ${0.05 + p * 0.05})`;
-        ctx.stroke();
-      }
-    }
-
     function drawBubbles() {
       if (!ctx) return;
       const bubbles = bubblesRef.current;
@@ -173,9 +157,9 @@ export default function MatrixLoginVisual() {
 
         const grad = ctx.createRadialGradient(b.x - r * 0.3, b.y - r * 0.3, r * 0.1, b.x, b.y, r);
         grad.addColorStop(0, `rgba(255,255,255,${0.85 * fade})`);
-        grad.addColorStop(0.35, `rgba(255,225,225,${0.4 * fade})`);
-        grad.addColorStop(0.75, `rgba(255,120,120,${0.16 * fade})`);
-        grad.addColorStop(1, 'rgba(255,80,80,0)');
+        grad.addColorStop(0.35, `rgba(254,202,202,${0.55 * fade})`);
+        grad.addColorStop(0.75, `rgba(220,38,38,${0.22 * fade})`);
+        grad.addColorStop(1, 'rgba(220,38,38,0)');
         ctx.beginPath();
         ctx.fillStyle = grad;
         ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
@@ -188,7 +172,7 @@ export default function MatrixLoginVisual() {
       }
     }
 
-    function tick(t: number) {
+    function tick() {
       const tgt = targetRef.current;
       const cur = currentRef.current;
       // Snappier than before (was 0.09) so the tilt/glow visibly catches up
@@ -209,7 +193,6 @@ export default function MatrixLoginVisual() {
       // tilt from the mouse's Y position) on top of it, scaled by proximity
       // so it's inert until hovered near.
       idleSpinRef.current -= 0.12;
-      meshPhaseRef.current = t;
 
       if (markGroupRef.current) {
         const tiltX = -cur.dy * 16 * p;
@@ -234,13 +217,12 @@ export default function MatrixLoginVisual() {
         dimRef.current.style.opacity = String(p * 0.3);
       }
       if (nodesLayerRef.current) {
-        nodesLayerRef.current.style.opacity = String(0.45 + p * 0.4);
+        nodesLayerRef.current.style.opacity = String(0.6 + p * 0.35);
       }
 
       if (ctx && canvas) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, width, height);
-        drawMesh(t);
         drawBubbles();
       }
 
@@ -249,9 +231,9 @@ export default function MatrixLoginVisual() {
 
     function spawnBubble(px: number, py: number) {
       const now = performance.now();
-      if (now - lastBubbleAtRef.current < 60) return; // throttle
+      if (now - lastBubbleAtRef.current < 38) return; // throttle
       lastBubbleAtRef.current = now;
-      if (bubblesRef.current.length > 46) bubblesRef.current.shift();
+      if (bubblesRef.current.length > 70) bubblesRef.current.shift();
       bubblesRef.current.push({
         x: px + (Math.random() - 0.5) * 18,
         y: py + (Math.random() - 0.5) * 10,
@@ -294,7 +276,7 @@ export default function MatrixLoginVisual() {
         py: (py / rect.height) * 100
       };
 
-      if (proximity > 0.25) spawnBubble(px, py);
+      if (proximity > 0.2) spawnBubble(px, py);
     }
 
     function handleLeave() {
@@ -302,13 +284,7 @@ export default function MatrixLoginVisual() {
     }
 
     if (prefersReducedMotion) {
-      // No RAF loop, no bubbles, no parallax — draw exactly one static
-      // frame of the mesh so the panel still has depth, then stop.
-      resize();
-      if (ctx) {
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawMesh(0);
-      }
+      // No RAF loop, no bubbles, no parallax — the static layers alone.
       return () => window.removeEventListener('resize', resize);
     }
 

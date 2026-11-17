@@ -23,6 +23,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://matrix-iq.nantatech.com'),
   title: {
     default: `${BRAND.appName} — ${BRAND.tagline}`,
     template: `%s — ${BRAND.appName}`,

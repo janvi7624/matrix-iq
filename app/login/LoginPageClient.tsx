@@ -3,7 +3,9 @@
 import { FormEvent, Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import { Eye, EyeOff } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import base from '@/components/landing/landing.module.css';
 import visualStyles from '@/components/auth/matrixLoginVisual.module.css';
 import MatrixLoginVisual from '@/components/auth/MatrixLoginVisual';
 import { BRAND } from '@/lib/branding';
@@ -66,8 +68,24 @@ function LoginForm() {
   }
 
   return (
-    <div className={visualStyles.pageRoot}>
+    <div className={`${base.page} ${visualStyles.pageRoot}`}>
       <MatrixLoginVisual />
+      {/* Same header as the public pages (components/landing). */}
+      {/* No headerScrolled here: transparent, so the animated background runs to the top edge. */}
+      <header className={base.header}>
+        <Link href="/" className={base.brand} aria-label={`${BRAND.appName} home`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={BRAND.iconMark} alt="" width={30} height={30} />
+          <span>Matrix<b>IQ</b></span>
+        </Link>
+        <nav className={base.nav} aria-label="Main">
+          <Link href="/pricing">Pricing</Link>
+        </nav>
+        <div className={base.headerCtas}>
+          <Link href="/" className={base.ghostBtn}><ArrowLeft size={15} /> Home</Link>
+          <Link href="/request-demo" className={base.primaryBtn}>Request a demo</Link>
+        </div>
+      </header>
       <div className={visualStyles.centerWrap}>
         <form className={visualStyles.formCard} onSubmit={handleSubmit} noValidate>
           <Image src={BRAND.logoWeb} alt={`${BRAND.companyName} logo`} width={96} height={96} className={visualStyles.formLogo} unoptimized />

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { isModuleActionAllowed } from '@/lib/permissions';
 import { generalTaskStore } from '@/lib/generalTaskStore';
 import { sequelize } from '@/lib/db';
 import { employeeBelongsToDepartment, listActiveEmployeesForDepartment } from '@/lib/departmentEmployeeStore';
@@ -17,9 +16,11 @@ const VALID_PRIORITY: GeneralTaskPriority[] = ['low', 'medium', 'high', 'critica
 type AssignMode = 'employee' | 'selected' | 'department' | 'manager' | 'unassigned';
 const VALID_MODES: AssignMode[] = ['employee', 'selected', 'department', 'manager', 'unassigned'];
 
-async function canAssign(viewer: { role: string; isPrivileged: boolean }): Promise<boolean> {
-  return isModuleActionAllowed(viewer, 'admin-task-assignment', 'assign');
-}
+// Task Planner is the inter-department hand-off tool: any employee may give
+// a task to anyone in any department, so POST has no role gate beyond being
+// a signed-in employee (partners never reach here — getViewerContext refuses
+// partner sessions by default). Seeing and acting on a task stays scoped by
+// generalTaskStore's own visibility rules: creator, assignee, managers.
 
 // GET — every admin-sourced task the viewer is authorized to see (their own
 // scope — org-wide for privileged/viewAllDepartments viewers).
@@ -44,7 +45,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const viewer = await getViewerContext(request);
   if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!(await canAssign(viewer))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });

@@ -6,18 +6,20 @@ import { usePathname } from 'next/navigation';
 import { PartnerRecord, PartnerStatus } from '@/lib/types';
 import { PROJECT_DEPARTMENTS, PROJECT_DEPARTMENT_LABEL } from '@/lib/projectDepartmentOptions';
 import { PARTNER_ROLE_KEYS, PARTNER_ROLE_LABEL } from '@/lib/partnerRoles';
-import { PARTNER_DOCUMENT_GROUPS, PARTNER_DOCUMENT_KINDS, PARTNER_DOCUMENT_LABEL } from '@/lib/partnerOnboarding';
-import AppShell from './AppShell';
+import { PARTNER_DOCUMENT_KINDS } from '@/lib/partnerOnboarding';
+import PartnerApprovalPanel, { ApprovalInfo } from './PartnerApprovalPanel';
 import StateCitySelect from './ui/StateCitySelect';
+import AppShell from './AppShell';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import pageStyles from './partnerDetail.module.css';
 import { fetchCached } from '@/lib/fetchCached';
 
-interface PartnerDocumentRow {
+export interface PartnerDocumentRow {
   kind: (typeof PARTNER_DOCUMENT_KINDS)[number];
   files: { name: string; path: string }[];
   status: 'pending' | 'approved' | 'rejected';
+  submitted_at: string;
   reviewed_by_name: string;
   review_remarks: string;
 }
@@ -72,11 +74,12 @@ export default function PartnerDetailView({ id }: { id: string }) {
   // Surfaced once, never stored — see the credentialBox comment in the CSS.
   const [credential, setCredential] = useState<{ username: string; password: string } | null>(null);
   const [documents, setDocuments] = useState<PartnerDocumentRow[]>([]);
-  const [docProgress, setDocProgress] = useState<{ allApproved: boolean } | null>(null);
-  const [reviewing, setReviewing] = useState<string | null>(null);
+  const [approval, setApproval] = useState<ApprovalInfo | null>(null);
+  // False for a Sales/Accounts/Admin approver who is not this partner's
+  // creator/RM — they review and decide, but don't edit the account.
+  const [canManageRecord, setCanManageRecord] = useState(true);
+  const [deciding, setDeciding] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
-  const [rejectFor, setRejectFor] = useState<string | null>(null);
-  const [rejectNote, setRejectNote] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -100,7 +103,8 @@ export default function PartnerDetailView({ id }: { id: string }) {
       if (!res.ok) return;
       const body = await res.json();
       setDocuments(body.documents || []);
-      setDocProgress(body.progress || null);
+      setApproval(body.approval || null);
+      setCanManageRecord(body.canManage !== false);
     } catch {
       // The rest of the page stays usable without this panel.
     }
@@ -140,29 +144,32 @@ export default function PartnerDetailView({ id }: { id: string }) {
     }
   }
 
-  async function review(kind: string, decision: 'approved' | 'rejected', remarks: string) {
-    setReviewing(kind);
+  // The current step's approver approves or sends the set back. A rejection
+  // carries a reason and names the documents to replace — the API refuses a
+  // rejection without a reason.
+  async function decide(decision: 'approved' | 'rejected', remarks: string, rejectKinds: string[]): Promise<boolean> {
+    if (!approval || !approval.stage || approval.stage === 'approved') return false;
+    setDeciding(true);
     setError('');
     try {
       const res = await fetch(`/api/admin/partners/${id}/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, decision, remarks })
+        body: JSON.stringify({ stage: approval.stage, decision, remarks, rejectKinds })
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         setError(body?.error || 'Could not record that decision.');
-        return;
+        return false;
       }
-      setRejectFor(null);
-      setRejectNote('');
-      // Reload the partner too: approving the last document stamps
-      // onboarded_at, which is what this page shows as "portal unlocked".
+      // Reload the partner too: the final approval stamps onboarded_at.
       await Promise.all([loadDocuments(), load()]);
+      return true;
     } catch {
       setError('Could not reach the server.');
+      return false;
     } finally {
-      setReviewing(null);
+      setDeciding(false);
     }
   }
 
@@ -484,219 +491,128 @@ export default function PartnerDetailView({ id }: { id: string }) {
                 <span className={pageStyles.detailValue}>{partner.notes}</span>
               </div>
             )}
-            <div className={pageStyles.actionsRow}>
-              <button type="button" className={calcStyles.btn} onClick={startEdit}>Edit details</button>
-              {NEXT_STATUSES[partner.status].map((next) => (
-                <button key={next} type="button" className={historyStyles.button} onClick={() => patch({ status: next })}>
-                  {next === 'active' ? 'Reactivate' : next === 'suspended' ? 'Suspend' : 'Mark inactive'}
-                </button>
-              ))}
-            </div>
-            <p className={calcStyles.small}>
-              Suspending takes effect immediately — every signed-in user of this partner is cut off on their next request.
-              Nothing is deleted, and reactivating restores access.
-            </p>
+            {canManageRecord && (
+              <>
+                <div className={pageStyles.actionsRow}>
+                  <button type="button" className={calcStyles.btn} onClick={startEdit}>Edit details</button>
+                  {NEXT_STATUSES[partner.status].map((next) => (
+                    <button key={next} type="button" className={historyStyles.button} onClick={() => patch({ status: next })}>
+                      {next === 'active' ? 'Reactivate' : next === 'suspended' ? 'Suspend' : 'Mark inactive'}
+                    </button>
+                  ))}
+                </div>
+                <p className={calcStyles.small}>
+                  Suspending takes effect immediately — every signed-in user of this partner is cut off on their next request.
+                  Nothing is deleted, and reactivating restores access.
+                </p>
+              </>
+            )}
           </>
         )}
       </div>
 
-      {/* Onboarding documents. Until all of them are approved the partner can
-          sign in but reaches only the onboarding screen — so this panel is
-          what actually opens their portal, and it says so. */}
-      <h2 className={calcStyles.h2}>Onboarding documents</h2>
-      <div className={calcStyles.sectionPanel}>
-        <p className={calcStyles.small}>
-          {partner.onboarded_at
-            ? `Onboarding completed on ${new Date(partner.onboarded_at).toLocaleDateString('en-IN')} — this partner has the full portal.`
-            : 'This partner can sign in but reaches only the onboarding screen until every document is approved.'}
-        </p>
+      <PartnerApprovalPanel
+        partner={partner}
+        documents={documents}
+        approval={approval}
+        canManage={canManageRecord}
+        uploading={uploading}
+        deciding={deciding}
+        onUpload={uploadForPartner}
+        onDecide={decide}
+      />
 
-        {PARTNER_DOCUMENT_GROUPS.map((group) => (
-          <div key={group.title}>
-            <div className={pageStyles.documentGroupTitle}>{group.title}</div>
-            {group.kinds.map((kind) => {
-              const doc = documents.find((d) => d.kind === kind);
-              const busy = reviewing === kind;
-              return (
-                <div key={kind} className={pageStyles.documentRow}>
-                  <div>
-                    <strong>{PARTNER_DOCUMENT_LABEL[kind]}</strong>
-                    <div className={calcStyles.small}>
-                      {!doc ? (
-                        'Not uploaded yet.'
-                      ) : (
-                        <>
-                          {doc.status === 'approved' && `Approved${doc.reviewed_by_name ? ` by ${doc.reviewed_by_name}` : ''}.`}
-                          {doc.status === 'rejected' && `Rejected — ${doc.review_remarks}`}
-                          {doc.status === 'pending' && 'Uploaded, awaiting your review.'}
-                          {doc.files.map((f) => (
-                            <span key={f.path}>
-                              {' '}
-                              <a href={`/api/uploads/file/${f.path}`} target="_blank" rel="noopener noreferrer">{f.name}</a>
-                            </span>
-                          ))}
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={pageStyles.documentActions}>
-                    {doc && doc.status !== 'approved' && (
-                      <>
-                        <button type="button" className={calcStyles.btn} disabled={busy} onClick={() => review(kind, 'approved', '')}>
-                          {busy ? 'Saving…' : 'Approve'}
-                        </button>
-                        <button
-                          type="button"
-                          className={historyStyles.button}
-                          disabled={busy}
-                          onClick={() => { setRejectFor(kind); setRejectNote(''); }}
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-
-                    {/* Upload it ourselves. A signed agreement often arrives by
-                        email before the partner ever logs in, and making them
-                        re-upload it through the portal is busywork. Counts as
-                        approved, because only somebody who could approve this
-                        document may supply it (see the PUT route). */}
-                    <label className={pageStyles.documentUpload}>
-                      {uploading === kind ? 'Uploading…' : doc ? 'Replace with our copy' : 'Upload on their behalf'}
-                      <input
-                        type="file"
-                        multiple
-                        hidden
-                        disabled={uploading === kind}
-                        onChange={(e) => uploadForPartner(kind, e.target.files)}
-                      />
-                    </label>
-                  </div>
-
-                  {rejectFor === kind && (
-                    <div className={pageStyles.documentReject}>
-                      <label className={calcStyles.label} htmlFor={`reject-${kind}`}>
-                        What needs correcting? <span className={calcStyles.small}>(required — the partner sees this)</span>
-                      </label>
-                      <textarea
-                        id={`reject-${kind}`}
-                        className={calcStyles.formControl}
-                        rows={2}
-                        value={rejectNote}
-                        onChange={(e) => setRejectNote(e.target.value)}
-                      />
-                      <div className={pageStyles.documentActions}>
-                        <button
-                          type="button"
-                          className={calcStyles.btn}
-                          disabled={busy || !rejectNote.trim()}
-                          onClick={() => review(kind, 'rejected', rejectNote)}
-                        >
-                          Send back
-                        </button>
-                        <button type="button" className={historyStyles.button} onClick={() => setRejectFor(null)}>Cancel</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-
-        {docProgress && !docProgress.allApproved && (
-          <p className={calcStyles.small}>Approving the last outstanding document opens the full portal for this partner.</p>
-        )}
-      </div>
-
-      <h2 className={calcStyles.h2}>Portal logins</h2>
-      <div className={historyStyles.tableWrap}>
-        <table className={historyStyles.table}>
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Last sign-in</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td className={pageStyles.codeCell}>{u.username}</td>
-                <td>{u.name}</td>
-                <td>{u.email || <span className={pageStyles.muted}>-</span>}</td>
-                <td>{PARTNER_ROLE_LABEL[u.role] ?? u.role}</td>
-                <td>
-                  <span className={`${historyStyles.statusPill} ${u.status === 'active' ? historyStyles.statusPillActive : historyStyles.statusPillInactive}`}>
-                    {u.status === 'active' ? 'Active' : 'Disabled'}
-                  </span>
-                </td>
-                <td>
-                  {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : <span className={pageStyles.muted}>{u.mustChangePassword ? 'Never — setup pending' : 'Never'}</span>}
-                </td>
-                <td>
-                  <div className={pageStyles.actionsRow}>
-                    <button type="button" className={historyStyles.button} onClick={() => patchUser(u.id, { status: u.status === 'active' ? 'inactive' : 'active' })}>
-                      {u.status === 'active' ? 'Disable' : 'Enable'}
-                    </button>
-                    <button type="button" className={historyStyles.button} onClick={() => patchUser(u.id, { resetPassword: true })}>Reset password</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {users.length === 0 && (
+      {canManageRecord && (
+        <>
+        <h2 className={calcStyles.h2}>Portal logins</h2>
+        <div className={historyStyles.tableWrap}>
+          <table className={historyStyles.table}>
+            <thead>
               <tr>
-                <td colSpan={7} className={pageStyles.muted}>No logins yet — this partner cannot sign in.</td>
+                <th>Username</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Last sign-in</th>
+                <th></th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {showUserForm ? (
-        <form className={calcStyles.sectionPanel} onSubmit={handleCreateUser}>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="puUsername">Username *</label>
-              <input id="puUsername" className={calcStyles.formControl} value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="puName">Full name *</label>
-              <input id="puName" className={calcStyles.formControl} value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} required />
-            </div>
-          </div>
-          <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="puEmail">Email *</label>
-              <input id="puEmail" type="email" className={calcStyles.formControl} value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} required />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="puPhone">Phone</label>
-              <input id="puPhone" className={calcStyles.formControl} value={userForm.phone} onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })} />
-            </div>
-            <div className={calcStyles.field}>
-              <label className={calcStyles.label} htmlFor="puRole">Role</label>
-              <select id="puRole" className={calcStyles.formControl} value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
-                {PARTNER_ROLE_KEYS.map((r) => (
-                  <option key={r} value={r}>{PARTNER_ROLE_LABEL[r]}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className={pageStyles.actionsRow}>
-            <button type="submit" className={calcStyles.btn} disabled={issuing}>{issuing ? 'Creating...' : 'Create login'}</button>
-            <button type="button" className={historyStyles.button} onClick={() => setShowUserForm(false)}>Cancel</button>
-          </div>
-        </form>
-      ) : (
-        <div className={pageStyles.actionsRow}>
-          <button type="button" className={calcStyles.btn} onClick={() => setShowUserForm(true)}>+ Create portal login</button>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td className={pageStyles.codeCell}>{u.username}</td>
+                  <td>{u.name}</td>
+                  <td>{u.email || <span className={pageStyles.muted}>-</span>}</td>
+                  <td>{PARTNER_ROLE_LABEL[u.role] ?? u.role}</td>
+                  <td>
+                    <span className={`${historyStyles.statusPill} ${u.status === 'active' ? historyStyles.statusPillActive : historyStyles.statusPillInactive}`}>
+                      {u.status === 'active' ? 'Active' : 'Disabled'}
+                    </span>
+                  </td>
+                  <td>
+                    {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : <span className={pageStyles.muted}>{u.mustChangePassword ? 'Never — setup pending' : 'Never'}</span>}
+                  </td>
+                  <td>
+                    <div className={pageStyles.actionsRow}>
+                      <button type="button" className={historyStyles.button} onClick={() => patchUser(u.id, { status: u.status === 'active' ? 'inactive' : 'active' })}>
+                        {u.status === 'active' ? 'Disable' : 'Enable'}
+                      </button>
+                      <button type="button" className={historyStyles.button} onClick={() => patchUser(u.id, { resetPassword: true })}>Reset password</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={7} className={pageStyles.muted}>No logins yet — this partner cannot sign in.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
+
+        {showUserForm ? (
+          <form className={calcStyles.sectionPanel} onSubmit={handleCreateUser}>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label} htmlFor="puUsername">Username *</label>
+                <input id="puUsername" className={calcStyles.formControl} value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} required />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label} htmlFor="puName">Full name *</label>
+                <input id="puName" className={calcStyles.formControl} value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} required />
+              </div>
+            </div>
+            <div className={`${calcStyles.row} ${calcStyles.columns}`}>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label} htmlFor="puEmail">Email *</label>
+                <input id="puEmail" type="email" className={calcStyles.formControl} value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} required />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label} htmlFor="puPhone">Phone</label>
+                <input id="puPhone" className={calcStyles.formControl} value={userForm.phone} onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })} />
+              </div>
+              <div className={calcStyles.field}>
+                <label className={calcStyles.label} htmlFor="puRole">Role</label>
+                <select id="puRole" className={calcStyles.formControl} value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
+                  {PARTNER_ROLE_KEYS.map((r) => (
+                    <option key={r} value={r}>{PARTNER_ROLE_LABEL[r]}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className={pageStyles.actionsRow}>
+              <button type="submit" className={calcStyles.btn} disabled={issuing}>{issuing ? 'Creating...' : 'Create login'}</button>
+              <button type="button" className={historyStyles.button} onClick={() => setShowUserForm(false)}>Cancel</button>
+            </div>
+          </form>
+        ) : (
+          <div className={pageStyles.actionsRow}>
+            <button type="button" className={calcStyles.btn} onClick={() => setShowUserForm(true)}>+ Create portal login</button>
+          </div>
+        )}
+        </>
       )}
     </AppShell>
   );

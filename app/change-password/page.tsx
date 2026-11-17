@@ -2,8 +2,51 @@
 
 import { FormEvent, useState } from 'react';
 import Image from 'next/image';
-import styles from '@/components/quotationHistory.module.css';
+import { Eye, EyeOff } from 'lucide-react';
+import base from '@/components/landing/landing.module.css';
+import visualStyles from '@/components/auth/matrixLoginVisual.module.css';
+import MatrixLoginVisual from '@/components/auth/MatrixLoginVisual';
 import { BRAND } from '@/lib/branding';
+
+// First-login (and any forced) password change. Same shell, animated
+// background and glass card as the login page (app/login/LoginPageClient.tsx)
+// so the hand-off from "sign in" to "set your password" reads as one flow.
+// The validation and API call are unchanged.
+
+function PasswordField({
+  id,
+  label,
+  value,
+  onChange,
+  autoComplete,
+  autoFocus
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  autoComplete: string;
+  autoFocus?: boolean;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className={visualStyles.formField}>
+      <label htmlFor={id}>{label}</label>
+      <div className={visualStyles.formPasswordWrap}>
+        <input id={id} type={show ? 'text' : 'password'} autoComplete={autoComplete} value={value} onChange={(e) => onChange(e.target.value)} autoFocus={autoFocus} />
+        <button
+          type="button"
+          className={visualStyles.formPasswordToggle}
+          onClick={() => setShow((v) => !v)}
+          aria-label={show ? 'Hide password' : 'Show password'}
+          tabIndex={-1}
+        >
+          {show ? <EyeOff size={17} /> : <Eye size={17} />}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -15,6 +58,10 @@ export default function ChangePasswordPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError('');
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setError('Please fill in all three fields.');
+      return;
+    }
     if (newPassword.length < 6) {
       setError('New password must be at least 6 characters.');
       return;
@@ -51,30 +98,36 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className={styles.loginWrap}>
-      <form className={styles.loginCard} onSubmit={handleSubmit}>
-        <Image src={BRAND.logoWeb} alt={`${BRAND.companyName} logo`} width={96} height={96} className={styles.loginLogo} unoptimized />
-        <h1>Change Password</h1>
-        <span className={styles.sub}>
-          For your security, you must set a new password before continuing.
+    <div className={`${base.page} ${visualStyles.pageRoot}`}>
+      <MatrixLoginVisual />
+      {/* Brand only — no public-site links: this screen must be completed before anything else. */}
+      <header className={base.header}>
+        <span className={base.brand}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={BRAND.iconMark} alt="" width={30} height={30} />
+          <span>Matrix<b>IQ</b></span>
         </span>
-        {error && <div className={styles.loginError}>{error}</div>}
-        <div className={styles.loginField}>
-          <label htmlFor="currentPassword">Current (temporary) password</label>
-          <input id="currentPassword" type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoFocus />
-        </div>
-        <div className={styles.loginField}>
-          <label htmlFor="newPassword">New password</label>
-          <input id="newPassword" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={6} required />
-        </div>
-        <div className={styles.loginField}>
-          <label htmlFor="confirmPassword">Confirm new password</label>
-          <input id="confirmPassword" type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} minLength={6} required />
-        </div>
-        <button type="submit" className={styles.loginSubmit} disabled={busy}>
-          {busy ? 'Updating...' : 'Update password'}
-        </button>
-      </form>
+      </header>
+      <div className={visualStyles.centerWrap}>
+        <form className={visualStyles.formCard} onSubmit={handleSubmit} noValidate>
+          <Image src={BRAND.logoWeb} alt={`${BRAND.companyName} logo`} width={96} height={96} className={visualStyles.formLogo} unoptimized />
+          <h1>Set a new password</h1>
+          <span className={visualStyles.formSub}>
+            For your security, choose your own password before continuing.
+            <br />
+            Use the temporary password you were given as the current password.
+          </span>
+          <div className={`${visualStyles.formError} ${error ? visualStyles.formErrorVisible : ''}`} role="alert" aria-hidden={!error}>
+            {error}
+          </div>
+          <PasswordField id="currentPassword" label="Current (temporary) password" value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" autoFocus />
+          <PasswordField id="newPassword" label="New password (min. 6 characters)" value={newPassword} onChange={setNewPassword} autoComplete="new-password" />
+          <PasswordField id="confirmPassword" label="Confirm new password" value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" />
+          <button type="submit" className={visualStyles.formSubmit} disabled={busy}>
+            {busy ? 'Updating...' : 'Update password'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { PartnerRecord } from '@/lib/types';
 import { stagesForMode } from '@/lib/demoStages';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
-import { getDomainProducts } from '@/lib/domainProducts';
+import DemoProductPicker from './DemoProductPicker';
 import type { DemoProductLine, DomainKey } from '@/lib/types';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
 import PartnerShell from './PartnerShell';
@@ -56,7 +56,6 @@ interface PartnerProjectOption {
 }
 
 // The same domain list the internal form offers.
-const ALL_DOMAINS = Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[];
 
 const EMPTY = {
   projectId: '',
@@ -109,39 +108,6 @@ export default function PartnerDemosView({ partner }: { partner: PartnerRecord }
       .catch(() => setQuotations([]));
   }, [load]);
 
-  // Same behaviour as the internal form: unticking a domain clears the
-  // products picked under it, so a hidden line cannot be submitted.
-  function toggleDomain(d: DomainKey) {
-    setForm((f) => {
-      const has = f.productDomains.includes(d);
-      return {
-        ...f,
-        productDomains: has ? f.productDomains.filter((x) => x !== d) : [...f.productDomains, d],
-        productsRequired: has
-          ? f.productsRequired.filter((p) => !p.product.startsWith(`${DOMAIN_DISPLAY_NAME[d]}: `))
-          : f.productsRequired
-      };
-    });
-  }
-
-  function toggleProduct(tag: string) {
-    setForm((f) => {
-      const exists = f.productsRequired.find((p) => p.product === tag);
-      return {
-        ...f,
-        productsRequired: exists
-          ? f.productsRequired.filter((p) => p.product !== tag)
-          : [...f.productsRequired, { product: tag, quantity: 1 }]
-      };
-    });
-  }
-
-  function setProductQty(tag: string, quantity: number) {
-    setForm((f) => ({
-      ...f,
-      productsRequired: f.productsRequired.map((p) => (p.product === tag ? { ...p, quantity: Math.max(1, quantity) } : p))
-    }));
-  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -244,58 +210,14 @@ export default function PartnerDemosView({ partner }: { partner: PartnerRecord }
             </span>
           </div>
 
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Domain(s) demonstrated</label>
-            <div className={historyStyles.teamGrid}>
-              {ALL_DOMAINS.map((d) => (
-                <label key={d}>
-                  <input type="checkbox" checked={form.productDomains.includes(d)} onChange={() => toggleDomain(d)} />
-                  {DOMAIN_DISPLAY_NAME[d]}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* The per-domain catalogue, straight from lib/domainProducts.ts —
-              the same products, quantities and no-catalogue message the
-              internal form shows. */}
-          {form.productDomains.map((d) => {
-            const catalog = getDomainProducts(d);
-            if (!catalog.length) {
-              return (
-                <div key={d} className={`${calcStyles.small} ${calcStyles.mb8}`}>
-                  No fixed product catalog for {DOMAIN_DISPLAY_NAME[d]} — describe what&apos;s required in Notes below.
-                </div>
-              );
-            }
-            return (
-              <div key={d} className={calcStyles.field}>
-                <label className={calcStyles.label}>{DOMAIN_DISPLAY_NAME[d]} products required</label>
-                <div className={historyStyles.teamGrid}>
-                  {catalog.map((product) => {
-                    const tag = `${DOMAIN_DISPLAY_NAME[d]}: ${product}`;
-                    const line = form.productsRequired.find((p) => p.product === tag);
-                    return (
-                      <label key={tag} className={calcStyles.inlineFlexGap6}>
-                        <input type="checkbox" checked={!!line} onChange={() => toggleProduct(tag)} />
-                        {product}
-                        {line && (
-                          <input
-                            type="number"
-                            min={1}
-                            className={`${calcStyles.formControl} ${calcStyles.qtyInputMini}`}
-                            value={line.quantity}
-                            onClick={(e) => e.preventDefault()}
-                            onChange={(e) => setProductQty(tag, parseInt(e.target.value, 10) || 1)}
-                          />
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          {/* Same shared domain → product → model picker as the internal form
+              (unticking a domain clears the lines under it). */}
+          <DemoProductPicker
+            domains={form.productDomains}
+            onDomainsChange={(next) => setForm((f) => ({ ...f, productDomains: next }))}
+            lines={form.productsRequired}
+            onChange={(next) => setForm((f) => ({ ...f, productsRequired: next }))}
+          />
 
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>

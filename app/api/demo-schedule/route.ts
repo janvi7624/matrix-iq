@@ -1,3 +1,4 @@
+import { cleanDemoProductName } from '@/lib/domainProducts';
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
 import { demoScheduleStore } from '@/lib/demoScheduleStore';
@@ -11,6 +12,7 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { sendDemoLifecycleEmail } from '@/lib/email/notifications';
 import { isUserADepartmentManager } from '@/lib/departmentStore';
 import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
+import { DEMO_STAGES } from '@/lib/demoStages';
 
 const VALID_DOMAINS: DomainKey[] = ['av', 'robotics', 'ai', 'si', 'visitiq'];
 const VALID_PRIORITY: DemoPriority[] = ['low', 'medium', 'high'];
@@ -29,7 +31,8 @@ function toProductLines(value: unknown): DemoProductLine[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter((v): v is { product: unknown; quantity: unknown } => v && typeof v === 'object')
-    .map((v) => ({ product: typeof v.product === 'string' ? v.product.trim() : '', quantity: Math.max(1, Number(v.quantity) || 1) }))
+    // Tidy half-typed "Other" lines from the product/model picker; empty ones drop out below.
+    .map((v) => ({ product: typeof v.product === 'string' ? cleanDemoProductName(v.product) : '', quantity: Math.max(1, Number(v.quantity) || 1) }))
     .filter((v) => v.product);
 }
 
@@ -46,13 +49,34 @@ export async function GET(request: NextRequest) {
     // ownership-gated), so widening visibility here doesn't grant any new
     // write capability, only lets them see what they could already act on.
     // TMS_ROLE_KEYS already includes 'engineer', so no separate check needed.
-    const canSeeQueue =
-      viewer.isPrivileged ||
-      viewer.role === 'backoffice' ||
-      (TMS_ROLE_KEYS as readonly string[]).includes(viewer.role) ||
-      (await isUserADepartmentManager(viewer.username));
-    const records = await demoScheduleStore.list(viewer.username, canSeeQueue);
-    return NextResponse.json(records);
+    //
+    // Visibility (Demo Schedule list):
+    //   - admin / superadmin / any department manager → every demo;
+    //   - everyone else → only demos they are part of: raised it, are the
+    //     assigned rep, the assigned technical person (who gives technical
+    //     approval) or one of the attending technical members;
+    //   - Back Office additionally sees on-site demos once they reach its
+    //     stage (DC → dispatch → return), since it handles every one of those.
+    const seesAll = viewer.isPrivileged || (await isUserADepartmentManager(viewer.username));
+    const all = await demoScheduleStore.list(viewer.username, true);
+    if (seesAll) return NextResponse.json(all);
+
+    const me = await findUserById(viewer.userId);
+    const myName = (me?.name || '').trim().toLowerCase();
+    const same = (v: string | undefined) => !!v && (v === viewer.username || (!!myName && v.trim().toLowerCase() === myName));
+    const backOfficeStageFrom = DEMO_STAGES.findIndex((s) => s.key === 'pending_backoffice');
+    const isBackOffice = viewer.role === 'backoffice';
+
+    const mine = all.filter(
+      (d) =>
+        d.created_by === viewer.username ||
+        same(d.assigned_rep) ||
+        d.assigned_technical_person_id === viewer.userId ||
+        same(d.assigned_technical_person) ||
+        (d.technical_members || []).some((m) => same(m)) ||
+        (isBackOffice && d.mode !== 'virtual' && DEMO_STAGES.findIndex((s) => s.key === d.status) >= backOfficeStageFrom && backOfficeStageFrom >= 0)
+    );
+    return NextResponse.json(mine);
   } catch (error) {
     return apiErrorResponse(error);
   }

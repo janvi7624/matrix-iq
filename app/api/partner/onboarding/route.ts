@@ -7,6 +7,8 @@ import { notifyUsers } from '@/lib/notificationStore';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
 import { getClientIp } from '@/lib/requestIp';
+import { stageApprovers, startApprovalIfReady } from '@/lib/partnerApprovalStore';
+import { PARTNER_APPROVAL_LABEL, approvalStatusLine } from '@/lib/partnerApprovalChain';
 
 // The partner's own onboarding: see what they owe, and upload it.
 //
@@ -23,6 +25,10 @@ export async function GET(request: NextRequest) {
       documents,
       progress: onboardingProgress(documents),
       complete: partnerOnboardingComplete(viewer.partner),
+      // Where the Sales -> Accounts -> Admin sign-off is, so the partner sees
+      // who they are waiting on instead of a bare "under review".
+      approvalStage: viewer.partner.approval_stage ?? null,
+      approvalStatus: approvalStatusLine(viewer.partner.approval_stage ?? null),
       // Named so the partner knows who is reviewing, rather than waiting on
       // "someone at the company".
       accountManagerName: viewer.partner.created_by_name || viewer.partner.relationship_manager_name || '',
@@ -79,9 +85,24 @@ export async function POST(request: NextRequest) {
       if (usernames.length) {
         await notifyUsers(usernames, {
           title: `${viewer.partner.company_name} uploaded their ${PARTNER_DOCUMENT_LABEL[kind]}`,
-          body: 'Review it in Partner Management — the partner stays limited to the onboarding screen until every document is approved.',
+          body: 'The partner stays limited to the onboarding screen until Sales, Accounts and Admin have all approved the documents.',
           type: 'partner_document_submitted',
-          entityType: 'partner',
+          entityType: 'partner_approval',
+          entityId: viewer.partnerId
+        });
+      }
+    }
+
+    // Every document in -> the set goes to the Sales Manager first.
+    const started = await startApprovalIfReady(viewer.partnerId);
+    if (started) {
+      const approverUsernames = (await stageApprovers(started)).map((a) => a.username);
+      if (approverUsernames.length) {
+        await notifyUsers(approverUsernames, {
+          title: 'Partner onboarding awaiting your approval',
+          body: `${viewer.partner.company_name} — documents are ready for your review as ${PARTNER_APPROVAL_LABEL[started]}.`,
+          type: 'partner_approval_pending',
+          entityType: 'partner_approval',
           entityId: viewer.partnerId
         });
       }
