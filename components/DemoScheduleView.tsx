@@ -25,6 +25,8 @@ import StatusBadge, { StatusTone } from './ui/StatusBadge';
 import { DEMO_STATUS_LABEL, stagesForMode } from '@/lib/demoStages';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
 import { fetchCached } from '@/lib/fetchCached';
+import DemoBrief from './DemoBrief';
+import briefStyles from './demoBrief.module.css';
 
 
 const EMPTY_FORM = {
@@ -233,6 +235,35 @@ function ManagerApprovalForm({ demoId, technicalRoster, onDone }: { demoId: stri
   );
 }
 
+type ManagersByDept = Record<string, { id: string; username: string; name: string }[]>;
+type DemoAction = 'technical' | 'manager' | 'complete' | 'submit' | null;
+
+// What (if anything) the current user must do on this demo. Drives the
+// "Needs my action" filter and the row highlight; mirrors the server gates.
+function pendingActionFor(
+  record: DemoScheduleRecord,
+  currentUser: { username: string; role: UserRole; isPrivileged: boolean },
+  technicalRoster: TechnicalRosterEntry[],
+  managersByDepartment: ManagersByDept
+): DemoAction {
+  const isAdminOverride = currentUser.role === 'admin' || currentUser.role === 'superadmin';
+  const assigned = technicalRoster.find((p) => p.id === record.assigned_technical_person_id);
+  const isAssignedMe = !!assigned && assigned.username === currentUser.username;
+  if (record.status === 'pending_technical' && (record.assigned_technical_person_id ? isAssignedMe || isAdminOverride : isAdminOverride)) return 'technical';
+  const domainManagers = assigned?.department ? managersByDepartment[assigned.department] || [] : [];
+  if (record.status === 'pending_manager' && (domainManagers.length ? domainManagers.some((m) => m.username === currentUser.username) || isAdminOverride : currentUser.isPrivileged)) return 'manager';
+  if ((record.status === 'material_dispatched' || record.status === 'ready_for_demo') && isAssignedMe) return 'complete';
+  if (record.status === 'draft' && record.created_by === currentUser.username) return 'submit';
+  return null;
+}
+
+const ACTION_LABEL: Record<Exclude<DemoAction, null>, string> = {
+  technical: 'Your response needed',
+  manager: 'Your approval needed',
+  complete: 'Mark done after the demo',
+  submit: 'Draft — submit it'
+};
+
 function DemoRow({
   record,
   currentUser,
@@ -326,14 +357,28 @@ function DemoRow({
     }
   }
 
+  const myAction = pendingActionFor(record, currentUser, technicalRoster, managersByDepartment);
+
   return (
     <>
-      <tr>
+      <tr style={myAction ? { boxShadow: 'inset 3px 0 0 var(--mx-brand, #dc2626)', background: 'var(--mx-brand-subtle, rgba(220,38,38,0.05))' } : undefined}>
         <td>
-          <button type="button" className={historyStyles.toggleBtn} onClick={() => setExpanded((v) => !v)}>{expanded ? '−' : '+'}</button>
+          <button type="button" title={expanded ? 'Hide details' : 'Show the full demo brief'} className={historyStyles.toggleBtn} onClick={() => setExpanded((v) => !v)}>{expanded ? '−' : '+'}</button>
         </td>
         <td>{formatDateTime(record.scheduled_at)}</td>
-        <td>{record.client_name}{record.company ? ` (${record.company})` : ''}</td>
+        <td>
+          <strong>{record.client_name}</strong>{record.company ? ` (${record.company})` : ''}
+          {record.demo_objective && (
+            <div className={calcStyles.small} title={record.demo_objective}>
+              🎯 {record.demo_objective.length > 70 ? record.demo_objective.slice(0, 70) + '…' : record.demo_objective}
+            </div>
+          )}
+          {myAction && (
+            <span className={briefStyles.tag} style={{ marginTop: 4, background: 'var(--mx-brand, #dc2626)', color: '#fff', textTransform: 'none' }}>
+              ● {ACTION_LABEL[myAction]}
+            </span>
+          )}
+        </td>
         <td>
           {record.product_domains.length ? record.product_domains.map((d) => DOMAIN_DISPLAY_NAME[d]).join(', ') : '-'}
           {record.products_required.length > 0 && (
@@ -355,7 +400,7 @@ function DemoRow({
           )}
           {record.outcome && <div className={calcStyles.small}>Outcome: {OUTCOME_LABEL[record.outcome]}</div>}
         </td>
-        <td>{record.created_by}</td>
+        <td>{record.created_by_name || record.created_by}</td>
         <td className={historyStyles.actionGroupButtons}>
           {record.status === 'draft' && isOwner && (
             <>
@@ -401,7 +446,10 @@ function DemoRow({
         <tr>
           <td colSpan={9}>
             <div className={historyStyles.wideCellPin}>
-              <TechnicalApprovalForm demoId={record.id} onDone={onApprovalDone} />
+              <div style={{ display: 'grid', gap: 12 }}>
+                <DemoBrief record={record} />
+                <TechnicalApprovalForm demoId={record.id} onDone={onApprovalDone} />
+              </div>
             </div>
           </td>
         </tr>
@@ -410,7 +458,10 @@ function DemoRow({
         <tr>
           <td colSpan={9}>
             <div className={historyStyles.wideCellPin}>
-              <ManagerApprovalForm demoId={record.id} technicalRoster={technicalRoster} onDone={onApprovalDone} />
+              <div style={{ display: 'grid', gap: 12 }}>
+                <DemoBrief record={record} compact />
+                <ManagerApprovalForm demoId={record.id} technicalRoster={technicalRoster} onDone={onApprovalDone} />
+              </div>
             </div>
           </td>
         </tr>
@@ -420,10 +471,10 @@ function DemoRow({
         <tr className={historyStyles.detailsRow}>
           <td colSpan={9}>
            <div className={historyStyles.wideCellPin}>
-            {record.demo_objective && (
-              <div className={`${calcStyles.field} ${calcStyles.mb8}`}>
-                <label className={calcStyles.label}>Demo objective</label>
-                <div className={calcStyles.small}>{record.demo_objective}</div>
+            {/* Already shown above the approval form when one is open. */}
+            {!(record.status === 'pending_technical' && canActTechnical) && !(record.status === 'pending_manager' && canActManager) && (
+              <div className={calcStyles.mb12}>
+                <DemoBrief record={record} />
               </div>
             )}
             {(() => {
@@ -540,6 +591,24 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
   const [creating, setCreating] = useState(false);
   const toast = useToast();
   const confirm = useConfirm();
+  const [view, setView] = useState<'action' | 'upcoming' | 'done' | 'all'>('all');
+  const [viewChosen, setViewChosen] = useState(false);
+
+  const actionOf = (r: DemoScheduleRecord) => pendingActionFor(r, currentUser, technicalRoster, managersByDepartment);
+  const actionCount = records.filter((r) => actionOf(r)).length;
+  const DONE: string[] = ['demo_completed', 'material_returned', 'dc_closed', 'cancelled'];
+  const visible = records
+    .filter((r) =>
+      view === 'action' ? !!actionOf(r) : view === 'upcoming' ? !DONE.includes(r.status) && r.status !== 'draft' : view === 'done' ? DONE.includes(r.status) : true
+    )
+    // Anything waiting on me first, then the soonest demo.
+    .sort((a, b) => Number(!!actionOf(b)) - Number(!!actionOf(a)) || (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
+
+  // Open on "Needs my action" when something is waiting (once per visit).
+  if (!viewChosen && loaded && technicalRoster.length > 0 && actionCount > 0 && view !== 'action') {
+    setView('action');
+    setViewChosen(true);
+  }
 
   async function load() {
     setStatus('Loading...');
@@ -793,8 +862,38 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
         </>
       )}
 
-        <div className={`${historyStyles.toolbar} ${historyStyles.toolbarSpaced}`}>
-          <button type="button" className={historyStyles.button} onClick={load}>
+        <div className={`${historyStyles.toolbar} ${historyStyles.toolbarSpaced}`} style={{ flexWrap: 'wrap', gap: 8 }}>
+          {(
+            [
+              ['action', `Needs my action (${actionCount})`],
+              ['upcoming', 'Upcoming'],
+              ['done', 'Completed'],
+              ['all', `All (${records.length})`]
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={view === key}
+              onClick={() => {
+                setView(key);
+                setViewChosen(true);
+              }}
+              className={briefStyles.tag}
+              style={{
+                cursor: 'pointer',
+                border: '1px solid ' + (view === key ? 'var(--mx-brand, #dc2626)' : 'var(--mx-border-strong, #d1d5db)'),
+                background: view === key ? 'var(--mx-brand, #dc2626)' : 'transparent',
+                color: view === key ? '#fff' : undefined,
+                padding: '6px 14px',
+                fontSize: 13,
+                textTransform: 'none'
+              }}
+            >
+              {label}
+            </button>
+          ))}
+          <button type="button" className={historyStyles.button} onClick={load} style={{ marginLeft: 'auto' }}>
             Refresh
           </button>
         </div>
@@ -816,14 +915,14 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
               </tr>
             </thead>
             <tbody>
-              {records.length === 0 ? (
+              {visible.length === 0 ? (
                 <tr>
                   <td colSpan={9} className={historyStyles.empty}>
-                    No demo requests yet.
+                    {records.length === 0 ? 'No demo requests yet.' : view === 'action' ? 'Nothing is waiting on you right now. 🎉' : 'No demos in this view.'}
                   </td>
                 </tr>
               ) : (
-                records.map((r) => (
+                visible.map((r) => (
                   <DemoRow
                     key={r.id}
                     record={r}

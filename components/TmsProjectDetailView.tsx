@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, FileText, Layers, Paperclip, ShoppingCart, Check } from 'lucide-react';
+import { ExternalLink, FileText, Layers, ShoppingCart, Check } from 'lucide-react';
 import { DeadlineExtensionReason, DeadlineExtensionStatus, TmsBomRequestRecord, TmsDeadlineExtensionRecord, TmsPriority, TmsProcurementRecord, TmsProjectPhaseRecord, TmsProjectPhaseStatus, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
+import ProjectDocuments from './ProjectDocuments';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import StatusBadge, { StatusTone } from './ui/StatusBadge';
@@ -1015,21 +1016,7 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
       )}
 
       {tab === 'attachments' && (
-        <div className={calcStyles.sectionPanel}>
-          <input type="file" multiple disabled={uploading} onChange={(e) => handleUpload(e.target.files)} />
-          {uploading && <div className={historyStyles.status}>Uploading…</div>}
-          {project.attachments.length === 0 ? (
-            <EmptyState icon={Paperclip} title="No attachments yet" message="Upload project documents above." />
-          ) : (
-            <ul className={styles.attachmentList}>
-              {project.attachments.map((url) => (
-                <li key={url}>
-                  <a href={url} target="_blank" rel="noreferrer">{url.split('/').pop()}</a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <ProjectDocuments projectId={projectId} uploading={uploading} onUpload={handleUpload} refreshKey={project.attachments.length} />
       )}
     </AppShell>
   );

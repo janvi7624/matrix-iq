@@ -1,0 +1,27 @@
+/* components/ProjectDocuments.tsx — extras on top of taskAttachments.module.css */
+
+.quoteBox { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.quoteTitle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #166534; }
+.quoteIcon { background: #dcfce7 !important; color: #166534 !important; }
+
+.filters { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 999px; border: 1px solid var(--mx-border, #e2e8f0);
+  background: #fff; color: var(--mx-ink-muted, #475569); font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.chipActive { background: #0f172a; border-color: #0f172a; color: #fff; }
+.chipCount { font-size: 11px; opacity: 0.75; }
+.search {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px;
+  border: 1px solid var(--mx-border, #e2e8f0); border-radius: 9px; color: var(--mx-ink-faint, #64748b); background: #fff;
+}
+.search input { border: none; outline: none; font: inherit; font-size: 13px; width: 160px; color: var(--mx-ink, #0f172a); background: transparent; }
+
+.meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; color: var(--mx-ink-faint, #64748b); margin-top: 2px; }
+.sourceTag { font-weight: 700; color: #2563eb; background: #eff6ff; border-radius: 6px; padding: 1px 6px; }
+.context { max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.locked { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13.5px; color: var(--mx-ink-muted, #475569); }
+.retry { border: none; background: none; color: #2563eb; font-weight: 600; cursor: pointer; text-decoration: underline; }
