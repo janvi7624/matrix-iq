@@ -25,7 +25,7 @@
 }
 
 .back:hover {
-  color: #fff !important;
+  color: var(--l-ink) !important;
 }
 
 .aside {
@@ -64,7 +64,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #d5dbe4;
+  color: #334155;
   font-size: 15px;
 }
 
@@ -88,7 +88,7 @@
 }
 
 .contact a:hover {
-  color: #fff !important;
+  color: var(--l-ink) !important;
 }
 
 .contact svg {
@@ -99,9 +99,9 @@
   padding: clamp(22px, 3vw, 36px);
   border: 1px solid var(--l-line);
   border-radius: 24px;
-  background: rgba(17, 24, 39, 0.72);
+  background: #ffffff;
   backdrop-filter: blur(12px);
-  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 30px 80px -30px rgba(15, 23, 42, 0.22);
 }
 
 .formTitle {
@@ -127,7 +127,7 @@
 .interests legend {
   font-size: 13px;
   font-weight: 600;
-  color: #cbd2dc;
+  color: #334155;
 }
 
 .field em {
@@ -140,10 +140,10 @@
 .field textarea {
   width: 100%;
   padding: 11px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(15, 23, 42, 0.14);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #f8fafc;
+  background: #ffffff;
+  color: var(--l-ink);
   font: inherit;
   font-size: 15px;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
@@ -155,7 +155,7 @@
 }
 
 .field select option {
-  background: #111827;
+  background: #ffffff;
 }
 
 .field input:focus,
@@ -163,8 +163,8 @@
 .field textarea:focus {
   outline: none;
   border-color: var(--l-red);
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.18);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
 }
 
 .invalid {
@@ -172,7 +172,7 @@
 }
 
 .err {
-  color: #fca5a5;
+  color: var(--l-red-2);
   font-size: 12px;
 }
 
@@ -195,7 +195,7 @@
 .chip {
   position: relative;
   padding: 7px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(15, 23, 42, 0.14);
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
@@ -206,8 +206,8 @@
 }
 
 .chip:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #fff;
+  border-color: rgba(15, 23, 42, 0.3);
+  color: var(--l-ink);
 }
 
 .chip input {
@@ -223,8 +223,8 @@
 
 .chipOn {
   border-color: var(--l-red);
-  background: rgba(220, 38, 38, 0.16);
-  color: #fecaca;
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--l-red-2);
 }
 
 .hp {
@@ -256,8 +256,8 @@
   margin: 16px 0 0;
   padding: 10px 14px;
   border-radius: 10px;
-  background: rgba(220, 38, 38, 0.14);
-  color: #fecaca;
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--l-red-2);
   font-size: 14px;
 }
 
@@ -279,7 +279,7 @@
 }
 
 .done > svg {
-  color: #4ade80;
+  color: #15803d;
 }
 
 .done h2 {

@@ -1,0 +1,297 @@
+/* /pricing — rendered inside landing.module.css's .page, so every --l-* token
+   (light surface, brand red) comes from there. */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 140px clamp(16px, 4vw, 48px) 40px;
+  text-align: center;
+}
+
+.hero .badgeRow {
+  display: flex;
+  justify-content: center;
+}
+
+.title {
+  max-width: 860px;
+  margin: 22px auto 16px;
+  font-size: clamp(36px, 5.2vw, 64px);
+  line-height: 1.04;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.title span {
+  background: linear-gradient(90deg, #ef4444 0%, var(--l-red) 45%, #991b1b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lead {
+  max-width: 640px;
+  margin: 0 auto;
+  font-size: clamp(16px, 1.4vw, 18px);
+  line-height: 1.6;
+  color: var(--l-muted);
+}
+
+/* Plan cards */
+.plans {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 24px;
+  border: 1px solid var(--l-line);
+  border-radius: 20px;
+  background: var(--l-card);
+  box-shadow: var(--l-shadow);
+  transition: transform 0.3s, border-color 0.3s;
+}
+
+.plan:hover {
+  transform: translateY(-4px);
+  border-color: rgba(220, 38, 38, 0.4);
+}
+
+.planFeatured {
+  border: 2px solid var(--l-red);
+  background: linear-gradient(160deg, rgba(220, 38, 38, 0.07), #ffffff 60%);
+  box-shadow: 0 20px 50px -20px var(--l-red-glow);
+}
+
+.ribbon {
+  position: absolute;
+  top: -13px;
+  left: 24px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--l-red);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.planName {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 750;
+}
+
+.planTagline {
+  min-height: 63px;
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--l-muted);
+}
+
+.price {
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.per {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--l-muted);
+}
+
+.yearly {
+  min-height: 20px;
+  margin: 6px 0 22px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #15803d;
+}
+
+.planCta {
+  width: 100%;
+}
+
+.points {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+.points li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  line-height: 1.45;
+  color: #334155;
+}
+
+.points svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--l-red);
+}
+
+.planFoot {
+  margin-top: auto;
+  padding-top: 22px;
+  font-size: 12px;
+  color: var(--l-faint);
+}
+
+/* Comparison table */
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--l-line);
+  border-radius: 20px;
+  background: var(--l-card);
+  box-shadow: var(--l-shadow);
+}
+
+.table {
+  width: 100%;
+  min-width: 760px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  padding: 13px 16px;
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--l-line);
+}
+
+.table th:first-child,
+.table td:first-child {
+  width: 26%;
+  text-align: left;
+}
+
+.table thead th {
+  font-size: 15px;
+  font-weight: 750;
+  background: var(--l-bg-2);
+}
+
+.table thead th.colFeatured {
+  color: var(--l-red);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:not(.group):hover td {
+  background: #fffafa;
+}
+
+.group td {
+  background: var(--l-bg-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--l-red-2);
+}
+
+/* Tailwind's preflight makes every <svg> display:block, which ignores the
+   cell's text-align — centre the tick explicitly so it lines up with the
+   dash and the column header. */
+.tick {
+  display: block;
+  margin: 0 auto;
+  color: #15803d;
+}
+
+.dash {
+  color: var(--l-faint);
+}
+
+/* FAQ */
+.faq {
+  display: grid;
+  gap: 12px;
+  max-width: 820px;
+}
+
+.faqItem {
+  padding: 0 22px;
+  border: 1px solid var(--l-line);
+  border-radius: 16px;
+  background: var(--l-card);
+  box-shadow: var(--l-shadow);
+}
+
+.faqItem summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0;
+  font-size: 16px;
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+
+.faqItem summary::-webkit-details-marker {
+  display: none;
+}
+
+.faqItem summary::after {
+  content: '+';
+  color: var(--l-red);
+  font-weight: 500;
+}
+
+.faqItem[open] summary::after {
+  content: '–';
+}
+
+.faqItem p {
+  margin: 0 0 18px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--l-muted);
+}
+
+@media (max-width: 1100px) {
+  .plans {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .hero {
+    padding-top: 110px;
+  }
+
+  .planTagline {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .plans {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan {
+    transition: none;
+  }
+}

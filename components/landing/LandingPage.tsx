@@ -171,6 +171,7 @@ export default function LandingPage() {
               {c.label}
             </a>
           ))}
+          <Link href="/pricing">Pricing</Link>
         </nav>
         <div className={styles.headerCtas}>
           <Link href="/login" className={styles.ghostBtn}>Login</Link>
@@ -259,12 +260,34 @@ export default function LandingPage() {
                 <p className={styles.body}>{CONNECTED.body}</p>
               </div>
               <div className={styles.stats}>
-                {CONNECTED.stats.map((s) => (
-                  <div key={s.label} data-reveal className={styles.stat}>
-                    <strong>{s.value}</strong>
-                    <span>{s.label}</span>
+                {/* Featured stat: the module count, with a sample of the
+                    modules floating as bubbles. */}
+                <div data-reveal className={styles.statHero}>
+                  <div className={styles.statHeroHead}>
+                    <strong>{CONNECTED.stats[0].value}</strong>
+                    <span>{CONNECTED.stats[0].label}</span>
                   </div>
-                ))}
+                  <ul className={styles.bubbles} aria-label="Some of the connected modules">
+                    {CONNECTED.modules.map((m, i) => (
+                      <li
+                        key={m}
+                        className={i % 5 === 0 ? styles.bubbleHot : undefined}
+                        style={{ '--i': i } as React.CSSProperties}
+                      >
+                        {m}
+                      </li>
+                    ))}
+                    <li className={styles.bubbleMore}>{CONNECTED.modulesMore}</li>
+                  </ul>
+                </div>
+                <div className={styles.statRow}>
+                  {CONNECTED.stats.slice(1).map((s) => (
+                    <div key={s.label} data-reveal className={styles.stat}>
+                      <strong>{s.value}</strong>
+                      <span>{s.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -386,6 +409,7 @@ export function SiteFooter() {
         <div>
           <h4>MatrixIQ</h4>
           <Link href="/request-demo">Request a demo</Link>
+          <Link href="/pricing">Pricing</Link>
           <Link href="/login">Login</Link>
           <Link href="/#modules">Modules</Link>
         </div>

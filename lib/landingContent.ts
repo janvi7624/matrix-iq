@@ -60,7 +60,36 @@ export const CONNECTED = {
     { value: '40+', label: 'connected modules' },
     { value: '1', label: 'source of truth' },
     { value: '0', label: 'spreadsheets to chase' }
-  ]
+  ],
+  // Shown as floating bubbles in the "40+ connected modules" card — real
+  // modules from the app, a sample rather than the full list.
+  modules: [
+    'Leads & CRM',
+    'Quotations',
+    'Projects',
+    'TMS',
+    'Daily reports',
+    'Attendance',
+    'Leave',
+    'Reimbursements',
+    'Office expenses',
+    'Payments',
+    'Purchase orders',
+    'Delivery challans',
+    'Demos',
+    'Site visits',
+    'Installation',
+    'Travel',
+    'Support tickets',
+    'Marketing requests',
+    'Festival campaigns',
+    'Partner portal',
+    'Materials',
+    'Sales targets',
+    'Analytics',
+    'Custom modules'
+  ],
+  modulesMore: '+16 more'
 };
 
 export interface ModuleCard {
