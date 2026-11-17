@@ -95,3 +95,20 @@ export function getDemoProductGroups(domain: DomainKey): DemoProductGroup[] {
       return [];
   }
 }
+
+/**
+ * Tidy a demo product line typed through DemoProductPicker before it is saved:
+ * drops a dangling "—" (Other model picked, nothing typed), lifts a model into
+ * the product slot when only the model was typed, and returns '' for a line
+ * with nothing typed at all so the caller can drop it.
+ */
+export function cleanDemoProductName(raw: string): string {
+  let s = raw.replace(/\s+/g, ' ').trim().replace(/\s*—\s*$/, '');
+  s = s.replace(/^Other \(\s*\):\s*/, 'Other: ');
+  const m = /^([^:]+):\s*(.*)$/.exec(s);
+  if (!m) return s;
+  let rest = m[2].replace(/^—\s*/, '').trim();
+  if (!rest) return '';
+  rest = rest.replace(/\s*—\s*$/, '');
+  return `${m[1]}: ${rest}`;
+}

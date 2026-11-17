@@ -24,7 +24,6 @@ import { DEMO_STATUS_LABEL, stagesForMode } from '@/lib/demoStages';
 import WorkflowStepper, { StepperStep } from './ui/WorkflowStepper';
 import { fetchCached } from '@/lib/fetchCached';
 
-const ALL_DOMAINS = Object.keys(DOMAIN_DISPLAY_NAME) as DomainKey[];
 
 const EMPTY_FORM = {
   projectId: '',
@@ -705,31 +704,9 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             </div>
           </div>
 
-          <div className={calcStyles.field}>
-            <label className={calcStyles.label}>Domain(s) demonstrated</label>
-            <div className={historyStyles.teamGrid}>
-              {ALL_DOMAINS.map((d) => (
-                <label key={d}>
-                  <input
-                    type="checkbox"
-                    checked={form.productDomains.includes(d)}
-                    onChange={() =>
-                      setForm((f) => {
-                        const has = f.productDomains.includes(d);
-                        const nextDomains = has ? f.productDomains.filter((x) => x !== d) : [...f.productDomains, d];
-                        const nextProducts = has ? f.productsRequired.filter((p) => !p.product.startsWith(`${DOMAIN_DISPLAY_NAME[d]}: `)) : f.productsRequired;
-                        return { ...f, productDomains: nextDomains, productsRequired: nextProducts };
-                      })
-                    }
-                  />
-                  {DOMAIN_DISPLAY_NAME[d]}
-                </label>
-              ))}
-            </div>
-          </div>
-
           <DemoProductPicker
             domains={form.productDomains}
+            onDomainsChange={(next) => setForm((f) => ({ ...f, productDomains: next }))}
             lines={form.productsRequired}
             onChange={(next) => setForm((f) => ({ ...f, productsRequired: next }))}
           />
