@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight, Check, Sparkles } from 'lucide-react';
 import { BRAND } from '@/lib/branding';
+import { CHAPTERS } from '@/lib/landingContent';
 import { GST_RATE, MODULE_GROUPS, PLANS, TRIAL_DAYS, formatInr, planIncludesModule, type Plan } from '@/lib/plans';
 import { SiteFooter } from './LandingPage';
 import base from './landing.module.css';
@@ -88,7 +89,10 @@ export default function PricingPage() {
           <span>Matrix<b>IQ</b></span>
         </Link>
         <nav className={base.nav} aria-label="Main">
-          <Link href="/pricing" className={base.navActive} aria-current="page">Pricing</Link>
+          {CHAPTERS.slice(1, 5).map((c) => (
+            <Link key={c.id} href={`/#${c.id}`}>{c.label}</Link>
+          ))}
+          <Link href="/pricing" className={base.navCurrent} aria-current="page">Pricing</Link>
         </nav>
         <div className={base.headerCtas}>
           <Link href="/login" className={base.ghostBtn}>Login</Link>

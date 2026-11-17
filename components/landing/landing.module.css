@@ -114,6 +114,15 @@
   background: rgba(15, 23, 42, 0.05);
 }
 
+/* The nav link for the page you are ON. Distinct from .navActive above,
+   which is the landing page's scroll-spy highlight — "you are here" must
+   not read as "your cursor is here". */
+.navCurrent {
+  color: var(--l-red) !important;
+  background: rgba(220, 38, 38, 0.08);
+  font-weight: 600 !important;
+}
+
 .headerCtas {
   display: flex;
   gap: 8px;
