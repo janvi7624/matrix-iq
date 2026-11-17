@@ -42,7 +42,7 @@ function toAttr(value: unknown, kind: string): unknown {
   return value;
 }
 
-const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username'] };
+const creatorInclude = { model: db.User, as: 'creator', attributes: ['id', 'username', 'name'] };
 const productLinesInclude = { model: db.DemoProductLine, as: 'productLines' };
 // Narrow attributes: this join now runs on every demo list read and the
 // partner row carries address/notes/contact detail no list view wants.
@@ -54,6 +54,7 @@ function toRecord(row: Model): DemoScheduleRecord {
     id: plain.id,
     created_at: isoOrEmpty(plain.createdAt),
     created_by: (plain.creator as { username?: string } | null)?.username ?? '',
+    created_by_name: (plain.creator as { name?: string } | null)?.name ?? '',
     // plain.productLines entries are already plain objects (a parent row's
     // `.get({ plain: true })` recursively flattens included associations),
     // not Model instances.

@@ -464,6 +464,8 @@ export interface DemoScheduleRecord {
   id: string;
   created_at: string;
   created_by: string;
+  /** Display name of the requester, resolved on read (optional: not stored). */
+  created_by_name?: string;
   project_id: string;
   quotation_id: string;
   client_name: string;

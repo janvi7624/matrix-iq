@@ -1,0 +1,73 @@
+/* components/DemoScheduleView.tsx — the inline Technical / Manager approval
+   panels that open under a demo row. */
+
+.panel {
+  margin: 12px 0 4px;
+  max-width: 860px;
+  background: var(--mx-surface, #fff);
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 14px;
+  box-shadow: 0 6px 18px -10px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+  color: var(--mx-ink, #0f172a);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--mx-border, #e2e8f0);
+  background: var(--mx-surface-sunken, #f8fafc);
+}
+.headerIcon {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #eff6ff; color: #2563eb;
+}
+.title { margin: 0; font-size: 14.5px; font-weight: 700; color: var(--mx-ink, #0f172a); }
+.subtitle { margin: 2px 0 0; font-size: 12.5px; color: var(--mx-ink-muted, #475569); }
+
+.body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.label { font-size: 12.5px; font-weight: 600; color: var(--mx-ink-muted, #475569); }
+.hint { font-weight: 400; color: var(--mx-ink-faint, #64748b); }
+
+.control {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid var(--mx-border, #e2e8f0);
+  border-radius: 9px;
+  background: var(--mx-surface, #fff);
+  color: var(--mx-ink, #0f172a);
+  font: inherit;
+  font-size: 14px;
+}
+.control:focus { outline: none; border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+textarea.control { resize: vertical; min-height: 64px; }
+
+/* Available / Not available as a two-way choice instead of a dropdown. */
+.choice { display: inline-flex; border: 1px solid var(--mx-border, #e2e8f0); border-radius: 9px; overflow: hidden; }
+.choiceBtn {
+  flex: 1; padding: 9px 12px; border: none; background: var(--mx-surface, #fff);
+  font-size: 13px; font-weight: 600; color: var(--mx-ink-muted, #475569); cursor: pointer; white-space: nowrap;
+}
+.choiceBtn + .choiceBtn { border-left: 1px solid var(--mx-border, #e2e8f0); }
+.choiceYes { background: #f0fdf4; color: #166534; }
+.choiceNo { background: #fef2f2; color: #991b1b; }
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  border-top: 1px solid var(--mx-border, #e2e8f0);
+  background: var(--mx-surface-sunken, #f8fafc);
+}
+.footerNote { margin-right: auto; font-size: 12px; color: var(--mx-ink-faint, #64748b); }

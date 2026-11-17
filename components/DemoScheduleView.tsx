@@ -3,6 +3,8 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { UserCheck, Wrench } from 'lucide-react';
+import approvalStyles from './demoApproval.module.css';
 import { DemoMode, DemoOutcome, DemoPriority, DemoProductLine, DemoRequestStatus, DemoScheduleRecord, DomainKey, QuotationRecord, UserRole } from '@/lib/types';
 import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
@@ -127,34 +129,42 @@ function TechnicalApprovalForm({ demoId, onDone }: { demoId: string; onDone: (up
   }
 
   return (
-    <div className={`${historyStyles.detailPanel} ${calcStyles.mt10}`}>
-      <h3 className={historyStyles.h3Flush}>Technical availability</h3>
-      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-        <div className={calcStyles.field}>
-          <label className={calcStyles.label}>Availability</label>
-          <select className={calcStyles.formControl} value={availability} onChange={(e) => setAvailability(e.target.value as 'available' | 'not_available' | '')}>
-            <option value="">-- Select --</option>
-            <option value="available">Available</option>
-            <option value="not_available">Not available</option>
-          </select>
-        </div>
-        <div className={calcStyles.field}>
-          <label className={calcStyles.label}>Expected arrival time</label>
-          <input className={calcStyles.formControl} placeholder="e.g. 10:30 AM" value={expectedArrivalTime} onChange={(e) => setExpectedArrivalTime(e.target.value)} />
+    <div className={approvalStyles.panel}>
+      <div className={approvalStyles.header}>
+        <span className={approvalStyles.headerIcon}><Wrench size={16} /></span>
+        <div>
+          <h3 className={approvalStyles.title}>Technical availability</h3>
+          <p className={approvalStyles.subtitle}>Confirm whether you can attend this demo, then approve, reject or propose a new time.</p>
         </div>
       </div>
-      <div className={calcStyles.field}>
-        <label className={calcStyles.label}>Remarks</label>
-        <textarea className={calcStyles.formControl} rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+      <div className={approvalStyles.body}>
+        <div className={approvalStyles.grid}>
+          <div className={approvalStyles.field}>
+            <span className={approvalStyles.label}>Availability</span>
+            <div className={approvalStyles.choice} role="radiogroup" aria-label="Availability">
+              <button type="button" role="radio" aria-checked={availability === 'available'} className={`${approvalStyles.choiceBtn} ${availability === 'available' ? approvalStyles.choiceYes : ''}`} onClick={() => setAvailability('available')}>Available</button>
+              <button type="button" role="radio" aria-checked={availability === 'not_available'} className={`${approvalStyles.choiceBtn} ${availability === 'not_available' ? approvalStyles.choiceNo : ''}`} onClick={() => setAvailability('not_available')}>Not available</button>
+            </div>
+          </div>
+          <label className={approvalStyles.field}>
+            <span className={approvalStyles.label}>Expected arrival time</span>
+            <input className={approvalStyles.control} placeholder="e.g. 10:30 AM" value={expectedArrivalTime} onChange={(e) => setExpectedArrivalTime(e.target.value)} />
+          </label>
+          <label className={approvalStyles.field}>
+            <span className={approvalStyles.label}>Reschedule to <span className={approvalStyles.hint}>(only for Reschedule)</span></span>
+            <input type="datetime-local" className={approvalStyles.control} min={nowDatetimeInputValue()} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
+          </label>
+        </div>
+        <label className={approvalStyles.field}>
+          <span className={approvalStyles.label}>Remarks</span>
+          <textarea className={approvalStyles.control} rows={2} placeholder="Anything the sales team should know" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+        </label>
       </div>
-      <div className={calcStyles.field}>
-        <label className={calcStyles.label}>Reschedule to (only used for Reschedule)</label>
-        <input type="datetime-local" className={calcStyles.formControl} min={nowDatetimeInputValue()} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
-      </div>
-      <div className={historyStyles.actionGroupButtons}>
-        <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
-        <Button variant="danger" icon="✕" loading={busy} loadingLabel="Rejecting…" onClick={() => decide('rejected')}>Reject</Button>
+      <div className={approvalStyles.footer}>
+        <span className={approvalStyles.footerNote}>Pick a new date &amp; time above before choosing Reschedule.</span>
         <Button variant="secondary" loading={busy} onClick={() => decide('reschedule')}>Reschedule</Button>
+        <Button variant="danger" icon="✕" loading={busy} loadingLabel="Rejecting…" onClick={() => decide('rejected')}>Reject</Button>
+        <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
       </div>
     </div>
   );
@@ -185,31 +195,39 @@ function ManagerApprovalForm({ demoId, technicalRoster, onDone }: { demoId: stri
   }
 
   return (
-    <div className={`${historyStyles.detailPanel} ${calcStyles.mt10}`}>
-      <h3 className={historyStyles.h3Flush}>Manager review</h3>
-      <div className={`${calcStyles.row} ${calcStyles.columns}`}>
-        <div className={calcStyles.field}>
-          <label className={calcStyles.label}>Assign different engineer (optional)</label>
-          <select className={calcStyles.formControl} value={reassignedEngineerId} onChange={(e) => setReassignedEngineerId(e.target.value)}>
-            <option value="">-- Keep as assigned --</option>
-            {technicalRoster.map((person) => (
-              <option key={person.id} value={person.id}>{person.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className={calcStyles.field}>
-          <label className={calcStyles.label}>Modify schedule (optional)</label>
-          <input type="datetime-local" className={calcStyles.formControl} min={nowDatetimeInputValue()} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
+    <div className={approvalStyles.panel}>
+      <div className={approvalStyles.header}>
+        <span className={approvalStyles.headerIcon}><UserCheck size={16} /></span>
+        <div>
+          <h3 className={approvalStyles.title}>Manager review</h3>
+          <p className={approvalStyles.subtitle}>Approve as planned, or change the engineer or time first.</p>
         </div>
       </div>
-      <div className={calcStyles.field}>
-        <label className={calcStyles.label}>Remarks</label>
-        <textarea className={calcStyles.formControl} rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+      <div className={approvalStyles.body}>
+        <div className={approvalStyles.grid}>
+          <label className={approvalStyles.field}>
+            <span className={approvalStyles.label}>Assign different engineer <span className={approvalStyles.hint}>(optional)</span></span>
+            <select className={approvalStyles.control} value={reassignedEngineerId} onChange={(e) => setReassignedEngineerId(e.target.value)}>
+              <option value="">-- Keep as assigned --</option>
+              {technicalRoster.map((person) => (
+                <option key={person.id} value={person.id}>{person.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className={approvalStyles.field}>
+            <span className={approvalStyles.label}>Modify schedule <span className={approvalStyles.hint}>(optional)</span></span>
+            <input type="datetime-local" className={approvalStyles.control} min={nowDatetimeInputValue()} value={newScheduledAt} onChange={(e) => setNewScheduledAt(e.target.value)} />
+          </label>
+        </div>
+        <label className={approvalStyles.field}>
+          <span className={approvalStyles.label}>Remarks</span>
+          <textarea className={approvalStyles.control} rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+        </label>
       </div>
-      <div className={historyStyles.actionGroupButtons}>
-        <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
-        <Button variant="danger" icon="✕" loading={busy} loadingLabel="Rejecting…" onClick={() => decide('rejected')}>Reject</Button>
+      <div className={approvalStyles.footer}>
         <Button variant="secondary" loading={busy} onClick={() => decide('modified')}>Save Changes (Modify)</Button>
+        <Button variant="danger" icon="✕" loading={busy} loadingLabel="Rejecting…" onClick={() => decide('rejected')}>Reject</Button>
+        <Button variant="success" icon="✓" loading={busy} loadingLabel="Approving…" onClick={() => decide('approved')}>Approve</Button>
       </div>
     </div>
   );
