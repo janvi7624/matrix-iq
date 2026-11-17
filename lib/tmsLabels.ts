@@ -175,3 +175,8 @@ export const TMS_ROLE_LABEL: Record<string, string> = {
   engineer: 'Engineer',
   technician: 'Technician'
 };
+
+// Projects whose manually set progress_percent is shown instead of the
+// task-derived figure (one-off, by request: TMS-PRJ-0035 has 2/2 tasks done
+// but only ~5% of the real work).
+export const MANUAL_PROGRESS_PROJECTS = new Set<string>(['TMS-PRJ-0035']);

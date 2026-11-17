@@ -157,6 +157,8 @@ export interface DrilldownItem { id: string; label: string; sublabel: string; hr
 export interface BreakdownRow {
   label: string;
   value: string;
+  /** Also print this row on the dashboard tile, under the headline metric. */
+  showOnCard?: boolean;
   // The actual records behind this metric — only populated on a MemberScore
   // row (per-person), never on the department-wide `breakdown` aggregate.
   // Lets the Person Performance Dashboard's "Pipeline contribution" tiles
@@ -563,8 +565,52 @@ async function scoreMarketingTeam(team: TeamMember[], cache: ScoringDataCache): 
     };
   });
 
+  // Requests whose assignee has since LEFT the team (inactive / removed /
+  // moved department) still belong to Marketing's track record — dropping them
+  // made the card read "1 / 1" when three had been delivered. They're scored
+  // as one "Former team members" row instead of vanishing.
+  const teamIds = new Set(team.map((m) => m.id));
+  const formerReqs = all.filter((r) => r.assigned_to_id && !teamIds.has(r.assigned_to_id) && !mineOfTeam(r));
+  function mineOfTeam(r: MarketingRequestRecord): boolean {
+    return team.some((m) => r.created_by === m.username);
+  }
+  const formerIds = [...new Set(formerReqs.map((r) => r.assigned_to_id))];
+  const formerUsers = formerIds.length
+    ? await db.User.findAll({ where: { id: formerIds } as never, attributes: ['id', 'department'], paranoid: false } as never)
+    : [];
+  const formerMarketingIds = new Set(formerUsers.filter((u) => String(u.get('department') || '') === 'Marketing').map((u) => u.get('id') as string));
+  const former = formerReqs.filter((r) => r.needed_by_date && formerMarketingIds.has(r.assigned_to_id || ''));
+  if (former.length) {
+    let fOnTime = 0, fLate = 0;
+    const fOnTimeReqs: MarketingRequestRecord[] = [], fLateReqs: MarketingRequestRecord[] = [];
+    former.forEach((r) => {
+      if (r.status !== 'completed') return;
+      if (r.updated_at.slice(0, 10) <= r.needed_by_date) { fOnTime += 1; fOnTimeReqs.push(r); } else { fLate += 1; fLateReqs.push(r); }
+    });
+    if (fOnTime + fLate) {
+      totalOnTime += fOnTime; totalLate += fLate;
+      const item = (r: MarketingRequestRecord): DrilldownItem => ({ id: r.id, label: r.title, sublabel: r.needed_by_date, href: '/marketing-requests' });
+      members.push({
+        id: 'former-marketing',
+        username: 'Former team members',
+        score: rounded(pct(fOnTime, fOnTime + fLate)),
+        metrics: [
+          { label: 'Delivered on time', value: `${fOnTime} / ${fOnTime + fLate}`, items: fOnTimeReqs.map(item) },
+          { label: 'Delivered late', value: String(fLate), items: fLateReqs.map(item) },
+          { label: 'Open past deadline', value: '0', items: [] }
+        ]
+      });
+    }
+  }
+
+  // Work in flight — not scored (no outcome yet), but shown so the card
+  // doesn't look like Marketing has nothing on its plate.
+  const finished = new Set(['completed', 'cancelled', 'rejected']);
+  const inProgress = all.filter((r) => !finished.has(r.status) && (teamIds.has(r.assigned_to_id || '') || mineOfTeam(r))).length;
+
   const breakdown: BreakdownRow[] = [
-    { label: 'Delivered on time', value: `${totalOnTime} / ${totalOnTime + totalLate + totalOverdueOpen}` }
+    { label: 'Delivered on time', value: `${totalOnTime} / ${totalOnTime + totalLate + totalOverdueOpen}` },
+    { label: 'In progress', value: String(inProgress), showOnCard: true }
   ];
   return finalize(members, breakdown, MARKETING_FORMULA);
 }

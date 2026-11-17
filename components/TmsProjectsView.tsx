@@ -29,6 +29,7 @@ import FilterBar from './ui/FilterBar';
 import ToolbarButton from './ui/ToolbarButton';
 import Table, { TableColumn } from './ui/Table';
 import { useAutoRefresh } from '@/lib/useAutoRefresh';
+import { MANUAL_PROGRESS_PROJECTS } from '@/lib/tmsLabels';
 import { fetchCached } from '@/lib/fetchCached';
 
 interface PhaseDraft {
@@ -293,7 +294,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       render: (p) => (
         <>
           <div className={historyStyles.progressTrack}>
-            <div className={historyStyles.progressFill} style={{ width: `${p.task_derived_progress ?? p.progress_percent}%` }} />
+            <div className={historyStyles.progressFill} style={{ width: `${(MANUAL_PROGRESS_PROJECTS.has(p.project_code) ? p.progress_percent : p.task_derived_progress ?? p.progress_percent)}%` }} />
           </div>
           {/* Prefers the task-derived figure exactly as the detail page does.
               This column used to show the manual percentage only, so the same
@@ -302,7 +303,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
               project with no tasks, which is the only case it is the best
               answer available. */}
           <div className={historyStyles.progressLabel}>
-            {p.task_derived_progress ?? p.progress_percent}%
+            {(MANUAL_PROGRESS_PROJECTS.has(p.project_code) ? p.progress_percent : p.task_derived_progress ?? p.progress_percent)}%
           </div>
         </>
       )

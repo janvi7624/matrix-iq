@@ -17,7 +17,7 @@ import { hasCapability, isMarketingManager } from '@/lib/permissions';
 import { listDepartmentManagers, isUserADepartmentManager } from '@/lib/departmentStore';
 import { needsFollowUp, isLeadUnattended } from '@/lib/followUp';
 import { isReminderDue } from '@/lib/siteVisitReminder';
-import { summarizeMarketingReminders } from '@/lib/marketingRequestReminder';
+import { isMarketingRequestOpen, summarizeMarketingReminders } from '@/lib/marketingRequestReminder';
 import { projectHandoverStore } from '@/lib/projectHandoverStore';
 import { listTechnicalRequestsAwaiting } from '@/lib/projectTechnicalRequest';
 import { findUserNameAndDeptByUsername, findUsersByIds } from '@/lib/userStore';
@@ -293,7 +293,7 @@ export async function GET(request: NextRequest) {
 
     const marketingStats = marketingRecords.isReviewer
       ? { isReviewer: true, awaitingReview: marketingRecords.records.filter((r) => r.status === 'submitted').length }
-      : { isReviewer: false, myOpenCount: marketingRecords.records.filter((r) => ['submitted', 'timeline_set', 'in_progress'].includes(r.status)).length };
+      : { isReviewer: false, myOpenCount: marketingRecords.records.filter((r) => isMarketingRequestOpen(r.status)).length };
     const marketingReminderBreakdown = summarizeMarketingReminders(marketingRecords.records);
     const marketingReminderUrgentCount = marketingReminderBreakdown.due_today + marketingReminderBreakdown.overdue;
 

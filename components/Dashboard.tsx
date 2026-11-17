@@ -95,7 +95,7 @@ interface HealthGaugeData {
   department: string;
   score: number;
   band: 'red' | 'yellow' | 'green' | 'na';
-  breakdown: { label: string; value: string }[];
+  breakdown: { label: string; value: string; showOnCard?: boolean }[];
 }
 
 interface HealthResponse {

@@ -8,6 +8,7 @@ import { EngineerTaskAction, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_TASK_ACT
 import { ENGINEER_ACTIONS_BY_STATUS } from '@/lib/aiTmsStatusMapping';
 import { TMS_MANAGER_TIER_ROLES } from '@/lib/tmsConstants';
 import AppShell from './AppShell';
+import DecisionModal from './ui/DecisionModal';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
 import StatusBadge from './ui/StatusBadge';
@@ -393,27 +394,27 @@ export default function TmsTaskDetailView({ taskId, currentUser }: TmsTaskDetail
             );
           })}
 
-          {decidingExtension && (
-            <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
-              <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>
-                {decidingExtension.decision === 'approve' ? 'Approve' : 'Reject'} Due Date Change
-              </div>
-              <Textarea
-                rows={2}
-                value={decisionRemark}
-                onChange={(e) => setDecisionRemark(e.target.value)}
-                placeholder={decidingExtension.decision === 'approve' ? 'Remark (optional)' : 'Remark (required)'}
+          {decidingExtension && (() => {
+            const ext = extensions.find((e) => e.id === decidingExtension.id);
+            return (
+              <DecisionModal
+                decision={decidingExtension.decision}
+                title={`${decidingExtension.decision === 'approve' ? 'Approve' : 'Reject'} due date change`}
+                summary={ext ? [
+                  { label: 'Task', value: task.name },
+                  { label: 'Due date', value: ext.previousDeadline ? `${formatDate(ext.previousDeadline)} → ${formatDate(ext.newDeadline)}` : formatDate(ext.newDeadline) },
+                  { label: 'Reason', value: ext.reason === 'client_end' ? 'From Client End' : 'From User End' },
+                  { label: 'Requested by', value: ext.extendedByName || ext.extendedByUsername },
+                  ...(ext.remark ? [{ label: 'Their note', value: ext.remark }] : [])
+                ] : []}
+                remark={decisionRemark}
+                onRemarkChange={setDecisionRemark}
+                busy={deciding}
+                onConfirm={decideExtensionRequest}
+                onClose={() => setDecidingExtension(null)}
               />
-              <div className={styles.actionButtonsRow}>
-                <button type="button" className={calcStyles.btn} disabled={deciding} onClick={decideExtensionRequest}>
-                  {deciding ? 'Saving…' : `Confirm ${decidingExtension.decision === 'approve' ? 'Approval' : 'Rejection'}`}
-                </button>
-                <button type="button" className={calcStyles.btn} disabled={deciding} onClick={() => setDecidingExtension(null)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 

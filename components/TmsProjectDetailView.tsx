@@ -6,6 +6,7 @@ import { ExternalLink, FileText, Layers, ShoppingCart, Check } from 'lucide-reac
 import { DeadlineExtensionReason, DeadlineExtensionStatus, TmsBomRequestRecord, TmsDeadlineExtensionRecord, TmsPriority, TmsProcurementRecord, TmsProjectPhaseRecord, TmsProjectPhaseStatus, TmsProjectRecord, TmsProjectStatus, TmsTaskRecord, UserRole } from '@/lib/types';
 import { TMS_BOM_STATUS_LABEL, TMS_BOM_STATUS_TONE, TMS_PRIORITY_LABEL, TMS_PRIORITY_TONE, TMS_PROJECT_STATUS_LABEL, TMS_PROJECT_STATUS_TONE, TMS_PURCHASE_STATUS_LABEL, TMS_PURCHASE_STATUS_TONE, TMS_ROLE_LABEL, TMS_TASK_STATUS_LABEL, TMS_TASK_STATUS_TONE, todayIso } from '@/lib/tmsLabels';
 import AppShell from './AppShell';
+import DecisionModal from './ui/DecisionModal';
 import ProjectDocuments from './ProjectDocuments';
 import historyStyles from './quotationHistory.module.css';
 import calcStyles from './calculator.module.css';
@@ -27,6 +28,7 @@ import { classifyDeadline, DEADLINE_BUCKET_BAND, DEADLINE_BUCKET_LABEL } from '@
 import { BAND_COLOR } from './ui/HealthGauge';
 import { AuditLogEntry } from '@/lib/types';
 import styles from './tmsDetail.module.css';
+import { MANUAL_PROGRESS_PROJECTS } from '@/lib/tmsLabels';
 import { fetchCached } from '@/lib/fetchCached';
 
 const PHASE_LABEL: Record<TmsProjectPhaseStatus, string> = {
@@ -511,8 +513,8 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
           Owner: {project.project_manager_name || 'no owner yet'}
         </span>
         <span className={styles.mutedText}>
-          Progress: {taskDerivedProgress !== null ? taskDerivedProgress : project.progress_percent}%
-          {taskDerivedProgress !== null ? ' (from tasks)' : ''}
+          Progress: {taskDerivedProgress !== null && !MANUAL_PROGRESS_PROJECTS.has(project.project_code) ? taskDerivedProgress : project.progress_percent}%
+          {taskDerivedProgress !== null && !MANUAL_PROGRESS_PROJECTS.has(project.project_code) ? ' (from tasks)' : ''}
         </span>
         <Link className={historyStyles.button} href="/tms/projects">Back to Projects</Link>
         {/* The deadline itself is never a free-text field (see editForm/
@@ -999,21 +1001,27 @@ export default function TmsProjectDetailView({ projectId, currentUser }: TmsProj
         )
       )}
 
-      {decidingExtension && (
-        <div className={`${calcStyles.sectionPanel} ${styles.panelSpaced16}`}>
-          <div className={`${calcStyles.h2} ${calcStyles.h2Flush}`}>{decidingExtension.decision === 'approve' ? 'Approve' : 'Reject'} Deadline Extension</div>
-          <Textarea
-            rows={2}
-            placeholder={decidingExtension.decision === 'approve' ? 'Remark (optional)' : 'Remark (required)'}
-            value={decisionRemark}
-            onChange={(e) => setDecisionRemark(e.target.value)}
+      {decidingExtension && (() => {
+        const ext = deadlineExtensions.find((e) => e.id === decidingExtension.id);
+        return (
+          <DecisionModal
+            decision={decidingExtension.decision}
+            title={`${decidingExtension.decision === 'approve' ? 'Approve' : 'Reject'} deadline extension`}
+            summary={ext ? [
+              { label: 'Project', value: project.name },
+              { label: 'Deadline', value: `${formatDate(ext.previousDeadline)} → ${formatDate(ext.newDeadline)}` },
+              { label: 'Reason', value: EXTENSION_REASON_LABEL[ext.reason] },
+              { label: 'Requested by', value: ext.extendedByName || '' },
+              ...(ext.remark ? [{ label: 'Their note', value: ext.remark }] : [])
+            ] : []}
+            remark={decisionRemark}
+            onRemarkChange={setDecisionRemark}
+            busy={deciding}
+            onConfirm={handleDecideExtension}
+            onClose={() => setDecidingExtension(null)}
           />
-          <div className={`${styles.actionButtonsRow} ${calcStyles.mt10}`}>
-            <button type="button" className={calcStyles.btn} disabled={deciding} onClick={handleDecideExtension}>{deciding ? 'Saving…' : 'Confirm'}</button>
-            <ToolbarButton disabled={deciding} onClick={() => setDecidingExtension(null)}>Cancel</ToolbarButton>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {tab === 'attachments' && (
         <ProjectDocuments projectId={projectId} uploading={uploading} onUpload={handleUpload} refreshKey={project.attachments.length} />
