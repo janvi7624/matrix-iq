@@ -8,7 +8,7 @@ import { TechnicalRosterEntry } from '@/lib/technicalRoster';
 import { TMS_ROLE_KEYS } from '@/lib/tmsConstants';
 import { DOMAIN_DISPLAY_NAME } from '@/lib/domainLabels';
 import { useDomainLeadLabels } from '@/lib/domainLeads';
-import { getDomainProducts } from '@/lib/domainProducts';
+import DemoProductPicker from './DemoProductPicker';
 import { selectAllOnFocusIfZero } from '@/lib/numberInputHelpers';
 import AppShell from './AppShell';
 import TeamCheckboxes from './TeamCheckboxes';
@@ -563,19 +563,6 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
       .catch(() => setProjectQuotations([]));
   }, [form.projectId]);
 
-  function toggleProduct(tag: string) {
-    setForm((f) => {
-      const exists = f.productsRequired.find((p) => p.product === tag);
-      return {
-        ...f,
-        productsRequired: exists ? f.productsRequired.filter((p) => p.product !== tag) : [...f.productsRequired, { product: tag, quantity: 1 }]
-      };
-    });
-  }
-
-  function setProductQty(tag: string, quantity: number) {
-    setForm((f) => ({ ...f, productsRequired: f.productsRequired.map((p) => (p.product === tag ? { ...p, quantity: Math.max(1, quantity) } : p)) }));
-  }
 
   async function handleCreate(e: FormEvent, submit: boolean) {
     e.preventDefault();
@@ -741,43 +728,11 @@ function DemoScheduleContent({ currentUser }: { currentUser: { username: string;
             </div>
           </div>
 
-          {form.productDomains.map((d) => {
-            const catalog = getDomainProducts(d);
-            if (!catalog.length) {
-              return (
-                <div key={d} className={`${calcStyles.small} ${calcStyles.mb8}`}>
-                  No fixed product catalog for {DOMAIN_DISPLAY_NAME[d]} — describe what's required in Notes below.
-                </div>
-              );
-            }
-            return (
-              <div key={d} className={calcStyles.field}>
-                <label className={calcStyles.label}>{DOMAIN_DISPLAY_NAME[d]} products required</label>
-                <div className={historyStyles.teamGrid}>
-                  {catalog.map((product) => {
-                    const tag = `${DOMAIN_DISPLAY_NAME[d]}: ${product}`;
-                    const line = form.productsRequired.find((p) => p.product === tag);
-                    return (
-                      <label key={tag} className={calcStyles.inlineFlexGap6}>
-                        <input type="checkbox" checked={!!line} onChange={() => toggleProduct(tag)} />
-                        {product}
-                        {line && (
-                          <input
-                            type="number"
-                            min={1}
-                            className={`${calcStyles.formControl} ${calcStyles.qtyInputMini}`}
-                            value={line.quantity}
-                            onClick={(e) => e.preventDefault()}
-                            onChange={(e) => setProductQty(tag, parseInt(e.target.value, 10) || 1)}
-                          />
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          <DemoProductPicker
+            domains={form.productDomains}
+            lines={form.productsRequired}
+            onChange={(next) => setForm((f) => ({ ...f, productsRequired: next }))}
+          />
 
           <div className={`${calcStyles.row} ${calcStyles.columns}`}>
             <div className={calcStyles.field}>

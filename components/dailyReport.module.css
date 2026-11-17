@@ -510,6 +510,9 @@
 .tmsPickerRowName {
   font-weight: var(--mx-weight-semibold);
   font-size: 13.5px;
+  /* Explicit: the row is a <button>, and without its own colour the name
+     inherited the button's near-white text and was unreadable. */
+  color: var(--mx-ink);
 }
 .tmsPickerRowProject {
   font-size: 12.5px;

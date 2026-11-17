@@ -29,7 +29,8 @@ function toProductLines(value: unknown): DemoProductLine[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter((v): v is { product: unknown; quantity: unknown } => v && typeof v === 'object')
-    .map((v) => ({ product: typeof v.product === 'string' ? v.product.trim() : '', quantity: Math.max(1, Number(v.quantity) || 1) }))
+    // A model picked as "Other" but never typed leaves "Product — " — trim it back to the bare product.
+    .map((v) => ({ product: typeof v.product === 'string' ? v.product.trim().replace(/\s*—\s*$/, '') : '', quantity: Math.max(1, Number(v.quantity) || 1) }))
     .filter((v) => v.product);
 }
 

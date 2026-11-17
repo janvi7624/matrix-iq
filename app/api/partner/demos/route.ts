@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
               .filter((p: unknown): p is { product: string; quantity: unknown } =>
                 !!p && typeof (p as { product?: unknown }).product === 'string')
               .map((p: { product: string; quantity: unknown }) => ({
-                product: p.product.trim(),
+                product: p.product.trim().replace(/\s*—\s*$/, ''),
                 quantity: Math.min(999, Math.max(1, Math.floor(Number(p.quantity) || 1)))
               }))
               .filter((p: { product: string }) => !!p.product)
