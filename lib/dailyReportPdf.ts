@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { DailyReportFieldDef, TemplateDefinition, computeMatrixTotals, isFieldVisible } from './dailyReportTemplates';
-import { DailyReportRecord } from './dailyReportTypes';
+import { DailyReportRecord, TeamDailyReportRangeRow } from './dailyReportTypes';
 import { formatIstClock, formatIstDate, formatIstDateTime, formatIstWeekday } from './dailyReportTime';
 
 // The CONTENT of daily reports as a formal PDF — what each person actually
@@ -32,6 +32,12 @@ export interface DailyReportPdfInput {
   /** Keyed `${department_id}|${template_key}`, as listFiledReportsForExport returns. */
   templates: Map<string, TemplateDefinition>;
   truncated: boolean;
+  /**
+   * Per-employee compliance for the period, from the same calculation as the
+   * Team Daily Reports screen (computeDailyReportRangeSummary) plus active
+   * warnings — drives both summary tables so they always match the screen.
+   */
+  summary: TeamDailyReportRangeRow[];
 }
 
 const COMPANY = 'NANTA TECH LIMITED';
@@ -393,8 +399,21 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
       name: d.name,
       people: [...d.people.values()].sort((a, b) => a[0].employee_name.localeCompare(b[0].employee_name))
     }));
-  const totalPeople = deptList.reduce((n, d) => n + d.people.length, 0);
-  const totalLate = input.reports.filter(isLate).length;
+  // Every number below comes from input.summary — the SAME calculation as the
+  // Team Daily Reports screen and its Summary PDF (computeDailyReportRangeSummary)
+  // — so the three can never disagree. See TeamDailyReportRangeRow for what
+  // each field means. Per employee, always:
+  //   filed + missing + on leave + before joining = report days.
+  const sumRows = input.summary ?? [];
+  const S = (k: 'submitted' | 'submitted_late' | 'missing' | 'leave_covered' | 'leave_pending' | 'before_joining' | 'filed_on_off_day' | 'warnings_missed' | 'warnings_zero_activity' | 'expected', rows = sumRows) =>
+    rows.reduce((n, r) => n + r[k], 0);
+  const periodReportDays = sumRows[0]?.report_days ?? 0;
+  const totalPeople = sumRows.length || deptList.reduce((n, d) => n + d.people.length, 0);
+  const totalFiled = sumRows.length ? S('submitted') : input.reports.length;
+  const totalLate = sumRows.length ? S('submitted_late') : input.reports.filter(isLate).length;
+  // On-time % = filed on time ÷ days actually owed (owed = report days minus
+  // leave minus before-joining). Leave and pre-joining days neither help nor hurt.
+  const owed = (rows: typeof sumRows) => Math.max(0, S('expected', rows) - S('leave_covered', rows));
 
   // ---- Cover ---------------------------------------------------------------
   wr.y = TOP + 6;
@@ -410,9 +429,14 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
     ['Period', period],
     ['Departments', String(deptList.length)],
     ['Employees', String(totalPeople)],
-    ['Reports filed', String(input.reports.length)],
-    ['On time', `${input.reports.length - totalLate} (${pct(input.reports.length - totalLate, input.reports.length)})`],
+    ['Report days', `${periodReportDays} per employee (working days already due; holidays, Sundays and off-Saturdays excluded)`],
+    ['Reports filed', `${totalFiled}${S('filed_on_off_day') ? ` (+${S('filed_on_off_day')} filed on a holiday/off day, not counted)` : ''}`],
+    ['On time', `${totalFiled - totalLate} (${pct(totalFiled - totalLate, owed(sumRows))} of owed days)`],
     ['Late', String(totalLate)],
+    ['Missing', String(S('missing'))],
+    ['On leave', `${S('leave_covered')}${S('leave_pending') ? ` (${S('leave_pending')} awaiting HR decision)` : ''}`],
+    ['Before joining', String(S('before_joining'))],
+    ['Active warnings', `${S('warnings_missed') + S('warnings_zero_activity')} (${S('warnings_missed')} missed deadline, ${S('warnings_zero_activity')} zero activity)`],
     ['Prepared by', input.generatedBy],
     ['Prepared on', generatedAt]
   ]);
@@ -426,36 +450,74 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
     wr.y += 9;
   }
 
-  if (!deptList.length) {
+  const blank = (n: number) => (n ? String(n) : '');
+  const summary = sumRows;
+
+  if (!summary.length && !deptList.length) {
     wr.font('normal', 11, INK);
     doc.text('No filed reports were found for this period.', M, wr.y + 4);
   } else {
+    const byDept = new Map<string, typeof summary>();
+    for (const r of summary) byDept.set(r.department_name || 'Unassigned', [...(byDept.get(r.department_name || 'Unassigned') ?? []), r]);
+    const deptRows = [...byDept.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+    // Filed shows "+N" for reports filed on a holiday/off day: they are real
+    // reports (they appear in the pages below) but were not owed, so they are
+    // not in Filed and cannot push anyone over 100%.
+    const filedCell = (rows: typeof summary) => `${S('submitted', rows)}${S('filed_on_off_day', rows) ? ` (+${S('filed_on_off_day', rows)})` : ''}`;
+    // Leave shows "*" when part of it is still awaiting HR's decision.
+    const leaveCell = (rows: typeof summary) => (S('leave_covered', rows) ? `${S('leave_covered', rows)}${S('leave_pending', rows) ? '*' : ''}` : '');
+    const line = (name: string, rows: typeof summary) => {
+      const filed = S('submitted', rows), late = S('submitted_late', rows);
+      return [name, String(rows.length), String(periodReportDays), filedCell(rows), String(filed - late), blank(late), blank(S('missing', rows)), leaveCell(rows), blank(S('before_joining', rows)), pct(filed - late, owed(rows))];
+    };
+    const center = Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => [i, { halign: 'center' }]));
+
     wr.heading('Department-wise Summary');
     wr.table({
-      head: [['Department', 'Employees', 'Reports filed', 'On time', 'Late', 'On-time %']],
-      body: deptList.map((d) => {
-        const all = d.people.flat();
-        const late = all.filter(isLate).length;
-        return [d.name, String(d.people.length), String(all.length), String(all.length - late), String(late), pct(all.length - late, all.length)];
-      }),
-      foot: [['Total', String(totalPeople), String(input.reports.length), String(input.reports.length - totalLate), String(totalLate), pct(input.reports.length - totalLate, input.reports.length)]],
+      head: [['Department', 'No. of Employees', 'Report days', 'Reports filed', 'On time', 'Late', 'Missing', 'On leave', 'Before joining', 'On-time %']],
+      body: deptRows.map(([name, rows]) => line(name, rows)),
+      foot: [line('Total', summary)],
       footStyles: { fillColor: BAND, textColor: INK, fontStyle: 'bold' },
       showFoot: 'lastPage',
-      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'center' } }
+      styles: { fontSize: 8, cellPadding: 1.6, textColor: BODY, lineColor: RULE, lineWidth: 0.2 },
+      columnStyles: center
     }, 7);
 
-    wr.heading('Employee Index');
+    wr.heading('Employee-wise Summary');
     wr.table({
-      head: [['Department', 'Employee', 'Reports', 'On time', 'Late', 'First report', 'Last report']],
-      body: deptList.flatMap((d) =>
-        d.people.map((list) => {
-          const late = list.filter(isLate).length;
-          return [d.name, list[0].employee_name, String(list.length), String(list.length - late), String(late), formatIstDate(list[0].report_date), formatIstDate(list[list.length - 1].report_date)];
+      head: [['Department', 'Employee', 'Report days', 'Reports filed', 'On time', 'Late', 'Missing', 'On leave', 'Before joining', 'Warnings']],
+      body: deptRows.flatMap(([name, rows]) =>
+        rows.map((r) => {
+          const w = r.warnings_missed + r.warnings_zero_activity;
+          return [
+            name, r.employee_name, String(periodReportDays), filedCell([r]), String(r.submitted - r.submitted_late),
+            blank(r.submitted_late), blank(r.missing), leaveCell([r]), blank(r.before_joining),
+            w ? `${w}${r.warnings_zero_activity ? ` (${r.warnings_zero_activity} Z)` : ''}` : ''
+          ];
         })
       ),
       styles: { fontSize: 8, cellPadding: 1.6, textColor: BODY, lineColor: RULE, lineWidth: 0.2 },
-      columnStyles: { 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } }
+      columnStyles: center
     });
+
+    // How to read the tables — so nobody has to guess why two columns differ.
+    wr.font('italic', 7.5, MUTED);
+    const notes = [
+      `Report days: ${periodReportDays} for every employee — working days in the period that are already due (holidays, Sundays and off-Saturdays excluded).`,
+      'Each employee: Reports filed + Missing + On leave + Before joining = Report days. Department rows are totals across their employees.',
+      'On time + Late = Reports filed. On-time % = on time ÷ owed days (report days minus leave minus days before joining).',
+      '(+N) in Reports filed: reports also filed on a holiday/off day — shown in the pages below but not counted, as no report was owed that day.',
+      '* in On leave: some of that leave is still awaiting HR approval; it is excused meanwhile and becomes Missing if HR rejects it.',
+      'Warnings: active (not waived) warnings in the period. A late report keeps its warning — it missed the deadline — so Warnings can exceed Missing. (N Z) = raised because a report was filed with zero activity.'
+    ];
+    for (const n of notes) {
+      wr.ensure(6);
+      const lines = doc.splitTextToSize(n, wr.inner) as string[];
+      doc.text(lines, M, wr.y);
+      wr.y += lines.length * 3.4 + 1;
+    }
+    wr.y += 3;
   }
 
   // ---- Departments & employees ----------------------------------------------
@@ -470,16 +532,26 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
     wr.font('bold', 12, [255, 255, 255]);
     doc.text(`DEPARTMENT: ${dept.name.toUpperCase()}`, M + 4, wr.y + 1.5);
     wr.font('normal', 8, [226, 232, 240]);
-    doc.text(`${dept.people.length} employee${dept.people.length === 1 ? '' : 's'} · ${all.length} report${all.length === 1 ? '' : 's'} · ${pct(all.length - late, all.length)} on time`, wr.width - M - 4, wr.y + 1.5, { align: 'right' });
+    // Same per-employee numbers as the summary tables (input.summary), so a
+    // department page can't contradict the summary at the front.
+    const deptSummary = sumRows.filter((r) => (r.department_name || 'Unassigned') === dept.name);
+    const dReq = deptSummary.reduce((n, r) => n + r.expected, 0);
+    const dLeave = deptSummary.reduce((n, r) => n + r.leave_covered, 0);
+    const dFiled = deptSummary.length ? deptSummary.reduce((n, r) => n + r.submitted, 0) : all.length;
+    const dLate = deptSummary.length ? deptSummary.reduce((n, r) => n + r.submitted_late, 0) : late;
+    const dCount = deptSummary.length || dept.people.length;
+    doc.text(`${dCount} employee${dCount === 1 ? '' : 's'} · ${periodReportDays} report days each · ${dFiled} filed · ${pct(dFiled - dLate, Math.max(0, (dReq || dFiled) - dLeave))} on time`, wr.width - M - 4, wr.y + 1.5, { align: 'right' });
     wr.y += 12;
 
     wr.table({
-      head: [['Employee', 'Reports filed', 'On time', 'Late', 'On-time %']],
-      body: dept.people.map((list) => {
-        const l = list.filter(isLate).length;
-        return [list[0].employee_name, String(list.length), String(list.length - l), String(l), pct(list.length - l, list.length)];
-      }),
-      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } }
+      head: [['Employee', 'Report days', 'Reports filed', 'On time', 'Late', 'Missing', 'On leave', 'Before joining', 'On-time %']],
+      body: (deptSummary.length ? deptSummary : []).map((r) => [
+        r.employee_name, String(periodReportDays), `${r.submitted}${r.filed_on_off_day ? ` (+${r.filed_on_off_day})` : ''}`, String(r.submitted - r.submitted_late),
+        r.submitted_late ? String(r.submitted_late) : '', r.missing ? String(r.missing) : '', r.leave_covered ? `${r.leave_covered}${r.leave_pending ? '*' : ''}` : '',
+        r.before_joining ? String(r.before_joining) : '',
+        pct(r.submitted - r.submitted_late, Math.max(0, r.expected - r.leave_covered))
+      ]),
+      columnStyles: Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((i) => [i, { halign: 'center' }]))
     }, 8);
 
     dept.people.forEach((list, index) => {

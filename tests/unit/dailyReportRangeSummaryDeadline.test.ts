@@ -9,7 +9,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // and every remaining working day as owed-and-unfiled, i.e. missing, before
 // anyone could possibly have filed them.
 
-vi.mock('../../lib/db', () => ({ db: {}, isUuid: () => true }));
+vi.mock('../../lib/db', () => ({
+  db: { DailyReportLeaveClaim: { findAll: vi.fn(async () => []) }, DailyReportWarning: { findAll: vi.fn(async () => []) } },
+  isUuid: () => true
+}));
 vi.mock('../../lib/dailyReportConfigStore', () => ({ getDeadlinePolicy: vi.fn(), getDailyReportConfig: vi.fn() }));
 vi.mock('../../lib/dailyReportTemplateStore', () => ({ resolveTemplateForDepartment: vi.fn() }));
 vi.mock('../../lib/dailyReportStore', async (importOriginal) => {
@@ -83,7 +86,7 @@ describe('computeDailyReportRangeSummary — a day not yet due is not counted as
     vi.useRealTimers();
   });
 
-  it('still credits a submission on a not-yet-due day — filing early is never ignored', async () => {
+  it('a submission on a not-yet-due day is shown as filed ahead (+1), not ignored and not inflating the row', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     employeesMock.mockResolvedValue([employee('alice')]);
@@ -92,11 +95,15 @@ describe('computeDailyReportRangeSummary — a day not yet due is not counted as
     const summary = await computeDailyReportRangeSummary(['dept-1'], FROM, TO);
     const [row] = summary.rows;
 
-    // The 30th's early submission is credited (expected+1, submitted+1) on
-    // top of the 4 already-due days.
-    expect(row.expected).toBe(5);
-    expect(row.submitted).toBe(1);
+    // The 30th isn't a report day yet for anyone, so the early filing can't
+    // count toward it (that made a row show more filed than report days).
+    // It is surfaced as filed_on_off_day — the "(+1)" HR sees — instead.
+    expect(row.expected).toBe(4);
+    expect(row.report_days).toBe(4);
+    expect(row.submitted).toBe(0);
+    expect(row.filed_on_off_day).toBe(1);
     expect(row.missing).toBe(4);
+    expect(row.submitted + row.missing + row.leave_covered + row.before_joining).toBe(row.report_days);
 
     vi.useRealTimers();
   });

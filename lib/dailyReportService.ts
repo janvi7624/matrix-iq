@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { db } from './db';
 import { ViewerContext } from './viewerContext';
 import {
@@ -435,16 +436,39 @@ export async function computeDailyReportRangeSummary(
   const employeeIds = employees.map((e) => e.id);
   const dates = workingDaysBetween(from, to, policy);
 
-  const [statuses, leaveCovered] = await Promise.all([
+  const [statuses, leaveCovered, pendingLeaveRows, warningRows] = await Promise.all([
     loadReportStatuses(employeeIds, from, to),
-    loadLeaveCoveredKeys(employeeIds, from, to)
+    loadLeaveCoveredKeys(employeeIds, from, to),
+    employeeIds.length
+      ? db.DailyReportLeaveClaim.findAll({
+          where: { employee_id: employeeIds, report_date: { [Op.between]: [from, to] }, status: 'PENDING' } as never,
+          attributes: ['employee_id', 'report_date']
+        })
+      : Promise.resolve([]),
+    employeeIds.length
+      ? db.DailyReportWarning.findAll({
+          where: { employee_id: employeeIds, report_date: { [Op.between]: [from, to] }, status: 'ACTIVE' } as never,
+          attributes: ['employee_id', 'source']
+        })
+      : Promise.resolve([])
   ]);
+  const pendingLeave = new Set(pendingLeaveRows.map((r) => `${r.get('employee_id') as string}|${String(r.get('report_date')).slice(0, 10)}`));
+  const warnCount = new Map<string, { missed: number; zero: number }>();
+  for (const w of warningRows) {
+    const id = w.get('employee_id') as string;
+    const c = warnCount.get(id) ?? { missed: 0, zero: 0 };
+    if (w.get('source') === 'zero_total') c.zero += 1;
+    else c.missed += 1;
+    warnCount.set(id, c);
+  }
 
   // Same instant for every employee/date in this call — one computation
   // shared across the whole range rather than a fresh `new Date()` per row,
   // so two rows can never land on opposite sides of the cut-off by the time
   // the loop reaches them.
   const now = new Date();
+  // Report days that are already due — identical for everyone.
+  const reportDays = dates.filter((d) => missingIsVisibleYet(d, now)).length;
   let rows: TeamDailyReportRangeRow[] = employees.map((employee) => {
     const owedDates = dates.filter((d) => employeeOwesDate(employee, d));
     let submitted = 0;
@@ -458,19 +482,48 @@ export async function computeDailyReportRangeSummary(
     let notYetDue = 0;
     for (const d of owedDates) {
       const key = `${employee.id}|${d}`;
+      // A day whose deadline hasn't passed isn't a report day yet — for
+      // ANYONE, filed or not — so it's left out entirely. Otherwise someone
+      // who files today before the deadline would show more filed than report
+      // days. An early filing for such a day is surfaced as "(+N)" below.
+      if (!missingIsVisibleYet(d, now)) {
+        notYetDue += 1;
+        continue;
+      }
       const found = statuses.get(key);
       if (found && SUBMITTED_STATUSES.includes(found.submission_status)) {
         submitted += 1;
         if (found.is_late) submittedLate += 1;
       } else if (leaveCovered.has(key)) {
         leaveCoveredCount += 1;
-      } else if (!missingIsVisibleYet(d, now)) {
-        notYetDue += 1;
       }
     }
     const expected = owedDates.length - notYetDue;
     const missing = Math.max(0, expected - submitted - leaveCoveredCount);
+    let leavePending = 0;
+    for (const d of owedDates) {
+      const key = `${employee.id}|${d}`;
+      if (missingIsVisibleYet(d, now) && pendingLeave.has(key) && !(statuses.get(key) && SUBMITTED_STATUSES.includes(statuses.get(key)!.submission_status))) leavePending += 1;
+    }
+    // Reports filed for a day this person did NOT owe — a holiday / Sunday /
+    // off-Saturday, or a day before their joining date. Real reports (they
+    // appear in the PDF pages) but outside the count, so they're surfaced as
+    // "(+N)" instead of silently vanishing.
+    // (Also a report filed early for a day not yet due — see the loop above.)
+    const owedSet = new Set(owedDates.filter((d) => missingIsVisibleYet(d, now)));
+    let filedOnOffDay = 0;
+    for (const [key, s] of statuses) {
+      const [eid, d] = key.split('|');
+      if (eid === employee.id && !owedSet.has(d) && SUBMITTED_STATUSES.includes(s.submission_status)) filedOnOffDay += 1;
+    }
+    const warn = warnCount.get(employee.id) ?? { missed: 0, zero: 0 };
     return {
+      report_days: reportDays,
+      before_joining: Math.max(0, reportDays - expected),
+      leave_pending: leavePending,
+      filed_on_off_day: filedOnOffDay,
+      warnings_missed: warn.missed,
+      warnings_zero_activity: warn.zero,
       employee_id: employee.id,
       employee_name: employee.name,
       employee_username: employee.username,
@@ -500,9 +553,15 @@ export async function computeDailyReportRangeSummary(
       submitted: acc.submitted + r.submitted,
       submitted_late: acc.submitted_late + r.submitted_late,
       missing: acc.missing + r.missing,
-      leave_covered: acc.leave_covered + r.leave_covered
+      leave_covered: acc.leave_covered + r.leave_covered,
+      report_days: reportDays,
+      before_joining: acc.before_joining + r.before_joining,
+      leave_pending: acc.leave_pending + r.leave_pending,
+      filed_on_off_day: acc.filed_on_off_day + r.filed_on_off_day,
+      warnings_missed: acc.warnings_missed + r.warnings_missed,
+      warnings_zero_activity: acc.warnings_zero_activity + r.warnings_zero_activity
     }),
-    { expected: 0, submitted: 0, submitted_late: 0, missing: 0, leave_covered: 0 }
+    { expected: 0, submitted: 0, submitted_late: 0, missing: 0, leave_covered: 0, report_days: reportDays, before_joining: 0, leave_pending: 0, filed_on_off_day: 0, warnings_missed: 0, warnings_zero_activity: 0 }
   );
 
   // Every department actually represented in the (unfiltered-by-search)

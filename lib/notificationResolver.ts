@@ -51,6 +51,7 @@ const RESOLVERS: Record<string, EntityResolver> = {
   // the appreciated employee cannot open that page, so theirs uses its own
   // type and opens their profile, where approved appreciations are listed.
   employee_appreciation: { href: () => '/hr/appreciation', exists: appreciationExists },
+  vendor_assessment: { href: (id) => `/vendor-assessment?open=${id}`, exists: async () => true },
   employee_appreciation_received: { href: () => '/profile', exists: appreciationExists },
   project: { href: (id) => `/projects/${id}`, exists: (id) => existsIn('Project', id) },
   reimbursement_sheet: { href: () => '/reimbursement', exists: (id) => existsIn('ReimbursementSheet', id) },

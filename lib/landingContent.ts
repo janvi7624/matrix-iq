@@ -84,6 +84,7 @@ export const CONNECTED = {
     'Marketing requests',
     'Festival campaigns',
     'Partner portal',
+    'Vendor assessment',
     'Materials',
     'Sales targets',
     'Analytics',

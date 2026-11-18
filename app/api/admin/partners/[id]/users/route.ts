@@ -6,6 +6,7 @@ import { createPartnerUser, listPartnerUsers, PartnerUserError, updatePartnerUse
 import { PARTNER_ROLE_KEYS, PartnerRoleKey } from '@/lib/partnerRoles';
 import { apiErrorResponse } from '@/lib/apiError';
 import { logAudit } from '@/lib/auditLogStore';
+import { sendPartnerOnboardingReminder } from '@/lib/partnerOnboardingReminderJob';
 import { getClientIp } from '@/lib/requestIp';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -70,6 +71,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // unconfigured or the address may bounce, and an account nobody can get
     // into is worse than one whose password was read off the screen by the
     // manager who just created it.
+    // First "documents pending" mail right away; then Mon/Thu until done.
+    void sendPartnerOnboardingReminder(id).catch((e) => console.error("[partner-onboarding-reminder]", e));
+
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     if (error instanceof PartnerUserError) return NextResponse.json({ error: error.message }, { status: 400 });

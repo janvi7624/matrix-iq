@@ -1,6 +1,7 @@
 import { runDailyReportSweep } from './dailyReportScheduler';
 import { getDailyReportConfig } from './dailyReportConfigStore';
 import { runMonthlySummaries } from './monthlySummaryJobs';
+import { runPartnerOnboardingReminders } from './partnerOnboardingReminderJob';
 import { addDays, formatIst, istDate, istInstant } from './dailyReportTime';
 
 // Runs the Daily Report sweep inside the server process, so the module works
@@ -184,6 +185,13 @@ async function tick(reason: 'boot' | 'scheduled'): Promise<void> {
   // Each job claims its month before sending, so being called on every
   // wake-up is a no-op after the first call of the month.
   await runMonthlySummariesQuietly(reason);
+  // Partner onboarding nudges, Mon + Thu — self-deduplicating per day.
+  try {
+    const { sent } = await runPartnerOnboardingReminders();
+    if (sent) console.info(`[partner-onboarding-reminder] (${reason}) sent for ${sent} partner(s).`);
+  } catch (error) {
+    console.error("[partner-onboarding-reminder] failed; the sweep continues.", error);
+  }
 }
 
 /**

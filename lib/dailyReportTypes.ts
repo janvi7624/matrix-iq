@@ -355,6 +355,21 @@ export interface TeamDailyReportRangeRow {
   leave_covered: number;
   /** Rounded 0-100; 100 when nothing was expected (nothing to fall short of). */
   compliance_percent: number;
+  /**
+   * The period's report days — the SAME number on every row (working days in
+   * the range that are already due). submitted + missing + leave_covered +
+   * before_joining always equals this, so every row reads against one total.
+   */
+  report_days: number;
+  /** Report days before this person's joining date — not owed, not missing. */
+  before_joining: number;
+  /** Of leave_covered: claims HR has NOT decided yet (still counted as leave, flagged). */
+  leave_pending: number;
+  /** Reports filed for a holiday / Sunday / off-Saturday in the range — real reports, but not a report day. */
+  filed_on_off_day: number;
+  /** ACTIVE warnings in the range, by why they were raised. */
+  warnings_missed: number;
+  warnings_zero_activity: number;
 }
 
 export interface TeamDailyReportRangeResponse {
@@ -368,6 +383,12 @@ export interface TeamDailyReportRangeResponse {
     submitted_late: number;
     missing: number;
     leave_covered: number;
+    report_days: number;
+    before_joining: number;
+    leave_pending: number;
+    filed_on_off_day: number;
+    warnings_missed: number;
+    warnings_zero_activity: number;
   };
   departments: { id: string; name: string }[];
 }
