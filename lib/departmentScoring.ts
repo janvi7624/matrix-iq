@@ -159,8 +159,9 @@ export interface BreakdownRow {
   value: string;
   /** Also print this row on the dashboard tile, under the headline metric. */
   showOnCard?: boolean;
-  // The actual records behind this metric — only populated on a MemberScore
-  // row (per-person), never on the department-wide `breakdown` aggregate.
+  // The actual records behind this metric. Department-wide rows are filled in
+  // by finalize() from the members' matching rows, so the totals tiles click
+  // through too.
   // Lets the Person Performance Dashboard's "Pipeline contribution" tiles
   // click through to what they're counting, the same way its Tasks tiles
   // already do. Omitted (rather than []) when there's genuinely nothing
@@ -240,7 +241,32 @@ function pct(numerator: number, denominator: number): number | null {
   return denominator > 0 ? (numerator / denominator) * 100 : null;
 }
 
+// Department totals are named differently from the per-person rows they sum.
+const TOTAL_ROW_SOURCE: Record<string, string> = {
+  'TMS work on schedule': 'On schedule',
+  'Open with no end date': 'No end date set',
+  'In planning, no end date (not scored)': 'In planning (not scored)',
+  'Unpaid past due': 'Team backlog past due',
+  'Awaiting HR approval': 'Team awaiting HR approval'
+};
+
+function withTotalItems(members: MemberScore[], breakdown: BreakdownRow[]): BreakdownRow[] {
+  return breakdown.map((row) => {
+    if (row.items) return row;
+    const source = TOTAL_ROW_SOURCE[row.label] || row.label;
+    const seen = new Map<string, DrilldownItem>();
+    for (const m of members) {
+      for (const metric of m.metrics) {
+        if (metric.label !== source) continue;
+        for (const it of metric.items || []) if (!seen.has(it.id)) seen.set(it.id, it);
+      }
+    }
+    return seen.size ? { ...row, items: [...seen.values()] } : row;
+  });
+}
+
 function finalize(members: MemberScore[], breakdown: BreakdownRow[], formula: string): ScoreResult {
+  breakdown = withTotalItems(members, breakdown);
   const defined = members.map((m) => m.score).filter((p): p is number => p !== null);
   const avg = average(defined);
   if (avg === null) {
@@ -616,11 +642,12 @@ async function scoreMarketingTeam(team: TeamMember[], cache: ScoringDataCache): 
   // Work in flight — not scored (no outcome yet), but shown so the card
   // doesn't look like Marketing has nothing on its plate.
   const finished = new Set(['completed', 'cancelled', 'rejected']);
-  const inProgress = all.filter((r) => !finished.has(r.status) && (teamIds.has(r.assigned_to_id || '') || mineOfTeam(r))).length;
+  const inProgressReqs = all.filter((r) => !finished.has(r.status) && (teamIds.has(r.assigned_to_id || '') || mineOfTeam(r)));
+  const inProgress = inProgressReqs.length;
 
   const breakdown: BreakdownRow[] = [
     { label: 'Delivered on time', value: `${totalOnTime} / ${totalOnTime + totalLate + totalOverdueOpen}` },
-    { label: 'In progress', value: String(inProgress), showOnCard: true }
+    { label: 'In progress', value: String(inProgress), showOnCard: true, items: inProgressReqs.map((r) => ({ id: r.id, label: r.title, sublabel: r.assigned_to_name || r.status, href: '/marketing-requests' })) }
   ];
   return finalize(members, breakdown, MARKETING_FORMULA);
 }

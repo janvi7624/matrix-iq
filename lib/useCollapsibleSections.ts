@@ -39,6 +39,18 @@ export function sectionDefaultExpanded(
   return Boolean(options.defaultExpanded) || label === options.initiallyExpandedLabel;
 }
 
+// Set after the first mount: later mounts (client-side navigation) can read
+// the saved state synchronously, so sections don't flash closed-then-open.
+let mountedOnce = false;
+function readSaved(): Record<string, boolean> {
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function useCollapsibleSections(
   initiallyExpandedLabel?: string | null,
   options?: { accordion?: boolean; allLabels?: string[]; defaultExpanded?: boolean }
@@ -54,11 +66,12 @@ export function useCollapsibleSections(
   // for them would be a guess; a partner's whole nav is 7 items across 4
   // sections, which fits on screen at once, so there is nothing to tame.
   const defaultExpanded = options?.defaultExpanded ?? false;
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => (mountedOnce ? readSaved() : {}));
 
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);
+      mountedOnce = true;
       if (saved) setExpanded(JSON.parse(saved));
     } catch {
       // ignore malformed storage

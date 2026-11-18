@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -48,14 +48,37 @@ const ROLE_LABEL: Record<UserRole, string> = {
 // gets. Nothing is chosen until the person picks.
 const DEFAULT_MAX_QUICK_ACTIONS = 6;
 
+// Every page renders its own AppShell, so the Sidebar unmounts and remounts on
+// each navigation. Without this it started empty (skeleton), re-fetched, and
+// jumped back to the top — the whole menu visibly "reloaded" on every click.
+// This in-memory cache survives client-side navigation, so the next mount
+// paints the last known menu, badges and scroll position instantly and only
+// refreshes the data quietly in the background.
+const sidebarCache: {
+  modules: ModuleConfigRecord[] | null;
+  viewer: Viewer | null;
+  badges: Record<string, number>;
+  quickKeys: string[] | null;
+  quickMax: number;
+  scrollTop: number;
+} = { modules: null, viewer: null, badges: {}, quickKeys: null, quickMax: DEFAULT_MAX_QUICK_ACTIONS, scrollTop: 0 };
+
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const [modules, setModules] = useState<ModuleConfigRecord[] | null>(null);
-  const [viewer, setViewer] = useState<Viewer | null>(null);
-  const [badges, setBadges] = useState<Record<string, number>>({});
+  const [modules, setModules] = useState<ModuleConfigRecord[] | null>(() => sidebarCache.modules);
+  const [viewer, setViewer] = useState<Viewer | null>(() => sidebarCache.viewer);
+  const [badges, setBadges] = useState<Record<string, number>>(() => sidebarCache.badges);
   const [open, setOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      // Only after the first page load (cache filled) — the first render must
+      // match the server HTML.
+      return !!sidebarCache.modules && window.localStorage.getItem('sidebar-collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [navHasMoreBelow, setNavHasMoreBelow] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
@@ -71,8 +94,8 @@ export default function Sidebar() {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const [quickKeys, setQuickKeys] = useState<string[]>([]);
-  const [quickMax, setQuickMax] = useState(DEFAULT_MAX_QUICK_ACTIONS);
+  const [quickKeys, setQuickKeys] = useState<string[]>(() => sidebarCache.quickKeys ?? []);
+  const [quickMax, setQuickMax] = useState(() => sidebarCache.quickMax);
   const [editingQuick, setEditingQuick] = useState(false);
   const [quickDraft, setQuickDraft] = useState<string[]>([]);
   const [quickSaving, setQuickSaving] = useState(false);
@@ -84,8 +107,13 @@ export default function Sidebar() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
-        setQuickKeys(Array.isArray(data.keys) ? data.keys : []);
-        if (typeof data.max === 'number') setQuickMax(data.max);
+        const keys = Array.isArray(data.keys) ? data.keys : [];
+        sidebarCache.quickKeys = keys;
+        setQuickKeys(keys);
+        if (typeof data.max === 'number') {
+          sidebarCache.quickMax = data.max;
+          setQuickMax(data.max);
+        }
       })
       .catch(() => {});
     return () => {
@@ -140,9 +168,12 @@ export default function Sidebar() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
-        setModules(data.modules ?? []);
-        setViewer(data.viewer ?? null);
-        setBadges(data.badges ?? {});
+        sidebarCache.modules = data.modules ?? [];
+        sidebarCache.viewer = data.viewer ?? null;
+        sidebarCache.badges = data.badges ?? {};
+        setModules(sidebarCache.modules);
+        setViewer(sidebarCache.viewer);
+        setBadges(sidebarCache.badges);
       })
       .catch(() => {
         if (!cancelled) setModules((prev) => prev ?? []);
@@ -253,8 +284,15 @@ export default function Sidebar() {
   const updateNavFade = useCallback(() => {
     const el = navRef.current;
     if (!el) return;
+    sidebarCache.scrollTop = el.scrollTop;
     setNavHasMoreBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
   }, []);
+
+  // Put the menu back where it was scrolled to on the previous page.
+  useLayoutEffect(() => {
+    const el = navRef.current;
+    if (el && sidebarCache.scrollTop) el.scrollTop = sidebarCache.scrollTop;
+  }, [modules]);
 
   useEffect(() => {
     updateNavFade();

@@ -3,9 +3,9 @@
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, Clock, Mail, Phone, Sparkles } from 'lucide-react';
-import { BRAND } from '@/lib/branding';
 import { INTEREST_OPTIONS, SITE, TEAM_SIZE_OPTIONS } from '@/lib/landingContent';
 import { SiteFooter } from './LandingPage';
+import SiteHeader from './SiteHeader';
 import base from './landing.module.css';
 import styles from './requestDemo.module.css';
 
@@ -80,16 +80,7 @@ export default function RequestDemoPage() {
 
   return (
     <div className={base.page}>
-      <header className={`${base.header} ${base.headerScrolled}`}>
-        <Link href="/" className={base.brand} aria-label={`${BRAND.appName} home`}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={BRAND.iconMark} alt="" width={30} height={30} />
-          <span>Matrix<b>IQ</b></span>
-        </Link>
-        <div className={base.headerCtas} style={{ marginLeft: 'auto' }}>
-          <Link href="/login" className={base.ghostBtn}>Login</Link>
-        </div>
-      </header>
+      <SiteHeader current="request-demo" />
 
       <main className={styles.main}>
         <div className={base.glowA} aria-hidden />
