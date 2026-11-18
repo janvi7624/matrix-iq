@@ -1,0 +1,91 @@
+/* Corporate skin for the New Quotation builder only. Layered on top of the
+   shared calculator / quotationHistory classes (used by ~150 other files),
+   so this page changes without touching any other screen. */
+
+/* ---------- stepper: connected horizontal progress ---------- */
+.steps {
+  position: relative;
+  display: flex;
+  gap: 0;
+  margin: 4px 0 22px;
+  padding: 14px 18px;
+  border: 1px solid var(--mx-border, #e5e7eb);
+  border-radius: 12px;
+  background: var(--mx-surface, #fff);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+.step {
+  position: relative;
+  flex: 1;
+  min-width: 120px;
+  flex-direction: row !important;
+  justify-content: flex-start;
+  gap: 10px !important;
+  padding: 4px 8px !important;
+  text-align: left !important;
+}
+.step:not(:last-child) {
+  border-right: 1px solid var(--mx-border, #e5e7eb) !important;
+  border-radius: 0 !important;
+}
+.stepCircle {
+  width: 30px !important;
+  height: 30px !important;
+  font-size: 13px !important;
+  font-weight: 800;
+  border-width: 1.5px !important;
+  flex: none;
+}
+.stepLabel {
+  font-size: 12.5px !important;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* ---------- main card ---------- */
+.card {
+  background: var(--mx-surface, #fff) !important;
+  border: 1px solid var(--mx-border, #e5e7eb);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+  border-radius: 14px !important;
+  padding: 20px 24px !important;
+}
+.cardTitle {
+  margin: 0 0 4px !important;
+  font-size: 1.15rem !important;
+  letter-spacing: -0.01em;
+}
+.cardTitle svg {
+  color: var(--mx-brand, #dc2626);
+}
+.cardHint {
+  margin: 0 -24px 20px !important;
+  padding: 0 24px 16px;
+  border-bottom: 1px solid var(--mx-border, #e5e7eb);
+  font-size: 13px !important;
+}
+/* ---------- inner panels ---------- */
+.panel {
+  background: var(--mx-surface, #fff) !important;
+  border: 1px solid var(--mx-border, #e5e7eb);
+  box-shadow: none !important;
+  border-radius: 12px !important;
+  margin-bottom: 18px;
+}
+
+/* ---------- form controls: bordered, not recessed ---------- */
+.root :is(input, select, textarea):not([type='checkbox']):not([type='radio']):not([type='file']) {
+  border: 1px solid var(--mx-border-strong, #d1d5db) !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
+  background: var(--mx-surface, #fff);
+}
+.root :is(input, select, textarea):focus {
+  border-color: var(--mx-brand, #dc2626) !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
+  outline: none;
+}
+.root label {
+  letter-spacing: 0.01em;
+}

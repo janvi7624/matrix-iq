@@ -3,6 +3,7 @@ import { getSessionFromRequest } from '@/lib/auth';
 import { findUserById } from '@/lib/userStore';
 import { addProductManagerNote, getProductManagerRollup, isProductManager, listMyProducts, listProductManagerNotes } from '@/lib/productManagerStore';
 import { apiErrorResponse } from '@/lib/apiError';
+import { managesMatrixIqProduct } from '@/lib/staffFeedbackReport';
 
 // Every logged-in user's own Product Manager view: the products THEY
 // created, the Pending/Won/Lost rollup those products have earned across
@@ -19,12 +20,13 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!(await isProductManager(user.id))) return NextResponse.json({ error: 'Forbidden — My Products is only for Product Managers' }, { status: 403 });
 
-    const [rollup, products, notes] = await Promise.all([
+    const [rollup, products, notes, managesMatrixIq] = await Promise.all([
       getProductManagerRollup(user.id),
       listMyProducts(user.id),
-      listProductManagerNotes(user.id)
+      listProductManagerNotes(user.id),
+      managesMatrixIqProduct(user.id)
     ]);
-    return NextResponse.json({ rollup, products, notes });
+    return NextResponse.json({ rollup, products, notes, managesMatrixIq });
   } catch (error) {
     return apiErrorResponse(error);
   }

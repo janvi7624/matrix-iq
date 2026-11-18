@@ -1,7 +1,8 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Package, Send, User } from 'lucide-react';
+import { Bot, Building2, Cable, Camera, FileSignature, Layers, Monitor, Package, PanelTop, Presentation, ScanFace, Send, Sparkles, SquarePen, Tv, User } from 'lucide-react';
+import ChoiceCards, { ChoiceOption, StepLabel } from './ui/ChoiceCards';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { composeQuote } from '@/lib/calculations';
@@ -38,6 +39,7 @@ import QuotationProposalForm from './QuotationProposalForm';
 import { EMPTY_PROPOSAL, ProposalDetails } from '@/lib/quotationProposal';
 import styles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
+import pro from './quotePro.module.css';
 import { fetchCached, OPTIONS_TTL_MS, invalidateProjectCaches } from '@/lib/fetchCached';
 
 const DEFAULT_COST_INPUTS: CostInputs = { installationCost: 0, fabricationCost: 0, scaffoldingCost: 0, markupPercent: 0 };
@@ -694,8 +696,29 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
   const isAv = domain === 'av';
   const showScaffolding = isAv && (avProjectType === 'standee' || avProjectType === 'led');
 
+  const MODE_OPTIONS: ChoiceOption<'standard' | 'custom' | 'proposal'>[] = [
+    { value: 'standard', label: 'Standard products', hint: 'From our catalogue', icon: Package },
+    { value: 'custom', label: 'Custom items', hint: 'Type your own items & prices', icon: SquarePen },
+    { value: 'proposal', label: 'Tender proposal', hint: 'Bid terms + attach document', icon: FileSignature }
+  ];
+  const DOMAIN_OPTIONS: ChoiceOption<DomainKey>[] = [
+    { value: 'av', label: 'AV', hint: 'Displays, LED, panels, cameras, cables', icon: Tv },
+    { value: 'robotics', label: 'Robotics', hint: 'Service & delivery robots', icon: Bot },
+    { value: 'ai', label: 'AI Video Analytics', hint: 'Video management system', icon: Sparkles },
+    { value: 'si', label: 'System Integration', hint: 'Integration projects', icon: Layers },
+    { value: 'visitiq', label: 'VisitIQ', hint: 'Visitor management system', icon: ScanFace }
+  ];
+  const AV_TYPE_OPTIONS: ChoiceOption<AvProjectType>[] = [
+    { value: 'av-solution', label: 'AV Solution', hint: 'Suggest by room size', icon: Building2 },
+    { value: 'standee', label: 'Standee', icon: PanelTop },
+    { value: 'led', label: 'Active LED', icon: Monitor },
+    { value: 'interactive-panel', label: 'Interactive Flat Panel', icon: Presentation },
+    { value: 'conference', label: 'Cameras & Microphones', hint: 'Conferencing', icon: Camera },
+    { value: 'cables', label: 'AV Cables', icon: Cable }
+  ];
+
   const content = (
-    <>
+    <div className={pro.root}>
         <div className={styles.topBar}>
           <span className={`${styles.rolePill} ${ROLE_PILL_CLASS[currentUser.role] || styles.rolePillUser}`}>{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
           {isPrivileged && (
@@ -705,7 +728,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
           )}
         </div>
         {revisingFrom && (
-          <div className={`${styles.sectionPanel} ${styles.revisionBanner}`}>
+          <div className={`${styles.sectionPanel} ${pro.panel} ${styles.revisionBanner}`}>
             <div className={styles.revisionBannerTitle}>
               Revising {revisingFrom.quotationNumber} — the original stays unchanged. Reconfigure the products below, then save to create a new version.
             </div>
@@ -723,16 +746,16 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
           </div>
         )}
 
-        <div className={historyStyles.wizardSteps}>
+        <div className={`${historyStyles.wizardSteps} ${pro.steps}`}>
           {WIZARD_STEPS.map((s, i) => (
             <button
               key={s.label}
               type="button"
-              className={`${historyStyles.wizardStep} ${i === wizardStep ? historyStyles.wizardStepActive : ''} ${i < wizardStep ? historyStyles.wizardStepDone : ''}`}
+              className={`${historyStyles.wizardStep} ${pro.step} ${i === wizardStep ? historyStyles.wizardStepActive : ''} ${i < wizardStep ? historyStyles.wizardStepDone : ''}`}
               onClick={() => i < wizardStep && setWizardStep(i)}
             >
-              <span className={historyStyles.wizardStepCircle}>{i < wizardStep ? '✓' : s.icon}</span>
-              <span className={historyStyles.wizardStepLabel}>{i + 1}. {s.label}</span>
+              <span className={`${historyStyles.wizardStepCircle} ${pro.stepCircle}`}>{i < wizardStep ? '✓' : s.icon}</span>
+              <span className={`${historyStyles.wizardStepLabel} ${pro.stepLabel}`}>{i + 1}. {s.label}</span>
             </button>
           ))}
         </div>
@@ -740,9 +763,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
         {stepError && <div className={historyStyles.loginError}>{stepError}</div>}
 
         {wizardStep === 0 && (
-          <div className={historyStyles.wizardCard}>
-            <h2 className={historyStyles.wizardCardTitle}><Package size={22} /> Build the Quote</h2>
-            <div className={historyStyles.wizardCardHint}>
+          <div className={`${historyStyles.wizardCard} ${pro.card}`}>
+            <h2 className={`${historyStyles.wizardCardTitle} ${pro.cardTitle}`}><Package size={22} /> Build the Quote</h2>
+            <div className={`${historyStyles.wizardCardHint} ${pro.cardHint}`}>
               {quotationMode === 'proposal'
                 ? 'Record the commercial terms of a bid and attach the prepared document — no priced line items needed.'
                 : quotationMode === 'custom'
@@ -750,47 +773,20 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                 : 'Pick a product, configure it below, then add it to the quote. Repeat to add more products to the same quote.'}
             </div>
 
-            <div className={`${styles.field} ${styles.fieldTight}`}>
-              <label className={styles.label}>Create New Quotation</label>
-              {/* Same segmented-pill toggle as Lead Capture / Inquiry's
-                  Capture/Import/List switcher (historyStyles.modeToggle) —
-                  reused here instead of raw radio inputs so this reads as
-                  the same "pick a mode" control everywhere in the app. */}
-              <div className={historyStyles.modeToggle} role="radiogroup" aria-label="Quotation type">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={quotationMode === 'standard'}
-                  className={`${historyStyles.modeToggleBtn} ${quotationMode === 'standard' ? historyStyles.modeToggleBtnActive : ''}`}
-                  onClick={() => setQuotationMode('standard')}
-                >
-                  Standard Product Quotation
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={quotationMode === 'custom'}
-                  className={`${historyStyles.modeToggleBtn} ${quotationMode === 'custom' ? historyStyles.modeToggleBtnActive : ''}`}
-                  onClick={() => setQuotationMode('custom')}
-                >
-                  Custom Product Quotation
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={quotationMode === 'proposal'}
-                  className={`${historyStyles.modeToggleBtn} ${quotationMode === 'proposal' ? historyStyles.modeToggleBtnActive : ''}`}
-                  onClick={() => setQuotationMode('proposal')}
-                >
-                  Project / Tender Proposal
-                </button>
-              </div>
-            </div>
+            <ChoiceCards
+              step={1}
+              title="What kind of quotation?"
+              subtitle="Not sure? Choose Standard products."
+              options={MODE_OPTIONS}
+              value={quotationMode}
+              onChange={(m) => setQuotationMode(m)}
+            />
 
             {/* Shared by every mode: which project (if any) this quotation is
                 for. A Proposal reads its project via ProjectSelect too — the
                 form pre-fills from it and writes missing details back. */}
-            <div className={styles.sectionPanel}>
+            <div className={`${styles.sectionPanel} ${pro.panel}`}>
+              <StepLabel step={2} done={!!projectId} title="Which project is this for? (optional)" subtitle="Pick a project to fill the client details automatically. Skip it if there is none." />
               <div className={`${styles.row} ${styles.columns}`}>
                 <div className={styles.field}>
                   <label className={styles.label} htmlFor="projectSelect">Project</label>
@@ -830,7 +826,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
               />
             ) : (
               <>
-              <div className={styles.sectionPanel}>
+              <div className={`${styles.sectionPanel} ${pro.panel}`}>
               {quotationMode === 'custom' ? (
                 <details>
                   <summary className={styles.summaryToggle}>
@@ -869,18 +865,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                   </div>
                 </details>
               ) : (
+                <>
+                <ChoiceCards step={3} title="What are you quoting?" subtitle="Tap the product category." options={DOMAIN_OPTIONS} value={domain} onChange={(d) => handleDomainChange(d)} compact />
                 <div className={`${styles.row} ${styles.columns}`}>
-                  <div className={styles.field}>
-                    <label className={styles.label} htmlFor="domainSelect">What are you quoting?</label>
-                    <select id="domainSelect" className={styles.formControl} value={domain} onChange={(e) => handleDomainChange(e.target.value as DomainKey | '')}>
-                      <option value="">-- Choose a product category --</option>
-                      <option value="av">AV</option>
-                      <option value="robotics">Robotics</option>
-                      <option value="ai">AI Video Analytics (Video Management System)</option>
-                      <option value="si">System Integration</option>
-                      <option value="visitiq">VisitIQ VMS (Visitor Management System)</option>
-                    </select>
-                  </div>
                   <div className={styles.field}>
                     <label className={styles.label} htmlFor="projectVertical">Client&apos;s industry (optional)</label>
                     <select
@@ -900,38 +887,26 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
                     </select>
                   </div>
                 </div>
+                </>
               )}
             </div>
 
             {isAv && (
-              <div className={styles.row}>
-                <div className={styles.field}>
-                  <label className={styles.label} htmlFor="projectType">Product type</label>
-                  <select id="projectType" className={styles.formControl} value={avProjectType} onChange={(e) => setAvProjectType(e.target.value as AvProjectType | '')}>
-                    <option value="">-- Select product type --</option>
-                    <option value="av-solution">AV Solution (suggest by room size)</option>
-                    <option value="standee">Standee</option>
-                    <option value="led">Active LED</option>
-                    <option value="interactive-panel">Interactive Flat Panel</option>
-                    <option value="conference">Conferencing Cameras &amp; Microphones</option>
-                    <option value="cables">AV Cables</option>
-                  </select>
-                </div>
-              </div>
+              <ChoiceCards step={4} title="Which AV product?" subtitle="Tap one — its settings open just below." options={AV_TYPE_OPTIONS} value={avProjectType} onChange={(t) => setAvProjectType(t)} compact />
             )}
 
             {((!domain) || (isAv && !avProjectType)) && (
-              <div className={styles.sectionPanel}>
+              <div className={`${styles.sectionPanel} ${pro.panel}`}>
                 <div className={styles.small}>
                   {!domain
-                    ? 'Choose a product category above to start configuring a product for this quote.'
-                    : 'Select a product type above to start configuring this product.'}
+                    ? '👆 Tap a product category above to start.'
+                    : '👆 Tap the AV product you want to quote.'}
                 </div>
               </div>
             )}
 
             {isAv && avProjectType === 'av-solution' && (
-              <div className={styles.sectionPanel}>
+              <div className={`${styles.sectionPanel} ${pro.panel}`}>
                 <h2 className={styles.h2}>AV Solution</h2>
                 <div className={`${styles.row} ${styles.columns}`}>
                   <div className={styles.field}>
@@ -979,7 +954,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
             <VisitIqEstimator key={`visitiq-${resetKey}`} active={domain === 'visitiq'} onResultChange={setActiveResult} overrides={overrides} />
 
             <h2 className={styles.h2}>Cost &amp; Add to Quote</h2>
-            <div className={styles.sectionPanel}>
+            <div className={`${styles.sectionPanel} ${pro.panel}`}>
               <CostInputsSection
                 costInputs={costInputs}
                 onChange={(patch) => setCostInputs((c) => ({ ...c, ...patch }))}
@@ -1024,9 +999,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
         )}
 
         {wizardStep === 1 && (
-          <div className={historyStyles.wizardCard}>
-            <h2 className={historyStyles.wizardCardTitle}><User size={22} /> Client Details</h2>
-            <div className={historyStyles.wizardCardHint}>Who is this quotation for?</div>
+          <div className={`${historyStyles.wizardCard} ${pro.card}`}>
+            <h2 className={`${historyStyles.wizardCardTitle} ${pro.cardTitle}`}><User size={22} /> Client Details</h2>
+            <div className={`${historyStyles.wizardCardHint} ${pro.cardHint}`}>Who is this quotation for?</div>
             <QuotationDetailsForm
               details={details}
               onChange={(patch) => setDetails((d) => ({ ...d, ...patch }))}
@@ -1037,9 +1012,9 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
         )}
 
         {wizardStep === 2 && (
-          <div className={historyStyles.wizardCard}>
-            <h2 className={historyStyles.wizardCardTitle}><Send size={22} /> Review &amp; Send</h2>
-            <div className={historyStyles.wizardCardHint}>
+          <div className={`${historyStyles.wizardCard} ${pro.card}`}>
+            <h2 className={`${historyStyles.wizardCardTitle} ${pro.cardTitle}`}><Send size={22} /> Review &amp; Send</h2>
+            <div className={`${historyStyles.wizardCardHint} ${pro.cardHint}`}>
               {quotationMode === 'proposal'
                 ? 'A Proposal has no priced line items — its own uploaded document is the deliverable. Check the details below, then log it.'
                 : 'Check the total below, then save and download the client-ready PDF.'}
@@ -1047,7 +1022,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
 
             <div ref={summaryRef}>
               {quotationMode === 'proposal' ? (
-                <div className={styles.sectionPanel}>
+                <div className={`${styles.sectionPanel} ${pro.panel}`}>
                   <div className={styles.small}>Kind</div>
                   <div>{proposalValue.kind === 'tender' ? 'Tender Proposal' : proposalValue.kind === 'project' ? 'Project Proposal' : '—'}</div>
                   <div className={styles.small} style={{ marginTop: 8 }}>Client</div>
@@ -1123,7 +1098,7 @@ function QuotationCalculatorContent({ currentUser, canEditPricing, isPrivileged,
             </button>
           )}
         </div>
-    </>
+    </div>
   );
 
   if (embedded) return content;

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getViewerContext } from '@/lib/viewerContext';
-import { listAllFeedback } from '@/lib/feedbackStore';
-import { isFeedbackWindowOpen, feedbackWindowLastDayLabel, feedbackDaysRemaining } from '@/lib/feedbackWindow';
-import { listUsers } from '@/lib/userStore';
-import { listPartnerUserIds } from '@/lib/partnerUserStore';
+import { buildStaffFeedbackReport } from '@/lib/staffFeedbackReport';
 import { apiErrorResponse } from '@/lib/apiError';
 import { FEEDBACK_ADMIN_ROLES } from '@/lib/feedbackWindow';
 
-// Every staff feedback response — ADMIN ONLY, as asked.
+// Every staff feedback response — admins here. The one other reader is the
+// MatrixIQ product's Product Manager, through /api/product-manager/matrixiq-feedback
+// (lib/staffFeedbackReport.ts) — that exception was asked for explicitly.
 //
 // Under /api/admin/* deliberately: that prefix is already blanket-gated on
 // session.isPrivileged in proxy.ts, so this inherits the same wall the rest
@@ -36,31 +35,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const responses = await listAllFeedback();
-
-    // "14 of 85 replied" is the number an admin actually wants while the
-    // drive is running — a count on its own says nothing about take-up.
-    // Partner-portal accounts are external to the company and were never
-    // asked, so they must not sit in the denominator. UserRecord carries no
-    // partnerId, so the set comes from partnerUserStore.
-    const [users, partnerIds] = await Promise.all([listUsers(), listPartnerUserIds()]);
-    const eligible = users.filter((u) => u.status === 'active' && !partnerIds.has(u.id));
-    const respondedUsernames = new Set(responses.map((r) => r.username));
-
-    return NextResponse.json({
-      open: isFeedbackWindowOpen(),
-      lastDay: feedbackWindowLastDayLabel(),
-      daysRemaining: feedbackDaysRemaining(),
-      total: responses.length,
-      eligible: eligible.length,
-      // Who has not answered yet, so a nudge can go to the right people
-      // rather than to everyone again.
-      pending: eligible
-        .filter((u) => !respondedUsernames.has(u.username))
-        .map((u) => ({ username: u.username, name: u.name, department: u.department }))
-        .sort((a, b) => (a.department || '').localeCompare(b.department || '') || a.name.localeCompare(b.name)),
-      responses
-    });
+    return NextResponse.json(await buildStaffFeedbackReport());
   } catch (error) {
     return apiErrorResponse(error);
   }
