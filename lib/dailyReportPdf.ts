@@ -457,7 +457,10 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
   // On leave + Before joining add up to exactly this, so a reader can check a
   // row by adding it across.
   const toFill = (rows: typeof sumRows) => rows.length * periodReportDays;
-  const owed = (rows: typeof sumRows) => Math.max(0, S('expected', rows) - S('leave_covered', rows));
+  // On-time % = On time ÷ (Reports filed + Missing) — exactly the columns a
+  // reader sees, so it can be checked by hand. Leave and pre-joining days are
+  // not owed, so they are not in it.
+  const onTimePct = (rows: typeof sumRows) => pct(S('submitted', rows) - S('submitted_late', rows), S('submitted', rows) + S('missing', rows));
 
   // ---- Cover ---------------------------------------------------------------
   wr.y = TOP + 6;
@@ -475,7 +478,7 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
     ['Employees', String(totalPeople)],
     ['Reports to fill', `${toFill(sumRows)} in total (${totalPeople} employees × ${periodReportDays} working days)`],
     ['Reports filed', `${totalFiled}${S('filed_on_off_day') ? ` (+${S('filed_on_off_day')} filed on a holiday/off day, not counted)` : ''}`],
-    ['On time', `${totalFiled - totalLate} (${pct(totalFiled - totalLate, owed(sumRows))} of owed days)`],
+    ['On time', `${totalFiled - totalLate} (${onTimePct(sumRows)} of reports filed + missing)`],
     ['Late', String(totalLate)],
     ['Missing', String(S('missing'))],
     ['On leave', `${S('leave_covered')}${S('leave_pending') ? ` (${S('leave_pending')} awaiting HR decision)` : ''}`],
@@ -513,7 +516,7 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
     const leaveCell = (rows: typeof summary) => (S('leave_covered', rows) ? `${S('leave_covered', rows)}${S('leave_pending', rows) ? '*' : ''}` : '');
     const line = (name: string, rows: typeof summary) => {
       const filed = S('submitted', rows), late = S('submitted_late', rows);
-      return [name, String(rows.length), String(toFill(rows)), filedCell(rows), String(filed - late), blank(late), blank(S('missing', rows)), leaveCell(rows), blank(S('before_joining', rows)), pct(filed - late, owed(rows))];
+      return [name, String(rows.length), String(toFill(rows)), filedCell(rows), String(filed - late), blank(late), blank(S('missing', rows)), leaveCell(rows), blank(S('before_joining', rows)), onTimePct(rows)];
     };
     const center = Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => [i, { halign: 'center' }]));
 
@@ -534,7 +537,7 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
     for (const c of [
       'How to read:  48 (+3) = 48 reports on working days + 3 extra reports filed on a holiday/Sunday (shown, but not counted in On-time %).',
       '5* = 5 leave days, some still waiting for HR approval.   Blank = 0.',
-      'Check any row:  Reports filed + Missing + On leave + Before joining = Reports to fill.   On-time % leaves out leave days.'
+      'Check any row:  Reports filed + Missing + On leave + Before joining = Reports to fill.   On-time % = On time ÷ (Reports filed + Missing).'
     ]) {
       wr.ensure(6);
       const lines = doc.splitTextToSize(c, wr.inner) as string[];
@@ -565,7 +568,7 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
     const notes = [
       `Reports to fill: how many reports each person had to file — working days already due (${periodReportDays}; holidays, Sundays and off-Saturdays excluded) for every employee.`,
       'Reports filed + Missing + On leave + Before joining = Reports to fill. Department rows are totals across their employees.',
-      'On time + Late = Reports filed. On-time % = on time ÷ owed days (report days minus leave minus days before joining).',
+      'On time + Late = Reports filed. On-time % = On time ÷ (Reports filed + Missing). Leave and days before joining are not counted against anyone.',
       '(+N) in Reports filed: reports also filed on a holiday/off day — shown in the pages below but not counted, as no report was owed that day.',
       '* in On leave: some of that leave is still awaiting HR approval; it is excused meanwhile and becomes Missing if HR rejects it.',
       'Warnings: active (not waived) warnings in the period. A late report keeps its warning — it missed the deadline — so Warnings can exceed Missing. (N Z) = raised because a report was filed with zero activity.'
@@ -594,12 +597,10 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
     // Same per-employee numbers as the summary tables (input.summary), so a
     // department page can't contradict the summary at the front.
     const deptSummary = sumRows.filter((r) => (r.department_name || 'Unassigned') === dept.name);
-    const dReq = deptSummary.reduce((n, r) => n + r.expected, 0);
-    const dLeave = deptSummary.reduce((n, r) => n + r.leave_covered, 0);
     const dFiled = deptSummary.length ? deptSummary.reduce((n, r) => n + r.submitted, 0) : all.length;
     const dLate = deptSummary.length ? deptSummary.reduce((n, r) => n + r.submitted_late, 0) : late;
     const dCount = deptSummary.length || dept.people.length;
-    doc.text(`${dCount} employee${dCount === 1 ? '' : 's'} · ${dCount * periodReportDays} reports to fill · ${dFiled} filed · ${pct(dFiled - dLate, Math.max(0, (dReq || dFiled) - dLeave))} on time`, wr.width - M - 4, wr.y + 1.5, { align: 'right' });
+    doc.text(`${dCount} employee${dCount === 1 ? '' : 's'} · ${dCount * periodReportDays} reports to fill · ${dFiled} filed · ${pct(dFiled - dLate, dFiled + deptSummary.reduce((n, r) => n + r.missing, 0))} on time`, wr.width - M - 4, wr.y + 1.5, { align: 'right' });
     wr.y += 12;
 
     wr.table({
@@ -608,7 +609,7 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
         r.employee_name, String(periodReportDays), `${r.submitted}${r.filed_on_off_day ? ` (+${r.filed_on_off_day})` : ''}`, String(r.submitted - r.submitted_late),
         r.submitted_late ? String(r.submitted_late) : '', r.missing ? String(r.missing) : '', r.leave_covered ? `${r.leave_covered}${r.leave_pending ? '*' : ''}` : '',
         r.before_joining ? String(r.before_joining) : '',
-        pct(r.submitted - r.submitted_late, Math.max(0, r.expected - r.leave_covered))
+        pct(r.submitted - r.submitted_late, r.submitted + r.missing)
       ]),
       columnStyles: Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((i) => [i, { halign: 'center' }]))
     }, 8);
