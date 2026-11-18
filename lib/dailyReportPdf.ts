@@ -484,6 +484,20 @@ export async function buildDailyReportPdf(input: DailyReportPdfInput): Promise<U
       columnStyles: center
     }, 7);
 
+    // Plain caption right under the table — the full notes sit at the very
+    // end of the report and nobody reading this table scrolls down to them.
+    wr.font('normal', 8, BODY);
+    for (const c of [
+      'How to read:  48 (+3) = 48 reports on working days + 3 extra reports filed on a holiday/Sunday (shown, but not counted in On-time %).',
+      '5* = 5 leave days, some still waiting for HR approval.   Blank = 0.'
+    ]) {
+      wr.ensure(6);
+      const lines = doc.splitTextToSize(c, wr.inner) as string[];
+      doc.text(lines, M, wr.y + 2);
+      wr.y += lines.length * 3.6 + 1;
+    }
+    wr.y += 2;
+
     wr.heading('Employee-wise Summary');
     wr.table({
       head: [['Department', 'Employee', 'Report days', 'Reports filed', 'On time', 'Late', 'Missing', 'On leave', 'Before joining', 'Warnings']],

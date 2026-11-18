@@ -804,7 +804,7 @@ export default function TeamDailyReportsView({
                 </tbody>
               </table>
               <p style={{ fontSize: 12, color: 'var(--mx-ink-muted)', margin: '8px 2px 0' }}>
-                Filed + Missing + On leave + Before joining = Report days. (+N) = also filed on a holiday/off day, not counted. * = leave awaiting HR approval.
+                Filed + Missing + On leave + Before joining = Report days. 48 (+3) = 48 reports on working days + 3 extra filed on a holiday/Sunday (shown, not counted in On-time %). * = leave awaiting HR approval.
                 A late report keeps its warning, so Warnings can be more than Missing.
               </p>
             </div>
