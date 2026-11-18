@@ -891,7 +891,25 @@ export async function canAccessProject(viewerUsername: string, project: { id: st
   if (project.assigned_technical_person_id && await canViewAsTmsManagerOfAssignee(viewerUsername, project.assigned_technical_person_id)) {
     return true;
   }
+  // Anyone put on a requirement of this project — the technical person or a
+  // team member of one of its demos — works on it, so they may open it.
+  // Without this the demo brief's "Open project" link 403'd for the very
+  // engineer assigned to that demo.
+  if (project.id && (await isOnProjectRequirement(viewerUsername, project.id))) return true;
   return false;
+}
+
+async function isOnProjectRequirement(viewerUsername: string, projectId: string): Promise<boolean> {
+  const viewer = await db.User.findOne({ where: { username: viewerUsername } as never, attributes: ['id', 'name'] });
+  if (!viewer) return false;
+  const rows = (await sequelize.query(
+    `SELECT 1 FROM demo_schedule
+     WHERE project_id = :projectId
+       AND (assigned_technical_person_id = :id OR technical_members @> to_jsonb(ARRAY[:name]::text[]))
+     LIMIT 1`,
+    { replacements: { projectId, id: viewer.get('id') as string, name: (viewer.get('name') as string) || '' }, type: QueryTypes.SELECT }
+  )) as unknown[];
+  return rows.length > 0;
 }
 
 async function canViewAsTmsManagerOfAssignee(viewerUsername: string, assignedPersonId: string): Promise<boolean> {

@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { ArrowRight, Check, Sparkles } from 'lucide-react';
-import { BRAND } from '@/lib/branding';
 import { GST_RATE, MODULE_GROUPS, PLANS, TRIAL_DAYS, formatInr, planIncludesModule, type Plan } from '@/lib/plans';
 import { SiteFooter } from './LandingPage';
+import SiteHeader from './SiteHeader';
 import base from './landing.module.css';
 import styles from './pricing.module.css';
 
@@ -81,20 +81,7 @@ export default function PricingPage() {
     <div className={base.page}>
       <a href="#main" className={base.skip}>Skip to content</a>
 
-      <header className={`${base.header} ${base.headerScrolled}`}>
-        <Link href="/" className={base.brand} aria-label={`${BRAND.appName} home`}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={BRAND.iconMark} alt="" width={30} height={30} />
-          <span>Matrix<b>IQ</b></span>
-        </Link>
-        <nav className={base.nav} aria-label="Main">
-          <Link href="/pricing" className={base.navActive} aria-current="page">Pricing</Link>
-        </nav>
-        <div className={base.headerCtas}>
-          <Link href="/login" className={base.ghostBtn}>Login</Link>
-          <Link href="/request-demo" className={base.primaryBtn}>Request a demo</Link>
-        </div>
-      </header>
+      <SiteHeader current="pricing" />
 
       <main id="main" tabIndex={-1}>
         <section className={styles.hero} aria-labelledby="pricing-title">

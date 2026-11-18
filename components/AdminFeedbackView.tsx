@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell from './AppShell';
 import { SkeletonRows } from './ui/Skeleton';
 import calcStyles from './calculator.module.css';
@@ -43,7 +43,12 @@ interface Payload {
 
 const avg = (nums: number[]) => (nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : null);
 
-export default function AdminFeedbackView() {
+// Embedded (My Products) renders inside the host page's own shell.
+function Shell({ embedded, children }: { embedded: boolean; children: ReactNode }) {
+  return embedded ? <>{children}</> : <AppShell title="Staff Feedback" subtitle="Administration › what the team said about MatrixIQ">{children}</AppShell>;
+}
+
+export default function AdminFeedbackView({ endpoint = '/api/admin/feedback', embedded = false }: { endpoint?: string; embedded?: boolean } = {}) {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
@@ -51,7 +56,7 @@ export default function AdminFeedbackView() {
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/feedback');
+      const response = await fetch(endpoint);
       if (!response.ok) {
         setError(response.status === 403 ? 'Feedback responses are visible to admins only.' : 'Could not load responses.');
         return;
@@ -60,7 +65,7 @@ export default function AdminFeedbackView() {
     } catch {
       setError('Could not reach the server.');
     }
-  }, []);
+  }, [endpoint]);
 
   useEffect(() => {
     // load() is async and every setState in it happens after an await, so
@@ -108,21 +113,21 @@ export default function AdminFeedbackView() {
 
   if (error) {
     return (
-      <AppShell title="Staff Feedback" subtitle="Administration › what the team said about MatrixIQ">
+      <Shell embedded={embedded}>
         <div className={historyStyles.status}>{error}</div>
-      </AppShell>
+      </Shell>
     );
   }
   if (!data) {
     return (
-      <AppShell title="Staff Feedback" subtitle="Administration › what the team said about MatrixIQ">
+      <Shell embedded={embedded}>
         <SkeletonRows rows={6} columns={3} />
-      </AppShell>
+      </Shell>
     );
   }
 
   return (
-    <AppShell title="Staff Feedback" subtitle="Administration › what the team said about MatrixIQ">
+    <Shell embedded={embedded}>
       <div className={calcStyles.sectionPanel}>
         <div className={styles.windowNote}>
           {data.open
@@ -243,7 +248,7 @@ export default function AdminFeedbackView() {
           </p>
         </div>
       )}
-    </AppShell>
+    </Shell>
   );
 }
 

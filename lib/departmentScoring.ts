@@ -157,8 +157,11 @@ export interface DrilldownItem { id: string; label: string; sublabel: string; hr
 export interface BreakdownRow {
   label: string;
   value: string;
-  // The actual records behind this metric — only populated on a MemberScore
-  // row (per-person), never on the department-wide `breakdown` aggregate.
+  /** Also print this row on the dashboard tile, under the headline metric. */
+  showOnCard?: boolean;
+  // The actual records behind this metric. Department-wide rows are filled in
+  // by finalize() from the members' matching rows, so the totals tiles click
+  // through too.
   // Lets the Person Performance Dashboard's "Pipeline contribution" tiles
   // click through to what they're counting, the same way its Tasks tiles
   // already do. Omitted (rather than []) when there's genuinely nothing
@@ -238,7 +241,32 @@ function pct(numerator: number, denominator: number): number | null {
   return denominator > 0 ? (numerator / denominator) * 100 : null;
 }
 
+// Department totals are named differently from the per-person rows they sum.
+const TOTAL_ROW_SOURCE: Record<string, string> = {
+  'TMS work on schedule': 'On schedule',
+  'Open with no end date': 'No end date set',
+  'In planning, no end date (not scored)': 'In planning (not scored)',
+  'Unpaid past due': 'Team backlog past due',
+  'Awaiting HR approval': 'Team awaiting HR approval'
+};
+
+function withTotalItems(members: MemberScore[], breakdown: BreakdownRow[]): BreakdownRow[] {
+  return breakdown.map((row) => {
+    if (row.items) return row;
+    const source = TOTAL_ROW_SOURCE[row.label] || row.label;
+    const seen = new Map<string, DrilldownItem>();
+    for (const m of members) {
+      for (const metric of m.metrics) {
+        if (metric.label !== source) continue;
+        for (const it of metric.items || []) if (!seen.has(it.id)) seen.set(it.id, it);
+      }
+    }
+    return seen.size ? { ...row, items: [...seen.values()] } : row;
+  });
+}
+
 function finalize(members: MemberScore[], breakdown: BreakdownRow[], formula: string): ScoreResult {
+  breakdown = withTotalItems(members, breakdown);
   const defined = members.map((m) => m.score).filter((p): p is number => p !== null);
   const avg = average(defined);
   if (avg === null) {
@@ -360,6 +388,8 @@ interface TechWorkItem {
   doneOn: string;
   done: boolean;
   cancelled: boolean;
+  /** Paused (project or task on hold): its deadline doesn't run, so it is never counted overdue. */
+  onHold?: boolean;
   /**
    * Created but never actually set up: a TMS project still in 'planning' with
    * no end date of any kind. Reported, but kept out of the score — see the
@@ -381,6 +411,8 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
     getTmsProcurements(cache)
   ]);
   const today = new Date().toISOString().slice(0, 10);
+
+  const heldProjectIds = new Set(tmsProjects.filter((p) => p.status === 'on_hold').map((p) => p.id));
 
   function itemsFor(memberId: string): TechWorkItem[] {
     const items: TechWorkItem[] = [];
@@ -405,13 +437,15 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
       // so real work cannot hide in planning, and a dated planning project
       // that blows its date still counts as overdue.
       const unplanned = p.status === 'planning' && !due;
-      items.push({ id: `tmsp:${p.id}`, label: `${p.project_code} — ${p.name}`, due, doneOn: dateOnly(p.actual_close_date), done: p.status === 'completed', cancelled: p.status === 'cancelled', unplanned, href: `/tms/projects/${p.id}` });
+      items.push({ id: `tmsp:${p.id}`, label: `${p.project_code} — ${p.name}`, due, doneOn: dateOnly(p.actual_close_date), done: p.status === 'completed', cancelled: p.status === 'cancelled', onHold: p.status === 'on_hold', unplanned, href: `/tms/projects/${p.id}` });
     }
 
     for (const t of tmsTasks) {
       if (t.assignee_id !== memberId) continue;
       const due = dateOnly(t.due_date);
-      items.push({ id: `tmst:${t.id}`, label: t.name, due, doneOn: dateOnly(t.completion_date), done: t.status === 'completed', cancelled: t.status === 'cancelled', href: `/tms/tasks/${t.id}` });
+      // A task is paused if it is on hold itself OR its project is.
+      const projectOnHold = heldProjectIds.has(t.project_id);
+      items.push({ id: `tmst:${t.id}`, label: t.name, due, doneOn: dateOnly(t.completion_date), done: t.status === 'completed', cancelled: t.status === 'cancelled', onHold: t.status === 'on_hold' || projectOnHold, href: `/tms/tasks/${t.id}` });
     }
 
     for (const b of bomRequests) {
@@ -460,6 +494,10 @@ async function scoreTechTeam(team: TeamMember[], cache: ScoringDataCache): Promi
         if (!i.doneOn) return;
         if (i.doneOn <= i.due) { onTime += 1; onTimeItems.push(i); }
         else { late += 1; lateItems.push(i); }
+      } else if (i.onHold) {
+        // Paused — not late (or undated) while on hold, and not part of the
+        // score until it is resumed.
+        return;
       } else if (!i.due) {
         // Still open with no committed end date. This used to be skipped,
         // which is why a department whose projects had no dates read N/A
@@ -563,8 +601,53 @@ async function scoreMarketingTeam(team: TeamMember[], cache: ScoringDataCache): 
     };
   });
 
+  // Requests whose assignee has since LEFT the team (inactive / removed /
+  // moved department) still belong to Marketing's track record — dropping them
+  // made the card read "1 / 1" when three had been delivered. They're scored
+  // as one "Former team members" row instead of vanishing.
+  const teamIds = new Set(team.map((m) => m.id));
+  const formerReqs = all.filter((r) => r.assigned_to_id && !teamIds.has(r.assigned_to_id) && !mineOfTeam(r));
+  function mineOfTeam(r: MarketingRequestRecord): boolean {
+    return team.some((m) => r.created_by === m.username);
+  }
+  const formerIds = [...new Set(formerReqs.map((r) => r.assigned_to_id))];
+  const formerUsers = formerIds.length
+    ? await db.User.findAll({ where: { id: formerIds } as never, attributes: ['id', 'department'], paranoid: false } as never)
+    : [];
+  const formerMarketingIds = new Set(formerUsers.filter((u) => String(u.get('department') || '') === 'Marketing').map((u) => u.get('id') as string));
+  const former = formerReqs.filter((r) => r.needed_by_date && formerMarketingIds.has(r.assigned_to_id || ''));
+  if (former.length) {
+    let fOnTime = 0, fLate = 0;
+    const fOnTimeReqs: MarketingRequestRecord[] = [], fLateReqs: MarketingRequestRecord[] = [];
+    former.forEach((r) => {
+      if (r.status !== 'completed') return;
+      if (r.updated_at.slice(0, 10) <= r.needed_by_date) { fOnTime += 1; fOnTimeReqs.push(r); } else { fLate += 1; fLateReqs.push(r); }
+    });
+    if (fOnTime + fLate) {
+      totalOnTime += fOnTime; totalLate += fLate;
+      const item = (r: MarketingRequestRecord): DrilldownItem => ({ id: r.id, label: r.title, sublabel: r.needed_by_date, href: '/marketing-requests' });
+      members.push({
+        id: 'former-marketing',
+        username: 'Former team members',
+        score: rounded(pct(fOnTime, fOnTime + fLate)),
+        metrics: [
+          { label: 'Delivered on time', value: `${fOnTime} / ${fOnTime + fLate}`, items: fOnTimeReqs.map(item) },
+          { label: 'Delivered late', value: String(fLate), items: fLateReqs.map(item) },
+          { label: 'Open past deadline', value: '0', items: [] }
+        ]
+      });
+    }
+  }
+
+  // Work in flight — not scored (no outcome yet), but shown so the card
+  // doesn't look like Marketing has nothing on its plate.
+  const finished = new Set(['completed', 'cancelled', 'rejected']);
+  const inProgressReqs = all.filter((r) => !finished.has(r.status) && (teamIds.has(r.assigned_to_id || '') || mineOfTeam(r)));
+  const inProgress = inProgressReqs.length;
+
   const breakdown: BreakdownRow[] = [
-    { label: 'Delivered on time', value: `${totalOnTime} / ${totalOnTime + totalLate + totalOverdueOpen}` }
+    { label: 'Delivered on time', value: `${totalOnTime} / ${totalOnTime + totalLate + totalOverdueOpen}` },
+    { label: 'In progress', value: String(inProgress), showOnCard: true, items: inProgressReqs.map((r) => ({ id: r.id, label: r.title, sublabel: r.assigned_to_name || r.status, href: '/marketing-requests' })) }
   ];
   return finalize(members, breakdown, MARKETING_FORMULA);
 }

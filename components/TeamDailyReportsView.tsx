@@ -436,8 +436,19 @@ export default function TeamDailyReportsView({
     const departmentLabel = departmentId ? rangeData.departments.find((d) => d.id === departmentId)?.name || 'Department' : 'All Departments';
     exportListToPdf(
       `Daily Report — ${departmentLabel} — ${rangeData.label}`,
-      ['Employee', 'Department', 'Expected', 'Submitted', 'Late', 'Missing', 'Leave', 'Compliance %'],
-      rangeData.rows.map((r) => [r.employee_name, r.department_name, r.expected, r.submitted, r.submitted_late, r.missing, r.leave_covered, `${r.compliance_percent}%`]),
+      ['Employee', 'Department', 'Report days', 'Filed', 'On time', 'Late', 'Missing', 'On leave', 'Before joining', 'Warnings', 'On-time %'],
+      rangeData.rows.map((r) => {
+        const owedDays = Math.max(0, r.expected - r.leave_covered);
+        const onTime = r.submitted - r.submitted_late;
+        const warnings = r.warnings_missed + r.warnings_zero_activity;
+        return [
+          r.employee_name, r.department_name, r.report_days,
+          `${r.submitted}${r.filed_on_off_day ? ` (+${r.filed_on_off_day})` : ''}`, onTime, r.submitted_late || '', r.missing || '',
+          r.leave_covered ? `${r.leave_covered}${r.leave_pending ? '*' : ''}` : '', r.before_joining || '',
+          warnings ? `${warnings}${r.warnings_zero_activity ? ` (${r.warnings_zero_activity} Z)` : ''}` : '',
+          owedDays ? `${Math.round((onTime / owedDays) * 100)}%` : '—'
+        ];
+      }),
       `daily-report-${departmentLabel.toLowerCase().replace(/\s+/g, '-')}-${rangeData.from}-to-${rangeData.to}.pdf`
     );
   }
@@ -728,11 +739,12 @@ export default function TeamDailyReportsView({
           {rangeData && (
             <>
               <div className={styles.kpiRow}>
-                <StatTile value={rangeData.totals.expected} label="Expected" />
-                <StatTile value={rangeData.totals.submitted} label="Submitted" tone="success" />
-                <StatTile value={rangeData.totals.submitted_late} label="Submitted late" tone="warning" />
+                <StatTile value={rangeData.totals.report_days} label="Report days (each)" />
+                <StatTile value={rangeData.totals.submitted} label="Filed" tone="success" />
+                <StatTile value={rangeData.totals.submitted_late} label="Late" tone="warning" />
                 <StatTile value={rangeData.totals.missing} label="Missing" tone="danger" />
-                <StatTile value={rangeData.totals.leave_covered} label="Leave covered" tone="info" />
+                <StatTile value={rangeData.totals.leave_covered} label="On leave" tone="info" />
+                <StatTile value={rangeData.totals.before_joining} label="Before joining" />
               </div>
               <p className={styles.sectionHint}>{rangeData.label} ({rangeData.from} to {rangeData.to}) — working days only.</p>
             </>
@@ -755,29 +767,46 @@ export default function TeamDailyReportsView({
                   <tr>
                     <th>Employee</th>
                     <th>Department</th>
-                    <th>Expected</th>
-                    <th>Submitted</th>
+                    <th title="Working days in the period that are already due — the same for everyone">Report days</th>
+                    <th>Filed</th>
+                    <th>On time</th>
                     <th>Late</th>
                     <th>Missing</th>
-                    <th>Leave</th>
-                    <th>Compliance</th>
+                    <th title="* = some leave still awaiting HR approval">On leave</th>
+                    <th title="Report days before this person's joining date">Before joining</th>
+                    <th title="Active (not waived) warnings. Z = filed with zero activity">Warnings</th>
+                    <th title="On time ÷ owed days (report days − leave − before joining)">On-time %</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rangeData.rows.map((row) => (
-                    <tr key={row.employee_id}>
-                      <td>{row.employee_name}</td>
-                      <td>{row.department_name}</td>
-                      <td>{row.expected}</td>
-                      <td>{row.submitted}</td>
-                      <td>{row.submitted_late}</td>
-                      <td>{row.missing}</td>
-                      <td>{row.leave_covered}</td>
-                      <td>{row.compliance_percent}%</td>
-                    </tr>
-                  ))}
+                  {rangeData.rows.map((row) => {
+                    const owedDays = Math.max(0, row.expected - row.leave_covered);
+                    const onTime = row.submitted - row.submitted_late;
+                    const warnings = row.warnings_missed + row.warnings_zero_activity;
+                    return (
+                      <tr key={row.employee_id}>
+                        <td>{row.employee_name}</td>
+                        <td>{row.department_name}</td>
+                        <td>{row.report_days}</td>
+                        <td title={row.filed_on_off_day ? `${row.filed_on_off_day} more filed on a holiday/off day (not counted)` : undefined}>
+                          {row.submitted}{row.filed_on_off_day ? ` (+${row.filed_on_off_day})` : ''}
+                        </td>
+                        <td>{onTime}</td>
+                        <td>{row.submitted_late || ''}</td>
+                        <td>{row.missing || ''}</td>
+                        <td>{row.leave_covered ? `${row.leave_covered}${row.leave_pending ? '*' : ''}` : ''}</td>
+                        <td>{row.before_joining || ''}</td>
+                        <td>{warnings ? `${warnings}${row.warnings_zero_activity ? ` (${row.warnings_zero_activity} Z)` : ''}` : ''}</td>
+                        <td>{owedDays ? `${Math.round((onTime / owedDays) * 100)}%` : '—'}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
+              <p style={{ fontSize: 12, color: 'var(--mx-ink-muted)', margin: '8px 2px 0' }}>
+                Filed + Missing + On leave + Before joining = Report days. 48 (+3) = 48 reports on working days + 3 extra filed on a holiday/Sunday (shown, not counted in On-time %). * = leave awaiting HR approval.
+                A late report keeps its warning, so Warnings can be more than Missing.
+              </p>
             </div>
           )}
         </>

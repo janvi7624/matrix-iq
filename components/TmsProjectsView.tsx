@@ -293,7 +293,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
       render: (p) => (
         <>
           <div className={historyStyles.progressTrack}>
-            <div className={historyStyles.progressFill} style={{ width: `${p.task_derived_progress ?? p.progress_percent}%` }} />
+            <div className={historyStyles.progressFill} style={{ width: `${p.progress_percent}%` }} />
           </div>
           {/* Prefers the task-derived figure exactly as the detail page does.
               This column used to show the manual percentage only, so the same
@@ -302,7 +302,7 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
               project with no tasks, which is the only case it is the best
               answer available. */}
           <div className={historyStyles.progressLabel}>
-            {p.task_derived_progress ?? p.progress_percent}%
+            {p.progress_percent}%
           </div>
         </>
       )
@@ -320,8 +320,10 @@ export default function TmsProjectsView({ currentUser }: TmsProjectsViewProps) {
     const date = todayIso();
     const active = projects.filter((p) => p.status !== 'completed' && p.status !== 'cancelled');
     const completed = projects.filter((p) => p.status === 'completed');
-    const nearDeadline = active.filter((p) => p.estimated_close_date && p.estimated_close_date >= date && p.estimated_close_date <= addDays(date, 7));
-    const delayed = active.filter((p) => p.estimated_close_date && p.estimated_close_date < date);
+    const nearDeadline = active.filter((p) => p.status !== 'on_hold' && p.estimated_close_date && p.estimated_close_date >= date && p.estimated_close_date <= addDays(date, 7));
+    // On hold means the clock is paused — a held project past its date is not
+    // 'delayed' (and isn't 'near deadline' either).
+    const delayed = active.filter((p) => p.status !== 'on_hold' && p.estimated_close_date && p.estimated_close_date < date);
     // Projects that exist but cannot actually be run yet: still in planning
     // with nobody owning them, or with no end date to be measured against.
     //

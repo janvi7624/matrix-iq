@@ -6,6 +6,7 @@ import styles from './HealthGauge.module.css';
 export interface HealthGaugeBreakdownRow {
   label: string;
   value: string;
+  showOnCard?: boolean;
 }
 
 export type HealthBand = 'red' | 'yellow' | 'green' | 'na';
@@ -102,6 +103,11 @@ export default function HealthGauge({ label, score, band, breakdown, managers = 
           BAND_TEXT[band]
         )}
       </div>
+      {breakdown.slice(1).filter((row) => row.showOnCard).map((row) => (
+        <div key={row.label} className={styles.headlineMetric}>
+          {row.label} <strong>{row.value}</strong>
+        </div>
+      ))}
 
       <span className={styles.openHint}>
         <Users size={12} /> Team detail <ChevronRight size={13} />

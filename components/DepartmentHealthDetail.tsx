@@ -67,6 +67,7 @@ export default function DepartmentHealthDetail({ department, onClose, myProjects
   const cardRef = useModalBehavior(onClose);
   const [data, setData] = useState<DepartmentHealthResponse | null>(null);
   const [error, setError] = useState('');
+  const [totalFilter, setTotalFilter] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   // Manager drill-down: which team member's full dashboard is open, by
   // username (null = none). Not used in the self-only view — that flow goes
@@ -170,13 +171,46 @@ export default function DepartmentHealthDetail({ department, onClose, myProjects
               <>
                 <h3 className={styles.sectionTitle}>Department totals</h3>
                 <div className={styles.totalsGrid}>
-                  {data.breakdown.map((row) => (
-                    <div key={row.label} className={styles.totalCard}>
-                      <div className={styles.totalValue}>{row.value}</div>
-                      <div className={styles.totalLabel}>{row.label}</div>
-                    </div>
-                  ))}
+                  {data.breakdown.map((row) =>
+                    row.items && row.items.length > 0 ? (
+                      <button
+                        key={row.label}
+                        type="button"
+                        className={`${styles.totalCard} ${styles.totalCardClickable} ${totalFilter === row.label ? styles.totalCardActive : ''}`}
+                        onClick={() => setTotalFilter((f) => (f === row.label ? null : row.label))}
+                      >
+                        <div className={styles.totalValue}>{row.value}</div>
+                        <div className={styles.totalLabel}>{row.label}</div>
+                      </button>
+                    ) : (
+                      <div key={row.label} className={styles.totalCard}>
+                        <div className={styles.totalValue}>{row.value}</div>
+                        <div className={styles.totalLabel}>{row.label}</div>
+                      </div>
+                    )
+                  )}
                 </div>
+                {totalFilter && (() => {
+                  const items = data.breakdown.find((r) => r.label === totalFilter)?.items || [];
+                  return items.length === 0 ? null : (
+                    <ul className={styles.memberList}>
+                      {items.map((item) => (
+                        <li key={item.id}>
+                          <Link href={item.href} className={styles.memberLink}>
+                            <div className={styles.member}>
+                              <div className={styles.memberBody}>
+                                <div className={styles.memberTop}>
+                                  <span className={styles.memberName}>{item.label}</span>
+                                  {item.sublabel && <span className={styles.memberDesignation}>{item.sublabel}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
               </>
             )}
 
@@ -248,7 +282,9 @@ export default function DepartmentHealthDetail({ department, onClose, myProjects
                   // Projects" section below instead).
                   return (
                     <li key={m.id}>
-                      {data.selfOnly ? (
+                      {/* "Former team members" is a summary row, not a person —
+                          there is no dashboard to open, so it isn't clickable. */}
+                      {data.selfOnly || m.id.startsWith('former-') ? (
                         row
                       ) : (
                         <button

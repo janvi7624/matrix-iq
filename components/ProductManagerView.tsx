@@ -2,6 +2,7 @@
 
 import { Fragment, FormEvent, useEffect, useState } from 'react';
 import AppShell from './AppShell';
+import AdminFeedbackView from './AdminFeedbackView';
 import { SkeletonRows } from './ui/Skeleton';
 import calcStyles from './calculator.module.css';
 import historyStyles from './quotationHistory.module.css';
@@ -11,6 +12,7 @@ interface MyData {
   rollup: ProductManagerRollup | null;
   products: ProductRecord[];
   notes: ProductManagerNoteRecord[];
+  managesMatrixIq?: boolean;
 }
 
 const NOTE_LABEL: Record<ProductManagerNoteType, string> = { feedback: 'Feedback received', action: 'Action taken', plan: 'Next plan' };
@@ -373,6 +375,14 @@ export default function ProductManagerView() {
           </tbody>
         </table>
       </div>
+
+      {data?.managesMatrixIq && (
+        <>
+          <h2 className={calcStyles.h2}>MatrixIQ staff feedback</h2>
+          <div className={historyStyles.status}>Every response from the staff feedback drive on MatrixIQ, with names — you see it as the MatrixIQ product's manager.</div>
+          <AdminFeedbackView endpoint="/api/product-manager/matrixiq-feedback" embedded />
+        </>
+      )}
     </>
   );
 

@@ -151,39 +151,50 @@ export default function VisitIqEstimator({ active, onResultChange, overrides }: 
       </div>
 
       <h3 className={`${styles.h2} ${styles.visitIqAddOnsHeading}`}>Add-ons</h3>
-      <div className={`${styles.row} ${styles.columns}`}>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="visitiqExtraRobots">Extra Temi robots ({formatMoney(1599)}/mo each)</label>
-          <input id="visitiqExtraRobots" className={styles.formControl} type="number" step={1} min={0} value={extraRobots} onFocus={selectAllOnFocus} onChange={(e) => setExtraRobots(Math.max(0, parseInt(e.target.value, 10) || 0))} />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="visitiqExtraKiosks">Extra kiosk screens ({formatMoney(699)}/mo each)</label>
-          <input id="visitiqExtraKiosks" className={styles.formControl} type="number" step={1} min={0} value={extraKiosks} onFocus={selectAllOnFocus} onChange={(e) => setExtraKiosks(Math.max(0, parseInt(e.target.value, 10) || 0))} />
-        </div>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="visitiqExtraEmployees">Extra employee blocks of 25 ({formatMoney(299)}/mo each)</label>
-          <input id="visitiqExtraEmployees" className={styles.formControl} type="number" step={1} min={0} value={extraEmployeeBlocks} onFocus={selectAllOnFocus} onChange={(e) => setExtraEmployeeBlocks(Math.max(0, parseInt(e.target.value, 10) || 0))} />
-        </div>
+      <div className={styles.addOnQtyGrid}>
+        {[
+          { id: 'visitiqExtraRobots', title: 'Extra Temi robots', unit: 1599, value: extraRobots, set: setExtraRobots },
+          { id: 'visitiqExtraKiosks', title: 'Extra kiosk screens', unit: 699, value: extraKiosks, set: setExtraKiosks },
+          { id: 'visitiqExtraEmployees', title: 'Extra employees (blocks of 25)', unit: 299, value: extraEmployeeBlocks, set: setExtraEmployeeBlocks }
+        ].map((q) => (
+          <div key={q.id} className={styles.addOnQtyCard}>
+            <div>
+              <label className={styles.addOnQtyTitle} htmlFor={q.id}>{q.title}</label>
+              <div className={styles.addOnQtyPrice}>{formatMoney(q.unit)}/mo each</div>
+            </div>
+            <div className={styles.addOnStepper}>
+              <button type="button" className={styles.addOnStepBtn} aria-label={`Fewer ${q.title.toLowerCase()}`} disabled={q.value <= 0} onClick={() => q.set(Math.max(0, q.value - 1))}>−</button>
+              <input id={q.id} className={styles.addOnStepInput} type="number" step={1} min={0} value={q.value} onFocus={selectAllOnFocus} onChange={(e) => q.set(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+              <button type="button" className={styles.addOnStepBtn} aria-label={`More ${q.title.toLowerCase()}`} onClick={() => q.set(q.value + 1)}>+</button>
+              {q.value > 0 && (
+                <span className={styles.addOnQtyTotal}>{formatMoney(q.unit * q.value * cycleMultiplier)}/{periodUnit.toLowerCase()}</span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className={styles.field}>
+      <div className={styles.addOnToggleGrid}>
         {effectiveAddOns
           .filter((a) => !['extraRobot', 'extraKiosk', 'extraEmployees25'].includes(a.key))
-          .map((addOn) => (
-            <label key={addOn.key} className={styles.aiFeatureItem}>
-              <input type="checkbox" className={styles.aiFeatureCheckbox} checked={Boolean(addOnFlags[addOn.key])} onChange={() => toggleAddOn(addOn.key)} />
-              <div className={styles.aiFeatureInfo}>
-                <div className={styles.aiFeatureName}>{addOn.label}</div>
-              </div>
-              <div className={styles.aiFeaturePrice}>
-                {addOn.monthlyPrice == null
-                  ? 'Depends on integration — quote separately'
-                  : addOn.oneTime
-                    ? `${formatMoney(addOn.monthlyPrice)} one-time`
-                    : `${formatMoney(addOn.monthlyPrice * cycleMultiplier)}/${periodUnit.toLowerCase()}`}
-              </div>
-            </label>
-          ))}
+          .map((addOn) => {
+            const on = Boolean(addOnFlags[addOn.key]);
+            return (
+              <label key={addOn.key} className={`${styles.addOnToggle} ${on ? styles.addOnToggleOn : ''}`}>
+                <input type="checkbox" className={styles.addOnToggleCheck} checked={on} onChange={() => toggleAddOn(addOn.key)} />
+                <span className={styles.addOnToggleName}>{addOn.label}</span>
+                {addOn.monthlyPrice == null ? (
+                  <span className={`${styles.addOnTogglePrice} ${styles.addOnToggleQuote}`}>Quoted separately, depends on the integration</span>
+                ) : (
+                  <span className={styles.addOnTogglePrice}>
+                    {addOn.oneTime
+                      ? `${formatMoney(addOn.monthlyPrice)} one-time`
+                      : `${formatMoney(addOn.monthlyPrice * cycleMultiplier)}/${periodUnit.toLowerCase()}`}
+                  </span>
+                )}
+              </label>
+            );
+          })}
       </div>
     </section>
   );

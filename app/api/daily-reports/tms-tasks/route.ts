@@ -46,8 +46,14 @@ export async function GET(request: NextRequest) {
     }
 
     const tasks = await tmsTaskStore.listForAssignee(employeeId);
+    // Open tasks, PLUS anything completed in the last 7 days. A task finished
+    // before the report is filed (typical: do the work, tick Mark Complete,
+    // then write the day's report) used to vanish from this picker, so the
+    // employee re-typed it as a new row — which creates a second, duplicate
+    // TMS task. A 7-day window still covers a report filed late.
+    const recentCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const open = tasks
-      .filter((t) => t.status !== 'completed' && t.status !== 'cancelled')
+      .filter((t) => t.status !== 'cancelled' && (t.status !== 'completed' || (!!t.completion_date && t.completion_date >= recentCutoff)))
       .map((t) => ({
         id: t.id,
         name: t.name,

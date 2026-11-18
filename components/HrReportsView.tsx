@@ -467,7 +467,8 @@ export default function HrReportsView() {
                     <tr className={styles.groupHead}>
                       <th className={styles.labelCell} />
                       <th colSpan={report.buckets.length}>
-                        {report.granularity === 'month' ? 'Month' : report.granularity === 'quarter' ? 'Quarter' : 'Year'}
+                        {/* Names what the period columns add up, not the period itself — the month/quarter/year labels below already say that. */}
+                        {report.sources.map((s) => SOURCE_LABEL[s]).join(' & ')}
                       </th>
                       {showSourceColumns && <th className={styles.blockStart} colSpan={report.sources.length}>By Expense Type</th>}
                       <th className={styles.blockStart} colSpan={2}>Overall</th>

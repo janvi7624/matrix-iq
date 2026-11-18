@@ -758,3 +758,98 @@
     align-items: center;
     justify-content: center;
 }
+
+/* ---------- VisitIQ add-ons ---------- */
+.addOnQtyGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.addOnQtyCard {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+}
+.addOnQtyTitle { font-weight: 600; color: var(--mx-ink); font-size: 14px; }
+.addOnQtyPrice { font-size: 12.5px; color: var(--mx-ink-muted); margin-top: 2px; }
+.addOnStepper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.addOnStepBtn {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border-strong);
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+.addOnStepBtn:hover:not(:disabled) { border-color: var(--mx-brand); color: var(--mx-brand); }
+.addOnStepBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.addOnStepInput {
+    width: 64px;
+    height: 34px;
+    text-align: center;
+    font-weight: 700;
+    border-radius: var(--mx-radius-sm);
+    border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
+    color: var(--mx-ink);
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.addOnStepInput::-webkit-inner-spin-button,
+.addOnStepInput::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.addOnQtyTotal { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--mx-brand); }
+
+.addOnToggleGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+}
+.addOnToggle {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 16px 14px 46px;
+    border-radius: var(--mx-radius-md);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    cursor: pointer;
+    transition: border-color var(--mx-duration-base, 0.15s) var(--mx-ease, ease), box-shadow var(--mx-duration-base, 0.15s) var(--mx-ease, ease);
+}
+.addOnToggle:hover { border-color: var(--mx-border-strong); box-shadow: var(--mx-shadow-xs); }
+.addOnToggleOn { border-color: var(--mx-brand); background: var(--mx-brand-subtle); }
+.addOnToggleOn:hover { border-color: var(--mx-brand); }
+.addOnToggleCheck {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--mx-brand);
+}
+.addOnToggleName { font-weight: 600; color: var(--mx-ink); font-size: 14px; }
+.addOnTogglePrice {
+    align-self: flex-start;
+    font-size: 12.5px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: var(--mx-radius-full, 999px);
+    background: var(--mx-surface-sunken);
+    color: var(--mx-ink);
+}
+.addOnToggleOn .addOnTogglePrice { background: var(--mx-surface); color: var(--mx-brand); }
+.addOnToggleQuote { font-weight: 600; color: var(--mx-ink-muted); background: transparent; padding: 0; }

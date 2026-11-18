@@ -3,6 +3,8 @@ import { dailyReportErrorResponse, guardDailyReport, isGuardFailure, readDatePar
 import { resolveDailyReportScope, resolveEmployeeAccess } from '@/lib/dailyReportAccess';
 import { listFiledReportsForExport } from '@/lib/dailyReportStore';
 import { buildDailyReportPdf } from '@/lib/dailyReportPdf';
+import { computeDailyReportRangeSummary } from '@/lib/dailyReportService';
+import { listActiveDepartments } from '@/lib/departmentStore';
 
 // GET /api/daily-reports/export-pdf?from=&to=[&employeeId=][&departmentId=][&mine=1]
 //
@@ -82,7 +84,21 @@ export async function GET(request: NextRequest) {
     const { reports, truncated, templates } = await listFiledReportsForExport({ from, to, ...filter, limit: MAX_REPORTS });
     if (employeeId && reports[0]) { title = `${reports[0].employee_name} — Daily Reports`; scopeLabel = `${reports[0].employee_name} (${reports[0].department_name})`; }
 
-    const pdf = await buildDailyReportPdf({ title, scopeLabel, from, to, generatedBy: viewer.name || viewer.username, reports, templates, truncated });
+    // The summary tables come from the SAME calculation as the Team Daily
+    // Reports screen (computeDailyReportRangeSummary): required working days,
+    // filed, late, missing, on leave — so the PDF and the screen can never
+    // show different numbers for the same people and period. Counting only
+    // filed reports (as this used to) is what made the two disagree.
+    const summaryDeptIds = filter.all
+      ? (await listActiveDepartments()).map((d) => d.id)
+      : filter.departmentIds ?? [];
+    const range = await computeDailyReportRangeSummary(summaryDeptIds, from, to, { extraUserIds: filter.employeeIds ?? [] });
+    const onlyEmployees = !filter.all && !(filter.departmentIds?.length) && filter.employeeIds?.length ? new Set(filter.employeeIds) : null;
+    const summaryRows = onlyEmployees ? range.rows.filter((r) => onlyEmployees.has(r.employee_id)) : range.rows;
+    const pdf = await buildDailyReportPdf({
+      title, scopeLabel, from, to, generatedBy: viewer.name || viewer.username, reports, templates, truncated,
+      summary: summaryRows
+    });
     const filename = `${slug(title)}-${from}-to-${to}.pdf`;
     return new NextResponse(Buffer.from(pdf), {
       status: 200,

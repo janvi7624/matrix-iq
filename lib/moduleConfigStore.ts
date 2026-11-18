@@ -314,6 +314,10 @@ const SEED_MODULES: Omit<ModuleConfigRecord, 'id'>[] = [
   // partners outside it. Same records, different question — "every partner
   // we have" versus "the partners I brought in".
   { key: PARTNER_WORKSPACE_MODULE_KEY, label: 'Partner', desc: 'Your partners — onboarding documents to approve, and everything they have submitted.', icon: 'handshake', href: '/partners', section: 'Sales', order: 11, enabled: true, isCustom: false, visibleToRoles: ['superadmin', 'admin'] },
+  // Vendor / partner company assessment with a VP/GM Sales -> Finance -> MD
+  // approval chain. Anyone may submit; who sees what is decided in
+  // lib/vendorAssessmentAccess.ts.
+  { key: 'vendor-assessment', label: 'Vendor Assessment', desc: 'Assess a new vendor or partner company — contacts, relation, agreements — and route it through VP/GM Sales, Finance and MD approval.', icon: 'building', href: '/vendor-assessment', section: 'Sales', order: 12, enabled: true, isCustom: false, visibleToRoles: ALL_ROLES },
   { key: 'support-tickets', label: 'Technical Support', desc: 'After-sales support tickets — triage, assignment, SLA tracking, and resolution.', icon: 'inbox', href: '/support', section: 'Support', order: 1, enabled: true, isCustom: false, visibleToRoles: [...PARTNER_INTERNAL_ROLES, 'technical-manager', 'team-lead', 'engineer', 'technician'] },
 
   // ---- Partner Portal: the PARTNER half (external-facing) ----
